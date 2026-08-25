@@ -39,7 +39,7 @@ function ptDir(ox, oy, d, a, b){
 var SOCLES = {};
 
 /* ---------------- Mitrailleuse ---------------- */
-SOCLES.mitrailleuse = function(c){
+SOCLES.crible = function(c){
   ombreContact(c, 0, 0, 2.2, 2.2, 0.24);
   /* plateforme béton octogonale sur deux niveaux */
   prisme(c, 0, 0, 1.02, 8, 0.3927, 0, 8,  "#9b978d", "#615e58");
@@ -100,8 +100,8 @@ SOCLES.mitrailleuse = function(c){
   }
 };
 
-/* ---------------- Lance-flammes ---------------- */
-SOCLES.flammes = function(c){
+/* ---------------- Lance-chalumeau ---------------- */
+SOCLES.chalumeau = function(c){
   ombreContact(c, 0, 0, 2.2, 2.2, 0.24);
   /* dalle avec bandes d'avertissement */
   bandesDanger(c, 0, 0, 1.9, 1.9, 0, 8);
@@ -154,8 +154,8 @@ SOCLES.flammes = function(c){
   salissures(c, -22, -9, 44, 16, 7, 991);
 };
 
-/* ---------------- Lance-roquettes ---------------- */
-SOCLES.roquettes = function(c){
+/* ---------------- Lance-frelon ---------------- */
+SOCLES.frelon = function(c){
   ombreContact(c, 0, 0, 3.0, 3.0, 0.25);
   /* quatre vérins hydrauliques */
   var coins = [[-0.95, -0.95], [0.95, -0.95], [0.95, 0.95], [-0.95, 0.95]];
@@ -194,7 +194,7 @@ SOCLES.roquettes = function(c){
 };
 
 /* ---------------- Mortier ---------------- */
-SOCLES.mortier = function(c){
+SOCLES.pilon = function(c){
   ombreContact(c, 0, 0, 3.0, 3.0, 0.25);
   /* dalle de béton */
   prisme(c, 0, 0, 1.35, 6, 0.5, 0, 9, "#a19d92", "#67645e");
@@ -239,7 +239,7 @@ SOCLES.mortier = function(c){
 };
 
 /* ---------------- Lance-électrobombes ---------------- */
-SOCLES.electro = function(c){
+SOCLES.bobine = function(c){
   ombreContact(c, 0, 0, 2.2, 2.2, 0.24);
   prisme(c, 0, 0, 0.98, 6, 0.2, 0, 8, "#8d8a82", "#5b5954");
   /* quatre isolateurs en céramique blanche à collerettes */
@@ -283,7 +283,7 @@ SOCLES.electro = function(c){
 };
 
 /* ---------------- Réservoir ---------------- */
-SOCLES.reservoir = function(c){
+SOCLES.cuve = function(c){
   ombreContact(c, 0, 0, 2.1, 2.1, 0.24);
   prisme(c, 0, 0, 0.9, 8, 0.3927, 0, 6, "#8d8a82", "#5b5954");
   cylindre(c, 0, 0, 0.62, 6, 30, "#b0873c", "#7d5f27");
@@ -312,7 +312,7 @@ SOCLES.reservoir = function(c){
 };
 
 /* ---------------- Entrepôt ---------------- */
-SOCLES.entrepot = function(c){
+SOCLES.silo = function(c){
   ombreContact(c, 0, 0, 3.0, 3.0, 0.25);
   var f = faces("#7c6a4e");
   boite(c, 0, 0, 2.0, 1.7, 0, 26, f.t, f.g, f.d);
@@ -359,7 +359,7 @@ function construitSpritesDefenses(){
    ================================================================ */
 var TOURELLES = {};
 
-TOURELLES.mitrailleuse = function(c, b, ang, tps){
+TOURELLES.crible = function(c, b, ang, tps){
   var d = vecteurEcran(ang);
   var o = { x:0, y:-22 };
   var rec = b.recul || 0;
@@ -405,7 +405,7 @@ TOURELLES.mitrailleuse = function(c, b, ang, tps){
   }
 };
 
-TOURELLES.flammes = function(c, b, ang, tps){
+TOURELLES.chalumeau = function(c, b, ang, tps){
   var d = vecteurEcran(ang);
   var o = { x:0, y:-18 };
   /* pivot */
@@ -420,10 +420,21 @@ TOURELLES.flammes = function(c, b, ang, tps){
   polyDir(c, o.x, o.y, d, [[-3, 3], [1, 3], [1, 6.5], [-3, 6.5]], "#2f2d2b");
   /* veilleuse toujours allumée au bout du bec */
   var v = ptDir(o.x, o.y, d, 19, -2.6);
-  flamme(c, v.x, v.y + 2, 6 + Math.sin(tps * 12) * 1.2, tps, 0.42, true);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var h2 = 6 + Math.sin(tps * 12) * 1.2;
+  c.fillStyle = "rgba(255,150,40,.75)";
+  c.beginPath();
+  c.moveTo(v.x - 2, v.y + 2); c.quadraticCurveTo(v.x - 3, v.y - h2 * 0.5, v.x, v.y + 2 - h2);
+  c.quadraticCurveTo(v.x + 3, v.y - h2 * 0.5, v.x + 2, v.y + 2);
+  c.closePath(); c.fill();
+  c.fillStyle = "rgba(255,240,180,.85)";
+  c.beginPath();
+  c.ellipse(v.x, v.y - h2 * 0.35, 1.2, h2 * 0.3, 0, 0, 6.2832); c.fill();
+  c.restore();
 };
 
-TOURELLES.roquettes = function(c, b, ang, tps){
+TOURELLES.frelon = function(c, b, ang, tps){
   var d = vecteurEcran(ang);
   var o = { x:0, y:-40 };
   /* tourelle pivotante */
@@ -471,7 +482,7 @@ TOURELLES.roquettes = function(c, b, ang, tps){
   }
 };
 
-TOURELLES.mortier = function(c, b, ang, tps){
+TOURELLES.pilon = function(c, b, ang, tps){
   /* le tube ne pivote que légèrement */
   var d = vecteurEcran(ang);
   var o = { x:0, y:-8 };
@@ -524,7 +535,7 @@ TOURELLES.mortier = function(c, b, ang, tps){
   }
 };
 
-TOURELLES.electro = function(c, b, ang, tps){
+TOURELLES.bobine = function(c, b, ang, tps){
   var p = iso(0, 0);
   var puls = 0.5 + 0.5 * Math.sin(tps * 4.2);
   var chg = b.flash > 0 ? b.flash : 0;
@@ -553,24 +564,25 @@ TOURELLES.electro = function(c, b, ang, tps){
   lueur(c, p.x, p.y - zc, 26 + puls * 10, "#7de6ff", 0.22 + puls * 0.16 + chg * 0.5);
 };
 
-TOURELLES.reservoir = function(){};
-TOURELLES.entrepot = function(){};
+TOURELLES.cuve = function(){};
+TOURELLES.silo = function(){};
 
 /* ================================================================
    Dessin complet d'un bâtiment
    ================================================================ */
 function dessineBatiment(c, b, tps, z){
   var p = versEcran(cam, b.gx, b.gy);
+  var detail = z > 0.34;                    // au loin, le socle suffit
   c.save();
   c.translate(p.x, p.y);
   c.scale(z, z);
   var sp = SPRITE_DEF[b.t];
   if(sp) c.drawImage(sp, -SP_OX, -SP_OY, SP_W, SP_H);
-  if(TOURELLES[b.t]) TOURELLES[b.t](c, b, b.angle, tps);
+  if(detail && TOURELLES[b.t]) TOURELLES[b.t](c, b, b.angle, tps);
 
   /* état d'endommagement : fissures et fumée */
   var fr = b.pv / b.pvMax;
-  if(fr < 0.55){
+  if(detail && fr < 0.55){
     c.save();
     c.globalAlpha = (0.55 - fr) * 1.1;
     c.strokeStyle = "#1a120c"; c.lineWidth = 1.4;
@@ -586,7 +598,7 @@ function dessineBatiment(c, b, tps, z){
   }
   c.restore();
 
-  if(fr < 0.4){
+  if(detail && fr < 0.4){
     /* fumée qui s'échappe */
     var ph = (tps * 0.6 + b.n * 0.37) % 1;
     bouffee(c, p.x + Math.sin(tps + b.n) * 5 * z, p.y - (30 + ph * 34) * z,

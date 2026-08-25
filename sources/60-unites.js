@@ -27,7 +27,7 @@ function pose(phase, ampleur){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — combattante au lance-roquettes
+   LA MEUF — combattante au lance-frelon
    coiffure : 0 queue haute à ruban, 1 doubles macarons, 2 carré court
    --------------------------------------------------------------- */
 function dessineMeuf(c, phase, coiffure, tir){
@@ -99,7 +99,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.quadraticCurveTo(7.5 + p.brasA, -17.5, 5.6 + p.brasA * 1.2, -14);
   c.stroke();
 
-  /* --- lance-roquettes sur l'épaule --- */
+  /* --- lance-frelon sur l'épaule --- */
   c.save();
   c.translate(1.5, -23.5); c.rotate(-0.28);
   /* tube */

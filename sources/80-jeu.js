@@ -30,9 +30,9 @@ function nouvelleCarte(index, pvConnu){
                prochainTir:0, but:null, minuteur:0, gonfle:0, ang:0 };
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
-    fumees:[], soins:[], fusee:null,
+    brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     poudre:EQ.POUDRE_DEPART,
-    usages:{ fusee:0, fumee:0, soins:0, obus:0, barrage:0 },
+    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
     capArmee:null,
@@ -77,8 +77,8 @@ function construitGrilles(){
   for(j = 0; j < GH; j++){ occ[j * GW] = 1; occ[j * GW + 1] = 1; }
   /* emprises des bâtiments */
   jeu.batiments.forEach(function(b){ marqueEmprise(b, 1); });
-  /* emprise du QG */
-  for(i = -3; i <= 3; i++) for(j = -3; j <= 3; j++){
+  /* emprise du Brasier */
+  for(i = -6; i <= 6; i++) for(j = -6; j <= 6; j++){
     var x = (jeu.qg.gx + i) | 0, y = (jeu.qg.gy + j) | 0;
     if(x >= 0 && x < GW && y >= 0 && y < GH) occ[y * GW + x] = 2;
   }
@@ -116,12 +116,15 @@ function construitGrilleUnites(){
   }else{
     for(var m = 0; m < grilleUni.length; m++) grilleUni[m].length = 0;
   }
-  for(var i = 0; i < jeu.unites.length; i++){
-    var u = jeu.unites[i];
+  function range(u){
     var cx = Math.min(GUW - 1, Math.max(0, (u.gx / GU) | 0));
     var cy = Math.min(GUH - 1, Math.max(0, (u.gy / GU) | 0));
     grilleUni[cy * GUW + cx].push(u);
   }
+  for(var i = 0; i < jeu.unites.length; i++) range(jeu.unites[i]);
+  /* les poulets entrent dans la grille : les défenses les prennent
+     pour des troupes et gaspillent leurs munitions dessus */
+  for(var k2 = 0; k2 < jeu.poulets.length; k2++) range(jeu.poulets[k2]);
 }
 function unitesAutour(gx, gy, r, sortie){
   sortie.length = 0;
@@ -194,7 +197,7 @@ function creeUnite(type, gx, gy){
     t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:jeu.nSuiv++,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
-    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, fuseeVue:-1,
+    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
     pousse:{ x:0, y:0 }
   });
 }
@@ -210,7 +213,7 @@ function toucheUnite(u, degats, opt){
     if(opt.ralenti){ u.ralenti = Math.max(u.ralenti, opt.ralenti); u.ralentiType = opt.type || "elec"; }
     if(opt.pousse){ u.pousse.x += opt.pousse.x; u.pousse.y += opt.pousse.y; }
   }
-  if(u.pv <= 0){
+  if(u.pv <= 0 && !u.leurre){
     jeu.effets.push({ t:"mort", gx:u.gx, gy:u.gy, age:0, duree:0.55, typ:u.t });
     if(jeu.fantome === null) jeu.dernierePerte = { gx:u.gx, gy:u.gy };
   }
@@ -234,7 +237,7 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
     var c = jeu.creatures[k];
     if(c.pv > 0 && Math.hypot(c.gx - gx, c.gy - gy) <= rayon) abimeCreature(c, degats);
   }
-  if(Math.hypot(jeu.qg.gx - gx, jeu.qg.gy - gy) <= rayon + 3.4) abimeQG(degats);
+  if(Math.hypot(jeu.qg.gx - gx, jeu.qg.gy - gy) <= rayon + RAYON_QG) abimeQG(degats);
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
@@ -243,8 +246,8 @@ function abimeBatiment(b, d){
     b.vivant = 0;
     marqueEmprise(b, 0);
     /* une fusée posée sur ce bâtiment cesse d'agir dès qu'il tombe */
-    if(jeu.fusee && jeu.fusee.cible === b){
-      jeu.fusee = null;
+    if(jeu.balise && jeu.balise.cible === b){
+      jeu.balise = null;
       for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
     }
     jeu.poudre += EQ.POUDRE_PAR_BATIMENT;
@@ -312,7 +315,7 @@ function deplace(u, dx, dy, pas){
 var tmpBat = [], tmpUni = [];
 function majUnites(dt){
   var i, u;
-  var fusee = jeu.fusee;
+  var balise = jeu.balise;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
     if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
@@ -345,8 +348,8 @@ function majUnites(dt){
        Deux comportements, selon l'endroit où la fusée est tombée.
        L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
        propre compte, les autres continuent de converger.               */
-    if(fusee && u.fuseeVue !== fusee.id){
-      var bc = fusee.cible;
+    if(balise && u.baliseVue !== balise.id){
+      var bc = balise.cible;
       if(bc && bc.vivant){
         /* 2) fusée posée sur une défense ou un bâtiment :
               on y va et on le démonte en priorité */
@@ -371,9 +374,9 @@ function majUnites(dt){
       if(!bc){
         /* 1) fusée au sol : ralliement sans tirer, jusqu'à ce que la
               troupe ait atteint (ou traversé) la zone de la fusée */
-        var dxf = fusee.gx - u.gx, dyf = fusee.gy - u.gy;
+        var dxf = balise.gx - u.gx, dyf = balise.gy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        if(df > EQ.FUSEE_RAYON){
+        if(df > EQ.BALISE_RAYON){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
@@ -381,12 +384,12 @@ function majUnites(dt){
           continue;
         }
         /* zone atteinte : cette fusée ne l'influence plus, jamais */
-        u.fuseeVue = fusee.id;
+        u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
       }else{
         /* la cible de la fusée est tombée : libération immédiate */
-        u.fuseeVue = fusee.id;
+        u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
       }
@@ -404,10 +407,10 @@ function majUnites(dt){
     var but = null, portee = f.arret, rayonCible = 0;
     if(c){
       but = { gx:c.o.gx, gy:c.o.gy };
-      rayonCible = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? 3.3 : 0.3);
+      rayonCible = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? RAYON_QG : 0.3);
     }else{
       but = { gx:jeu.qg.gx, gy:jeu.qg.gy };
-      rayonCible = 3.3;
+      rayonCible = RAYON_QG;
     }
     var dx = but.gx - u.gx, dy = but.gy - u.gy;
     var d = Math.hypot(dx, dy) - rayonCible;
@@ -444,7 +447,7 @@ function chercheCibleUnite(u){
     var db = Math.hypot(b.gx - u.gx, b.gy - u.gy) - b.e * 0.42;
     if(db < md){ md = db; meilleur = { k:"bat", o:b }; }
   }
-  var dq = Math.hypot(jeu.qg.gx - u.gx, jeu.qg.gy - u.gy) - 3.3;
+  var dq = Math.hypot(jeu.qg.gx - u.gx, jeu.qg.gy - u.gy) - RAYON_QG;
   if(dq < md && dq < 12) meilleur = { k:"qg", o:jeu.qg };
   return meilleur;
 }
@@ -464,7 +467,7 @@ function tireUnite(u, but, c){
   }
 }
 function appliqueDegatsCible(c, d, but){
-  if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < 4) abimeQG(d); return; }
+  if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
   if(c.k === "bat") abimeBatiment(c.o, d);
   else if(c.k === "cre") abimeCreature(c.o, d);
   else abimeQG(d);
@@ -498,6 +501,7 @@ function majDefenses(dt, tps){
     if(!b.vivant) continue;
     var f = DEF[b.t];
     if(!f.portee) continue;
+    if(geleeParCryo(b)){ b.cible = null; continue; }
     /* élagage par boîte englobante */
     var ddx = Math.max(bx0 - b.gx, 0, b.gx - bx1);
     var ddy = Math.max(by0 - b.gy, 0, b.gy - by1);
@@ -528,8 +532,8 @@ function majDefenses(dt, tps){
   }
 }
 function masquee(u){
-  for(var i = 0; i < jeu.fumees.length; i++){
-    var f = jeu.fumees[i];
+  for(var i = 0; i < jeu.brouillards.length; i++){
+    var f = jeu.brouillards[i];
     if(Math.hypot(u.gx - f.gx, u.gy - f.gy) <= f.r) return true;
   }
   return false;
@@ -550,7 +554,7 @@ function chercheCibleDefense(b, f){
 }
 function tireDefense(b, f, c, d, tps){
   b.flash = 1;
-  if(b.t === "mitrailleuse"){
+  if(b.t === "crible"){
     b.recul = 1;
     var touche = mitraTouche(d, Math.random());
     if(touche){
@@ -564,8 +568,8 @@ function tireDefense(b, f, c, d, tps){
       jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey, age:0, duree:0.11, perdue:1 });
       jeu.effets.push({ t:"poussiere", gx:ex, gy:ey, age:0, duree:0.42 });
     }
-  }else if(b.t === "flammes"){
-    /* cône de flammes : tout ce qui est dans le cône prend et brûle */
+  }else if(b.t === "chalumeau"){
+    /* cône de chalumeau : tout ce qui est dans le cône prend et brûle */
     var ang = b.angle;
     unitesAutour(b.gx, b.gy, f.portee, tmpUni);
     for(var i = 0; i < tmpUni.length; i++){
@@ -577,23 +581,23 @@ function tireDefense(b, f, c, d, tps){
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
                       ouv:f.cone, age:0, duree:0.22 });
-  }else if(b.t === "roquettes"){
+  }else if(b.t === "frelon"){
     b.recul = 1;
     jeu.projectiles.push({ t:"roquette", gx:b.gx, gy:b.gy, z:26, cible:c,
-      but:{ gx:c.gx, gy:c.gy }, degats:f.degats, vit:f.vitesseProj, age:0, fumee:0 });
+      but:{ gx:c.gx, gy:c.gy }, degats:f.degats, vit:f.vitesseProj, age:0, brouillard:0 });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.5 });
-    son.tirRoquette();
-  }else if(b.t === "mortier"){
+    son.tirFrelon();
+  }else if(b.t === "pilon"){
     b.recul = 1; b.chargement = 1;
     var vol = d / f.vitesseProj;
-    jeu.projectiles.push({ t:"obus", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
+    jeu.projectiles.push({ t:"bombe", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone, haut:38 + d * 3.2 });
-    son.tirMortier();
-  }else if(b.t === "electro"){
+    son.tirPilon();
+  }else if(b.t === "bobine"){
     var vol2 = d / f.vitesseProj;
-    jeu.projectiles.push({ t:"electro", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
+    jeu.projectiles.push({ t:"bobine", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone, ralenti:f.ralenti });
-    son.tirElectro();
+    son.tirBobine();
   }
 }
 
@@ -625,12 +629,37 @@ function majProjectiles(dt){
         continue;
       }
       p.gx += dx / d * pas; p.gy += dy / d * pas;
-    }else if(p.t === "obus" || p.t === "electro"){
+    }else if(p.t === "viper"){
+      var tv = p.age / p.duree;
+      if(tv >= 1){
+        degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
+        degatsZone(p.cx, p.cy, p.zone, p.degats * 0.5);
+        jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.8, r:p.zone * 1.6, force:1.4 });
+        jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.7 });
+        jeu.secousse = Math.min(14, jeu.secousse + 7);
+        son.boum(0.95);
+        jeu.projectiles.splice(i, 1);
+        continue;
+      }
+      p.gx = p.x0 + (p.cx - p.x0) * tv;
+      p.gy = p.y0 + (p.cy - p.y0) * tv;
+      p.z = p.haut * (1 - tv) * (1 - tv);
+    }else if(p.t === "nova"){
+      var tn = p.age / p.duree;
+      if(tn >= 1){
+        explosionNova(p.cx, p.cy);
+        jeu.projectiles.splice(i, 1);
+        continue;
+      }
+      p.gx = p.x0 + (p.cx - p.x0) * tn;
+      p.gy = p.y0 + (p.cy - p.y0) * tn;
+      p.z = p.haut * (1 - tn) * (1 - tn);
+    }else if(p.t === "bombe" || p.t === "bobine"){
       var t = p.age / p.duree;
       if(t >= 1){
-        if(p.t === "obus"){
+        if(p.t === "bombe"){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
-          else degatsZone(p.cx, p.cy, p.zone, p.degats);
+          if(!p.allie || p.tousCamps) degatsZone(p.cx, p.cy, p.zone, p.degats);
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
           jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.62, r:p.zone, force:1 });
           jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.55 });
@@ -639,7 +668,7 @@ function majProjectiles(dt){
         }else{
           degatsZone(p.cx, p.cy, p.zone, p.degats, { ralenti:p.ralenti, type:"elec" });
           jeu.effets.push({ t:"eclair", gx:p.cx, gy:p.cy, age:0, duree:0.42, r:p.zone });
-          son.electro();
+          son.bobine();
         }
         jeu.projectiles.splice(i, 1);
         continue;
@@ -807,7 +836,7 @@ function majCrapaud(k, f, c, dt, tps){
 }
 
 /* ---------------------------------------------------------------
-   Zones persistantes : glu, flaques enflammées, fumigènes, soins
+   Zones persistantes : glu, flaques enflammées, fumigènes, soin
    --------------------------------------------------------------- */
 function majZones(dt){
   var i;
@@ -827,26 +856,31 @@ function majZones(dt){
     if(fl.age > fl.duree){ jeu.flaques.splice(i, 1); continue; }
     degatsZone(fl.gx, fl.gy, fl.r, EQ.QG_FLAQUE_DPS * dt);
   }
-  for(i = jeu.fumees.length - 1; i >= 0; i--){
-    jeu.fumees[i].age += dt;
-    if(jeu.fumees[i].age > jeu.fumees[i].duree) jeu.fumees.splice(i, 1);
+  for(i = jeu.brouillards.length - 1; i >= 0; i--){
+    jeu.brouillards[i].age += dt;
+    if(jeu.brouillards[i].age > jeu.brouillards[i].duree) jeu.brouillards.splice(i, 1);
   }
-  for(i = jeu.soins.length - 1; i >= 0; i--){
-    var s = jeu.soins[i]; s.age += dt;
-    if(s.age > s.duree){ jeu.soins.splice(i, 1); continue; }
+  for(i = jeu.soin.length - 1; i >= 0; i--){
+    var s = jeu.soin[i]; s.age += dt;
+    if(s.age > s.duree){ jeu.soin.splice(i, 1); continue; }
     var t2 = [];
     unitesAutour(s.gx, s.gy, s.r, t2);
     for(var m = 0; m < t2.length; m++){
       var u = t2[m];
+      if(u.leurre) continue;
       if(Math.hypot(u.gx - s.gx, u.gy - s.gy) <= s.r){
-        u.pv = Math.min(u.pvMax, u.pv + CAP.soins.pvParSeconde * dt);
+        u.pv = Math.min(u.pvMax, u.pv + CAP.soin.pvParSeconde * dt);
         if(u.brulure > 0) u.brulure = Math.max(0, u.brulure - dt * 2);
       }
     }
   }
-  if(jeu.fusee){
-    jeu.fusee.reste -= dt;
-    if(jeu.fusee.reste <= 0) jeu.fusee = null;
+  for(i = jeu.cryos.length - 1; i >= 0; i--){
+    jeu.cryos[i].age += dt;
+    if(jeu.cryos[i].age > jeu.cryos[i].duree) jeu.cryos.splice(i, 1);
+  }
+  if(jeu.balise){
+    jeu.balise.reste -= dt;
+    if(jeu.balise.reste <= 0) jeu.balise = null;
   }
 }
 
@@ -899,7 +933,7 @@ function lanceEruption(){
       var a = Math.random() * 6.2832;
       var r = 3 + Math.random() * EQ.QG_PLUIE_RAYON;
       var cx = jeu.qg.gx + Math.cos(a) * r, cy = jeu.qg.gy + Math.sin(a) * r;
-      jeu.projectiles.push({ t:"obus", gx:jeu.qg.gx, gy:jeu.qg.gy, x0:jeu.qg.gx, y0:jeu.qg.gy,
+      jeu.projectiles.push({ t:"bombe", gx:jeu.qg.gx, gy:jeu.qg.gy, x0:jeu.qg.gx, y0:jeu.qg.gy,
         cx:cx, cy:cy, duree:0.9 + Math.random() * 0.9 + i * 0.035, age:0,
         degats:46, zone:1.4, haut:70, braise:1 });
     }
@@ -915,7 +949,6 @@ function lanceEruption(){
    Capacités
    --------------------------------------------------------------- */
 function armeCapacite(m){
-  if(m === "debarquer"){ jeu.capArmee = "debarquer"; majMenu(); son.gong(); return; }
   if(jeu.poudre < coutActuel(m, jeu.usages)){
     message("Pas assez de Poudre pour " + COUT[m].nom + ".");
     return;
@@ -934,8 +967,9 @@ function utiliseCapacite(m, gx, gy){
   }
   jeu.poudre -= c;
   jeu.usages[m]++;
-  if(m === "fusee"){
-    /* si la fusée tombe sur un bâtiment, il devient la cible prioritaire */
+
+  if(m === "balise"){
+    /* si la Balise tombe sur un bâtiment, il devient la cible prioritaire */
     var vise = null, mdv = 1e9;
     batimentsAutour(gx, gy, 3, tmpBat);
     for(var v = 0; v < tmpBat.length; v++){
@@ -943,43 +977,149 @@ function utiliseCapacite(m, gx, gy){
       var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
       if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
     }
-    jeu.idFusee = (jeu.idFusee || 0) + 1;
-    jeu.fusee = { gx:gx, gy:gy, reste:CAP.fusee.duree, duree:CAP.fusee.duree,
-                  id:jeu.idFusee, cible:vise };
-    jeu.effets.push({ t:"fuseeLancee", gx:gx, gy:gy, age:0, duree:0.6 });
-    son.fusee();
-  }else if(m === "fumee"){
-    jeu.fumees.push({ gx:gx, gy:gy, r:CAP.fumee.rayon, age:0, duree:CAP.fumee.duree });
-    son.fumigene();
-  }else if(m === "soins"){
-    jeu.soins.push({ gx:gx, gy:gy, r:CAP.soins.rayon, age:0, duree:CAP.soins.duree });
-    son.soins();
-  }else if(m === "obus"){
-    jeu.effets.push({ t:"frappe", gx:gx, gy:gy, age:0, duree:0.45 });
-    degatsZoneEnnemis(gx, gy, CAP.obus.rayon, CAP.obus.degats);
-    jeu.effets.push({ t:"boum", gx:gx, gy:gy, age:0, duree:0.7, r:CAP.obus.rayon, force:1.2 });
-    jeu.crateres.push({ gx:gx, gy:gy, r:CAP.obus.rayon * 0.6 });
-    jeu.secousse = Math.min(12, jeu.secousse + 5);
-    son.boum(0.7);
-  }else if(m === "barrage"){
-    for(var i = 0; i < CAP.barrage.nb; i++){
-      var a = Math.random() * 6.2832, r = Math.random() * CAP.barrage.rayon;
-      jeu.projectiles.push({ t:"obus", gx:gx + Math.cos(a) * 14, gy:gy - 14,
-        x0:gx + Math.cos(a) * 8, y0:gy - 10,
-        cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
-        duree:0.5 + i / CAP.barrage.nb * CAP.barrage.duree, age:0,
-        degats:CAP.barrage.degats, zone:1.1, haut:60, allie:1 });
+    jeu.idBalise = (jeu.idBalise || 0) + 1;
+    jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
+                   id:jeu.idBalise, cible:vise };
+    jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });
+    son.balise();
+
+  }else if(m === "brouillard"){
+    jeu.brouillards.push({ gx:gx, gy:gy, r:CAP.brouillard.rayon, age:0, duree:CAP.brouillard.duree });
+    son.brouillard();
+
+  }else if(m === "soin"){
+    jeu.soin.push({ gx:gx, gy:gy, r:CAP.soin.rayon, age:0, duree:CAP.soin.duree });
+    son.soin();
+
+  }else if(m === "cryo"){
+    jeu.cryos.push({ gx:gx, gy:gy, r:CAP.cryo.rayon, age:0, duree:CAP.cryo.duree });
+    /* les tourelles prises dans la glace lâchent leur cible sur-le-champ */
+    var bs = [];
+    batimentsAutour(gx, gy, CAP.cryo.rayon + 2, bs);
+    for(var k = 0; k < bs.length; k++){
+      if(Math.hypot(bs[k].gx - gx, bs[k].gy - gy) <= CAP.cryo.rayon){
+        bs[k].cible = null;
+        bs[k].prochainTir = Math.max(bs[k].prochainTir, 200);
+      }
     }
-    son.barrage();
+    jeu.effets.push({ t:"cryo", gx:gx, gy:gy, age:0, duree:0.8, r:CAP.cryo.rayon });
+    son.cryo();
+
+  }else if(m === "poulets"){
+    /* dix leurres : les défenses les prennent pour des troupes */
+    for(var q = 0; q < CAP.poulets.nb; q++){
+      var ap = q / CAP.poulets.nb * 6.2832 + Math.random();
+      var rp = Math.random() * CAP.poulets.rayon;
+      creePoulet(gx + Math.cos(ap) * rp, gy + Math.sin(ap) * rp);
+    }
+    jeu.effets.push({ t:"caisse", gx:gx, gy:gy, age:0, duree:0.7 });
+    son.poulets();
+
+  }else if(m === "viper"){
+    /* un seul missile, très rapide, arrivée quasi verticale */
+    jeu.projectiles.push({
+      t:"viper", gx:gx - 5.5, gy:gy - 5.5, x0:gx - 5.5, y0:gy - 5.5,
+      cx:gx, cy:gy, age:0, duree:Math.max(0.45, 9 / CAP.viper.vitesse),
+      degats:CAP.viper.degats, zone:CAP.viper.rayon, haut:230, fumee:[]
+    });
+    jeu.effets.push({ t:"frappe", gx:gx, gy:gy, age:0, duree:0.5 });
+    son.viper();
+
+  }else if(m === "salve"){
+    /* plusieurs missiles presque simultanés, impacts dispersés :
+       ils touchent bâtiments, créatures ET troupes, alliées comprises */
+    for(var i = 0; i < CAP.salve.nb; i++){
+      var a = Math.random() * 6.2832, r = Math.sqrt(Math.random()) * CAP.salve.rayon;
+      jeu.projectiles.push({
+        t:"bombe", gx:gx + Math.cos(a) * 16, gy:gy - 16,
+        x0:gx + Math.cos(a) * 9, y0:gy - 12,
+        cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
+        duree:0.45 + i / CAP.salve.nb * CAP.salve.duree, age:0,
+        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:70, allie:1, tousCamps:1
+      });
+    }
+    son.salve();
+
+  }else if(m === "nova"){
+    /* gros spectacle, dégâts mesurés */
+    jeu.projectiles.push({
+      t:"nova", gx:gx - 3, gy:gy - 9, x0:gx - 3, y0:gy - 9,
+      cx:gx, cy:gy, age:0, duree:1.15, haut:300
+    });
+    son.nova();
   }
+
   majBarres();
   majMenu();
-  /* la capacité reste armée si la poudre suffit encore */
   if(jeu.poudre < coutActuel(m, jeu.usages)){
     jeu.capArmee = null;
     majMenu();
     message(COUT[m].nom + " désarmée : Poudre insuffisante.");
   }
+}
+
+/* --------------- Nova : le champignon --------------- */
+function explosionNova(gx, gy){
+  var C = CAP.nova;
+  /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
+  degatsZoneEnnemis(gx, gy, C.rayon, C.degats);
+  degatsZone(gx, gy, C.rayon, C.degats);
+  /* souffle : plus large, beaucoup plus doux */
+  degatsZoneEnnemis(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0, duree:3.2, r:C.rayon });
+  jeu.crateres.push({ gx:gx, gy:gy, r:C.rayon * 0.75 });
+  if(jeu.crateres.length > 160) jeu.crateres.shift();
+  jeu.secousse = 22;
+  son.boum(1.9);
+}
+
+/* --------------- Les poulets leurres --------------- */
+function creePoulet(gx, gy){
+  jeu.poulets.push({
+    t:"poulet", leurre:1, gx:borne(gx, 1, GW - 1), gy:borne(gy, 1, GH - 1),
+    pv:CAP.poulets.pv, pvMax:CAP.poulets.pv, reste:CAP.poulets.duree,
+    phase:Math.random() * 6.2832, droite:Math.random() < 0.5,
+    but:null, butT:0, n:jeu.nSuiv++, brulure:0, ralenti:0, ralentiType:"",
+    pousse:{ x:0, y:0 }
+  });
+}
+function majPoulets(dt){
+  for(var i = jeu.poulets.length - 1; i >= 0; i--){
+    var p = jeu.poulets[i];
+    p.reste -= dt;
+    if(p.brulure > 0){ p.brulure -= dt; p.pv -= EQ.BRULURE_DPS * dt; }
+    if(p.ralenti > 0) p.ralenti -= dt;
+    if(p.pv <= 0 || p.reste <= 0){
+      jeu.effets.push({ t:"plumes", gx:p.gx, gy:p.gy, age:0, duree:0.8 });
+      if(p.pv <= 0) son.poulet();
+      jeu.poulets.splice(i, 1);
+      continue;
+    }
+    /* ils détalent au hasard : c'est tout l'intérêt du leurre */
+    p.butT -= dt;
+    if(p.butT <= 0 || !p.but){
+      p.butT = 0.5 + Math.random() * 1.1;
+      var a = Math.random() * 6.2832, r = 1.5 + Math.random() * 3;
+      p.but = { gx:p.gx + Math.cos(a) * r, gy:p.gy + Math.sin(a) * r };
+    }
+    var dx = p.but.gx - p.gx, dy = p.but.gy - p.gy;
+    var d = Math.hypot(dx, dy);
+    if(d > 0.25){
+      deplaceCreature(p, dx, dy, 2.3 * (p.ralenti > 0 ? 0.45 : 1) * dt);
+      p.phase += dt * 16;
+      p.droite = (dx - dy) > 0;
+    }else p.but = null;
+  }
+}
+
+/* Une défense prise dans le Cryo ne tire plus du tout */
+function geleeParCryo(b){
+  for(var i = 0; i < jeu.cryos.length; i++){
+    var z = jeu.cryos[i];
+    if(Math.hypot(b.gx - z.gx, b.gy - z.gy) <= z.r) return true;
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------
@@ -1093,6 +1233,7 @@ function majJeu(dt){
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
   majUnites(dt);
+  majPoulets(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);

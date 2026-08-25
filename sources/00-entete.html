@@ -196,9 +196,9 @@ select.champ{cursor:pointer}
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));padding:6px}
-#caps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#caps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .cap{
-  position:relative;width:64px;height:60px;border-radius:12px;cursor:pointer;
+  position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
   border:1px solid rgba(255,255,255,.13);background:linear-gradient(180deg,#2c1a3c,#1a0f26);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   transition:transform .08s ease;
@@ -260,25 +260,27 @@ select.champ{cursor:pointer}
   #hg{gap:4px}
   #ress{font-size:13px}
   #zoomB button{width:31px;height:31px;font-size:15px}
-  .cap{width:56px;height:52px}
-  .cap canvas{width:24px;height:24px}
-  .cap .nm{font-size:8.5px}
+  .cap{width:54px;height:50px}
+  .cap canvas{width:26px;height:26px}
+  .cap .nm{font-size:8px}
   #hc{width:min(300px,46vw);padding:4px 8px 6px}
   #mini{width:104px;height:92px}
   .bg1{width:40px}
 }
 @media (max-width:600px){
-  #caps{grid-template-columns:repeat(3,1fr);gap:5px}
-  .cap{width:56px;height:52px}
-  .cap canvas{width:24px;height:24px}
-  .cap .nm{font-size:8.5px}
+  #caps{grid-template-columns:repeat(4,1fr);gap:4px}
+  .cap{width:52px;height:50px}
+  .cap canvas{width:25px;height:25px}
+  .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
   #bg{max-width:52vw}
 }
 @media (max-width:430px){
   #hd{display:none}
   #hc{width:min(230px,44vw)}
-  .cap{width:50px;height:48px}
+  .cap{width:46px;height:46px}
+  .cap canvas{width:22px;height:22px}
+  .cap .nm{font-size:7px}
   .bg1{width:36px;font-size:10px}
   #ress{font-size:12px;gap:8px}
 }
@@ -313,7 +315,7 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Composition des huit barges</h2>
+      <h2>Composition des huit navettes</h2>
       <div id="barges"></div>
       <div id="totalTroupes"></div>
     </div>
@@ -323,11 +325,12 @@ select.champ{cursor:pointer}
       <div class="aide">
         <ul>
           <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
-          <li>En bas à gauche, choisis une <b>barge</b> puis appuie sur la plage à l'est : les 15 places se vident d'un coup.</li>
-          <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Éclairantes</b> : les troupes courent vers la fusée sans tirer.</li>
+          <li>En bas à gauche, choisis une <b>navette</b> puis appuie sur la plage à l'est : les 15 places se vident d'un coup.</li>
+          <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Balises</b> : les troupes courent vers la fusée sans tirer.</li>
           <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
-          <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-flammes porte plus loin que tes Meufs : passe un Mec devant.</li>
-          <li>Le QG a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
+          <li>Huit capacités : <b>Nova</b>, <b>Poulets ×10</b> (des leurres !), <b>Brouillard</b>, <b>Salve</b>, <b>Cryo</b> (gèle les défenses 12 s), <b>Soin</b>, <b>Balise</b> et <b>Viper</b>.</li>
+          <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-chalumeau porte plus loin que tes Meufs : passe un Mec devant.</li>
+          <li>Le Brasier a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
         </ul>
       </div>
     </div>
@@ -352,7 +355,7 @@ select.champ{cursor:pointer}
     <div id="zoomB" class="p">
       <button class="bt" id="btZp" title="Zoom avant">+</button>
       <button class="bt" id="btZm" title="Zoom arrière">−</button>
-      <button class="bt" id="btCentre" title="Centrer sur le QG">◎</button>
+      <button class="bt" id="btCentre" title="Centrer sur le Brasier">◎</button>
       <button class="bt" id="btPlein2" title="Plein écran">⛶</button>
     </div>
   </div>
@@ -366,7 +369,7 @@ select.champ{cursor:pointer}
   <div class="bloc p" id="hd"><canvas id="mini" width="264" height="236"></canvas></div>
 
   <div class="bloc p" id="bg">
-    <div class="t">Barges</div>
+    <div class="t">Navettes</div>
     <div id="listeBarges"></div>
   </div>
 

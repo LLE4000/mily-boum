@@ -3,6 +3,12 @@
    ================================================================ */
 
 var cv = null, ctx = null;
+var secX = 0, secY = 0;                 // décalage de la secousse d'écran
+function repereMonde(c){
+  c.setTransform(dpr * cam.z, 0, 0, dpr * cam.z,
+                 (secX + cam.px) * dpr, (secY + cam.py) * dpr);
+}
+function repereEcran(c){ c.setTransform(dpr, 0, 0, dpr, secX * dpr, secY * dpr); }
 var miniCv = null, miniCtx = null, miniFond = null, miniProchain = 0;
 var pile = [];
 
@@ -12,6 +18,16 @@ function rectVisible(m){
     x0:(0 - cam.px) / cam.z - m, y0:(0 - cam.py) / cam.z - m,
     x1:(W - cam.px) / cam.z + m, y1:(H - cam.py) / cam.z + m
   };
+}
+/* Le rectangle visible touche-t-il la côte ? Quand la caméra est bien à
+   l'intérieur des terres, l'île couvre tout l'écran : inutile de peindre
+   la mer, l'écume et le ressac sous un sol opaque. */
+function coteVisible(vue){
+  var a = deIso(vue.x0, vue.y0), b = deIso(vue.x1, vue.y0);
+  var c = deIso(vue.x1, vue.y1), d = deIso(vue.x0, vue.y1);
+  var gx0 = Math.min(a.gx, b.gx, c.gx, d.gx), gx1 = Math.max(a.gx, b.gx, c.gx, d.gx);
+  var gy0 = Math.min(a.gy, b.gy, c.gy, d.gy), gy1 = Math.max(a.gy, b.gy, c.gy, d.gy);
+  return !(gx0 > 1.5 && gx1 < GW - 1.5 && gy0 > 1.5 && gy1 < GH - 1.5);
 }
 function visible(vue, gx, gy){
   var p = iso(gx, gy);
@@ -176,7 +192,76 @@ function dessineEffet(c, e, tps){
     c.strokeStyle = "#ffd070"; c.lineWidth = 2.4 * z;
     c.beginPath(); c.ellipse(p.x, p.y, (60 - t * 45) * z, (30 - t * 22) * z, 0, 0, 6.2832); c.stroke();
     c.restore();
-  }else if(e.t === "fuseeLancee"){
+  }else if(e.t === "cryo"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.strokeStyle = "#d8f4ff"; c.lineWidth = 3 * z;
+    c.beginPath();
+    c.ellipse(p.x, p.y, e.r * RX * z * (0.3 + t * 0.8), e.r * RY * z * (0.3 + t * 0.8), 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+  }else if(e.t === "caisse"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.fillStyle = "#a5854e";
+    c.fillRect(p.x - 9 * z, p.y - (10 + t * 20) * z, 18 * z, 12 * z);
+    c.fillStyle = "rgba(255,255,255,.3)";
+    c.fillRect(p.x - 9 * z, p.y - (10 + t * 20) * z, 18 * z, 3 * z);
+    c.restore();
+  }else if(e.t === "plumes"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.fillStyle = "#fff8ec";
+    for(var pl2 = 0; pl2 < 6; pl2++){
+      var apl = pl2 * 1.05 + 0.3;
+      c.save();
+      c.translate(p.x + Math.cos(apl) * t * 22 * z, p.y - 10 * z + Math.sin(apl) * t * 12 * z - t * 6 * z);
+      c.rotate(apl + t * 3);
+      c.beginPath(); c.ellipse(0, 0, 3.4 * z, 1.4 * z, 0, 0, 6.2832); c.fill();
+      c.restore();
+    }
+    c.restore();
+  }else if(e.t === "nova"){
+    var a2 = 1 - t;
+    c.save();
+    /* flash */
+    if(t < 0.16){
+      c.fillStyle = "rgba(255,255,245," + (1 - t / 0.16) * 0.9 + ")";
+      c.fillRect(-W, -H, W * 3, H * 3);
+    }
+    c.globalCompositeOperation = "lighter";
+    /* boule de feu */
+    var rb = e.r * RX * z * (0.4 + Math.min(1, t * 3) * 1.5);
+    var gb2 = c.createRadialGradient(p.x, p.y - rb * 0.45, rb * 0.08, p.x, p.y - rb * 0.45, rb);
+    gb2.addColorStop(0, "rgba(255,255,235," + (0.95 * a2) + ")");
+    gb2.addColorStop(0.28, "rgba(255,196,80," + (0.85 * a2) + ")");
+    gb2.addColorStop(0.62, "rgba(238,86,24," + (0.5 * a2) + ")");
+    gb2.addColorStop(1, "rgba(120,20,8,0)");
+    c.fillStyle = gb2;
+    c.beginPath(); c.arc(p.x, p.y - rb * 0.45, rb, 0, 6.2832); c.fill();
+    /* anneau de souffle au sol */
+    var rr2 = e.r * RX * z * (0.5 + t * 3.2);
+    c.strokeStyle = "rgba(255,236,190," + (0.55 * a2) + ")";
+    c.lineWidth = (10 - t * 8) * z;
+    c.beginPath(); c.ellipse(p.x, p.y, rr2, rr2 / 2, 0, 0, 6.2832); c.stroke();
+    c.restore();
+    /* le champignon */
+    c.save();
+    c.globalAlpha = Math.min(1, a2 * 1.4);
+    var mt = Math.min(1, t * 1.5);
+    var yc = p.y - (24 + mt * 150) * z;
+    for(var s2 = 0; s2 < 7; s2++){
+      bouffee(c, p.x + Math.sin(s2 * 1.7 + t * 3) * 8 * z,
+              p.y - (14 + s2 * 18 * mt) * z, (9 + s2 * 2) * z * (0.5 + mt), 0.45, "#6a5a52");
+    }
+    for(var h2 = 0; h2 < 9; h2++){
+      var ah = h2 / 9 * 6.2832;
+      bouffee(c, p.x + Math.cos(ah) * (14 + mt * 46) * z, yc + Math.sin(ah) * (7 + mt * 16) * z,
+              (16 + mt * 20) * z, 0.42, h2 % 2 ? "#7a6258" : "#94786a");
+    }
+    bouffee(c, p.x, yc - 8 * z, (22 + mt * 34) * z, 0.5, "#8a7264");
+    c.restore();
+  }else if(e.t === "baliseLancee"){
     c.save();
     c.globalCompositeOperation = "lighter";
     c.globalAlpha = 1 - t;
@@ -212,7 +297,7 @@ function dessineProjectile(c, p, tps){
     c.fillStyle = g;
     c.beginPath(); c.arc(e.x - (d ? d.x * 6 * z : 0), e.y - 18 * z - zz - (d ? d.y * 6 * z : 0), 9 * z, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "obus"){
+  }else if(p.t === "viper"){
     c.save();
     c.fillStyle = p.braise ? "#ff8a1e" : (p.allie ? "#ffd070" : "#d8b52e");
     c.beginPath(); c.ellipse(e.x, e.y - zz - 6 * z, 3 * z, 4.6 * z, 0, 0, 6.2832); c.fill();
@@ -228,7 +313,64 @@ function dessineProjectile(c, p, tps){
     c.save(); c.globalAlpha = 0.22; c.fillStyle = "#000";
     c.beginPath(); c.ellipse(e.x, e.y, 4 * z, 2 * z, 0, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "electro"){
+  }else if(p.t === "viper" || p.t === "nova"){
+    var nova = p.t === "nova";
+    var hy = e.y - zz;
+    /* traînée de fumée */
+    c.save();
+    c.globalAlpha = 0.5;
+    for(var s3 = 1; s3 <= 9; s3++){
+      var t3 = s3 / 9;
+      var px3 = e.x + (versEcran(cam, p.x0, p.y0).x - e.x) * t3;
+      var pz3 = p.z * (1 - (p.age / p.duree)) * 0;
+      var py3 = hy + ((versEcran(cam, p.x0, p.y0).y - p.haut * cam.z) - hy) * t3;
+      bouffee(c, px3, py3, (3 + t3 * (nova ? 13 : 8)) * cam.z, (1 - t3) * 0.5, "#b4aca8");
+    }
+    c.restore();
+    c.save();
+    c.translate(e.x, hy);
+    c.rotate(Math.atan2(p.cy - p.y0 + 0.001, p.cx - p.x0) * 0 + 0.9);
+    c.scale(cam.z, cam.z);
+    if(nova){
+      /* ogive trapue à ailerons, bandes de danger */
+      c.fillStyle = "#d8d2c4";
+      c.beginPath();
+      c.moveTo(0, -16); c.quadraticCurveTo(9, -6, 8, 12);
+      c.lineTo(-8, 12); c.quadraticCurveTo(-9, -6, 0, -16);
+      c.closePath(); c.fill();
+      c.fillStyle = "#e8c437";
+      c.fillRect(-8, -2, 16, 5);
+      c.fillStyle = "#1c1a18";
+      for(var b3 = -1; b3 <= 1; b3++) c.fillRect(b3 * 5 - 1.4, -2, 2.8, 5);
+      c.fillStyle = "#b8433a";
+      c.beginPath(); c.moveTo(-8, 12); c.lineTo(-13, 19); c.lineTo(-4, 15); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(8, 12); c.lineTo(13, 19); c.lineTo(4, 15); c.closePath(); c.fill();
+    }else{
+      /* Viper : long, fin, ailerons nets */
+      c.fillStyle = "#cfd6dc";
+      c.beginPath();
+      c.moveTo(0, -18); c.quadraticCurveTo(4.5, -6, 4, 12);
+      c.lineTo(-4, 12); c.quadraticCurveTo(-4.5, -6, 0, -18);
+      c.closePath(); c.fill();
+      c.fillStyle = "#2f8ea4";
+      c.fillRect(-4, -4, 8, 3.4);
+      c.fillStyle = "#8a949c";
+      c.beginPath(); c.moveTo(-4, 10); c.lineTo(-9, 17); c.lineTo(-2, 14); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(4, 10); c.lineTo(9, 17); c.lineTo(2, 14); c.closePath(); c.fill();
+    }
+    /* jet du propulseur */
+    c.globalCompositeOperation = "lighter";
+    var gj2 = c.createRadialGradient(0, 16, 0, 0, 16, nova ? 16 : 12);
+    gj2.addColorStop(0, "rgba(255,240,190,.9)");
+    gj2.addColorStop(0.45, "rgba(255,150,40,.6)");
+    gj2.addColorStop(1, "rgba(255,80,20,0)");
+    c.fillStyle = gj2;
+    c.beginPath(); c.ellipse(0, 16, nova ? 9 : 6, nova ? 16 : 12, 0, 0, 6.2832); c.fill();
+    c.restore();
+    c.save(); c.globalAlpha = 0.2; c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 6 * cam.z, 3 * cam.z, 0, 0, 6.2832); c.fill();
+    c.restore();
+  }else if(p.t === "bobine"){
     c.save();
     c.globalCompositeOperation = "lighter";
     var g3 = c.createRadialGradient(e.x, e.y - zz - 8 * z, 0, e.x, e.y - zz - 8 * z, 11 * z);
@@ -288,9 +430,9 @@ function dessineZonesSol(c, tps){
     c.beginPath(); c.ellipse(r2.x - 6, r2.y - 3, g2.r * RX * 0.35, g2.r * RY * 0.35, 0, 0, 6.2832); c.fill();
     c.restore();
   }
-  /* zones de soins */
-  for(i = 0; i < jeu.soins.length; i++){
-    var s = jeu.soins[i], t = iso(s.gx, s.gy);
+  /* zones de soin */
+  for(i = 0; i < jeu.soin.length; i++){
+    var s = jeu.soin[i], t = iso(s.gx, s.gy);
     var a3 = Math.min(1, (s.duree - s.age) / 1.0);
     c.save();
     c.globalCompositeOperation = "lighter";
@@ -304,6 +446,31 @@ function dessineZonesSol(c, tps){
     c.ellipse(t.x, t.y, s.r * RX * (0.75 + 0.25 * Math.sin(tps * 3)),
               s.r * RY * (0.75 + 0.25 * Math.sin(tps * 3)), 0, 0, 6.2832);
     c.stroke();
+    c.restore();
+  }
+  /* zones cryogéniques : les tourelles prises dedans sont muettes */
+  for(i = 0; i < jeu.cryos.length; i++){
+    var zc = jeu.cryos[i], pz = iso(zc.gx, zc.gy);
+    var az = Math.min(1, zc.age * 3) * Math.min(1, (zc.duree - zc.age) / 1.5);
+    c.save();
+    var gz = c.createRadialGradient(pz.x, pz.y, 4, pz.x, pz.y, zc.r * RX);
+    gz.addColorStop(0, "rgba(190,240,255," + (0.42 * az) + ")");
+    gz.addColorStop(0.7, "rgba(120,200,255," + (0.26 * az) + ")");
+    gz.addColorStop(1, "rgba(90,170,255,0)");
+    c.fillStyle = gz;
+    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(220,250,255," + (0.6 * az) + ")"; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.stroke();
+    /* cristaux de givre */
+    var alz = prng((zc.gx * 313 + zc.gy * 977) | 0);
+    c.fillStyle = "rgba(230,250,255," + (0.5 * az) + ")";
+    for(var q = 0; q < 18; q++){
+      var aq = alz() * 6.2832, rq = Math.sqrt(alz()) * zc.r;
+      var px2 = pz.x + Math.cos(aq) * rq * RX, py2 = pz.y + Math.sin(aq) * rq * RY;
+      c.beginPath();
+      c.moveTo(px2, py2 - 6); c.lineTo(px2 + 3, py2); c.lineTo(px2, py2 + 6); c.lineTo(px2 - 3, py2);
+      c.closePath(); c.fill();
+    }
     c.restore();
   }
   /* vague de feu */
@@ -331,8 +498,8 @@ function dessineZonesSol(c, tps){
     c.restore();
   }
   /* point de ralliement */
-  if(jeu.fusee){
-    var pf = iso(jeu.fusee.gx, jeu.fusee.gy);
+  if(jeu.balise){
+    var pf = iso(jeu.balise.gx, jeu.balise.gy);
     c.save();
     c.globalCompositeOperation = "lighter";
     var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, 90);
@@ -348,7 +515,7 @@ function dessineZonesSol(c, tps){
 }
 
 /* Nuage de fumigène — volumétrique, dans le tri de profondeur */
-function dessineFumigene(c, f, tps){
+function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
   var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.2);
@@ -367,7 +534,7 @@ function dessineFumigene(c, f, tps){
 
 /* La fusée éclairante elle-même, avec son décompte */
 function dessineFusee(c, tps){
-  var f = jeu.fusee;
+  var f = jeu.balise;
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
   c.save();
@@ -399,8 +566,7 @@ function dessineVisee(c, tps){
   var vue = rectVisible(60);
   /* cercles de portée de toutes les défenses */
   c.save();
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.translate(cam.px, cam.py); c.scale(cam.z, cam.z);
+  repereMonde(c);
   c.setLineDash([7, 6]);
   c.lineWidth = 1.4 / cam.z;
   for(var i = 0; i < jeu.batiments.length; i++){
@@ -413,13 +579,14 @@ function dessineVisee(c, tps){
   }
   c.setLineDash([]);
   c.restore();
+  repereEcran(c);
 
   if(!viseur.actif) return;
   var w = versMonde(cam, viseur.x, viseur.y);
-  var r = m === "obus" ? CAP.obus.rayon : m === "barrage" ? CAP.barrage.rayon
-        : m === "fumee" ? CAP.fumee.rayon : m === "soins" ? CAP.soins.rayon : 1.2;
+  var r = m === "viper" ? CAP.viper.rayon : m === "salve" ? CAP.salve.rayon
+        : m === "brouillard" ? CAP.brouillard.rayon : m === "soin" ? CAP.soin.rayon : 1.2;
   var pe = versEcran(cam, w.gx, w.gy);
-  var coul = m === "soins" ? "#6ee08a" : m === "fumee" ? "#c9c4d2" : m === "fusee" ? "#ffd070" : "#ff8a1e";
+  var coul = m === "soin" ? "#6ee08a" : m === "brouillard" ? "#c9c4d2" : m === "balise" ? "#ffd070" : "#ff8a1e";
   c.save();
   c.globalAlpha = 0.85;
   c.strokeStyle = coul; c.lineWidth = 2.2;
@@ -434,42 +601,38 @@ function dessineVisee(c, tps){
   c.moveTo(pe.x, pe.y - 8); c.lineTo(pe.x, pe.y + 8);
   c.stroke();
   c.restore();
-  if(m === "debarquer"){
-    var ok = w.gx >= PLAGE_X0 - 1.5;
-    texteCerne(c, ok ? "Débarquer ici" : "Seulement sur la plage à l'est",
-               pe.x, pe.y - 30, 13, ok ? "#6ee08a" : "#ff8a6a");
-  }
+
 }
 
 /* ---------------------------------------------------------------
    Boucle de rendu
    --------------------------------------------------------------- */
 function rendu(tps, dt){
-  var sx = 0, sy = 0;
+  secX = 0; secY = 0;
   if(jeu.secousse > 0){
-    sx = (Math.random() - 0.5) * jeu.secousse;
-    sy = (Math.random() - 0.5) * jeu.secousse;
+    secX = (Math.random() - 0.5) * jeu.secousse;
+    secY = (Math.random() - 0.5) * jeu.secousse;
   }
-  ctx.setTransform(dpr, 0, 0, dpr, sx * dpr, sy * dpr);
+  repereEcran(ctx);
   ctx.clearRect(-40, -40, W + 80, H + 80);
 
   var vue = rectVisible(0);
 
-  /* ---- décor ---- */
-  ctx.save();
-  ctx.translate(cam.px, cam.py);
-  ctx.scale(cam.z, cam.z);
-  dessineEau(ctx, tps, vue);
+  /* ---- mer et terrain, dans le repère du monde ---- */
+  repereMonde(ctx);
+  var mer = coteVisible(vue);
+  if(mer) dessineEau(ctx, tps, vue);
   dessineSol(ctx, vue);
-  dessineEcume(ctx, tps);
-  dessineRessac(ctx, tps);
+  if(mer){ dessineEcume(ctx, tps); dessineRessac(ctx, tps); }
   dessineZonesSol(ctx, tps);
-  ctx.restore();
+  repereEcran(ctx);
 
   /* ---- entités triées en profondeur ---- */
   pile.length = 0;
   var i;
   var vueL = rectVisible(0);
+  /* décor : rochers, falaises et végétation, dans le tri de profondeur */
+  decorVisible(vueL, pile);
   for(i = 0; i < jeu.batiments.length; i++){
     var b = jeu.batiments[i];
     if(!b.vivant) continue;
@@ -480,6 +643,11 @@ function rendu(tps, dt){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;
     pile.push({ d:u.gx + u.gy, k:1, o:u });
+  }
+  for(i = 0; i < jeu.poulets.length; i++){
+    var pl = jeu.poulets[i];
+    if(!visible(vueL, pl.gx, pl.gy)) continue;
+    pile.push({ d:pl.gx + pl.gy, k:10, o:pl });
   }
   for(i = 0; i < jeu.creatures.length; i++){
     var k2 = jeu.creatures[i];
@@ -509,8 +677,8 @@ function rendu(tps, dt){
     if(!visible(vueL, ef.gx, ef.gy)) continue;
     pile.push({ d:ef.gx + ef.gy + 0.2, k:6, o:ef });
   }
-  for(i = 0; i < jeu.fumees.length; i++){
-    pile.push({ d:jeu.fumees[i].gx + jeu.fumees[i].gy + 0.4, k:7, o:jeu.fumees[i] });
+  for(i = 0; i < jeu.brouillards.length; i++){
+    pile.push({ d:jeu.brouillards[i].gx + jeu.brouillards[i].gy + 0.4, k:7, o:jeu.brouillards[i] });
   }
   pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
 
@@ -525,11 +693,13 @@ function rendu(tps, dt){
       case 4: dessineFantome(ctx, it.o, tps); break;
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
-      case 7: dessineFumigene(ctx, it.o, tps); break;
+      case 7: dessineBrouillard(ctx, it.o, tps); break;
       case 8: dessineQG(ctx, tps); break;
+      case 9: dessineDecorMonde(ctx, it); break;
+      case 10: dessinePouletMonde(ctx, it.o, tps); break;
     }
   }
-  if(jeu.fusee) dessineFusee(ctx, tps);
+  if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs */
   for(var idj2 in autresJoueurs){
@@ -545,7 +715,7 @@ function rendu(tps, dt){
   }
 
   /* visée */
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(ctx);
   dessineVisee(ctx, tps);
 
   /* Gégé la belette */
@@ -563,7 +733,7 @@ function rendu(tps, dt){
    --------------------------------------------------------------- */
 function dessineGege(c, tps){
   var t = 1 - jeu.messageGege / 3;                 // 0 → 1 sur les trois secondes
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(c);
   /* voile sombre qui s'estompe */
   c.fillStyle = "rgba(10,4,14," + (0.45 * Math.min(1, (1 - t) * 2.2)) + ")";
   c.fillRect(0, 0, W, H);
@@ -616,7 +786,7 @@ function dessineGege(c, tps){
 var COULEURS_CONFETTIS = ["#ff5a4a", "#ffd070", "#6ee08a", "#7de6ff", "#c98adf", "#ff8a1e"];
 function dessineFin(c, tps){
   var F = jeu.fin;
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(c);
   /* flash blanc */
   if(F.flash > 0){
     c.fillStyle = "rgba(255,255,255," + Math.min(1, F.flash) + ")";
@@ -625,8 +795,7 @@ function dessineFin(c, tps){
   /* la tête qui décolle */
   if(F.tete && F.tete.age < 3){
     var p = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
-    var pd = iso(2.0, 0);
-    var x = p.x + pd.x * cam.z, y = p.y + (pd.y - 104) * cam.z + F.tete.y * cam.z;
+    var x = p.x, y = p.y + Y_TETE * cam.z + F.tete.y * cam.z;
     /* traînée de fumée en boules */
     for(var i = 0; i < 14; i++){
       var t = i / 14;
@@ -636,19 +805,19 @@ function dessineFin(c, tps){
     c.save();
     c.translate(x, y);
     c.rotate(F.tete.rot);
-    c.scale(1.15 * cam.z, 1.15 * cam.z);
+    var eg = ECH_GARD * 0.55 * cam.z;
+    c.scale(eg, eg);
     /* la gardienne, en version qui louche */
-    gardienne3D(c, 0, 0, 1.05, 1);
+    gardienne3D(c, 0, 0, 1, 1, tps);
     /* yeux barrés d'une croix + bouche de travers */
     c.save();
-    c.scale(1.05, 1.05);
     c.strokeStyle = "#150f18"; c.lineWidth = 2.2; c.lineCap = "round";
-    [[-8, -16], [8, -16]].forEach(function(o){
+    [VT_YEUX.g, VT_YEUX.d].forEach(function(o){
       c.beginPath(); c.moveTo(o[0] - 4, o[1] - 4); c.lineTo(o[0] + 4, o[1] + 4); c.stroke();
       c.beginPath(); c.moveTo(o[0] + 4, o[1] - 4); c.lineTo(o[0] - 4, o[1] + 4); c.stroke();
     });
-    c.strokeStyle = "#8a3a34"; c.lineWidth = 2.4;
-    c.beginPath(); c.moveTo(-7, 0); c.quadraticCurveTo(0, 6, 7, -3); c.stroke();
+    c.strokeStyle = "#8a3a34"; c.lineWidth = 2.6;
+    c.beginPath(); c.moveTo(-7, 8); c.quadraticCurveTo(0, 14, 7, 5); c.stroke();
     c.restore();
     c.restore();
   }

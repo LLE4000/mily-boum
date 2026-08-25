@@ -151,7 +151,7 @@ function recoit(txt){
         b.vivant = 0; b.pv = 0;
         marqueEmprise(b, 0);
         jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.6, r:b.e * 0.6, force:0.8 });
-        if(jeu.fusee && jeu.fusee.cible === b) jeu.fusee = null;
+        if(jeu.balise && jeu.balise.cible === b) jeu.balise = null;
       }
     }
   }else if(m.t === "carte"){

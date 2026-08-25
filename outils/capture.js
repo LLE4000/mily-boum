@@ -14,36 +14,47 @@ fs.mkdirSync(sortie, { recursive: true });
 /* Actions scriptées dans la page, exécutées entre deux captures. */
 const scenes = [
   { nom: "1-briefing", vue: { width: 1280, height: 880 }, action: null, attente: 900 },
-  { nom: "2-plage",    vue: { width: 1280, height: 720 }, attente: 1800, action: `
+  { nom: "2-plage",    vue: { width: 1280, height: 720 }, attente: 2600, action: `
       lancePartie();
-      cam.z = 0.62; centreSur(PLAGE_X0 - 4, GH/2); borneCamera();
-      poseBarge(GW - 4, GH/2);
-      poseBarge(GW - 4, GH/2 - 6);
+      cam.z = 0.62; centreSur(PLAGE_X0 + 2, GH/2); borneCamera();
+      poseBarge(GW - 5, GH/2);
+      poseBarge(GW - 5, GH/2 - 6);
   ` },
   { nom: "3-combat",   vue: { width: 1280, height: 720 }, attente: 5200, action: `
-      cam.z = 1.0; centreSur(PLAGE_X0 - 10, GH/2); borneCamera();
+      cam.z = 1.0; centreSur(PLAGE_X0 - 6, GH/2); borneCamera();
   ` },
   { nom: "4-defenses", vue: { width: 1280, height: 720 }, attente: 1200, action: `
-      cam.z = 1.55; centreSur(46, GH/2 - 2); borneCamera();
+      cam.z = 1.55; centreSur(60, GH/2 - 2); borneCamera();
       /* on plante une défense de chaque type bien en vue */
-      var types = ["mitrailleuse","flammes","roquettes","mortier","electro","reservoir","entrepot"];
-      jeu.batiments.forEach(function(b){ if(Math.abs(b.gx-46)<9 && Math.abs(b.gy-(GH/2-2))<9) b.vivant = 0; });
+      var types = ["crible","chalumeau","frelon","pilon","bobine","cuve","silo"];
+      jeu.batiments.forEach(function(b){ if(Math.abs(b.gx-60)<10 && Math.abs(b.gy-(GH/2-2))<10) b.vivant = 0; });
       types.forEach(function(t,i){
-        jeu.batiments.push({ t:t, gx:42 + (i%4)*3.2, gy:GH/2 - 4 + Math.floor(i/4)*3.4,
+        jeu.batiments.push({ t:t, gx:56 + (i%4)*3.4, gy:GH/2 - 4 + Math.floor(i/4)*3.6,
           pv:DEF[t].pv, pvMax:DEF[t].pv, e:DEF[t].emprise, n:9000+i, vivant:1,
           angle:0.6, cible:null, prochainTir:0, prochainCiblage:0, flash:0.7, recul:0.6, chargement:0.5 });
       });
   ` },
+  { nom: "4b-falaises", vue: { width: 1280, height: 720 }, attente: 900, action: `
+      cam.z = 0.8; centreSur(40, 6); borneCamera();
+  ` },
+  { nom: "4c-capacites", vue: { width: 1280, height: 720 }, attente: 1500, action: `
+      cam.z = 0.95; centreSur(PLAGE_X0 - 14, GH/2); borneCamera();
+      utiliseCapacite("poulets", PLAGE_X0 - 15, GH/2);
+      utiliseCapacite("cryo", PLAGE_X0 - 19, GH/2 + 3);
+      utiliseCapacite("brouillard", PLAGE_X0 - 11, GH/2 - 4);
+      utiliseCapacite("nova", PLAGE_X0 - 22, GH/2 - 2);
+      utiliseCapacite("salve", PLAGE_X0 - 17, GH/2 + 6);
+  ` },
   { nom: "5-qg",       vue: { width: 1280, height: 720 }, attente: 1400, action: `
-      cam.z = 1.35; centreSur(QG_GX + 4, QG_GY); borneCamera();
+      cam.z = 0.62; centreSur(QG_GX + 6, QG_GY + 2); cam.py += 170;
       jeu.qg.pv = jeu.qg.pvMax * 0.5;
       jeu.qgTelegraphe = 1.0;
   ` },
   { nom: "6-gardienne", vue: { width: 900, height: 900 }, attente: 700, action: `
-      cam.z = 1.7; centreSur(QG_GX + 2.6, QG_GY - 0.4); cam.py += 150;
+      cam.z = 1.05; centreSur(QG_GX, QG_GY); cam.py += 340;
   ` },
   { nom: "7-portrait", vue: { width: 430, height: 860 }, attente: 900, action: `
-      ajuste(); cam.z = 0.7; centreSur(PLAGE_X0 - 6, GH/2); borneCamera();
+      ajuste(); cam.z = 0.7; centreSur(PLAGE_X0 - 2, GH/2); borneCamera();
   ` },
   { nom: "8-final",    vue: { width: 1280, height: 720 }, attente: 3400, action: `
       ajuste(); cam.z = 0.9; centreSur(QG_GX + 3, QG_GY); borneCamera();
@@ -55,7 +66,7 @@ const scenes = [
   const navigateur = await chromium.launch({ args: ["--no-sandbox", "--use-gl=swiftshader"] });
   const page = await navigateur.newPage({ viewport: scenes[0].vue, deviceScaleFactor: 1 });
   const erreurs = [];
-  page.on("pageerror", e => erreurs.push("pageerror: " + e.message));
+  page.on("pageerror", e => erreurs.push("pageerror: " + e.message + "\n" + (e.stack||"").split("\n").slice(0,6).join("\n")));
   page.on("console", m => { if(m.type() === "error") erreurs.push("console: " + m.text()); });
 
   await page.goto(url);
@@ -69,7 +80,8 @@ const scenes = [
     }
     await page.waitForTimeout(s.attente || 600);
     await page.screenshot({ path: path.join(sortie, s.nom + ".png") });
-    console.log("→ " + s.nom + ".png");
+    const f = await page.evaluate("typeof lissageFps !== 'undefined' ? Math.round(lissageFps) : -1");
+    console.log("→ " + s.nom + ".png   (" + f + " img/s)");
   }
 
   const fps = await page.evaluate("typeof lissageFps !== 'undefined' ? Math.round(lissageFps) : -1");

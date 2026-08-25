@@ -20,7 +20,7 @@ try{
   N = new Function(source + "\nreturn {" + [
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
-    "CARTES","GW","GH","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
+    "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "genereCarte","empreinteCarte","utf8Octets","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
@@ -192,16 +192,16 @@ G("4. Déterminisme de la génération de carte");
   ok("code de salon différent → carte différente", N.empreinteCarte(a) !== N.empreinteCarte(e));
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){
-    ok("carte " + (i + 1) + " : " + m.batiments.length + " bâtiments (200-400)",
-       m.batiments.length >= 200 && m.batiments.length <= 400, "" + m.batiments.length);
+    ok("carte " + (i + 1) + " : " + m.batiments.length + " bâtiments (350-700)",
+       m.batiments.length >= 350 && m.batiments.length <= 700, "" + m.batiments.length);
     var cpt = {};
     m.batiments.forEach(function(b2){ cpt[b2.t] = (cpt[b2.t] || 0) + 1; });
-    ok("carte " + (i + 1) + " : " + (cpt.roquettes || 0) + " lance-roquettes (6-22)",
-       (cpt.roquettes || 0) >= 6 && (cpt.roquettes || 0) <= 22);
-    ok("carte " + (i + 1) + " : " + (cpt.electro || 0) + " électrobombes (25-60)",
-       (cpt.electro || 0) >= 25 && (cpt.electro || 0) <= 60);
-    ok("carte " + (i + 1) + " : " + m.creatures.length + " créatures (40-66)",
-       m.creatures.length >= 40 && m.creatures.length <= 66);
+    ok("carte " + (i + 1) + " : " + (cpt.frelon || 0) + " Frelons (10-45)",
+       (cpt.frelon || 0) >= 10 && (cpt.frelon || 0) <= 45);
+    ok("carte " + (i + 1) + " : " + (cpt.bobine || 0) + " Bobines (40-130)",
+       (cpt.bobine || 0) >= 40 && (cpt.bobine || 0) <= 130);
+    ok("carte " + (i + 1) + " : " + m.creatures.length + " créatures (70-110)",
+       m.creatures.length >= 70 && m.creatures.length <= 110);
     var esp = {};
     m.creatures.forEach(function(k){ esp[k.t] = (esp[k.t] || 0) + 1; });
     ok("carte " + (i + 1) + " : les 4 espèces hostiles sont présentes",
@@ -220,8 +220,9 @@ G("4. Déterminisme de la génération de carte");
     ok("carte " + (i + 1) + " : rien dans l'emprise du QG", loinQG);
   });
 
-  ok("traversée plage → QG ≈ 103 cases",
-     Math.abs((N.GW - 4) - N.QG_GX - 103) <= 1, "" + ((N.GW - 4) - N.QG_GX));
+  var traversee = (N.GW - 4) - N.QG_GX;
+  ok("traversée plage → Brasier : " + traversee + " cases (île géante)",
+     traversee >= 120 && traversee <= 180, "" + traversee);
 })();
 
 /* ================================================================
@@ -269,9 +270,9 @@ G("5. Convergence des points de vie du QG");
 })();
 
 /* ================================================================
-   6. Cône du lance-flammes
+   6. Cône du lance-chalumeau
    ================================================================ */
-G("6. Cône du lance-flammes au passage par ±π");
+G("6. Cône du lance-chalumeau au passage par ±π");
 (function(){
   var PI = Math.PI;
   ok("écart(π-0.05, -π+0.05) ≈ -0.1",
@@ -315,9 +316,10 @@ G("7. Budget mémoire");
   ok("canevas de sol " + t.w + "×" + t.h + " = " + t.mpx.toFixed(2) + " Mpx (< 8)",
      t.mpx < 8, t.mpx.toFixed(2) + " Mpx");
   ok("… et suffisamment grand pour couvrir l'île", t.w > 2500 && t.h > 1200);
-  var plein = (t.w / N.SOL_ECH) * (t.h / N.SOL_ECH) / 1e6;
-  ok("pleine résolution refusée à raison (" + plein.toFixed(1) + " Mpx)", plein > 8);
-  ok("la carte fait plus de 11 000 cases (" + (N.GW * N.GH) + ")", N.GW * N.GH >= 11648);
+  ok("échelle du sol adaptée automatiquement (" + t.ech.toFixed(3) + ")",
+     t.ech > 0.2 && t.ech <= 0.5);
+  ok("pleine résolution refusée à raison (" + t.mpxPlein.toFixed(1) + " Mpx)", t.mpxPlein > 8);
+  ok("la carte fait plus de 20 000 cases (" + (N.GW * N.GH) + ")", N.GW * N.GH >= 20000);
 })();
 
 /* ================================================================
@@ -325,16 +327,16 @@ G("7. Budget mémoire");
    ================================================================ */
 G("8. Cohérence des règles de jeu");
 (function(){
-  ok("la mitrailleuse (5,15) dépasse l'arrêt de la Meuf (4,75)",
-     N.DEF.mitrailleuse.portee > N.UNI.meuf.arret);
+  ok("la crible (5,15) dépasse l'arrêt de la Meuf (4,75)",
+     N.DEF.crible.portee > N.UNI.meuf.arret);
   ok("… mais de justesse : moins d'une demi-case",
-     N.DEF.mitrailleuse.portee - N.UNI.meuf.arret < 0.5);
-  ok("le lance-flammes (5,6) dépasse la portée de la Meuf (5,0)",
-     N.DEF.flammes.portee > N.UNI.meuf.portee);
-  ok("le mortier est aveugle de près (portée mini 2,6)", N.DEF.mortier.porteeMin === 2.6);
+     N.DEF.crible.portee - N.UNI.meuf.arret < 0.5);
+  ok("le lance-chalumeau (5,6) dépasse la portée de la Meuf (5,0)",
+     N.DEF.chalumeau.portee > N.UNI.meuf.portee);
+  ok("le pilon est aveugle de près (portée mini 2,6)", N.DEF.pilon.porteeMin === 2.6);
 
   /* précision dégressive */
-  ok("à 4,0 cases la mitrailleuse touche toujours", N.mitraTouche(4.0, 0.99));
+  ok("à 4,0 cases la crible touche toujours", N.mitraTouche(4.0, 0.99));
   ok("à 5,0 cases elle touche une fois sur trois",
      N.mitraTouche(5.0, 0.30) && !N.mitraTouche(5.0, 0.34));
   var n = 0;
@@ -343,8 +345,12 @@ G("8. Cohérence des règles de jeu");
      Math.abs(n / 30000 - 1 / 3) < 0.02);
 
   /* coûts croissants */
-  var u = { fusee:0, fumee:0, soins:0, obus:0, barrage:0 };
-  var attendu = { fusee:[1,5,10,20], fumee:[3,7,12,22], soins:[5,13,23,43], obus:[6,14,24,44], barrage:[10,22,37,67] };
+  var u = { nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 };
+  var attendu = {
+    balise:[1,5,10,20], brouillard:[3,7,12,22], poulets:[4,12,22,42],
+    soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
+    salve:[10,22,37,67], nova:[14,30,50,90]
+  };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
     [0, 4, 9, 19].forEach(function(k, i){
@@ -354,17 +360,26 @@ G("8. Cohérence des règles de jeu");
     });
     u[m] = 0;
   });
-  ok("barème des coûts (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
+  ok("barème des huit capacités (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
+  ok("huit capacités exactement", Object.keys(N.COUT).length === 8);
 
   /* traversée */
-  var cases = 103;
-  ok("25 s d'Éclairante couvrent " + (25 * N.UNI.meuf.vitesse).toFixed(0) + " cases (≈ 1/3 du trajet)",
+  var cases = (N.GW - 4) - N.QG_GX;
+  ok("25 s de Balise couvrent " + (25 * N.UNI.meuf.vitesse).toFixed(0) + " cases (≈ 1/3 du trajet)",
      Math.abs(25 * N.UNI.meuf.vitesse - 33.75) < 0.01);
-  ok("4 Éclairantes suffisent à traverser " + cases + " cases",
-     4 * 25 * N.UNI.meuf.vitesse >= cases);
+  ok("il faut " + Math.ceil(cases / (25 * N.UNI.meuf.vitesse)) + " Balises pour traverser " + cases + " cases",
+     Math.ceil(cases / (25 * N.UNI.meuf.vitesse)) <= 6);
   ok("une vie = 120 unités", N.EQ.NB_BARGES * N.EQ.PLACES_PAR_BARGE === 120);
-  ok("récolte totale ≈ 1050 poudres",
-     N.EQ.POUDRE_DEPART + 300 * N.EQ.POUDRE_PAR_BATIMENT === 1050);
+  /* le Brasier : objectif collectif */
+  var dpsSolo = 100 * (N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000));
+  var soloMin = N.CARTES[0].pvQG / dpsSolo / 60;
+  ok("île 1 : " + soloMin.toFixed(0) + " min en solo sans opposition (≈ 60)",
+     soloMin >= 45 && soloMin <= 90, soloMin.toFixed(1));
+  ok("île 1 : " + (soloMin / 15).toFixed(1) + " min à quinze joueurs (< 6)", soloMin / 15 < 6);
+  ok("les défenses restent tendres devant le Brasier",
+     N.DEF.frelon.pv * 400 < N.CARTES[0].pvQG / 10);
+  ok("une quinzaine de tireuses démonte un Crible en moins de 4 s",
+     N.DEF.crible.pv / (8 * N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000)) < 4);
 })();
 
 /* ---------------- bilan ---------------- */

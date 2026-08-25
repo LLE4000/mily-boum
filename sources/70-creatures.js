@@ -320,3 +320,74 @@ function dessineCreature(c, k, tps){
   var fr = k.pv / f.pv;
   if(fr < 0.999 && z > 0.2) barreVie(c, p.x, p.y - 34 * z, 20 * z, fr, "#c98adf");
 }
+
+/* ================================================================
+   LE POULET LEURRE — il court, il caquette, il encaisse à la place
+   des troupes.
+   ================================================================ */
+function dessinePoulet(c, k, tps){
+  var ph = k.phase;
+  var bond = Math.abs(Math.sin(ph));
+  var saut = bond * 3.2;
+
+  c.fillStyle = "rgba(0,0,0,.24)";
+  c.beginPath(); c.ellipse(0, 0, 5.5 - bond * 1.2, 2.3 - bond * 0.5, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, -saut);
+  /* pattes */
+  c.strokeStyle = "#e0a02c"; c.lineWidth = 1.3; c.lineCap = "round";
+  var ec = Math.sin(ph) * 2.6;
+  c.beginPath(); c.moveTo(-1, -5); c.lineTo(-1 - ec, -0.4); c.stroke();
+  c.beginPath(); c.moveTo(1.4, -5); c.lineTo(1.4 + ec, -0.4); c.stroke();
+  /* queue */
+  c.fillStyle = "#f2ece0";
+  c.beginPath();
+  c.moveTo(-4, -8); c.quadraticCurveTo(-10, -13, -8, -6);
+  c.quadraticCurveTo(-7, -6.5, -4, -6);
+  c.closePath(); c.fill();
+  /* corps */
+  var g = c.createRadialGradient(-1.5, -11, 0.5, 0, -8, 8);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.6, "#f2ece0"); g.addColorStop(1, "#cfc4b2");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -8, 5.6, 4.6, -0.1, 0, 6.2832); c.fill();
+  /* aile qui bat */
+  c.fillStyle = "#e2d8c6";
+  c.save();
+  c.translate(-0.5, -8.5); c.rotate(Math.sin(tps * 18 + k.n) * 0.35);
+  c.beginPath(); c.ellipse(0, 0, 3.6, 2.2, 0, 0, 6.2832); c.fill();
+  c.restore();
+  /* tête */
+  c.fillStyle = "#f7f2e8";
+  c.beginPath(); c.ellipse(5, -13, 2.9, 2.9, 0, 0, 6.2832); c.fill();
+  /* crête et barbillon */
+  c.fillStyle = "#d8352c";
+  c.beginPath();
+  c.moveTo(3.4, -15.6); c.quadraticCurveTo(4.4, -18.4, 5.4, -15.8);
+  c.quadraticCurveTo(6.4, -18, 7, -15.4);
+  c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(5.6, -10.4, 1.1, 1.6, 0, 0, 6.2832); c.fill();
+  /* bec */
+  c.fillStyle = "#e8a72c";
+  c.beginPath();
+  c.moveTo(7.4, -13.4); c.lineTo(10.4, -12.6); c.lineTo(7.4, -11.8);
+  c.closePath(); c.fill();
+  /* œil affolé */
+  c.fillStyle = "#241c18";
+  c.beginPath(); c.arc(6.2, -13.8, 0.85, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.9)";
+  c.beginPath(); c.arc(5.9, -14.1, 0.32, 0, 6.2832); c.fill();
+  c.restore();
+}
+function dessinePouletMonde(c, p, tps){
+  var e = versEcran(cam, p.gx, p.gy);
+  var z = cam.z;
+  c.save();
+  c.translate(e.x, e.y);
+  c.scale(z, z);
+  if(!p.droite) c.scale(-1, 1);
+  dessinePoulet(c, p, tps);
+  c.restore();
+  var fr = p.pv / p.pvMax;
+  if(fr < 0.999 && z > 0.2) barreVie(c, e.x, e.y - 26 * z, 14 * z, fr, "#ffd070");
+}

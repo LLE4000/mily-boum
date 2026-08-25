@@ -285,42 +285,96 @@ function salissures(c, x0, y0, larg, haut, n, graine){
   c.restore();
 }
 
-/* Lueur radiale additive */
-function lueur(c, x, y, r, coul, force){
+/* Lueur radiale additive.
+   Le dégradé est pré-rendu une fois par teinte : à cinquante flammes
+   par image, créer autant de dégradés coûterait bien plus cher. */
+var spLueur = {};
+function lueurRapide(c, x, y, r, coul, force){
+  if(!(r > 0) || !(force > 0)) return;
+  var s = spLueur[coul];
+  if(!s){
+    s = nouveauCanvas(128, 128);
+    var g2 = s.getContext("2d");
+    var gr = g2.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, rgba(coul, 1));
+    gr.addColorStop(0.42, rgba(coul, 0.38));
+    gr.addColorStop(1, rgba(coul, 0));
+    g2.fillStyle = gr;
+    g2.fillRect(0, 0, 128, 128);
+    spLueur[coul] = s;
+  }
   c.save();
   c.globalCompositeOperation = "lighter";
-  var g = c.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, rgba(coul, force === undefined ? 0.55 : force));
-  g.addColorStop(0.5, rgba(coul, (force === undefined ? 0.55 : force) * 0.35));
-  g.addColorStop(1, rgba(coul, 0));
-  c.fillStyle = g;
-  c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+  c.globalAlpha = Math.min(1, force);
+  c.drawImage(s, x - r, y - r, r * 2, r * 2);
   c.restore();
 }
+function lueur(c, x, y, r, coul, force){
+  lueurRapide(c, x, y, r, coul, force === undefined ? 0.55 : force);
+}
 
-/* Flamme animée : trois langues superposées */
-function flamme(c, x, y, h, t, ech, teinteFroide){
+/* ---------------------------------------------------------------
+   FLAMME — quatre langues superposées, hauteur, dérive et scintillement
+   pilotés par plusieurs sinusoïdes de fréquences premières entre elles :
+   le mouvement ne se répète jamais à l'œil.
+   --------------------------------------------------------------- */
+var COUCHES_FLAMME = [
+  { c:"#ff3208", a:0.62, s:1.00, d:0.0, w:5.4 },
+  { c:"#ff8a1e", a:0.72, s:0.76, d:1.6, w:4.2 },
+  { c:"#ffd464", a:0.80, s:0.50, d:3.0, w:2.8 },
+  { c:"#fff8dc", a:0.72, s:0.27, d:4.4, w:1.6 }
+];
+function flamme(c, x, y, h, t, ech, froide){
   ech = ech || 1;
-  var couches = [
-    { c:teinteFroide ? "#ff5a1e" : "#ff4a12", a:0.85, s:1.0,  d:0 },
-    { c:"#ffa32a", a:0.9,  s:0.72, d:1.7 },
-    { c:"#ffe9a0", a:0.95, s:0.42, d:3.1 }
-  ];
+  /* battement : trois fréquences + une lente respiration */
+  var vac = 0.80 + 0.16 * Math.sin(t * 7.3 + x * 0.05)
+                 + 0.10 * Math.sin(t * 13.7 + 1.7)
+                 + 0.06 * Math.sin(t * 23.1 + x * 0.11);
+  var hh = h * vac;
+  var derive = Math.sin(t * 5.1 + x * 0.03) * 1.8 * ech
+             + Math.sin(t * 9.7 + 2.1) * 0.9 * ech;
   c.save();
   c.globalCompositeOperation = "lighter";
-  for(var i = 0; i < 3; i++){
-    var k = couches[i];
-    var ond = Math.sin(t * 9 + k.d) * 2.2 * ech + Math.sin(t * 15.7 + k.d * 2) * 1.1 * ech;
-    var hh = h * k.s * (0.86 + Math.sin(t * 11 + k.d * 3) * 0.14);
+  for(var i = 0; i < 4; i++){
+    var k = COUCHES_FLAMME[i];
+    var ond = derive + Math.sin(t * 11 + k.d * 2.3) * 1.5 * ech;
+    var hi = hh * k.s * (0.88 + Math.sin(t * 17 + k.d * 3.1) * 0.12);
+    var w = k.w * ech * (froide ? 0.7 : 1);
     c.fillStyle = rgba(k.c, k.a);
     c.beginPath();
-    c.moveTo(x - 4.5 * ech * k.s, y);
-    c.quadraticCurveTo(x - 5.5 * ech * k.s + ond, y - hh * 0.55, x + ond * 0.7, y - hh);
-    c.quadraticCurveTo(x + 5.5 * ech * k.s + ond, y - hh * 0.55, x + 4.5 * ech * k.s, y);
+    c.moveTo(x - w, y);
+    c.quadraticCurveTo(x - w * 1.25 + ond * 0.5, y - hi * 0.5, x + ond, y - hi);
+    c.quadraticCurveTo(x + w * 1.25 + ond * 0.5, y - hi * 0.5, x + w, y);
     c.closePath(); c.fill();
   }
+  /* une langue se détache et monte */
+  var ph = (t * 1.9 + x * 0.017) % 1;
+  c.fillStyle = "rgba(255,168,54," + ((1 - ph) * 0.42) + ")";
+  c.beginPath();
+  c.ellipse(x + derive * 1.5, y - hh * (0.95 + ph * 0.75),
+            2.6 * ech * (1 - ph * 0.5), 4.4 * ech * (1 - ph * 0.4), 0, 0, 6.2832);
+  c.fill();
   c.restore();
-  lueur(c, x, y - h * 0.4, h * 1.5, "#ff8a1e", 0.16);
+  lueurRapide(c, x, y - hh * 0.35, hh * 1.9, "#ff8a1e", (0.14 + vac * 0.10));
+}
+
+/* Braises qui montent au-dessus d'un foyer */
+function braises(c, x, y, t, n, ech, etendue){
+  ech = ech || 1;
+  etendue = etendue || 30;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var i = 0; i < n; i++){
+    var ph = ((t * (0.30 + (i % 5) * 0.07) + i * 0.37) % 1);
+    var dx = Math.sin(t * 1.7 + i * 2.3) * (6 + i % 7) * ech;
+    var a = (1 - ph) * (1 - ph) * 0.85;
+    var r = (0.7 + (i % 3) * 0.5) * ech * (1 - ph * 0.4);
+    c.fillStyle = "rgba(255," + (140 + (i % 4) * 28) + ",50," + a + ")";
+    c.beginPath();
+    c.arc(x + dx, y - ph * etendue * ech, r, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
 }
 
 /* Petite fumée qui monte */

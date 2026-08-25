@@ -12,6 +12,7 @@ function demarre(){
   ajuste();
 
   construitSpritesDefenses();
+  construitSpriteGardienne();
   construitSpriteQG();
   construitVignettesGrises();
 

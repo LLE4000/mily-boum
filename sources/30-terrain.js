@@ -330,10 +330,104 @@ function traceIle(c, dilat, ond, t, suite){
 }
 
 /* ================================================================
-   SOL PRÉ-CALCULÉ
+   SOL PRÉ-CALCULÉ — uniquement le terrain plat.
+   Rochers, falaises et décors sont dessinés en direct, dans le tri de
+   profondeur : ils restent nets et les troupes passent devant/derrière.
    ================================================================ */
+
+/* --- bruit lisse déterministe, pour des taches organiques --- */
+function alea2d(a, b, graine){
+  var n = Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(graine, 1274126177);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function bruitLisse(x, y, graine){
+  var xi = Math.floor(x), yi = Math.floor(y);
+  var xf = x - xi, yf = y - yi;
+  var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  return alea2d(xi, yi, graine) * (1 - u) * (1 - v)
+       + alea2d(xi + 1, yi, graine) * u * (1 - v)
+       + alea2d(xi, yi + 1, graine) * (1 - u) * v
+       + alea2d(xi + 1, yi + 1, graine) * u * v;
+}
+function bruitFractal(x, y, graine){
+  return bruitLisse(x, y, graine) * 0.55
+       + bruitLisse(x * 2.13, y * 2.13, graine + 7) * 0.28
+       + bruitLisse(x * 4.37, y * 4.37, graine + 19) * 0.17;
+}
+function adouci(t){ t = borne(t, 0, 1); return t * t * (3 - 2 * t); }
+
+/* --- palettes de matière, par biome --- */
+var MATIERES = {
+  plage: {
+    fond1:"#e6d1a0", fond2:"#dcc590",                     // dune sèche
+    tache1:"#f2e2ba", tache2:"#cbb078",
+    herbe1:"#9aa85e", herbe2:"#7d8c48",                   // touffes d'oyat
+    sable1:"#f0dfb4", sable2:"#e6d0a0",
+    mouille:"#b99a68", roche1:"#8d8794", roche2:"#6f6a78"
+  },
+  foret: {
+    fond1:"#5d7c3d", fond2:"#4c6a30",
+    tache1:"#6e8f47", tache2:"#3d5726",
+    herbe1:"#77a04c", herbe2:"#4e7030",
+    sable1:"#ddcda2", sable2:"#c9b483",
+    mouille:"#a08e63", roche1:"#7a7484", roche2:"#5d5868"
+  },
+  campagne: {
+    fond1:"#bb9e60", fond2:"#a88b4f",
+    tache1:"#cdb073", tache2:"#8f7640",
+    herbe1:"#9aa851", herbe2:"#7c8a44",
+    sable1:"#e0cb95", sable2:"#cdb47c",
+    mouille:"#9c8154", roche1:"#7f7986", roche2:"#635e6c"
+  }
+};
+
+/* Proportions de matière d'une case : sable / roche / herbe / humidité */
+function matiereCase(i, j, graine){
+  /* roche : le long des trois bords fermés */
+  var dRoche = Math.min(j, GH - 1 - j, i);
+  var fRoche = adouci(1 - dRoche / LARGEUR_ROCHE);
+  /* sable : toute la plage à l'est, avec une transition douce */
+  var fSable = i >= PLAGE_X0 ? 1 : adouci(1 - (PLAGE_X0 - i) / 12);
+  /* humidité : les dernières cases avant l'eau */
+  var fMouille = adouci((i - (GW - 6)) / 6);
+  /* herbe : par taches, et seulement là où il n'y a ni roche ni sable sec */
+  var n = bruitFractal(i * 0.055, j * 0.055, graine);
+  var fHerbe = adouci((n - 0.46) * 3.2) * (1 - fSable * 0.9) * (1 - fRoche * 0.8);
+  return { roche:fRoche, sable:fSable, mouille:fMouille, herbe:fHerbe, n:n };
+}
+
+function couleurCase(i, j, M, graine){
+  var m = matiereCase(i, j, graine);
+  var micro = bruitFractal(i * 0.42, j * 0.42, graine + 101);
+  var damier = ((i + j) & 1) ? 0.011 : -0.011;
+  /* fond du biome, avec ses taches */
+  var base = melange(M.fond1, M.fond2, adouci(bruitFractal(i * 0.13, j * 0.13, graine + 3)));
+  base = melange(base, M.tache1, adouci((m.n - 0.58) * 3) * 0.6);
+  base = melange(base, M.tache2, adouci((0.42 - m.n) * 3) * 0.5);
+  /* herbe par-dessus */
+  if(m.herbe > 0.02){
+    var h = melange(M.herbe1, M.herbe2, micro);
+    base = melange(base, h, m.herbe * 0.85);
+  }
+  /* puis le sable de la plage */
+  if(m.sable > 0.01){
+    var sa = melange(M.sable1, M.sable2, micro);
+    base = melange(base, sa, m.sable);
+  }
+  /* puis la roche des falaises */
+  if(m.roche > 0.01){
+    var ro = melange(M.roche1, M.roche2, micro);
+    base = melange(base, ro, m.roche * 0.92);
+  }
+  /* enfin le sable mouillé du bord de mer */
+  if(m.mouille > 0.01) base = melange(base, M.mouille, m.mouille * 0.75);
+  return ecl(base, 1 + (micro - 0.5) * 0.09 + damier);
+}
+
 function construitSol(carteC){
   var b = BIOMES[carteC.biome];
+  var M = MATIERES[carteC.biome];
   solInfo = tailleSolPrecalcule();
   if(!solCv || solCv.width !== solInfo.w || solCv.height !== solInfo.h){
     solCv = nouveauCanvas(solInfo.w, solInfo.h);
@@ -345,30 +439,18 @@ function construitSol(carteC){
   c.setTransform(SOL_ECH, 0, 0, SOL_ECH, -solInfo.x0 * SOL_ECH, -solInfo.y0 * SOL_ECH);
 
   var al = prng(carteC.graine ^ 0x5bd1);
+  var gr = carteC.graine >>> 0;
   var i, j;
 
   /* --- masse de l'île --- */
-  traceIle(c, 5, 0, 0);
-  c.fillStyle = b.sable;
-  c.fill();
-  traceIle(c, 0, 0, 0);
-  c.fillStyle = b.sol2;
+  traceIle(c, 6, 0, 0);
+  c.fillStyle = M.sable1;
   c.fill();
 
-  /* --- damier très discret + variation de teinte --- */
+  /* --- le terrain, case par case --- */
   for(j = 0; j < GH; j++){
     for(i = 0; i < GW; i++){
-      var plage = i >= PLAGE_X0;
-      var lisiere = i >= PLAGE_X0 - 5 && i < PLAGE_X0;
-      var base;
-      if(plage) base = b.sable;
-      else if(lisiere) base = melange(b.sol1, b.sable, (i - (PLAGE_X0 - 5)) / 5);
-      else base = b.sol1;
-      /* bruit doux à plusieurs échelles */
-      var n1 = Math.sin(i * 0.31 + j * 0.19) + Math.sin(i * 0.11 - j * 0.43);
-      var n2 = Math.sin(i * 1.7 + j * 2.3) * 0.4;
-      var damier = ((i + j) & 1) ? 0.012 : -0.012;
-      c.fillStyle = ecl(base, 1 + n1 * 0.028 + n2 * 0.02 + damier);
+      c.fillStyle = couleurCase(i, j, M, gr);
       var a = iso(i, j), e = iso(i + 1, j), f = iso(i + 1, j + 1), g = iso(i, j + 1);
       c.beginPath();
       c.moveTo(a.x, a.y); c.lineTo(e.x, e.y); c.lineTo(f.x, f.y); c.lineTo(g.x, g.y);
@@ -376,125 +458,154 @@ function construitSol(carteC){
     }
   }
 
-  /* --- grandes dunes / reliefs doux --- */
+  /* --- grands reliefs doux : dunes, creux, ombres portées du terrain --- */
   c.save();
   traceIle(c, 0, 0, 0); c.clip();
-  for(i = 0; i < 70; i++){
+  for(i = 0; i < 130; i++){
     var dx = al() * GW, dy = al() * GH;
     var p = iso(dx, dy);
-    var rr = 120 + al() * 320;
+    var rr = 130 + al() * 420;
     var clair = al() < 0.5;
     var gd = c.createRadialGradient(p.x, p.y, 4, p.x, p.y, rr);
-    gd.addColorStop(0, clair ? "rgba(255,246,220,.14)" : "rgba(90,66,36,.13)");
+    gd.addColorStop(0, clair ? "rgba(255,248,224,.13)" : "rgba(70,50,26,.12)");
     gd.addColorStop(1, "rgba(0,0,0,0)");
     c.fillStyle = gd;
     c.beginPath(); c.ellipse(p.x, p.y, rr, rr / 2, 0, 0, 6.2832); c.fill();
   }
   c.restore();
 
-  /* --- allées du lattice militaire --- */
+  /* --- allées du quadrillage militaire --- */
   c.save();
-  c.globalAlpha = 0.22;
-  c.fillStyle = b.allee;
+  c.globalAlpha = 0.18;
+  c.fillStyle = M.tache1;
   for(i = 3; i < PLAGE_X0; i += 5){
-    var a1 = iso(i + 1.55, 0), a2 = iso(i + 2.45, 0), a3 = iso(i + 2.45, GH), a4 = iso(i + 1.55, GH);
+    var a1 = iso(i + 1.6, 0), a2 = iso(i + 2.4, 0), a3 = iso(i + 2.4, GH), a4 = iso(i + 1.6, GH);
     c.beginPath(); c.moveTo(a1.x, a1.y); c.lineTo(a2.x, a2.y); c.lineTo(a3.x, a3.y); c.lineTo(a4.x, a4.y);
     c.closePath(); c.fill();
   }
   for(j = 0; j < GH; j += 5){
-    var b1 = iso(0, j + 1.55), b2 = iso(0, j + 2.45), b3 = iso(PLAGE_X0, j + 2.45), b4 = iso(PLAGE_X0, j + 1.55);
+    var b1 = iso(0, j + 1.6), b2 = iso(0, j + 2.4), b3 = iso(PLAGE_X0, j + 2.4), b4 = iso(PLAGE_X0, j + 1.6);
     c.beginPath(); c.moveTo(b1.x, b1.y); c.lineTo(b2.x, b2.y); c.lineTo(b3.x, b3.y); c.lineTo(b4.x, b4.y);
     c.closePath(); c.fill();
   }
   c.restore();
 
   /* --- textures propres au biome --- */
+  c.save();
+  traceIle(c, 0, 0, 0); c.clip();
   if(carteC.biome === "campagne"){
-    c.save(); c.globalAlpha = 0.16; c.strokeStyle = "#6d5527"; c.lineWidth = 2;
-    for(j = 2; j < GH - 2; j += 0.9){
-      var s1 = iso(2, j), s2 = iso(PLAGE_X0 - 2, j);
+    c.globalAlpha = 0.14; c.strokeStyle = "#6d5527"; c.lineWidth = 2;
+    for(j = 3; j < GH - 3; j += 0.9){
+      if(matiereCase(GW * 0.4 | 0, j | 0, gr).sable > 0.5) continue;
+      var s1 = iso(LARGEUR_ROCHE + 1, j), s2 = iso(PLAGE_X0 - 6, j);
       c.beginPath(); c.moveTo(s1.x, s1.y); c.lineTo(s2.x, s2.y); c.stroke();
     }
-    c.restore();
   }
   if(carteC.biome === "foret"){
-    c.save(); c.globalAlpha = 0.18;
-    for(i = 0; i < 1100; i++){
+    c.globalAlpha = 0.16;
+    for(i = 0; i < 1500; i++){
       var mx = al() * PLAGE_X0, my = al() * GH;
       var pp = iso(mx, my);
       c.fillStyle = al() < 0.5 ? "#39562a" : "#6f9046";
-      c.beginPath(); c.ellipse(pp.x, pp.y, 14 + al() * 26, 7 + al() * 12, 0, 0, 6.2832); c.fill();
+      c.beginPath(); c.ellipse(pp.x, pp.y, 14 + al() * 28, 7 + al() * 13, 0, 0, 6.2832); c.fill();
     }
-    c.restore();
   }
-
-  /* --- la plage : sable mouillé, rides de vent, coquillages --- */
-  c.save();
-  traceIle(c, 2, 0, 0); c.clip();
-  /* bande de sable mouillé le long du rivage est */
-  var gm = c.createLinearGradient(iso(GW - 6, 0).x, 0, iso(GW + 2, 0).x, 0);
-  gm.addColorStop(0, "rgba(150,116,70,0)");
-  gm.addColorStop(0.55, "rgba(150,116,70,.20)");
-  gm.addColorStop(1, "rgba(110,86,54,.42)");
-  c.fillStyle = gm;
-  var w1 = iso(GW - 8, -3), w2 = iso(GW + 3, -3), w3 = iso(GW + 3, GH + 3), w4 = iso(GW - 8, GH + 3);
-  c.beginPath(); c.moveTo(w1.x, w1.y); c.lineTo(w2.x, w2.y); c.lineTo(w3.x, w3.y); c.lineTo(w4.x, w4.y);
-  c.closePath(); c.fill();
-  /* rides de vent parallèles au rivage */
-  c.strokeStyle = "rgba(255,246,222,.22)"; c.lineWidth = 1.6;
-  for(i = 0; i < 90; i++){
-    var rx = PLAGE_X0 - 3 + al() * 12, ry0 = al() * GH;
-    var q1 = iso(rx, ry0), q2 = iso(rx + 0.2 + al() * 0.5, ry0 + 3 + al() * 5);
-    c.beginPath();
-    c.moveTo(q1.x, q1.y);
-    c.quadraticCurveTo((q1.x + q2.x) / 2 + 8, (q1.y + q2.y) / 2, q2.x, q2.y);
-    c.stroke();
-  }
-  /* grains, galets, algues */
-  for(i = 0; i < 900; i++){
-    var gx2 = PLAGE_X0 - 6 + al() * 14, gy2 = al() * GH;
-    var pg = iso(gx2, gy2);
-    var t2 = al();
-    if(t2 < 0.62){
-      c.fillStyle = "rgba(140,110,70,.30)";
-      c.fillRect(pg.x, pg.y, 1.6, 1.2);
-    }else if(t2 < 0.9){
-      c.fillStyle = "rgba(255,250,236,.45)";
-      c.beginPath(); c.ellipse(pg.x, pg.y, 1.8 + al() * 1.6, 1 + al(), al() * 3, 0, 6.2832); c.fill();
-    }else{
-      c.fillStyle = "rgba(70,100,60,.35)";
-      c.beginPath(); c.ellipse(pg.x, pg.y, 5 + al() * 7, 2 + al() * 2, al() * 3, 0, 6.2832); c.fill();
+  /* touffes d'herbe éparses, partout où l'herbe domine */
+  c.globalAlpha = 0.4;
+  for(i = 0; i < 2600; i++){
+    var hx = al() * GW, hy = al() * GH;
+    var mm = matiereCase(hx | 0, hy | 0, gr);
+    if(mm.herbe < 0.35) continue;
+    var ph = iso(hx, hy);
+    c.strokeStyle = al() < 0.5 ? M.herbe1 : M.herbe2;
+    c.lineWidth = 1.2;
+    for(var t = 0; t < 3; t++){
+      c.beginPath();
+      c.moveTo(ph.x + t * 1.6 - 1.6, ph.y);
+      c.lineTo(ph.x + t * 2.2 - 2.6 + al() * 2, ph.y - 4 - al() * 4);
+      c.stroke();
     }
   }
   c.restore();
+
+  /* --- le bord de mer : rides, galets, coquillages, algues --- */
+  c.save();
+  traceIle(c, 3, 0, 0); c.clip();
+  /* rides de vent parallèles au rivage */
+  c.strokeStyle = "rgba(255,248,226,.24)"; c.lineWidth = 1.7;
+  for(i = 0; i < 220; i++){
+    var rx = PLAGE_X0 - 4 + al() * 17, ry0 = al() * GH;
+    var q1 = iso(rx, ry0), q2 = iso(rx + 0.15 + al() * 0.5, ry0 + 3 + al() * 6);
+    c.beginPath();
+    c.moveTo(q1.x, q1.y);
+    c.quadraticCurveTo((q1.x + q2.x) / 2 + 9, (q1.y + q2.y) / 2, q2.x, q2.y);
+    c.stroke();
+  }
+  /* laisse de mer : ligne d'algues et de débris */
+  c.strokeStyle = "rgba(96,110,64,.34)"; c.lineWidth = 3.4;
+  for(i = 0; i < 150; i++){
+    var ly = al() * GH;
+    var lx = GW - 4.4 + al() * 1.6;
+    var l1 = iso(lx, ly), l2 = iso(lx + 0.1, ly + 1.4 + al() * 2);
+    c.beginPath(); c.moveTo(l1.x, l1.y); c.lineTo(l2.x, l2.y); c.stroke();
+  }
+  /* grains, galets, coquillages */
+  for(i = 0; i < 2200; i++){
+    var gx2 = PLAGE_X0 - 8 + al() * 20, gy2 = al() * GH;
+    var pg = iso(gx2, gy2);
+    var t2 = al();
+    if(t2 < 0.6){
+      c.fillStyle = "rgba(146,116,72,.28)";
+      c.fillRect(pg.x, pg.y, 1.7, 1.2);
+    }else if(t2 < 0.88){
+      c.fillStyle = "rgba(255,252,240,.5)";
+      c.beginPath(); c.ellipse(pg.x, pg.y, 1.8 + al() * 1.8, 1 + al(), al() * 3, 0, 6.2832); c.fill();
+    }else{
+      c.fillStyle = "rgba(120,110,96,.4)";
+      c.beginPath(); c.ellipse(pg.x, pg.y, 2.4 + al() * 3, 1.4 + al() * 1.6, al() * 3, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(255,255,255,.18)";
+      c.beginPath(); c.ellipse(pg.x - 1, pg.y - 0.8, 1.2, 0.7, 0, 0, 6.2832); c.fill();
+    }
+  }
+  c.restore();
+
+  /* --- éboulis au pied des falaises --- */
+  c.save();
+  traceIle(c, 0, 0, 0); c.clip();
+  for(i = 0; i < 1400; i++){
+    var ex = al() * GW, ey = al() * GH;
+    if(matiereCase(ex | 0, ey | 0, gr).roche < 0.25) continue;
+    var pe = iso(ex, ey);
+    var tt = al();
+    c.fillStyle = tt < 0.5 ? "rgba(60,54,70,.34)" : "rgba(180,176,192,.26)";
+    c.beginPath();
+    c.ellipse(pe.x, pe.y, 2 + al() * 5, 1.2 + al() * 2.4, al() * 3, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* --- les falaises : elles ferment le nord, le sud et l'ouest.
+         Elles sont cuites dans le sol : elles ne bougent jamais et
+         aucune troupe ne peut passer devant. --- */
+  var murs = (carteC.falaises || []).slice().sort(function(x, y){
+    return (x.gx + x.gy) - (y.gx + y.gy);
+  });
+  for(i = 0; i < murs.length; i++) dessineFalaise(c, murs[i]);
 
   /* --- lisière ombrée le long du rivage --- */
   c.save();
-  traceIle(c, 3, 0, 0); c.clip();
-  c.globalAlpha = 0.24;
-  c.strokeStyle = "#6b5030"; c.lineWidth = 22;
+  traceIle(c, 4, 0, 0); c.clip();
+  c.globalAlpha = 0.22;
+  c.strokeStyle = "#6b5030"; c.lineWidth = 20;
   traceIle(c, 0, 0, 0); c.stroke();
   c.restore();
 
-  /* --- décors, rochers et falaises, triés en profondeur --- */
-  var objets = [];
-  carteC.decors.forEach(function(d){ objets.push({ p:d.gx + d.gy, k:0, o:d }); });
-  carteC.rochers.forEach(function(r){ objets.push({ p:r.gx + r.gy, k:1, o:r }); });
-  (carteC.falaises || []).forEach(function(f){ objets.push({ p:f.gx + f.gy - f.h * 0.002, k:2, o:f }); });
-  objets.sort(function(x, y){ return x.p - y.p; });
-  for(var k = 0; k < objets.length; k++){
-    var o = objets[k];
-    if(o.k === 0) dessineDecor(c, carteC.biome, o.o);
-    else if(o.k === 1) dessineRocher(c, o.o.gx, o.o.gy, o.o.r, o.o.s, o.o.v);
-    else dessineFalaise(c, o.o);
-  }
-
   /* --- marquage de la zone de débarquement --- */
   c.save();
-  c.globalAlpha = 0.16; c.fillStyle = "#ffffff";
-  for(j = 6; j < GH - 6; j += 3){
-    var z1 = iso(PLAGE_X0 + 1.2, j), z2 = iso(PLAGE_X0 + 1.2, j + 1.6);
-    var z3 = iso(GW - 0.4, j + 1.6), z4 = iso(GW - 0.4, j);
+  c.globalAlpha = 0.14; c.fillStyle = "#ffffff";
+  for(j = 8; j < GH - 8; j += 3){
+    var z1 = iso(PLAGE_X0 + 1.5, j), z2 = iso(PLAGE_X0 + 1.5, j + 1.6);
+    var z3 = iso(GW - 0.6, j + 1.6), z4 = iso(GW - 0.6, j);
     c.beginPath(); c.moveTo(z1.x, z1.y); c.lineTo(z2.x, z2.y); c.lineTo(z3.x, z3.y); c.lineTo(z4.x, z4.y);
     c.closePath(); c.fill();
   }
@@ -503,6 +614,103 @@ function construitSol(carteC){
   c.setTransform(1, 0, 0, 1, 0, 0);
   construitMotifEau(b);
   construitFaune(carteC.graine);
+  construitIndexDecor(carteC);
+}
+
+/* ================================================================
+   INDEX SPATIAL DU DÉCOR — pour n'envoyer au rendu que le visible
+   ================================================================ */
+var indexDecor = null, ID_PAS = 8, ID_W = 0, ID_H = 0, ID_X0 = -8, ID_Y0 = -8;
+function construitIndexDecor(carteC){
+  ID_X0 = -8; ID_Y0 = -8;
+  ID_W = Math.ceil((GW + 16) / ID_PAS);
+  ID_H = Math.ceil((GH + 16) / ID_PAS);
+  indexDecor = [];
+  for(var k = 0; k < ID_W * ID_H; k++) indexDecor.push([]);
+  function range(gx, gy, obj){
+    var cx = borne(Math.floor((gx - ID_X0) / ID_PAS), 0, ID_W - 1);
+    var cy = borne(Math.floor((gy - ID_Y0) / ID_PAS), 0, ID_H - 1);
+    indexDecor[cy * ID_W + cx].push(obj);
+  }
+  /* k vaut toujours 9 dans la pile de rendu ; tk dit de quoi il s'agit */
+  carteC.decors.forEach(function(d){ range(d.gx, d.gy, { k:9, tk:0, o:d, d:d.gx + d.gy }); });
+  carteC.rochers.forEach(function(r){ range(r.gx, r.gy, { k:9, tk:1, o:r, d:r.gx + r.gy }); });
+  construitSpritesDecor(carteC.biome);
+}
+/* Ajoute à la pile de rendu tout le décor visible */
+function decorVisible(vue, sortie){
+  if(!indexDecor) return;
+  /* boîte englobante du rectangle visible, en cases */
+  var c1 = deIso(vue.x0, vue.y0), c2 = deIso(vue.x1, vue.y0);
+  var c3 = deIso(vue.x1, vue.y1), c4 = deIso(vue.x0, vue.y1);
+  var gx0 = Math.min(c1.gx, c2.gx, c3.gx, c4.gx) - 3;
+  var gx1 = Math.max(c1.gx, c2.gx, c3.gx, c4.gx) + 3;
+  var gy0 = Math.min(c1.gy, c2.gy, c3.gy, c4.gy) - 3;
+  var gy1 = Math.max(c1.gy, c2.gy, c3.gy, c4.gy) + 6;
+  var x0 = borne(Math.floor((gx0 - ID_X0) / ID_PAS), 0, ID_W - 1);
+  var x1 = borne(Math.floor((gx1 - ID_X0) / ID_PAS), 0, ID_W - 1);
+  var y0 = borne(Math.floor((gy0 - ID_Y0) / ID_PAS), 0, ID_H - 1);
+  var y1 = borne(Math.floor((gy1 - ID_Y0) / ID_PAS), 0, ID_H - 1);
+  for(var j = y0; j <= y1; j++){
+    for(var i = x0; i <= x1; i++){
+      var t = indexDecor[j * ID_W + i];
+      for(var k = 0; k < t.length; k++) sortie.push(t[k]);
+    }
+  }
+}
+/* ---- sprites de décor : un blit par objet, et ça reste net au zoom ---- */
+var SD_ECH = 1.3, SD_W = 128, SD_H = 132, SD_OX = 64, SD_OY = 104;
+var spDecor = [], spRocher = [];
+function nouveauSpriteDecor(dessin){
+  var cv = nouveauCanvas(SD_W * SD_ECH, SD_H * SD_ECH);
+  var c = cv.getContext("2d");
+  c.setTransform(SD_ECH, 0, 0, SD_ECH, SD_OX * SD_ECH, SD_OY * SD_ECH);
+  dessin(c);
+  return cv;
+}
+function construitSpritesDecor(biome){
+  spDecor = []; spRocher = [];
+  /* 4 formes × 3 tailles pour la végétation */
+  for(var v = 0; v < 4; v++){
+    for(var t = 0; t < 3; t++){
+      (function(v2, t2){
+        spDecor.push(nouveauSpriteDecor(function(c){
+          dessineDecor(c, biome, { gx:0, gy:0, v:v2, s:0.85 + t2 * 0.22 });
+        }));
+      })(v, t);
+    }
+  }
+  /* 3 teintes × 4 formes × 2 tailles pour les rochers */
+  for(var w = 0; w < 3; w++){
+    for(var f = 0; f < 4; f++){
+      for(var g = 0; g < 2; g++){
+        (function(w2, f2, g2){
+          spRocher.push(nouveauSpriteDecor(function(c){
+            dessineRocher(c, 0, 0, 0.36 + g2 * 0.28, f2 * 1.57 + 0.4, w2);
+          }));
+        })(w, f, g);
+      }
+    }
+  }
+}
+function dessineDecorMonde(c, it){
+  var p = versEcran(cam, it.o.gx, it.o.gy);
+  var z = cam.z, cv2;
+  if(it.tk === 0){
+    if(it.o.sp === undefined){
+      var t = it.o.s < 1.0 ? 0 : (it.o.s < 1.18 ? 1 : 2);
+      it.o.sp = (it.o.v % 4) * 3 + t;
+    }
+    cv2 = spDecor[it.o.sp];
+  }else{
+    if(it.o.sp === undefined){
+      var f = (Math.abs(Math.round(it.o.s * 100)) % 4);
+      it.o.sp = (it.o.v % 3) * 8 + f * 2 + (it.o.r < 0.5 ? 0 : 1);
+    }
+    cv2 = spRocher[it.o.sp];
+  }
+  if(!cv2) return;
+  c.drawImage(cv2, p.x - SD_OX * z, p.y - SD_OY * z, SD_W * z, SD_H * z);
 }
 
 /* ================================================================
@@ -708,26 +916,14 @@ function dessineEau(c, t, vue){
     c.fillRect((vue.x0 - 400) / e - d2x, (vue.y0 - 400) / e - d2y,
                (vue.x1 - vue.x0 + 800) / e, (vue.y1 - vue.y0 + 800) / e);
     c.restore();
-    /* troisième passage très étiré : donne le sens du courant */
-    c.save();
-    c.globalAlpha = 0.22;
-    c.scale(2.3, 0.85);
-    var d3x = (t * 6) % 256, d3y = (-t * 3) % 256;
-    c.translate(d3x, d3y);
-    c.fillStyle = eauMotif1;
-    c.fillRect((vue.x0 - 300) / 2.3 - d3x, (vue.y0 - 300) / 0.85 - d3y,
-               (vue.x1 - vue.x0 + 600) / 2.3, (vue.y1 - vue.y0 + 600) / 0.85);
-    c.restore();
   }
 
   /* haut-fond : l'eau s'éclaircit en approchant de l'île */
   c.save();
-  c.globalAlpha = 0.42;
-  traceIle(c, 200, 0, 0); c.fillStyle = b.fond; c.fill();
-  c.globalAlpha = 0.46;
-  traceIle(c, 96, 0, 0); c.fillStyle = melange(b.fond, b.basFond, 0.5); c.fill();
-  c.globalAlpha = 0.52;
-  traceIle(c, 34, 0, 0); c.fillStyle = b.basFond; c.fill();
+  c.globalAlpha = 0.44;
+  traceIle(c, 170, 0, 0); c.fillStyle = b.fond; c.fill();
+  c.globalAlpha = 0.5;
+  traceIle(c, 52, 0, 0); c.fillStyle = b.basFond; c.fill();
   c.restore();
 
   /* faune marine */
