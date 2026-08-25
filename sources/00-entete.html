@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120a18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Mily Boum — jeu de stratégie d'assaut isométrique multijoueur.">
+<title>Mily Boum</title>
+<style>
+/* ============================================================
+   MILY BOUM — feuille de style unique
+   Palette : nuit violette, braise orange, cyan électrique.
+   ============================================================ */
+:root{
+  --nuit:#120a18; --nuit2:#1b1024; --nuit3:#251532;
+  --braise:#ff8a1e; --braise2:#e8672f; --or:#ffd070;
+  --cyan:#7de6ff; --vert:#6ee08a; --rouge:#ff5a4a;
+  --texte:#f4ecf6; --gris:#a99cb4;
+  --sat:env(safe-area-inset-top,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px);
+  --sar:env(safe-area-inset-right,0px);
+  --verre:linear-gradient(180deg,rgba(42,25,58,.88),rgba(20,11,29,.94));
+  --bord:1px solid rgba(255,168,72,.22);
+  --ombre:0 8px 26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  background:radial-gradient(120% 90% at 50% 0%,#2a1436 0%,#150c1e 55%,#0b0611 100%);
+  color:var(--texte);
+  font-family:"Trebuchet MS","Segoe UI",Roboto,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  font-size:15px; line-height:1.35; user-select:none; -webkit-user-select:none;
+  touch-action:none;
+}
+canvas{display:block}
+
+/* ---------- Canevas de jeu ---------- */
+#cv{position:fixed;inset:0;width:100%;height:100%;touch-action:none;z-index:0;background:#0a1a26}
+
+/* ---------- Boutons génériques ---------- */
+.bt{
+  appearance:none;border:var(--bord);border-radius:12px;
+  background:linear-gradient(180deg,#3a2148,#241433);
+  color:var(--texte);font:inherit;font-weight:700;letter-spacing:.3px;
+  padding:9px 14px;cursor:pointer;box-shadow:var(--ombre);
+  transition:transform .08s ease, filter .12s ease;
+}
+.bt:active{transform:translateY(2px) scale(.985);filter:brightness(1.15)}
+.bt.pri{
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);
+  border-color:rgba(255,214,140,.55);color:#2a1004;text-shadow:0 1px 0 rgba(255,255,255,.35);
+}
+.bt.ptt{padding:6px 10px;border-radius:10px;font-size:13px}
+.bt:disabled{opacity:.42;cursor:default}
+
+/* ============================================================
+   ÉCRAN DE BRIEFING
+   ============================================================ */
+#brief{
+  position:fixed;inset:0;z-index:30;overflow-y:auto;overscroll-behavior:contain;
+  padding:calc(14px + var(--sat)) calc(14px + var(--sar)) calc(20px + var(--sab)) calc(14px + var(--sal));
+  background:
+    radial-gradient(90% 60% at 50% -10%,rgba(255,120,30,.20),transparent 60%),
+    radial-gradient(70% 50% at 12% 100%,rgba(120,60,220,.18),transparent 60%),
+    linear-gradient(180deg,#1a0f24 0%,#0d0714 100%);
+  touch-action:pan-y;
+}
+.enveloppe{max-width:920px;margin:0 auto}
+#titre{text-align:center;margin:6px 0 2px;position:relative}
+#logoCv{width:min(420px,88vw);height:auto;display:block;margin:0 auto;filter:drop-shadow(0 8px 22px rgba(255,110,20,.45))}
+#slogan{text-align:center;color:var(--or);font-size:13px;letter-spacing:2.6px;text-transform:uppercase;margin:2px 0 14px;opacity:.85}
+
+.carteP{
+  background:var(--verre);border:var(--bord);border-radius:16px;box-shadow:var(--ombre);
+  padding:14px;margin:0 0 12px;
+}
+.carteP h2{
+  margin:0 0 10px;font-size:14px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--braise);display:flex;align-items:center;gap:8px;
+}
+.carteP h2::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.5),transparent)}
+
+.ligne{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.champ{
+  flex:1;min-width:150px;background:#160d20;border:1px solid rgba(255,168,72,.3);
+  border-radius:10px;color:var(--texte);font:inherit;padding:10px 12px;outline:none;
+}
+.champ:focus{border-color:var(--braise);box-shadow:0 0 0 3px rgba(255,138,30,.16)}
+select.champ{cursor:pointer}
+
+#etatRes{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;flex-wrap:wrap}
+.pastille{width:9px;height:9px;border-radius:50%;background:#7a6a86;box-shadow:0 0 8px currentColor;flex:none}
+.pastille.ok{background:var(--vert);color:var(--vert)}
+.pastille.att{background:var(--or);color:var(--or)}
+.pastille.ko{background:var(--rouge);color:var(--rouge)}
+
+/* cartes du monde */
+.mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.monde{
+  position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.09);
+  background:#1a1024;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.4);
+}
+.monde canvas{width:100%;height:74px;display:block}
+.monde .nom{padding:8px 10px;font-weight:700;font-size:14px}
+.monde .etat{position:absolute;top:8px;right:8px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.16)}
+.monde.actif{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.35),0 6px 18px rgba(0,0,0,.5)}
+.monde.actif .etat{color:var(--braise);border-color:rgba(255,138,30,.6)}
+.monde.faite{opacity:.66}
+.monde.faite .etat{color:var(--vert)}
+.monde.verrou{opacity:.42}
+
+/* barges */
+#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px}
+.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:8px 9px}
+.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:6px;display:flex;justify-content:space-between}
+.rangee{display:flex;align-items:center;gap:6px;margin:4px 0}
+.rangee .lab{flex:1;font-size:13px;display:flex;align-items:center;gap:6px}
+.pion{width:12px;height:12px;border-radius:3px;flex:none}
+.pion.f{background:linear-gradient(180deg,#54e2ce,#2fb9a8)}
+.pion.m{background:linear-gradient(180deg,#8fa65c,#5b6b3a)}
+.compt{min-width:24px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.mini{width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:#2a1a38;
+  color:var(--texte);font:700 16px/1 inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mini:active{filter:brightness(1.3)}
+#totalTroupes{text-align:center;margin-top:10px;font-size:13px;color:var(--gris)}
+#totalTroupes b{color:var(--or);font-size:16px}
+
+.aide{font-size:13px;color:#c9bcd4;line-height:1.55}
+.aide b{color:var(--or)}
+.aide ul{margin:6px 0 0;padding-left:18px}
+.aide li{margin:3px 0}
+
+#lancer{width:100%;font-size:19px;padding:16px;margin:4px 0 8px;border-radius:16px;letter-spacing:1px}
+#pied{text-align:center;color:#6b5c78;font-size:11px;padding:6px 0 2px}
+
+/* ============================================================
+   INTERFACE DE JEU
+   ============================================================ */
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:none}
+#hud.on{display:block}
+#hud .p{pointer-events:auto}
+
+.bloc{
+  background:var(--verre);border:var(--bord);border-radius:13px;box-shadow:var(--ombre);
+  padding:7px 10px;
+}
+
+/* — haut gauche — */
+#hg{position:absolute;top:calc(8px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+#ress{display:flex;gap:12px;align-items:center;font-weight:700;font-size:15px;white-space:nowrap}
+#ress .k{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;font-weight:700}
+#poudreV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
+#unitesV{color:var(--cyan);font-variant-numeric:tabular-nums}
+#podium{min-width:150px;font-size:12px;display:none}
+#podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
+#podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
+#podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
+#podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
+#podium .moi .n{color:var(--vert);font-weight:700}
+#zoomB{display:flex;gap:5px}
+#zoomB button{width:36px;height:36px;padding:0;font-size:17px;border-radius:11px;display:flex;align-items:center;justify-content:center}
+
+/* — haut centre — */
+#hc{position:absolute;top:calc(8px + var(--sat));left:50%;transform:translateX(-50%);width:min(360px,52vw);text-align:center;padding:6px 10px 8px}
+#nomCarte{font-size:12px;letter-spacing:2.2px;text-transform:uppercase;color:var(--or);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jaugeQG{height:13px;border-radius:8px;background:#2a1030;border:1px solid rgba(255,255,255,.14);overflow:hidden;position:relative}
+#jaugeQGin{height:100%;width:100%;background:linear-gradient(90deg,#ff3a2a,#ff8a1e 60%,#ffd070);transition:width .25s ease;box-shadow:0 0 12px rgba(255,120,30,.6) inset}
+#jaugeQGtx{position:absolute;inset:0;font-size:10px;font-weight:700;line-height:13px;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums}
+#bandeauAlerte{
+  position:absolute;top:calc(6px + var(--sat));left:50%;transform:translateX(-50%);
+  background:linear-gradient(180deg,rgba(255,60,30,.94),rgba(150,20,10,.94));
+  border:1px solid rgba(255,190,140,.5);border-radius:12px;padding:7px 18px;font-weight:800;
+  letter-spacing:2px;text-transform:uppercase;font-size:13px;white-space:nowrap;
+  box-shadow:0 6px 22px rgba(255,60,20,.45);display:none;z-index:3;
+}
+
+/* — haut droite : minicarte — */
+#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));padding:5px}
+#mini{width:132px;height:118px;display:block;border-radius:8px;background:#0c1c28}
+
+/* — bas gauche : barges — */
+#bg{position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));max-width:min(56vw,420px)}
+#bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
+#listeBarges{display:flex;gap:5px;flex-wrap:wrap}
+.bg1{
+  width:46px;padding:4px 2px;border-radius:10px;border:1px solid rgba(255,255,255,.14);
+  background:#1d1229;text-align:center;cursor:pointer;font-size:11px;line-height:1.15;
+}
+.bg1.sel{border-color:var(--braise);background:linear-gradient(180deg,#4a2a12,#2a1608);box-shadow:0 0 0 2px rgba(255,138,30,.3)}
+.bg1 .n{font-weight:800;color:var(--cyan);font-size:13px}
+.bg1 .d{color:var(--gris);font-size:9px}
+
+/* — bas droite : capacités — */
+#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));padding:6px}
+#caps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cap{
+  position:relative;width:64px;height:60px;border-radius:12px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.13);background:linear-gradient(180deg,#2c1a3c,#1a0f26);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:transform .08s ease;
+}
+.cap:active{transform:scale(.95)}
+.cap canvas{width:30px;height:30px;display:block}
+.cap .nm{font-size:9.5px;letter-spacing:.2px;color:#d8cce2;text-align:center;line-height:1}
+.cap .cx{
+  position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 11px/20px inherit;
+  text-align:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
+}
+.cap.arme{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 18px rgba(255,138,30,.3)}
+.cap.pauvre{opacity:.42}
+.cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
+
+/* — bas centre : bandeau fantôme — */
+#bc{
+  position:absolute;bottom:calc(8px + var(--sab));left:50%;transform:translateX(-50%);
+  display:none;align-items:center;gap:10px;padding:7px 14px;white-space:nowrap;
+}
+#bc.on{display:flex}
+#bcTx{font-size:12px;color:#d8cce2}
+#bcTps{font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums;font-size:17px}
+
+/* — message volant — */
+#flash{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  padding:11px 22px;border-radius:14px;background:rgba(12,6,18,.9);border:var(--bord);
+  font-weight:700;letter-spacing:.6px;opacity:0;transition:opacity .3s ease;pointer-events:none;
+  box-shadow:var(--ombre);text-align:center;max-width:80vw;
+}
+#flash.on{opacity:1}
+
+/* — bilan — */
+#bilan{
+  position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+  background:radial-gradient(70% 60% at 50% 40%,rgba(70,25,10,.75),rgba(8,4,12,.94));
+  padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab));
+}
+#bilan.on{display:flex}
+#bilanIn{max-width:520px;width:100%;text-align:center}
+#bilanTi{font-size:clamp(26px,7vw,42px);font-weight:900;letter-spacing:2px;
+  background:linear-gradient(180deg,#ffe6a8,#ff8a1e 55%,#e0431a);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 0 rgba(0,0,0,.55));margin-bottom:4px}
+#bilanSs{color:var(--gris);font-size:13px;margin-bottom:14px}
+#bilanLi{text-align:left;font-size:14px;max-height:38vh;overflow-y:auto}
+#bilanLi .r{display:flex;gap:8px;padding:5px 8px;border-radius:9px}
+#bilanLi .r:nth-child(odd){background:rgba(255,255,255,.05)}
+#bilanLi .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bilanLi .r .v{color:var(--or);font-weight:700;font-variant-numeric:tabular-nums}
+#bilanLi .moi .n{color:var(--vert);font-weight:800}
+#bilanTps{margin-top:14px;font-size:13px;color:var(--gris)}
+#bilanTps b{color:var(--cyan);font-size:20px}
+
+/* — paliers de réduction — */
+@media (max-height:460px){
+  #hg{gap:4px}
+  #ress{font-size:13px}
+  #zoomB button{width:31px;height:31px;font-size:15px}
+  .cap{width:56px;height:52px}
+  .cap canvas{width:24px;height:24px}
+  .cap .nm{font-size:8.5px}
+  #hc{width:min(300px,46vw);padding:4px 8px 6px}
+  #mini{width:104px;height:92px}
+  .bg1{width:40px}
+}
+@media (max-width:600px){
+  #caps{grid-template-columns:repeat(3,1fr);gap:5px}
+  .cap{width:56px;height:52px}
+  .cap canvas{width:24px;height:24px}
+  .cap .nm{font-size:8.5px}
+  #podium{min-width:118px;font-size:11px}
+  #bg{max-width:52vw}
+}
+@media (max-width:430px){
+  #hd{display:none}
+  #hc{width:min(230px,44vw)}
+  .cap{width:50px;height:48px}
+  .bg1{width:36px;font-size:10px}
+  #ress{font-size:12px;gap:8px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<!-- ============================ BRIEFING ============================ -->
+<div id="brief">
+  <div class="enveloppe">
+    <div id="titre"><canvas id="logoCv" width="840" height="230"></canvas></div>
+    <div id="slogan">forteresse de braise · assaut multijoueur</div>
+
+    <div class="carteP">
+      <h2>Salon</h2>
+      <div class="ligne">
+        <input id="pseudo" class="champ" maxlength="14" placeholder="Ton pseudo" autocomplete="off">
+        <select id="relais" class="champ" style="flex:0 0 auto;min-width:190px">
+          <option value="wss://broker.emqx.io:8084/mqtt">Relais EMQX (défaut)</option>
+          <option value="wss://broker.hivemq.com:8884/mqtt">Relais HiveMQ (secours)</option>
+        </select>
+        <button id="btReco" class="bt ptt">Reconnecter</button>
+      </div>
+      <div id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></div>
+    </div>
+
+    <div class="carteP">
+      <h2>Les trois îles</h2>
+      <div class="mondes" id="mondes"></div>
+    </div>
+
+    <div class="carteP">
+      <h2>Composition des huit barges</h2>
+      <div id="barges"></div>
+      <div id="totalTroupes"></div>
+    </div>
+
+    <div class="carteP">
+      <h2>Comment on joue</h2>
+      <div class="aide">
+        <ul>
+          <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
+          <li>En bas à gauche, choisis une <b>barge</b> puis appuie sur la plage à l'est : les 15 places se vident d'un coup.</li>
+          <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Éclairantes</b> : les troupes courent vers la fusée sans tirer.</li>
+          <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
+          <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-flammes porte plus loin que tes Meufs : passe un Mec devant.</li>
+          <li>Le QG a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
+        </ul>
+      </div>
+    </div>
+
+    <button id="lancer" class="bt pri">DÉBARQUER</button>
+    <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
+      <button id="btSon" class="bt ptt">🔊 Son activé</button>
+      <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
+    </div>
+    <div id="pied">Mily Boum — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+  </div>
+</div>
+
+<!-- ============================ JEU ============================ -->
+<div id="hud">
+  <div id="hg">
+    <div class="bloc p" id="ress">
+      <span><span class="k">Poudre</span> <span id="poudreV">150</span></span>
+      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
+    </div>
+    <div class="bloc p" id="podium"><div class="t">Podium</div><div id="podiumL"></div></div>
+    <div id="zoomB" class="p">
+      <button class="bt" id="btZp" title="Zoom avant">+</button>
+      <button class="bt" id="btZm" title="Zoom arrière">−</button>
+      <button class="bt" id="btCentre" title="Centrer sur le QG">◎</button>
+      <button class="bt" id="btPlein2" title="Plein écran">⛶</button>
+    </div>
+  </div>
+
+  <div class="bloc p" id="hc">
+    <div id="nomCarte">Mily à la plage</div>
+    <div id="jaugeQG"><div id="jaugeQGin"></div><div id="jaugeQGtx">750 000 / 750 000</div></div>
+  </div>
+  <div id="bandeauAlerte">⚠ Le QG charge une éruption ⚠</div>
+
+  <div class="bloc p" id="hd"><canvas id="mini" width="264" height="236"></canvas></div>
+
+  <div class="bloc p" id="bg">
+    <div class="t">Barges</div>
+    <div id="listeBarges"></div>
+  </div>
+
+  <div class="bloc p" id="bd"><div id="caps"></div></div>
+
+  <div class="bloc p" id="bc">
+    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">5:00</span>
+  </div>
+
+  <div id="flash"></div>
+</div>
+
+<!-- ============================ BILAN ============================ -->
+<div id="bilan"><div id="bilanIn">
+  <div id="bilanTi">MILY BOUM !</div>
+  <div id="bilanSs">la gardienne a décollé</div>
+  <div class="bloc" id="bilanLi"></div>
+  <div id="bilanTps">Île suivante dans <b id="bilanC">8</b> s</div>
+</div></div>
+
+<script>
+"use strict";
