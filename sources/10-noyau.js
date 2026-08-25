@@ -149,10 +149,15 @@ var DEF = {
   silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 }
 };
 
+/* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
+   faite pour qu'on puisse en ajouter d'autres sans rien casser. */
 var UNI = {
-  meuf:{ nom:"Meuf", pv:110, portee:5.0, arret:4.75, degats:54,  cadence:1300, vitesse:1.35, rayon:0.34 },
-  mec :{ nom:"Mec",  pv:560, portee:1.9, arret:1.70, degats:100, cadence:1600, vitesse:0.84, rayon:0.42 }
+  meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
+         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34 },
+  mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
+         degats:100, cadence:1600, vitesse:0.84, rayon:0.42 }
 };
+var TYPES_TROUPE = ["meuf", "mec"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },

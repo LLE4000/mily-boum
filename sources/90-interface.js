@@ -205,8 +205,8 @@ function majListeBarges(){
   for(var i = 0; i < jeu.barges.length; i++){
     var b = jeu.barges[i];
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + '" data-i="' + i + '">'
-          + '<div class="n">' + (b.meuf + b.mec) + '</div>'
-          + '<div class="d">' + b.meuf + "F " + b.mec + "H</div></div>";
+          + '<div class="n">' + b.n + '</div>'
+          + '<div class="d">' + UNI[b.type].nom + '</div></div>';
   }
   if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;padding:6px 10px">aucune</div>';
   l.innerHTML = html;
@@ -590,12 +590,13 @@ function dessineLogo(){
 function construitBriefing(){
   /* barges par défaut : que des Meufs */
   compoBarges = [];
-  for(var i = 0; i < EQ.NB_BARGES; i++) compoBarges.push({ meuf:EQ.PLACES_PAR_BARGE, mec:0 });
+  for(var i = 0; i < EQ.NB_BARGES; i++) compoBarges.push({ type:"meuf", n:EQ.PLACES_PAR_BARGE });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
     if(sauv.nom) $("pseudo").value = sauv.nom;
-    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES) compoBarges = sauv.compo;
+    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type)
+      compoBarges = sauv.compo;
     if(sauv.relais) $("relais").value = sauv.relais;
   }
   if(!$("pseudo").value) $("pseudo").value = "Recrue" + ((Math.random() * 900 + 100) | 0);
@@ -634,34 +635,66 @@ function majBargesBrief(){
   var h = "";
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
-    h += '<div class="barge"><div class="tt"><span>Barge ' + (i + 1) + '</span>'
-       + '<span>' + (b.meuf + b.mec) + '/' + EQ.PLACES_PAR_BARGE + '</span></div>'
-       + rangee(i, "meuf", b.meuf) + rangee(i, "mec", b.mec) + '</div>';
+    h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
+       + '<span>' + b.n + '/' + EQ.PLACES_PAR_BARGE + '</span></div>'
+       + '<div class="choixT">';
+    for(var t = 0; t < TYPES_TROUPE.length; t++){
+      var cle = TYPES_TROUPE[t];
+      h += '<div class="pt' + (b.type === cle ? " on" : "") + '" data-i="' + i + '" data-t="' + cle + '">'
+         + '<canvas width="150" height="126" id="pt_' + i + '_' + cle + '"></canvas>'
+         + '<div class="nm">' + UNI[cle].nom + '<span class="role">' + UNI[cle].role + '</span></div>'
+         + '</div>';
+    }
+    h += '</div>' + rangeeNavette(i, b) + '</div>';
   }
   $("barges").innerHTML = h;
-  var els = $("barges").querySelectorAll(".mini");
-  for(var k = 0; k < els.length; k++){
-    els[k].addEventListener("click", function(){
-      var i = +this.getAttribute("data-i"), t = this.getAttribute("data-t"), d = +this.getAttribute("data-d");
-      var b = compoBarges[i];
-      var tot = b.meuf + b.mec;
-      if(d > 0 && tot >= EQ.PLACES_PAR_BARGE) return;
-      b[t] = Math.max(0, b[t] + d);
-      majBargesBrief();
-      sauvegarde();
+
+  /* portraits décalqués */
+  for(var k = 0; k < EQ.NB_BARGES; k++){
+    for(var q = 0; q < TYPES_TROUPE.length; q++){
+      var el = $("pt_" + k + "_" + TYPES_TROUPE[q]);
+      if(!el) continue;
+      var c = el.getContext("2d");
+      var g = c.createLinearGradient(0, 0, 0, 126);
+      g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+      c.fillStyle = g; c.fillRect(0, 0, 150, 126);
+      dessinePortrait(c, TYPES_TROUPE[q], 0, -6, 150);
+    }
+  }
+  /* choix du type : une navette n'embarque qu'un seul type de troupe */
+  var pts = $("barges").querySelectorAll(".pt");
+  for(var m = 0; m < pts.length; m++){
+    pts[m].addEventListener("click", function(){
+      var i2 = +this.getAttribute("data-i");
+      compoBarges[i2].type = this.getAttribute("data-t");
+      if(compoBarges[i2].n === 0) compoBarges[i2].n = EQ.PLACES_PAR_BARGE;
+      majBargesBrief(); sauvegarde();
     });
   }
-  var tot = 0, tm = 0, th = 0;
-  compoBarges.forEach(function(b){ tot += b.meuf + b.mec; tm += b.meuf; th += b.mec; });
-  $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + tm + " Meufs, " + th + " Mecs";
+  var minis = $("barges").querySelectorAll(".mini");
+  for(var n = 0; n < minis.length; n++){
+    minis[n].addEventListener("click", function(){
+      var i3 = +this.getAttribute("data-i"), d = +this.getAttribute("data-d");
+      var bb = compoBarges[i3];
+      bb.n = Math.max(0, Math.min(EQ.PLACES_PAR_BARGE, bb.n + d));
+      majBargesBrief(); sauvegarde();
+    });
+  }
+  /* total */
+  var tot = 0, cpt = {};
+  compoBarges.forEach(function(bb){ tot += bb.n; cpt[bb.type] = (cpt[bb.type] || 0) + bb.n; });
+  var det = TYPES_TROUPE.map(function(t2){ return (cpt[t2] || 0) + " " + UNI[t2].nom + "s"; }).join(", ");
+  $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
-function rangee(i, t, v){
-  return '<div class="rangee"><span class="lab"><span class="pion ' + (t === "meuf" ? "f" : "m") + '"></span>'
-       + (t === "meuf" ? "Meufs" : "Mecs") + '</span>'
-       + '<button class="mini" data-i="' + i + '" data-t="' + t + '" data-d="-1">−</button>'
-       + '<span class="compt">' + v + '</span>'
-       + '<button class="mini" data-i="' + i + '" data-t="' + t + '" data-d="1">+</button></div>';
+function rangeeNavette(i, b){
+  return '<div class="rangee"><span class="lab">'
+       + '<span class="pion ' + (b.type === "meuf" ? "f" : "m") + '"></span>'
+       + UNI[b.type].nom + 's</span>'
+       + '<button class="mini" data-i="' + i + '" data-d="-1">−</button>'
+       + '<span class="compt">' + b.n + '</span>'
+       + '<button class="mini" data-i="' + i + '" data-d="1">+</button></div>';
 }
+
 function majMondes(){
   var h = "";
   for(var i = 0; i < CARTES.length; i++){

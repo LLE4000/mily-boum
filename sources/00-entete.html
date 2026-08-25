@@ -113,10 +113,29 @@ select.champ{cursor:pointer}
 .monde.faite .etat{color:var(--vert)}
 .monde.verrou{opacity:.42}
 
-/* barges */
-#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px}
-.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:8px 9px}
-.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:6px;display:flex;justify-content:space-between}
+/* navettes */
+#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px}
+.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:7px;display:flex;justify-content:space-between}
+.choixT{display:flex;gap:7px;margin-bottom:8px}
+.pt{
+  flex:1;position:relative;border-radius:11px;overflow:hidden;cursor:pointer;
+  border:2px solid rgba(255,255,255,.10);background:#241733;padding:0;
+  transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.pt canvas{width:100%;height:84px;display:block}
+.pt .nm{
+  position:absolute;left:0;right:0;bottom:0;font:700 11px/1.1 inherit;text-align:center;
+  background:linear-gradient(180deg,rgba(10,5,14,0),rgba(10,5,14,.88));padding:14px 0 4px;color:#e8dcf0;
+}
+.pt .role{display:block;font-weight:400;font-size:9px;color:#b9abc6;letter-spacing:.2px}
+.pt:active{transform:scale(.97)}
+.pt.on{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.30),0 6px 16px rgba(0,0,0,.5)}
+.pt.on .nm{color:var(--braise)}
+.pt.on::after{
+  content:"✔";position:absolute;top:5px;right:6px;width:19px;height:19px;border-radius:50%;
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 12px/19px inherit;text-align:center;
+}
 .rangee{display:flex;align-items:center;gap:6px;margin:4px 0}
 .rangee .lab{flex:1;font-size:13px;display:flex;align-items:center;gap:6px}
 .pion{width:12px;height:12px;border-radius:3px;flex:none}
@@ -325,7 +344,7 @@ select.champ{cursor:pointer}
       <div class="aide">
         <ul>
           <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
-          <li>En bas à gauche, choisis une <b>navette</b> puis appuie sur la plage à l'est : les 15 places se vident d'un coup.</li>
+          <li>Une navette ne transporte <b>qu'un seul type de troupe</b>. En bas à gauche, choisis-en une puis appuie sur la plage à l'est : elle se vide d'un coup.</li>
           <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Balises</b> : les troupes courent vers la fusée sans tirer.</li>
           <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
           <li>Huit capacités : <b>Nova</b>, <b>Poulets ×10</b> (des leurres !), <b>Brouillard</b>, <b>Salve</b>, <b>Cryo</b> (gèle les défenses 12 s), <b>Soin</b>, <b>Balise</b> et <b>Viper</b>.</li>

@@ -224,6 +224,98 @@ def encode(v):
 # ================================================================
 # Programme
 # ================================================================
+def portrait(src, dst, prefixe, cadre, nbcoul=18, eps=1.15, larg=170, flou=0.7, contraste=1.22):
+    """Décalque un buste sans repérage : on donne le cadrage en fractions
+    de l'image, et le résultat est normalisé dans une boîte de 100 unités
+    de large, origine en haut à gauche."""
+    global NB_COULEURS, EPS_RDP, LARGEUR_TRAVAIL
+    NB_COULEURS, EPS_RDP, LARGEUR_TRAVAIL = nbcoul, eps, larg
+    im = Image.open(src).convert("RGB")
+    x0 = int(cadre[0] * im.width); x1 = int(cadre[2] * im.width)
+    y0 = int(cadre[1] * im.height); y1 = int(cadre[3] * im.height)
+    crop = im.crop((x0, y0, x1, y1))
+    ech = LARGEUR_TRAVAIL / crop.width
+    tw, th = LARGEUR_TRAVAIL, int(round(crop.height * ech))
+    petit = crop.resize((tw, th), Image.LANCZOS) \
+                .filter(ImageFilter.MedianFilter(5)).filter(ImageFilter.GaussianBlur(flou))
+    pa = np.asarray(petit).astype(np.float32) / 255.0
+    pa = np.power(pa, 0.88)
+    moy = pa.mean(axis=2, keepdims=True)
+    pa = np.clip(moy + (pa - moy) * contraste, 0, 1)
+    petit = Image.fromarray((pa * 255).astype(np.uint8))
+    quant = petit.quantize(colors=NB_COULEURS, method=Image.MAXCOVERAGE, dither=Image.Dither.NONE)
+    pal = quant.getpalette()[:NB_COULEURS * 3]
+    idx = np.asarray(quant)
+    polys = extrait(idx, tw, th, pal, True)
+    polys.sort(key=lambda t: -t[0])
+
+    k = 100.0 / tw
+    lignes, couleurs = [], []
+    for ar, ki, p in polys:
+        couleurs.append("#%02x%02x%02x" % (pal[ki * 3], pal[ki * 3 + 1], pal[ki * 3 + 2]))
+        srt = []
+        for (px, py) in p:
+            srt.append(encode(px * k * 20 + 40))
+            srt.append(encode(py * k * 20 + 40))
+        lignes.append("".join(srt))
+    out = ["/* Portrait décalqué — %s (généré par outils/tracer-visage.py) */" % prefixe]
+    out.append("var %s_H = %.2f;" % (prefixe, th * k))
+    out.append("var %s_COULEURS = [%s];" % (prefixe, ",".join(js_str(c) for c in couleurs)))
+    out.append("var %s_POLY = [" % prefixe)
+    for i, srt in enumerate(lignes):
+        out.append("  " + js_str(srt) + ("," if i < len(lignes) - 1 else ""))
+    out.append("];")
+    open(dst, "a", encoding="utf8").write("\n".join(out) + "\n\n")
+    npts = sum(len(x) // 4 for x in lignes)
+    print("%s : %d polygones, %d points" % (prefixe, len(lignes), npts))
+
+
+def extrait(idx, tw, th, pal=None, sansFond=False):
+    """Contours simplifiés de chaque aplat d'une image indexée."""
+    polys = []
+    for k in range(NB_COULEURS):
+        masque = (idx == k)
+        if not masque.any():
+            continue
+        vu = np.zeros_like(masque, dtype=bool)
+        ys, xs = np.nonzero(masque)
+        for sy, sx in zip(ys, xs):
+            if vu[sy, sx]:
+                continue
+            f = deque([(sx, sy)]); vu[sy, sx] = True
+            cellules = []
+            while f:
+                px, py = f.popleft()
+                cellules.append((px, py))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = px + dx, py + dy
+                    if 0 <= nx < tw and 0 <= ny < th and masque[ny, nx] and not vu[ny, nx]:
+                        vu[ny, nx] = True; f.append((nx, ny))
+            if len(cellules) < AIRE_MINI:
+                continue
+            if sansFond and pal is not None:
+                # une tache grise qui touche le haut ou les côtés, c'est
+                # le fond de studio : on l'enlève, la carte du briefing
+                # fournira son propre fond
+                bord = any(px == 0 or px == tw - 1 or py == 0 for px, py in cellules)
+                r, g, b = pal[k * 3], pal[k * 3 + 1], pal[k * 3 + 2]
+                sat = max(r, g, b) - min(r, g, b)
+                if bord and sat < 40 and len(cellules) > 320:
+                    continue
+            comp = np.zeros_like(masque, dtype=bool)
+            for px, py in cellules:
+                comp[py, px] = True
+            for b in contours(comp):
+                p = simplifie_boucle(b, EPS_RDP)
+                if len(p) < 3:
+                    continue
+                ar = aire(p)
+                if ar < AIRE_MINI:
+                    continue
+                polys.append((ar, k, p))
+    return polys
+
+
 def main():
     src = sys.argv[1]
     dst = sys.argv[2]
@@ -282,6 +374,15 @@ def main():
                         f.append((nx, ny))
             if len(cellules) < AIRE_MINI:
                 continue
+            if sansFond and pal is not None:
+                # une tache grise qui touche le haut ou les côtés, c'est
+                # le fond de studio : on l'enlève, la carte du briefing
+                # fournira son propre fond
+                bord = any(px == 0 or px == tw - 1 or py == 0 for px, py in cellules)
+                r, g, b = pal[k * 3], pal[k * 3 + 1], pal[k * 3 + 2]
+                sat = max(r, g, b) - min(r, g, b)
+                if bord and sat < 40 and len(cellules) > 320:
+                    continue
             comp = np.zeros_like(masque, dtype=bool)
             for px, py in cellules:
                 comp[py, px] = True

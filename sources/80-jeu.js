@@ -47,7 +47,7 @@ function nouvelleCarte(index, pvConnu){
   };
   /* composition des barges depuis le briefing */
   for(var i = 0; i < EQ.NB_BARGES; i++){
-    jeu.barges.push({ meuf:compoBarges[i].meuf, mec:compoBarges[i].mec, n:i + 1 });
+    jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
@@ -172,17 +172,14 @@ function poseBarge(gx, gy){
   if(!b) return message("Plus aucune barge.");
   gx = borne(gx, PLAGE_X0, GW - 1.2);
   gy = borne(gy, 3, GH - 4);
-  var n = b.meuf + b.mec, pose = 0, k = 0;
-  var liste = [];
-  for(var i = 0; i < b.meuf; i++) liste.push("meuf");
-  for(var j = 0; j < b.mec; j++) liste.push("mec");
+  var pose = 0, k = 0;
   /* déploiement en spirale autour du drapeau */
-  while(pose < liste.length && k < 400){
+  while(pose < b.n && k < 600){
     var a = k * 2.399963, r = 0.42 * Math.sqrt(k);
     var x = gx + Math.cos(a) * r, y = gy + Math.sin(a) * r;
     k++;
     if(bloque(x, y)) continue;
-    creeUnite(liste[pose], x, y);
+    creeUnite(b.type, x, y);
     pose++;
   }
   jeu.effets.push({ t:"drapeau", gx:gx, gy:gy, age:0, duree:6 });
@@ -1151,7 +1148,8 @@ function majMort(dt){
     jeu.mort = false;
     jeu.fantome = null;
     jeu.barges = [];
-    for(var i = 0; i < EQ.NB_BARGES; i++) jeu.barges.push({ meuf:compoBarges[i].meuf, mec:compoBarges[i].mec, n:i + 1 });
+    for(var i = 0; i < EQ.NB_BARGES; i++)
+      jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
     jeu.poudre += EQ.POUDRE_BONUS_RENFORT;
     montreBandeauFantome(false);
