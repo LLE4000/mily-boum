@@ -53,6 +53,26 @@ var EQ = {
   QG_VAGUE_VITESSE     : 8.5,   // cases/s
   QG_VAGUE_DEGATS      : 62,
 
+  /* LA VENGEANCE DE MILY. Une seule règle de conception :
+     la peine tombe TOUJOURS, quelle que soit la distance, et elle ne
+     tue jamais. Un joueur qui perd 90 % de sa barge la ramène ; un
+     joueur dont la barge est effacée ferme l'onglet. */
+  VENG_MESSAGE         : 3.6,   // le message et la charge des yeux
+  VENG_TIR             : 1.50,  // les deux rayons balaient le sol
+  VENG_RETRAIT         : 1.10,  // extinction
+  VENG_PERTE           : 0.90,  // 90 % des PV, jamais la mort
+  VENG_RAYON           : 2.6,   // rayon de l'impact, en cases
+  VENG_LARGEUR         : 1.7,   // demi-largeur d'une traînée
+  VENG_TRAINEE         : 15,    // longueur des traînées, en cases
+  VENG_ECART           : 0.17,  // demi-angle du V des deux rayons, en radians
+  /* Les braises qui restent ne sont PAS un second châtiment : à
+     90 % de PV perdus, une troupe finit à onze points de vie, et un
+     brasier à trente dégâts par seconde la tuerait sans qu'elle ait
+     eu sa chance. Neuf, c'est assez pour qu'il faille dégager, pas
+     assez pour que rester une seconde de trop soit fatal. */
+  VENG_BRAISE_DUREE    : 5.0,   // les traînées continuent de brûler
+  VENG_BRAISE_DPS      : 9,
+
   /* Réglages fins demandés */
   MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
   MITRA_CHANCE_LOIN    : 1 / 3, // une balle sur trois touche
@@ -327,8 +347,17 @@ var CRE = {
   /* Tweety : un canari. Il vole, se pose, sautille, et s'envole dès
      qu'on approche. Inoffensif, comme Gégé — et comme elle, on le
      regrettera. */
-  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 }
+  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 },
+  /* LES TROIS PROTÉGÉS DE MILY. Aussi inoffensifs que Gégé, aussi
+     faciles à écraser d'une rafale perdue — à un détail près : Mily
+     les regarde. Le drapeau « protege » est le seul qui compte, tout
+     le reste de la vengeance en découle. */
+  chat    :{ nom:"Gribouille",         pv:130, detection:8.0, portee:0,   degats:0,  cadence:0,    vitesse:2.30, rayon:0.30, fuit:1, protege:1 },
+  chaton  :{ nom:"Croquette",          pv:70,  detection:6.0, portee:0,   degats:0,  cadence:0,    vitesse:1.85, rayon:0.20, fuit:1, protege:1 },
+  chatte  :{ nom:"Praline",            pv:110, detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:2.60, rayon:0.26, fuit:1, protege:1 }
 };
+/* L'ordre compte : c'est celui des trois cases de l'instantané. */
+var ESPECES_PROTEGEES = ["chat", "chaton", "chatte"];
 
 /* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
@@ -469,7 +498,7 @@ function genereCarte(codeSalon, index, plan, tirage){
          d'autre — la position, le jitter et l'orientation restent
          tirés comme avant. */
       var z  = zones ? zones[zoneDePlan(lx, ly)] : 0;
-      var zt = z & 7, zd = (z >> 3) & 3;
+      var zt = zoneType(z), zd = zoneDens(z);
       var saut = zd ? DENSITES[zd].saut : 0.28;
       var dx = lx - QG_GX, dy = ly - QG_GY;
       var d = Math.hypot(dx, dy);
@@ -506,6 +535,10 @@ function genereCarte(codeSalon, index, plan, tirage){
       }
 
       var t = zt ? TYPES_PLAN[zt] : tAuto;
+      /* LA GOMME FORTE. Le test vient APRÈS tous les tirages : on
+         consomme la séquence puis on jette le résultat, sinon effacer
+         une zone rebattrait toute l'île derrière elle. */
+      if(t === "vide") continue;
       var f = DEF[t];
       c.batiments.push({
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
@@ -525,7 +558,11 @@ function genereCarte(codeSalon, index, plan, tirage){
       var fx = cx + (al() - 0.5) * 5, fy = cy + (al() - 0.5) * 6;
       if(Math.hypot(fx - QG_GX, fy - QG_GY) < 14) continue;   // pas au pied du Brasier
       var n = 13 + ((al() * 5) | 0);                          // treize à dix-sept
-      c.champs.push({ gx:fx, gy:fy, n:n });
+      /* La gomme forte emporte aussi les champs. Comme partout, on
+         décide APRÈS avoir consommé les tirages du champ : seule la
+         pose est annulée, jamais la séquence. */
+      var champVide = zones && zoneEstVide(zones[zoneDePlan(fx, fy)]);
+      if(!champVide) c.champs.push({ gx:fx, gy:fy, n:n });
       var fc = DEF.cellule;
       for(var k = 0; k < n; k++){
         /* spirale d'or : le champ est dense mais jamais aligné */
@@ -533,9 +570,11 @@ function genereCarte(codeSalon, index, plan, tirage){
         var r2 = 0.62 * Math.sqrt(k) + al() * 0.22;
         var bx = fx + Math.cos(a2) * r2, by = fy + Math.sin(a2) * r2 * 0.92;
         if(bx < 4 || bx > PLAGE_X0 - 2 || by < 3 || by > GH - 4) continue;
+        var angc = al() * 6.2832;
+        if(champVide) continue;
         c.batiments.push({
           t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
-          ang:al() * 6.2832, vivant:1, n:c.batiments.length
+          ang:angc, vivant:1, n:c.batiments.length
         });
       }
     }
@@ -679,12 +718,14 @@ function genereCarte(codeSalon, index, plan, tirage){
   for(var sx = 8.5; sx <= PLAGE_X0 - 5; sx += 5){
     for(var sy = 5.5; sy <= GH - 6; sy += 5){
       var zs  = zones ? zones[zoneDePlan(sx, sy)] : 0;
-      var zts = zs & 7, zds = (zs >> 3) & 3;
+      var zts = zoneType(zs), zds = zoneDens(zs);
       /* La proportion gardée suit celle de la zone : un secteur
          clairsemé reçoit un renfort clairsemé, un secteur saturé un
          renfort saturé. 0,1486 est le rapport qui donne +15 % du
-         quadrillage d'origine, lequel en garde 72 %. */
-      var sautSup = 1 - (1 - (zds ? DENSITES[zds].saut : 0.28)) * 0.1486;
+         quadrillage d'origine, lequel en garde 72 %.
+         « Surchargé » court-circuite ce rapport et remplit aussi
+         l'entre-deux : c'est là que la carte double de densité. */
+      var sautSup = sautRenfort(zds);
       /* Tirages consommés que le nœud soit gardé ou non : un coup de
          pinceau ne doit décaler la séquence de personne d'autre. */
       var rs  = al();
@@ -698,6 +739,7 @@ function genereCarte(codeSalon, index, plan, tirage){
       if(rs < sautSup) continue;
       if(Math.abs(sx - QG_GX) <= 10 && Math.abs(sy - QG_GY) <= 10) continue;
       var ts = zts ? TYPES_PLAN[zts] : tAutoS;
+      if(ts === "vide") continue;                    // la gomme forte
       var fs = DEF[ts];
       c.batiments.push({
         t:ts, gx:sx + jxs, gy:sy + jys, pv:fs.pv, pvMax:fs.pv, e:fs.emprise,
@@ -731,6 +773,9 @@ function genereCarte(codeSalon, index, plan, tirage){
       var angm = al() * 6.2832;
       if(rm < 0.18) continue;
       if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
+      /* la gomme forte vaut aussi pour les miradors — c'est même son
+         intérêt principal, ce sont eux qui verrouillent le terrain */
+      if(zones && zoneEstVide(zones[zoneDePlan(gxm, gym)])) continue;
       /* on ne le plante pas dans un bâtiment déjà posé */
       var placeLibre = 1;
       for(var jm = 0; jm < c.batiments.length; jm++){
@@ -743,6 +788,59 @@ function genereCarte(codeSalon, index, plan, tirage){
         t:"mirador", gx:gxm, gy:gym, pv:fm.pv, pvMax:fm.pv, e:fm.emprise,
         ang:angm, vivant:1, n:c.batiments.length
       });
+    }
+  }
+
+  /* --- LES TROIS CHATS DE MILY ---
+     Un chat, un chaton, une chatte par île. Ils sont tirés TOUT À LA
+     FIN, après les miradors, et jamais au milieu des autres bestioles :
+     chaque appel à al() décale la suite du tirage, et un tirage décalé
+     ici aurait rebattu la position des cellules, des renforts et des
+     miradors — donc l'indice de chaque bâtiment, donc le sens de
+     chaque bit de destruction dans tous les salons en cours.
+     En queue de fonction, ils ne coûtent rien à personne.
+     On les pose à bonne distance du Brasier : ils doivent être
+     rencontrés par accident, en pleine avancée, pas à la seconde où
+     l'on débarque. */
+  ESPECES_PROTEGEES.forEach(function(esp3){
+    for(var g3 = 0; g3 < 500; g3++){
+      var kx = 18 + al() * (PLAGE_X0 - 24), ky = 5 + al() * (GH - 10);
+      if(Math.hypot(kx - QG_GX, ky - QG_GY) < 16) continue;
+      c.creatures.push({ t:esp3, gx:kx, gy:ky, teinte:0 });
+      break;
+    }
+  });
+
+  /* --- LES CHAMPS DE CELLULES PEINTS À LA MAIN ---
+     Le bit « champ » d'une zone du plan y sème des cellules
+     énergétiques SANS toucher aux défenses : c'est une couche par
+     -dessus, pas un remplacement. On peut donc miner une zone Frelon
+     saturée, ce qui est exactement l'intérêt — de la récolte là où
+     ça tire.
+     En toute fin de fonction, après les chats : ces tirages-là
+     dépendent du plan, et le plan ne doit décaler ni les bâtiments
+     (leur indice porte le bitmap des destructions) ni les bestioles. */
+  if(zones){
+    var fcp = DEF.cellule;
+    for(var zi = 0; zi < NB_ZONES; zi++){
+      if(!zoneChamp(zones[zi])) continue;
+      var zcx = ((zi % ZONES_L) + 0.5) * PAS_ZONE;
+      var zcy = (((zi / ZONES_L) | 0) + 0.5) * PAS_ZONE;
+      if(Math.hypot(zcx - QG_GX, zcy - QG_GY) < 12) continue;
+      c.champs.push({ gx:zcx, gy:zcy, n:NB_CELL_PEINTES });
+      for(var kp = 0; kp < NB_CELL_PEINTES; kp++){
+        /* même spirale d'or que les champs d'origine, mais ouverte à
+           la taille d'une zone : huit cases de côté */
+        var ap = kp * 2.399963 + al() * 0.5;
+        var rp = 0.78 * Math.sqrt(kp) + al() * 0.26;
+        var bxp = zcx + Math.cos(ap) * rp, byp = zcy + Math.sin(ap) * rp * 0.92;
+        var angp = al() * 6.2832;
+        if(bxp < 4 || bxp > PLAGE_X0 - 2 || byp < 3 || byp > GH - 4) continue;
+        c.batiments.push({
+          t:"cellule", gx:bxp, gy:byp, pv:fcp.pv, pvMax:fcp.pv, e:fcp.emprise,
+          ang:angp, vivant:1, n:c.batiments.length
+        });
+      }
     }
   }
   return c;
@@ -987,19 +1085,49 @@ var NB_ZONES = ZONES_L * ZONES_H;            // 323
 /* L'ordre de cette liste est GRAVÉ : il est encodé dans les chaînes de
    plan qui circulent entre les joueurs et dorment dans leur navigateur.
    On ajoute à la fin, jamais au milieu. L'indice 0 veut dire « laisse
-   la génération décider », c'est la gomme. La cellule énergétique n'y
-   est pas : c'est la ressource, pas une défense. */
-var TYPES_PLAN = ["auto", "crible", "chalumeau", "frelon", "pilon", "bobine", "cuve", "silo"];
+   la génération décider », c'est le pinceau neutre. La cellule
+   énergétique n'y est pas : elle a son propre bit, parce qu'un champ
+   de cellules se pose PAR-DESSUS les défenses, il ne les remplace pas.
+
+   « vide » est la gomme forte : là où elle passe, RIEN ne pousse —
+   ni défense du quadrillage, ni renfort, ni mirador, ni champ de
+   cellules. C'est le seul type qui retire au lieu d'ajouter. */
+var TYPES_PLAN = ["auto", "crible", "chalumeau", "frelon", "pilon",
+                  "bobine", "cuve", "silo", "vide"];
 
 /* Densités. 0 = « comme d'habitude ». Les autres remplacent la
    proportion de nœuds sautés du quadrillage : plus on saute, plus la
-   zone est clairsemée. Le quadrillage d'origine en saute 28 %. */
+   zone est clairsemée. Le quadrillage d'origine en saute 28 %.
+
+   « saut » vaut pour le quadrillage principal, un nœud toutes les
+   cinq cases. « sup », quand il est donné, vaut pour la passe de
+   renfort intercalaire — celle qui pose une défense au CENTRE de
+   chaque maille. À sup:0 les deux quadrillages sont pleins et la
+   zone porte deux fois plus de défenses que « 100 % ». C'est le
+   maximum absolu que la carte peut contenir. */
 var DENSITES = [
   { nom:"d'origine", saut:0.28 },
   { nom:"clairsemé", saut:0.62 },
   { nom:"fourni",    saut:0.28 },
-  { nom:"saturé",    saut:0.04 }
+  { nom:"saturé",    saut:0.04 },
+  { nom:"100 %",     saut:0.00 },
+  { nom:"surchargé", saut:0.00, sup:0.00 }
 ];
+/* Le saut de la passe de renfort : elle ne pose qu'un septième de ce
+   que poserait le quadrillage principal, sauf densité qui le dit. */
+function sautRenfort(zd){
+  var D = zd ? DENSITES[zd] : null;
+  if(D && typeof D.sup === "number") return D.sup;
+  return 1 - (1 - (D ? D.saut : 0.28)) * 0.1486;
+}
+
+/* Une zone tient dans un octet : 4 bits de type, 3 de densité, 1 pour
+   le champ de cellules. Un seul endroit sait le découper. */
+function zoneType(z){ return z & 15; }
+function zoneDens(z){ return (z >> 4) & 7; }
+function zoneChamp(z){ return (z >> 7) & 1; }
+function faitZone(t, d, champ){ return (t & 15) | ((d & 7) << 4) | (champ ? 128 : 0); }
+function zoneEstVide(z){ return TYPES_PLAN[zoneType(z)] === "vide"; }
 
 function zoneDePlan(gx, gy){
   var zx = (gx / PAS_ZONE) | 0, zy = (gy / PAS_ZONE) | 0;
@@ -1007,33 +1135,67 @@ function zoneDePlan(gx, gy){
   if(zy < 0) zy = 0; if(zy >= ZONES_H) zy = ZONES_H - 1;
   return zy * ZONES_L + zx;
 }
-/* Cinq bits par zone : trois pour le type, deux pour la densité.
-   323 zones × 5 = 1615 bits, soit 270 caractères — du même ordre que
-   le bitmap des destructions, sans risque pour la taille du paquet. */
+/* ----------------------------------------------------------------
+   DEUX FORMATS DE PLAN, ET IL FAUT LES DEUX
+
+   v1 — cinq bits par zone : trois de type, deux de densité. Ce format
+   circule déjà entre les joueurs et dort dans leur navigateur ; on ne
+   peut pas le réinterpréter sans réécrire la carte de tous les salons
+   en cours. Il se lit donc encore, exactement comme avant.
+
+   v2 — huit bits par zone : quatre de type (il n'y avait plus de place
+   pour la gomme forte), trois de densité (idem pour « 100 % » et
+   « surchargé »), un pour le champ de cellules. Reconnaissable à son
+   préfixe « ~ », qui n'appartient pas à l'alphabet d'encodeBits et ne
+   peut donc jamais apparaître en tête d'une chaîne v1.
+
+   323 zones × 8 = 2584 bits, soit 431 caractères. C'est le plus gros
+   champ de l'instantané, et c'est sans conséquence : il voyage dans
+   le même paquet JSON que le bitmap des destructions.
+   ---------------------------------------------------------------- */
+var MARQUE_PLAN2 = "~";
+/* Cellules semées par une zone peinte au pinceau « Cellules ». Une
+   zone fait 8×8 cases : vingt-huit cellules la remplissent sans la
+   tasser. */
+var NB_CELL_PEINTES = 28;
+
 function encodePlan(zones){
-  var bits = [], i, k, t, d;
+  var bits = [], i, k, rien = 1;
   for(i = 0; i < NB_ZONES; i++){
     var z = zones[i] || 0;
-    t = z & 7; d = (z >> 3) & 3;
+    var t = zoneType(z), d = zoneDens(z), ch = zoneChamp(z);
     if(t >= TYPES_PLAN.length) t = 0;
-    for(k = 0; k < 3; k++) bits.push((t >> k) & 1);
-    for(k = 0; k < 2; k++) bits.push((d >> k) & 1);
+    if(t || d || ch) rien = 0;
+    for(k = 0; k < 4; k++) bits.push((t >> k) & 1);
+    for(k = 0; k < 3; k++) bits.push((d >> k) & 1);
+    bits.push(ch);
   }
-  var s = encodeBits(bits);
-  return compteBits(s) === 0 ? "" : s;      // tout d'origine == rien à dire
+  return rien ? "" : MARQUE_PLAN2 + encodeBits(bits);   // tout d'origine == rien à dire
 }
 /* decodeBits rend des zéros pour une entrée absente, inconnue ou
    tronquée : un plan corrompu dégénère zone par zone en « auto »,
    c'est-à-dire exactement la carte d'aujourd'hui. Le mode dégradé du
    plan est le jeu tel qu'il est. */
 function decodePlan(s){
-  var bits = decodeBits(s, NB_ZONES * 5), z = [], i;
+  var z = [], i, b, t, d;
+  if(typeof s === "string" && s.charAt(0) === MARQUE_PLAN2){
+    var b2 = decodeBits(s.substr(1), NB_ZONES * 8);
+    for(i = 0; i < NB_ZONES; i++){
+      b = i * 8;
+      t = b2[b] | (b2[b+1] << 1) | (b2[b+2] << 2) | (b2[b+3] << 3);
+      d = b2[b+4] | (b2[b+5] << 1) | (b2[b+6] << 2);
+      if(t >= TYPES_PLAN.length) t = 0;
+      z.push(faitZone(t, d, b2[b+7]));
+    }
+    return z;
+  }
+  var bits = decodeBits(s, NB_ZONES * 5);
   for(i = 0; i < NB_ZONES; i++){
-    var b = i * 5;
-    var t = bits[b] | (bits[b+1] << 1) | (bits[b+2] << 2);
-    var d = bits[b+3] | (bits[b+4] << 1);
+    b = i * 5;
+    t = bits[b] | (bits[b+1] << 1) | (bits[b+2] << 2);
+    d = bits[b+3] | (bits[b+4] << 1);
     if(t >= TYPES_PLAN.length) t = 0;
-    z.push(t | (d << 3));
+    z.push(faitZone(t, d, 0));
   }
   return z;
 }
@@ -1051,7 +1213,7 @@ function zonesPeintes(zones){
 
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
-           p:"", pn:0, tg:0, s:"" };
+           p:"", pn:0, tg:0, s:"", k:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1110,6 +1272,45 @@ function fusionneScores(a, b){
   for(k in y) if(!x[k] || y[k] > x[k]) x[k] = y[k];
   return encodeScores(x);
 }
+/* ----------------------------------------------------------------
+   LES TROIS CHATS, DANS L'INSTANTANÉ PARTAGÉ
+   Trois cases séparées par « | », dans l'ordre de ESPECES_PROTEGEES :
+   le pseudo de qui a tué chacun, vide tant qu'il vit. Trois cases
+   plutôt qu'un nom unique, parce que trois joueurs différents peuvent
+   très bien s'y coller chacun leur tour — et que le tableau d'honneur
+   doit pouvoir les nommer tous les trois.
+   ---------------------------------------------------------------- */
+function encodeChats(o){
+  var l = ESPECES_PROTEGEES.map(function(e){
+    return String((o && o[e]) || "").replace(/\|/g, "").substr(0, 14);
+  });
+  /* « || » est un instantané vierge : on le rend sous sa forme vide,
+     sinon memeMonde() verrait une différence avec mondeVide() et les
+     clients se republieraient l'instantané en boucle. */
+  return l.join("") ? l.join("|") : "";
+}
+function decodeChats(s){
+  var p = (typeof s === "string" ? s : "").split("|"), o = {};
+  for(var i = 0; i < ESPECES_PROTEGEES.length; i++) o[ESPECES_PROTEGEES[i]] = p[i] || "";
+  return o;
+}
+/* Un chat ne meurt qu'une fois : une case remplie ne se vide jamais.
+   Reste le cas où DEUX clients ont écrit un nom différent dans la
+   même case avant de se parler — chacun a bien tué son propre chat,
+   chacun a raison. « x || y » choisirait alors selon l'ordre des
+   arguments, et adopteMonde passant toujours le local en premier, les
+   deux se réécriraient l'instantané en boucle sans jamais converger.
+   On tranche donc par le NOM, comme meilleurPlan tranche par la
+   chaîne : commutatif, associatif, idempotent, et le salon converge. */
+function fusionneChats(a, b){
+  var x = decodeChats(a), y = decodeChats(b), o = {};
+  for(var i = 0; i < ESPECES_PROTEGEES.length; i++){
+    var e = ESPECES_PROTEGEES[i];
+    o[e] = (x[e] && y[e]) ? (x[e] < y[e] ? x[e] : y[e]) : (x[e] || y[e] || "");
+  }
+  return encodeChats(o);
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -1145,14 +1346,15 @@ function fusionneMonde(a, b){
      à zéro à chaque île. */
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "" };
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "", k:b.k || "" };
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
        bien son plan qui l'emporte. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0)) return a;
     return { v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
-             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0, s:a.s || "" };
+             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
+             s:a.s || "", k:a.k || "" };
   }
   return {
     v : Math.max(a.v, b.v),
@@ -1164,6 +1366,8 @@ function fusionneMonde(a, b){
        y reste, quel que soit l'ordre d'arrivée des messages. */
     g : a.g || b.g || "",
     w : a.w || b.w || "",
+    /* et les trois chats de Mily non plus */
+    k : fusionneChats(a.k, b.k),
     /* le meilleur score de chacun survit à sa déconnexion */
     s : fusionneScores(a.s, b.s),
     p : pl.p, pn: pl.pn, tg: a.tg | 0
@@ -1177,6 +1381,7 @@ function memeMonde(a, b){
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
          (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
          (a.w || "") === (b.w || "") && (a.s || "") === (b.s || "") &&
+         (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0);
 }

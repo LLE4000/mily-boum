@@ -524,6 +524,10 @@ select.champ{cursor:pointer}
         <button id="btPlanAnnule" class="bt ptt">↶ Annuler</button>
         <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
       </div>
+      <div class="ligne">
+        <button id="btPlanDefaut" class="bt ptt">★ Garder par défaut</button>
+        <button id="btPlanOubli" class="bt ptt">Oublier</button>
+      </div>
       <button id="btPlanValide" class="bt pri">Valider pour tout le salon</button>
       <div id="planAvert"></div>
     </div>
@@ -640,6 +644,26 @@ var EQ = {
   QG_VAGUE_PORTEE      : 24,    // cases
   QG_VAGUE_VITESSE     : 8.5,   // cases/s
   QG_VAGUE_DEGATS      : 62,
+
+  /* LA VENGEANCE DE MILY. Une seule règle de conception :
+     la peine tombe TOUJOURS, quelle que soit la distance, et elle ne
+     tue jamais. Un joueur qui perd 90 % de sa barge la ramène ; un
+     joueur dont la barge est effacée ferme l'onglet. */
+  VENG_MESSAGE         : 3.6,   // le message et la charge des yeux
+  VENG_TIR             : 1.50,  // les deux rayons balaient le sol
+  VENG_RETRAIT         : 1.10,  // extinction
+  VENG_PERTE           : 0.90,  // 90 % des PV, jamais la mort
+  VENG_RAYON           : 2.6,   // rayon de l'impact, en cases
+  VENG_LARGEUR         : 1.7,   // demi-largeur d'une traînée
+  VENG_TRAINEE         : 15,    // longueur des traînées, en cases
+  VENG_ECART           : 0.17,  // demi-angle du V des deux rayons, en radians
+  /* Les braises qui restent ne sont PAS un second châtiment : à
+     90 % de PV perdus, une troupe finit à onze points de vie, et un
+     brasier à trente dégâts par seconde la tuerait sans qu'elle ait
+     eu sa chance. Neuf, c'est assez pour qu'il faille dégager, pas
+     assez pour que rester une seconde de trop soit fatal. */
+  VENG_BRAISE_DUREE    : 5.0,   // les traînées continuent de brûler
+  VENG_BRAISE_DPS      : 9,
 
   /* Réglages fins demandés */
   MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
@@ -915,8 +939,17 @@ var CRE = {
   /* Tweety : un canari. Il vole, se pose, sautille, et s'envole dès
      qu'on approche. Inoffensif, comme Gégé — et comme elle, on le
      regrettera. */
-  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 }
+  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 },
+  /* LES TROIS PROTÉGÉS DE MILY. Aussi inoffensifs que Gégé, aussi
+     faciles à écraser d'une rafale perdue — à un détail près : Mily
+     les regarde. Le drapeau « protege » est le seul qui compte, tout
+     le reste de la vengeance en découle. */
+  chat    :{ nom:"Gribouille",         pv:130, detection:8.0, portee:0,   degats:0,  cadence:0,    vitesse:2.30, rayon:0.30, fuit:1, protege:1 },
+  chaton  :{ nom:"Croquette",          pv:70,  detection:6.0, portee:0,   degats:0,  cadence:0,    vitesse:1.85, rayon:0.20, fuit:1, protege:1 },
+  chatte  :{ nom:"Praline",            pv:110, detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:2.60, rayon:0.26, fuit:1, protege:1 }
 };
+/* L'ordre compte : c'est celui des trois cases de l'instantané. */
+var ESPECES_PROTEGEES = ["chat", "chaton", "chatte"];
 
 /* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
@@ -1057,7 +1090,7 @@ function genereCarte(codeSalon, index, plan, tirage){
          d'autre — la position, le jitter et l'orientation restent
          tirés comme avant. */
       var z  = zones ? zones[zoneDePlan(lx, ly)] : 0;
-      var zt = z & 7, zd = (z >> 3) & 3;
+      var zt = zoneType(z), zd = zoneDens(z);
       var saut = zd ? DENSITES[zd].saut : 0.28;
       var dx = lx - QG_GX, dy = ly - QG_GY;
       var d = Math.hypot(dx, dy);
@@ -1094,6 +1127,10 @@ function genereCarte(codeSalon, index, plan, tirage){
       }
 
       var t = zt ? TYPES_PLAN[zt] : tAuto;
+      /* LA GOMME FORTE. Le test vient APRÈS tous les tirages : on
+         consomme la séquence puis on jette le résultat, sinon effacer
+         une zone rebattrait toute l'île derrière elle. */
+      if(t === "vide") continue;
       var f = DEF[t];
       c.batiments.push({
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
@@ -1113,7 +1150,11 @@ function genereCarte(codeSalon, index, plan, tirage){
       var fx = cx + (al() - 0.5) * 5, fy = cy + (al() - 0.5) * 6;
       if(Math.hypot(fx - QG_GX, fy - QG_GY) < 14) continue;   // pas au pied du Brasier
       var n = 13 + ((al() * 5) | 0);                          // treize à dix-sept
-      c.champs.push({ gx:fx, gy:fy, n:n });
+      /* La gomme forte emporte aussi les champs. Comme partout, on
+         décide APRÈS avoir consommé les tirages du champ : seule la
+         pose est annulée, jamais la séquence. */
+      var champVide = zones && zoneEstVide(zones[zoneDePlan(fx, fy)]);
+      if(!champVide) c.champs.push({ gx:fx, gy:fy, n:n });
       var fc = DEF.cellule;
       for(var k = 0; k < n; k++){
         /* spirale d'or : le champ est dense mais jamais aligné */
@@ -1121,9 +1162,11 @@ function genereCarte(codeSalon, index, plan, tirage){
         var r2 = 0.62 * Math.sqrt(k) + al() * 0.22;
         var bx = fx + Math.cos(a2) * r2, by = fy + Math.sin(a2) * r2 * 0.92;
         if(bx < 4 || bx > PLAGE_X0 - 2 || by < 3 || by > GH - 4) continue;
+        var angc = al() * 6.2832;
+        if(champVide) continue;
         c.batiments.push({
           t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
-          ang:al() * 6.2832, vivant:1, n:c.batiments.length
+          ang:angc, vivant:1, n:c.batiments.length
         });
       }
     }
@@ -1267,12 +1310,14 @@ function genereCarte(codeSalon, index, plan, tirage){
   for(var sx = 8.5; sx <= PLAGE_X0 - 5; sx += 5){
     for(var sy = 5.5; sy <= GH - 6; sy += 5){
       var zs  = zones ? zones[zoneDePlan(sx, sy)] : 0;
-      var zts = zs & 7, zds = (zs >> 3) & 3;
+      var zts = zoneType(zs), zds = zoneDens(zs);
       /* La proportion gardée suit celle de la zone : un secteur
          clairsemé reçoit un renfort clairsemé, un secteur saturé un
          renfort saturé. 0,1486 est le rapport qui donne +15 % du
-         quadrillage d'origine, lequel en garde 72 %. */
-      var sautSup = 1 - (1 - (zds ? DENSITES[zds].saut : 0.28)) * 0.1486;
+         quadrillage d'origine, lequel en garde 72 %.
+         « Surchargé » court-circuite ce rapport et remplit aussi
+         l'entre-deux : c'est là que la carte double de densité. */
+      var sautSup = sautRenfort(zds);
       /* Tirages consommés que le nœud soit gardé ou non : un coup de
          pinceau ne doit décaler la séquence de personne d'autre. */
       var rs  = al();
@@ -1286,6 +1331,7 @@ function genereCarte(codeSalon, index, plan, tirage){
       if(rs < sautSup) continue;
       if(Math.abs(sx - QG_GX) <= 10 && Math.abs(sy - QG_GY) <= 10) continue;
       var ts = zts ? TYPES_PLAN[zts] : tAutoS;
+      if(ts === "vide") continue;                    // la gomme forte
       var fs = DEF[ts];
       c.batiments.push({
         t:ts, gx:sx + jxs, gy:sy + jys, pv:fs.pv, pvMax:fs.pv, e:fs.emprise,
@@ -1319,6 +1365,9 @@ function genereCarte(codeSalon, index, plan, tirage){
       var angm = al() * 6.2832;
       if(rm < 0.18) continue;
       if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
+      /* la gomme forte vaut aussi pour les miradors — c'est même son
+         intérêt principal, ce sont eux qui verrouillent le terrain */
+      if(zones && zoneEstVide(zones[zoneDePlan(gxm, gym)])) continue;
       /* on ne le plante pas dans un bâtiment déjà posé */
       var placeLibre = 1;
       for(var jm = 0; jm < c.batiments.length; jm++){
@@ -1331,6 +1380,59 @@ function genereCarte(codeSalon, index, plan, tirage){
         t:"mirador", gx:gxm, gy:gym, pv:fm.pv, pvMax:fm.pv, e:fm.emprise,
         ang:angm, vivant:1, n:c.batiments.length
       });
+    }
+  }
+
+  /* --- LES TROIS CHATS DE MILY ---
+     Un chat, un chaton, une chatte par île. Ils sont tirés TOUT À LA
+     FIN, après les miradors, et jamais au milieu des autres bestioles :
+     chaque appel à al() décale la suite du tirage, et un tirage décalé
+     ici aurait rebattu la position des cellules, des renforts et des
+     miradors — donc l'indice de chaque bâtiment, donc le sens de
+     chaque bit de destruction dans tous les salons en cours.
+     En queue de fonction, ils ne coûtent rien à personne.
+     On les pose à bonne distance du Brasier : ils doivent être
+     rencontrés par accident, en pleine avancée, pas à la seconde où
+     l'on débarque. */
+  ESPECES_PROTEGEES.forEach(function(esp3){
+    for(var g3 = 0; g3 < 500; g3++){
+      var kx = 18 + al() * (PLAGE_X0 - 24), ky = 5 + al() * (GH - 10);
+      if(Math.hypot(kx - QG_GX, ky - QG_GY) < 16) continue;
+      c.creatures.push({ t:esp3, gx:kx, gy:ky, teinte:0 });
+      break;
+    }
+  });
+
+  /* --- LES CHAMPS DE CELLULES PEINTS À LA MAIN ---
+     Le bit « champ » d'une zone du plan y sème des cellules
+     énergétiques SANS toucher aux défenses : c'est une couche par
+     -dessus, pas un remplacement. On peut donc miner une zone Frelon
+     saturée, ce qui est exactement l'intérêt — de la récolte là où
+     ça tire.
+     En toute fin de fonction, après les chats : ces tirages-là
+     dépendent du plan, et le plan ne doit décaler ni les bâtiments
+     (leur indice porte le bitmap des destructions) ni les bestioles. */
+  if(zones){
+    var fcp = DEF.cellule;
+    for(var zi = 0; zi < NB_ZONES; zi++){
+      if(!zoneChamp(zones[zi])) continue;
+      var zcx = ((zi % ZONES_L) + 0.5) * PAS_ZONE;
+      var zcy = (((zi / ZONES_L) | 0) + 0.5) * PAS_ZONE;
+      if(Math.hypot(zcx - QG_GX, zcy - QG_GY) < 12) continue;
+      c.champs.push({ gx:zcx, gy:zcy, n:NB_CELL_PEINTES });
+      for(var kp = 0; kp < NB_CELL_PEINTES; kp++){
+        /* même spirale d'or que les champs d'origine, mais ouverte à
+           la taille d'une zone : huit cases de côté */
+        var ap = kp * 2.399963 + al() * 0.5;
+        var rp = 0.78 * Math.sqrt(kp) + al() * 0.26;
+        var bxp = zcx + Math.cos(ap) * rp, byp = zcy + Math.sin(ap) * rp * 0.92;
+        var angp = al() * 6.2832;
+        if(bxp < 4 || bxp > PLAGE_X0 - 2 || byp < 3 || byp > GH - 4) continue;
+        c.batiments.push({
+          t:"cellule", gx:bxp, gy:byp, pv:fcp.pv, pvMax:fcp.pv, e:fcp.emprise,
+          ang:angp, vivant:1, n:c.batiments.length
+        });
+      }
     }
   }
   return c;
@@ -1575,19 +1677,49 @@ var NB_ZONES = ZONES_L * ZONES_H;            // 323
 /* L'ordre de cette liste est GRAVÉ : il est encodé dans les chaînes de
    plan qui circulent entre les joueurs et dorment dans leur navigateur.
    On ajoute à la fin, jamais au milieu. L'indice 0 veut dire « laisse
-   la génération décider », c'est la gomme. La cellule énergétique n'y
-   est pas : c'est la ressource, pas une défense. */
-var TYPES_PLAN = ["auto", "crible", "chalumeau", "frelon", "pilon", "bobine", "cuve", "silo"];
+   la génération décider », c'est le pinceau neutre. La cellule
+   énergétique n'y est pas : elle a son propre bit, parce qu'un champ
+   de cellules se pose PAR-DESSUS les défenses, il ne les remplace pas.
+
+   « vide » est la gomme forte : là où elle passe, RIEN ne pousse —
+   ni défense du quadrillage, ni renfort, ni mirador, ni champ de
+   cellules. C'est le seul type qui retire au lieu d'ajouter. */
+var TYPES_PLAN = ["auto", "crible", "chalumeau", "frelon", "pilon",
+                  "bobine", "cuve", "silo", "vide"];
 
 /* Densités. 0 = « comme d'habitude ». Les autres remplacent la
    proportion de nœuds sautés du quadrillage : plus on saute, plus la
-   zone est clairsemée. Le quadrillage d'origine en saute 28 %. */
+   zone est clairsemée. Le quadrillage d'origine en saute 28 %.
+
+   « saut » vaut pour le quadrillage principal, un nœud toutes les
+   cinq cases. « sup », quand il est donné, vaut pour la passe de
+   renfort intercalaire — celle qui pose une défense au CENTRE de
+   chaque maille. À sup:0 les deux quadrillages sont pleins et la
+   zone porte deux fois plus de défenses que « 100 % ». C'est le
+   maximum absolu que la carte peut contenir. */
 var DENSITES = [
   { nom:"d'origine", saut:0.28 },
   { nom:"clairsemé", saut:0.62 },
   { nom:"fourni",    saut:0.28 },
-  { nom:"saturé",    saut:0.04 }
+  { nom:"saturé",    saut:0.04 },
+  { nom:"100 %",     saut:0.00 },
+  { nom:"surchargé", saut:0.00, sup:0.00 }
 ];
+/* Le saut de la passe de renfort : elle ne pose qu'un septième de ce
+   que poserait le quadrillage principal, sauf densité qui le dit. */
+function sautRenfort(zd){
+  var D = zd ? DENSITES[zd] : null;
+  if(D && typeof D.sup === "number") return D.sup;
+  return 1 - (1 - (D ? D.saut : 0.28)) * 0.1486;
+}
+
+/* Une zone tient dans un octet : 4 bits de type, 3 de densité, 1 pour
+   le champ de cellules. Un seul endroit sait le découper. */
+function zoneType(z){ return z & 15; }
+function zoneDens(z){ return (z >> 4) & 7; }
+function zoneChamp(z){ return (z >> 7) & 1; }
+function faitZone(t, d, champ){ return (t & 15) | ((d & 7) << 4) | (champ ? 128 : 0); }
+function zoneEstVide(z){ return TYPES_PLAN[zoneType(z)] === "vide"; }
 
 function zoneDePlan(gx, gy){
   var zx = (gx / PAS_ZONE) | 0, zy = (gy / PAS_ZONE) | 0;
@@ -1595,33 +1727,67 @@ function zoneDePlan(gx, gy){
   if(zy < 0) zy = 0; if(zy >= ZONES_H) zy = ZONES_H - 1;
   return zy * ZONES_L + zx;
 }
-/* Cinq bits par zone : trois pour le type, deux pour la densité.
-   323 zones × 5 = 1615 bits, soit 270 caractères — du même ordre que
-   le bitmap des destructions, sans risque pour la taille du paquet. */
+/* ----------------------------------------------------------------
+   DEUX FORMATS DE PLAN, ET IL FAUT LES DEUX
+
+   v1 — cinq bits par zone : trois de type, deux de densité. Ce format
+   circule déjà entre les joueurs et dort dans leur navigateur ; on ne
+   peut pas le réinterpréter sans réécrire la carte de tous les salons
+   en cours. Il se lit donc encore, exactement comme avant.
+
+   v2 — huit bits par zone : quatre de type (il n'y avait plus de place
+   pour la gomme forte), trois de densité (idem pour « 100 % » et
+   « surchargé »), un pour le champ de cellules. Reconnaissable à son
+   préfixe « ~ », qui n'appartient pas à l'alphabet d'encodeBits et ne
+   peut donc jamais apparaître en tête d'une chaîne v1.
+
+   323 zones × 8 = 2584 bits, soit 431 caractères. C'est le plus gros
+   champ de l'instantané, et c'est sans conséquence : il voyage dans
+   le même paquet JSON que le bitmap des destructions.
+   ---------------------------------------------------------------- */
+var MARQUE_PLAN2 = "~";
+/* Cellules semées par une zone peinte au pinceau « Cellules ». Une
+   zone fait 8×8 cases : vingt-huit cellules la remplissent sans la
+   tasser. */
+var NB_CELL_PEINTES = 28;
+
 function encodePlan(zones){
-  var bits = [], i, k, t, d;
+  var bits = [], i, k, rien = 1;
   for(i = 0; i < NB_ZONES; i++){
     var z = zones[i] || 0;
-    t = z & 7; d = (z >> 3) & 3;
+    var t = zoneType(z), d = zoneDens(z), ch = zoneChamp(z);
     if(t >= TYPES_PLAN.length) t = 0;
-    for(k = 0; k < 3; k++) bits.push((t >> k) & 1);
-    for(k = 0; k < 2; k++) bits.push((d >> k) & 1);
+    if(t || d || ch) rien = 0;
+    for(k = 0; k < 4; k++) bits.push((t >> k) & 1);
+    for(k = 0; k < 3; k++) bits.push((d >> k) & 1);
+    bits.push(ch);
   }
-  var s = encodeBits(bits);
-  return compteBits(s) === 0 ? "" : s;      // tout d'origine == rien à dire
+  return rien ? "" : MARQUE_PLAN2 + encodeBits(bits);   // tout d'origine == rien à dire
 }
 /* decodeBits rend des zéros pour une entrée absente, inconnue ou
    tronquée : un plan corrompu dégénère zone par zone en « auto »,
    c'est-à-dire exactement la carte d'aujourd'hui. Le mode dégradé du
    plan est le jeu tel qu'il est. */
 function decodePlan(s){
-  var bits = decodeBits(s, NB_ZONES * 5), z = [], i;
+  var z = [], i, b, t, d;
+  if(typeof s === "string" && s.charAt(0) === MARQUE_PLAN2){
+    var b2 = decodeBits(s.substr(1), NB_ZONES * 8);
+    for(i = 0; i < NB_ZONES; i++){
+      b = i * 8;
+      t = b2[b] | (b2[b+1] << 1) | (b2[b+2] << 2) | (b2[b+3] << 3);
+      d = b2[b+4] | (b2[b+5] << 1) | (b2[b+6] << 2);
+      if(t >= TYPES_PLAN.length) t = 0;
+      z.push(faitZone(t, d, b2[b+7]));
+    }
+    return z;
+  }
+  var bits = decodeBits(s, NB_ZONES * 5);
   for(i = 0; i < NB_ZONES; i++){
-    var b = i * 5;
-    var t = bits[b] | (bits[b+1] << 1) | (bits[b+2] << 2);
-    var d = bits[b+3] | (bits[b+4] << 1);
+    b = i * 5;
+    t = bits[b] | (bits[b+1] << 1) | (bits[b+2] << 2);
+    d = bits[b+3] | (bits[b+4] << 1);
     if(t >= TYPES_PLAN.length) t = 0;
-    z.push(t | (d << 3));
+    z.push(faitZone(t, d, 0));
   }
   return z;
 }
@@ -1639,7 +1805,7 @@ function zonesPeintes(zones){
 
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
-           p:"", pn:0, tg:0, s:"" };
+           p:"", pn:0, tg:0, s:"", k:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1698,6 +1864,45 @@ function fusionneScores(a, b){
   for(k in y) if(!x[k] || y[k] > x[k]) x[k] = y[k];
   return encodeScores(x);
 }
+/* ----------------------------------------------------------------
+   LES TROIS CHATS, DANS L'INSTANTANÉ PARTAGÉ
+   Trois cases séparées par « | », dans l'ordre de ESPECES_PROTEGEES :
+   le pseudo de qui a tué chacun, vide tant qu'il vit. Trois cases
+   plutôt qu'un nom unique, parce que trois joueurs différents peuvent
+   très bien s'y coller chacun leur tour — et que le tableau d'honneur
+   doit pouvoir les nommer tous les trois.
+   ---------------------------------------------------------------- */
+function encodeChats(o){
+  var l = ESPECES_PROTEGEES.map(function(e){
+    return String((o && o[e]) || "").replace(/\|/g, "").substr(0, 14);
+  });
+  /* « || » est un instantané vierge : on le rend sous sa forme vide,
+     sinon memeMonde() verrait une différence avec mondeVide() et les
+     clients se republieraient l'instantané en boucle. */
+  return l.join("") ? l.join("|") : "";
+}
+function decodeChats(s){
+  var p = (typeof s === "string" ? s : "").split("|"), o = {};
+  for(var i = 0; i < ESPECES_PROTEGEES.length; i++) o[ESPECES_PROTEGEES[i]] = p[i] || "";
+  return o;
+}
+/* Un chat ne meurt qu'une fois : une case remplie ne se vide jamais.
+   Reste le cas où DEUX clients ont écrit un nom différent dans la
+   même case avant de se parler — chacun a bien tué son propre chat,
+   chacun a raison. « x || y » choisirait alors selon l'ordre des
+   arguments, et adopteMonde passant toujours le local en premier, les
+   deux se réécriraient l'instantané en boucle sans jamais converger.
+   On tranche donc par le NOM, comme meilleurPlan tranche par la
+   chaîne : commutatif, associatif, idempotent, et le salon converge. */
+function fusionneChats(a, b){
+  var x = decodeChats(a), y = decodeChats(b), o = {};
+  for(var i = 0; i < ESPECES_PROTEGEES.length; i++){
+    var e = ESPECES_PROTEGEES[i];
+    o[e] = (x[e] && y[e]) ? (x[e] < y[e] ? x[e] : y[e]) : (x[e] || y[e] || "");
+  }
+  return encodeChats(o);
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -1733,14 +1938,15 @@ function fusionneMonde(a, b){
      à zéro à chaque île. */
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "" };
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "", k:b.k || "" };
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
        bien son plan qui l'emporte. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0)) return a;
     return { v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
-             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0, s:a.s || "" };
+             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
+             s:a.s || "", k:a.k || "" };
   }
   return {
     v : Math.max(a.v, b.v),
@@ -1752,6 +1958,8 @@ function fusionneMonde(a, b){
        y reste, quel que soit l'ordre d'arrivée des messages. */
     g : a.g || b.g || "",
     w : a.w || b.w || "",
+    /* et les trois chats de Mily non plus */
+    k : fusionneChats(a.k, b.k),
     /* le meilleur score de chacun survit à sa déconnexion */
     s : fusionneScores(a.s, b.s),
     p : pl.p, pn: pl.pn, tg: a.tg | 0
@@ -1765,6 +1973,7 @@ function memeMonde(a, b){
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
          (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
          (a.w || "") === (b.w || "") && (a.s || "") === (b.s || "") &&
+         (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0);
 }
@@ -4878,17 +5087,18 @@ SOCLES.bobine = function(c){
 /* ================================================================
    LE MIRADOR — tour de guet, et le tireur d'élite qui l'habite.
 
-   Il y en a une centaine par île. La silhouette doit donc se lire à
+   Il y en a des dizaines par île. La silhouette doit donc se lire à
    la vitesse d'un coup d'œil et ne ressembler à AUCUNE des cinq
    autres défenses. Tout est construit à leur contre-pied :
      — elles sont assises sur un octogone de béton coulé ; lui est
        planté sur quatre plots et de la terre battue ;
      — elles sont grises, olive et acier ; il est en BOIS ;
-     — elles sont larges et basses (126 à 160 px de large pour 57 à
-       91 de haut) ; il est étroit et haut : 74 de large, 122 de haut ;
+     — elles sont larges et basses (de 119 à 161 px de large pour 57 à
+       109 de haut) ; il est l'inverse : le plus ÉTROIT des six, 106,
+       et le plus HAUT, 124 ;
      — elles portent une machine ; il porte un HOMME.
-   Et il reste quarante pixels sous la cellule électrique, qui demeure
-   la chose la plus haute de l'île après le QG.
+   Et il reste trente-huit pixels sous la cellule électrique, qui
+   demeure la chose la plus haute de l'île après le QG.
 
    DEUX REPÈRES ANGULAIRES, ET C'EST VOULU.
    Les quatre PIEDS sont aux diagonales du monde, comme tout le reste
@@ -4903,12 +5113,15 @@ SOCLES.bobine = function(c){
    ================================================================ */
 var MIR_ZPONT  = 72;      // dessus du plancher
 var MIR_ZTOIT  = 108;     // dessous de l'avant-toit
-var MIR_ZFAITE = 122;     // pointe du toit
+var MIR_ZFAITE = 119;     // plan du chapeau de faîtage (le point le
+                          // plus haut de la tour est le bord ARRIÈRE de ce
+                          // chapeau, à 124 : un octogone posé à plat monte
+                          // encore de RY×rayon au-dessus de son plan)
 var MIR_RSOL   = 1.00;    // écartement des pieds au sol
 var MIR_RCOL   = 0.42;    // et juste sous le plancher
 var MIR_RPONT  = 0.74;    // rayon du plancher octogonal
 var MIR_RPOT   = 0.66;    // les quatre poteaux de la cabane
-var MIR_RTOIT  = 0.80;    // débord du toit
+var MIR_RTOIT  = 0.78;    // débord du toit
 var MIR_ETAGES = [1, 25, 47, 67];        // les trois étages de croisillons
 var MIR_ZMUR   = 96;                     // haut de la cloison arrière
 
@@ -5132,12 +5345,17 @@ SOCLES.mirador = function(c){
   for(i = 0; i < 13; i++){
     a = i / 13 * 6.2832 + 0.24;
     var rs = 0.55 + alS() * 0.05;
-    listeS.push({ x:Math.cos(a) * rs, y:Math.sin(a) * rs, s:0.78 + alS() * 0.30, t:alS() });
+    var sx = Math.cos(a) * rs, sy = Math.sin(a) * rs;
+    var ss = 0.78 + alS() * 0.30, st = alS();
+    /* rien à l'arrière : la cloison est déjà là, et un sac de plus
+       derrière le tireur ne serait qu'une tache de plus */
+    if(sx + sy < -0.24) continue;
+    listeS.push({ x:sx, y:sy, s:ss, t:st });
   }
   listeS.sort(function(u, v){ return (u.x + u.y) - (v.x + v.y); });
   for(i = 0; i < listeS.length; i++){
     sc = listeS[i];
-    fS = faces(sc.t > 0.5 ? "#8d8054" : "#71653f");
+    fS = faces(sc.t > 0.5 ? "#82764c" : "#6a5f3a");
     boite(c, sc.x, sc.y, 0.30 * sc.s, 0.21 * sc.s, MIR_ZPONT, 5.6 * sc.s,
           fS.t, fS.g, fS.d, true);
     q = iso(sc.x, sc.y);
@@ -5150,15 +5368,25 @@ SOCLES.mirador = function(c){
 
   poteau(0, 1); poteau(1, 1);
 
-  /* garde-corps sur les deux faces ouvertes, entre poteaux voisins */
-  function lisse(k1, k2, z, ep, coul){
-    var A = mirPoteau(k1, MIR_ZPONT + z), B = mirPoteau(k2, MIR_ZPONT + z);
-    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
-    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  /* Garde-corps de la face ouverte seulement. Les deux faces
+     latérales sont vues par la tranche : une lisse y serait un
+     segment vertical de trois pixels, c'est-à-dire un deuxième poteau
+     dessiné par-dessus le premier. On les remplace par les aisseliers
+     de tête, qui eux se voient sous tous les angles. */
+  var A0 = mirPoteau(0, MIR_ZPONT + 15), B0 = mirPoteau(1, MIR_ZPONT + 15);
+  c.lineCap = "butt";
+  c.strokeStyle = MIR_BOISO; c.lineWidth = 2.8;
+  c.beginPath(); c.moveTo(A0.x, A0.y); c.lineTo(B0.x, B0.y); c.stroke();
+  c.strokeStyle = "#7a5f3a"; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(A0.x, A0.y - 1); c.lineTo(B0.x, B0.y - 1); c.stroke();
+  for(k = 0; k < 4; k++){
+    var P1 = mirPoteau(k, MIR_ZTOIT - 11), P2 = mirPoteau(k, MIR_ZTOIT - 4);
+    var dg = P1.x > 0 ? -7 : 7;
+    c.strokeStyle = MIR_BOISO; c.lineWidth = 2.6;
+    c.beginPath(); c.moveTo(P1.x, P1.y); c.lineTo(P2.x + dg, P2.y); c.stroke();
+    c.strokeStyle = k < 2 ? "#6d5533" : "#463620"; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(P1.x, P1.y - 0.6); c.lineTo(P2.x + dg, P2.y - 0.6); c.stroke();
   }
-  lisse(1, 2, 15, 2.8, MIR_BOISO); lisse(1, 2, 14, 1.4, "#6d5533");
-  lisse(3, 0, 15, 2.8, MIR_BOISO); lisse(3, 0, 14, 1.4, "#7a5f3a");
-  lisse(0, 1, 15, 2.6, MIR_BOISO); lisse(0, 1, 14, 1.3, "#7a5f3a");
 
   /* ---- CE QUI TRAÎNE SUR LE PLANCHER ---- */
   /* caisse de munitions, contre la cloison */
@@ -5184,18 +5412,21 @@ SOCLES.mirador = function(c){
   /* ---- LA CHARPENTE DU TOIT ---- */
   prisme(c, 0, 0, MIR_RPOT * 1.06, 8, 0, MIR_ZTOIT - 4, 4, "#544026", "#2c2115");
 
-  /* ---- LE TOIT : huit pans de tôle ondulée ----
-     Piège évité de justesse : un cône octogonal à faible pente, sans
-     tranche visible et avec le centre plus clair que les bords, ne
-     donne pas un toit — il donne un PARASOL. Trois choses le
-     rattrapent : une pente franche (quatorze pixels de flèche), un
-     écart de valeur brutal d'un pan à l'autre, et surtout une tranche
-     de tôle bien noire sur tout le pourtour visible, qui rend son
-     épaisseur au matériau. */
+  /* ---- LE TOIT : huit pans de tôle sur une charpente tronquée ----
+     Le premier jet était un cône octogonal pointu : vingt-quatre
+     lignes convergeant vers une pointe unique, c'est-à-dire un
+     PARASOL, et rien d'autre. Trois corrections, et il redevient un
+     toit de tôle : la pointe est TRONQUÉE par un petit chapeau
+     octogonal — un toit a une faîtière, un parapluie a une pointe ;
+     les ondes de la tôle courent PARALLÈLEMENT à l'égout et non dans
+     la pente, ce qui casse l'étoile ; et l'écart de valeur d'un pan
+     à l'autre est franc, pour qu'on lise huit plans pliés plutôt
+     qu'une coupole lisse. */
+  var RCHAP = 0.26;                          // le chapeau de faîtage
   var LUM_PAN = [];
   for(i = 0; i < 8; i++){
     var am = (i + 0.5) * 0.7854;
-    LUM_PAN[i] = 0.80 + 0.52 * (-0.60 * Math.cos(am) - 0.80 * Math.sin(am));
+    LUM_PAN[i] = 0.96 + 0.34 * (-0.60 * Math.cos(am) - 0.80 * Math.sin(am));
   }
   /* la tranche d'abord : elle déborde sous les pans et fait l'ombre */
   c.fillStyle = "#2a251f";
@@ -5212,39 +5443,46 @@ SOCLES.mirador = function(c){
   for(i = 0; i < 8; i++){
     s1 = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
     s2 = mirSommet(i + 1, MIR_RTOIT, MIR_ZTOIT);
+    var h1 = mirSommet(i, RCHAP, MIR_ZFAITE);
+    var h2 = mirSommet(i + 1, RCHAP, MIR_ZFAITE);
     c.fillStyle = ecl(MIR_TOLE, LUM_PAN[i]);
     c.beginPath();
-    c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.lineTo(s2.x, s2.y);
+    c.moveTo(h1.x, h1.y); c.lineTo(h2.x, h2.y);
+    c.lineTo(s2.x, s2.y); c.lineTo(s1.x, s1.y);
     c.closePath(); c.fill();
-    /* les ondes de la tôle : deux nervures par pan, dans la pente */
-    c.strokeStyle = "rgba(28,24,20,.30)"; c.lineWidth = 0.9;
-    c.beginPath();
-    c.moveTo(0, -MIR_ZFAITE);
-    c.lineTo(s1.x * 0.66 + s2.x * 0.34, s1.y * 0.66 + s2.y * 0.34);
-    c.moveTo(0, -MIR_ZFAITE);
-    c.lineTo(s1.x * 0.34 + s2.x * 0.66, s1.y * 0.34 + s2.y * 0.66);
-    c.stroke();
+    /* deux ondes parallèles à l'égout */
+    c.strokeStyle = "rgba(28,24,20,.26)"; c.lineWidth = 0.9;
+    for(k = 1; k <= 2; k++){
+      var u = k * 0.31;
+      c.beginPath();
+      c.moveTo(s1.x + (h1.x - s1.x) * u, s1.y + (h1.y - s1.y) * u);
+      c.lineTo(s2.x + (h2.x - s2.x) * u, s2.y + (h2.y - s2.y) * u);
+      c.stroke();
+    }
     /* l'arêtier, sombre côté ombre, clair côté lumière */
-    c.strokeStyle = LUM_PAN[i] > 1 ? "rgba(255,246,225,.34)" : "rgba(26,22,18,.5)";
-    c.lineWidth = 1.1;
-    c.beginPath(); c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.stroke();
+    c.strokeStyle = LUM_PAN[i] > 1 ? "rgba(255,246,225,.30)" : "rgba(26,22,18,.45)";
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(h1.x, h1.y); c.lineTo(s1.x, s1.y); c.stroke();
   }
   /* rouille : la tôle a vingt ans */
-  c.save(); c.globalAlpha = 0.30; c.fillStyle = MIR_ROUIL;
-  c.beginPath(); c.ellipse(-10, -MIR_ZTOIT - 6, 6, 3.0, -0.3, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(8, -MIR_ZTOIT - 8, 4.4, 2.4, 0.4, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(1, -MIR_ZTOIT + 4, 5, 1.9, 0, 0, 6.2832); c.fill();
+  c.save(); c.globalAlpha = 0.26; c.fillStyle = MIR_ROUIL;
+  c.beginPath(); c.ellipse(-11, -MIR_ZTOIT - 5, 5, 2.6, -0.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(9, -MIR_ZTOIT - 7, 4, 2.2, 0.4, 0, 6.2832); c.fill();
   c.restore();
-  /* faîtière : un capuchon de tôle, pas une boule */
-  c.fillStyle = "#4a443d";
+  /* le chapeau de faîtage */
+  c.fillStyle = ecl(MIR_TOLE, 1.16);
   c.beginPath();
-  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
-  c.lineTo(5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE + 4);
+  for(i = 0; i < 8; i++){
+    q = mirSommet(i, RCHAP, MIR_ZFAITE);
+    if(i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+  }
   c.closePath(); c.fill();
+  c.strokeStyle = "rgba(26,22,18,.5)"; c.lineWidth = 1; c.stroke();
   c.fillStyle = "rgba(255,246,225,.26)";
   c.beginPath();
-  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
-  c.lineTo(0, -MIR_ZFAITE + 0.2); c.lineTo(-4.4, -MIR_ZFAITE + 3);
+  c.moveTo(mirSommet(3, RCHAP, MIR_ZFAITE).x, mirSommet(3, RCHAP, MIR_ZFAITE).y);
+  c.lineTo(mirSommet(5, RCHAP, MIR_ZFAITE).x, mirSommet(5, RCHAP, MIR_ZFAITE).y);
+  c.lineTo(mirSommet(6, RCHAP, MIR_ZFAITE).x, mirSommet(6, RCHAP, MIR_ZFAITE).y);
   c.closePath(); c.fill();
 
   /* ---- LA POTENCE ET SON PALAN ----
@@ -6656,6 +6894,303 @@ TOURELLES.bobine = function(c, b, ang, tps){
     lueurRapide(c, cx, cy, 26 + fl * 14, "#ffffff", fl * 0.6);
     lueurRapide(c, cx, cy, 58, "#7de6ff", fl * 0.4);
     lueurRapide(c, p.x, p.y - 40, 20, "#7de6ff", fl * 0.3);
+  }
+};
+
+/* ================================================================
+   MIRADOR — la couche vivante : L'HOMME.
+
+   Tout le reste de la tour est peint une fois pour toutes dans le
+   sprite. Ici il n'y a qu'un bonhomme de quinze pixels, et c'est lui
+   qui porte la défense : c'est lui qui tourne, lui qui tire, lui
+   qu'on regarde. Trois règles pour qu'il tienne debout :
+
+   1. AUCUNE PIÈCE PLATE. Une silhouette découpée dans le plan
+      (avant, hauteur) disparaîtrait dès qu'il viserait la caméra —
+      le plan serait vu par la tranche. Tout est donc en petits blocs
+      à trois faces (bout, flanc proche, dessus), comme le bloc du
+      Frelon : quel que soit l'angle, il reste de la matière.
+   2. LE CANON EST LE CADRAN. À un demi-zoom l'homme fait sept pixels
+      et sa pose ne dit plus rien ; le long tube, lui, reste un trait
+      de vingt pixels qui montre où la tour regarde.
+   3. L'AVANT-TOIT COUPE. Le toit est peint AVANT le tireur : un
+      canon pointé vers le fond passerait par-dessus les tôles alors
+      qu'il passe dessous. On découpe donc toute la couche vivante
+      sous la ligne d'avant-toit. Seule la LUMIÈRE du départ est
+      peinte hors du découpage : une lueur, ça déborde.
+   ================================================================ */
+/* Sa palette est celle d'un homme qui doit se lire en sept pixels :
+   une tenue SOMBRE, presque noire, pour que la silhouette tienne sur
+   les planches claires et les sacs de sable — et un casque CLAIR, la
+   seule tache pâle de tout le personnage. C'est le casque qu'on voit
+   d'abord, donc la tête, donc l'homme. */
+var MIR_H = {
+  tenue:"#3b4331", tenueC:"#4d5741", tenueO:"#1c2216",
+  casque:"#6f7554", casqueC:"#949a72",
+  peau:"#c39a6c", peauO:"#8a684a",
+  arme:"#2b2b30", armeC:"#5c5c66", armeO:"#131316"
+};
+
+TOURELLES.mirador = function(c, b, ang, tps){
+  var d = vecteurEcran(ang);
+  var dp = vecteurEcran(ang + 1.5708);   // le travers, dans le repère du MONDE
+  var sg = dp.y >= 0 ? 1 : -1;           // le flanc de l'homme tourné vers nous
+  var av = d.y >= 0;                     // vise-t-il vers le bas de l'écran ?
+  var fl = b.flash || 0, rec = b.recul || 0;
+  var dep = (b.n || 0) * 1.37;           // déphasage : cent tours, cent respirations
+  var fr = (b.pv || 0) / (b.pvMax || 1);
+  if(!(fr > 0)) fr = 0; else if(fr > 1) fr = 1;
+  var i, q;
+
+  /* Il est posté un poil en arrière du centre : les sacs restent
+     devant lui, et la trappe reste dégagée derrière. */
+  var ox = 0, oy = -MIR_ZPONT - 1.6;
+
+  /* Respiration, tassement, tremblement. Une tour de bois n'a pas de
+     tôle à noircir : c'est l'HOMME qui montre les dégâts. À mesure
+     que la tour encaisse, il souffle plus vite, il rentre la tête
+     dans les épaules, et sous 45 % il tremble — trois choses
+     gratuites qui disent « celui-là ne tiendra plus longtemps ». */
+  var resp = Math.sin(tps * (1.15 + (1 - fr) * 2.6) + dep) * 0.42;
+  var bas = (1 - fr) * 2.4;
+  if(fr < 0.45) ox += Math.sin(tps * 23 + dep) * (0.45 - fr) * 2.4;
+
+  /* LE RACCOURCI, seul endroit du jeu où l'on se sert du « l » que
+     vecteurEcran calcule depuis toujours sans que personne l'utilise.
+     Les autres tourelles ont des canons courts et épais : une longueur
+     constante ne s'y voit pas. Ici le fusil fait vingt-six pixels de
+     long pour deux de large — visé droit sur la caméra, il devenait
+     une perche plantée à travers le plancher. On l'écrase donc dans
+     l'axe de tir, en racine carrée du raccourci réel : la moitié du
+     raccourci isométrique, assez pour qu'on lise « il vise vers nous »,
+     pas assez pour que l'arme disparaisse. */
+  var fo = Math.sqrt(d.l / RX), fp = Math.sqrt(dp.l / RX);
+  var ax = d.x * fo, ay = d.y * fo, bx = dp.x * fp, by = dp.y * fp;
+
+  function P(t, s, h){
+    return { x:ox + ax * t + bx * s, y:oy + ay * t + by * s - h };
+  }
+  function quad(pts, coul){
+    var k, w;
+    c.beginPath();
+    for(k = 0; k < 4; k++){
+      w = P(pts[k][0], pts[k][1], pts[k][2]);
+      if(k === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.closePath();
+    c.fillStyle = coul; c.fill();
+  }
+  /* Un bloc : face de bout, flanc proche, dessus. Jamais dégénéré. */
+  function bloc(t0, t1, w, h0, h1, cT, cC, cB){
+    var tb = av ? t1 : t0, sw = sg * w;
+    quad([[tb, -w, h0], [tb, w, h0], [tb, w, h1], [tb, -w, h1]], cB);
+    quad([[t0, sw, h0], [t1, sw, h0], [t1, sw, h1], [t0, sw, h1]], cC);
+    quad([[t0, -w, h1], [t1, -w, h1], [t1, w, h1], [t0, w, h1]], cT);
+  }
+
+  /* ---- LE DÉCOUPAGE SOUS L'AVANT-TOIT ----
+     Il ne sert QUE lorsque le canon monte assez haut pour aller
+     chercher les tôles, c'est-à-dire quand il vise le fond de
+     l'écran. Le reste du temps — près des trois quarts de la rose
+     des vents — le masque coûterait un tracé et un remplissage de
+     masque pour rien, cent fois par image. */
+  var coupe = d.y < -0.52;
+  if(coupe){
+    c.save();
+    c.beginPath();
+    q = mirSommet(0, MIR_RTOIT, MIR_ZTOIT);
+    c.moveTo(200, q.y); c.lineTo(q.x, q.y);
+    for(i = 1; i <= 4; i++){
+      q = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
+      c.lineTo(q.x, q.y);
+    }
+    c.lineTo(-200, q.y); c.lineTo(-200, 200); c.lineTo(200, 200);
+    c.closePath(); c.clip();
+  }
+
+  /* ---- son ombre sur les planches ---- */
+  c.fillStyle = "rgba(28,20,12,.30)";
+  c.beginPath();
+  q = P(-1, 0, 0);
+  c.ellipse(q.x, q.y, 9, 4.2, 0, 0, 6.2832);
+  c.fill();
+
+  /* ---- LE CORPS, agenouillé, penché dans la crosse ---- */
+  /* jambes repliées, genou avant compris */
+  bloc(-8.5, 3.6, 4.0, 0, 4.6 - bas, MIR_H.tenue, MIR_H.tenueO, MIR_H.tenueO);
+  /* buste */
+  bloc(-5.5, 2.2, 3.5, 4.2 - bas, 10.6 - bas + resp,
+       MIR_H.tenueC, MIR_H.tenue, MIR_H.tenueO);
+  /* le ceinturon : sans cette ligne sombre en travers, le buste et
+     les jambes ne font qu'une seule masse verte */
+  quad([[-5.5, -3.6, 5.4 - bas], [2.2, -3.6, 5.4 - bas],
+        [2.2, 3.6, 5.4 - bas], [-5.5, 3.6, 5.4 - bas]], "rgba(20,24,14,.55)");
+  /* paquetage dans le dos */
+  bloc(-6.2, -3.4, 2.4, 6.2 - bas, 9.2 - bas + resp, "#333a2a", "#1c2216", "#262c1d");
+  /* épaules */
+  bloc(-3.4, 1.6, 4.1, 10.2 - bas + resp, 11.8 - bas + resp,
+       MIR_H.tenueC, MIR_H.tenue, MIR_H.tenue);
+
+  /* ---- LE FUSIL ----
+     Repère propre : hauteur du canon = hr(t). Le recul le fait
+     GLISSER dans l'épaule et PIQUER du nez ; les deux ensemble, sans
+     quoi le coup ne se voit pas. */
+  var tR = -rec * 3.6;
+  /* une arme au repos ne tient pas l'horizontale parfaite : elle pique
+     déjà un peu du nez sur son bipied. Le recul ajoute le sien. */
+  var pente = -0.055 - rec * 0.115;
+  var hA = 9.4 - bas + resp;
+  function hr(t){ return hA + pente * (t + 7); }
+  function blocArme(a0, a1, w, e0, e1, cT, cC, cB){
+    var t0 = a0 + tR, t1 = a1 + tR;
+    var y0 = hr(a0), y1 = hr(a1);
+    var tb = av ? t1 : t0, yb = av ? y1 : y0, sw = sg * w;
+    quad([[tb, -w, yb + e0], [tb, w, yb + e0], [tb, w, yb + e1], [tb, -w, yb + e1]], cB);
+    quad([[t0, sw, y0 + e0], [t1, sw, y1 + e0], [t1, sw, y1 + e1], [t0, sw, y0 + e1]], cC);
+    quad([[t0, -w, y0 + e1], [t1, -w, y1 + e1], [t1, w, y1 + e1], [t0, w, y0 + e1]], cT);
+  }
+  /* Deux traits pour les pièces MINCES. Un canon de deux pixels de
+     large dessiné en bloc, ce sont trois remplissages dont deux se
+     recouvrent au pixel près : à cent tours à l'écran, autant le
+     tracer. Les pièces épaisses — crosse et boîtier — restent en
+     blocs, ce sont elles qui donnent la masse. */
+  function trait(a0, a1, e, ep, coul){
+    var A = P(a0 + tR, 0, hr(a0) + e), B = P(a1 + tR, 0, hr(a1) + e);
+    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  }
+  /* crosse et boîtier en volume */
+  blocArme(-6.6, -2.4, 1.4, -1.8, 0.8, "#4a3a28", "#2e2418", "#2e2418");
+  blocArme(-2.8, 3.6, 1.4, -1.4, 1.2, MIR_H.armeC, MIR_H.arme, MIR_H.armeO);
+  /* chargeur */
+  trait(1.4, 3.0, -2.6, 3.0, MIR_H.armeO);
+  /* canon, arête éclairée, frein de bouche */
+  trait(3.4, 18.0, 0, 1.7, MIR_H.arme);
+  trait(3.4, 18.0, 0.6, 0.7, MIR_H.armeC);
+  trait(17.6, 20.0, 0, 3.2, "#43434a");
+  trait(17.6, 19.4, 0.9, 1.0, "#75757f");
+  q = P(20 + tR, 0, hr(20));
+  c.fillStyle = "#0c0c0e";
+  c.beginPath(); c.arc(q.x, q.y, 1.1, 0, 6.2832); c.fill();
+  /* lunette, posée haut sur le boîtier */
+  trait(-0.8, 5.4, 2.3, 2.6, MIR_H.armeO);
+  trait(-0.8, 5.4, 3.0, 0.9, MIR_H.armeC);
+  /* La lentille est à l'AVANT de la lunette quand il vise vers nous, à
+     l'ARRIÈRE quand il vise le fond. Sauter de l'une à l'autre d'une
+     image sur l'autre ferait clignoter un point bleu ; on la fait donc
+     disparaître au passage, exactement là où la lunette est vue par
+     la tranche et où l'on ne verrait de toute façon aucun verre. */
+  var vu = Math.abs(d.y) * 3;
+  if(vu > 0.05){
+    if(vu > 1) vu = 1;
+    q = P((av ? 5.4 : -0.8) + tR, 0, hr(av ? 5.4 : -0.8) + 2.3);
+    c.fillStyle = "rgba(140,206,240," + (0.7 * vu).toFixed(2) + ")";
+    c.beginPath(); c.arc(q.x, q.y, 0.85, 0, 6.2832); c.fill();
+  }
+
+  /* bipied planté sur les planches */
+  c.strokeStyle = MIR_H.armeO; c.lineWidth = 1.2; c.lineCap = "round";
+  for(i = 0; i < 2; i++){
+    var s2 = i ? 2.2 : -2.2;
+    var A = P(12.6 + tR, 0, hr(12.6) - 0.7), B = P(14, s2, 0);
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  }
+
+  /* ---- LES BRAS ----
+     Le bras éloigné d'abord, sombre ; le proche par-dessus, clair.
+     La main avant tient le devant du fût, la main arrière la
+     poignée : deux points d'ancrage, et la pose se lit. */
+  c.lineCap = "round";
+  for(i = 0; i < 2; i++){
+    var cote = i ? sg : -sg;
+    var tm = (cote === sg) ? 6.6 : 1.4;
+    var E = P(-1.8, cote * 3.2, 9.8 - bas + resp);
+    var M = P(tm + tR, cote * 1.9, hr(tm) - 1.4);
+    c.strokeStyle = i ? MIR_H.tenue : MIR_H.tenueO;
+    c.lineWidth = 2.9;
+    c.beginPath(); c.moveTo(E.x, E.y); c.lineTo(M.x, M.y); c.stroke();
+    c.fillStyle = i ? MIR_H.peau : MIR_H.peauO;
+    c.beginPath(); c.arc(M.x, M.y, 1.2, 0, 6.2832); c.fill();
+  }
+
+  /* ---- LA TÊTE, joue contre la crosse ----
+     Le casque est une calotte SOMBRE que ferme un liseré clair côté
+     lumière : à sept pixels de haut, un casque en deux disques
+     concentriques donnait un bonnet à pompon. */
+  var hT = 12.8 - bas + resp, tT = 1.5 - rec * 1.1;
+  var T = P(tT, sg * 1.0, hT);
+  /* nuque et col */
+  q = P(tT - 1.6, sg * 1.0, hT - 1.7);
+  c.fillStyle = MIR_H.tenueO;
+  c.beginPath(); c.arc(q.x, q.y, 2.3, 0, 6.2832); c.fill();
+  /* Le visage n'apparaît que s'il se tourne vers nous — et il apparaît
+     EN FONDU. Le faire surgir d'un coup au moment où l'angle change de
+     signe ferait clignoter une tache de peau à chaque balayage. */
+  if(d.y > 0.02){
+    var vv = d.y * 3.5; if(vv > 1) vv = 1;
+    c.globalAlpha = vv;
+    q = P(tT + 2.3, sg * 1.0, hT - 0.6);
+    c.fillStyle = MIR_H.peau;
+    c.beginPath(); c.arc(q.x, q.y, 1.6, 0, 6.2832); c.fill();
+    c.fillStyle = MIR_H.peauO;
+    c.beginPath(); c.arc(q.x + 0.3, q.y + 0.8, 1.0, 0, 6.2832); c.fill();
+    c.globalAlpha = 1;
+  }
+  /* la calotte, et le couvre-nuque qui la prolonge vers l'arrière */
+  c.fillStyle = MIR_H.casque;
+  q = P(tT - 1.3, sg * 1.0, hT + 0.2);
+  c.beginPath(); c.arc(q.x, q.y, 2.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(T.x, T.y, 2.6, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(16,20,12,.55)"; c.lineWidth = 1.0;
+  c.beginPath(); c.arc(T.x, T.y, 2.25, 0, 6.2832); c.stroke();
+  c.fillStyle = rgba(MIR_H.casqueC, 0.75);
+  c.beginPath(); c.arc(T.x - 0.7, T.y - 0.8, 1.35, 0, 6.2832); c.fill();
+
+  /* ---- LE DÉPART DU COUP ---- */
+  var M0 = P(20 + tR, 0, hr(20));
+  if(fl > 0){
+    /* l'étoile, sous l'auvent comme le reste */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var L = 9 + 12 * fl, T2 = 3.4 + 3 * fl;
+    c.fillStyle = "rgba(255,226,150," + (0.9 * fl).toFixed(3) + ")";
+    c.beginPath();
+    c.moveTo(M0.x - d.y * 2.2, M0.y + d.x * 2.2);
+    c.lineTo(M0.x + d.x * L, M0.y + d.y * L);
+    c.lineTo(M0.x + d.y * 2.2, M0.y - d.x * 2.2);
+    c.closePath();
+    c.moveTo(M0.x - d.y * T2, M0.y + d.x * T2);
+    c.lineTo(M0.x + d.x * 3, M0.y + d.y * 3);
+    c.lineTo(M0.x + d.y * T2, M0.y - d.x * T2);
+    c.lineTo(M0.x - d.x * 2.4, M0.y - d.y * 2.4);
+    c.closePath();
+    c.fill();
+    c.fillStyle = "rgba(255,255,240," + (0.95 * fl).toFixed(3) + ")";
+    c.beginPath(); c.arc(M0.x, M0.y, 1.9, 0, 6.2832); c.fill();
+    c.restore();
+    /* la bouffée qui reste dans l'air devant le canon */
+    var pf = 1 - fl;
+    c.fillStyle = "rgba(206,200,188," + (0.26 * fl).toFixed(3) + ")";
+    c.beginPath();
+    c.arc(M0.x + d.x * (5 + pf * 9), M0.y + d.y * (5 + pf * 9) - pf * 3,
+          2.6 + pf * 5, 0, 6.2832);
+    c.fill();
+    /* la douille, éjectée du côté qui nous fait face */
+    q = P(3 + tR, sg * (3 + pf * 9), hr(3) + 1 - pf * pf * 22 + pf * 9);
+    c.fillStyle = "#e0b84a";
+    c.save();
+    c.translate(q.x, q.y); c.rotate(pf * 6);
+    c.fillRect(-1.4, -0.8, 2.8, 1.6);
+    c.restore();
+  }
+  if(coupe) c.restore();
+
+  /* Hors découpage : la lumière du coup. Quand il tire vers le fond,
+     l'étoile est cachée sous les tôles — mais le halo qui déborde de
+     l'auvent, lui, dit quand même que la tour vient de parler. */
+  if(fl > 0){
+    lueur(c, M0.x, M0.y, 22 + fl * 10, "#ffd07a", 0.55 * fl);
+    lueur(c, ox, oy - 6, 16, "#ffb347", 0.22 * fl);
   }
 };
 
@@ -11594,15 +12129,31 @@ var DESSIN_CRE = {
   braisard:dessineBraisard, piqueur:dessinePiqueur,
   sanglier:dessineSanglier, crapaud:dessineCrapaud
 };
+/* Les trois chats de Mily sont sculptés dans 72-chats.js, qui vient
+   APRÈS ce fichier : leurs fonctions n'existent pas encore ici. On les
+   résout donc à la demande, une seule fois, et une créature dont le
+   dessin manque est simplement sautée — jamais une exception qui
+   emporte tout le rendu de la partie. */
+function dessinDeCreature(t){
+  if(DESSIN_CRE[t]) return DESSIN_CRE[t];
+  var nom = "dessine" + t.charAt(0).toUpperCase() + t.slice(1);
+  if(typeof window !== "undefined" && typeof window[nom] === "function"){
+    DESSIN_CRE[t] = window[nom];
+    return DESSIN_CRE[t];
+  }
+  return null;
+}
 
 function dessineCreature(c, k, tps){
+  var dess = dessinDeCreature(k.t);
+  if(!dess) return;
   var p = versEcran(cam, k.gx, k.gy);
   var z = cam.z;
   c.save();
   c.translate(p.x, p.y);
   c.scale(z, z);
   if(!k.droite) c.scale(-1, 1);
-  DESSIN_CRE[k.t](c, k, tps);
+  dess(c, k, tps);
   c.restore();
   var f = CRE[k.t];
   var fr = k.pv / f.pv;
@@ -11680,6 +12231,1195 @@ function dessinePouletMonde(c, p, tps){
   if(fr < 0.999 && z > 0.2) barreVie(c, e.x, e.y - 26 * z, 14 * z, fr, "#ffd070");
 }
 
+/* ===== 72-chats.js ===== */
+/* ================================================================
+   LES TROIS CHATS DE MILY — Gribouille, Croquette, Praline
+   ================================================================
+   Trois bêtes protégées, et trois seulement. Elles ne frappent pas,
+   elles ne se défendent pas : elles servent d'appât. Si une troupe en
+   abat une, Mily le voit depuis le QG et répond au laser. Tout le
+   dessin découle de là. Il faut que le joueur les REMARQUE avant de
+   tirer, qu'il les reconnaisse au premier coup d'œil comme « ça, on
+   n'y touche pas », et qu'il s'en veuille après coup.
+
+   D'où quatre partis pris, tous dictés par le zoom de jeu (z ≈ 0,5 à
+   0,9 : un chat de 24 px de haut n'en fait plus que 13 à l'écran).
+
+   1. TROIS VALEURS FRANCHEMENT SÉPARÉES, pas trois nuances de roux.
+      Gribouille est sombre — gris ardoise — mais taché de blanc pur ;
+      Croquette est saturé — roux vif ; Praline est très claire —
+      crème rosé aux extrémités chocolat. Quand il ne reste plus que
+      treize pixels, la valeur est la seule chose qui survit.
+   2. TROIS SILHOUETTES SÉPARÉES AUSSI, parce que sur l'herbe sombre
+      la couleur ment. C'est la queue qui porte l'essentiel : épaisse
+      et dressée en crosse chez Gribouille, plantée à la verticale
+      comme une antenne chez Croquette, enroulée en point
+      d'interrogation par-dessus le dos chez Praline. Même en ombre
+      chinoise on sait qui est qui.
+   3. UNE TÊTE DE TROIS QUARTS, donc DEUX yeux, là où la belette et
+      Tweety sont de profil strict. Deux points sombres sur une face
+      claire, c'est ce que l'œil humain accroche le plus vite — et
+      c'est aussi ce qui fait la différence entre un chat mignon et un
+      chat seulement joli.
+   4. AUCUN DÉTAIL QUI NE SURVIVE PAS À LA RÉDUCTION. Pas de rayures
+      fines : quatre bandes épaisses. Pas de pupille ciselée : un
+      cerne sombre qui fait de l'œil une tache franche.
+
+   Repère local, comme pour les autres créatures : les pattes en (0,0),
+   les y négatifs vers le haut, et la bête regarde à DROITE — c'est
+   l'appelant qui applique scale(-1,1) pour l'autre sens, donc jamais
+   de miroir en dur ici.
+
+   Aucun Math.random : toute la variation sort de tps, k.ph et k.n.
+   ================================================================ */
+
+/* ---------------------------------------------------------------
+   Palettes. Sorties des fonctions de dessin pour qu'on puisse
+   comparer les trois d'un coup d'œil : c'est le seul endroit où l'on
+   vérifie que les trois chats ne se ressemblent pas.
+   --------------------------------------------------------------- */
+var PAL_CHAT = {
+  /* Gribouille : tigré gris ardoise, blanc de chaussettes et de
+     plastron. Ni l'herbe ni le sable ne sont gris — il se détache. */
+  dos:"#949aab", flanc:"#727889", ventreO:"#565c6e", raie:"#2f3346",
+  blanc:"#f6f4f0", blancO:"#d2d0cd",
+  iris:"#c9dd5e", irisO:"#7fa02c",
+  nez:"#e3948f", rose:"#cf8b88"
+};
+var PAL_CHATON = {
+  /* Croquette : roux franc, le seul orange saturé de la carte. Sur
+     l'herbe comme sur le sable, on ne peut pas le rater. */
+  dos:"#ffa03a", flanc:"#ee7413", ventreO:"#c2560c", raie:"#8f3a05",
+  blanc:"#fff2da", blancO:"#e8cfa8",
+  iris:"#ffd062", irisO:"#dd8410",
+  nez:"#f2a09b", rose:"#e6968d"
+};
+var PAL_CHATTE = {
+  /* Praline : crème rosé et extrémités chocolat.
+     Vérifié à la loupe sur le vrai décor : le crème seul se noie
+     purement et simplement dans le sable clair de la plage, qui monte
+     jusqu'à #f0e2c0. Ce sont les pointes qui la sauvent — alors elles
+     sont presque noires, et elles couvrent les oreilles, le masque,
+     les quatre bas de pattes et les deux tiers de la queue. Un corps
+     clair enfermé dans des extrémités sombres, ça tient sur n'importe
+     quel fond. Le crème est tiré vers le rose pour ne pas partager la
+     teinte du sable. */
+  dos:"#fae0d1", flanc:"#ddb8a3", ventreO:"#bb9078", raie:"#4e3227",
+  patte:"#c39a83", botte:"#5c3b2d", blanc:"#fffbf6", blancO:"#e7d9cb",
+  /* La queue vire du crème au chocolat sur toute sa longueur. Un
+     simple bout sombre greffé sur une queue claire donnait, au zoom de
+     jeu, une tache brune détachée qui flottait derrière la bête —
+     on croyait à deux animaux. Le fondu garde la queue d'un seul
+     tenant tout en gardant la pointe lisible. */
+  queue:["#d8b09b", "#c39982", "#a87d67", "#8a6150", "#623d2e", "#4e3227"],
+  iris:"#93d6f2", irisO:"#2f7ba8",
+  nez:"#e79fa2", rose:"#c98a86"
+};
+
+/* ---------------------------------------------------------------
+   Clignement. Rare et bref : les yeux restent grands ouverts 95 % du
+   temps, sinon la bête a l'air endormie au lieu d'avoir l'air vivante.
+   Renvoie l'ouverture, de 0 (fermé) à 1. Le décalage par la phase
+   propre évite que les trois chats clignent en chœur.
+   --------------------------------------------------------------- */
+function chatClin(tps, ph){
+  var p = (tps * 0.26 + ph * 0.19) % 1;
+  if(p > 0.055) return 1;
+  return Math.abs(Math.cos(p / 0.055 * 3.1416));
+}
+
+/* Tic d'oreille : immobile, puis une secousse sèche de trois dixièmes.
+   C'est ce petit mouvement isolé, sur une bête par ailleurs posée, qui
+   fait croire qu'elle est vivante. */
+function chatTic(tps, ph, periode){
+  var p = (tps + ph * 1.7) % periode;
+  if(p > 0.38) return 0;
+  return Math.sin(p / 0.38 * 9.4248) * (1 - p / 0.38);
+}
+
+/* Point et tangente d'une quadratique. */
+function chatSurCourbe(x0, y0, cx, cy, x1, y1, t){
+  var u = 1 - t;
+  return { x: u * u * x0 + 2 * u * t * cx + t * t * x1,
+           y: u * u * y0 + 2 * u * t * cy + t * t * y1 };
+}
+/* Idem sur une suite de quadratiques mises bout à bout. */
+function chatSurTrace(trace, t){
+  var n = trace.length;
+  var i = Math.floor(t * n); if(i > n - 1) i = n - 1;
+  var s = trace[i];
+  return chatSurCourbe(s[0], s[1], s[2], s[3], s[4], s[5], t * n - i);
+}
+
+/* ---------------------------------------------------------------
+   LE BOUDIN EFFILÉ — une file de disques dont le rayon décroît le
+   long d'une courbe. Sert aux queues comme aux pattes.
+   Première version faite au trait d'épaisseur constante : ça donnait
+   des gourdins et des pilotis. C'est l'effilement qui fait le chat,
+   et sur une queue c'est même toute la lisibilité de la silhouette.
+   « echelle » fait virer la couleur le long du boudin — c'est la queue
+   de Praline, claire à la racine et presque noire au bout. Une teinte
+   pré-calculée par palier plutôt qu'un melange() par disque : les
+   couleurs ne changent jamais, il n'y a aucune raison de reparser de
+   l'hexadécimal soixante-dix fois par image.
+   o : { n, e0, e1, coul, echelle, anneaux, raie, bout, tBout }
+   --------------------------------------------------------------- */
+function chatBoudin(c, trace, o){
+  var n = o.n || 20, i, t, p, e, u, m;
+  for(i = 0; i <= n; i++){
+    t = i / n;
+    p = chatSurTrace(trace, t);
+    e = o.e0 + (o.e1 - o.e0) * t;
+    if(o.echelle){
+      m = Math.floor(t * o.echelle.length);
+      if(m > o.echelle.length - 1) m = o.echelle.length - 1;
+      c.fillStyle = o.echelle[m];
+    }else c.fillStyle = o.coul;
+    if(o.anneaux){
+      u = t * (o.anneaux * 2 + 1.3);
+      if((Math.floor(u) % 2) === 1) c.fillStyle = o.raie;
+    }
+    if(o.bout && t > (o.tBout || 0.85)) c.fillStyle = o.bout;
+    c.beginPath(); c.arc(p.x, p.y, e, 0, 6.2832); c.fill();
+  }
+}
+
+/* Une patte : boudin court, légèrement plié, et un coussinet au bout.
+   « bas » est la fraction de la patte à partir de laquelle on passe à la
+   couleur de la chaussette — c'est ce qui fait les bas blancs de
+   Gribouille et les bas chocolat de Praline. Un simple coussinet ne
+   suffisait pas : à z = 0,5 il ne reste qu'un pixel, alors qu'un bas
+   entier reste une tache. */
+function chatPatte(c, x, yh, yb, dec, e0, e1, coul, chaussette, ep, bas){
+  var mx = x + dec * 0.45, my = (yh + yb) * 0.5;
+  chatBoudin(c, [[x, yh, mx, my, x + dec, yb]],
+             { n:7, e0:e0, e1:e1, coul:coul, bout:bas ? chaussette : 0, tBout:bas });
+  c.fillStyle = chaussette;
+  c.beginPath(); c.ellipse(x + dec, yb + 0.1, ep, ep * 0.72, 0, 0, 6.2832); c.fill();
+}
+
+/* ---------------------------------------------------------------
+   L'ŒIL. La pièce maîtresse : c'est lui qui fait la mignonnerie et
+   c'est lui qui doit survivre à la réduction. D'où le cerne sombre
+   plus large que l'iris — à z = 0,5 l'œil entier devient un point
+   noir franc sur la face claire, et deux points noirs, c'est un
+   visage.
+   ouv : ouverture 0..1 (clignement). reg : décalage du regard.
+   --------------------------------------------------------------- */
+function chatOeil(c, x, y, r, iris, irisO, ouv, reg){
+  /* Le clin bascule tôt sur l'arc fermé. En laissant l'ouverture
+     descendre jusqu'à zéro, l'œil s'écrasait en lentille couchée et le
+     chat avait l'air de loucher, pas de cligner : un clin dure trois
+     images, il vaut mieux qu'il claque. */
+  if(ouv < 0.5){
+    /* fermé : l'arc vers le bas, celui du chat content */
+    c.strokeStyle = "rgba(30,22,20,.82)";
+    c.lineWidth = Math.max(0.5, r * 0.3); c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(x - r * 0.95, y - r * 0.2);
+    c.quadraticCurveTo(x, y + r * 0.6, x + r * 0.95, y - r * 0.2);
+    c.stroke();
+    return;
+  }
+  c.save();
+  c.translate(x, y);
+  c.scale(1, 0.62 + 0.76 * (ouv - 0.5));
+  c.fillStyle = "rgba(28,21,22,.92)";
+  c.beginPath(); c.ellipse(0, 0, r * 1.18, r * 1.18, 0, 0, 6.2832); c.fill();
+  /* iris : deux tons plats. Un dégradé serait illisible à cette taille
+     et coûterait un CanvasGradient par œil et par image. */
+  c.fillStyle = irisO;
+  c.beginPath(); c.arc(0, 0, r, 0, 6.2832); c.fill();
+  c.fillStyle = iris;
+  c.beginPath(); c.arc(0, -r * 0.18, r * 0.82, 0, 6.2832); c.fill();
+  /* Pupille dilatée : un chat curieux, pas un chat qui chasse. Elle
+     était plus haute et plus fine, et l'iris ne se voyait plus qu'en
+     deux croissants de part et d'autre : l'œil entier prenait l'air
+     d'une lentille couchée. Il lui faut un anneau de couleur tout
+     autour, sinon on perd et la couleur et la rondeur. */
+  c.fillStyle = "#171119";
+  c.beginPath(); c.ellipse(reg * r * 0.26, 0, r * 0.46, r * 0.72, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.95)";
+  c.beginPath(); c.arc(-r * 0.36, -r * 0.42, r * 0.31, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.5)";
+  c.beginPath(); c.arc(r * 0.42, r * 0.4, r * 0.15, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   L'OREILLE. Triangle à pointe arrondie, intérieur rose. « cran »
+   entaille le bord pour l'oreille déchirée de Gribouille — mais
+   l'entaille seule ne survit pas au dézoom, alors on double le signal
+   en la posant à un angle différent de sa jumelle. Une oreille de
+   travers, ça se lit à n'importe quelle taille.
+   --------------------------------------------------------------- */
+function chatOreille(c, x, y, l, larg, ang, ext, intr, cran){
+  c.save();
+  c.translate(x, y);
+  c.rotate(ang);
+  c.fillStyle = ext;
+  c.beginPath();
+  c.moveTo(-larg * 0.5, 1.0);
+  if(cran){
+    /* La pointe reste : c'est le BORD qui est entamé. Une oreille dont
+       on avait mangé le sommet ne se lisait plus comme une oreille,
+       juste comme un éclat cassé. Une encoche en V sur le bord
+       extérieur, en revanche, se lit tout de suite comme une cicatrice
+       de bagarre — et l'oreille reste une oreille. */
+    c.quadraticCurveTo(-larg * 0.42, -l * 0.74, -larg * 0.06, -l);
+    c.lineTo(larg * 0.13, -l * 0.60);           /* la morsure */
+    c.lineTo(larg * 0.31, -l * 0.76);
+    c.quadraticCurveTo(larg * 0.50, -l * 0.46, larg * 0.5, 1.0);
+  }else{
+    c.quadraticCurveTo(-larg * 0.42, -l * 0.74, 0, -l);
+    c.quadraticCurveTo(larg * 0.46, -l * 0.68, larg * 0.5, 1.0);
+  }
+  c.closePath();
+  c.fill();
+  /* L'intérieur est écrêté par l'oreille elle-même : sur l'oreille
+     fendue de Gribouille, le rose dépassait par la morsure et lui
+     plantait un éclat rose au-dessus du crâne. */
+  c.save();
+  c.clip();
+  c.fillStyle = intr;
+  c.beginPath();
+  c.moveTo(-larg * 0.25, 0.2);
+  c.quadraticCurveTo(-larg * 0.20, -l * 0.50, -larg * (cran ? 0.05 : 0), -l * 0.62);
+  c.quadraticCurveTo(larg * 0.21, -l * 0.44, larg * 0.24, 0.2);
+  c.closePath(); c.fill();
+  c.restore();
+  c.restore();
+}
+
+/* Moustaches : trois brins par côté, très pâles. Elles ne survivent pas
+   au dézoom, et c'est très bien — elles sont là pour le moment où le
+   joueur s'approche, juste avant de décider de ne pas tirer. */
+function chatMoustaches(c, x, y, lon, ouvert, sens, alpha){
+  c.strokeStyle = "rgba(255,252,246," + alpha + ")";
+  c.lineWidth = 0.42; c.lineCap = "round";
+  for(var w = -1; w <= 1; w++){
+    c.beginPath();
+    c.moveTo(x, y);
+    c.quadraticCurveTo(x + lon * 0.55 * sens, y + w * ouvert * 0.45 - 0.4,
+                       x + lon * sens, y + w * ouvert);
+    c.stroke();
+  }
+}
+
+/* Le museau, commun aux trois : deux coussinets, le nez en cœur, la
+   bouche en oméga. C'est la partie la plus « chat » du dessin. */
+function chatMuseau(c, x, y, e, clair, nez){
+  c.fillStyle = clair;
+  c.beginPath(); c.ellipse(x - e * 0.6, y + e * 0.16, e * 0.9, e * 0.7, -0.16, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(x + e * 0.6, y + e * 0.16, e * 0.9, e * 0.7, 0.16, 0, 6.2832); c.fill();
+  c.fillStyle = nez;
+  c.beginPath();
+  c.moveTo(x - e * 0.44, y - e * 0.5);
+  c.quadraticCurveTo(x, y - e * 0.76, x + e * 0.44, y - e * 0.5);
+  c.quadraticCurveTo(x + e * 0.2, y + e * 0.22, x, y + e * 0.3);
+  c.quadraticCurveTo(x - e * 0.2, y + e * 0.22, x - e * 0.44, y - e * 0.5);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(72,50,46,.5)"; c.lineWidth = e * 0.15; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(x, y + e * 0.3);
+  c.quadraticCurveTo(x - e * 0.3, y + e * 0.84, x - e * 0.74, y + e * 0.4);
+  c.stroke();
+  c.beginPath();
+  c.moveTo(x, y + e * 0.3);
+  c.quadraticCurveTo(x + e * 0.3, y + e * 0.84, x + e * 0.74, y + e * 0.4);
+  c.stroke();
+}
+
+/* ---------------------------------------------------------------
+   Le liseré de lumière. Première version : un trait clair posé
+   PAR-DESSUS le corps — il flottait comme une limace pâle à côté de
+   la bête. La bonne façon, c'est d'écrêter par le corps lui-même et
+   de repasser son propre contour : le trait tombe alors exactement à
+   l'intérieur de la silhouette et lui donne du volume.
+   « corps » et « dos » sont deux fonctions qui tracent, sans remplir.
+   --------------------------------------------------------------- */
+function chatVolume(c, corps, dos, ventre, clair, sombre){
+  c.save();
+  corps(c); c.clip();
+  c.strokeStyle = clair; c.lineWidth = 2.6; c.lineCap = "round";
+  dos(c); c.stroke();
+  c.strokeStyle = sombre; c.lineWidth = 3.4;
+  ventre(c); c.stroke();
+  c.restore();
+}
+
+/* ================================================================
+   GRIBOUILLE, LE CHAT
+   Matou adulte, tigré gris, un peu cabossé : l'oreille droite fendue
+   et de travers, la tête portée bas, le poitrail en avant. Il ne
+   marche pas, il traverse — c'est chez lui.
+   Silhouette : la plus large et la plus basse des trois, queue épaisse
+   dressée en crosse.
+   ================================================================ */
+function chatCorpsG(c, d){
+  c.beginPath();
+  c.moveTo(-8.6, -11.8);                                  /* croupe */
+  c.quadraticCurveTo(-9.8, -15.9 - d, -3.8, -16.3 - d);   /* dos */
+  c.quadraticCurveTo(2.2, -16.7 - d, 6.6, -15.2);         /* garrot */
+  c.quadraticCurveTo(10.4, -14.0, 10.2, -10.6);           /* poitrail */
+  c.quadraticCurveTo(10.0, -7.6, 7.0, -7.2);              /* coude */
+  c.quadraticCurveTo(1.6, -6.4, -2.4, -7.8);              /* ventre */
+  c.quadraticCurveTo(-6.8, -9.2, -8.6, -11.8);            /* cuisse */
+  c.closePath();
+}
+function chatDosG(c, d){
+  c.beginPath();
+  c.moveTo(-8.8, -11.6);
+  c.quadraticCurveTo(-9.8, -15.9 - d, -3.8, -16.3 - d);
+  c.quadraticCurveTo(2.2, -16.7 - d, 6.6, -15.2);
+  c.quadraticCurveTo(9.6, -14.2, 10.2, -11.8);
+}
+function chatVentreG(c){
+  c.beginPath();
+  c.moveTo(9.2, -7.4);
+  c.quadraticCurveTo(1.6, -6.0, -2.4, -7.4);
+  c.quadraticCurveTo(-6.2, -8.6, -8.4, -11.2);
+}
+function dessineChat(c, k, tps){
+  var P = PAL_CHAT;
+  var ph = k.ph || 0;
+  var fuit = k.etat === "fuite";
+  var bond = Math.abs(Math.sin(k.phase));
+  var saut = fuit ? bond * 3.0 : bond * 0.7;
+  var d = fuit ? -1.4 : Math.sin(k.phase) * 0.45;          /* le dos qui travaille */
+  /* le roulis d'épaules : c'est lui, la démarche de patron */
+  var roule = fuit ? 0.05 : Math.sin(tps * 1.05 + ph) * 0.024;
+  var ouv = fuit ? 1 : chatClin(tps, ph);
+  var tic = chatTic(tps, ph, 3.9);
+  /* la tête pivote lentement : le joueur croit qu'il le regarde */
+  var lacet = fuit ? -0.24 : Math.sin(tps * 0.58 + ph * 2.1) * 0.30;
+  var ec = Math.sin(k.phase) * (fuit ? 4.4 : 3.0);
+
+  c.fillStyle = "rgba(0,0,0,.26)";
+  c.beginPath(); c.ellipse(0.6, 0, 9.4 - bond * 1.6, 3.3 - bond * 0.7, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, -saut);
+  c.rotate(roule);
+
+  /* ---- la queue, derrière tout le reste. Elle part de l'intérieur du
+     corps : sinon elle a l'air posée à côté de la bête. ---- */
+  /* La queue balaie franchement. Première version à ±2,4 : au banc
+     d'animation les six images étaient indiscernables, et une queue de
+     chat qui ne bouge pas, c'est un chat empaillé. */
+  var onde = fuit ? 0 : Math.sin(tps * 1.5 + ph) * 3.4;
+  var lev = fuit ? 0 : Math.sin(tps * 1.5 + ph + 0.9) * 1.6;
+  var q = fuit
+    ? [[-5.6, -10.4, -12.5, -10.8, -16.6, -8.8],
+       [-16.6, -8.8, -20.0, -7.0, -21.2, -4.4]]
+    : [[-5.6, -10.8, -11.8 + onde * 0.3, -12.6, -12.8 + onde * 0.5, -17.2 - lev * 0.4],
+       [-12.8 + onde * 0.5, -17.2 - lev * 0.4, -13.6 + onde * 0.9, -21.6 - lev,
+        -9.4 + onde * 1.15, -23.0 - lev * 1.3]];
+  chatBoudin(c, q, { n:20, e0:2.4, e1:1.3, coul:P.flanc,
+                     anneaux:3, raie:P.raie, bout:P.blanc, tBout:0.88 });
+
+  /* ---- pattes du fond : plus sombres, elles reculent ---- */
+  chatPatte(c, -5.8, -9.2, -1.2, -ec, 1.5, 1.05, P.ventreO, P.blancO, 1.9, 0.62);
+  chatPatte(c,  6.2, -9.8, -1.2,  ec, 1.5, 1.05, P.ventreO, P.blancO, 1.9, 0.62);
+
+  /* ---- le corps ---- */
+  c.fillStyle = degCache(c, "chatCorps", function(){
+    var g = c.createLinearGradient(0, -18, 0, -5);
+    g.addColorStop(0, PAL_CHAT.dos);
+    g.addColorStop(0.5, PAL_CHAT.flanc);
+    g.addColorStop(1, PAL_CHAT.ventreO);
+    return g;
+  });
+  chatCorpsG(c, d); c.fill();
+
+  /* rayures maquereau : quatre, épaisses. Quatre fines auraient fondu
+     en un gris uniforme dès le premier cran de dézoom. */
+  c.save();
+  chatCorpsG(c, d); c.clip();
+  c.strokeStyle = "rgba(40,44,64,.5)"; c.lineWidth = 2.2; c.lineCap = "round";
+  for(var i = 0; i < 4; i++){
+    var rx = -5.8 + i * 3.7;
+    c.beginPath();
+    c.moveTo(rx, -17.4 - d);
+    c.quadraticCurveTo(rx + 1.4, -12.4, rx + 0.4, -7.6);
+    c.stroke();
+  }
+  c.strokeStyle = "rgba(40,44,64,.34)"; c.lineWidth = 1.9;
+  c.beginPath();
+  c.moveTo(-8.4, -13.8);
+  c.quadraticCurveTo(-0.6, -17.3 - d, 9.0, -14.0);
+  c.stroke();
+  c.restore();
+
+  chatVolume(c, function(cc){ chatCorpsG(cc, d); },
+                function(cc){ chatDosG(cc, d); },
+                chatVentreG,
+                "rgba(255,252,244,.30)", "rgba(38,40,56,.30)");
+
+  /* ---- plastron blanc : la tache franche qui accroche l'œil de loin.
+     Il descend du menton au coude, en biais, pour ne pas fusionner
+     avec la chaussette blanche de l'antérieure. ---- */
+  c.fillStyle = P.blanc;
+  c.beginPath();
+  c.moveTo(10.3, -13.6);
+  c.quadraticCurveTo(11.0, -9.8, 8.4, -7.4);
+  c.quadraticCurveTo(6.0, -7.0, 5.8, -9.0);
+  c.quadraticCurveTo(7.2, -11.2, 7.8, -13.8);
+  c.closePath(); c.fill();
+
+  /* ---- pattes de devant, par-dessus le corps ---- */
+  chatPatte(c, -3.4, -9.6, -1.3,  ec, 1.55, 1.05, P.flanc, P.blanc, 1.85, 0.6);
+  chatPatte(c,  8.4, -10.0, -1.3, -ec, 1.55, 1.05, P.flanc, P.blanc, 1.85, 0.6);
+
+  /* ---- la tête, portée bas et en avant. Grosse : sur un matou de
+     bagarre c'est la seule chose qui le garde mignon. ---- */
+  c.save();
+  c.translate(12.0, -17.4);
+  c.rotate(fuit ? 0.12 : Math.sin(tps * 0.58 + ph * 2.1) * 0.06);
+
+  var recul = fuit ? 0.8 : 0;
+  /* l'oreille du fond, entière */
+  chatOreille(c, -3.2, -3.6, 4.7, 4.5, -0.44 - recul + tic * 0.34, P.flanc, P.rose, false);
+  /* et la droite, fendue ET plantée de travers : sa signature. Le cran
+     seul disparaît au dézoom, l'angle non. */
+  chatOreille(c,  3.4, -3.4, 4.9, 4.6,  0.50 + recul * 0.8 - tic * 0.42, P.dos, P.rose, true);
+
+  /* crâne large et joufflu : c'est un mâle, mais un mâle tout rond */
+  c.fillStyle = P.dos;
+  c.beginPath();
+  c.moveTo(-5.9, -1.2);
+  c.quadraticCurveTo(-6.1, 2.4, -2.6, 4.0);
+  c.quadraticCurveTo(0, 5.0, 2.8, 4.0);
+  c.quadraticCurveTo(6.3, 2.4, 6.1, -1.2);
+  c.quadraticCurveTo(5.7, -5.4, 0, -5.4);
+  c.quadraticCurveTo(-5.5, -5.4, -5.9, -1.2);
+  c.closePath(); c.fill();
+  /* bajoues : deux bosses de fourrure arrondies. La version en pointes
+     donnait des éclats de verre au lieu de poils. */
+  c.fillStyle = P.flanc;
+  c.beginPath(); c.ellipse(-5.2, 1.4, 2.1, 2.4, -0.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(5.4, 1.4, 2.1, 2.4, 0.3, 0, 6.2832); c.fill();
+  /* le M du tigré sur le front : deux chevrons FINS, tout en haut.
+     Épais et centrés, ils faisaient un sourcil de super-héros. */
+  c.strokeStyle = "rgba(40,44,64,.34)"; c.lineWidth = 0.55; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-2.0, -3.3); c.lineTo(-1.2, -4.6); c.lineTo(-0.3, -3.5);
+  c.lineTo(0.6, -4.6); c.lineTo(1.4, -3.4);
+  c.stroke();
+
+  /* museau et menton blancs, resserrés : la grosse tache blanche
+     mangeait le bas du visage et écrasait les yeux. */
+  c.fillStyle = P.blanc;
+  c.beginPath(); c.ellipse(lacet * 1.5, 2.5, 2.7, 2.1, 0, 0, 6.2832); c.fill();
+
+  /* les yeux, gros et bien écartés. Le lointain est plus petit : c'est
+     ce qui fait tourner la tête sans avoir à la redessiner. */
+  var lo = 0.82 + lacet * 0.36;
+  chatOeil(c, -2.9 + lacet * 2.3, -0.9, 2.1 * lo, P.iris, P.irisO, ouv, lacet);
+  chatOeil(c,  3.0 + lacet * 1.9, -0.9, 2.3, P.iris, P.irisO, ouv, lacet);
+
+  chatMuseau(c, lacet * 1.5, 2.6, 1.35, P.blanc, P.nez);
+  chatMoustaches(c, lacet * 1.5 - 1.4, 2.8, 7.0, 2.1, -1, 0.5);
+  chatMoustaches(c, lacet * 1.5 + 1.4, 2.8, 7.4, 2.2, 1, 0.55);
+  c.restore();
+  c.restore();
+}
+
+/* ================================================================
+   CROQUETTE, LE CHATON
+   Tout petit : la tête fait les trois quarts de la longueur du corps,
+   les yeux le tiers de la tête, les pattes sont trop courtes et la
+   queue est plantée droite comme une antenne. Il titube — à cet âge on
+   ne marche pas, on se rattrape.
+   ================================================================ */
+function chatCorpsK(c, d){
+  c.beginPath();
+  c.moveTo(-4.6, -5.4);
+  c.quadraticCurveTo(-5.6, -8.8 - d, -1.6, -9.4 - d);
+  c.quadraticCurveTo(2.6, -9.9, 4.8, -8.2);
+  c.quadraticCurveTo(6.6, -6.6, 5.6, -4.6);
+  c.quadraticCurveTo(2.6, -3.4, -1.4, -3.7);
+  c.quadraticCurveTo(-4.0, -4.0, -4.6, -5.4);
+  c.closePath();
+}
+function chatDosK(c, d){
+  c.beginPath();
+  c.moveTo(-4.8, -5.2);
+  c.quadraticCurveTo(-5.6, -8.8 - d, -1.6, -9.4 - d);
+  c.quadraticCurveTo(2.6, -9.9, 4.8, -8.2);
+  c.quadraticCurveTo(5.9, -7.2, 5.7, -5.6);
+}
+function chatVentreK(c){
+  c.beginPath();
+  c.moveTo(5.2, -4.6);
+  c.quadraticCurveTo(2.4, -3.1, -1.4, -3.4);
+  c.quadraticCurveTo(-3.6, -3.6, -4.4, -5.0);
+}
+function dessineChaton(c, k, tps){
+  var P = PAL_CHATON;
+  var ph = k.ph || 0;
+  var fuit = k.etat === "fuite";
+  var bond = Math.abs(Math.sin(k.phase));
+  var saut = fuit ? bond * 2.2 : bond * 0.9;
+  var d = fuit ? -0.8 : Math.sin(k.phase) * 0.3;
+  /* le dandinement : un chaton n'a pas encore l'équilibre, et c'est
+     précisément ce déséquilibre qui le rend attendrissant */
+  var titube = fuit ? Math.sin(tps * 9) * 0.028 : Math.sin(tps * 1.85 + ph) * 0.072;
+  var ouv = fuit ? 1 : chatClin(tps, ph + 2.4);
+  var tic = chatTic(tps, ph + 1.1, 3.2);
+  var lacet = fuit ? -0.16 : Math.sin(tps * 0.86 + ph) * 0.34;
+  var ec = Math.sin(k.phase) * (fuit ? 2.6 : 1.9);
+
+  c.fillStyle = "rgba(0,0,0,.24)";
+  c.beginPath(); c.ellipse(0.6, 0, 6.0 - bond * 1.1, 2.3 - bond * 0.5, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, -saut);
+  c.rotate(titube);
+
+  /* ---- la queue en antenne : la ligne la plus haute de la bête et
+     son meilleur signal sur la carte. Un chaton content la porte à la
+     verticale, et elle frissonne toute seule. ---- */
+  var fris = Math.sin(tps * 3.4 + ph) * 1.5;
+  var q = fuit
+    ? [[-3.2, -5.0, -7.8, -6.2, -10.8, -4.8],
+       [-10.8, -4.8, -12.8, -4.0, -13.6, -2.2]]
+    : [[-3.2, -5.4, -4.6, -9.4, -4.2 + fris * 0.4, -13.2],
+       [-4.2 + fris * 0.4, -13.2, -3.9 + fris * 0.8, -16.4, -1.6 + fris * 1.2, -16.9]];
+  chatBoudin(c, q, { n:17, e0:1.45, e1:0.8, coul:P.flanc,
+                     anneaux:2, raie:P.raie, bout:P.blanc, tBout:0.86 });
+
+  /* ---- pattes du fond ---- */
+  chatPatte(c, -3.0, -4.8, -1.0, -ec, 1.15, 0.85, P.ventreO, P.blancO, 1.4, 0.6);
+  chatPatte(c,  3.6, -5.4, -1.0,  ec, 1.15, 0.85, P.ventreO, P.blancO, 1.4, 0.6);
+
+  /* ---- le corps : une petite boule ---- */
+  c.fillStyle = degCache(c, "chatonCorps", function(){
+    var g = c.createLinearGradient(0, -10.5, 0, -3.2);
+    g.addColorStop(0, PAL_CHATON.dos);
+    g.addColorStop(0.52, PAL_CHATON.flanc);
+    g.addColorStop(1, PAL_CHATON.ventreO);
+    return g;
+  });
+  chatCorpsK(c, d); c.fill();
+  /* trois rayures seulement : à sa taille, quatre feraient une bouillie */
+  c.save();
+  chatCorpsK(c, d); c.clip();
+  c.strokeStyle = "rgba(150,66,14,.48)"; c.lineWidth = 1.6; c.lineCap = "round";
+  for(var i = 0; i < 3; i++){
+    var rx = -2.6 + i * 2.9;
+    c.beginPath(); c.moveTo(rx, -10.4 - d); c.quadraticCurveTo(rx + 1.0, -7.0, rx + 0.3, -3.8); c.stroke();
+  }
+  c.restore();
+  chatVolume(c, function(cc){ chatCorpsK(cc, d); },
+                function(cc){ chatDosK(cc, d); },
+                chatVentreK,
+                "rgba(255,246,224,.34)", "rgba(120,54,10,.26)");
+
+  /* bavoir crème */
+  c.fillStyle = P.blanc;
+  c.beginPath();
+  c.moveTo(5.8, -8.0);
+  c.quadraticCurveTo(6.8, -6.0, 5.4, -4.4);
+  c.quadraticCurveTo(3.4, -3.8, 3.0, -5.2);
+  c.quadraticCurveTo(4.2, -6.6, 4.6, -8.2);
+  c.closePath(); c.fill();
+
+  /* ---- pattes de devant ---- */
+  chatPatte(c, -1.4, -5.0, -1.1,  ec, 1.2, 0.9, P.flanc, P.blanc, 1.5, 0.58);
+  chatPatte(c,  4.6, -5.6, -1.1, -ec, 1.2, 0.9, P.flanc, P.blanc, 1.5, 0.58);
+
+  /* ---- LA TÊTE. Énorme, et c'est tout le sujet : la mignonnerie d'un
+     bébé, c'est un rapport tête/corps qui ne tient pas debout. ---- */
+  c.save();
+  c.translate(5.0, -11.2);
+  /* elle dodeline, elle est trop lourde pour ce cou-là */
+  c.rotate((fuit ? 0.12 : Math.sin(tps * 1.85 + ph) * 0.10) + titube * 0.6);
+
+  var recul = fuit ? 0.72 : 0;
+  chatOreille(c, -2.3, -2.3, 3.3, 3.7, -0.62 - recul + tic * 0.34, P.flanc, P.rose, false);
+  chatOreille(c,  2.5, -2.2, 3.4, 3.9,  0.56 + recul * 0.9 - tic * 0.4, P.dos, P.rose, false);
+
+  /* crâne parfaitement rond : le contraire du crâne carré du matou */
+  c.fillStyle = P.dos;
+  c.beginPath(); c.ellipse(0, 0, 4.3, 4.1, 0, 0, 6.2832); c.fill();
+  c.fillStyle = P.flanc;
+  c.beginPath(); c.ellipse(-3.1, 1.5, 1.7, 1.8, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(3.2, 1.5, 1.7, 1.8, 0, 0, 6.2832); c.fill();
+  c.fillStyle = P.blanc;
+  c.beginPath(); c.ellipse(lacet * 1.2, 2.0, 2.6, 2.0, 0, 0, 6.2832); c.fill();
+
+  /* les yeux : démesurés, presque la moitié de la largeur du crâne */
+  var lo = 0.82 + lacet * 0.35;
+  chatOeil(c, -1.9 + lacet * 1.9, -0.5, 1.8 * lo, P.iris, P.irisO, ouv, lacet);
+  chatOeil(c,  2.1 + lacet * 1.6, -0.5, 1.95, P.iris, P.irisO, ouv, lacet);
+
+  chatMuseau(c, lacet * 1.2, 2.1, 1.1, P.blanc, P.nez);
+  chatMoustaches(c, lacet * 1.2 - 1.0, 2.3, 5.0, 1.7, -1, 0.5);
+  chatMoustaches(c, lacet * 1.2 + 1.0, 2.3, 5.2, 1.8, 1, 0.55);
+  c.restore();
+  c.restore();
+}
+
+/* ================================================================
+   PRALINE, LA CHATTE
+   Adulte élégante : longue, haute sur pattes, le ventre remonté, la
+   tête petite et triangulaire portée haut sur un cou fin. Crème rosé,
+   extrémités chocolat — sans ces pointes sombres elle disparaîtrait
+   dans le sable clair.
+   Signature : la queue enroulée en point d'interrogation par-dessus le
+   dos, et une antérieure levée quand elle s'arrête.
+   ================================================================ */
+function chatCorpsF(c, d, s){
+  c.beginPath();
+  c.moveTo(-8.2, -12.0);
+  c.quadraticCurveTo(-9.4, -15.8 - d, -3.2, -16.2 - d - s);
+  c.quadraticCurveTo(2.4, -16.5 - d - s, 6.6, -15.0);
+  c.quadraticCurveTo(10.2, -13.8, 10.0, -11.0);
+  c.quadraticCurveTo(9.8, -8.6, 7.0, -8.5);
+  c.quadraticCurveTo(1.4, -8.2 + s, -2.2, -9.4);           /* ventre remonté */
+  c.quadraticCurveTo(-6.2, -10.3, -8.2, -12.0);
+  c.closePath();
+}
+function chatDosF(c, d, s){
+  c.beginPath();
+  c.moveTo(-8.4, -11.8);
+  c.quadraticCurveTo(-9.4, -15.8 - d, -3.2, -16.2 - d - s);
+  c.quadraticCurveTo(2.4, -16.5 - d - s, 6.6, -15.0);
+  c.quadraticCurveTo(9.4, -14.0, 10.0, -12.0);
+}
+function chatVentreF(c, s){
+  c.beginPath();
+  c.moveTo(9.2, -8.7);
+  c.quadraticCurveTo(1.4, -7.8 + s, -2.2, -9.0);
+  c.quadraticCurveTo(-5.6, -9.8, -7.8, -11.4);
+}
+function dessineChatte(c, k, tps){
+  var P = PAL_CHATTE;
+  var ph = k.ph || 0;
+  var fuit = k.etat === "fuite";
+  var bond = Math.abs(Math.sin(k.phase));
+  var saut = fuit ? bond * 3.2 : bond * 0.5;
+  var d = fuit ? -1.2 : Math.sin(k.phase) * 0.35;
+  /* respiration : le flanc se soulève. Rien ne dit « vivant » comme ça. */
+  var s = fuit ? 0 : Math.sin(tps * 1.2 + ph) * 0.3;
+  var ouv = fuit ? 1 : chatClin(tps, ph + 4.9);
+  var tic = chatTic(tps, ph + 2.6, 4.6);
+  var lacet = fuit ? -0.2 : Math.sin(tps * 0.48 + ph * 1.6) * 0.32;
+  var ec = Math.sin(k.phase) * (fuit ? 4.2 : 2.6);
+
+  c.fillStyle = "rgba(0,0,0,.24)";
+  c.beginPath(); c.ellipse(0.4, 0, 8.6 - bond * 1.3, 3.0 - bond * 0.6, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, -saut);
+
+  /* ---- la queue en point d'interrogation : elle monte, elle passe
+     par-dessus le dos, et la pointe revient vers l'avant. C'est le
+     contour le plus reconnaissable des trois et il tient même en ombre
+     chinoise — à condition de rester COLLÉ au dos. Première version
+     enroulée très haut : au zoom de jeu la boucle sombre se lisait
+     comme une bestiole séparée posée derrière elle. ---- */
+  var onde = fuit ? 0 : Math.sin(tps * 1.15 + ph) * 2.6;
+  var q = fuit
+    ? [[-5.6, -11.0, -12.0, -11.4, -15.8, -9.4],
+       [-15.8, -9.4, -19.0, -7.6, -20.2, -5.0]]
+    : [[-5.6, -11.4, -11.2 + onde * 0.2, -12.4, -12.0 + onde * 0.4, -16.4],
+       [-12.0 + onde * 0.4, -16.4, -12.8 + onde * 0.7, -20.2, -7.8 + onde * 1.1, -20.6],
+       [-7.8 + onde * 1.1, -20.6, -4.4 + onde * 1.4, -20.9, -5.2 + onde * 1.6, -18.2]];
+  chatBoudin(c, q, { n:22, e0:1.85, e1:1.15, echelle:P.queue });
+
+  /* ---- pattes du fond : fines, hautes, chaussées de chocolat ---- */
+  chatPatte(c, -5.2, -10.6, -1.2, -ec, 1.3, 1.0, P.patte, P.botte, 1.4, 0.68);
+  chatPatte(c,  5.8, -11.2, -1.2,  ec, 1.3, 1.0, P.patte, P.botte, 1.4, 0.68);
+
+  /* ---- le corps ---- */
+  c.fillStyle = degCache(c, "chatteCorps", function(){
+    var g = c.createLinearGradient(0, -18, 0, -7);
+    g.addColorStop(0, PAL_CHATTE.dos);
+    g.addColorStop(0.55, PAL_CHATTE.flanc);
+    g.addColorStop(1, PAL_CHATTE.ventreO);
+    return g;
+  });
+  chatCorpsF(c, d, s); c.fill();
+  /* un voile chocolat sur la croupe : la marque des chats à pointes.
+     Elle n'est pas tigrée — ce serait la confondre avec Gribouille. */
+  c.save();
+  chatCorpsF(c, d, s); c.clip();
+  /* La croupe et l'épaule s'assombrissent, le flanc reste clair : sans
+     ces deux voiles, le corps n'était qu'une chaussette beige lisse. */
+  c.fillStyle = "rgba(109,71,54,.28)";
+  c.beginPath(); c.ellipse(-8.6, -11.6, 5.0, 4.6, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(109,71,54,.14)";
+  c.beginPath(); c.ellipse(9.6, -12.4, 3.4, 4.0, 0, 0, 6.2832); c.fill();
+  /* et le pli de la cuisse, qui détache la patte arrière du flanc */
+  c.strokeStyle = "rgba(140,100,80,.30)"; c.lineWidth = 1.2; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-4.6, -15.6); c.quadraticCurveTo(-3.0, -12.4, -4.4, -9.4);
+  c.stroke();
+  c.restore();
+  chatVolume(c, function(cc){ chatCorpsF(cc, d, s); },
+                function(cc){ chatDosF(cc, d, s); },
+                function(cc){ chatVentreF(cc, s); },
+                "rgba(255,252,246,.5)", "rgba(146,106,84,.34)");
+
+  /* ---- pattes de devant, dont une levée quand elle s'arrête : on ne
+     la lève jamais en marchant, ça boiterait. ---- */
+  var leve = fuit ? 0 : Math.max(0, Math.sin(tps * 0.5 + ph * 1.3) - 0.4) * 3.4;
+  chatPatte(c, -2.8, -10.8, -1.3,  ec, 1.35, 1.05, P.flanc, P.botte, 1.45, 0.66);
+  chatPatte(c,  7.6, -11.4, -1.3 + leve, -ec * (1 - leve * 0.2), 1.35, 1.05, P.flanc, P.botte, 1.45, 0.66);
+
+  /* ---- le cou, long : la moitié de son élégance ---- */
+  chatBoudin(c, [[7.4, -14.4, 9.2, -15.8, 10.4, -17.2]], { n:6, e0:2.3, e1:1.95, coul:P.dos });
+
+  /* ---- la tête : un triangle inversé, menton fin ---- */
+  c.save();
+  c.translate(11.2, -18.2);
+  c.rotate(fuit ? 0.14 : Math.sin(tps * 0.48 + ph * 1.6) * 0.055);
+
+  var recul = fuit ? 0.72 : 0;
+  /* oreilles chocolat. Elles étaient plus longues et plus écartées :
+     ça lui faisait une tête de chauve-souris au lieu d'une tête de
+     chatte. Raccourcies, elles laissent le crâne dominer. */
+  chatOreille(c, -2.3, -2.9, 3.7, 3.7, -0.5 - recul + tic * 0.26, P.raie, P.rose, false);
+  chatOreille(c,  2.6, -2.8, 3.8, 3.8,  0.44 + recul * 0.9 - tic * 0.32, P.raie, P.rose, false);
+
+  c.fillStyle = P.dos;
+  c.beginPath();
+  c.moveTo(-4.6, -1.6);
+  c.quadraticCurveTo(-4.3, 1.8, -1.7, 3.6);
+  c.quadraticCurveTo(0, 4.4, 1.7, 3.6);
+  c.quadraticCurveTo(4.3, 1.8, 4.6, -1.6);
+  c.quadraticCurveTo(3.2, -4.7, 0, -4.7);
+  c.quadraticCurveTo(-3.2, -4.7, -4.6, -1.6);
+  c.closePath(); c.fill();
+  /* le masque : un voile chocolat sur le museau, marque des chats à
+     pointes. Sans lui, elle disparaît sur le sable clair. */
+  c.fillStyle = "rgba(109,71,54,.3)";
+  c.beginPath(); c.ellipse(lacet * 1.3, 1.8, 2.9, 2.3, 0, 0, 6.2832); c.fill();
+  c.fillStyle = P.blanc;
+  c.beginPath(); c.ellipse(lacet * 1.3, 2.2, 2.2, 1.7, 0, 0, 6.2832); c.fill();
+
+  /* yeux bleus, un peu plus étirés que ceux des deux autres : c'est ce
+     qui la rend posée là où Croquette est ahuri */
+  var lo = 0.8 + lacet * 0.38;
+  chatOeil(c, -2.1 + lacet * 2.0, -0.9, 1.75 * lo, P.iris, P.irisO, ouv * 0.93, lacet);
+  chatOeil(c,  2.3 + lacet * 1.7, -0.9, 1.9, P.iris, P.irisO, ouv * 0.93, lacet);
+
+  chatMuseau(c, lacet * 1.3, 2.2, 1.15, P.blanc, P.nez);
+  chatMoustaches(c, lacet * 1.3 - 1.1, 2.4, 7.4, 2.1, -1, 0.55);
+  chatMoustaches(c, lacet * 1.3 + 1.1, 2.4, 7.8, 2.2, 1, 0.6);
+  c.restore();
+  c.restore();
+}
+
+/* ===== 74-vengeance.js ===== */
+/* ================================================================
+   LA VENGEANCE DE MILY — le rendu
+   Trois morceaux, trois repères différents, et c'est tout le sujet :
+
+     dessineYeuxVengeance   repère ÉCRAN, appelé juste après le
+                            Brasier dans la pile de profondeur. Les
+                            yeux du visage rougissent, chauffent,
+                            crachent. On ne touche PAS au visage
+                            décalqué : on pose une lueur PAR-DESSUS,
+                            exactement là où sont ses yeux.
+     dessineRayonsVengeance repère ÉCRAN, par-dessus toute la carte.
+                            Deux faisceaux partent des deux yeux,
+                            convergent sur la troupe désignée, puis
+                            CONTINUENT au sol en V sur une dizaine de
+                            cases.
+     dessineMessageVengeance repère ÉCRAN, dans l'interface. Discret,
+                            en haut, avec la jauge de charge : c'est
+                            l'attente qui fait peur, pas le rayon.
+
+   Le rendu ne décide de rien. Il lit jeu.vengeance et
+   chargeVengeance(), tenus par majVengeance(dt) dans 80-jeu.js.
+   ================================================================ */
+
+/* Les yeux du visage décalqué, ramenés dans le repère local du
+   Brasier : gardienne3D() translate en (0, Y_TETE) puis met à
+   l'échelle ECH_GARD, et le décalque donne ses yeux dans le repère
+   de la gardienne. On refait le même chemin, une fois pour toutes. */
+function yeuxDuBrasier(){
+  return [
+    { x:ECH_GARD * VT_YEUX.g[0], y:Y_TETE + ECH_GARD * VT_YEUX.g[1] },
+    { x:ECH_GARD * VT_YEUX.d[0], y:Y_TETE + ECH_GARD * VT_YEUX.d[1] }
+  ];
+}
+
+/* Rouge de la colère : trois crans, du noyau blanc au halo sourd. */
+var V_NOYAU = "255,236,214";
+var V_CHAIR = "255,74,38";
+var V_SANG  = "214,12,6";
+
+/* ---------------------------------------------------------------
+   1. LES YEUX QUI VIRENT AU ROUGE
+   La charge va de 0 à 1 pendant tout le message. Rien ne part tant
+   qu'elle n'a pas atteint 1 — c'est la promesse faite au joueur.
+   --------------------------------------------------------------- */
+function dessineYeuxVengeance(c, tps){
+  if(!jeu.vengeance || jeu.fin) return;
+  var ch = chargeVengeance();
+  if(ch <= 0.001) return;
+  var z = cam.z;
+  if(z < 0.05) return;
+  var p = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
+  var yx = yeuxDuBrasier();
+  /* La montée n'est pas linéaire : les deux premières secondes sont
+     une braise qui couve, la dernière est une lampe à arc. */
+  var e = ch * ch;
+  /* Battement de cœur, de plus en plus rapide à mesure que ça charge. */
+  var bat = 0.78 + 0.22 * Math.sin(tps * (4 + ch * 22));
+
+  c.save();
+  c.translate(p.x, p.y);
+  c.scale(z, z);
+  c.globalCompositeOperation = "lighter";
+
+  /* Le visage entier prend une lumière rouge par en dessous : sans
+     elle les deux yeux flottent comme deux gommettes collées. */
+  var gv = c.createRadialGradient(4, Y_TETE, 10, 4, Y_TETE, 150);
+  gv.addColorStop(0, "rgba(" + V_CHAIR + "," + (0.30 * e * bat) + ")");
+  gv.addColorStop(0.55, "rgba(" + V_SANG + "," + (0.17 * e * bat) + ")");
+  gv.addColorStop(1, "rgba(" + V_SANG + ",0)");
+  c.fillStyle = gv;
+  c.beginPath(); c.arc(4, Y_TETE, 150, 0, 6.2832); c.fill();
+
+  for(var i = 0; i < 2; i++){
+    var o = yx[i];
+    /* halo large — c'est lui qu'on voit de loin */
+    var r = (16 + e * 54) * bat;
+    var g1 = c.createRadialGradient(o.x, o.y, 0.5, o.x, o.y, r);
+    g1.addColorStop(0, "rgba(" + V_NOYAU + "," + (0.55 * e) + ")");
+    g1.addColorStop(0.22, "rgba(" + V_CHAIR + "," + (0.62 * e) + ")");
+    g1.addColorStop(0.62, "rgba(" + V_SANG + "," + (0.30 * e) + ")");
+    g1.addColorStop(1, "rgba(" + V_SANG + ",0)");
+    c.fillStyle = g1;
+    c.beginPath(); c.arc(o.x, o.y, r, 0, 6.2832); c.fill();
+
+    /* la pupille elle-même : petite, dure, et de plus en plus blanche */
+    var rp = 2.6 + e * 5.4;
+    var g2 = c.createRadialGradient(o.x, o.y, 0, o.x, o.y, rp);
+    g2.addColorStop(0, "rgba(" + V_NOYAU + "," + (0.30 + 0.70 * e) + ")");
+    g2.addColorStop(0.55, "rgba(" + V_CHAIR + "," + (0.55 + 0.45 * e) + ")");
+    g2.addColorStop(1, "rgba(" + V_SANG + ",0)");
+    c.fillStyle = g2;
+    c.beginPath(); c.arc(o.x, o.y, rp, 0, 6.2832); c.fill();
+
+    /* Passé la moitié de la charge, l'énergie déborde : des arcs
+       courts crépitent autour de l'orbite. Déterministes, pour ne
+       pas scintiller différemment à chaque image. */
+    if(e > 0.22){
+      c.strokeStyle = "rgba(" + V_NOYAU + "," + (0.16 + 0.30 * e) + ")";
+      c.lineWidth = 1.1 + e * 1.4;
+      c.lineCap = "round";
+      for(var a = 0; a < 5; a++){
+        var an = a / 5 * 6.2832 + tps * (1.6 + i * 0.7) + i * 1.1;
+        var r0 = rp * 1.25, r1 = rp + 5 + e * 15 + Math.sin(tps * 17 + a * 2.3) * 4;
+        c.beginPath();
+        c.moveTo(o.x + Math.cos(an) * r0, o.y + Math.sin(an) * r0 * 0.85);
+        c.lineTo(o.x + Math.cos(an + 0.24) * r1 * 0.7,
+                 o.y + Math.sin(an + 0.24) * r1 * 0.6);
+        c.lineTo(o.x + Math.cos(an - 0.1) * r1, o.y + Math.sin(an - 0.1) * r1 * 0.85);
+        c.stroke();
+      }
+    }
+  }
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   2. LES DEUX RAYONS
+   Un faisceau se peint en trois passes de la plus large à la plus
+   fine : halo sourd, chair, noyau blanc. C'est ce qui fait la
+   différence entre un rayon et un trait rouge.
+   --------------------------------------------------------------- */
+/* Quatre passes, de la plus large à la plus fine. La proportion est
+   le seul réglage qui compte : en additif, un noyau blanc trop épais
+   mange tout et le rayon vire au jaune. Le blanc ne fait donc qu'un
+   dixième de la largeur — juste de quoi donner la brûlure — et les
+   trois quarts de l'énergie sont rouges. */
+function traitRayon(c, pts, larg, alpha){
+  var passes = [
+    { l:larg * 1.7,  col:V_SANG,  a:0.20 * alpha },
+    { l:larg,        col:V_SANG,  a:0.46 * alpha },
+    { l:larg * 0.42, col:V_CHAIR, a:0.66 * alpha },
+    { l:larg * 0.10, col:V_NOYAU, a:0.95 * alpha }
+  ];
+  c.lineCap = "round";
+  c.lineJoin = "round";
+  for(var q = 0; q < passes.length; q++){
+    var P = passes[q];
+    c.strokeStyle = "rgba(" + P.col + "," + P.a + ")";
+    c.lineWidth = Math.max(0.8, P.l);
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    for(var i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
+    c.stroke();
+  }
+}
+
+/* La traînée au sol : elle SUIT LE SOL, donc chaque point est
+   converti séparément par versEcran() — un simple trait droit en
+   coordonnées écran ne serait pas dans le plan de l'île, et se
+   verrait immédiatement. On l'ondule légèrement, de plus en plus
+   loin de l'impact : un rayon qui rase le sol n'est jamais droit. */
+function pointsTrainee(V, k, fraction, tps){
+  var s = V.dir[k], pts = [], N = 26;
+  var vx = s.x1 - V.cx, vy = s.y1 - V.cy;
+  var nx = -vy, ny = vx, nl = Math.hypot(nx, ny) || 1;
+  nx /= nl; ny /= nl;
+  for(var i = 0; i <= N; i++){
+    var u = (i / N) * fraction;
+    var ond = Math.sin(u * 9.5 + tps * 5.5 + k * 2.4) * 0.46 * u;
+    pts.push(versEcran(cam, V.cx + vx * u + nx * ond, V.cy + vy * u + ny * ond));
+  }
+  return pts;
+}
+
+function dessineRayonsVengeance(c, tps){
+  var V = jeu.vengeance;
+  if(!V || V.ph === "message") return;
+  var z = cam.z;
+  var t = V.t;
+  /* Fondu : plein pendant tout le tir, extinction ensuite. */
+  var alpha = 1;
+  if(V.ph === "tir" && t > EQ.VENG_TIR * 0.72)
+    alpha = 1 - (t - EQ.VENG_TIR * 0.72) / (EQ.VENG_TIR * 0.28);
+  else if(V.ph === "retrait") alpha = Math.max(0, 1 - V.t / (EQ.VENG_RETRAIT * 0.5));
+  if(alpha <= 0.01) return;
+
+  /* Deux tempos : la lance qui va de l'œil à la cible (rapide), puis
+     la traînée qui court au sol (un peu plus lente, on doit la voir
+     partir). */
+  var lance = V.ph === "tir" ? borne(t / 0.16, 0, 1) : 1;
+  var sol   = V.ph === "tir" ? borne((t - 0.16) / 0.34, 0, 1) : 1;
+
+  var pq = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
+  var yx = yeuxDuBrasier();
+  var pi = versEcran(cam, V.cx, V.cy);
+
+  repereEcran(c);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+
+  /* LA LARGEUR. Elle ne suit pas le zoom de bout en bout : deux gros
+     lasers doivent rester deux GROS lasers même quand on a dézoomé
+     pour voir les deux bouts du tir à la fois — et c'est justement
+     à ce moment-là qu'on les regarde. Un plancher franc, plus une
+     part qui grandit avec le zoom. */
+  var larg = (15 + 26 * z) * (0.88 + 0.12 * Math.sin(tps * 33));
+
+  for(var k = 0; k < 2; k++){
+    var ox = pq.x + yx[k].x * z, oy = pq.y + yx[k].y * z;
+    /* le segment aérien œil → impact */
+    var bx = ox + (pi.x - ox) * lance, by = oy + (pi.y - oy) * lance;
+    /* IL EN FAUT BIEN DEUX. Les deux yeux sont écartés de soixante
+       unités locales ; à quarante cases de distance, deux droites
+       parties de là se superposent et on ne voit qu'un rayon. On les
+       fait donc BOMBER en sens contraire, d'un vingtième de leur
+       longueur : deux arcs nettement distincts qui se rejoignent sur
+       la même cible, ce qui est exactement ce qu'on veut lire. */
+    var lx = bx - ox, ly = by - oy;
+    var ln = Math.hypot(lx, ly) || 1;
+    var s = k ? 1 : -1;
+    var bomb = ln * 0.055 * s;
+    var mx = (ox + bx) / 2 + (-ly / ln) * bomb + Math.sin(tps * 41 + k * 2) * 4 * z;
+    var my = (oy + by) / 2 + ( lx / ln) * bomb + Math.cos(tps * 37 + k * 2) * 4 * z;
+    /* une courbe, pas trois segments : on échantillonne la quadratique
+       pour que traitRayon la trace d'un seul geste */
+    var arc = [], NP = 18;
+    for(var i = 0; i <= NP; i++){
+      var u = i / NP, w = 1 - u;
+      arc.push({ x:w * w * ox + 2 * w * u * mx + u * u * bx,
+                 y:w * w * oy + 2 * w * u * my + u * u * by });
+    }
+    traitRayon(c, arc, larg, alpha);
+
+    /* la continuation au sol, seulement une fois la cible touchée */
+    if(sol > 0.001) traitRayon(c, pointsTrainee(V, k, sol, tps), larg * 0.82, alpha);
+  }
+
+  /* L'IMPACT. Une étoile blanche, un anneau qui s'ouvre, et la
+     brûlure au sol : c'est ce qui doit rester à l'écran une demi-
+     seconde de trop. */
+  if(lance >= 1){
+    var age = Math.max(0, t - 0.16);
+    var ec = Math.exp(-age * 3.4);
+    var r = (26 + 48 * z) * (0.7 + ec * 1.5);
+    var gi = c.createRadialGradient(pi.x, pi.y, 0, pi.x, pi.y, r);
+    gi.addColorStop(0, "rgba(255,255,255," + (0.95 * alpha * (0.35 + ec * 0.65)) + ")");
+    gi.addColorStop(0.16, "rgba(" + V_NOYAU + "," + (0.70 * alpha * ec) + ")");
+    gi.addColorStop(0.38, "rgba(" + V_CHAIR + "," + (0.58 * alpha) + ")");
+    gi.addColorStop(0.72, "rgba(" + V_SANG + "," + (0.40 * alpha) + ")");
+    gi.addColorStop(1, "rgba(" + V_SANG + ",0)");
+    c.fillStyle = gi;
+    c.beginPath(); c.arc(pi.x, pi.y, r, 0, 6.2832); c.fill();
+    /* étoile à quatre branches, la signature d'une lumière trop forte */
+    c.strokeStyle = "rgba(255,255,255," + (0.5 * alpha * ec) + ")";
+    c.lineWidth = Math.max(1, 3 * z);
+    for(var b = 0; b < 4; b++){
+      var ab = b * 1.5708 + 0.4;
+      var lb = r * (b % 2 ? 1.5 : 2.6);
+      c.beginPath();
+      c.moveTo(pi.x - Math.cos(ab) * lb, pi.y - Math.sin(ab) * lb * 0.6);
+      c.lineTo(pi.x + Math.cos(ab) * lb, pi.y + Math.sin(ab) * lb * 0.6);
+      c.stroke();
+    }
+    /* anneau de souffle au sol, en ellipse isométrique */
+    if(age < 0.6){
+      var ao = age / 0.6;
+      c.strokeStyle = "rgba(" + V_NOYAU + "," + (0.5 * (1 - ao) * alpha) + ")";
+      c.lineWidth = Math.max(1, 5 * z * (1 - ao));
+      c.beginPath();
+      c.ellipse(pi.x, pi.y, EQ.VENG_RAYON * RX * z * (0.4 + ao * 2.1),
+                EQ.VENG_RAYON * RY * z * (0.4 + ao * 2.1), 0, 0, 6.2832);
+      c.stroke();
+    }
+  }
+  c.restore();
+
+  /* Voile rouge sur tout l'écran au moment de l'impact : trois
+     dixièmes de seconde, pas plus — c'est un coup de poing, pas une
+     ambiance. */
+  if(V.ph === "tir" && t > 0.16 && t < 0.5){
+    var vv = 1 - (t - 0.16) / 0.34;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.fillStyle = "rgba(" + V_SANG + "," + (0.26 * vv) + ")";
+    c.fillRect(0, 0, W, H);
+    c.restore();
+  }
+}
+
+/* ---------------------------------------------------------------
+   3. LE MESSAGE
+   Discret, en haut, hors du champ de bataille : le joueur doit
+   pouvoir continuer à jouer pendant qu'il le lit — et comprendre,
+   à la jauge, qu'il lui reste trois secondes pour dégager ses
+   troupes. Il n'y arrivera pas. C'est le but.
+   --------------------------------------------------------------- */
+function dessineMessageVengeance(c, tps){
+  var V = jeu.vengeance;
+  if(!V) return;
+  var ch = chargeVengeance();
+  if(V.ph !== "message" && ch <= 0.01) return;
+  var mien = V.tueur === monNom;
+
+  repereEcran(c);
+
+  /* Le rouge monte par les bords de l'écran à mesure que ça charge.
+     Une vignette, jamais un voile plein : on doit continuer à voir
+     le terrain. */
+  if(ch > 0.02){
+    var gv = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.30,
+                                    W / 2, H / 2, Math.max(W, H) * 0.74);
+    gv.addColorStop(0, "rgba(" + V_SANG + ",0)");
+    gv.addColorStop(1, "rgba(" + V_SANG + "," + (0.40 * ch * ch) + ")");
+    c.fillStyle = gv;
+    c.fillRect(0, 0, W, H);
+  }
+  if(V.ph !== "message") return;
+
+  var ent = Math.min(1, V.t / 0.3);
+  var sortie = ch > 0.94 ? (ch - 0.94) / 0.06 : 0;
+  var al = ent * (1 - sortie * 0.35);
+
+  var ech = Math.min(W / 900, H / 620);
+  ech = borne(ech, 0.62, 1.5);
+  var tt = 25 * ech;                         // corps du texte principal
+  /* Sous la bannière d'objectif, jamais dessus : elle occupe déjà le
+     haut de l'écran et dit combien de cellules tiennent encore. */
+  var y0 = H * 0.115 + (1 - ent) * -24;
+
+  /* on mesure avant de peindre la plaque : le pseudo peut être long */
+  var titre = mien
+    ? "Vous venez de tuer " + V.nomBete + "."
+    : V.tueur + " vient de tuer " + V.nomBete + ".";
+  c.font = "700 " + tt + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  var larg = Math.max(c.measureText(titre).width, 250 * ech);
+  var pw = larg + 56 * ech, phh = 108 * ech;
+  var px = W / 2 - pw / 2, py = y0;
+
+  c.save();
+  c.globalAlpha = al;
+
+  /* plaque : presque noire, cerclée d'un rouge qui s'allume */
+  c.fillStyle = "rgba(10,3,5,.80)";
+  cadreArrondi(c, px, py, pw, phh, 6 * ech);
+  c.fill();
+  c.strokeStyle = "rgba(" + V_SANG + "," + (0.35 + 0.55 * ch) + ")";
+  c.lineWidth = 1.6 * ech;
+  cadreArrondi(c, px, py, pw, phh, 6 * ech);
+  c.stroke();
+
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+
+  /* surtitre : l'œil, puis MILY A VU */
+  var ys = py + 22 * ech;
+  c.font = "700 " + (12 * ech) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  var pouls = 0.55 + 0.45 * Math.sin(tps * (5 + ch * 14));
+  c.fillStyle = "rgba(255," + Math.round(90 + 90 * pouls) + "," + Math.round(70 + 60 * pouls) + ",1)";
+  espaceLettres(c, "M I L Y   A   V U", W / 2, ys, 2.6 * ech);
+
+  /* le fait, sobrement */
+  c.font = "700 " + tt + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.fillStyle = "#f0e4e2";
+  c.fillText(titre, W / 2, py + 54 * ech);
+
+  /* La menace n'arrive qu'à mi-charge : d'abord on encaisse le fait,
+     ensuite seulement on comprend ce qui va suivre. */
+  if(ch > 0.42){
+    var am = Math.min(1, (ch - 0.42) / 0.20);
+    c.globalAlpha = al * am;
+    c.font = "italic 700 " + (15 * ech) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.fillStyle = "rgba(255,120,86," + (0.55 + 0.45 * pouls) + ")";
+    c.fillText("Elle ne pardonne pas.", W / 2, py + 82 * ech);
+    c.globalAlpha = al;
+  }
+
+  /* la jauge de charge, collée au bas de la plaque : le compte à
+     rebours dont on ne peut rien faire */
+  var jx = px + 14 * ech, jw = pw - 28 * ech, jy = py + phh - 6 * ech;
+  c.fillStyle = "rgba(255,255,255,.10)";
+  c.fillRect(jx, jy, jw, 3 * ech);
+  var gj = c.createLinearGradient(jx, 0, jx + jw, 0);
+  gj.addColorStop(0, "rgba(" + V_SANG + ",1)");
+  gj.addColorStop(1, "rgba(" + V_NOYAU + ",1)");
+  c.fillStyle = gj;
+  c.fillRect(jx, jy, jw * ch, 3 * ech);
+  c.restore();
+}
+
+/* Deux utilitaires de texte que seul ce panneau utilise. */
+function cadreArrondi(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+/* Un surtitre espacé, à la main : letterSpacing n'existe pas partout
+   sur un contexte 2D, et on ne veut pas d'un rendu qui varie selon
+   le navigateur. */
+function espaceLettres(c, s, cx, y, esp){
+  var i, l = 0;
+  for(i = 0; i < s.length; i++) l += c.measureText(s.charAt(i)).width + esp;
+  l -= esp;
+  var x = cx - l / 2;
+  var av = c.textAlign;
+  c.textAlign = "left";
+  for(i = 0; i < s.length; i++){
+    c.fillText(s.charAt(i), x, y);
+    x += c.measureText(s.charAt(i)).width + esp;
+  }
+  c.textAlign = av;
+}
+
 /* ===== 80-jeu.js ===== */
 /* ================================================================
    LE JEU — état, simulation, combat, capacités
@@ -11728,6 +13468,9 @@ function nouvelleCarte(index, pvConnu){
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
     messageTweety:0,
+    /* Les trois chats de Mily : qui a tué lequel, et la riposte en cours. */
+    tueurChats:{ chat:"", chaton:"", chatte:"" },
+    vengeance:null,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -11766,6 +13509,15 @@ function nouvelleCarte(index, pvConnu){
       jeu.tueurTweety = String(monde.w).substr(0, 14);
       for(var w2 = 0; w2 < jeu.creatures.length; w2++)
         if(jeu.creatures[w2].t === "tweety") jeu.creatures[w2].pv = 0;
+    }
+    /* Les chats déjà tués dans ce salon le restent — et sans riposte :
+       Mily s'est déjà vengée, ce n'est pas à celui qui arrive de payer. */
+    if(monde.k){
+      jeu.tueurChats = decodeChats(monde.k);
+      for(var w3 = 0; w3 < jeu.creatures.length; w3++){
+        var kk = jeu.creatures[w3];
+        if(jeu.tueurChats[kk.t]) kk.pv = 0;
+      }
     }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
@@ -12375,8 +14127,175 @@ function abimeCreature(c, d){
       envoieTweety();
       signaleMonde();
     }
+    /* Un des trois chats de Mily. Là, il ne s'agit plus de deuil. */
+    if(CRE[c.t].protege && !jeu.tueurChats[c.t]){
+      jeu.tueurChats[c.t] = monNom;
+      declencheVengeance(c.t, monNom);
+      envoieVengeance(c.t);
+      signaleMonde();
+    }
     demandeMajBarres();
   }
+}
+
+/* ================================================================
+   LA VENGEANCE DE MILY
+   Elle se joue en quatre temps, et l'ordre est tout le sujet : ce
+   qui fait peur, ce n'est pas le rayon, c'est les trois secondes
+   pendant lesquelles on le voit venir sans pouvoir rien faire.
+
+     1. « message »  le nom du coupable s'inscrit, les yeux du visage
+                     du Brasier virent au rouge et se chargent. Rien
+                     ne part encore.
+     2. « tir »      DEUX rayons, un par œil, convergent sur la troupe
+                     désignée — quelle que soit la distance. Impact.
+                     Puis les deux faisceaux CONTINUENT au sol, en V,
+                     sur une dizaine de cases, en laissant deux
+                     traînées de flammes.
+     3. « retrait »  extinction, les braises restent.
+
+   La cible est choisie localement par chaque client, au moment du
+   tir : le coupable vise sa propre troupe la plus proche du chat,
+   les autres visent le fantôme du coupable. Personne n'a besoin
+   d'envoyer de coordonnées, et chaque client reste seul juge des
+   dégâts subis par SES troupes — c'est le modèle du reste du jeu.
+   ================================================================ */
+function declencheVengeance(espece, tueur){
+  if(!jeu || jeu.fin) return;
+  var k = null;
+  for(var i = 0; i < jeu.creatures.length; i++)
+    if(jeu.creatures[i].t === espece){ k = jeu.creatures[i]; break; }
+  jeu.vengeance = {
+    ph:"message", t:0,
+    espece:espece,
+    nomBete:CRE[espece].nom,
+    tueur:String(tueur || "?").substr(0, 14),
+    /* le lieu du crime : c'est de là que part la recherche de coupable */
+    kx:k ? k.gx : jeu.qg.gx, ky:k ? k.gy : jeu.qg.gy,
+    cx:0, cy:0,                 // point d'impact, fixé au moment du tir
+    dir:[], puni:0
+  };
+  if(son.vengeance) son.vengeance();
+}
+
+/* Qui paie ? La troupe la plus proche du chat, parmi celles du
+   coupable. Sur le client du coupable ce sont ses unités ; ailleurs,
+   ce sont les fantômes qu'il diffuse. Sans aucune des deux — il a
+   fermé l'onglet, il n'a plus rien en vie — le rayon tombe sur le
+   cadavre du chat, ce qui reste parfaitement lisible. */
+function cibleVengeance(V){
+  var mx = V.kx, my = V.ky, meilleur = Infinity, i, u, d;
+  var lot = null;
+  if(V.tueur === monNom){
+    lot = jeu.unites;
+  }else if(typeof autresJoueurs === "object"){
+    for(var id in autresJoueurs){
+      var j2 = autresJoueurs[id];
+      if(j2 && j2.nom === V.tueur && j2.unites && j2.unites.length){ lot = j2.unites; break; }
+    }
+  }
+  if(lot){
+    for(i = 0; i < lot.length; i++){
+      u = lot[i];
+      if(u.pv !== undefined && u.pv <= 0) continue;
+      d = Math.hypot(u.gx - V.kx, u.gy - V.ky);
+      if(d < meilleur){ meilleur = d; mx = u.gx; my = u.gy; }
+    }
+  }
+  return { x:mx, y:my };
+}
+
+/* Distance d'un point au segment [a,b] — le test de brûlure des
+   traînées. Écrit ici plutôt qu'appelé partout : c'est la seule
+   géométrie du jeu qui en ait besoin. */
+function distSegment(px, py, ax, ay, bx, by){
+  var vx = bx - ax, vy = by - ay;
+  var l2 = vx * vx + vy * vy;
+  if(l2 < 1e-9) return Math.hypot(px - ax, py - ay);
+  var t = borne(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
+  return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+}
+
+/* La peine. 90 % des PV, jamais la mort : une barge amputée revient,
+   une barge effacée fait fermer l'onglet. Elle tombe une seule fois,
+   à l'instant de l'impact, sur tout ce qui se trouve dans le disque
+   ou sous l'une des deux traînées. */
+function punitVengeance(V){
+  var n = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0) continue;
+    var pris = Math.hypot(u.gx - V.cx, u.gy - V.cy) <= EQ.VENG_RAYON;
+    for(var d = 0; !pris && d < V.dir.length; d++){
+      var t = V.dir[d];
+      pris = distSegment(u.gx, u.gy, V.cx, V.cy, t.x1, t.y1) <= EQ.VENG_LARGEUR;
+    }
+    if(!pris) continue;
+    toucheUnite(u, u.pv * EQ.VENG_PERTE);
+    n++;
+  }
+  /* les traînées continuent de brûler après coup */
+  for(var e = 0; e < V.dir.length; e++){
+    var s = V.dir[e];
+    for(var p = 0.12; p <= 1.001; p += 0.16){
+      jeu.flaques.push({ gx:V.cx + (s.x1 - V.cx) * p, gy:V.cy + (s.y1 - V.cy) * p,
+                         r:EQ.VENG_LARGEUR, age:0, duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+    }
+  }
+  jeu.flaques.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON, age:0,
+                     duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+  jeu.crateres.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON * 0.8 });
+  jeu.effets.push({ t:"vengBoum", gx:V.cx, gy:V.cy, age:0, duree:0.9 });
+  jeu.effets.push({ t:"onde", gx:V.cx, gy:V.cy, age:0, duree:0.55, r:EQ.VENG_RAYON });
+  jeu.secousse = Math.min(9, jeu.secousse + 6.5);
+  if(son.vengeanceImpact) son.vengeanceImpact();
+  return n;
+}
+
+function majVengeance(dt){
+  var V = jeu.vengeance;
+  if(!V) return;
+  V.t += dt;
+  if(V.ph === "message"){
+    if(V.t < EQ.VENG_MESSAGE) return;
+    /* LE TIR. On fige la cible ici, et pas au moment du crime : la
+       troupe a marché pendant tout le message, le rayon doit tomber
+       là où elle est MAINTENANT. */
+    var b = cibleVengeance(V);
+    V.cx = b.x; V.cy = b.y;
+    /* Les deux faisceaux arrivent des deux yeux : passé l'impact ils
+       divergent, ce qui donne le V au sol. L'écart est un angle fixe
+       et non l'écartement réel des yeux : à trente cases du Brasier,
+       le vrai écartement donnerait deux traînées confondues. */
+    var ax = V.cx - jeu.qg.gx, ay = V.cy - jeu.qg.gy;
+    var an = Math.atan2(ay, ax);
+    V.dir = [-1, 1].map(function(s){
+      var a2 = an + s * EQ.VENG_ECART;
+      return { x1:V.cx + Math.cos(a2) * EQ.VENG_TRAINEE,
+               y1:V.cy + Math.sin(a2) * EQ.VENG_TRAINEE, s:s };
+    });
+    V.ph = "tir"; V.t = 0;
+    if(son.vengeanceTir) son.vengeanceTir();
+    return;
+  }
+  if(V.ph === "tir"){
+    /* la peine tombe à l'instant où les faisceaux touchent, pas à la
+       fin du balayage */
+    if(!V.puni && V.t >= 0.16){ V.puni = 1; punitVengeance(V); }
+    if(V.t < EQ.VENG_TIR) return;
+    V.ph = "retrait"; V.t = 0;
+    return;
+  }
+  if(V.t >= EQ.VENG_RETRAIT) jeu.vengeance = null;
+}
+/* De 0 à 1 : à quel point les yeux du visage sont chargés. Le rendu
+   ne fait que lire cette valeur — il ne décide de rien. */
+function chargeVengeance(){
+  var V = jeu.vengeance;
+  if(!V) return 0;
+  if(V.ph === "message") return borne(V.t / EQ.VENG_MESSAGE, 0, 1);
+  if(V.ph === "tir") return 1;
+  return Math.max(0, 1 - V.t / EQ.VENG_RETRAIT);
 }
 /* Combien de cellules électriques alimentent encore le bouclier. */
 function reacteursVivants(){
@@ -13029,7 +14948,9 @@ function tireDefense(b, f, c, d, tps){
     var volM = Math.max(0.12, d / f.vitesseProj);
     jeu.projectiles.push({ t:"balle", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cible:c, but:{ gx:c.gx, gy:c.gy }, duree:volM, age:0,
-      degats:f.degats, z0:44 });
+      /* la bouche du fusil, pas le milieu du treillis : le tireur est
+         agenouillé sur le plancher du mirador, à 72 + 8 unités */
+      degats:f.degats, z0:80 });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.28 });
     if(son.tirMirador) son.tirMirador();
   }else if(b.t === "bobine"){
@@ -13461,7 +15382,8 @@ function majZones(dt){
   for(i = jeu.flaques.length - 1; i >= 0; i--){
     var fl = jeu.flaques[i]; fl.age += dt;
     if(fl.age > fl.duree){ jeu.flaques.splice(i, 1); continue; }
-    degatsZone(fl.gx, fl.gy, fl.r, EQ.QG_FLAQUE_DPS * dt);
+    degatsZone(fl.gx, fl.gy, fl.r,
+               (fl.veng ? EQ.VENG_BRAISE_DPS : EQ.QG_FLAQUE_DPS) * dt);
   }
   for(i = jeu.brouillards.length - 1; i >= 0; i--){
     jeu.brouillards[i].age += dt;
@@ -14030,6 +15952,9 @@ function majJeu(dt){
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   majBouclier(dt);
+  /* La vengeance tourne même pendant la séquence finale : elle doit
+     aller au bout, la forteresse peut bien tomber pendant ce temps. */
+  majVengeance(dt);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
   majNavettes(dt);
@@ -14231,7 +16156,7 @@ function mondeCourant(){
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.tg | 0) === tirageSalon) return monde;
     return { v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
-             g:monde.g || "", w:monde.w || "", s:monde.s || "",
+             g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
   }
   var bits = [], i;
@@ -14239,6 +16164,7 @@ function mondeCourant(){
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
+           k:encodeChats(jeu.tueurChats),
            /* Le tableau des dégâts part dans l'instantané RETENU : c'est
               ce qui le fait survivre à la déconnexion de celui qui les a
               faits, et même à la déconnexion de tout le monde. */
@@ -14331,6 +16257,20 @@ function appliqueMondeAuJeu(m){
     tueCreatureLocale("tweety");
     change++;
   }
+  /* Les chats déclarés morts par l'instantané le restent, sans riposte :
+     l'instantané dit l'état du monde, pas l'instant du crime — rejouer
+     les rayons ici les rejouerait à chaque reconnexion. */
+  if(m.k){
+    var chm = decodeChats(m.k);
+    for(var ec = 0; ec < ESPECES_PROTEGEES.length; ec++){
+      var esc = ESPECES_PROTEGEES[ec];
+      if(chm[esc] && !jeu.tueurChats[esc]){
+        jeu.tueurChats[esc] = chm[esc];
+        tueCreatureLocale(esc);
+        change++;
+      }
+    }
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -14378,7 +16318,7 @@ function remetSalonAZero(){
      remise à zéro efface la guerre, pas le dessin. */
   tirageSalon = (tirageSalon | 0) + 1;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -14551,6 +16491,18 @@ function recoit(txt){
       signaleMonde();
       demandeMajBarres();
     }
+  }else if(m.t === "veng"){
+    /* Un chat de Mily est tombé chez quelqu'un d'autre : tout le salon
+       assiste à la riposte, et chaque client décide seul du sort de SES
+       troupes — les traînées ne s'arrêtent pas au coupable. */
+    if(jeu && !jeu.fin && (typeof m.c !== "number" || m.c === jeu.index) &&
+       ESPECES_PROTEGEES.indexOf(m.e) >= 0 && !jeu.tueurChats[m.e]){
+      jeu.tueurChats[m.e] = (m.nom || "?").substr(0, 14);
+      declencheVengeance(m.e, jeu.tueurChats[m.e]);
+      tueCreatureLocale(m.e);
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -14652,6 +16604,12 @@ function majReseau(dt){
    et il est aussi porté par l'instantané pour ceux qui arriveront après. */
 function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieTweety(){ envoie({ t:"tweety", nom:monNom, c:jeu ? jeu.index : 0 }); }
+/* La vengeance ne transporte AUCUNE coordonnée : chaque client vise
+   lui-même, au moment du tir, la troupe du coupable la plus proche du
+   chat. Le message dit qui, et quel chat — le reste se déduit. */
+function envoieVengeance(espece){
+  envoie({ t:"veng", nom:monNom, e:espece, c:jeu ? jeu.index : 0 });
+}
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 
@@ -14694,8 +16652,32 @@ var COUL_PLAN = {
 
 var planZones = null;        // le brouillon en cours d'édition
 var planPile = [];           // historique, pour « Annuler »
-var planOutil = 1;           // indice dans TYPES_PLAN (0 = gomme)
+var planOutil = 1;           // indice dans TYPES_PLAN (0 = pinceau neutre)
 var planDensite = 2;         // indice dans DENSITES
+/* Le pinceau à cellules n'est PAS un type : il pose sa couche par
+   -dessus les défenses. C'est un interrupteur à part, et quand il est
+   allumé le doigt ne peint plus que ça. */
+var planCellules = 0;
+
+/* ---------------------------------------------------------------
+   LE PLAN PAR DÉFAUT
+   Le plan du salon appartient à tout le monde et coûte un mot de
+   passe. Celui-ci n'appartient qu'à cet appareil : il ne part nulle
+   part, il attend simplement dans le navigateur et se retrouve au
+   prochain ouvrePlan(). C'est le brouillon qu'on reprend, pas la
+   carte qu'on impose.
+   --------------------------------------------------------------- */
+var CLE_PLAN_DEFAUT = "milyboum.plan";
+function planDefaut(){
+  try{ return localStorage.getItem(CLE_PLAN_DEFAUT) || ""; }catch(e){ return ""; }
+}
+function gardePlanDefaut(s){
+  try{
+    if(s) localStorage.setItem(CLE_PLAN_DEFAUT, s);
+    else localStorage.removeItem(CLE_PLAN_DEFAUT);
+    return true;
+  }catch(e){ return false; }
+}
 var planCv = null, planCtx = null;
 var planEch = 1, planOx = 0, planOy = 0;   // carte → pixels du canevas
 var planApercu = null;       // carte générée pour l'aperçu
@@ -14706,7 +16688,10 @@ var planDoigt = null;        // identifiant du doigt qui peint
    Ouverture / fermeture
    --------------------------------------------------------------- */
 function ouvrePlan(){
-  planZones = planSalon ? decodePlan(planSalon) : planVide();
+  /* Le plan du salon fait foi ; à défaut, le brouillon gardé sur cet
+     appareil ; à défaut, une carte vierge. */
+  var dep = planSalon || planDefaut();
+  planZones = dep ? decodePlan(dep) : planVide();
   planPile = [];
   planApercuSale = true;
   $("plan").classList.add("on");
@@ -14723,15 +16708,32 @@ function fermePlan(){
 /* ---------------------------------------------------------------
    Palette
    --------------------------------------------------------------- */
+/* Le nom d'un pinceau. Les deux extrêmes ne sont pas des défenses et
+   n'ont pas de fiche dans DEF : ils se nomment ici. */
+function nomOutilPlan(i){
+  var t = TYPES_PLAN[i];
+  if(i === 0) return "Neutre";
+  if(t === "vide") return "Gomme forte";
+  return DEF[t].nom;
+}
+function coulOutilPlan(i){
+  var t = TYPES_PLAN[i];
+  if(i === 0) return "#6c6478";
+  if(t === "vide") return "#e8465a";
+  return COUL_PLAN[t];
+}
+
 function construitPalettePlan(){
   var p = $("planPalette"), i, h = "";
   for(i = 0; i < TYPES_PLAN.length; i++){
-    var t = TYPES_PLAN[i];
-    var nom = i === 0 ? "Gomme" : DEF[t].nom;
-    var coul = i === 0 ? "#6c6478" : COUL_PLAN[t];
-    h += '<div class="pz' + (i === planOutil ? " on" : "") + '" data-outil="' + i + '">'
-       + '<i style="background:' + coul + '"></i>' + nom + '</div>';
+    h += '<div class="pz' + (i === planOutil && !planCellules ? " on" : "")
+       + '" data-outil="' + i + '">'
+       + '<i style="background:' + coulOutilPlan(i) + '"></i>' + nomOutilPlan(i) + '</div>';
   }
+  /* Le pinceau à cellules, à part : il ne remplace pas un type, il
+     ajoute une couche. On le montre donc à côté, pas dans la liste. */
+  h += '<div class="pz' + (planCellules ? " on" : "") + '" data-cell="1">'
+     + '<i style="background:' + COUL_PLAN.cellule + '"></i>Cellules</div>';
   p.innerHTML = h;
 
   var d = $("planDensites"), hd = "";
@@ -14743,11 +16745,18 @@ function construitPalettePlan(){
 }
 function choisitOutilPlan(i){
   planOutil = i | 0;
+  planCellules = 0;
+  construitPalettePlan();
+  majPanneauPlan();
+}
+function basculeCellulesPlan(){
+  planCellules = planCellules ? 0 : 1;
   construitPalettePlan();
   majPanneauPlan();
 }
 function choisitDensitePlan(i){
   planDensite = i | 0;
+  planCellules = 0;
   construitPalettePlan();
   majPanneauPlan();
 }
@@ -14804,28 +16813,53 @@ function dessinePlan(){
   /* les zones peintes, SOUS les bâtiments : on doit lire le résultat,
      pas seulement son intention */
   var i, zx, zy, z, t, d;
+  /* Une hachure par densité : plus la trame est serrée, plus la zone
+     est remplie. C'est le seul repère qui se lise d'un coup d'œil
+     quand les six densités se côtoient sur la même carte. */
+  var PAS_HACHURE = [0, 0.50, 0, 0.22, 0.15, 0.10];
   for(i = 0; i < NB_ZONES; i++){
     z = planZones[i]; if(!z) continue;
-    t = z & 7; d = (z >> 3) & 3;
+    t = zoneType(z); d = zoneDens(z);
     zx = (i % ZONES_L) * PAS_ZONE, zy = ((i / ZONES_L) | 0) * PAS_ZONE;
-    var coul = t ? COUL_PLAN[TYPES_PLAN[t]] : "#8f86a0";
-    c.fillStyle = coul + "33";
+    var coul = t ? coulOutilPlan(t) : "#8f86a0";
+    c.fillStyle = coul + (TYPES_PLAN[t] === "vide" ? "55" : "33");
     c.fillRect(ox + zx * e, oy + zy * e, PAS_ZONE * e, PAS_ZONE * e);
     c.strokeStyle = coul + "cc";
     c.lineWidth = Math.max(1, e * 0.16);
     c.strokeRect(ox + zx * e + 0.5, oy + zy * e + 0.5, PAS_ZONE * e - 1, PAS_ZONE * e - 1);
-    /* la densité se lit à des hachures : plus c'est serré, plus il y en a */
-    if(d && d !== 2){
+    if(PAS_HACHURE[d]){
       c.save();
       c.globalAlpha = 0.5; c.strokeStyle = coul;
       c.lineWidth = Math.max(0.8, e * 0.09);
-      var pas = (d === 1 ? PAS_ZONE * 0.5 : PAS_ZONE * 0.22) * e;
+      var pas = PAS_HACHURE[d] * PAS_ZONE * e;
       for(var k = pas; k < PAS_ZONE * e; k += pas){
         c.beginPath();
         c.moveTo(ox + zx * e + k, oy + zy * e);
         c.lineTo(ox + zx * e, oy + zy * e + k);
         c.stroke();
       }
+      c.restore();
+    }
+    /* la gomme forte se barre d'une croix : elle RETIRE, il ne faut
+       pas pouvoir la confondre avec un type de défense */
+    if(TYPES_PLAN[t] === "vide"){
+      c.save();
+      c.strokeStyle = coul; c.lineWidth = Math.max(1, e * 0.14);
+      c.beginPath();
+      c.moveTo(ox + zx * e + 2, oy + zy * e + 2);
+      c.lineTo(ox + (zx + PAS_ZONE) * e - 2, oy + (zy + PAS_ZONE) * e - 2);
+      c.moveTo(ox + (zx + PAS_ZONE) * e - 2, oy + zy * e + 2);
+      c.lineTo(ox + zx * e + 2, oy + (zy + PAS_ZONE) * e - 2);
+      c.stroke();
+      c.restore();
+    }
+    /* et le champ de cellules d'un liseré jaune à l'intérieur */
+    if(zoneChamp(z)){
+      c.save();
+      c.strokeStyle = COUL_PLAN.cellule; c.lineWidth = Math.max(1.2, e * 0.20);
+      c.setLineDash([e * 0.9, e * 0.7]);
+      c.strokeRect(ox + zx * e + e * 0.6, oy + zy * e + e * 0.6,
+                   PAS_ZONE * e - e * 1.2, PAS_ZONE * e - e * 1.2);
       c.restore();
     }
   }
@@ -14875,9 +16909,17 @@ function dessinePlan(){
 function peintZoneEn(sx, sy){
   var g = planVersCase(sx, sy);
   if(g.gx < 0 || g.gy < 0 || g.gx >= GW || g.gy >= GH) return false;
-  var i = zoneDePlan(g.gx, g.gy);
-  var v = planOutil ? (planOutil | (planDensite << 3)) : 0;
-  if(planZones[i] === v) return false;
+  var i = zoneDePlan(g.gx, g.gy), z = planZones[i], v;
+  if(planCellules){
+    /* le pinceau à cellules ne touche QUE son bit : les défenses de
+       la zone restent ce qu'elles étaient */
+    v = faitZone(zoneType(z), zoneDens(z), 1);
+  }else if(planOutil){
+    v = faitZone(planOutil, planDensite, zoneChamp(z));
+  }else{
+    v = 0;                                     // le pinceau neutre efface tout
+  }
+  if(z === v) return false;
   planZones[i] = v;
   planApercuSale = true;
   return true;
@@ -14918,7 +16960,9 @@ function installePlan(){
   window.addEventListener("mouseup", fin);
 
   $("planPalette").addEventListener("click", function(ev){
-    var e = ev.target.closest ? ev.target.closest("[data-outil]") : null;
+    if(!ev.target.closest) return;
+    if(ev.target.closest("[data-cell]")){ basculeCellulesPlan(); return; }
+    var e = ev.target.closest("[data-outil]");
     if(e) choisitOutilPlan(+e.getAttribute("data-outil"));
   });
   $("planDensites").addEventListener("click", function(ev){
@@ -14939,6 +16983,31 @@ function installePlan(){
     planApercuSale = true;
     dessinePlan(); majPanneauPlan();
   });
+  /* Garder par défaut : rien ne part sur le réseau, rien ne change
+     pour le salon. Le brouillon attend simplement dans ce navigateur
+     et se retrouve à la prochaine ouverture de l'éditeur. */
+  $("btPlanDefaut").addEventListener("click", function(){
+    var ch = encodePlan(planZones);
+    if(!ch){
+      alert("Rien à garder : la carte est vierge.\n\n"
+          + "Peins au moins une zone, puis réessaie.");
+      return;
+    }
+    if(!gardePlanDefaut(ch)){
+      alert("Impossible d'écrire dans ce navigateur (mode privé ?).");
+      return;
+    }
+    alert("Plan gardé comme brouillon par défaut sur cet appareil.\n\n"
+        + "Il te sera proposé à chaque ouverture de l'éditeur, tant que le\n"
+        + "salon n'a pas son propre plan. Ça ne change RIEN pour les autres\n"
+        + "joueurs — pour ça, il faut « Valider pour tout le salon ».");
+  });
+  $("btPlanOubli").addEventListener("click", function(){
+    if(!planDefaut()){ alert("Aucun plan par défaut gardé sur cet appareil."); return; }
+    if(!confirm("Oublier le plan par défaut de cet appareil ?")) return;
+    gardePlanDefaut("");
+    alert("Oublié.");
+  });
   $("btPlanValide").addEventListener("click", validePlan);
   window.addEventListener("resize", function(){
     if($("plan").classList.contains("on")){ ajustePlanCv(); dessinePlan(); }
@@ -14949,13 +17018,13 @@ function installePlan(){
    Le compte rendu, et la validation
    --------------------------------------------------------------- */
 function comptePlan(){
-  var m = apercuPlan(), par = {}, i, n = 0;
+  var m = apercuPlan(), par = {}, i, n = 0, cel = 0;
   for(i = 0; i < m.batiments.length; i++){
     var t = m.batiments[i].t;
-    if(t === "cellule") continue;
+    if(t === "cellule"){ cel++; continue; }
     par[t] = (par[t] || 0) + 1; n++;
   }
-  return { par:par, total:n, peintes:zonesPeintes(planZones) };
+  return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones) };
 }
 /* La fiche d'une défense, telle qu'on la lit avant de la poser :
    ce qu'elle est, puis les seuls chiffres qui changent une décision —
@@ -14989,17 +17058,28 @@ function majPanneauPlan(){
   $("planCompte").innerHTML =
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
-    + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ");
-  $("planInfo").innerHTML = planOutil
-    ? "<b>" + DEF[TYPES_PLAN[planOutil]].nom + "</b> — " + DENSITES[planDensite].nom
-      + "<br>" + ficheDefense(TYPES_PLAN[planOutil])
-    : "<b>Gomme</b><br>La zone repasse en défenses d'origine, "
-      + "celles que la génération aurait posées toute seule.";
+    + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
+    + "<b>" + c.cellules + "</b> cellules à récolter";
+
+  var outil = TYPES_PLAN[planOutil];
+  $("planInfo").innerHTML = planCellules
+    ? "<b>Cellules</b><br>Sème un champ de cellules énergétiques PAR-DESSUS "
+      + "ce que la zone contient déjà. Les défenses restent en place : "
+      + "c'est de la récolte sous le feu."
+    : outil === "vide"
+      ? "<b>Gomme forte</b><br>Plus rien ne pousse ici : ni défense, "
+        + "ni renfort, ni mirador, ni champ de cellules. Terrain nu."
+    : planOutil
+      ? "<b>" + DEF[outil].nom + "</b> — " + DENSITES[planDensite].nom
+        + "<br>" + ficheDefense(outil)
+      : "<b>Pinceau neutre</b><br>La zone repasse en défenses d'origine, "
+        + "celles que la génération aurait posées toute seule.";
 
   /* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
      de la rendre infernale. On lui dit seulement ce qu'il fait. */
   var a = "";
-  if(c.total > 900) a = "Carte très chargée : ça va ramer sur téléphone.";
+  if(c.total + c.cellules > 2200) a = "Carte énorme : ça ramera sur téléphone.";
+  else if(c.total > 900) a = "Carte très chargée : ça va ramer sur téléphone.";
   else if(c.total < 120) a = "Très peu de défenses : la partie sera courte.";
   $("planAvert").textContent = a;
 }
@@ -15045,11 +17125,12 @@ function rafraichitPlan(){
   }
   var z = decodePlan(planSalon), n = zonesPeintes(z), par = {}, i;
   for(i = 0; i < NB_ZONES; i++){
-    var t = z[i] & 7;
+    var t = zoneType(z[i]);
     if(t) par[TYPES_PLAN[t]] = (par[TYPES_PLAN[t]] || 0) + 1;
+    if(zoneChamp(z[i])) par.cellule = (par.cellule || 0) + 1;
   }
   var s = [];
-  for(var k in par) s.push(DEF[k].nom);
+  for(var k in par) s.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
   e.textContent = n + " zone" + (n > 1 ? "s" : "") + " peinte" + (n > 1 ? "s" : "")
     + " sur " + NB_ZONES + " — " + (s.length ? s.join(", ") : "gommées")
     + ". Tirage n°" + tirageSalon + ".";
@@ -16485,9 +18566,18 @@ function dessineZonesSol(c, tps){
     c.save();
     c.globalCompositeOperation = "lighter";
     var g = c.createRadialGradient(q.x, q.y, 2, q.x, q.y, f.r * RX);
-    g.addColorStop(0, "rgba(255,200,90," + (0.55 * a) + ")");
-    g.addColorStop(0.6, "rgba(255,90,20," + (0.35 * a) + ")");
-    g.addColorStop(1, "rgba(200,30,10,0)");
+    /* Les traînées de Mily brûlent d'un feu qui n'est pas celui du
+       Brasier : plus blanc au cœur, franchement rouge au bord. On les
+       reconnaît d'un coup d'œil parmi les flaques ordinaires. */
+    if(f.veng){
+      g.addColorStop(0, "rgba(255,244,222," + (0.78 * a) + ")");
+      g.addColorStop(0.45, "rgba(255,74,38," + (0.52 * a) + ")");
+      g.addColorStop(1, "rgba(214,12,6,0)");
+    }else{
+      g.addColorStop(0, "rgba(255,200,90," + (0.55 * a) + ")");
+      g.addColorStop(0.6, "rgba(255,90,20," + (0.35 * a) + ")");
+      g.addColorStop(1, "rgba(200,30,10,0)");
+    }
     c.fillStyle = g;
     c.beginPath(); c.ellipse(q.x, q.y, f.r * RX, f.r * RY, 0, 0, 6.2832); c.fill();
     for(var n = 0; n < 5; n++){
@@ -17083,7 +19173,8 @@ function rendu(tps, dt){
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
       case 7: dessineBrouillard(ctx, it.o, tps); break;
-      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps); break;
+      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps);
+              dessineYeuxVengeance(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
@@ -17104,6 +19195,10 @@ function rendu(tps, dt){
                Math.max(10, 12 * cam.z), "#c9c2ce");
   }
 
+  /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de
+     la lumière dans l'air, rien ne peut la masquer. */
+  if(jeu.vengeance) dessineRayonsVengeance(ctx, tps);
+
   /* visée */
   repereEcran(ctx);
   dessineVisee(ctx, tps);
@@ -17114,6 +19209,9 @@ function rendu(tps, dt){
   /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
   if(jeu.messageTweety > 0) dessineTweetyDeuil(ctx, tps);
+
+  /* la vengeance de Mily : le message, puis la vignette rouge */
+  if(jeu.vengeance) dessineMessageVengeance(ctx, tps);
 
   /* séquence finale */
   if(jeu.fin) dessineFin(ctx, tps);
@@ -18347,6 +20445,13 @@ function majPodium(){
     h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
        + '</b> a tué Tweety</div>';
   }
+  /* et les trois chats de Mily, chacun avec son coupable */
+  for(var ec = 0; ec < ESPECES_PROTEGEES.length; ec++){
+    var esc = ESPECES_PROTEGEES[ec];
+    if(!jeu.tueurChats[esc]) continue;
+    h += '<div class="gg">🐈 <b>' + echappe(jeu.tueurChats[esc])
+       + '</b> a tué ' + CRE[esc].nom + '</div>';
+  }
   /* Qui est réellement entendu, là, maintenant. C'est la réponse à
      « pourquoi je ne vois que mon nom ? » : si le relais est tombé ou
      que l'autre appareil est sur un autre relais, ça se LIT ici au
@@ -18910,6 +21015,39 @@ var son = {
   grogne:function(){ this.bip("sawtooth", 110, 62, 0.3, 0.08); },
   telegraphe:function(){ this.bip("square", 320, 320, 0.12, 0.07); this.bip("square", 320, 320, 0.12, 0.07, 0.2); },
   confettis:function(){ for(var i = 0; i < 6; i++) this.bip("triangle", 520 + i * 130, 900 + i * 160, 0.14, 0.05, i * 0.06); },
+
+  /* LA VENGEANCE DE MILY, en trois sons.
+     La charge dure toute la durée du message et ne fait que monter :
+     c'est elle qui doit rendre les trois secondes insupportables. Le
+     tir est un souffle qui descend, l'impact une masse qui s'arrête. */
+  vengeance:function(){
+    if(!this.ok()) return;
+    var t = this.ac.currentTime, d = EQ.VENG_MESSAGE;
+    var o = this.ac.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(58, t);
+    o.frequency.exponentialRampToValueAtTime(430, t + d);
+    var f = this.ac.createBiquadFilter();
+    f.type = "lowpass"; f.Q.value = 8;
+    f.frequency.setValueAtTime(180, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + d);
+    var g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.13, t + d * 0.94);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.06);
+    o.connect(f); f.connect(g); g.connect(this.maitre);
+    o.start(t); o.stop(t + d + 0.1);
+    this.bip("sine", 40, 30, d, 0.09);
+  },
+  vengeanceTir:function(){
+    this.souffle(5200, 320, 0.9, 0.20);
+    this.bip("sawtooth", 1900, 130, 0.55, 0.13);
+  },
+  vengeanceImpact:function(){
+    this.bip("sawtooth", 150, 32, 0.85, 0.20);
+    this.bip("square", 900, 110, 0.14, 0.09);
+    this.souffle(1400, 90, 1.4, 0.13);
+  },
 
   /* petit requiem pour Gégé */
   gege:function(){

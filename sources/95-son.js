@@ -135,6 +135,39 @@ var son = {
   telegraphe:function(){ this.bip("square", 320, 320, 0.12, 0.07); this.bip("square", 320, 320, 0.12, 0.07, 0.2); },
   confettis:function(){ for(var i = 0; i < 6; i++) this.bip("triangle", 520 + i * 130, 900 + i * 160, 0.14, 0.05, i * 0.06); },
 
+  /* LA VENGEANCE DE MILY, en trois sons.
+     La charge dure toute la durée du message et ne fait que monter :
+     c'est elle qui doit rendre les trois secondes insupportables. Le
+     tir est un souffle qui descend, l'impact une masse qui s'arrête. */
+  vengeance:function(){
+    if(!this.ok()) return;
+    var t = this.ac.currentTime, d = EQ.VENG_MESSAGE;
+    var o = this.ac.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(58, t);
+    o.frequency.exponentialRampToValueAtTime(430, t + d);
+    var f = this.ac.createBiquadFilter();
+    f.type = "lowpass"; f.Q.value = 8;
+    f.frequency.setValueAtTime(180, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + d);
+    var g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.13, t + d * 0.94);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.06);
+    o.connect(f); f.connect(g); g.connect(this.maitre);
+    o.start(t); o.stop(t + d + 0.1);
+    this.bip("sine", 40, 30, d, 0.09);
+  },
+  vengeanceTir:function(){
+    this.souffle(5200, 320, 0.9, 0.20);
+    this.bip("sawtooth", 1900, 130, 0.55, 0.13);
+  },
+  vengeanceImpact:function(){
+    this.bip("sawtooth", 150, 32, 0.85, 0.20);
+    this.bip("square", 900, 110, 0.14, 0.09);
+    this.souffle(1400, 90, 1.4, 0.13);
+  },
+
   /* petit requiem pour Gégé */
   gege:function(){
     this.bip("triangle", 660, 620, 0.22, 0.10);

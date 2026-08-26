@@ -176,7 +176,7 @@ function mondeCourant(){
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.tg | 0) === tirageSalon) return monde;
     return { v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
-             g:monde.g || "", w:monde.w || "", s:monde.s || "",
+             g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
   }
   var bits = [], i;
@@ -184,6 +184,7 @@ function mondeCourant(){
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
+           k:encodeChats(jeu.tueurChats),
            /* Le tableau des dégâts part dans l'instantané RETENU : c'est
               ce qui le fait survivre à la déconnexion de celui qui les a
               faits, et même à la déconnexion de tout le monde. */
@@ -276,6 +277,20 @@ function appliqueMondeAuJeu(m){
     tueCreatureLocale("tweety");
     change++;
   }
+  /* Les chats déclarés morts par l'instantané le restent, sans riposte :
+     l'instantané dit l'état du monde, pas l'instant du crime — rejouer
+     les rayons ici les rejouerait à chaque reconnexion. */
+  if(m.k){
+    var chm = decodeChats(m.k);
+    for(var ec = 0; ec < ESPECES_PROTEGEES.length; ec++){
+      var esc = ESPECES_PROTEGEES[ec];
+      if(chm[esc] && !jeu.tueurChats[esc]){
+        jeu.tueurChats[esc] = chm[esc];
+        tueCreatureLocale(esc);
+        change++;
+      }
+    }
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -323,7 +338,7 @@ function remetSalonAZero(){
      remise à zéro efface la guerre, pas le dessin. */
   tirageSalon = (tirageSalon | 0) + 1;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -496,6 +511,18 @@ function recoit(txt){
       signaleMonde();
       demandeMajBarres();
     }
+  }else if(m.t === "veng"){
+    /* Un chat de Mily est tombé chez quelqu'un d'autre : tout le salon
+       assiste à la riposte, et chaque client décide seul du sort de SES
+       troupes — les traînées ne s'arrêtent pas au coupable. */
+    if(jeu && !jeu.fin && (typeof m.c !== "number" || m.c === jeu.index) &&
+       ESPECES_PROTEGEES.indexOf(m.e) >= 0 && !jeu.tueurChats[m.e]){
+      jeu.tueurChats[m.e] = (m.nom || "?").substr(0, 14);
+      declencheVengeance(m.e, jeu.tueurChats[m.e]);
+      tueCreatureLocale(m.e);
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -597,6 +624,12 @@ function majReseau(dt){
    et il est aussi porté par l'instantané pour ceux qui arriveront après. */
 function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieTweety(){ envoie({ t:"tweety", nom:monNom, c:jeu ? jeu.index : 0 }); }
+/* La vengeance ne transporte AUCUNE coordonnée : chaque client vise
+   lui-même, au moment du tir, la troupe du coupable la plus proche du
+   chat. Le message dit qui, et quel chat — le reste se déduit. */
+function envoieVengeance(espece){
+  envoie({ t:"veng", nom:monNom, e:espece, c:jeu ? jeu.index : 0 });
+}
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 

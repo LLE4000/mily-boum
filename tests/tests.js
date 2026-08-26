@@ -28,6 +28,8 @@ try{
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
+    "faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
+    "encodeChats","decodeChats","fusionneChats","ESPECES_PROTEGEES",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
   ].join(",") + "};")();
@@ -229,7 +231,8 @@ G("4. Déterminisme de la génération de carte");
   ok("un plan vierge tient en " + N.NB_ZONES + " zones et s'encode en rien",
      zv.length === N.NB_ZONES && N.encodePlan(zv) === "");
   var zt = N.planVide();
-  zt[0] = 3 | (3 << 3); zt[100] = 5 | (1 << 3); zt[N.NB_ZONES - 1] = 7 | (2 << 3);
+  zt[0] = N.faitZone(3, 3, 0); zt[100] = N.faitZone(5, 1, 1);
+  zt[N.NB_ZONES - 1] = N.faitZone(8, 5, 0);
   var ch = N.encodePlan(zt), zr = N.decodePlan(ch);
   var identique = zr.length === N.NB_ZONES;
   for(var iz = 0; iz < N.NB_ZONES; iz++) if(zt[iz] !== zr[iz]) identique = false;
@@ -240,7 +243,7 @@ G("4. Déterminisme de la génération de carte");
 
   /* le plan agit vraiment : mêmes zones partout → un seul type */
   var zf = N.planVide();
-  for(var jz = 0; jz < N.NB_ZONES; jz++) zf[jz] = 3 | (3 << 3);   // frelon, saturé
+  for(var jz = 0; jz < N.NB_ZONES; jz++) zf[jz] = N.faitZone(3, 3, 0);   // frelon, saturé
   var cf = N.genereCarte("MILY", 0, N.encodePlan(zf), 0);
   /* Ni les cellules d'énergie, ni les cellules électriques, ni les
      miradors ne sont concernés par le plan : les deux premiers ne sont
@@ -272,22 +275,35 @@ G("4. Déterminisme de la génération de carte");
      jusqu'à l'autre bout. */
   (function(){
     var base = N.planVide();
-    base[2 * N.ZONES_L + 2] = 1 | (2 << 3);
+    base[2 * N.ZONES_L + 2] = N.faitZone(1, 2, 0);
     var cible = [], zx, zy;
     for(zx = 9; zx <= 11; zx++) for(zy = 6; zy <= 9; zy++) cible.push(zy * N.ZONES_L + zx);
     var noeud = function(b){ return N.zoneDePlan(Math.round(b.gx), Math.round(b.gy)); };
-    var hors = function(m){
+    /* Deux bâtiments CHERCHENT leur place au lieu de la tirer : la
+       cellule électrique prend le point libre le plus proche de son
+       idéal, le mirador renonce s'il tomberait dans une défense déjà
+       posée. Tous deux lisent donc c.batiments, et la gomme forte, qui
+       en retire, peut légitimement les faire bouger d'un cran au bord
+       de la zone effacée. C'est local et c'est voulu — mais ça n'a
+       rien à voir avec l'isolation du quadrillage, qui est ce que l'on
+       teste ici. On les met de côté pour la gomme, et pour elle seule. */
+    var hors = function(m, sansPlace){
       return m.batiments.filter(function(b){
-        return b.t !== "cellule" && cible.indexOf(noeud(b)) < 0;
+        if(b.t === "cellule") return false;
+        if(sansPlace && (b.t === "reacteur" || b.t === "mirador")) return false;
+        return cible.indexOf(noeud(b)) < 0;
       });
     };
     var A = N.genereCarte("MILY", 0, N.encodePlan(base), 0);
-    [["type", 3 | (2 << 3)], ["densité", 0 | (3 << 3)], ["type et densité", 5 | (1 << 3)]]
+    [["type", N.faitZone(3, 2, 0), 0], ["densité", N.faitZone(0, 3, 0), 0],
+     ["type et densité", N.faitZone(5, 1, 0), 0],
+     ["gomme forte", N.faitZone(8, 0, 0), 1],
+     ["semis de cellules", N.faitZone(1, 2, 1), 0]]
     .forEach(function(v){
       var mod = base.slice(), i;
       for(i = 0; i < cible.length; i++) mod[cible[i]] = v[1];
       var B = N.genereCarte("MILY", 0, N.encodePlan(mod), 0);
-      var ha = hors(A), hb = hors(B), pareil = ha.length === hb.length;
+      var ha = hors(A, v[2]), hb = hors(B, v[2]), pareil = ha.length === hb.length;
       if(pareil) for(i = 0; i < ha.length; i++){
         if(ha[i].t !== hb[i].t ||
            Math.abs(ha[i].gx - hb[i].gx) > 1e-12 || Math.abs(ha[i].gy - hb[i].gy) > 1e-12){
@@ -299,7 +315,7 @@ G("4. Déterminisme de la génération de carte");
     });
     /* et à l'intérieur, le type imposé s'applique bien à tous */
     var mod2 = base.slice();
-    for(var k = 0; k < cible.length; k++) mod2[cible[k]] = 3 | (3 << 3);
+    for(var k = 0; k < cible.length; k++) mod2[cible[k]] = N.faitZone(3, 3, 0);
     var C = N.genereCarte("MILY", 0, N.encodePlan(mod2), 0);
     var dedans = C.batiments.filter(function(b){
       return b.t !== "cellule" && b.t !== "reacteur" && b.t !== "mirador" &&
@@ -307,6 +323,102 @@ G("4. Déterminisme de la génération de carte");
     });
     ok("dans une zone peinte, tout est du type demandé (" + dedans.length + " bâtiments)",
        dedans.length > 0 && dedans.every(function(b){ return b.t === "frelon"; }));
+
+    /* LA GOMME FORTE : dans la zone, plus rien. Pas « moins de
+       défenses » — RIEN, cellules d'énergie et miradors compris. */
+    var modV = base.slice();
+    for(var kv = 0; kv < cible.length; kv++) modV[cible[kv]] = N.faitZone(8, 0, 0);
+    var V = N.genereCarte("MILY", 0, N.encodePlan(modV), 0);
+    /* Le plan décide par NŒUD du quadrillage, et un nœud pose son
+       bâtiment avec un peu de gigue : un nœud en x = 96, hors de la
+       zone effacée, peut déposer sa tourelle en 95,95, dedans. On
+       mesure donc le CŒUR de la zone gommée, rentré de 0,7 case —
+       plus que toute la gigue du générateur. Là, il ne doit rien
+       rester du tout. */
+    var coeur = function(b){
+      return b.t !== "reacteur" &&
+             b.gx >= 9 * N.PAS_ZONE + 0.7 && b.gx <= 12 * N.PAS_ZONE - 0.7 &&
+             b.gy >= 6 * N.PAS_ZONE + 0.7 && b.gy <= 10 * N.PAS_ZONE - 0.7;
+    };
+    var resteDedans = V.batiments.filter(coeur);
+    var avantDedans = A.batiments.filter(coeur);
+    ok("la gomme forte vide la zone (" + avantDedans.length + " → " + resteDedans.length + ")",
+       avantDedans.length > 20 && resteDedans.length === 0);
+
+    /* LE SEMIS DE CELLULES : il s'AJOUTE, il ne remplace pas. Les
+       défenses de la zone doivent être exactement les mêmes qu'avant. */
+    var modS = base.slice();
+    for(var ks = 0; ks < cible.length; ks++) modS[cible[ks]] = N.faitZone(0, 0, 1);
+    var S = N.genereCarte("MILY", 0, N.encodePlan(modS), 0);
+    var defAvant = A.batiments.filter(function(b){
+      return b.t !== "cellule" && cible.indexOf(noeud(b)) >= 0;
+    }).length;
+    var defApres = S.batiments.filter(function(b){
+      return b.t !== "cellule" && cible.indexOf(noeud(b)) >= 0;
+    }).length;
+    var celAvant = A.batiments.filter(function(b){
+      return b.t === "cellule" && cible.indexOf(noeud(b)) >= 0;
+    }).length;
+    var celApres = S.batiments.filter(function(b){
+      return b.t === "cellule" && cible.indexOf(noeud(b)) >= 0;
+    }).length;
+    ok("le semis de cellules ne touche pas aux défenses (" + defAvant + " = " + defApres + ")",
+       defAvant === defApres && defAvant > 0);
+    ok("et il sème vraiment (" + celAvant + " → " + celApres + " cellules)",
+       celApres > celAvant + 100);
+  })();
+
+  /* ---- LES DEUX FORMATS DE PLAN ----
+     Le v1 circule encore : des instantanés retenus par le courtier le
+     portent, et un salon en cours le rejouerait. Il doit se relire à
+     l'identique, sinon la carte de tout le monde change sous eux. */
+  (function(){
+    var v1 = N.planVide();
+    v1[0] = 3 | (3 << 3); v1[77] = 5 | (1 << 3); v1[N.NB_ZONES - 1] = 7 | (2 << 3);
+    /* on refabrique une chaîne v1 à la main : encodePlan n'en produit
+       plus, c'est justement ce qu'on vérifie */
+    var bits = [], i, k;
+    for(i = 0; i < N.NB_ZONES; i++){
+      var t = v1[i] & 7, d = (v1[i] >> 3) & 3;
+      for(k = 0; k < 3; k++) bits.push((t >> k) & 1);
+      for(k = 0; k < 2; k++) bits.push((d >> k) & 1);
+    }
+    var s1 = N.encodeBits(bits);
+    ok("une chaîne v1 ne porte pas la marque du v2", s1.charAt(0) !== N.MARQUE_PLAN2);
+    var lu = N.decodePlan(s1), bon = true;
+    for(i = 0; i < N.NB_ZONES; i++){
+      if(N.zoneType(lu[i]) !== (v1[i] & 7)) bon = false;
+      if(N.zoneDens(lu[i]) !== ((v1[i] >> 3) & 3)) bon = false;
+      if(N.zoneChamp(lu[i])) bon = false;
+    }
+    ok("un plan v1 se relit type pour type et densité pour densité", bon);
+    ok("le v2 se reconnaît à sa marque",
+       N.encodePlan(lu).charAt(0) === N.MARQUE_PLAN2);
+    ok("v1 et v2 décrivent la même carte",
+       N.empreinteCarte(N.genereCarte("MILY", 0, s1, 0)) ===
+       N.empreinteCarte(N.genereCarte("MILY", 0, N.encodePlan(lu), 0)));
+  })();
+
+  /* ---- LES DENSITÉS AU-DELÀ DE « SATURÉ » ---- */
+  (function(){
+    function nbDef(d){
+      var z = N.planVide(), i;
+      for(i = 0; i < N.NB_ZONES; i++) z[i] = N.faitZone(3, d, 0);
+      return N.genereCarte("MILY", 0, N.encodePlan(z), 0).batiments
+              .filter(function(b){ return b.t === "frelon"; }).length;
+    }
+    var sature = nbDef(3), cent = nbDef(4), surcharge = nbDef(5);
+    ok("« 100 % » remplit plus que « saturé » (" + sature + " → " + cent + ")",
+       cent > sature);
+    /* Le quadrillage intercalaire a moins de nœuds que le principal
+       (il commence plus loin du bord et s'écarte plus du Brasier) :
+       « surchargé » ajoute donc environ 70 %, pas 100. */
+    ok("« surchargé » ajoute tout l'entre-deux (" + cent + " → " + surcharge + ")",
+       surcharge > cent * 1.6);
+    ok("aucune densité ne dépasse les trois bits de l'encodage",
+       N.DENSITES.length <= 8);
+    ok("aucun type de plan ne dépasse les quatre bits de l'encodage",
+       N.TYPES_PLAN.length <= 16);
   })();
 
   ok("zoneDePlan reste dans la grille aux quatre coins",
@@ -587,6 +699,101 @@ G("4. Déterminisme de la génération de carte");
        égalité-là qui garantit qu'un salon en cours ne voit rien bouger. */
     ok("les " + restant.length + " bâtiments d'origine gardent leur indice",
        restant.every(function(x, k){ return x.n === k; }));
+  })();
+
+  G("5c. Les trois chats de Mily, et sa vengeance");
+  ok("trois espèces protégées, dans un ordre gravé",
+     N.ESPECES_PROTEGEES.length === 3 &&
+     N.ESPECES_PROTEGEES.join(",") === "chat,chaton,chatte");
+  ok("Gribouille, Croquette et Praline",
+     N.CRE.chat.nom === "Gribouille" && N.CRE.chaton.nom === "Croquette" &&
+     N.CRE.chatte.nom === "Praline");
+  ok("ils sont inoffensifs et ils fuient",
+     N.ESPECES_PROTEGEES.every(function(e){
+       var f = N.CRE[e];
+       return f.protege === 1 && f.fuit === 1 && f.degats === 0 && f.portee === 0;
+     }));
+  ok("et ils sont les SEULS protégés : rien d'autre ne déclenche les rayons",
+     Object.keys(N.CRE).filter(function(k){ return N.CRE[k].protege; }).length === 3);
+  (function(){
+    var manque = "", trop = "", pres = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var m = N.genereCarte("MILY", i);
+      N.ESPECES_PROTEGEES.forEach(function(e){
+        var l = m.creatures.filter(function(k){ return k.t === e; });
+        if(l.length > 1){ trop += "île" + i + " " + e + "×" + l.length + " "; return; }
+        if(!l.length){ manque += "île" + i + " " + e + " "; return; }
+        /* jamais au pied du Brasier : on doit tomber dessus en
+           avançant, pas en débarquant */
+        if(Math.hypot(l[0].gx - N.QG_GX, l[0].gy - N.QG_GY) < 16) pres += "île" + i + " " + e + " ";
+      });
+    }
+    ok("un chat, un chaton et une chatte sur chacune des cinq îles",
+       manque === "" && trop === "", manque + trop);
+    ok("aucun n'est collé au Brasier", pres === "", pres);
+  })();
+  /* LA PEINE. 90 % des PV, et surtout : JAMAIS la mort. Une barge
+     amputée revient, une barge effacée fait fermer l'onglet — et les
+     braises laissées derrière ne doivent pas achever ce que le rayon
+     a épargné. */
+  ok("la peine retire 90 % des PV", N.EQ.VENG_PERTE === 0.9);
+  (function(){
+    var pv = N.UNI.meuf.pv;
+    var reste = pv * (1 - N.EQ.VENG_PERTE);
+    ok("une Meuf frappée survit à " + Math.round(reste) + " PV", reste >= 5);
+    ok("et les braises lui laissent " + (reste / N.EQ.VENG_BRAISE_DPS).toFixed(1)
+       + " s pour dégager",
+       reste / N.EQ.VENG_BRAISE_DPS > 1.0,
+       reste + " PV contre " + N.EQ.VENG_BRAISE_DPS + " dégâts/s");
+  })();
+  ok("le message dure assez pour qu'on le lise et qu'on ait peur",
+     N.EQ.VENG_MESSAGE >= 3 && N.EQ.VENG_MESSAGE <= 5);
+  ok("les traînées courent sur plusieurs cases", N.EQ.VENG_TRAINEE >= 10);
+  ok("les deux rayons s'écartent assez pour qu'on en voie DEUX",
+     Math.sin(N.EQ.VENG_ECART) * N.EQ.VENG_TRAINEE * 2 > N.EQ.VENG_LARGEUR * 2,
+     "écart au bout : "
+     + (2 * Math.sin(N.EQ.VENG_ECART) * N.EQ.VENG_TRAINEE).toFixed(1) + " cases");
+
+  /* LES TROIS CASES DE L'INSTANTANÉ. Même contrat que Gégé : le
+     premier nom inscrit y reste, quel que soit l'ordre d'arrivée. */
+  ok("un instantané neuf n'accuse personne", N.mondeVide(0, 100, 0).k === "");
+  ok("trois cases vides s'encodent en rien",
+     N.encodeChats({ chat:"", chaton:"", chatte:"" }) === "");
+  (function(){
+    var s = N.encodeChats({ chat:"Roro", chaton:"", chatte:"Zoé" });
+    var r = N.decodeChats(s);
+    ok("aller-retour des trois cases (« " + s + " »)",
+       r.chat === "Roro" && r.chaton === "" && r.chatte === "Zoé");
+    ok("le séparateur est retiré des pseudos",
+       N.decodeChats(N.encodeChats({ chat:"a|b", chaton:"", chatte:"" })).chat === "ab");
+    var a1 = N.encodeChats({ chat:"Roro", chaton:"", chatte:"" });
+    var b1 = N.encodeChats({ chat:"Autre", chaton:"Zoé", chatte:"" });
+    /* Deux clients ont pu inscrire un nom DIFFÉRENT dans la même case
+       avant de se parler. La fusion doit alors trancher pareil dans
+       les deux sens, sinon les deux se republient l'instantané à
+       l'infini sans jamais tomber d'accord. */
+    ok("fusionner donne le même résultat dans les deux sens",
+       N.fusionneChats(a1, b1) === N.fusionneChats(b1, a1));
+    ok("une case remplie d'un seul côté garde son nom",
+       N.decodeChats(N.fusionneChats(a1, b1)).chaton === "Zoé");
+    ok("une case disputée est tranchée par le nom, pas par l'ordre",
+       N.decodeChats(N.fusionneChats(a1, b1)).chat === "Autre");
+    ok("fusionner est associatif",
+       N.fusionneChats(N.fusionneChats(a1, b1), s) ===
+       N.fusionneChats(a1, N.fusionneChats(b1, s)));
+    ok("fusionner deux fois ne change rien",
+       N.fusionneChats(N.fusionneChats(a1, b1), a1) === N.fusionneChats(a1, b1));
+    /* et le tout circule bien dans l'instantané du salon */
+    var m1 = { v:1, cy:0, c:0, pv:100, d:"", g:"", w:"", s:"", k:a1, p:"", pn:0, tg:0 };
+    var m2 = { v:1, cy:0, c:0, pv:100, d:"", g:"", w:"", s:"", k:b1, p:"", pn:0, tg:0 };
+    var f2 = N.fusionneMonde(m1, m2);
+    ok("l'instantané porte les trois cases",
+       N.decodeChats(f2.k).chat === "Autre" && N.decodeChats(f2.k).chaton === "Zoé");
+    ok("un chat tué compte dans la comparaison de deux mondes",
+       !N.memeMonde(m1, m2) && N.memeMonde(m1, m1));
+    ok("une nouvelle campagne rend les trois chats à la vie",
+       N.fusionneMonde(m1, { v:1, cy:1, c:0, pv:100, d:"", g:"", w:"", s:"", k:"",
+                             p:"", pn:0, tg:0 }).k === "");
   })();
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){

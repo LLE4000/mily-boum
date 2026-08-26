@@ -676,6 +676,13 @@ function majPodium(){
     h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
        + '</b> a tué Tweety</div>';
   }
+  /* et les trois chats de Mily, chacun avec son coupable */
+  for(var ec = 0; ec < ESPECES_PROTEGEES.length; ec++){
+    var esc = ESPECES_PROTEGEES[ec];
+    if(!jeu.tueurChats[esc]) continue;
+    h += '<div class="gg">🐈 <b>' + echappe(jeu.tueurChats[esc])
+       + '</b> a tué ' + CRE[esc].nom + '</div>';
+  }
   /* Qui est réellement entendu, là, maintenant. C'est la réponse à
      « pourquoi je ne vois que mon nom ? » : si le relais est tombé ou
      que l'autre appareil est sur un autre relais, ça se LIT ici au

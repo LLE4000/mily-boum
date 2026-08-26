@@ -28,8 +28,32 @@ var COUL_PLAN = {
 
 var planZones = null;        // le brouillon en cours d'édition
 var planPile = [];           // historique, pour « Annuler »
-var planOutil = 1;           // indice dans TYPES_PLAN (0 = gomme)
+var planOutil = 1;           // indice dans TYPES_PLAN (0 = pinceau neutre)
 var planDensite = 2;         // indice dans DENSITES
+/* Le pinceau à cellules n'est PAS un type : il pose sa couche par
+   -dessus les défenses. C'est un interrupteur à part, et quand il est
+   allumé le doigt ne peint plus que ça. */
+var planCellules = 0;
+
+/* ---------------------------------------------------------------
+   LE PLAN PAR DÉFAUT
+   Le plan du salon appartient à tout le monde et coûte un mot de
+   passe. Celui-ci n'appartient qu'à cet appareil : il ne part nulle
+   part, il attend simplement dans le navigateur et se retrouve au
+   prochain ouvrePlan(). C'est le brouillon qu'on reprend, pas la
+   carte qu'on impose.
+   --------------------------------------------------------------- */
+var CLE_PLAN_DEFAUT = "milyboum.plan";
+function planDefaut(){
+  try{ return localStorage.getItem(CLE_PLAN_DEFAUT) || ""; }catch(e){ return ""; }
+}
+function gardePlanDefaut(s){
+  try{
+    if(s) localStorage.setItem(CLE_PLAN_DEFAUT, s);
+    else localStorage.removeItem(CLE_PLAN_DEFAUT);
+    return true;
+  }catch(e){ return false; }
+}
 var planCv = null, planCtx = null;
 var planEch = 1, planOx = 0, planOy = 0;   // carte → pixels du canevas
 var planApercu = null;       // carte générée pour l'aperçu
@@ -40,7 +64,10 @@ var planDoigt = null;        // identifiant du doigt qui peint
    Ouverture / fermeture
    --------------------------------------------------------------- */
 function ouvrePlan(){
-  planZones = planSalon ? decodePlan(planSalon) : planVide();
+  /* Le plan du salon fait foi ; à défaut, le brouillon gardé sur cet
+     appareil ; à défaut, une carte vierge. */
+  var dep = planSalon || planDefaut();
+  planZones = dep ? decodePlan(dep) : planVide();
   planPile = [];
   planApercuSale = true;
   $("plan").classList.add("on");
@@ -57,15 +84,32 @@ function fermePlan(){
 /* ---------------------------------------------------------------
    Palette
    --------------------------------------------------------------- */
+/* Le nom d'un pinceau. Les deux extrêmes ne sont pas des défenses et
+   n'ont pas de fiche dans DEF : ils se nomment ici. */
+function nomOutilPlan(i){
+  var t = TYPES_PLAN[i];
+  if(i === 0) return "Neutre";
+  if(t === "vide") return "Gomme forte";
+  return DEF[t].nom;
+}
+function coulOutilPlan(i){
+  var t = TYPES_PLAN[i];
+  if(i === 0) return "#6c6478";
+  if(t === "vide") return "#e8465a";
+  return COUL_PLAN[t];
+}
+
 function construitPalettePlan(){
   var p = $("planPalette"), i, h = "";
   for(i = 0; i < TYPES_PLAN.length; i++){
-    var t = TYPES_PLAN[i];
-    var nom = i === 0 ? "Gomme" : DEF[t].nom;
-    var coul = i === 0 ? "#6c6478" : COUL_PLAN[t];
-    h += '<div class="pz' + (i === planOutil ? " on" : "") + '" data-outil="' + i + '">'
-       + '<i style="background:' + coul + '"></i>' + nom + '</div>';
+    h += '<div class="pz' + (i === planOutil && !planCellules ? " on" : "")
+       + '" data-outil="' + i + '">'
+       + '<i style="background:' + coulOutilPlan(i) + '"></i>' + nomOutilPlan(i) + '</div>';
   }
+  /* Le pinceau à cellules, à part : il ne remplace pas un type, il
+     ajoute une couche. On le montre donc à côté, pas dans la liste. */
+  h += '<div class="pz' + (planCellules ? " on" : "") + '" data-cell="1">'
+     + '<i style="background:' + COUL_PLAN.cellule + '"></i>Cellules</div>';
   p.innerHTML = h;
 
   var d = $("planDensites"), hd = "";
@@ -77,11 +121,18 @@ function construitPalettePlan(){
 }
 function choisitOutilPlan(i){
   planOutil = i | 0;
+  planCellules = 0;
+  construitPalettePlan();
+  majPanneauPlan();
+}
+function basculeCellulesPlan(){
+  planCellules = planCellules ? 0 : 1;
   construitPalettePlan();
   majPanneauPlan();
 }
 function choisitDensitePlan(i){
   planDensite = i | 0;
+  planCellules = 0;
   construitPalettePlan();
   majPanneauPlan();
 }
@@ -138,28 +189,53 @@ function dessinePlan(){
   /* les zones peintes, SOUS les bâtiments : on doit lire le résultat,
      pas seulement son intention */
   var i, zx, zy, z, t, d;
+  /* Une hachure par densité : plus la trame est serrée, plus la zone
+     est remplie. C'est le seul repère qui se lise d'un coup d'œil
+     quand les six densités se côtoient sur la même carte. */
+  var PAS_HACHURE = [0, 0.50, 0, 0.22, 0.15, 0.10];
   for(i = 0; i < NB_ZONES; i++){
     z = planZones[i]; if(!z) continue;
-    t = z & 7; d = (z >> 3) & 3;
+    t = zoneType(z); d = zoneDens(z);
     zx = (i % ZONES_L) * PAS_ZONE, zy = ((i / ZONES_L) | 0) * PAS_ZONE;
-    var coul = t ? COUL_PLAN[TYPES_PLAN[t]] : "#8f86a0";
-    c.fillStyle = coul + "33";
+    var coul = t ? coulOutilPlan(t) : "#8f86a0";
+    c.fillStyle = coul + (TYPES_PLAN[t] === "vide" ? "55" : "33");
     c.fillRect(ox + zx * e, oy + zy * e, PAS_ZONE * e, PAS_ZONE * e);
     c.strokeStyle = coul + "cc";
     c.lineWidth = Math.max(1, e * 0.16);
     c.strokeRect(ox + zx * e + 0.5, oy + zy * e + 0.5, PAS_ZONE * e - 1, PAS_ZONE * e - 1);
-    /* la densité se lit à des hachures : plus c'est serré, plus il y en a */
-    if(d && d !== 2){
+    if(PAS_HACHURE[d]){
       c.save();
       c.globalAlpha = 0.5; c.strokeStyle = coul;
       c.lineWidth = Math.max(0.8, e * 0.09);
-      var pas = (d === 1 ? PAS_ZONE * 0.5 : PAS_ZONE * 0.22) * e;
+      var pas = PAS_HACHURE[d] * PAS_ZONE * e;
       for(var k = pas; k < PAS_ZONE * e; k += pas){
         c.beginPath();
         c.moveTo(ox + zx * e + k, oy + zy * e);
         c.lineTo(ox + zx * e, oy + zy * e + k);
         c.stroke();
       }
+      c.restore();
+    }
+    /* la gomme forte se barre d'une croix : elle RETIRE, il ne faut
+       pas pouvoir la confondre avec un type de défense */
+    if(TYPES_PLAN[t] === "vide"){
+      c.save();
+      c.strokeStyle = coul; c.lineWidth = Math.max(1, e * 0.14);
+      c.beginPath();
+      c.moveTo(ox + zx * e + 2, oy + zy * e + 2);
+      c.lineTo(ox + (zx + PAS_ZONE) * e - 2, oy + (zy + PAS_ZONE) * e - 2);
+      c.moveTo(ox + (zx + PAS_ZONE) * e - 2, oy + zy * e + 2);
+      c.lineTo(ox + zx * e + 2, oy + (zy + PAS_ZONE) * e - 2);
+      c.stroke();
+      c.restore();
+    }
+    /* et le champ de cellules d'un liseré jaune à l'intérieur */
+    if(zoneChamp(z)){
+      c.save();
+      c.strokeStyle = COUL_PLAN.cellule; c.lineWidth = Math.max(1.2, e * 0.20);
+      c.setLineDash([e * 0.9, e * 0.7]);
+      c.strokeRect(ox + zx * e + e * 0.6, oy + zy * e + e * 0.6,
+                   PAS_ZONE * e - e * 1.2, PAS_ZONE * e - e * 1.2);
       c.restore();
     }
   }
@@ -209,9 +285,17 @@ function dessinePlan(){
 function peintZoneEn(sx, sy){
   var g = planVersCase(sx, sy);
   if(g.gx < 0 || g.gy < 0 || g.gx >= GW || g.gy >= GH) return false;
-  var i = zoneDePlan(g.gx, g.gy);
-  var v = planOutil ? (planOutil | (planDensite << 3)) : 0;
-  if(planZones[i] === v) return false;
+  var i = zoneDePlan(g.gx, g.gy), z = planZones[i], v;
+  if(planCellules){
+    /* le pinceau à cellules ne touche QUE son bit : les défenses de
+       la zone restent ce qu'elles étaient */
+    v = faitZone(zoneType(z), zoneDens(z), 1);
+  }else if(planOutil){
+    v = faitZone(planOutil, planDensite, zoneChamp(z));
+  }else{
+    v = 0;                                     // le pinceau neutre efface tout
+  }
+  if(z === v) return false;
   planZones[i] = v;
   planApercuSale = true;
   return true;
@@ -252,7 +336,9 @@ function installePlan(){
   window.addEventListener("mouseup", fin);
 
   $("planPalette").addEventListener("click", function(ev){
-    var e = ev.target.closest ? ev.target.closest("[data-outil]") : null;
+    if(!ev.target.closest) return;
+    if(ev.target.closest("[data-cell]")){ basculeCellulesPlan(); return; }
+    var e = ev.target.closest("[data-outil]");
     if(e) choisitOutilPlan(+e.getAttribute("data-outil"));
   });
   $("planDensites").addEventListener("click", function(ev){
@@ -273,6 +359,31 @@ function installePlan(){
     planApercuSale = true;
     dessinePlan(); majPanneauPlan();
   });
+  /* Garder par défaut : rien ne part sur le réseau, rien ne change
+     pour le salon. Le brouillon attend simplement dans ce navigateur
+     et se retrouve à la prochaine ouverture de l'éditeur. */
+  $("btPlanDefaut").addEventListener("click", function(){
+    var ch = encodePlan(planZones);
+    if(!ch){
+      alert("Rien à garder : la carte est vierge.\n\n"
+          + "Peins au moins une zone, puis réessaie.");
+      return;
+    }
+    if(!gardePlanDefaut(ch)){
+      alert("Impossible d'écrire dans ce navigateur (mode privé ?).");
+      return;
+    }
+    alert("Plan gardé comme brouillon par défaut sur cet appareil.\n\n"
+        + "Il te sera proposé à chaque ouverture de l'éditeur, tant que le\n"
+        + "salon n'a pas son propre plan. Ça ne change RIEN pour les autres\n"
+        + "joueurs — pour ça, il faut « Valider pour tout le salon ».");
+  });
+  $("btPlanOubli").addEventListener("click", function(){
+    if(!planDefaut()){ alert("Aucun plan par défaut gardé sur cet appareil."); return; }
+    if(!confirm("Oublier le plan par défaut de cet appareil ?")) return;
+    gardePlanDefaut("");
+    alert("Oublié.");
+  });
   $("btPlanValide").addEventListener("click", validePlan);
   window.addEventListener("resize", function(){
     if($("plan").classList.contains("on")){ ajustePlanCv(); dessinePlan(); }
@@ -283,13 +394,13 @@ function installePlan(){
    Le compte rendu, et la validation
    --------------------------------------------------------------- */
 function comptePlan(){
-  var m = apercuPlan(), par = {}, i, n = 0;
+  var m = apercuPlan(), par = {}, i, n = 0, cel = 0;
   for(i = 0; i < m.batiments.length; i++){
     var t = m.batiments[i].t;
-    if(t === "cellule") continue;
+    if(t === "cellule"){ cel++; continue; }
     par[t] = (par[t] || 0) + 1; n++;
   }
-  return { par:par, total:n, peintes:zonesPeintes(planZones) };
+  return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones) };
 }
 /* La fiche d'une défense, telle qu'on la lit avant de la poser :
    ce qu'elle est, puis les seuls chiffres qui changent une décision —
@@ -323,17 +434,28 @@ function majPanneauPlan(){
   $("planCompte").innerHTML =
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
-    + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ");
-  $("planInfo").innerHTML = planOutil
-    ? "<b>" + DEF[TYPES_PLAN[planOutil]].nom + "</b> — " + DENSITES[planDensite].nom
-      + "<br>" + ficheDefense(TYPES_PLAN[planOutil])
-    : "<b>Gomme</b><br>La zone repasse en défenses d'origine, "
-      + "celles que la génération aurait posées toute seule.";
+    + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
+    + "<b>" + c.cellules + "</b> cellules à récolter";
+
+  var outil = TYPES_PLAN[planOutil];
+  $("planInfo").innerHTML = planCellules
+    ? "<b>Cellules</b><br>Sème un champ de cellules énergétiques PAR-DESSUS "
+      + "ce que la zone contient déjà. Les défenses restent en place : "
+      + "c'est de la récolte sous le feu."
+    : outil === "vide"
+      ? "<b>Gomme forte</b><br>Plus rien ne pousse ici : ni défense, "
+        + "ni renfort, ni mirador, ni champ de cellules. Terrain nu."
+    : planOutil
+      ? "<b>" + DEF[outil].nom + "</b> — " + DENSITES[planDensite].nom
+        + "<br>" + ficheDefense(outil)
+      : "<b>Pinceau neutre</b><br>La zone repasse en défenses d'origine, "
+        + "celles que la génération aurait posées toute seule.";
 
   /* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
      de la rendre infernale. On lui dit seulement ce qu'il fait. */
   var a = "";
-  if(c.total > 900) a = "Carte très chargée : ça va ramer sur téléphone.";
+  if(c.total + c.cellules > 2200) a = "Carte énorme : ça ramera sur téléphone.";
+  else if(c.total > 900) a = "Carte très chargée : ça va ramer sur téléphone.";
   else if(c.total < 120) a = "Très peu de défenses : la partie sera courte.";
   $("planAvert").textContent = a;
 }
@@ -379,11 +501,12 @@ function rafraichitPlan(){
   }
   var z = decodePlan(planSalon), n = zonesPeintes(z), par = {}, i;
   for(i = 0; i < NB_ZONES; i++){
-    var t = z[i] & 7;
+    var t = zoneType(z[i]);
     if(t) par[TYPES_PLAN[t]] = (par[TYPES_PLAN[t]] || 0) + 1;
+    if(zoneChamp(z[i])) par.cellule = (par.cellule || 0) + 1;
   }
   var s = [];
-  for(var k in par) s.push(DEF[k].nom);
+  for(var k in par) s.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
   e.textContent = n + " zone" + (n > 1 ? "s" : "") + " peinte" + (n > 1 ? "s" : "")
     + " sur " + NB_ZONES + " — " + (s.length ? s.join(", ") : "gommées")
     + ". Tirage n°" + tirageSalon + ".";

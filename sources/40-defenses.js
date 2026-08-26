@@ -1009,17 +1009,18 @@ SOCLES.bobine = function(c){
 /* ================================================================
    LE MIRADOR — tour de guet, et le tireur d'élite qui l'habite.
 
-   Il y en a une centaine par île. La silhouette doit donc se lire à
+   Il y en a des dizaines par île. La silhouette doit donc se lire à
    la vitesse d'un coup d'œil et ne ressembler à AUCUNE des cinq
    autres défenses. Tout est construit à leur contre-pied :
      — elles sont assises sur un octogone de béton coulé ; lui est
        planté sur quatre plots et de la terre battue ;
      — elles sont grises, olive et acier ; il est en BOIS ;
-     — elles sont larges et basses (126 à 160 px de large pour 57 à
-       91 de haut) ; il est étroit et haut : 74 de large, 122 de haut ;
+     — elles sont larges et basses (de 119 à 161 px de large pour 57 à
+       109 de haut) ; il est l'inverse : le plus ÉTROIT des six, 106,
+       et le plus HAUT, 124 ;
      — elles portent une machine ; il porte un HOMME.
-   Et il reste quarante pixels sous la cellule électrique, qui demeure
-   la chose la plus haute de l'île après le QG.
+   Et il reste trente-huit pixels sous la cellule électrique, qui
+   demeure la chose la plus haute de l'île après le QG.
 
    DEUX REPÈRES ANGULAIRES, ET C'EST VOULU.
    Les quatre PIEDS sont aux diagonales du monde, comme tout le reste
@@ -1034,12 +1035,15 @@ SOCLES.bobine = function(c){
    ================================================================ */
 var MIR_ZPONT  = 72;      // dessus du plancher
 var MIR_ZTOIT  = 108;     // dessous de l'avant-toit
-var MIR_ZFAITE = 122;     // pointe du toit
+var MIR_ZFAITE = 119;     // plan du chapeau de faîtage (le point le
+                          // plus haut de la tour est le bord ARRIÈRE de ce
+                          // chapeau, à 124 : un octogone posé à plat monte
+                          // encore de RY×rayon au-dessus de son plan)
 var MIR_RSOL   = 1.00;    // écartement des pieds au sol
 var MIR_RCOL   = 0.42;    // et juste sous le plancher
 var MIR_RPONT  = 0.74;    // rayon du plancher octogonal
 var MIR_RPOT   = 0.66;    // les quatre poteaux de la cabane
-var MIR_RTOIT  = 0.80;    // débord du toit
+var MIR_RTOIT  = 0.78;    // débord du toit
 var MIR_ETAGES = [1, 25, 47, 67];        // les trois étages de croisillons
 var MIR_ZMUR   = 96;                     // haut de la cloison arrière
 
@@ -1263,12 +1267,17 @@ SOCLES.mirador = function(c){
   for(i = 0; i < 13; i++){
     a = i / 13 * 6.2832 + 0.24;
     var rs = 0.55 + alS() * 0.05;
-    listeS.push({ x:Math.cos(a) * rs, y:Math.sin(a) * rs, s:0.78 + alS() * 0.30, t:alS() });
+    var sx = Math.cos(a) * rs, sy = Math.sin(a) * rs;
+    var ss = 0.78 + alS() * 0.30, st = alS();
+    /* rien à l'arrière : la cloison est déjà là, et un sac de plus
+       derrière le tireur ne serait qu'une tache de plus */
+    if(sx + sy < -0.24) continue;
+    listeS.push({ x:sx, y:sy, s:ss, t:st });
   }
   listeS.sort(function(u, v){ return (u.x + u.y) - (v.x + v.y); });
   for(i = 0; i < listeS.length; i++){
     sc = listeS[i];
-    fS = faces(sc.t > 0.5 ? "#8d8054" : "#71653f");
+    fS = faces(sc.t > 0.5 ? "#82764c" : "#6a5f3a");
     boite(c, sc.x, sc.y, 0.30 * sc.s, 0.21 * sc.s, MIR_ZPONT, 5.6 * sc.s,
           fS.t, fS.g, fS.d, true);
     q = iso(sc.x, sc.y);
@@ -1281,15 +1290,25 @@ SOCLES.mirador = function(c){
 
   poteau(0, 1); poteau(1, 1);
 
-  /* garde-corps sur les deux faces ouvertes, entre poteaux voisins */
-  function lisse(k1, k2, z, ep, coul){
-    var A = mirPoteau(k1, MIR_ZPONT + z), B = mirPoteau(k2, MIR_ZPONT + z);
-    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
-    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  /* Garde-corps de la face ouverte seulement. Les deux faces
+     latérales sont vues par la tranche : une lisse y serait un
+     segment vertical de trois pixels, c'est-à-dire un deuxième poteau
+     dessiné par-dessus le premier. On les remplace par les aisseliers
+     de tête, qui eux se voient sous tous les angles. */
+  var A0 = mirPoteau(0, MIR_ZPONT + 15), B0 = mirPoteau(1, MIR_ZPONT + 15);
+  c.lineCap = "butt";
+  c.strokeStyle = MIR_BOISO; c.lineWidth = 2.8;
+  c.beginPath(); c.moveTo(A0.x, A0.y); c.lineTo(B0.x, B0.y); c.stroke();
+  c.strokeStyle = "#7a5f3a"; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(A0.x, A0.y - 1); c.lineTo(B0.x, B0.y - 1); c.stroke();
+  for(k = 0; k < 4; k++){
+    var P1 = mirPoteau(k, MIR_ZTOIT - 11), P2 = mirPoteau(k, MIR_ZTOIT - 4);
+    var dg = P1.x > 0 ? -7 : 7;
+    c.strokeStyle = MIR_BOISO; c.lineWidth = 2.6;
+    c.beginPath(); c.moveTo(P1.x, P1.y); c.lineTo(P2.x + dg, P2.y); c.stroke();
+    c.strokeStyle = k < 2 ? "#6d5533" : "#463620"; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(P1.x, P1.y - 0.6); c.lineTo(P2.x + dg, P2.y - 0.6); c.stroke();
   }
-  lisse(1, 2, 15, 2.8, MIR_BOISO); lisse(1, 2, 14, 1.4, "#6d5533");
-  lisse(3, 0, 15, 2.8, MIR_BOISO); lisse(3, 0, 14, 1.4, "#7a5f3a");
-  lisse(0, 1, 15, 2.6, MIR_BOISO); lisse(0, 1, 14, 1.3, "#7a5f3a");
 
   /* ---- CE QUI TRAÎNE SUR LE PLANCHER ---- */
   /* caisse de munitions, contre la cloison */
@@ -1315,18 +1334,21 @@ SOCLES.mirador = function(c){
   /* ---- LA CHARPENTE DU TOIT ---- */
   prisme(c, 0, 0, MIR_RPOT * 1.06, 8, 0, MIR_ZTOIT - 4, 4, "#544026", "#2c2115");
 
-  /* ---- LE TOIT : huit pans de tôle ondulée ----
-     Piège évité de justesse : un cône octogonal à faible pente, sans
-     tranche visible et avec le centre plus clair que les bords, ne
-     donne pas un toit — il donne un PARASOL. Trois choses le
-     rattrapent : une pente franche (quatorze pixels de flèche), un
-     écart de valeur brutal d'un pan à l'autre, et surtout une tranche
-     de tôle bien noire sur tout le pourtour visible, qui rend son
-     épaisseur au matériau. */
+  /* ---- LE TOIT : huit pans de tôle sur une charpente tronquée ----
+     Le premier jet était un cône octogonal pointu : vingt-quatre
+     lignes convergeant vers une pointe unique, c'est-à-dire un
+     PARASOL, et rien d'autre. Trois corrections, et il redevient un
+     toit de tôle : la pointe est TRONQUÉE par un petit chapeau
+     octogonal — un toit a une faîtière, un parapluie a une pointe ;
+     les ondes de la tôle courent PARALLÈLEMENT à l'égout et non dans
+     la pente, ce qui casse l'étoile ; et l'écart de valeur d'un pan
+     à l'autre est franc, pour qu'on lise huit plans pliés plutôt
+     qu'une coupole lisse. */
+  var RCHAP = 0.26;                          // le chapeau de faîtage
   var LUM_PAN = [];
   for(i = 0; i < 8; i++){
     var am = (i + 0.5) * 0.7854;
-    LUM_PAN[i] = 0.80 + 0.52 * (-0.60 * Math.cos(am) - 0.80 * Math.sin(am));
+    LUM_PAN[i] = 0.96 + 0.34 * (-0.60 * Math.cos(am) - 0.80 * Math.sin(am));
   }
   /* la tranche d'abord : elle déborde sous les pans et fait l'ombre */
   c.fillStyle = "#2a251f";
@@ -1343,39 +1365,46 @@ SOCLES.mirador = function(c){
   for(i = 0; i < 8; i++){
     s1 = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
     s2 = mirSommet(i + 1, MIR_RTOIT, MIR_ZTOIT);
+    var h1 = mirSommet(i, RCHAP, MIR_ZFAITE);
+    var h2 = mirSommet(i + 1, RCHAP, MIR_ZFAITE);
     c.fillStyle = ecl(MIR_TOLE, LUM_PAN[i]);
     c.beginPath();
-    c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.lineTo(s2.x, s2.y);
+    c.moveTo(h1.x, h1.y); c.lineTo(h2.x, h2.y);
+    c.lineTo(s2.x, s2.y); c.lineTo(s1.x, s1.y);
     c.closePath(); c.fill();
-    /* les ondes de la tôle : deux nervures par pan, dans la pente */
-    c.strokeStyle = "rgba(28,24,20,.30)"; c.lineWidth = 0.9;
-    c.beginPath();
-    c.moveTo(0, -MIR_ZFAITE);
-    c.lineTo(s1.x * 0.66 + s2.x * 0.34, s1.y * 0.66 + s2.y * 0.34);
-    c.moveTo(0, -MIR_ZFAITE);
-    c.lineTo(s1.x * 0.34 + s2.x * 0.66, s1.y * 0.34 + s2.y * 0.66);
-    c.stroke();
+    /* deux ondes parallèles à l'égout */
+    c.strokeStyle = "rgba(28,24,20,.26)"; c.lineWidth = 0.9;
+    for(k = 1; k <= 2; k++){
+      var u = k * 0.31;
+      c.beginPath();
+      c.moveTo(s1.x + (h1.x - s1.x) * u, s1.y + (h1.y - s1.y) * u);
+      c.lineTo(s2.x + (h2.x - s2.x) * u, s2.y + (h2.y - s2.y) * u);
+      c.stroke();
+    }
     /* l'arêtier, sombre côté ombre, clair côté lumière */
-    c.strokeStyle = LUM_PAN[i] > 1 ? "rgba(255,246,225,.34)" : "rgba(26,22,18,.5)";
-    c.lineWidth = 1.1;
-    c.beginPath(); c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.stroke();
+    c.strokeStyle = LUM_PAN[i] > 1 ? "rgba(255,246,225,.30)" : "rgba(26,22,18,.45)";
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(h1.x, h1.y); c.lineTo(s1.x, s1.y); c.stroke();
   }
   /* rouille : la tôle a vingt ans */
-  c.save(); c.globalAlpha = 0.30; c.fillStyle = MIR_ROUIL;
-  c.beginPath(); c.ellipse(-10, -MIR_ZTOIT - 6, 6, 3.0, -0.3, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(8, -MIR_ZTOIT - 8, 4.4, 2.4, 0.4, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(1, -MIR_ZTOIT + 4, 5, 1.9, 0, 0, 6.2832); c.fill();
+  c.save(); c.globalAlpha = 0.26; c.fillStyle = MIR_ROUIL;
+  c.beginPath(); c.ellipse(-11, -MIR_ZTOIT - 5, 5, 2.6, -0.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(9, -MIR_ZTOIT - 7, 4, 2.2, 0.4, 0, 6.2832); c.fill();
   c.restore();
-  /* faîtière : un capuchon de tôle, pas une boule */
-  c.fillStyle = "#4a443d";
+  /* le chapeau de faîtage */
+  c.fillStyle = ecl(MIR_TOLE, 1.16);
   c.beginPath();
-  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
-  c.lineTo(5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE + 4);
+  for(i = 0; i < 8; i++){
+    q = mirSommet(i, RCHAP, MIR_ZFAITE);
+    if(i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+  }
   c.closePath(); c.fill();
+  c.strokeStyle = "rgba(26,22,18,.5)"; c.lineWidth = 1; c.stroke();
   c.fillStyle = "rgba(255,246,225,.26)";
   c.beginPath();
-  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
-  c.lineTo(0, -MIR_ZFAITE + 0.2); c.lineTo(-4.4, -MIR_ZFAITE + 3);
+  c.moveTo(mirSommet(3, RCHAP, MIR_ZFAITE).x, mirSommet(3, RCHAP, MIR_ZFAITE).y);
+  c.lineTo(mirSommet(5, RCHAP, MIR_ZFAITE).x, mirSommet(5, RCHAP, MIR_ZFAITE).y);
+  c.lineTo(mirSommet(6, RCHAP, MIR_ZFAITE).x, mirSommet(6, RCHAP, MIR_ZFAITE).y);
   c.closePath(); c.fill();
 
   /* ---- LA POTENCE ET SON PALAN ----
@@ -2787,6 +2816,303 @@ TOURELLES.bobine = function(c, b, ang, tps){
     lueurRapide(c, cx, cy, 26 + fl * 14, "#ffffff", fl * 0.6);
     lueurRapide(c, cx, cy, 58, "#7de6ff", fl * 0.4);
     lueurRapide(c, p.x, p.y - 40, 20, "#7de6ff", fl * 0.3);
+  }
+};
+
+/* ================================================================
+   MIRADOR — la couche vivante : L'HOMME.
+
+   Tout le reste de la tour est peint une fois pour toutes dans le
+   sprite. Ici il n'y a qu'un bonhomme de quinze pixels, et c'est lui
+   qui porte la défense : c'est lui qui tourne, lui qui tire, lui
+   qu'on regarde. Trois règles pour qu'il tienne debout :
+
+   1. AUCUNE PIÈCE PLATE. Une silhouette découpée dans le plan
+      (avant, hauteur) disparaîtrait dès qu'il viserait la caméra —
+      le plan serait vu par la tranche. Tout est donc en petits blocs
+      à trois faces (bout, flanc proche, dessus), comme le bloc du
+      Frelon : quel que soit l'angle, il reste de la matière.
+   2. LE CANON EST LE CADRAN. À un demi-zoom l'homme fait sept pixels
+      et sa pose ne dit plus rien ; le long tube, lui, reste un trait
+      de vingt pixels qui montre où la tour regarde.
+   3. L'AVANT-TOIT COUPE. Le toit est peint AVANT le tireur : un
+      canon pointé vers le fond passerait par-dessus les tôles alors
+      qu'il passe dessous. On découpe donc toute la couche vivante
+      sous la ligne d'avant-toit. Seule la LUMIÈRE du départ est
+      peinte hors du découpage : une lueur, ça déborde.
+   ================================================================ */
+/* Sa palette est celle d'un homme qui doit se lire en sept pixels :
+   une tenue SOMBRE, presque noire, pour que la silhouette tienne sur
+   les planches claires et les sacs de sable — et un casque CLAIR, la
+   seule tache pâle de tout le personnage. C'est le casque qu'on voit
+   d'abord, donc la tête, donc l'homme. */
+var MIR_H = {
+  tenue:"#3b4331", tenueC:"#4d5741", tenueO:"#1c2216",
+  casque:"#6f7554", casqueC:"#949a72",
+  peau:"#c39a6c", peauO:"#8a684a",
+  arme:"#2b2b30", armeC:"#5c5c66", armeO:"#131316"
+};
+
+TOURELLES.mirador = function(c, b, ang, tps){
+  var d = vecteurEcran(ang);
+  var dp = vecteurEcran(ang + 1.5708);   // le travers, dans le repère du MONDE
+  var sg = dp.y >= 0 ? 1 : -1;           // le flanc de l'homme tourné vers nous
+  var av = d.y >= 0;                     // vise-t-il vers le bas de l'écran ?
+  var fl = b.flash || 0, rec = b.recul || 0;
+  var dep = (b.n || 0) * 1.37;           // déphasage : cent tours, cent respirations
+  var fr = (b.pv || 0) / (b.pvMax || 1);
+  if(!(fr > 0)) fr = 0; else if(fr > 1) fr = 1;
+  var i, q;
+
+  /* Il est posté un poil en arrière du centre : les sacs restent
+     devant lui, et la trappe reste dégagée derrière. */
+  var ox = 0, oy = -MIR_ZPONT - 1.6;
+
+  /* Respiration, tassement, tremblement. Une tour de bois n'a pas de
+     tôle à noircir : c'est l'HOMME qui montre les dégâts. À mesure
+     que la tour encaisse, il souffle plus vite, il rentre la tête
+     dans les épaules, et sous 45 % il tremble — trois choses
+     gratuites qui disent « celui-là ne tiendra plus longtemps ». */
+  var resp = Math.sin(tps * (1.15 + (1 - fr) * 2.6) + dep) * 0.42;
+  var bas = (1 - fr) * 2.4;
+  if(fr < 0.45) ox += Math.sin(tps * 23 + dep) * (0.45 - fr) * 2.4;
+
+  /* LE RACCOURCI, seul endroit du jeu où l'on se sert du « l » que
+     vecteurEcran calcule depuis toujours sans que personne l'utilise.
+     Les autres tourelles ont des canons courts et épais : une longueur
+     constante ne s'y voit pas. Ici le fusil fait vingt-six pixels de
+     long pour deux de large — visé droit sur la caméra, il devenait
+     une perche plantée à travers le plancher. On l'écrase donc dans
+     l'axe de tir, en racine carrée du raccourci réel : la moitié du
+     raccourci isométrique, assez pour qu'on lise « il vise vers nous »,
+     pas assez pour que l'arme disparaisse. */
+  var fo = Math.sqrt(d.l / RX), fp = Math.sqrt(dp.l / RX);
+  var ax = d.x * fo, ay = d.y * fo, bx = dp.x * fp, by = dp.y * fp;
+
+  function P(t, s, h){
+    return { x:ox + ax * t + bx * s, y:oy + ay * t + by * s - h };
+  }
+  function quad(pts, coul){
+    var k, w;
+    c.beginPath();
+    for(k = 0; k < 4; k++){
+      w = P(pts[k][0], pts[k][1], pts[k][2]);
+      if(k === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.closePath();
+    c.fillStyle = coul; c.fill();
+  }
+  /* Un bloc : face de bout, flanc proche, dessus. Jamais dégénéré. */
+  function bloc(t0, t1, w, h0, h1, cT, cC, cB){
+    var tb = av ? t1 : t0, sw = sg * w;
+    quad([[tb, -w, h0], [tb, w, h0], [tb, w, h1], [tb, -w, h1]], cB);
+    quad([[t0, sw, h0], [t1, sw, h0], [t1, sw, h1], [t0, sw, h1]], cC);
+    quad([[t0, -w, h1], [t1, -w, h1], [t1, w, h1], [t0, w, h1]], cT);
+  }
+
+  /* ---- LE DÉCOUPAGE SOUS L'AVANT-TOIT ----
+     Il ne sert QUE lorsque le canon monte assez haut pour aller
+     chercher les tôles, c'est-à-dire quand il vise le fond de
+     l'écran. Le reste du temps — près des trois quarts de la rose
+     des vents — le masque coûterait un tracé et un remplissage de
+     masque pour rien, cent fois par image. */
+  var coupe = d.y < -0.52;
+  if(coupe){
+    c.save();
+    c.beginPath();
+    q = mirSommet(0, MIR_RTOIT, MIR_ZTOIT);
+    c.moveTo(200, q.y); c.lineTo(q.x, q.y);
+    for(i = 1; i <= 4; i++){
+      q = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
+      c.lineTo(q.x, q.y);
+    }
+    c.lineTo(-200, q.y); c.lineTo(-200, 200); c.lineTo(200, 200);
+    c.closePath(); c.clip();
+  }
+
+  /* ---- son ombre sur les planches ---- */
+  c.fillStyle = "rgba(28,20,12,.30)";
+  c.beginPath();
+  q = P(-1, 0, 0);
+  c.ellipse(q.x, q.y, 9, 4.2, 0, 0, 6.2832);
+  c.fill();
+
+  /* ---- LE CORPS, agenouillé, penché dans la crosse ---- */
+  /* jambes repliées, genou avant compris */
+  bloc(-8.5, 3.6, 4.0, 0, 4.6 - bas, MIR_H.tenue, MIR_H.tenueO, MIR_H.tenueO);
+  /* buste */
+  bloc(-5.5, 2.2, 3.5, 4.2 - bas, 10.6 - bas + resp,
+       MIR_H.tenueC, MIR_H.tenue, MIR_H.tenueO);
+  /* le ceinturon : sans cette ligne sombre en travers, le buste et
+     les jambes ne font qu'une seule masse verte */
+  quad([[-5.5, -3.6, 5.4 - bas], [2.2, -3.6, 5.4 - bas],
+        [2.2, 3.6, 5.4 - bas], [-5.5, 3.6, 5.4 - bas]], "rgba(20,24,14,.55)");
+  /* paquetage dans le dos */
+  bloc(-6.2, -3.4, 2.4, 6.2 - bas, 9.2 - bas + resp, "#333a2a", "#1c2216", "#262c1d");
+  /* épaules */
+  bloc(-3.4, 1.6, 4.1, 10.2 - bas + resp, 11.8 - bas + resp,
+       MIR_H.tenueC, MIR_H.tenue, MIR_H.tenue);
+
+  /* ---- LE FUSIL ----
+     Repère propre : hauteur du canon = hr(t). Le recul le fait
+     GLISSER dans l'épaule et PIQUER du nez ; les deux ensemble, sans
+     quoi le coup ne se voit pas. */
+  var tR = -rec * 3.6;
+  /* une arme au repos ne tient pas l'horizontale parfaite : elle pique
+     déjà un peu du nez sur son bipied. Le recul ajoute le sien. */
+  var pente = -0.055 - rec * 0.115;
+  var hA = 9.4 - bas + resp;
+  function hr(t){ return hA + pente * (t + 7); }
+  function blocArme(a0, a1, w, e0, e1, cT, cC, cB){
+    var t0 = a0 + tR, t1 = a1 + tR;
+    var y0 = hr(a0), y1 = hr(a1);
+    var tb = av ? t1 : t0, yb = av ? y1 : y0, sw = sg * w;
+    quad([[tb, -w, yb + e0], [tb, w, yb + e0], [tb, w, yb + e1], [tb, -w, yb + e1]], cB);
+    quad([[t0, sw, y0 + e0], [t1, sw, y1 + e0], [t1, sw, y1 + e1], [t0, sw, y0 + e1]], cC);
+    quad([[t0, -w, y0 + e1], [t1, -w, y1 + e1], [t1, w, y1 + e1], [t0, w, y0 + e1]], cT);
+  }
+  /* Deux traits pour les pièces MINCES. Un canon de deux pixels de
+     large dessiné en bloc, ce sont trois remplissages dont deux se
+     recouvrent au pixel près : à cent tours à l'écran, autant le
+     tracer. Les pièces épaisses — crosse et boîtier — restent en
+     blocs, ce sont elles qui donnent la masse. */
+  function trait(a0, a1, e, ep, coul){
+    var A = P(a0 + tR, 0, hr(a0) + e), B = P(a1 + tR, 0, hr(a1) + e);
+    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  }
+  /* crosse et boîtier en volume */
+  blocArme(-6.6, -2.4, 1.4, -1.8, 0.8, "#4a3a28", "#2e2418", "#2e2418");
+  blocArme(-2.8, 3.6, 1.4, -1.4, 1.2, MIR_H.armeC, MIR_H.arme, MIR_H.armeO);
+  /* chargeur */
+  trait(1.4, 3.0, -2.6, 3.0, MIR_H.armeO);
+  /* canon, arête éclairée, frein de bouche */
+  trait(3.4, 18.0, 0, 1.7, MIR_H.arme);
+  trait(3.4, 18.0, 0.6, 0.7, MIR_H.armeC);
+  trait(17.6, 20.0, 0, 3.2, "#43434a");
+  trait(17.6, 19.4, 0.9, 1.0, "#75757f");
+  q = P(20 + tR, 0, hr(20));
+  c.fillStyle = "#0c0c0e";
+  c.beginPath(); c.arc(q.x, q.y, 1.1, 0, 6.2832); c.fill();
+  /* lunette, posée haut sur le boîtier */
+  trait(-0.8, 5.4, 2.3, 2.6, MIR_H.armeO);
+  trait(-0.8, 5.4, 3.0, 0.9, MIR_H.armeC);
+  /* La lentille est à l'AVANT de la lunette quand il vise vers nous, à
+     l'ARRIÈRE quand il vise le fond. Sauter de l'une à l'autre d'une
+     image sur l'autre ferait clignoter un point bleu ; on la fait donc
+     disparaître au passage, exactement là où la lunette est vue par
+     la tranche et où l'on ne verrait de toute façon aucun verre. */
+  var vu = Math.abs(d.y) * 3;
+  if(vu > 0.05){
+    if(vu > 1) vu = 1;
+    q = P((av ? 5.4 : -0.8) + tR, 0, hr(av ? 5.4 : -0.8) + 2.3);
+    c.fillStyle = "rgba(140,206,240," + (0.7 * vu).toFixed(2) + ")";
+    c.beginPath(); c.arc(q.x, q.y, 0.85, 0, 6.2832); c.fill();
+  }
+
+  /* bipied planté sur les planches */
+  c.strokeStyle = MIR_H.armeO; c.lineWidth = 1.2; c.lineCap = "round";
+  for(i = 0; i < 2; i++){
+    var s2 = i ? 2.2 : -2.2;
+    var A = P(12.6 + tR, 0, hr(12.6) - 0.7), B = P(14, s2, 0);
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  }
+
+  /* ---- LES BRAS ----
+     Le bras éloigné d'abord, sombre ; le proche par-dessus, clair.
+     La main avant tient le devant du fût, la main arrière la
+     poignée : deux points d'ancrage, et la pose se lit. */
+  c.lineCap = "round";
+  for(i = 0; i < 2; i++){
+    var cote = i ? sg : -sg;
+    var tm = (cote === sg) ? 6.6 : 1.4;
+    var E = P(-1.8, cote * 3.2, 9.8 - bas + resp);
+    var M = P(tm + tR, cote * 1.9, hr(tm) - 1.4);
+    c.strokeStyle = i ? MIR_H.tenue : MIR_H.tenueO;
+    c.lineWidth = 2.9;
+    c.beginPath(); c.moveTo(E.x, E.y); c.lineTo(M.x, M.y); c.stroke();
+    c.fillStyle = i ? MIR_H.peau : MIR_H.peauO;
+    c.beginPath(); c.arc(M.x, M.y, 1.2, 0, 6.2832); c.fill();
+  }
+
+  /* ---- LA TÊTE, joue contre la crosse ----
+     Le casque est une calotte SOMBRE que ferme un liseré clair côté
+     lumière : à sept pixels de haut, un casque en deux disques
+     concentriques donnait un bonnet à pompon. */
+  var hT = 12.8 - bas + resp, tT = 1.5 - rec * 1.1;
+  var T = P(tT, sg * 1.0, hT);
+  /* nuque et col */
+  q = P(tT - 1.6, sg * 1.0, hT - 1.7);
+  c.fillStyle = MIR_H.tenueO;
+  c.beginPath(); c.arc(q.x, q.y, 2.3, 0, 6.2832); c.fill();
+  /* Le visage n'apparaît que s'il se tourne vers nous — et il apparaît
+     EN FONDU. Le faire surgir d'un coup au moment où l'angle change de
+     signe ferait clignoter une tache de peau à chaque balayage. */
+  if(d.y > 0.02){
+    var vv = d.y * 3.5; if(vv > 1) vv = 1;
+    c.globalAlpha = vv;
+    q = P(tT + 2.3, sg * 1.0, hT - 0.6);
+    c.fillStyle = MIR_H.peau;
+    c.beginPath(); c.arc(q.x, q.y, 1.6, 0, 6.2832); c.fill();
+    c.fillStyle = MIR_H.peauO;
+    c.beginPath(); c.arc(q.x + 0.3, q.y + 0.8, 1.0, 0, 6.2832); c.fill();
+    c.globalAlpha = 1;
+  }
+  /* la calotte, et le couvre-nuque qui la prolonge vers l'arrière */
+  c.fillStyle = MIR_H.casque;
+  q = P(tT - 1.3, sg * 1.0, hT + 0.2);
+  c.beginPath(); c.arc(q.x, q.y, 2.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(T.x, T.y, 2.6, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(16,20,12,.55)"; c.lineWidth = 1.0;
+  c.beginPath(); c.arc(T.x, T.y, 2.25, 0, 6.2832); c.stroke();
+  c.fillStyle = rgba(MIR_H.casqueC, 0.75);
+  c.beginPath(); c.arc(T.x - 0.7, T.y - 0.8, 1.35, 0, 6.2832); c.fill();
+
+  /* ---- LE DÉPART DU COUP ---- */
+  var M0 = P(20 + tR, 0, hr(20));
+  if(fl > 0){
+    /* l'étoile, sous l'auvent comme le reste */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var L = 9 + 12 * fl, T2 = 3.4 + 3 * fl;
+    c.fillStyle = "rgba(255,226,150," + (0.9 * fl).toFixed(3) + ")";
+    c.beginPath();
+    c.moveTo(M0.x - d.y * 2.2, M0.y + d.x * 2.2);
+    c.lineTo(M0.x + d.x * L, M0.y + d.y * L);
+    c.lineTo(M0.x + d.y * 2.2, M0.y - d.x * 2.2);
+    c.closePath();
+    c.moveTo(M0.x - d.y * T2, M0.y + d.x * T2);
+    c.lineTo(M0.x + d.x * 3, M0.y + d.y * 3);
+    c.lineTo(M0.x + d.y * T2, M0.y - d.x * T2);
+    c.lineTo(M0.x - d.x * 2.4, M0.y - d.y * 2.4);
+    c.closePath();
+    c.fill();
+    c.fillStyle = "rgba(255,255,240," + (0.95 * fl).toFixed(3) + ")";
+    c.beginPath(); c.arc(M0.x, M0.y, 1.9, 0, 6.2832); c.fill();
+    c.restore();
+    /* la bouffée qui reste dans l'air devant le canon */
+    var pf = 1 - fl;
+    c.fillStyle = "rgba(206,200,188," + (0.26 * fl).toFixed(3) + ")";
+    c.beginPath();
+    c.arc(M0.x + d.x * (5 + pf * 9), M0.y + d.y * (5 + pf * 9) - pf * 3,
+          2.6 + pf * 5, 0, 6.2832);
+    c.fill();
+    /* la douille, éjectée du côté qui nous fait face */
+    q = P(3 + tR, sg * (3 + pf * 9), hr(3) + 1 - pf * pf * 22 + pf * 9);
+    c.fillStyle = "#e0b84a";
+    c.save();
+    c.translate(q.x, q.y); c.rotate(pf * 6);
+    c.fillRect(-1.4, -0.8, 2.8, 1.6);
+    c.restore();
+  }
+  if(coupe) c.restore();
+
+  /* Hors découpage : la lumière du coup. Quand il tire vers le fond,
+     l'étoile est cachée sous les tôles — mais le halo qui déborde de
+     l'auvent, lui, dit quand même que la tour vient de parler. */
+  if(fl > 0){
+    lueur(c, M0.x, M0.y, 22 + fl * 10, "#ffd07a", 0.55 * fl);
+    lueur(c, ox, oy - 6, 16, "#ffb347", 0.22 * fl);
   }
 };
 

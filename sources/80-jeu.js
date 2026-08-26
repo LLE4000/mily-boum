@@ -45,6 +45,9 @@ function nouvelleCarte(index, pvConnu){
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
     messageTweety:0,
+    /* Les trois chats de Mily : qui a tué lequel, et la riposte en cours. */
+    tueurChats:{ chat:"", chaton:"", chatte:"" },
+    vengeance:null,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -83,6 +86,15 @@ function nouvelleCarte(index, pvConnu){
       jeu.tueurTweety = String(monde.w).substr(0, 14);
       for(var w2 = 0; w2 < jeu.creatures.length; w2++)
         if(jeu.creatures[w2].t === "tweety") jeu.creatures[w2].pv = 0;
+    }
+    /* Les chats déjà tués dans ce salon le restent — et sans riposte :
+       Mily s'est déjà vengée, ce n'est pas à celui qui arrive de payer. */
+    if(monde.k){
+      jeu.tueurChats = decodeChats(monde.k);
+      for(var w3 = 0; w3 < jeu.creatures.length; w3++){
+        var kk = jeu.creatures[w3];
+        if(jeu.tueurChats[kk.t]) kk.pv = 0;
+      }
     }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
@@ -692,8 +704,175 @@ function abimeCreature(c, d){
       envoieTweety();
       signaleMonde();
     }
+    /* Un des trois chats de Mily. Là, il ne s'agit plus de deuil. */
+    if(CRE[c.t].protege && !jeu.tueurChats[c.t]){
+      jeu.tueurChats[c.t] = monNom;
+      declencheVengeance(c.t, monNom);
+      envoieVengeance(c.t);
+      signaleMonde();
+    }
     demandeMajBarres();
   }
+}
+
+/* ================================================================
+   LA VENGEANCE DE MILY
+   Elle se joue en quatre temps, et l'ordre est tout le sujet : ce
+   qui fait peur, ce n'est pas le rayon, c'est les trois secondes
+   pendant lesquelles on le voit venir sans pouvoir rien faire.
+
+     1. « message »  le nom du coupable s'inscrit, les yeux du visage
+                     du Brasier virent au rouge et se chargent. Rien
+                     ne part encore.
+     2. « tir »      DEUX rayons, un par œil, convergent sur la troupe
+                     désignée — quelle que soit la distance. Impact.
+                     Puis les deux faisceaux CONTINUENT au sol, en V,
+                     sur une dizaine de cases, en laissant deux
+                     traînées de flammes.
+     3. « retrait »  extinction, les braises restent.
+
+   La cible est choisie localement par chaque client, au moment du
+   tir : le coupable vise sa propre troupe la plus proche du chat,
+   les autres visent le fantôme du coupable. Personne n'a besoin
+   d'envoyer de coordonnées, et chaque client reste seul juge des
+   dégâts subis par SES troupes — c'est le modèle du reste du jeu.
+   ================================================================ */
+function declencheVengeance(espece, tueur){
+  if(!jeu || jeu.fin) return;
+  var k = null;
+  for(var i = 0; i < jeu.creatures.length; i++)
+    if(jeu.creatures[i].t === espece){ k = jeu.creatures[i]; break; }
+  jeu.vengeance = {
+    ph:"message", t:0,
+    espece:espece,
+    nomBete:CRE[espece].nom,
+    tueur:String(tueur || "?").substr(0, 14),
+    /* le lieu du crime : c'est de là que part la recherche de coupable */
+    kx:k ? k.gx : jeu.qg.gx, ky:k ? k.gy : jeu.qg.gy,
+    cx:0, cy:0,                 // point d'impact, fixé au moment du tir
+    dir:[], puni:0
+  };
+  if(son.vengeance) son.vengeance();
+}
+
+/* Qui paie ? La troupe la plus proche du chat, parmi celles du
+   coupable. Sur le client du coupable ce sont ses unités ; ailleurs,
+   ce sont les fantômes qu'il diffuse. Sans aucune des deux — il a
+   fermé l'onglet, il n'a plus rien en vie — le rayon tombe sur le
+   cadavre du chat, ce qui reste parfaitement lisible. */
+function cibleVengeance(V){
+  var mx = V.kx, my = V.ky, meilleur = Infinity, i, u, d;
+  var lot = null;
+  if(V.tueur === monNom){
+    lot = jeu.unites;
+  }else if(typeof autresJoueurs === "object"){
+    for(var id in autresJoueurs){
+      var j2 = autresJoueurs[id];
+      if(j2 && j2.nom === V.tueur && j2.unites && j2.unites.length){ lot = j2.unites; break; }
+    }
+  }
+  if(lot){
+    for(i = 0; i < lot.length; i++){
+      u = lot[i];
+      if(u.pv !== undefined && u.pv <= 0) continue;
+      d = Math.hypot(u.gx - V.kx, u.gy - V.ky);
+      if(d < meilleur){ meilleur = d; mx = u.gx; my = u.gy; }
+    }
+  }
+  return { x:mx, y:my };
+}
+
+/* Distance d'un point au segment [a,b] — le test de brûlure des
+   traînées. Écrit ici plutôt qu'appelé partout : c'est la seule
+   géométrie du jeu qui en ait besoin. */
+function distSegment(px, py, ax, ay, bx, by){
+  var vx = bx - ax, vy = by - ay;
+  var l2 = vx * vx + vy * vy;
+  if(l2 < 1e-9) return Math.hypot(px - ax, py - ay);
+  var t = borne(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
+  return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+}
+
+/* La peine. 90 % des PV, jamais la mort : une barge amputée revient,
+   une barge effacée fait fermer l'onglet. Elle tombe une seule fois,
+   à l'instant de l'impact, sur tout ce qui se trouve dans le disque
+   ou sous l'une des deux traînées. */
+function punitVengeance(V){
+  var n = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0) continue;
+    var pris = Math.hypot(u.gx - V.cx, u.gy - V.cy) <= EQ.VENG_RAYON;
+    for(var d = 0; !pris && d < V.dir.length; d++){
+      var t = V.dir[d];
+      pris = distSegment(u.gx, u.gy, V.cx, V.cy, t.x1, t.y1) <= EQ.VENG_LARGEUR;
+    }
+    if(!pris) continue;
+    toucheUnite(u, u.pv * EQ.VENG_PERTE);
+    n++;
+  }
+  /* les traînées continuent de brûler après coup */
+  for(var e = 0; e < V.dir.length; e++){
+    var s = V.dir[e];
+    for(var p = 0.12; p <= 1.001; p += 0.16){
+      jeu.flaques.push({ gx:V.cx + (s.x1 - V.cx) * p, gy:V.cy + (s.y1 - V.cy) * p,
+                         r:EQ.VENG_LARGEUR, age:0, duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+    }
+  }
+  jeu.flaques.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON, age:0,
+                     duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+  jeu.crateres.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON * 0.8 });
+  jeu.effets.push({ t:"vengBoum", gx:V.cx, gy:V.cy, age:0, duree:0.9 });
+  jeu.effets.push({ t:"onde", gx:V.cx, gy:V.cy, age:0, duree:0.55, r:EQ.VENG_RAYON });
+  jeu.secousse = Math.min(9, jeu.secousse + 6.5);
+  if(son.vengeanceImpact) son.vengeanceImpact();
+  return n;
+}
+
+function majVengeance(dt){
+  var V = jeu.vengeance;
+  if(!V) return;
+  V.t += dt;
+  if(V.ph === "message"){
+    if(V.t < EQ.VENG_MESSAGE) return;
+    /* LE TIR. On fige la cible ici, et pas au moment du crime : la
+       troupe a marché pendant tout le message, le rayon doit tomber
+       là où elle est MAINTENANT. */
+    var b = cibleVengeance(V);
+    V.cx = b.x; V.cy = b.y;
+    /* Les deux faisceaux arrivent des deux yeux : passé l'impact ils
+       divergent, ce qui donne le V au sol. L'écart est un angle fixe
+       et non l'écartement réel des yeux : à trente cases du Brasier,
+       le vrai écartement donnerait deux traînées confondues. */
+    var ax = V.cx - jeu.qg.gx, ay = V.cy - jeu.qg.gy;
+    var an = Math.atan2(ay, ax);
+    V.dir = [-1, 1].map(function(s){
+      var a2 = an + s * EQ.VENG_ECART;
+      return { x1:V.cx + Math.cos(a2) * EQ.VENG_TRAINEE,
+               y1:V.cy + Math.sin(a2) * EQ.VENG_TRAINEE, s:s };
+    });
+    V.ph = "tir"; V.t = 0;
+    if(son.vengeanceTir) son.vengeanceTir();
+    return;
+  }
+  if(V.ph === "tir"){
+    /* la peine tombe à l'instant où les faisceaux touchent, pas à la
+       fin du balayage */
+    if(!V.puni && V.t >= 0.16){ V.puni = 1; punitVengeance(V); }
+    if(V.t < EQ.VENG_TIR) return;
+    V.ph = "retrait"; V.t = 0;
+    return;
+  }
+  if(V.t >= EQ.VENG_RETRAIT) jeu.vengeance = null;
+}
+/* De 0 à 1 : à quel point les yeux du visage sont chargés. Le rendu
+   ne fait que lire cette valeur — il ne décide de rien. */
+function chargeVengeance(){
+  var V = jeu.vengeance;
+  if(!V) return 0;
+  if(V.ph === "message") return borne(V.t / EQ.VENG_MESSAGE, 0, 1);
+  if(V.ph === "tir") return 1;
+  return Math.max(0, 1 - V.t / EQ.VENG_RETRAIT);
 }
 /* Combien de cellules électriques alimentent encore le bouclier. */
 function reacteursVivants(){
@@ -1346,7 +1525,9 @@ function tireDefense(b, f, c, d, tps){
     var volM = Math.max(0.12, d / f.vitesseProj);
     jeu.projectiles.push({ t:"balle", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cible:c, but:{ gx:c.gx, gy:c.gy }, duree:volM, age:0,
-      degats:f.degats, z0:44 });
+      /* la bouche du fusil, pas le milieu du treillis : le tireur est
+         agenouillé sur le plancher du mirador, à 72 + 8 unités */
+      degats:f.degats, z0:80 });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.28 });
     if(son.tirMirador) son.tirMirador();
   }else if(b.t === "bobine"){
@@ -1778,7 +1959,8 @@ function majZones(dt){
   for(i = jeu.flaques.length - 1; i >= 0; i--){
     var fl = jeu.flaques[i]; fl.age += dt;
     if(fl.age > fl.duree){ jeu.flaques.splice(i, 1); continue; }
-    degatsZone(fl.gx, fl.gy, fl.r, EQ.QG_FLAQUE_DPS * dt);
+    degatsZone(fl.gx, fl.gy, fl.r,
+               (fl.veng ? EQ.VENG_BRAISE_DPS : EQ.QG_FLAQUE_DPS) * dt);
   }
   for(i = jeu.brouillards.length - 1; i >= 0; i--){
     jeu.brouillards[i].age += dt;
@@ -2347,6 +2529,9 @@ function majJeu(dt){
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   majBouclier(dt);
+  /* La vengeance tourne même pendant la séquence finale : elle doit
+     aller au bout, la forteresse peut bien tomber pendant ce temps. */
+  majVengeance(dt);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
   majNavettes(dt);

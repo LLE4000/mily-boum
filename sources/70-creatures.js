@@ -400,15 +400,31 @@ var DESSIN_CRE = {
   braisard:dessineBraisard, piqueur:dessinePiqueur,
   sanglier:dessineSanglier, crapaud:dessineCrapaud
 };
+/* Les trois chats de Mily sont sculptés dans 72-chats.js, qui vient
+   APRÈS ce fichier : leurs fonctions n'existent pas encore ici. On les
+   résout donc à la demande, une seule fois, et une créature dont le
+   dessin manque est simplement sautée — jamais une exception qui
+   emporte tout le rendu de la partie. */
+function dessinDeCreature(t){
+  if(DESSIN_CRE[t]) return DESSIN_CRE[t];
+  var nom = "dessine" + t.charAt(0).toUpperCase() + t.slice(1);
+  if(typeof window !== "undefined" && typeof window[nom] === "function"){
+    DESSIN_CRE[t] = window[nom];
+    return DESSIN_CRE[t];
+  }
+  return null;
+}
 
 function dessineCreature(c, k, tps){
+  var dess = dessinDeCreature(k.t);
+  if(!dess) return;
   var p = versEcran(cam, k.gx, k.gy);
   var z = cam.z;
   c.save();
   c.translate(p.x, p.y);
   c.scale(z, z);
   if(!k.droite) c.scale(-1, 1);
-  DESSIN_CRE[k.t](c, k, tps);
+  dess(c, k, tps);
   c.restore();
   var f = CRE[k.t];
   var fr = k.pv / f.pv;

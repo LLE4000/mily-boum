@@ -1427,9 +1427,18 @@ function dessineZonesSol(c, tps){
     c.save();
     c.globalCompositeOperation = "lighter";
     var g = c.createRadialGradient(q.x, q.y, 2, q.x, q.y, f.r * RX);
-    g.addColorStop(0, "rgba(255,200,90," + (0.55 * a) + ")");
-    g.addColorStop(0.6, "rgba(255,90,20," + (0.35 * a) + ")");
-    g.addColorStop(1, "rgba(200,30,10,0)");
+    /* Les traînées de Mily brûlent d'un feu qui n'est pas celui du
+       Brasier : plus blanc au cœur, franchement rouge au bord. On les
+       reconnaît d'un coup d'œil parmi les flaques ordinaires. */
+    if(f.veng){
+      g.addColorStop(0, "rgba(255,244,222," + (0.78 * a) + ")");
+      g.addColorStop(0.45, "rgba(255,74,38," + (0.52 * a) + ")");
+      g.addColorStop(1, "rgba(214,12,6,0)");
+    }else{
+      g.addColorStop(0, "rgba(255,200,90," + (0.55 * a) + ")");
+      g.addColorStop(0.6, "rgba(255,90,20," + (0.35 * a) + ")");
+      g.addColorStop(1, "rgba(200,30,10,0)");
+    }
     c.fillStyle = g;
     c.beginPath(); c.ellipse(q.x, q.y, f.r * RX, f.r * RY, 0, 0, 6.2832); c.fill();
     for(var n = 0; n < 5; n++){
@@ -2025,7 +2034,8 @@ function rendu(tps, dt){
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
       case 7: dessineBrouillard(ctx, it.o, tps); break;
-      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps); break;
+      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps);
+              dessineYeuxVengeance(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
@@ -2046,6 +2056,10 @@ function rendu(tps, dt){
                Math.max(10, 12 * cam.z), "#c9c2ce");
   }
 
+  /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de
+     la lumière dans l'air, rien ne peut la masquer. */
+  if(jeu.vengeance) dessineRayonsVengeance(ctx, tps);
+
   /* visée */
   repereEcran(ctx);
   dessineVisee(ctx, tps);
@@ -2056,6 +2070,9 @@ function rendu(tps, dt){
   /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
   if(jeu.messageTweety > 0) dessineTweetyDeuil(ctx, tps);
+
+  /* la vengeance de Mily : le message, puis la vignette rouge */
+  if(jeu.vengeance) dessineMessageVengeance(ctx, tps);
 
   /* séquence finale */
   if(jeu.fin) dessineFin(ctx, tps);
