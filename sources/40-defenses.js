@@ -47,6 +47,15 @@ var MAT = {
   danger:"#e8c437", cyan:"#2c8fa8", cyanC:"#7de6ff"
 };
 
+/* LE FRELON EST JAUNE. Il portait l'olive militaire des autres pièces,
+   ce qui le noyait dans le décor alors que c'est la seule défense qui
+   tire à trente cases : on doit le repérer de loin. Rampe propre à lui
+   — le Crible garde MAT.olive, qu'il partageait jusqu'ici. */
+var FRELON = {
+  clair:"#c2992f", moyen:"#9c7a20", fonce:"#6a5215",
+  trait:"#5c470f", nuit:"#463610", tube:"#b39230"
+};
+
 /* petit détail réutilisé : une plaque boulonnée */
 function plaqueBoulonnee(c, x, y, w, h, coul){
   c.fillStyle = coul;
@@ -500,7 +509,7 @@ SOCLES.frelon = function(c){
   /* ---- caisson blindé sur deux niveaux ---- */
   var f0 = faces("#565349");
   boite(c, 0, 0, 1.62, 1.46, 5, 9, f0.t, f0.g, f0.d);
-  var f1 = faces("#4f5b33");
+  var f1 = faces("#67551a");
   boite(c, 0, 0, 1.42, 1.24, 14, 12, f1.t, f1.g, f1.d);
 
   /* rangée de boulons sur l'arête du niveau bas */
@@ -514,10 +523,10 @@ SOCLES.frelon = function(c){
   }
   /* plaques boulonnées sur la face gauche du blindage */
   var pg = iso(-0.10, 0.62);
-  plaqueBoulonnee(c, pg.x - 9, pg.y - 24, 15, 7, "#43502a");
-  plaqueBoulonnee(c, pg.x + 9, pg.y - 21, 12, 6, "#48552d");
+  plaqueBoulonnee(c, pg.x - 9, pg.y - 24, 15, 7, "#584916");
+  plaqueBoulonnee(c, pg.x + 9, pg.y - 21, 12, 6, "#5e4d17");
   /* évents à persiennes sur la face droite */
-  c.strokeStyle = "#2c3418"; c.lineWidth = 2.2;
+  c.strokeStyle = "#3a3010"; c.lineWidth = 2.2;
   var pv = iso(0.71, -0.20);
   for(var j = 0; j < 3; j++){
     c.beginPath();
@@ -559,14 +568,14 @@ SOCLES.frelon = function(c){
   c.stroke();
 
   /* ---- râtelier de roquettes de rechange ---- */
-  var f3 = faces(MAT.olive);
+  var f3 = faces(FRELON.moyen);
   boite(c, 1.14, 0.42, 0.52, 0.36, 5, 7, f3.t, f3.g, f3.d);
   var pr = iso(1.14, 0.42);
   for(var r2 = 0; r2 < 2; r2++){
     c.save();
     c.translate(pr.x - 3 + r2 * 7, pr.y - 14 - r2 * 3);
     c.rotate(0.42);
-    c.fillStyle = "#79855c";
+    c.fillStyle = FRELON.tube;
     if(c.roundRect){ c.beginPath(); c.roundRect(-11, -2.2, 20, 4.4, 2); c.fill(); }
     else c.fillRect(-11, -2.2, 20, 4.4);
     c.fillStyle = "#b8352a";
@@ -995,6 +1004,429 @@ SOCLES.bobine = function(c){
   c.quadraticCurveTo((pb2.x + o.x) / 2, o.y - 2, o.x + 8, o.y - 14);
   c.stroke();
   salissures(c, o.x - 20, o.y - 16, 40, 12, 7, 4242);
+};
+
+/* ================================================================
+   LE MIRADOR — tour de guet, et le tireur d'élite qui l'habite.
+
+   Il y en a une centaine par île. La silhouette doit donc se lire à
+   la vitesse d'un coup d'œil et ne ressembler à AUCUNE des cinq
+   autres défenses. Tout est construit à leur contre-pied :
+     — elles sont assises sur un octogone de béton coulé ; lui est
+       planté sur quatre plots et de la terre battue ;
+     — elles sont grises, olive et acier ; il est en BOIS ;
+     — elles sont larges et basses (126 à 160 px de large pour 57 à
+       91 de haut) ; il est étroit et haut : 74 de large, 122 de haut ;
+     — elles portent une machine ; il porte un HOMME.
+   Et il reste quarante pixels sous la cellule électrique, qui demeure
+   la chose la plus haute de l'île après le QG.
+
+   DEUX REPÈRES ANGULAIRES, ET C'EST VOULU.
+   Les quatre PIEDS sont aux diagonales du monde, comme tout le reste
+   du jeu : c'est ce qui donne aux quatre faces du treillis leur
+   parallélogramme, donc du volume. Les quatre POTEAUX de la cabane,
+   eux, sont d'un quart de tour décalés — aux points cardinaux du
+   monde, donc à gauche, à droite, en haut et en bas de l'écran. Ce
+   quart de tour dégage le milieu de la plateforme : le tireur n'est
+   JAMAIS derrière un poteau, et les deux faces latérales de la
+   cabane, vues exactement par la tranche, ne coûtent rien à dessiner
+   puisqu'elles sont ouvertes.
+   ================================================================ */
+var MIR_ZPONT  = 72;      // dessus du plancher
+var MIR_ZTOIT  = 108;     // dessous de l'avant-toit
+var MIR_ZFAITE = 122;     // pointe du toit
+var MIR_RSOL   = 1.00;    // écartement des pieds au sol
+var MIR_RCOL   = 0.42;    // et juste sous le plancher
+var MIR_RPONT  = 0.74;    // rayon du plancher octogonal
+var MIR_RPOT   = 0.66;    // les quatre poteaux de la cabane
+var MIR_RTOIT  = 0.80;    // débord du toit
+var MIR_ETAGES = [1, 25, 47, 67];        // les trois étages de croisillons
+var MIR_ZMUR   = 96;                     // haut de la cloison arrière
+
+/* Le bois d'un chantier qu'on n'a jamais repeint. */
+var MIR_BOIS = "#6b5334", MIR_BOISC = "#93764a", MIR_BOISO = "#382a1a";
+var MIR_TOLE = "#7d7568", MIR_ROUIL = "#8a5a30";
+
+/* Écran du pied k à la hauteur z — les pieds fuient vers l'intérieur
+   en montant, c'est ce fruit qui fait tenir la tour debout. */
+function mirPied(k, z){
+  var t = z / MIR_ZPONT;
+  if(t < 0) t = 0; else if(t > 1) t = 1;
+  var r = MIR_RSOL + (MIR_RCOL - MIR_RSOL) * t;
+  var a = 0.7854 + (k & 3) * 1.5708;
+  var p = iso(Math.cos(a) * r, Math.sin(a) * r);
+  return { x:p.x, y:p.y - z };
+}
+/* Écran du poteau k de la cabane à la hauteur z */
+function mirPoteau(k, z){
+  var a = (k & 3) * 1.5708;
+  var p = iso(Math.cos(a) * MIR_RPOT, Math.sin(a) * MIR_RPOT);
+  return { x:p.x, y:p.y - z };
+}
+/* Sommet i d'un octogone de rayon r à la hauteur z */
+function mirSommet(i, r, z){
+  var a = (i & 7) * 0.7854;
+  return { x:Math.cos(a) * r * RX, y:Math.sin(a) * r * RY - z };
+}
+
+SOCLES.mirador = function(c){
+  var i, k, a, p, q, s1, s2;
+
+  ombreContact(c, 0, 0, 2.05, 2.05, 0.24);
+
+  /* ---- LE SOL ----
+     Aucune dalle : on a creusé quatre trous, coulé quatre plots, et
+     planté la tour dessus. La terre est tassée par les allées et
+     venues, et les chutes du chantier n'ont jamais été ramassées. */
+  c.save();
+  c.globalAlpha = 0.26; c.fillStyle = "#4a3a26";
+  c.beginPath(); c.ellipse(0, 0, 1.12 * RX, 1.12 * RY, 0, 0, 6.2832); c.fill();
+  c.globalAlpha = 0.16; c.fillStyle = "#2a2016";
+  c.beginPath(); c.ellipse(-4, 3, 0.62 * RX, 0.62 * RY, 0, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* plots de béton, les deux du fond d'abord */
+  var ordrePlots = [2, 1, 3, 0];
+  for(i = 0; i < 4; i++){
+    k = ordrePlots[i];
+    a = 0.7854 + k * 1.5708;
+    prisme(c, Math.cos(a) * MIR_RSOL, Math.sin(a) * MIR_RSOL, 0.24, 6, 0.3,
+           0, 5, ecl(MAT.beton, 0.92), ecl(MAT.betonO, 0.95));
+  }
+
+  /* ---- LE TREILLIS ----
+     Un montant, c'est un trait épais très sombre — le bois de bout —
+     puis un trait plus clair par-dessus, et l'arête gauche qui prend
+     la lumière. Les faces avant sont d'un ton plus chaud que les
+     faces arrière : sans cet écart, la tour s'aplatit. */
+  function montant(k, avant){
+    var A = mirPied(k, -2), B = mirPied(k, MIR_ZPONT + 1);
+    c.lineCap = "butt";
+    c.strokeStyle = MIR_BOISO; c.lineWidth = 6.6;
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+    c.strokeStyle = avant ? MIR_BOIS : ecl(MIR_BOIS, 0.66); c.lineWidth = 4.4;
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+    c.strokeStyle = rgba(MIR_BOISC, avant ? 0.60 : 0.28); c.lineWidth = 1.3;
+    c.beginPath(); c.moveTo(A.x - 1.6, A.y); c.lineTo(B.x - 1.6, B.y); c.stroke();
+    /* ferrure de pied, boulonnée dans le plot */
+    c.fillStyle = "#3c3a34";
+    c.fillRect(A.x - 4, A.y - 7, 8, 6);
+    c.fillStyle = "rgba(255,255,255,.16)";
+    c.fillRect(A.x - 4, A.y - 7, 8, 1.4);
+    c.fillStyle = "#1b1917";
+    c.beginPath(); c.arc(A.x, A.y - 4, 1.1, 0, 6.2832); c.fill();
+  }
+  /* croix de Saint-André d'une face, trois étages */
+  function contrevent(k, avant){
+    var e, za, zb, A, B, C, D, mx, my;
+    for(e = 0; e < 3; e++){
+      za = MIR_ETAGES[e]; zb = MIR_ETAGES[e + 1];
+      A = mirPied(k, za); B = mirPied(k + 1, za);
+      C = mirPied(k, zb); D = mirPied(k + 1, zb);
+      c.lineCap = "butt";
+      c.strokeStyle = MIR_BOISO; c.lineWidth = 3.6;
+      c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(D.x, D.y);
+      c.moveTo(B.x, B.y); c.lineTo(C.x, C.y);
+      c.moveTo(C.x, C.y); c.lineTo(D.x, D.y);
+      c.stroke();
+      c.strokeStyle = avant ? "#61492b" : "#3d2f1e"; c.lineWidth = 2.2;
+      c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(D.x, D.y);
+      c.moveTo(B.x, B.y); c.lineTo(C.x, C.y);
+      c.moveTo(C.x, C.y); c.lineTo(D.x, D.y);
+      c.stroke();
+      if(avant){
+        /* le boulon de la croisée : quatre par face, c'est ce qui
+           dit « assemblé à la va-vite » plutôt que « soudé » */
+        mx = (A.x + B.x + C.x + D.x) / 4; my = (A.y + B.y + C.y + D.y) / 4;
+        c.fillStyle = "#26241f";
+        c.beginPath(); c.arc(mx, my, 1.7, 0, 6.2832); c.fill();
+        c.fillStyle = "rgba(226,214,190,.30)";
+        c.beginPath(); c.arc(mx - 0.5, my - 0.5, 0.7, 0, 6.2832); c.fill();
+      }
+    }
+  }
+  montant(2, 0);
+  contrevent(1, 0); contrevent(2, 0);
+  montant(1, 0); montant(3, 0);
+  contrevent(0, 1); contrevent(3, 1);
+
+  /* ---- L'ÉCHELLE ----
+     Verticale, accrochée sous le débord du plancher et tenue à
+     mi-hauteur par deux entretoises. C'est ainsi qu'on les monte :
+     l'échelle ne suit pas le fruit de la tour, elle tombe droit. */
+  var xEch = MIR_RPONT * RX - 1.4;
+  var pE1 = mirPied(3, 30), pE2 = mirPied(3, 52);
+  c.strokeStyle = "#4a4740"; c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(pE1.x, pE1.y); c.lineTo(xEch, pE1.y - 1);
+  c.moveTo(pE2.x, pE2.y); c.lineTo(xEch, pE2.y - 1);
+  c.stroke();
+  echelle(c, xEch, 1, MIR_ZPONT - 2);
+
+  montant(0, 1);
+
+  /* ---- SOUS LE PLANCHER : aisseliers et solives ---- */
+  for(i = 0; i < 4; i++){
+    p = mirPied(i, MIR_ZPONT - 26);
+    q = mirSommet(2 * i + 1, MIR_RPONT * 0.94, MIR_ZPONT - 5);
+    c.strokeStyle = MIR_BOISO; c.lineWidth = 3.4;
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke();
+    c.strokeStyle = i === 0 || i === 3 ? "#5b4529" : "#3a2c1c"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke();
+  }
+  prisme(c, 0, 0, MIR_RPONT * 0.97, 8, 0, MIR_ZPONT - 6, 6, "#4a3924", "#2b2015");
+
+  /* ---- LE PLANCHER ---- */
+  prisme(c, 0, 0, MIR_RPONT, 8, 0, MIR_ZPONT - 2.5, 2.5, "#7a6140", "#3d2f1d");
+  /* les planches, dans l'axe gx, et l'usure au milieu du passage */
+  c.save();
+  c.beginPath();
+  for(i = 0; i < 8; i++){
+    q = mirSommet(i, MIR_RPONT, MIR_ZPONT);
+    if(i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+  }
+  c.closePath(); c.clip();
+  c.strokeStyle = "rgba(40,28,16,.42)"; c.lineWidth = 1;
+  for(i = -4; i <= 4; i++){
+    s1 = iso(-1.1, i * 0.20); s2 = iso(1.1, i * 0.20);
+    c.beginPath();
+    c.moveTo(s1.x, s1.y - MIR_ZPONT); c.lineTo(s2.x, s2.y - MIR_ZPONT);
+    c.stroke();
+  }
+  c.save(); c.globalAlpha = 0.18; c.fillStyle = "#2e2318";
+  c.beginPath(); c.ellipse(0, -MIR_ZPONT + 2, 15, 7.6, 0, 0, 6.2832); c.fill();
+  c.restore();
+  /* la trappe, au débouché de l'échelle */
+  plaque(c, 0.42, -0.42, 0.36, 0.36, MIR_ZPONT + 0.4, "#20180e");
+  q = iso(0.42, -0.42);
+  c.fillStyle = "#5c482c";
+  c.beginPath();
+  c.moveTo(q.x + 2, q.y - MIR_ZPONT - 1);
+  c.lineTo(q.x + 11, q.y - MIR_ZPONT - 6);
+  c.lineTo(q.x + 11, q.y - MIR_ZPONT - 15);
+  c.lineTo(q.x + 2, q.y - MIR_ZPONT - 10);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(0,0,0,.35)"; c.lineWidth = 0.9; c.stroke();
+  c.restore();
+
+  /* ---- LA CABANE ----
+     Poteaux du fond, cloison de planches, puis poteaux de devant. La
+     cloison arrière sert de fond sombre : c'est sur elle que se
+     détache le tireur, quel que soit l'angle où il vise. */
+  function poteau(k, avant){
+    var A = mirPoteau(k, MIR_ZPONT - 1), B = mirPoteau(k, MIR_ZTOIT + 2);
+    c.lineCap = "butt";
+    c.strokeStyle = MIR_BOISO; c.lineWidth = 5.4;
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+    c.strokeStyle = avant ? MIR_BOIS : ecl(MIR_BOIS, 0.62); c.lineWidth = 3.6;
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+    c.strokeStyle = rgba(MIR_BOISC, avant ? 0.55 : 0.24); c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(A.x - 1.3, A.y); c.lineTo(B.x - 1.3, B.y); c.stroke();
+  }
+  poteau(2, 0); poteau(3, 0);
+
+  /* cloison de planches entre les deux poteaux du fond : on la voit
+     par l'INTÉRIEUR, donc à l'ombre, et le jour passe entre les jeux */
+  var xm = mirPoteau(3, 0).x, ym = -7.8;
+  c.fillStyle = "#2f2418";
+  c.fillRect(-xm, ym - MIR_ZMUR, xm * 2, MIR_ZMUR - MIR_ZPONT);
+  for(i = 0; i < 9; i++){
+    var xp = -xm + 1.4 + i * (xm * 2 - 2.8) / 8.6;
+    c.fillStyle = i % 2 ? "#3a2d1c" : "#463623";
+    c.fillRect(xp, ym - MIR_ZMUR + 1, 2.8, MIR_ZMUR - MIR_ZPONT - 1);
+    c.fillStyle = "rgba(214,226,236,.11)";
+    c.fillRect(xp + 2.8, ym - MIR_ZMUR + 2, 0.8, MIR_ZMUR - MIR_ZPONT - 3);
+  }
+  /* écharpe diagonale clouée par-dessus */
+  c.strokeStyle = "#584429"; c.lineWidth = 2.6;
+  c.beginPath();
+  c.moveTo(-xm + 1, ym - MIR_ZPONT - 1); c.lineTo(xm - 1, ym - MIR_ZMUR + 2);
+  c.stroke();
+  c.strokeStyle = "rgba(0,0,0,.30)"; c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-xm + 1, ym - MIR_ZPONT + 0.4); c.lineTo(xm - 1, ym - MIR_ZMUR + 3.4);
+  c.stroke();
+  /* meurtrière : une planche manque, on voit le ciel au travers */
+  c.fillStyle = "#151b22";
+  c.fillRect(-6, ym - MIR_ZMUR + 5, 12, 5);
+
+  /* ---- LES SACS DE SABLE ----
+     Un parapet complet, posé sur le plancher. Ils sont plus petits
+     que ceux du Crible et du Pilon : le plancher ne fait que
+     cinquante-cinq pixels de large et les sacs de l'atelier commun
+     (0,42 case) l'avalaient tout entier.
+     Ils sont trop bas pour recouvrir le tireur à l'écran — dans cette
+     projection, ce qui est DEVANT est plus BAS — donc rien n'oblige à
+     les repeindre par-dessus lui : la couche vivante n'a que l'homme
+     à porter. */
+  var alS = prng(3301), listeS = [], sc, fS;
+  for(i = 0; i < 13; i++){
+    a = i / 13 * 6.2832 + 0.24;
+    var rs = 0.55 + alS() * 0.05;
+    listeS.push({ x:Math.cos(a) * rs, y:Math.sin(a) * rs, s:0.78 + alS() * 0.30, t:alS() });
+  }
+  listeS.sort(function(u, v){ return (u.x + u.y) - (v.x + v.y); });
+  for(i = 0; i < listeS.length; i++){
+    sc = listeS[i];
+    fS = faces(sc.t > 0.5 ? "#8d8054" : "#71653f");
+    boite(c, sc.x, sc.y, 0.30 * sc.s, 0.21 * sc.s, MIR_ZPONT, 5.6 * sc.s,
+          fS.t, fS.g, fS.d, true);
+    q = iso(sc.x, sc.y);
+    c.strokeStyle = "rgba(0,0,0,.20)"; c.lineWidth = 0.9;
+    c.beginPath();
+    c.moveTo(q.x - 3.4 * sc.s, q.y - MIR_ZPONT - 5.6 * sc.s);
+    c.lineTo(q.x + 3.4 * sc.s, q.y - MIR_ZPONT - 5.6 * sc.s);
+    c.stroke();
+  }
+
+  poteau(0, 1); poteau(1, 1);
+
+  /* garde-corps sur les deux faces ouvertes, entre poteaux voisins */
+  function lisse(k1, k2, z, ep, coul){
+    var A = mirPoteau(k1, MIR_ZPONT + z), B = mirPoteau(k2, MIR_ZPONT + z);
+    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
+    c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+  }
+  lisse(1, 2, 15, 2.8, MIR_BOISO); lisse(1, 2, 14, 1.4, "#6d5533");
+  lisse(3, 0, 15, 2.8, MIR_BOISO); lisse(3, 0, 14, 1.4, "#7a5f3a");
+  lisse(0, 1, 15, 2.6, MIR_BOISO); lisse(0, 1, 14, 1.3, "#7a5f3a");
+
+  /* ---- CE QUI TRAÎNE SUR LE PLANCHER ---- */
+  /* caisse de munitions, contre la cloison */
+  var fc = faces("#4d5a35");
+  boite(c, -0.28, -0.30, 0.34, 0.24, MIR_ZPONT, 7, fc.t, fc.g, fc.d);
+  q = iso(-0.28, -0.30);
+  c.fillStyle = "rgba(232,196,55,.28)";
+  c.fillRect(q.x - 4, q.y - MIR_ZPONT - 5, 6.5, 1.6);
+  /* thermos, contre le poteau de gauche */
+  cylindre(c, -0.40, 0.20, 0.05, MIR_ZPONT, 6, "#9a5238", "#5a2e20");
+  /* douilles au sol : il tire d'ici depuis longtemps */
+  var al = prng(7717);
+  for(i = 0; i < 9; i++){
+    a = al() * 6.2832;
+    var rr = 0.16 + al() * 0.30;
+    q = iso(Math.cos(a) * rr, Math.sin(a) * rr);
+    c.save();
+    c.translate(q.x, q.y - MIR_ZPONT); c.rotate(al() * 3.14);
+    c.fillStyle = "#c9a54a"; c.fillRect(-1.1, -0.6, 2.2, 1.2);
+    c.restore();
+  }
+
+  /* ---- LA CHARPENTE DU TOIT ---- */
+  prisme(c, 0, 0, MIR_RPOT * 1.06, 8, 0, MIR_ZTOIT - 4, 4, "#544026", "#2c2115");
+
+  /* ---- LE TOIT : huit pans de tôle ondulée ----
+     Piège évité de justesse : un cône octogonal à faible pente, sans
+     tranche visible et avec le centre plus clair que les bords, ne
+     donne pas un toit — il donne un PARASOL. Trois choses le
+     rattrapent : une pente franche (quatorze pixels de flèche), un
+     écart de valeur brutal d'un pan à l'autre, et surtout une tranche
+     de tôle bien noire sur tout le pourtour visible, qui rend son
+     épaisseur au matériau. */
+  var LUM_PAN = [];
+  for(i = 0; i < 8; i++){
+    var am = (i + 0.5) * 0.7854;
+    LUM_PAN[i] = 0.80 + 0.52 * (-0.60 * Math.cos(am) - 0.80 * Math.sin(am));
+  }
+  /* la tranche d'abord : elle déborde sous les pans et fait l'ombre */
+  c.fillStyle = "#2a251f";
+  c.beginPath();
+  for(i = 0; i <= 8; i++){
+    q = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
+    if(i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+  }
+  for(i = 8; i >= 0; i--){
+    q = mirSommet(i, MIR_RTOIT, MIR_ZTOIT - 4);
+    c.lineTo(q.x, q.y);
+  }
+  c.closePath(); c.fill();
+  for(i = 0; i < 8; i++){
+    s1 = mirSommet(i, MIR_RTOIT, MIR_ZTOIT);
+    s2 = mirSommet(i + 1, MIR_RTOIT, MIR_ZTOIT);
+    c.fillStyle = ecl(MIR_TOLE, LUM_PAN[i]);
+    c.beginPath();
+    c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.lineTo(s2.x, s2.y);
+    c.closePath(); c.fill();
+    /* les ondes de la tôle : deux nervures par pan, dans la pente */
+    c.strokeStyle = "rgba(28,24,20,.30)"; c.lineWidth = 0.9;
+    c.beginPath();
+    c.moveTo(0, -MIR_ZFAITE);
+    c.lineTo(s1.x * 0.66 + s2.x * 0.34, s1.y * 0.66 + s2.y * 0.34);
+    c.moveTo(0, -MIR_ZFAITE);
+    c.lineTo(s1.x * 0.34 + s2.x * 0.66, s1.y * 0.34 + s2.y * 0.66);
+    c.stroke();
+    /* l'arêtier, sombre côté ombre, clair côté lumière */
+    c.strokeStyle = LUM_PAN[i] > 1 ? "rgba(255,246,225,.34)" : "rgba(26,22,18,.5)";
+    c.lineWidth = 1.1;
+    c.beginPath(); c.moveTo(0, -MIR_ZFAITE); c.lineTo(s1.x, s1.y); c.stroke();
+  }
+  /* rouille : la tôle a vingt ans */
+  c.save(); c.globalAlpha = 0.30; c.fillStyle = MIR_ROUIL;
+  c.beginPath(); c.ellipse(-10, -MIR_ZTOIT - 6, 6, 3.0, -0.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(8, -MIR_ZTOIT - 8, 4.4, 2.4, 0.4, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(1, -MIR_ZTOIT + 4, 5, 1.9, 0, 0, 6.2832); c.fill();
+  c.restore();
+  /* faîtière : un capuchon de tôle, pas une boule */
+  c.fillStyle = "#4a443d";
+  c.beginPath();
+  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
+  c.lineTo(5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE + 4);
+  c.closePath(); c.fill();
+  c.fillStyle = "rgba(255,246,225,.26)";
+  c.beginPath();
+  c.moveTo(-5, -MIR_ZFAITE + 2.4); c.lineTo(0, -MIR_ZFAITE - 1.6);
+  c.lineTo(0, -MIR_ZFAITE + 0.2); c.lineTo(-4.4, -MIR_ZFAITE + 3);
+  c.closePath(); c.fill();
+
+  /* ---- LA POTENCE ET SON PALAN ----
+     On ne monte pas une caisse de cartouches à l'échelle : on la
+     hisse. C'est le petit bras qui déborde à droite, et il achève de
+     rendre la silhouette reconnaissable de loin. */
+  var bx0 = mirSommet(0, MIR_RTOIT, MIR_ZTOIT).x - 3;
+  var by0 = -MIR_ZTOIT - 1;
+  c.strokeStyle = MIR_BOISO; c.lineWidth = 3.4; c.lineCap = "round";
+  c.beginPath(); c.moveTo(bx0, by0); c.lineTo(bx0 + 15, by0 - 3); c.stroke();
+  c.strokeStyle = "#6d5533"; c.lineWidth = 1.8;
+  c.beginPath(); c.moveTo(bx0, by0 - 1); c.lineTo(bx0 + 15, by0 - 4); c.stroke();
+  c.fillStyle = "#3c3a34";
+  c.beginPath(); c.arc(bx0 + 15, by0 - 3, 2.2, 0, 6.2832); c.fill();
+  c.strokeStyle = "#241f18"; c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(bx0 + 15, by0 - 1); c.lineTo(bx0 + 14.6, by0 + 12);
+  c.stroke();
+  /* le seau du palan, resté pendu au crochet */
+  c.fillStyle = "#4c4a43";
+  c.beginPath();
+  c.moveTo(bx0 + 11, by0 + 13); c.lineTo(bx0 + 18.2, by0 + 13);
+  c.lineTo(bx0 + 17.2, by0 + 20); c.lineTo(bx0 + 12, by0 + 20);
+  c.closePath(); c.fill();
+  c.fillStyle = "#6e6b62";
+  c.fillRect(bx0 + 11, by0 + 13, 7.2, 1.6);
+  c.strokeStyle = "#241f18"; c.lineWidth = 0.9;
+  c.beginPath(); c.ellipse(bx0 + 14.6, by0 + 13, 3.6, 2.4, 0, 3.34, 6.08); c.stroke();
+
+  /* ---- LA LANTERNE ----
+     Accrochée sous l'avant-toit, elle brûle jour et nuit ; c'est le
+     seul point chaud de la tour et il attire l'œil sur la cabane,
+     donc sur l'homme. Son halo est peint ici une fois pour toutes :
+     à cent tours, il ne coûtera pas une image de plus. */
+  var lx = -14, ly = -MIR_ZTOIT + 5;
+  c.strokeStyle = "#241f18"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(lx, ly - 4); c.lineTo(lx, ly + 1); c.stroke();
+  c.fillStyle = "#3c3a34";
+  c.fillRect(lx - 2.6, ly + 1, 5.2, 1.6);
+  c.fillStyle = "#e8b45a";
+  c.fillRect(lx - 2.2, ly + 2.6, 4.4, 5);
+  c.fillStyle = "#fff0c4";
+  c.fillRect(lx - 1.1, ly + 3.6, 2.2, 3);
+  c.fillStyle = "#3c3a34";
+  c.fillRect(lx - 2.6, ly + 7.6, 5.2, 1.4);
+  lueur(c, lx, ly + 5, 9, "#ffb347", 0.30);
+  lueur(c, lx, ly + 5, 19, "#ff8a1e", 0.10);
+
+  /* traces d'usure : la pluie coule des tôles le long des poteaux */
+  salissures(c, -16, -MIR_ZTOIT + 12, 32, 20, 7, 6023);
+  salissures(c, -22, -34, 44, 26, 8, 6199);
 };
 
 /* ================================================================
@@ -1595,19 +2027,19 @@ TOURELLES.crible = function(c, b, ang, tps){
 
   /* tambour de munitions debout sur la plateforme, cote proche */
   var tb = ptDir(ox, oy, d, -6.8, sg * 7.4);
-  c.fillStyle = "#3a442a";
+  c.fillStyle = FRELON.fonce;
   c.beginPath(); c.ellipse(tb.x, tb.y + 1, 5.2, 3.8, 0, 0, 6.2832); c.fill();
   c.fillRect(tb.x - 5.2, tb.y - 7.5, 10.4, 8.5);
-  c.fillStyle = "#4d5a35";
+  c.fillStyle = FRELON.moyen;
   c.fillRect(tb.x - 5.2, tb.y - 7.5, 3.9, 8.5);
-  c.fillStyle = "#5f6b45";
+  c.fillStyle = FRELON.clair;
   c.beginPath(); c.ellipse(tb.x, tb.y - 7.5, 5.2, 3.8, 0, 0, 6.2832); c.fill();
-  c.strokeStyle = "#39432a"; c.lineWidth = 1;
+  c.strokeStyle = FRELON.trait; c.lineWidth = 1;
   c.beginPath();
   c.moveTo(tb.x - 5.2, tb.y - 3); c.lineTo(tb.x + 5.2, tb.y - 3);
   c.moveTo(tb.x, tb.y - 7.5); c.lineTo(tb.x + 4.6, tb.y - 5.3);
   c.stroke();
-  c.fillStyle = "#2c3520";
+  c.fillStyle = FRELON.nuit;
   c.beginPath(); c.arc(tb.x, tb.y - 7.5, 1.3, 0, 6.2832); c.fill();
 
   /* bande de laiton du tambour a la culasse, avec un leger ventre */
@@ -1948,21 +2380,21 @@ TOURELLES.frelon = function(c, b, ang, tps){
   var q1, q2, q3, q4;
   /* dessous (évite le bloc « creux » vu de face) */
   q1 = P(tR, -hw, 0); q2 = P(tF, -hw, 0); q3 = P(tF, hw, 0); q4 = P(tR, hw, 0);
-  c.fillStyle = "#2c331a";
+  c.fillStyle = "#392f11";
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   /* flanc éloigné */
   q1 = P(tR, sFar, 0); q2 = P(tF, sFar, 0); q3 = P(tF, sFar, hh); q4 = P(tR, sFar, hh);
-  c.fillStyle = "#55613a";
+  c.fillStyle = "#6e5a1d";
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   /* face arrière (échappement) si visible */
   if(uy < -0.1){
     q1 = P(tR, -hw, 0); q2 = P(tR, hw, 0); q3 = P(tR, hw, hh); q4 = P(tR, -hw, hh);
-    c.fillStyle = "#31391b";
+    c.fillStyle = "#40350f";
     c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   }
   /* flanc proche */
   q1 = P(tR, sNear, 0); q2 = P(tF, sNear, 0); q3 = P(tF, sNear, hh); q4 = P(tR, sNear, hh);
-  c.fillStyle = "#3c4623";
+  c.fillStyle = "#4e4113";
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   /* bande de renfort boulonnée du flanc proche */
   var r1 = P(-4, sNear, 2), r2 = P(16, sNear, 2);
@@ -1970,7 +2402,7 @@ TOURELLES.frelon = function(c, b, ang, tps){
   c.beginPath(); c.moveTo(r1.x, r1.y); c.lineTo(r2.x, r2.y); c.stroke();
   /* dessus */
   q1 = P(tR, -hw, hh); q2 = P(tF, -hw, hh); q3 = P(tF, hw, hh); q4 = P(tR, hw, hh);
-  c.fillStyle = "#75844f";
+  c.fillStyle = "#977d2b";
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   c.strokeStyle = "rgba(255,246,225,.25)"; c.lineWidth = 1;
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.stroke();
@@ -1985,7 +2417,7 @@ TOURELLES.frelon = function(c, b, ang, tps){
 
   /* --- face de bouche : 6 tubes en 2×3, ogives visibles --- */
   q1 = P(tF, -hw, 0); q2 = P(tF, hw, 0); q3 = P(tF, hw, hh); q4 = P(tF, -hw, hh);
-  c.fillStyle = "#2b3218";
+  c.fillStyle = "#382e10";
   c.beginPath(); c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y); c.closePath(); c.fill();
   /* cloisons de l'alvéolage 2×3 */
   c.strokeStyle = "rgba(0,0,0,.4)"; c.lineWidth = 1;
@@ -2000,7 +2432,7 @@ TOURELLES.frelon = function(c, b, ang, tps){
     col = t2 % 3; row = (t2 / 3) | 0;
     m = P(tF + 0.5, -7.8 + col * 7.8, 4.2 + row * 6.8);
     /* lèvre du tube, puis fond, puis ogive à pointe claire */
-    c.fillStyle = "#5c6838";
+    c.fillStyle = "#776220";
     c.beginPath(); c.ellipse(m.x, m.y, 3.5, 3.1, 0, 0, 6.2832); c.fill();
     c.fillStyle = "#141310";
     c.beginPath(); c.ellipse(m.x, m.y, 2.8, 2.5, 0, 0, 6.2832); c.fill();

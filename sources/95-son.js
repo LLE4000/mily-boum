@@ -102,6 +102,10 @@ var son = {
   },
   tirFrelon:function(){ this.souffle(900, 220, 0.35, 0.12); },
   tirPilon:function(){ this.bip("sine", 190, 70, 0.22, 0.13); },
+  /* Le Mirador : un claquement sec et court, pas une déflagration.
+     Il y en a une centaine sur l'île — le son doit pouvoir se répéter
+     sans devenir un vacarme. */
+  tirMirador:function(){ this.bip("square", 1400, 260, 0.045, 0.045); },
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
   bobine:function(){ this.souffle(2600, 700, 0.28, 0.10); this.bip("sawtooth", 300, 90, 0.2, 0.06); },
   rampe:function(){ this.bip("sawtooth", 210, 90, 0.16, 0.05); },

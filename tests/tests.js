@@ -242,15 +242,18 @@ G("4. Déterminisme de la génération de carte");
   var zf = N.planVide();
   for(var jz = 0; jz < N.NB_ZONES; jz++) zf[jz] = 3 | (3 << 3);   // frelon, saturé
   var cf = N.genereCarte("MILY", 0, N.encodePlan(zf), 0);
-  /* les cellules d'énergie et les cellules électriques ne sont pas des
-     défenses : le plan ne les concerne pas. */
-  var defF = cf.batiments.filter(function(b){ return b.t !== "cellule" && b.t !== "reacteur"; });
+  /* Ni les cellules d'énergie, ni les cellules électriques, ni les
+     miradors ne sont concernés par le plan : les deux premiers ne sont
+     pas des défenses, et les miradors sont posés à part, APRÈS le
+     quadrillage, pour ne pas décaler les indices existants. */
+  function horsPlan(b){ return b.t !== "cellule" && b.t !== "reacteur" && b.t !== "mirador"; }
+  var defF = cf.batiments.filter(horsPlan);
   ok("plan « Frelon partout, saturé » : " + defF.length + " défenses, toutes Frelon",
      defF.length > 500 && defF.every(function(b){ return b.t === "frelon"; }));
   var zc = N.planVide();
   for(var kz = 0; kz < N.NB_ZONES; kz++) zc[kz] = 0 | (1 << 3);   // clairsemé partout
   var cc = N.genereCarte("MILY", 0, N.encodePlan(zc), 0);
-  var defC = cc.batiments.filter(function(b){ return b.t !== "cellule" && b.t !== "reacteur"; }).length;
+  var defC = cc.batiments.filter(horsPlan).length;
   ok("densité « clairsemé » retire des défenses (" + defC + " < " + (a.batiments.length - 121) + ")",
      defC < defF.length * 0.75, "" + defC);
 
@@ -299,7 +302,8 @@ G("4. Déterminisme de la génération de carte");
     for(var k = 0; k < cible.length; k++) mod2[cible[k]] = 3 | (3 << 3);
     var C = N.genereCarte("MILY", 0, N.encodePlan(mod2), 0);
     var dedans = C.batiments.filter(function(b){
-      return b.t !== "cellule" && cible.indexOf(noeud(b)) >= 0;
+      return b.t !== "cellule" && b.t !== "reacteur" && b.t !== "mirador" &&
+             cible.indexOf(noeud(b)) >= 0;
     });
     ok("dans une zone peinte, tout est du type demandé (" + dedans.length + " bâtiments)",
        dedans.length > 0 && dedans.every(function(b){ return b.t === "frelon"; }));
@@ -356,6 +360,87 @@ G("4. Déterminisme de la génération de carte");
        !N.memeMonde(m1, m2));
   })();
 
+  /* ---- LE MIRADOR ----
+     Il existe pour une seule raison : la base n'avait aucune réponse
+     entre 5 et 12 cases. Ce bloc vérifie qu'il couvre bien cette bande,
+     qu'il laisse une porte de sortie à qui va au contact, et qu'il
+     abat l'Ogre d'une seule balle. */
+  G("4c. Le Mirador");
+  (function(){
+    var M = N.DEF.mirador, O = N.UNI.ogre;
+    ok("le Mirador existe", !!M);
+    if(!M) return;
+    /* la bande à couvrir : au-dessus du Crible, jusqu'au loin */
+    ok("il porte bien au-delà du Crible", M.portee > N.DEF.crible.portee,
+       M.portee + " > " + N.DEF.crible.portee);
+    ok("il couvre la bande que le Chalumeau et la Bobine abandonnent",
+       M.portee > N.DEF.bobine.portee * 1.5,
+       M.portee + " contre " + N.DEF.bobine.portee);
+    /* et la porte de sortie : au contact, il ne voit plus rien */
+    ok("il est aveugle de près", M.porteeMin >= 3.5, "portée mini " + M.porteeMin);
+    ok("le Mec passe sous sa portée mini", N.UNI.mec.arret < M.porteeMin,
+       N.UNI.mec.arret + " < " + M.porteeMin);
+    ok("la Meuf, elle, est dans son champ",
+       N.UNI.meuf.arret > M.porteeMin && N.UNI.meuf.arret < M.portee);
+    ok("et l'Ogre aussi — c'est le but",
+       O.arret > M.porteeMin && O.arret < M.portee,
+       "ogre à " + O.arret + ", mirador " + M.porteeMin + "–" + M.portee);
+    /* l'exécution de l'Ogre */
+    ok("sa balle est une arme de précision", M.precision === 1);
+    ok("elle abat l'Ogre d'un seul coup",
+       M.degats * O.vuln.precision >= O.pv,
+       M.degats + " × " + O.vuln.precision + " = " + (M.degats * O.vuln.precision)
+       + " contre " + O.pv + " PV");
+    ok("mais elle ne one-shot pas une Meuf", M.degats < N.UNI.meuf.pv,
+       M.degats + " < " + N.UNI.meuf.pv);
+    ok("et il en faut beaucoup pour un Mec", N.UNI.mec.pv / M.degats >= 5,
+       Math.ceil(N.UNI.mec.pv / M.degats) + " balles");
+    /* le nombre : « il en faut beaucoup » */
+    var m0 = N.genereCarte("MILY", 0);
+    var nbMir = m0.batiments.filter(function(b){ return b.t === "mirador"; }).length;
+    ok("il y en a beaucoup (" + nbMir + " par île)", nbMir >= 50 && nbMir <= 160, "" + nbMir);
+    var nbAutres = {};
+    m0.batiments.forEach(function(b){ nbAutres[b.t] = (nbAutres[b.t] || 0) + 1; });
+    ok("plus nombreux que les Frelons qu'il complète",
+       nbMir > nbAutres.frelon * 3, nbMir + " contre " + nbAutres.frelon);
+    /* et ils ne se plantent pas les uns dans les autres */
+    var mirs = m0.batiments.filter(function(b){ return b.t === "mirador"; });
+    var colle = 0;
+    for(var i = 0; i < mirs.length; i++)
+      for(var j = i + 1; j < mirs.length; j++)
+        if(Math.hypot(mirs[i].gx - mirs[j].gx, mirs[i].gy - mirs[j].gy) < 2) colle++;
+    ok("aucun mirador n'en chevauche un autre", colle === 0, colle + " paires");
+    /* ni dans le Brasier */
+    var dansQG = mirs.filter(function(b){
+      return Math.abs(b.gx - N.QG_GX) <= 10 && Math.abs(b.gy - N.QG_GY) <= 10;
+    }).length;
+    ok("aucun mirador dans l'emprise du Brasier", dansQG === 0, "" + dansQG);
+    /* déterminisme : deux joueurs doivent voir les mêmes miradors */
+    ok("les miradors sont les mêmes pour tout le monde",
+       N.empreinteCarte(N.genereCarte("MILY", 0)) === N.empreinteCarte(m0));
+  })();
+
+  /* ---- LE MORTIER ----
+     Le Pilon tire trois fois plus loin qu'avant et cogne double sur
+     l'Ogre. C'est lui, désormais, qui tient le fond de l'île. */
+  G("4d. Le Pilon, portée triplée");
+  (function(){
+    var P = N.DEF.pilon, O = N.UNI.ogre;
+    ok("le Pilon porte à 24,6 cases", Math.abs(P.portee - 8.2 * 3) < 0.05,
+       P.portee + " = 8,2 × 3");
+    ok("il porte plus loin que toutes les autres sauf le Frelon",
+       P.portee > N.DEF.mirador.portee && P.portee < N.DEF.frelon.portee,
+       P.portee + " cases");
+    ok("il reste aveugle de près", P.porteeMin === 2.6, "" + P.porteeMin);
+    ok("le corps à corps passe toujours dessous",
+       N.UNI.mec.arret < P.porteeMin, N.UNI.mec.arret + " < " + P.porteeMin);
+    ok("c'est bien un mortier", P.mortier === 1);
+    ok("il fait double dégât sur l'Ogre", O.vuln.mortier === 2);
+    ok("un obus ne tue pas l'Ogre d'un coup", P.degats * O.vuln.mortier < O.pv,
+       (P.degats * O.vuln.mortier) + " contre " + O.pv + " PV");
+    ok("et il reste une arme de zone", P.zone > 1, "" + P.zone);
+  })();
+
   /* ---- L'OGRE ----
      Une navette n'en embarque QU'UN, et cet ogre doit valoir la barge
      de douze Meufs qu'il remplace. Ces deux règles sont le contrat de
@@ -388,11 +473,21 @@ G("4. Déterminisme de la génération de carte");
     ok("sa cadence reste dynamique (moins d'une seconde)", O.cadence < 1000, O.cadence + " ms");
     /* Résistance et faiblesse. */
     ok("santé = celle d'une Meuf × 1,5", O.pv === Math.round(M.pv * 1.5), O.pv + " / " + M.pv);
-    ok("il encaisse 5× les dégâts d'un lance-roquettes", O.vulnRoquette === 5, "" + O.vulnRoquette);
-    ok("aucune autre troupe n'a cette faiblesse",
-       !M.vulnRoquette && !N.UNI.mec.vulnRoquette);
-    ok("et aucune défense ne l'a non plus",
-       Object.keys(N.DEF).every(function(t){ return !N.DEF[t].vulnRoquette; }));
+    ok("il encaisse 5× les armes de précision", O.vuln.precision === 5, "" + O.vuln.precision);
+    ok("et 2× les obus de mortier", O.vuln.mortier === 2, "" + O.vuln.mortier);
+    ok("aucune autre troupe n'a de faiblesse", !M.vuln && !N.UNI.mec.vuln);
+    ok("et aucune défense n'en a non plus",
+       Object.keys(N.DEF).every(function(t){ return !N.DEF[t].vuln; }));
+    /* Chaque faiblesse doit avoir une arme qui la déclenche, sinon
+       c'est une ligne morte dans la fiche de la troupe. */
+    var armes = {};
+    Object.keys(N.DEF).forEach(function(t){
+      if(N.DEF[t].precision) armes.precision = 1;
+      if(N.DEF[t].mortier) armes.mortier = 1;
+    });
+    ok("chaque faiblesse a bien une défense qui la porte",
+       Object.keys(O.vuln).every(function(a){ return armes[a]; }),
+       Object.keys(O.vuln).join(","));
     /* Vitesse : 10 % au-dessus de la Meuf, malgré la masse. */
     ok("vitesse = celle d'une Meuf × 1,10",
        Math.abs(O.vitesse / M.vitesse - 1.10) < 1e-6,
@@ -455,19 +550,43 @@ G("4. Déterminisme de la génération de carte");
     ok("aucune cellule hors de la terre praticable", dedans === "", dedans);
     ok("aucune cellule collée au Brasier", malPlace === "", malPlace);
   })();
-  /* Les salons déjà en cours désignent les bâtiments détruits par leur
-     INDICE : si les cellules n'étaient pas ajoutées en dernier, chaque
-     bit pointerait sur le mauvais bâtiment chez tout le monde. */
+  /* L'INVARIANT QUI PROTÈGE LES SALONS EN COURS.
+     Le bitmap des destructions désigne les bâtiments par leur INDICE
+     dans c.batiments. Tout type ajouté doit donc l'être À LA FIN : un
+     bâtiment inséré au milieu ferait pointer chaque bit sur le mauvais
+     voisin, chez tout le monde, en même temps.
+     Ordre imposé : le quadrillage et les champs, PUIS les cinq cellules
+     électriques, PUIS les miradors. */
   (function(){
     var m = N.genereCarte("MILY", 0);
-    var apres = 0, n = m.batiments.length;
-    for(var i = n - N.NB_REACTEURS; i < n; i++)
-      if(m.batiments[i].t === "reacteur") apres++;
-    ok("les cellules occupent les cinq DERNIERS indices du tableau",
-       apres === N.NB_REACTEURS, apres + "/" + N.NB_REACTEURS);
-    var avant = m.batiments.slice(0, n - N.NB_REACTEURS)
-                 .filter(function(b){ return b.t === "reacteur"; }).length;
-    ok("et aucune ne s'est glissée avant", avant === 0, "" + avant);
+    var b = m.batiments, n = b.length;
+    /* on remonte depuis la fin : d'abord les miradors, puis exactement
+       cinq cellules électriques, puis plus aucun des deux */
+    var i = n - 1, nbMir = 0;
+    while(i >= 0 && b[i].t === "mirador"){ nbMir++; i--; }
+    var nbSup = 0;
+    while(i >= 0 && b[i].sup){ nbSup++; i--; }
+    var nbRea = 0;
+    while(i >= 0 && b[i].t === "reacteur"){ nbRea++; i--; }
+    ok("les miradors ferment le tableau (" + nbMir + ")", nbMir > 0, "" + nbMir);
+    ok("le renfort de défenses vient juste avant (" + nbSup + ")", nbSup > 0, "" + nbSup);
+    ok("puis les cinq cellules électriques",
+       nbRea === N.NB_REACTEURS, nbRea + "/" + N.NB_REACTEURS);
+    var restant = b.slice(0, i + 1);
+    ok("et aucun des trois ne s'est glissé dans le quadrillage",
+       restant.every(function(x){
+         return x.t !== "reacteur" && x.t !== "mirador" && !x.sup;
+       }));
+    /* le renfort pèse bien 15 % du quadrillage d'origine */
+    var base = restant.filter(function(x){ return x.t !== "cellule"; }).length;
+    ok("le renfort ajoute environ 15 % de défenses ("
+       + Math.round(nbSup / base * 100) + " %)",
+       nbSup / base > 0.12 && nbSup / base < 0.19, nbSup + " pour " + base);
+    /* La preuve directe : la carte SANS les ajouts de fin doit être
+       exactement celle d'avant, bâtiment par bâtiment. C'est cette
+       égalité-là qui garantit qu'un salon en cours ne voit rien bouger. */
+    ok("les " + restant.length + " bâtiments d'origine gardent leur indice",
+       restant.every(function(x, k){ return x.n === k; }));
   })();
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){

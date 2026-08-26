@@ -229,8 +229,24 @@ var DEF = {
      plus de départs, de traînées et d'impacts. C'est un choix de
      spectacle, pas d'équilibrage. */
   frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:30.9, degats:40, cadence:1350, emprise:3, tourelle:1, vitesseProj:8.5, porteeMin:5.15, verrou:1 },
-  pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
+  /* Le Pilon tire TROIS FOIS plus loin qu'avant — 8,2 → 24,6 cases.
+     C'est désormais lui, et non le Frelon, qui tient le fond de l'île :
+     il y en a 108 contre 12. Il reste aveugle sous 2,6 cases, si bien
+     que le corps à corps continue de passer dessous. */
+  pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:24.6, degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5, mortier:1 },
   bobine:    { nom:"Bobine",    desc:"pylône à arc",                 pv:700, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
+  /* LE MIRADOR. La base n'avait aucune réponse entre 5 et 12 cases :
+     le Crible décroche à 5,15, le Chalumeau à 5,6, la Bobine à 6,2, et
+     au-delà il ne restait que 108 Pilons et 12 Frelons sur 488
+     bâtiments. Mesuré : une troupe postée à 9 cases n'était JAMAIS
+     exterminée, cinq minutes durant. Le mirador ferme cette zone
+     franche — et il y en a beaucoup, c'est tout l'intérêt.
+     Il est aveugle sous 4 cases : un tireur perché ne vise pas ses
+     propres pieds. Celui qui accepte d'aller au contact lui échappe,
+     comme il échappe déjà au Frelon et au Pilon. */
+  mirador:   { nom:"Mirador",   desc:"tour de guet et son tireur d'élite",
+               pv:640, portee:12.5, degats:70, cadence:2200, emprise:2, tourelle:1,
+               porteeMin:4.0, vitesseProj:26, precision:1 },
   cuve:      { nom:"Cuve",      desc:"citerne de naphte",            pv:420, portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },
   silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 },
   /* La cellule ne se défend pas et ne sert qu'à une chose : se faire
@@ -288,7 +304,16 @@ var UNI = {
      l'écart qui convient à une petite troupe. */
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:440, cadence:850, vitesse:1.782, rayon:1.6, places:1,
-         vitesseHache:9.5, armement:0.28, vulnRoquette:5, ech:3 }
+         vitesseHache:9.5, armement:0.28, ech:3,
+         /* SES DEUX FAIBLESSES, par type d'arme. Une table plutôt que
+            deux champs séparés : il y en aura d'autres, et le jour où
+            l'on en ajoute une, seul ce littéral change.
+            precision — la roquette du Frelon et la balle du Mirador :
+            un corps de trois mètres qui avance en ligne droite est ce
+            dont rêve un tireur posé.
+            mortier — l'obus du Pilon : on ne rate pas une cible pareille
+            avec une gerbe, et il n'a nulle part où se mettre à couvert. */
+         vuln:{ precision:5, mortier:2 } }
 };
 var TYPES_TROUPE = ["meuf", "mec", "ogre"];
 
@@ -631,6 +656,94 @@ function genereCarte(codeSalon, index, plan, tirage){
       t:"reacteur", gx:trouve.gx, gy:trouve.gy, pv:fr.pv, pvMax:fr.pv,
       e:fr.emprise, ang:0, vivant:1, n:c.batiments.length
     });
+  }
+
+  /* --- RENFORT DE DÉFENSES : +15 % ---
+     Posé sur son propre maillage, au CENTRE exact des mailles du
+     quadrillage principal : chaque renfort se retrouve alors à 3,5
+     cases des quatre nœuds qui l'entourent, ce qui suffit à garantir
+     qu'il ne chevauchera jamais une défense d'origine — sans avoir à
+     interroger la liste des bâtiments déjà posés.
+     C'est ce détail qui rend le renfort ISOLABLE. Une vérification
+     d'encombrement aurait lu des bâtiments dont le type et la présence
+     dépendent du plan de défense : repeindre une seule zone aurait
+     alors déplacé des renforts à l'autre bout de l'île. Même raison
+     pour l'absence de plafond global sur le compte : un plafond couple
+     toutes les zones entre elles, puisque atteindre le compte plus tôt
+     change tout ce qui vient après.
+     Ajouté à la fin du tableau, comme les cellules et les miradors :
+     les indices des bâtiments d'origine ne bougent pas.
+     Le renfort suit le plan du salon, type ET densité : sans quoi
+     peindre une zone en Frelon y aurait laissé des défenses tirées au
+     hasard. */
+  for(var sx = 8.5; sx <= PLAGE_X0 - 5; sx += 5){
+    for(var sy = 5.5; sy <= GH - 6; sy += 5){
+      var zs  = zones ? zones[zoneDePlan(sx, sy)] : 0;
+      var zts = zs & 7, zds = (zs >> 3) & 3;
+      /* La proportion gardée suit celle de la zone : un secteur
+         clairsemé reçoit un renfort clairsemé, un secteur saturé un
+         renfort saturé. 0,1486 est le rapport qui donne +15 % du
+         quadrillage d'origine, lequel en garde 72 %. */
+      var sautSup = 1 - (1 - (zds ? DENSITES[zds].saut : 0.28)) * 0.1486;
+      /* Tirages consommés que le nœud soit gardé ou non : un coup de
+         pinceau ne doit décaler la séquence de personne d'autre. */
+      var rs  = al();
+      var jxs = (al() - 0.5) * 1.2;
+      var jys = (al() - 0.5) * 1.2;
+      var angs = al() * 6.2832;
+      var dss = Math.hypot(sx - QG_GX, sy - QG_GY);
+      var tAutoS = dss < 30 ? tirePondere(al, bandeProche)
+                 : dss < 62 ? tirePondere(al, bandeMoy)
+                            : tirePondere(al, bandeLoin);
+      if(rs < sautSup) continue;
+      if(Math.abs(sx - QG_GX) <= 10 && Math.abs(sy - QG_GY) <= 10) continue;
+      var ts = zts ? TYPES_PLAN[zts] : tAutoS;
+      var fs = DEF[ts];
+      c.batiments.push({
+        t:ts, gx:sx + jxs, gy:sy + jys, pv:fs.pv, pvMax:fs.pv, e:fs.emprise,
+        ang:angs, vivant:1, sup:1, n:c.batiments.length
+      });
+    }
+  }
+
+  /* --- LES MIRADORS ---
+     Posés EN DERNIER, après les cellules électriques, et pour la même
+     raison qu'elles : le bitmap des destructions désigne les bâtiments
+     par leur indice dans ce tableau. Tout ce qui s'insère avant décale
+     les indices suivants et fait pointer chaque bit sur le mauvais
+     bâtiment dans tous les salons déjà en cours. Ajouté à la fin, un
+     mirador ne dérange rien — il occupe un indice qui n'existait pas.
+     C'est aussi pour ça qu'ils ne sont PAS entrés dans les bandes de
+     tirage du quadrillage principal : y toucher aurait rebattu le type
+     de chacune des 488 défenses existantes.
+     Leur propre quadrillage est plus lâche que celui des défenses
+     ordinaires (7 cases contre 5) et décalé d'un demi-pas, pour qu'ils
+     se posent dans les allées plutôt que sur les tourelles. */
+  var fm = DEF.mirador;
+  var margeM = LARGEUR_ROCHE + 3;
+  for(var mx = margeM + 3; mx <= PLAGE_X0 - 4; mx += 7){
+    for(var my = margeM + 4; my <= GH - margeM - 3; my += 7){
+      /* Un tirage par nœud, gardé ou non : la séquence reste stable si
+         l'on change un jour la proportion. */
+      var rm = al();
+      var gxm = mx + (al() - 0.5) * 2.2;
+      var gym = my + (al() - 0.5) * 2.2;
+      var angm = al() * 6.2832;
+      if(rm < 0.18) continue;
+      if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
+      /* on ne le plante pas dans un bâtiment déjà posé */
+      var placeLibre = 1;
+      for(var jm = 0; jm < c.batiments.length; jm++){
+        var bm = c.batiments[jm];
+        if(Math.abs(bm.gx - gxm) > 4 || Math.abs(bm.gy - gym) > 4) continue;
+        if(Math.hypot(bm.gx - gxm, bm.gy - gym) < (fm.emprise + bm.e) * 0.5 + 0.6){ placeLibre = 0; break; }
+      }
+      if(!placeLibre) continue;
+      c.batiments.push({
+        t:"mirador", gx:gxm, gy:gym, pv:fm.pv, pvMax:fm.pv, e:fm.emprise,
+        ang:angm, vivant:1, n:c.batiments.length
+      });
+    }
   }
   return c;
 }

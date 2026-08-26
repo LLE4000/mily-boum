@@ -515,6 +515,40 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#ffe9a0";
     c.beginPath(); c.arc(p.x, p.y - (10 + (1 - t) * 90) * z, 4 * z, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "abattu"){
+    /* ABATTU D'UNE BALLE. Une croix de visée qui se referme sur le
+       point d'impact, puis s'efface : le langage du tireur d'élite.
+       C'est court et sec — on ne fête pas un tir, on le constate. */
+    var ta = t, fa = 1 - ta;
+    var ya = p.y - 16 * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* l'éclaboussure du coup, très brève */
+    if(ta < 0.3){
+      var ka = 1 - ta / 0.3;
+      lueurRapide(c, p.x, ya, 46 * z, "#ffd9c0", 0.7 * ka);
+    }
+    /* la croix : quatre branches qui se resserrent */
+    var ecart = (34 - ta * 22) * z;
+    var lg = 13 * z * (1 - ta * 0.5);
+    c.strokeStyle = "rgba(255,236,214," + (0.9 * fa) + ")";
+    c.lineWidth = Math.max(1.1, 2.1 * z);
+    c.lineCap = "round";
+    for(var ia = 0; ia < 4; ia++){
+      var aa2 = ia * 1.5708;
+      var cx4 = Math.cos(aa2), sy4 = Math.sin(aa2) * 0.55;
+      c.beginPath();
+      c.moveTo(p.x + cx4 * ecart, ya + sy4 * ecart);
+      c.lineTo(p.x + cx4 * (ecart + lg), ya + sy4 * (ecart + lg));
+      c.stroke();
+    }
+    /* l'anneau qui s'ouvre au sol : d'où le coup venait */
+    c.strokeStyle = "rgba(255,190,150," + (0.45 * fa * fa) + ")";
+    c.lineWidth = Math.max(1, 2.6 * fa * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, (10 + ta * 40) * z, (5 + ta * 20) * z, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
   }else if(e.t === "hacheBoum"){
     /* ---- IMPACT DE HACHE ----
        Pas une explosion : un COUP. Un éclat blanc très bref, une gerbe
@@ -735,6 +769,32 @@ function dessineProjectile(c, p, tps){
   var e = versEcran(cam, p.gx, p.gy);
   var z = cam.z;
   var zz = (p.z || 0) * z;
+  if(p.t === "balle"){
+    /* La balle du Mirador : un trait tendu, blanc-chaud, qui file plus
+       vite que l'œil. On ne dessine pas un projectile mais sa TRACE —
+       à vingt-six cases par seconde, une bille serait invisible entre
+       deux images. Le trait relie la position d'il y a un vingtième de
+       seconde à la position courante. */
+    var kb2 = Math.max(0, (p.age - 0.045) / p.duree);
+    var qx2 = p.x0 + (p.but.gx - p.x0) * kb2, qy2 = p.y0 + (p.but.gy - p.y0) * kb2;
+    var qz2 = p.z0 * (1 - kb2);
+    var a2 = versEcran(cam, qx2, qy2);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.lineCap = "round";
+    c.strokeStyle = "rgba(120,180,255,.30)";
+    c.lineWidth = Math.max(1.2, 3.4 * z);
+    c.beginPath();
+    c.moveTo(a2.x, a2.y - qz2 * z);
+    c.lineTo(e.x, e.y - zz);
+    c.stroke();
+    c.strokeStyle = "rgba(255,250,232,.95)";
+    c.lineWidth = Math.max(0.8, 1.3 * z);
+    c.stroke();
+    lueurRapide(c, e.x, e.y - zz, 9 * z, "#cfe4ff", 0.55);
+    c.restore();
+    return;
+  }
   if(p.t === "hache"){
     /* ---- LA HACHE DE L'OGRE ----
        Elle tourne VRAIMENT : la rotation vient de la simulation
@@ -846,7 +906,8 @@ function dessineProjectile(c, p, tps){
     c.translate(hx, hy);
     c.rotate(Math.atan2(d.y, d.x));
     c.scale(z, z);
-    c.fillStyle = p.t === "roquetteJ" ? "#e8672f" : "#8a9a62";
+    /* la roquette du Frelon est jaune comme lui */
+    c.fillStyle = p.t === "roquetteJ" ? "#e8672f" : "#c2992f";
     c.beginPath();
     c.moveTo(6, 0); c.lineTo(-4, -2.2); c.lineTo(-4, 2.2);
     c.closePath(); c.fill();

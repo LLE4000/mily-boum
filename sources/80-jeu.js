@@ -562,19 +562,21 @@ function creeUnite(type, gx, gy){
 /* ---------------------------------------------------------------
    Dégâts
    --------------------------------------------------------------- */
-/* Combien une troupe encaisse d'un lance-roquettes. Un pour tout le
-   monde, cinq pour l'Ogre : c'est sa faiblesse tactique, et elle ne
-   vaut QUE pour les roquettes du Frelon. Ni les mitrailleuses, ni le
+/* Combien une troupe encaisse d'une ARME DE PRÉCISION : la roquette
+   du Frelon, la balle du tireur d'élite du Mirador. Un pour tout le
+   monde, cinq pour l'Ogre — un corps de trois mètres qui avance en
+   ligne droite est exactement ce dont rêve un tireur posé.
+   Ça ne vaut QUE pour ces deux-là. Ni les mitrailleuses, ni le
    chalumeau, ni la bobine, ni les créatures, ni les éruptions du
    Brasier, ni les capacités — et surtout pas les bâtiments, qui ne
    passent jamais par ici. */
-function multRoquette(u){
+function multVuln(u, arme){
   var f = UNI[u.t];
-  return (f && f.vulnRoquette) || 1;
+  return (f && f.vuln && f.vuln[arme]) || 1;
 }
 function toucheUnite(u, degats, opt){
   if(u.pv <= 0) return;
-  if(opt && opt.roquette) degats *= multRoquette(u);
+  if(opt && opt.arme) degats *= multVuln(u, opt.arme);
   u.pv -= degats;
   if(opt){
     if(opt.brulure) u.brulure = Math.max(u.brulure, EQ.BRULURE_DUREE);
@@ -583,6 +585,13 @@ function toucheUnite(u, degats, opt){
   }
   if(u.pv <= 0 && !u.leurre){
     jeu.effets.push({ t:"mort", gx:u.gx, gy:u.gy, age:0, duree:0.55, typ:u.t });
+    /* Un Ogre abattu d'une seule balle, ça doit se VOIR : sans marque
+       propre, le joueur voit sa plus grosse unité disparaître d'une
+       image à l'autre sans comprendre ce qui l'a touchée. */
+    if(opt && opt.arme && multVuln(u, opt.arme) > 1){
+      jeu.effets.push({ t:"abattu", gx:u.gx, gy:u.gy, age:0, duree:0.9 });
+      jeu.secousse = Math.min(7, jeu.secousse + 2.2);
+    }
     if(jeu.fantome === null) jeu.dernierePerte = { gx:u.gx, gy:u.gy };
   }
 }
@@ -1322,9 +1331,24 @@ function tireDefense(b, f, c, d, tps){
     var vol = Math.max(0.85, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bombe", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone,
-      haut:34 + d * 4.6 });
+      mortier:f.mortier || 0, haut:34 + d * 4.6 });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.45 });
     son.tirPilon();
+  }else if(b.t === "mirador"){
+    /* LE TIREUR D'ÉLITE. Une balle, une cible, très loin, très vite —
+       pas de zone, pas de gerbe, pas de rattrapage. Elle part avec le
+       drapeau `precision`, celui qui déclenche le ×5 de l'Ogre : un
+       corps de trois mètres qui avance en ligne droite est exactement
+       ce dont rêve un homme posé dans une tour.
+       Le projectile file à 26 cases/s — trois fois une roquette : à
+       douze cases on doit voir le trait partir, pas le voir voyager. */
+    b.recul = 1;
+    var volM = Math.max(0.12, d / f.vitesseProj);
+    jeu.projectiles.push({ t:"balle", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
+      cible:c, but:{ gx:c.gx, gy:c.gy }, duree:volM, age:0,
+      degats:f.degats, z0:44 });
+    jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.28 });
+    if(son.tirMirador) son.tirMirador();
   }else if(b.t === "bobine"){
     var vol2 = Math.max(0.7, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bobine", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
@@ -1360,6 +1384,29 @@ function majProjectiles(dt){
       }
       continue;
     }
+    if(p.t === "balle"){
+      /* La balle du Mirador ne poursuit pas : elle est tirée là où la
+         cible SE TROUVAIT. Une troupe qui bouge s'en sort, une troupe
+         postée la prend en pleine tête — et c'est très bien ainsi,
+         puisque c'est précisément la troupe postée qu'elle est là pour
+         punir. Elle épargne ce que le Brouillard cache : un tireur ne
+         vise pas ce qu'il ne voit pas. */
+      var kb = Math.min(1, p.age / p.duree);
+      p.gx = p.x0 + (p.but.gx - p.x0) * kb;
+      p.gy = p.y0 + (p.but.gy - p.y0) * kb;
+      p.z = p.z0 * (1 - kb);
+      if(kb >= 1){
+        if(p.cible && p.cible.pv > 0 && !masquee(p.cible) &&
+           Math.hypot(p.cible.gx - p.but.gx, p.cible.gy - p.but.gy) < 0.9){
+          toucheUnite(p.cible, p.degats, { arme:"precision" });
+        }else{
+          degatsZone(p.but.gx, p.but.gy, 0.45, p.degats, { epargneCachees:1, arme:"precision" });
+        }
+        jeu.effets.push({ t:"impact", gx:p.but.gx, gy:p.but.gy, age:0, duree:0.30 });
+        jeu.projectiles.splice(i, 1);
+      }
+      continue;
+    }
     if(p.t === "roquetteJ" || p.t === "roquette"){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
@@ -1385,12 +1432,12 @@ function majProjectiles(dt){
           /* ceinture et bretelles : la cible est déjà lâchée dès
              qu'elle entre dans la fumée, mais si elle s'y glisse à
              l'image même de l'impact, la roquette ne la touche pas */
-          /* roquette:1 — c'est ce drapeau, et lui seul, qui déclenche
-             la vulnérabilité de l'Ogre aux lance-roquettes. Il est posé
-             sur le coup au but ET sur le souffle : une roquette qui
-             éclate à côté de lui doit faire mal elle aussi. */
-          if(p.cible && p.cible.pv > 0 && !masquee(p.cible)) toucheUnite(p.cible, p.degats, { roquette:1 });
-          else degatsZone(bx, by, 0.8, p.degats, { epargneCachees:1, roquette:1 });
+          /* precision:1 — c'est ce drapeau, et lui seul, qui déclenche
+             la vulnérabilité de l'Ogre. Il est posé sur le coup au but
+             ET sur le souffle : une roquette qui éclate à côté de lui
+             doit faire mal elle aussi. */
+          if(p.cible && p.cible.pv > 0 && !masquee(p.cible)) toucheUnite(p.cible, p.degats, { arme:"precision" });
+          else degatsZone(bx, by, 0.8, p.degats, { epargneCachees:1, arme:"precision" });
         }
         if(p.t === "roquette"){
           /* une roquette qui pique du ciel doit marquer le sol : boule
@@ -1452,7 +1499,8 @@ function majProjectiles(dt){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
           if(!p.allie || p.tousCamps)
             degatsZone(p.cx, p.cy, p.zone, p.degats,
-                       (p.allie || p.braise) ? undefined : { epargneCachees:1 });
+                       (p.allie || p.braise) ? undefined
+                         : { epargneCachees:1, arme:p.mortier ? "mortier" : "" });
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
           jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0,
                             duree:p.salve ? 0.85 : 0.62,
