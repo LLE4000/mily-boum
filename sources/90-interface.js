@@ -525,6 +525,12 @@ function majPodium(){
        + '<span class="n">' + echappe(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
+  /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur
+     l'île où le drame a eu lieu */
+  if(jeu.tueurGege){
+    h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
+       + '</b> a tué Gégé la belette</div>';
+  }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){

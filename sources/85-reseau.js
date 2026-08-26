@@ -137,7 +137,8 @@ function mondeCourant(){
   var bits = [], i;
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
-           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits) };
+           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
+           g:jeu.tueurGege || "" };
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -179,6 +180,11 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
+  if(m.g && !jeu.tueurGege){
+    jeu.tueurGege = String(m.g).substr(0, 14);
+    tueGegeLocale();
+    change++;
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -186,6 +192,16 @@ function appliqueMondeAuJeu(m){
     demandeMajBarres();
   }
   return change;
+}
+
+/* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le
+   deuil ni recréditer d'Énergie. */
+function tueGegeLocale(){
+  if(!jeu) return;
+  for(var i = 0; i < jeu.creatures.length; i++){
+    var k = jeu.creatures[i];
+    if(k.t === "belette" && k.pv > 0) k.pv = 0;
+  }
 }
 
 /* Miroir local : le courtier public ne garantit pas de conserver ses
@@ -292,6 +308,15 @@ function recoit(txt){
         signaleMonde();
       }
     }
+  }else if(m.t === "gege"){
+    if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurGege){
+      jeu.tueurGege = (m.nom || "?").substr(0, 14);
+      jeu.messageGege = 3.0;
+      tueGegeLocale();
+      son.gege();
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -374,6 +399,9 @@ function majReseau(dt){
 /* L'index d'île accompagne l'événement : sans lui, un joueur passé
    à l'île suivante détruisait le bâtiment de même rang chez ceux
    restés sur la précédente. */
+/* Le sort de Gégé fait partie du monde : il se diffuse tout de suite,
+   et il est aussi porté par l'instantané pour ceux qui arriveront après. */
+function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 

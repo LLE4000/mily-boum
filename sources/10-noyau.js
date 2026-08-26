@@ -565,6 +565,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
      c  index de l'île en cours
      pv points de vie du Brasier
      d  bitmap des bâtiments détruits, six bits par caractère
+     g  nom de qui a tué Gégé la belette (vide tant qu'elle vit)
 
    Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
    les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
@@ -622,7 +623,7 @@ function compteBits(s){
 }
 
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"" };
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -640,14 +641,17 @@ function fusionneMonde(a, b){
   if(!mondeValide(a)) return mondeValide(b) ? b : null;
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
-  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv, d:b.d || "" };
+  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
+                       d:b.d || "", g:b.g || "" };
   if(ra > rb) return a;
   return {
     v : Math.max(a.v, b.v),
     cy: a.cy | 0,
     c : a.c,
     pv: Math.min(a.pv, b.pv),
-    d : unionBits(a.d, b.d)
+    d : unionBits(a.d, b.d),
+    /* Gégé ne meurt qu'une fois : le premier nom inscrit y reste. */
+    g : a.g || b.g || ""
   };
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
@@ -655,7 +659,8 @@ function fusionneMonde(a, b){
    se renverraient l'instantané en boucle. */
 function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
-  return rangMonde(a) === rangMonde(b) && a.pv === b.pv && (a.d || "") === (b.d || "");
+  return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
+         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */

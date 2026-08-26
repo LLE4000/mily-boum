@@ -180,6 +180,8 @@ select.champ{cursor:pointer}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
 #podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 #podium .moi .n{color:var(--vert);font-weight:700}
+#podium .gg{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.10);font-size:11px;color:#e6b98a;line-height:1.35}
+#podium .gg b{color:#ffb45c}
 #zoomB{display:flex;gap:5px}
 #zoomB button{width:36px;height:36px;padding:0;font-size:17px;border-radius:11px;display:flex;align-items:center;justify-content:center}
 
@@ -983,6 +985,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
      c  index de l'île en cours
      pv points de vie du Brasier
      d  bitmap des bâtiments détruits, six bits par caractère
+     g  nom de qui a tué Gégé la belette (vide tant qu'elle vit)
 
    Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
    les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
@@ -1040,7 +1043,7 @@ function compteBits(s){
 }
 
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"" };
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1058,14 +1061,17 @@ function fusionneMonde(a, b){
   if(!mondeValide(a)) return mondeValide(b) ? b : null;
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
-  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv, d:b.d || "" };
+  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
+                       d:b.d || "", g:b.g || "" };
   if(ra > rb) return a;
   return {
     v : Math.max(a.v, b.v),
     cy: a.cy | 0,
     c : a.c,
     pv: Math.min(a.pv, b.pv),
-    d : unionBits(a.d, b.d)
+    d : unionBits(a.d, b.d),
+    /* Gégé ne meurt qu'une fois : le premier nom inscrit y reste. */
+    g : a.g || b.g || ""
   };
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
@@ -1073,7 +1079,8 @@ function fusionneMonde(a, b){
    se renverraient l'instantané en boucle. */
 function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
-  return rangMonde(a) === rangMonde(b) && a.pv === b.pv && (a.d || "") === (b.d || "");
+  return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
+         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
@@ -6278,6 +6285,7 @@ function nouvelleCarte(index, pvConnu){
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
+    tueurGege:"",              // nom du responsable, une fois pour toutes
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -6306,6 +6314,12 @@ function nouvelleCarte(index, pvConnu){
     }
     jeu.file.adopteMinimum(monde.pv);
     jeu.qg.pv = jeu.file.pv;
+    if(monde.g){
+      /* quelqu'un l'a déjà tuée dans ce salon : elle reste morte */
+      jeu.tueurGege = String(monde.g).substr(0, 14);
+      for(var w = 0; w < jeu.creatures.length; w++)
+        if(jeu.creatures[w].t === "belette") jeu.creatures[w].pv = 0;
+    }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
@@ -6727,7 +6741,10 @@ function abimeCreature(c, d){
     jeu.energie += EQ.ENERGIE_PAR_CREATURE;
     if(c.t === "belette"){
       jeu.messageGege = 3.0;                       // trois secondes de deuil
+      jeu.tueurGege = monNom;
       son.gege();
+      envoieGege();                                // que tout le salon le sache
+      signaleMonde();
     }
     demandeMajBarres();
   }
@@ -7882,7 +7899,8 @@ function mondeCourant(){
   var bits = [], i;
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
-           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits) };
+           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
+           g:jeu.tueurGege || "" };
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -7924,6 +7942,11 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
+  if(m.g && !jeu.tueurGege){
+    jeu.tueurGege = String(m.g).substr(0, 14);
+    tueGegeLocale();
+    change++;
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -7931,6 +7954,16 @@ function appliqueMondeAuJeu(m){
     demandeMajBarres();
   }
   return change;
+}
+
+/* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le
+   deuil ni recréditer d'Énergie. */
+function tueGegeLocale(){
+  if(!jeu) return;
+  for(var i = 0; i < jeu.creatures.length; i++){
+    var k = jeu.creatures[i];
+    if(k.t === "belette" && k.pv > 0) k.pv = 0;
+  }
 }
 
 /* Miroir local : le courtier public ne garantit pas de conserver ses
@@ -8037,6 +8070,15 @@ function recoit(txt){
         signaleMonde();
       }
     }
+  }else if(m.t === "gege"){
+    if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurGege){
+      jeu.tueurGege = (m.nom || "?").substr(0, 14);
+      jeu.messageGege = 3.0;
+      tueGegeLocale();
+      son.gege();
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -8119,6 +8161,9 @@ function majReseau(dt){
 /* L'index d'île accompagne l'événement : sans lui, un joueur passé
    à l'île suivante détruisait le bâtiment de même rang chez ceux
    restés sur la précédente. */
+/* Le sort de Gégé fait partie du monde : il se diffuse tout de suite,
+   et il est aussi porté par l'instantané pour ceux qui arriveront après. */
+function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 
@@ -9079,7 +9124,10 @@ function dessineGege(c, tps){
   c.fillStyle = g0;
   c.beginPath(); c.arc(0, 0, taille * 6, 0, 6.2832); c.fill();
   c.restore();
-  var lignes = ["Oh non, vous avez tué", "Gégé la belette !"];
+  /* le coupable est nommé : « vous » si c'est vous, son pseudo sinon */
+  var lignes = (jeu.tueurGege && jeu.tueurGege !== monNom)
+    ? [jeu.tueurGege + " a tué", "Gégé la belette !"]
+    : ["Oh non, vous avez tué", "Gégé la belette !"];
   for(var i = 0; i < 2; i++){
     var y = (i - 0.5) * taille * 1.15;
     c.lineWidth = taille * 0.24; c.strokeStyle = "#160702";
@@ -9776,6 +9824,12 @@ function majPodium(){
     h += '<div class="r' + (l[i].moi ? " moi" : "") + '"><span>' + med[i] + '</span>'
        + '<span class="n">' + echappe(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
+  }
+  /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur
+     l'île où le drame a eu lieu */
+  if(jeu.tueurGege){
+    h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
+       + '</b> a tué Gégé la belette</div>';
   }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }

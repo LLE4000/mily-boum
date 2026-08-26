@@ -946,7 +946,10 @@ function dessineGege(c, tps){
   c.fillStyle = g0;
   c.beginPath(); c.arc(0, 0, taille * 6, 0, 6.2832); c.fill();
   c.restore();
-  var lignes = ["Oh non, vous avez tué", "Gégé la belette !"];
+  /* le coupable est nommé : « vous » si c'est vous, son pseudo sinon */
+  var lignes = (jeu.tueurGege && jeu.tueurGege !== monNom)
+    ? [jeu.tueurGege + " a tué", "Gégé la belette !"]
+    : ["Oh non, vous avez tué", "Gégé la belette !"];
   for(var i = 0; i < 2; i++){
     var y = (i - 0.5) * taille * 1.15;
     c.lineWidth = taille * 0.24; c.strokeStyle = "#160702";

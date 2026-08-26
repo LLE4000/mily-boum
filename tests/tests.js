@@ -485,6 +485,24 @@ G("8. Cohérence des règles de jeu");
        N.fusionneMonde(f, ile0).c === 1);
   })();
 
+  /* --- le sort de Gégé fait partie du monde --- */
+  (function(){
+    var avant = { v:1, cy:0, c:0, pv:900, d:"", g:"" };
+    var apres = { v:2, cy:0, c:0, pv:900, d:"", g:"Thimote" };
+    ok("le nom du tueur de Gégé se propage",
+       N.fusionneMonde(avant, apres).g === "Thimote");
+    ok("et il ne s'efface jamais",
+       N.fusionneMonde(apres, avant).g === "Thimote" &&
+       N.fusionneMonde(N.fusionneMonde(apres, avant), avant).g === "Thimote");
+    ok("le premier nom inscrit gagne, quel que soit l'ordre",
+       N.fusionneMonde(apres, { v:9, cy:0, c:0, pv:900, d:"", g:"Autre" }).g === "Thimote");
+    ok("Gégé vivante = aucun nom", N.mondeVide(0, 900, 0).g === "");
+    ok("une nouvelle campagne rend Gégé à la vie",
+       N.fusionneMonde(apres, { v:1, cy:1, c:0, pv:900, d:"", g:"" }).g === "");
+    ok("le tueur compte dans la comparaison de deux mondes",
+       !N.memeMonde(avant, apres));
+  })();
+
   /* --- bouclage de la campagne --- */
   (function(){
     var fin = { v:40, cy:0, c:2, pv:0, d:N.encodeBits([1,1,1,1,1,1]) };

@@ -33,6 +33,7 @@ function nouvelleCarte(index, pvConnu){
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
+    tueurGege:"",              // nom du responsable, une fois pour toutes
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -61,6 +62,12 @@ function nouvelleCarte(index, pvConnu){
     }
     jeu.file.adopteMinimum(monde.pv);
     jeu.qg.pv = jeu.file.pv;
+    if(monde.g){
+      /* quelqu'un l'a déjà tuée dans ce salon : elle reste morte */
+      jeu.tueurGege = String(monde.g).substr(0, 14);
+      for(var w = 0; w < jeu.creatures.length; w++)
+        if(jeu.creatures[w].t === "belette") jeu.creatures[w].pv = 0;
+    }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
@@ -482,7 +489,10 @@ function abimeCreature(c, d){
     jeu.energie += EQ.ENERGIE_PAR_CREATURE;
     if(c.t === "belette"){
       jeu.messageGege = 3.0;                       // trois secondes de deuil
+      jeu.tueurGege = monNom;
       son.gege();
+      envoieGege();                                // que tout le salon le sache
+      signaleMonde();
     }
     demandeMajBarres();
   }
