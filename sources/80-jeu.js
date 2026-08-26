@@ -567,48 +567,56 @@ function abimeQG(d){
 /* ---------------------------------------------------------------
    Déplacement avec évitement simple
    --------------------------------------------------------------- */
+/* Caps de contournement, de plus en plus écartés du cap voulu : un
+   frôlement, un évitement franc, la parallèle au mur, puis des caps de
+   dégagement vers l'arrière pour sortir d'un cul-de-sac. */
+var CAPS_EVITEMENT = [0.55, 1.05, 1.57, 2.10, 2.60];
+
 function deplace(u, dx, dy, pas){
   var l = Math.hypot(dx, dy);
   if(l < 1e-6) return;
   dx /= l; dy /= l;
   var nx = u.gx + dx * pas, ny = u.gy + dy * pas;
-  var okX = !bloque(nx, u.gy), okY = !bloque(u.gx, ny);
-  if(okX && okY && !bloque(nx, ny)){
+  if(!bloque(nx, ny) && !bloque(nx, u.gy) && !bloque(u.gx, ny)){
     /* Le bornage vaut AUSSI ici : bloque() considère tout gx >= GW comme
        libre, et la séparation locale est le premier code à pousser une
        unité vers l'est. Sans ces deux bornes, les troupes serrées au
        pied de la rampe finissaient debout sur la mer. */
     u.gx = borne(nx, 0.4, GW - 0.5);
     u.gy = borne(ny, 0.4, GH - 0.5);
+    u.cote = 0;                       // route libre : plus de contournement
     return;
   }
-  if(okX) u.gx = nx;
-  if(okY) u.gy = ny;
-  if(!okX && !okY){
-    /* CONTOURNEMENT AVEC MÉMOIRE.
-       On tentait les deux tangentes et on prenait la première libre,
-       sans rien retenir. Contre le coin d'un bâtiment, la tangente
-       « libre » change d'une image à l'autre : la troupe faisait un pas
-       à gauche, un pas à droite, un pas à gauche, et n'avançait plus
-       jamais. C'est ça qui plantait les troupes en route vers la
-       Balise, pas la Balise elle-même.
-       Chacune retient donc SON côté de contournement et le garde tant
-       qu'elle longe l'obstacle ; elle ne change de bord que si ce
-       côté-là se bouche aussi. */
-    if(!u.cote) u.cote = (bruitStable(u.n, 0) < 0.5) ? 1 : -1;
-    var tx = -dy * u.cote, ty = dx * u.cote;
-    if(!bloque(u.gx + tx * pas, u.gy + ty * pas)){
-      u.gx += tx * pas; u.gy += ty * pas;
-    }else if(!bloque(u.gx - tx * pas, u.gy - ty * pas)){
-      u.cote = -u.cote;                       // ce bord est bouché, on passe de l'autre
-      u.gx -= tx * pas; u.gy -= ty * pas;
+
+  /* CONTOURNEMENT À PLEINE VITESSE.
+     L'ancien code glissait sur un seul axe (vitesse amputée de la
+     composante perdue) ou tentait deux tangentes fixes : contre un
+     angle de bâtiment, la troupe zigzaguait sur place, et dans une
+     poche entre plusieurs bâtiments elle s'arrêtait net. Ici on balaie
+     des caps de plus en plus écartés du cap voulu — côté mémorisé
+     d'abord, l'autre ensuite — et on prend le PREMIER cap libre, au
+     pas entier. Une troupe n'est donc jamais ralentie tant qu'il
+     existe une direction praticable : elle épouse le mur, contourne
+     l'angle, ressort de la poche, et reprend sa route. Le côté
+     mémorisé (u.cote) l'empêche d'hésiter entre gauche et droite ;
+     elle n'en change que si son côté est réellement muré. */
+  if(!u.cote) u.cote = (bruitStable(u.n, 0) < 0.5) ? 1 : -1;
+  for(var cote = 0; cote < 2; cote++){
+    var s = cote ? -u.cote : u.cote;
+    for(var k = 0; k < CAPS_EVITEMENT.length; k++){
+      var a = CAPS_EVITEMENT[k] * s;
+      var ca = Math.cos(a), sa = Math.sin(a);
+      var vx = dx * ca - dy * sa, vy = dx * sa + dy * ca;
+      var tx = u.gx + vx * pas, ty = u.gy + vy * pas;
+      if(!bloque(tx, ty)){
+        if(cote) u.cote = -u.cote;    // le côté préféré était muré : on en change
+        u.gx = borne(tx, 0.4, GW - 0.5);
+        u.gy = borne(ty, 0.4, GH - 0.5);
+        return;
+      }
     }
-  }else{
-    /* elle avance de nouveau : le contournement en cours est terminé */
-    u.cote = 0;
   }
-  u.gx = borne(u.gx, 0.4, GW - 0.5);
-  u.gy = borne(u.gy, 0.4, GH - 0.5);
+  /* murée de partout : elle ne bouge pas cette image-ci */
 }
 
 /* ---------------------------------------------------------------
