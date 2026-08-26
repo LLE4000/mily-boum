@@ -401,10 +401,23 @@ G("4. Déterminisme de la génération de carte");
     /* Il tire de loin : il ne doit jamais venir se coller au bâtiment. */
     ok("il s'arrête loin de sa cible pour lancer", O.arret > 3, "" + O.arret);
     ok("son arrêt reste sous sa portée", O.arret < O.portee, O.arret + " < " + O.portee);
-    /* Encombrement : plus large que les autres, mais franchissable. */
+    /* Encombrement. Le rayon ne sert QU'À l'écartement entre unités :
+       bloque() teste un point et pas un disque, donc un gros rayon
+       n'empêche pas de passer entre deux bâtiments. Deux ogres doivent
+       se tenir à bonne distance — ils se chevauchaient presque
+       entièrement, trois corps pour la place d'un. */
     ok("il est plus encombrant que le Mec", O.rayon > N.UNI.mec.rayon,
        O.rayon + " > " + N.UNI.mec.rayon);
-    ok("sans devenir infranchissable", O.rayon < 1.0, "" + O.rayon);
+    ok("deux Ogres se tiennent à plus du double de l'écart d'avant",
+       O.rayon * 2 >= 2 * (0.72 * 2) * 0.95, "écart " + (O.rayon * 2) + " cases");
+    ok("son encombrement suit sa taille",
+       O.rayon / N.UNI.meuf.rayon > 3, "×" + (O.rayon / N.UNI.meuf.rayon).toFixed(2) + " une Meuf");
+    /* La fenêtre de recherche de voisins doit pouvoir contenir la plus
+       grosse paire, sinon deux ogres ne se voient pas et se traversent. */
+    var maille = N.EQ.SEPARATION_MAILLE;
+    ok("la maille de séparation reste compatible avec son rayon",
+       Math.ceil((O.rayon * 2) / maille) >= 1,
+       "il faut balayer " + Math.ceil((O.rayon * 2) / maille) + " case(s) autour");
   })();
 
   /* ---- LES CINQ CELLULES ÉLECTRIQUES ----

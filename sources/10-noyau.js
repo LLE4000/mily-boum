@@ -280,8 +280,14 @@ var UNI = {
      Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Meuf,
      malgré sa masse : son animation est lourde, pas son déplacement.
      ------------------------------------------------------------ */
+  /* rayon : c'est l'ENCOMBREMENT, l'écart que deux unités s'imposent
+     l'une à l'autre. Il ne joue sur rien d'autre — bloque() teste un
+     point, pas un disque, donc il n'empêche pas de passer entre deux
+     bâtiments. À 0,72 trois ogres se chevauchaient presque entièrement :
+     leur corps fait trois fois celui d'une Meuf et déborde largement de
+     l'écart qui convient à une petite troupe. */
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
-         degats:440, cadence:850, vitesse:1.782, rayon:0.72, places:1,
+         degats:440, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, vulnRoquette:5, ech:3 }
 };
 var TYPES_TROUPE = ["meuf", "mec", "ogre"];

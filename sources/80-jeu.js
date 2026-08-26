@@ -303,9 +303,11 @@ function separeUnites(dt){
   sepDebut.fill(0); sepTete.fill(0);
 
   /* copie plate + comptage par case */
+  var rayonMax = 0;
   for(i = 0; i < n; i++){
     var u = lst[i];
     sepX[i] = u.gx; sepY[i] = u.gy; sepR[i] = UNI[u.t].rayon;
+    if(sepR[i] > rayonMax) rayonMax = sepR[i];
     sepPx[i] = 0; sepPy[i] = 0;
     var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
     if(cx < 0) cx = 0; else if(cx >= sepW) cx = sepW - 1;
@@ -320,12 +322,22 @@ function separeUnites(dt){
     sepTete[c]++;
   }
 
+  /* Portée de recherche, en CASES DE GRILLE. Deux unités se repoussent
+     jusqu'à sepR[i] + sepR[j] ; il faut donc balayer assez de cases
+     pour que la plus grosse paire possible se voie. Une fenêtre 3×3
+     fixe suffisait tant que toutes les troupes tenaient dans la maille
+     — avec l'Ogre, deux d'entre eux s'ignoraient dès qu'ils n'étaient
+     pas dans des cases voisines, et ils se traversaient. La fenêtre ne
+     s'élargit QUE si une grosse unité est sur le terrain : sans Ogre,
+     rayonMax vaut 0,42 et on retombe exactement sur l'ancien 3×3. */
+  var portee = Math.max(1, Math.ceil((rayonMax * 2) / maille));
+
   /* répulsion : chaque paire traitée une seule fois (j > i) */
   for(i = 0; i < n; i++){
     var cx0 = lst[i].sepC % sepW, cy0 = (lst[i].sepC / sepW) | 0;
-    for(var jy = cy0 - 1; jy <= cy0 + 1; jy++){
+    for(var jy = cy0 - portee; jy <= cy0 + portee; jy++){
       if(jy < 0 || jy >= sepH) continue;
-      for(var jx = cx0 - 1; jx <= cx0 + 1; jx++){
+      for(var jx = cx0 - portee; jx <= cx0 + portee; jx++){
         if(jx < 0 || jx >= sepW) continue;
         var cc = jy * sepW + jx;
         for(var k = sepDebut[cc]; k < sepDebut[cc + 1]; k++){
