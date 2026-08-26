@@ -21,6 +21,7 @@ try{
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
     "rayonFormation","ancreFormation","ANGLE_OR","inverseRadical","RAYON_QG",
+    "placesNavette","flotteMaximum","texteVictoire","TYPES_TROUPE",
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
@@ -460,6 +461,49 @@ G("8. Cohérence des règles de jeu");
        Math.min(N.rayonFormation() * 0.55, (N.UNI.mec.arret + 0.3) * 0.7) < N.UNI.mec.arret + 0.3);
   })();
 
+  /* Les messages de victoire : un par île, et le pseudo du meilleur
+     contributeur en tête. */
+  (function(){
+    var bon = true, det = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var l = N.texteVictoire(i, "Thimote");
+      if(l.length !== 2 || l[0].indexOf("Thimote") !== 0 ||
+         l[0].indexOf("n°1") < 0 || !l[1] || l[1].indexOf("Millie") < 0){
+        bon = false; det += "île" + i + " ";
+      }
+    }
+    ok("chaque île a son message de victoire, avec le pseudo en tête", bon, det);
+    ok("les trois messages sont différents",
+       N.texteVictoire(0, "X")[1] !== N.texteVictoire(1, "X")[1] &&
+       N.texteVictoire(1, "X")[1] !== N.texteVictoire(2, "X")[1]);
+    ok("plage : le verre", N.texteVictoire(0, "X")[1].indexOf("boire un verre") > 0);
+    ok("forêt : la cabane", N.texteVictoire(1, "X")[1].indexOf("cabane") > 0);
+    ok("campagne : la paille", N.texteVictoire(2, "X")[1].indexOf("paille") > 0);
+    ok("le message boucle avec les îles", N.texteVictoire(3, "X")[1] === N.texteVictoire(0, "X")[1]);
+  })();
+
+  /* Tweety : un canari par île, inoffensif, et qui vole. */
+  (function(){
+    ok("Tweety s'écrit bien TWEETY", N.CRE.tweety.nom === "Tweety");
+    ok("Tweety est inoffensif", N.CRE.tweety.degats === 0 && N.CRE.tweety.portee === 0);
+    ok("Tweety fuit et vole", N.CRE.tweety.fuit === 1 && N.CRE.tweety.vole === 1);
+    ok("Tweety est plus rapide que les deux types de troupe",
+       N.CRE.tweety.vitesse > N.UNI.meuf.vitesse && N.CRE.tweety.vitesse > N.UNI.mec.vitesse);
+    for(var i = 0; i < 3; i++){
+      var m = N.genereCarte("MILY", i);
+      var n = m.creatures.filter(function(k){ return k.t === "tweety"; }).length;
+      var g = m.creatures.filter(function(k){ return k.t === "belette"; }).length;
+      ok("carte " + (i + 1) + " : un seul Tweety et une seule Gégé", n === 1 && g === 1,
+         "tweety=" + n + " belette=" + g);
+    }
+    var a = { v:1, cy:0, c:0, pv:9, d:"", g:"", w:"" };
+    var b = { v:2, cy:0, c:0, pv:9, d:"", g:"", w:"Thimote" };
+    ok("le nom du tueur de Tweety se propage et ne s'efface pas",
+       N.fusionneMonde(a, b).w === "Thimote" && N.fusionneMonde(b, a).w === "Thimote");
+    ok("une nouvelle campagne rend Tweety à la vie",
+       N.fusionneMonde(b, { v:1, cy:1, c:0, pv:9, d:"", g:"", w:"" }).w === "");
+  })();
+
   /* économie : plus généreuse qu'avant, mais toujours finie */
   ok("l'Énergie tactique a remplacé la Poudre",
      N.EQ.ENERGIE_DEPART === 220 && N.EQ.ENERGIE_PAR_BATIMENT === 5 &&
@@ -491,7 +535,17 @@ G("8. Cohérence des règles de jeu");
      Math.abs(couv - 40.5) < 0.01, couv.toFixed(2));
   ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
      Math.ceil(cases / couv) <= 6);
-  ok("une vie = 120 unités", N.EQ.NB_BARGES * N.EQ.PLACES_PAR_BARGE === 120);
+  ok("huit navettes par vie", N.EQ.NB_BARGES === 8);
+  ok("douze Meufs par navette au maximum", N.placesNavette("meuf") === 12);
+  ok("quinze Mecs par navette au maximum", N.placesNavette("mec") === 15);
+  ok("une vie plafonne à " + N.flotteMaximum() + " unités (8 × 15 Mecs)",
+     N.flotteMaximum() === 120);
+  ok("une flotte entière de Meufs fait 96 unités",
+     N.EQ.NB_BARGES * N.placesNavette("meuf") === 96);
+  ok("aucun type ne dépasse le plafond absolu d'une navette",
+     Object.keys(N.UNI).every(function(t){
+       return N.placesNavette(t) <= N.EQ.PLACES_PAR_BARGE;
+     }));
   /* le Brasier : objectif collectif */
   var dpsSolo = 100 * (N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000));
   var soloMin = N.CARTES[0].pvQG / dpsSolo / 60;

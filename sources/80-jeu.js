@@ -33,7 +33,8 @@ function nouvelleCarte(index, pvConnu){
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
-    tueurGege:"",              // nom du responsable, une fois pour toutes
+    tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
+    messageTweety:0,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -67,6 +68,11 @@ function nouvelleCarte(index, pvConnu){
       jeu.tueurGege = String(monde.g).substr(0, 14);
       for(var w = 0; w < jeu.creatures.length; w++)
         if(jeu.creatures[w].t === "belette") jeu.creatures[w].pv = 0;
+    }
+    if(monde.w){
+      jeu.tueurTweety = String(monde.w).substr(0, 14);
+      for(var w2 = 0; w2 < jeu.creatures.length; w2++)
+        if(jeu.creatures[w2].t === "tweety") jeu.creatures[w2].pv = 0;
     }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
@@ -505,6 +511,13 @@ function abimeCreature(c, d){
       jeu.tueurGege = monNom;
       son.gege();
       envoieGege();                                // que tout le salon le sache
+      signaleMonde();
+    }
+    if(c.t === "tweety"){
+      jeu.messageTweety = 3.0;
+      jeu.tueurTweety = monNom;
+      son.tweety();
+      envoieTweety();
       signaleMonde();
     }
     demandeMajBarres();
@@ -979,6 +992,7 @@ function majCreatures(dt, tps){
     if(c && c.pv <= 0) c = k.cible = null;
 
     if(k.t === "belette"){ majBelette(k, f, c, dt); continue; }
+    if(k.t === "tweety"){ majTweety(k, f, c, dt); continue; }
     if(k.t === "sanglier"){ majSanglier(k, f, c, dt); continue; }
     if(k.t === "crapaud"){ majCrapaud(k, f, c, dt, tps); continue; }
 
@@ -1020,6 +1034,59 @@ function deplaceCreature(k, dx, dy, pas){
   if(!bloque(nx, k.gy)) k.gx = nx;
   if(!bloque(k.gx, ny)) k.gy = ny;
 }
+/* Tweety : il alterne les postures. Posé, il sautille et picore ; on
+   approche, il décolle en flèche ; puis il plane et redescend se poser
+   un peu plus loin. L'altitude (k.z) est ce qui le distingue de tout le
+   reste du bestiaire — elle sert au dessin et à son ombre. */
+function majTweety(k, f, c, dt){
+  k.z = k.z || 0;
+  k.butT = (k.butT || 0) - dt;
+
+  if(c){
+    /* effarouché : décollage immédiat, à l'opposé et bien haut */
+    var dx = k.gx - c.gx, dy = k.gy - c.gy;
+    var d = Math.hypot(dx, dy) || 1;
+    k.etat = "envol";
+    k.z = Math.min(34, k.z + 58 * dt);
+    var a = Math.atan2(dy, dx) + Math.sin(jeu.tps * 1.7 + k.n) * 0.45;
+    deplaceCreature(k, Math.cos(a), Math.sin(a), f.vitesse * dt);
+    k.phase += dt * 26;                       // battement d'ailes rapide
+    k.droite = (Math.cos(a) - Math.sin(a)) > 0;
+    k.butT = 1.6;
+    return;
+  }
+
+  if(k.butT <= 0 || !k.but){
+    /* il choisit un nouveau perchoir, ou décide de picorer sur place */
+    if(k.etat === "vol" || Math.random() < 0.55){
+      k.etat = "pose";
+      k.butT = 2.4 + Math.random() * 4.5;
+      k.but = null;
+    }else{
+      k.etat = "vol";
+      k.butT = 1.8 + Math.random() * 2.6;
+      k.but = { gx:borne(k.ox + (Math.random() - 0.5) * 22, 4, PLAGE_X0 - 3),
+                gy:borne(k.oy + (Math.random() - 0.5) * 22, 4, GH - 5) };
+    }
+  }
+
+  if(k.etat === "vol" && k.but){
+    var vx = k.but.gx - k.gx, vy = k.but.gy - k.gy;
+    var dv = Math.hypot(vx, vy);
+    k.z = Math.min(26, k.z + 42 * dt);
+    if(dv > 0.4){
+      deplaceCreature(k, vx, vy, f.vitesse * 0.62 * dt);
+      k.droite = (vx - vy) > 0;
+    }else{ k.but = null; k.butT = 0; }
+    k.phase += dt * 20;
+    return;
+  }
+
+  /* posé : il redescend, puis sautille et picore */
+  k.z = Math.max(0, k.z - 46 * dt);
+  k.phase += dt * (k.z > 0.5 ? 20 : 5.5);
+}
+
 /* Gégé : elle vaque à ses affaires et détale dès qu'on approche. */
 function majBelette(k, f, c, dt){
   if(c){
@@ -1450,33 +1517,112 @@ function majMort(dt){
 /* ---------------------------------------------------------------
    Chute du QG : la séquence finale
    --------------------------------------------------------------- */
-function declencheFin(){
-  jeu.fin = { age:0, tete:null, confettis:null, texte:0 };
-  envoieCarte(jeu.index + 1);
-  son.boum(1.9);
+/* Qui a le plus contribué ? Le classement local vaut ce que valent les
+   messages reçus, mais c'est la même information que le TOP DÉGÂTS que
+   tout le monde a sous les yeux depuis le début de la partie. */
+function championDeLaPartie(){
+  var meilleur = { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
+  for(var id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(j.g > meilleur.g) meilleur = { nom:j.nom || "?", g:j.g, moi:0 };
+  }
+  return meilleur;
 }
+
+function declencheFin(){
+  jeu.fin = {
+    age:0, tete:null, confettis:null, texte:0,
+    champion:championDeLaPartie(),
+    effondrement:0,          // 0 → 1 : la forteresse s'enfonce et penche
+    debris:[], ondes:[], colonne:[],
+    prochaineFumee:0
+  };
+  envoieCarte(jeu.index + 1);
+  son.grondement();
+}
+var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
+var FIN_SOUFFLE = 3.2;           // s : instant de la déflagration
+
 function majFin(dt){
   var F = jeu.fin;
   F.age += dt;
   var p = jeu.qg;
-  if(F.age < 2.1){
-    /* pétarade */
+
+  /* ---- 1. l'effondrement : elle s'enfonce, penche, et se déchire ---- */
+  if(F.age < FIN_EFFONDREMENT){
+    var t = F.age / FIN_EFFONDREMENT;
+    /* courbe accélérée : imperceptible d'abord, brutale à la fin */
+    F.effondrement = t * t * t;
     F.prochain = (F.prochain || 0) - dt;
     if(F.prochain <= 0){
-      F.prochain = 0.055 + Math.random() * 0.07;
-      var a = Math.random() * 6.2832, r = Math.random() * 3.4;
+      /* les explosions remontent les terrasses au fur et à mesure */
+      F.prochain = 0.10 - t * 0.062;
+      var a = Math.random() * 6.2832, r = (0.6 + Math.random() * 3.2) * (1 - t * 0.4);
       jeu.effets.push({ t:"boum", gx:p.gx + Math.cos(a) * r, gy:p.gy + Math.sin(a) * r,
-                        age:0, duree:0.5, r:0.8 + Math.random(), force:1 });
-      jeu.secousse = Math.min(20, jeu.secousse + 1.2 + F.age);
-      son.boum(0.35 + Math.random() * 0.3);
+                        age:0, duree:0.5 + Math.random() * 0.3,
+                        r:0.7 + Math.random() * (0.8 + t * 1.6), force:1 });
+      jeu.secousse = Math.min(18, jeu.secousse + 1.0 + t * 4);
+      son.boum(0.28 + Math.random() * 0.28 + t * 0.3);
+      /* des débris partent déjà, arrachés à la maçonnerie */
+      if(Math.random() < 0.5 + t) ajouteDebris(F, 1 + (t * 3 | 0), 0.6 + t);
+    }
+    /* colonne de fumée qui grossit tout au long de la chute */
+    F.prochaineFumee -= dt;
+    if(F.prochaineFumee <= 0){
+      F.prochaineFumee = 0.12;
+      F.colonne.push({ x:(Math.random() - 0.5) * 60, y:0, vy:-38 - Math.random() * 40,
+                       r:14 + Math.random() * 22, age:0, duree:3.2 + Math.random() * 2 });
     }
   }
-  if(F.age >= 2.1 && !F.tete){
-    F.flash = 1;
-    F.tete = { x:0, y:0, vy:-320, rot:0, age:0 };
-    jeu.secousse = 24;
-    son.boum(1.9);
+
+  /* ---- 2. la déflagration ---- */
+  if(F.age >= FIN_SOUFFLE && !F.tete){
+    F.flash = 1.9;
+    F.effondrement = 1;
+    F.tete = { x:0, y:0, vy:-340, rot:0, age:0 };
+    jeu.secousse = 30;
+    son.boum(2.2);
     son.sifflet();
+    /* trois ondes de choc concentriques */
+    for(var o = 0; o < 3; o++) F.ondes.push({ age:-o * 0.16, r:0 });
+    /* et une pluie de débris, dans toutes les directions */
+    ajouteDebris(F, 90, 2.6);
+    /* le champignon de fumée */
+    for(var m = 0; m < 26; m++){
+      F.colonne.push({ x:(Math.random() - 0.5) * 130, y:-Math.random() * 90,
+                       vy:-52 - Math.random() * 70, r:22 + Math.random() * 36,
+                       age:0, duree:4.5 + Math.random() * 3 });
+    }
+  }
+
+  /* ---- 3. la vie des morceaux ---- */
+  for(var i = F.debris.length - 1; i >= 0; i--){
+    var d = F.debris[i];
+    d.age += dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.vy += 340 * dt;                     // gravité
+    d.rot += d.vr * dt;
+    if(d.y > d.sol){                      // rebond amorti, puis il s'immobilise
+      d.y = d.sol;
+      d.vy = -d.vy * 0.34;
+      d.vx *= 0.6; d.vr *= 0.5;
+      if(Math.abs(d.vy) < 24){ d.vy = 0; d.vx = 0; d.vr = 0; }
+    }
+    if(d.age > d.duree) F.debris.splice(i, 1);
+  }
+  for(var q = F.ondes.length - 1; q >= 0; q--){
+    F.ondes[q].age += dt;
+    F.ondes[q].r = Math.max(0, F.ondes[q].age) * 900;
+    if(F.ondes[q].age > 1.5) F.ondes.splice(q, 1);
+  }
+  for(var f2 = F.colonne.length - 1; f2 >= 0; f2--){
+    var fu = F.colonne[f2];
+    fu.age += dt;
+    fu.y += fu.vy * dt;
+    fu.vy *= (1 - dt * 0.5);              // elle ralentit en montant
+    fu.r += dt * 22;
+    if(fu.age > fu.duree) F.colonne.splice(f2, 1);
   }
   if(F.tete){
     F.tete.age += dt;
@@ -1484,7 +1630,7 @@ function majFin(dt){
     F.tete.vy += 60 * dt;
     F.tete.rot += dt * 7;
   }
-  if(F.age >= 2.4 && !F.confettis){
+  if(F.age >= FIN_SOUFFLE + 1.8 && !F.confettis){
     F.confettis = [];
     for(var i = 0; i < 160; i++){
       F.confettis.push({
@@ -1503,9 +1649,29 @@ function majFin(dt){
     }
   }
   if(F.flash > 0) F.flash -= dt * 2.2;
-  if(F.age >= 4.2 && !F.bilanMontre){
+  /* le sacre doit avoir le temps d'être lu avant que le tableau
+     de bilan ne recouvre l'écran */
+  if(F.age >= 10.5 && !F.bilanMontre){
     F.bilanMontre = 1;
     montreBilan();
+  }
+}
+
+/* Éclats de maçonnerie projetés. Ils vivent en coordonnées ÉCRAN
+   relatives au pied du Brasier : le tri de profondeur n'a rien à leur
+   apprendre, ils volent au-dessus de tout. */
+function ajouteDebris(F, n, force){
+  for(var i = 0; i < n; i++){
+    var a = Math.random() * 6.2832;
+    var v = (90 + Math.random() * 320) * force;
+    F.debris.push({
+      x:(Math.random() - 0.5) * 40, y:-40 - Math.random() * 220,
+      vx:Math.cos(a) * v, vy:-Math.abs(Math.sin(a)) * v - 120 * force,
+      rot:Math.random() * 6.2832, vr:(Math.random() - 0.5) * 15,
+      w:4 + Math.random() * 13, sol:20 + Math.random() * 90,
+      teinte:(Math.random() * 3) | 0, feu:Math.random() < 0.34,
+      age:0, duree:3.4 + Math.random() * 2.6
+    });
   }
 }
 
@@ -1515,6 +1681,7 @@ function majFin(dt){
 function majJeu(dt){
   jeu.tps += dt;
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
+  if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }

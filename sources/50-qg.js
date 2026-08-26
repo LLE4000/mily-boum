@@ -595,6 +595,22 @@ function construitSpriteQG(){
    Dessin en direct
    --------------------------------------------------------------- */
 function dessineQG(c, tps){
+  /* Pendant la séquence finale, la forteresse s'enfonce, penche et
+     s'assombrit. Tout le dessin qui suit passe par cette transformation,
+     sprites et flammes comprises. */
+  var eff = (jeu.fin && jeu.fin.effondrement) || 0;
+  if(eff > 0){
+    c.save();
+    c.translate(Math.sin(tps * 23) * eff * 7, eff * 132);
+    c.rotate(Math.sin(tps * 1.6) * eff * 0.055);
+    c.scale(1 + eff * 0.05, 1 - eff * 0.20);
+    dessineQGcorps(c, tps, eff);
+    c.restore();
+    return;
+  }
+  dessineQGcorps(c, tps, 0);
+}
+function dessineQGcorps(c, tps, eff){
   var q = jeu.qg;
   var p = versEcran(cam, q.gx, q.gy);
   var z = cam.z;

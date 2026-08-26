@@ -532,6 +532,10 @@ function majPodium(){
     h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
        + '</b> a tué Gégé la belette</div>';
   }
+  if(jeu.tueurTweety){
+    h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
+       + '</b> a tué Tweety</div>';
+  }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
@@ -629,13 +633,21 @@ function dessineLogo(){
 function construitBriefing(){
   /* barges par défaut : que des Meufs */
   compoBarges = [];
-  for(var i = 0; i < EQ.NB_BARGES; i++) compoBarges.push({ type:"meuf", n:EQ.PLACES_PAR_BARGE });
+  for(var i = 0; i < EQ.NB_BARGES; i++)
+    compoBarges.push({ type:"meuf", n:placesNavette("meuf") });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
     if(sauv.nom) $("pseudo").value = sauv.nom;
-    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type)
+    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type){
       compoBarges = sauv.compo;
+      /* une composition d'avant le plafond par type peut dépasser */
+      for(var q = 0; q < compoBarges.length; q++){
+        if(!UNI[compoBarges[q].type]) compoBarges[q].type = TYPES_TROUPE[0];
+        compoBarges[q].n = Math.max(0, Math.min(placesNavette(compoBarges[q].type),
+                                                compoBarges[q].n | 0));
+      }
+    }
     if(sauv.relais) $("relais").value = sauv.relais;
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
@@ -702,7 +714,7 @@ function majBargesBrief(){
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
     h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
-       + '<span>' + b.n + '/' + EQ.PLACES_PAR_BARGE + '</span></div>'
+       + '<span>' + b.n + '/' + placesNavette(b.type) + '</span></div>'
        + '<div class="choixT">';
     for(var t = 0; t < TYPES_TROUPE.length; t++){
       var cle = TYPES_TROUPE[t];
@@ -733,7 +745,9 @@ function majBargesBrief(){
     pts[m].addEventListener("click", function(){
       var i2 = +this.getAttribute("data-i");
       compoBarges[i2].type = this.getAttribute("data-t");
-      if(compoBarges[i2].n === 0) compoBarges[i2].n = EQ.PLACES_PAR_BARGE;
+      /* changer de type reborne l'effectif : douze Meufs, quinze Mecs */
+      var maxi = placesNavette(compoBarges[i2].type);
+      compoBarges[i2].n = compoBarges[i2].n === 0 ? maxi : Math.min(maxi, compoBarges[i2].n);
       majBargesBrief(); sauvegarde();
     });
   }
@@ -742,7 +756,7 @@ function majBargesBrief(){
     minis[n].addEventListener("click", function(){
       var i3 = +this.getAttribute("data-i"), d = +this.getAttribute("data-d");
       var bb = compoBarges[i3];
-      bb.n = Math.max(0, Math.min(EQ.PLACES_PAR_BARGE, bb.n + d));
+      bb.n = Math.max(0, Math.min(placesNavette(bb.type), bb.n + d));
       majBargesBrief(); sauvegarde();
     });
   }

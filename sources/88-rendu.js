@@ -932,14 +932,77 @@ function rendu(tps, dt){
   repereEcran(ctx);
   dessineVisee(ctx, tps);
 
-  /* Gégé la belette */
+  /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
+  if(jeu.messageTweety > 0) dessineTweetyDeuil(ctx, tps);
 
   /* séquence finale */
   if(jeu.fin) dessineFin(ctx, tps);
 
   /* minicarte */
   majMinicarte(tps);
+}
+
+/* ---------------------------------------------------------------
+   « Elle est où Tweety ? Elle nous manque à tous. »
+   Aucune accusation, aucun « vous avez tué » : le deuil est collectif
+   et l'absurde vient de là.
+   --------------------------------------------------------------- */
+function dessineTweetyDeuil(c, tps){
+  var t = 1 - jeu.messageTweety / 3;
+  repereEcran(c);
+  c.fillStyle = "rgba(6,8,16," + (0.50 * Math.min(1, (1 - t) * 2.2)) + ")";
+  c.fillRect(0, 0, W, H);
+
+  var ent = Math.min(1, t / 0.24);
+  var mont = 1 - Math.exp(-ent * 5);            // le texte monte et se pose
+  var sortie = t > 0.86 ? (t - 0.86) / 0.14 : 0;
+  var alpha = 1 - sortie;
+
+  c.save();
+  c.globalAlpha = alpha;
+  c.translate(W / 2, H * 0.44 + (1 - mont) * 70 + sortie * 30);
+  var taille = Math.min(W * 0.072, H * 0.108);
+  c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.lineJoin = "round";
+
+  /* halo froid : ce n'est pas une explosion, c'est un chagrin */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gh = c.createRadialGradient(0, 0, taille * 0.2, 0, 0, taille * 5.5);
+  gh.addColorStop(0, "rgba(255,225,120,.26)");
+  gh.addColorStop(1, "rgba(255,200,60,0)");
+  c.fillStyle = gh;
+  c.beginPath(); c.arc(0, 0, taille * 5.5, 0, 6.2832); c.fill();
+  c.restore();
+
+  var lignes = ["Elle est où Tweety ?", "Elle nous manque à tous."];
+  for(var i = 0; i < 2; i++){
+    var y = (i - 0.5) * taille * 1.2;
+    c.lineWidth = taille * 0.22; c.strokeStyle = "#120e04";
+    c.strokeText(lignes[i], 0, y);
+    var g = c.createLinearGradient(0, y - taille * 0.55, 0, y + taille * 0.55);
+    g.addColorStop(0, "#fff6c8");
+    g.addColorStop(0.5, "#ffd21e");
+    g.addColorStop(1, "#d99a10");
+    c.fillStyle = g;
+    c.fillText(lignes[i], 0, y);
+  }
+
+  /* une plume jaune qui descend en tournoyant */
+  c.save();
+  c.translate(Math.sin(tps * 1.3) * taille * 1.6, -taille * 2.0 + t * taille * 4.4);
+  c.rotate(Math.sin(tps * 2.1) * 0.7);
+  c.globalAlpha = alpha * 0.95;
+  c.fillStyle = "#ffd21e";
+  c.beginPath();
+  c.ellipse(0, 0, taille * 0.09, taille * 0.28, 0, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = "rgba(160,110,10,.6)"; c.lineWidth = Math.max(1, taille * 0.014);
+  c.beginPath(); c.moveTo(0, -taille * 0.26); c.lineTo(0, taille * 0.26); c.stroke();
+  c.restore();
+  c.restore();
 }
 
 /* ---------------------------------------------------------------
@@ -1001,13 +1064,92 @@ function dessineGege(c, tps){
    La séquence finale
    --------------------------------------------------------------- */
 var COULEURS_CONFETTIS = ["#ff5a4a", "#ffd070", "#6ee08a", "#7de6ff", "#c98adf", "#ff8a1e"];
+var TEINTES_DEBRIS = ["#6d5a60", "#463a40", "#3a2f34"];
+
 function dessineFin(c, tps){
   var F = jeu.fin;
   repereEcran(c);
+  var pq = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
+  var z = cam.z;
+
+  /* ---- ondes de choc : trois anneaux qui balaient l'écran ---- */
+  for(var w = 0; w < F.ondes.length; w++){
+    var on = F.ondes[w];
+    if(on.age <= 0) continue;
+    var av = Math.max(0, 1 - on.age / 1.5);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(255,226,170," + (0.55 * av * av) + ")";
+    c.lineWidth = Math.max(1.5, 26 * av * z);
+    c.beginPath();
+    c.ellipse(pq.x, pq.y - 60 * z, on.r * z, on.r * z * 0.5, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+  }
+
+  /* ---- colonne de fumée : elle s'élève et s'épaissit ---- */
+  for(var f2 = 0; f2 < F.colonne.length; f2++){
+    var fu = F.colonne[f2];
+    var tf = fu.age / fu.duree;
+    var af = Math.min(1, fu.age * 3) * (1 - tf) * 0.55;
+    var teinte = tf < 0.35 ? "#4a3a3a" : "#6a6068";
+    bouffee(c, pq.x + fu.x * z + Math.sin(fu.age * 1.1 + f2) * 14 * z,
+            pq.y + (fu.y - 30) * z,
+            (fu.r + tf * 26) * z, af, teinte);
+  }
+
   /* flash blanc */
   if(F.flash > 0){
     c.fillStyle = "rgba(255,255,255," + Math.min(1, F.flash) + ")";
     c.fillRect(0, 0, W, H);
+  }
+
+  /* ---- boule de feu, juste après la déflagration ---- */
+  if(F.tete && F.tete.age < 2.4){
+    var tb = F.tete.age / 2.4;
+    /* la boule monte à 900 unités monde : à la distance de jeu elle
+       remplit l'écran, ce qui est bien le but d'une déflagration */
+    var rb = (110 + Math.sqrt(tb) * 900) * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ab = (1 - tb) * (1 - tb) * (1 - tb * 0.35);
+    var gb = c.createRadialGradient(pq.x, pq.y - 130 * z, rb * 0.08,
+                                    pq.x, pq.y - 130 * z, rb);
+    gb.addColorStop(0.00, "rgba(255,252,232," + (0.95 * ab) + ")");
+    gb.addColorStop(0.22, "rgba(255,206,110," + (0.85 * ab) + ")");
+    gb.addColorStop(0.52, "rgba(255,118,28," + (0.60 * ab) + ")");
+    gb.addColorStop(0.80, "rgba(190,44,12," + (0.30 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(90,16,6,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.arc(pq.x, pq.y - 130 * z, rb, 0, 6.2832); c.fill();
+    c.restore();
+  }
+
+  /* ---- débris : blocs de maçonnerie, certains encore en feu ---- */
+  for(var d2 = 0; d2 < F.debris.length; d2++){
+    var d = F.debris[d2];
+    var ad = Math.min(1, (d.duree - d.age) / 0.8);
+    c.save();
+    c.globalAlpha = ad;
+    c.translate(pq.x + d.x * z, pq.y + d.y * z);
+    c.rotate(d.rot);
+    var lw = d.w * 1.7 * z;
+    c.fillStyle = TEINTES_DEBRIS[d.teinte];
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.66);
+    c.fillStyle = "rgba(255,255,255,.12)";
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.2);
+    c.restore();
+    if(d.feu && d.age < 2.2){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gf2 = c.createRadialGradient(pq.x + d.x * z, pq.y + d.y * z, 0.5,
+                                       pq.x + d.x * z, pq.y + d.y * z, lw * 2.4);
+      gf2.addColorStop(0, "rgba(255,190,90," + (0.55 * ad) + ")");
+      gf2.addColorStop(1, "rgba(255,110,20,0)");
+      c.fillStyle = gf2;
+      c.beginPath(); c.arc(pq.x + d.x * z, pq.y + d.y * z, lw * 2.4, 0, 6.2832); c.fill();
+      c.restore();
+    }
   }
   /* la tête qui décolle */
   if(F.tete && F.tete.age < 3){
@@ -1050,14 +1192,16 @@ function dessineFin(c, tps){
       c.restore();
     }
   }
-  /* MILY BOUM ! avec rebond élastique */
-  if(F.age >= 2.4){
-    var tt = Math.min(1, (F.age - 2.4) / 0.75);
+  /* ---- MILY BOUM ! puis le sacre du meilleur contributeur ---- */
+  if(F.age >= FIN_SOUFFLE + 1.3){
+    var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
     var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
     var osc = Math.sin(F.age * 3) * 0.035;
+    /* le titre remonte pour laisser la place au message de victoire */
+    var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
     c.save();
-    c.translate(W / 2, H * 0.42);
-    c.scale(ela, ela);
+    c.translate(W / 2, H * (0.42 - monte * 0.14));
+    c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
     c.rotate(osc);
     var taille = Math.min(W, H) * 0.155;
     c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
@@ -1069,11 +1213,74 @@ function dessineFin(c, tps){
     g.addColorStop(0, "#ffe6a8"); g.addColorStop(0.5, "#ff8a1e"); g.addColorStop(1, "#e0431a");
     c.fillStyle = g;
     c.fillText("MILY BOUM !", 0, 0);
-    c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
-    c.lineWidth = taille * 0.07;
-    c.strokeText("la gardienne a décollé", 0, taille * 0.68);
-    c.fillStyle = "#ffd9a8";
-    c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    if(monte < 0.5){
+      c.globalAlpha = 1 - monte * 2;
+      c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
+      c.lineWidth = taille * 0.07;
+      c.strokeText("la gardienne a décollé", 0, taille * 0.68);
+      c.fillStyle = "#ffd9a8";
+      c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    }
+    c.restore();
+  }
+
+  /* ---- le sacre : qui a le plus contribué, et ce que Millie lui offre ---- */
+  if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
+    var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
+    var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
+    var lignes = texteVictoire(jeu.index, F.champion.nom);
+    c.save();
+    c.translate(W / 2, H * 0.56);
+    c.scale(elv, elv);
+    c.rotate(Math.sin(F.age * 2.2) * 0.018);
+    var tv2 = Math.min(W * 0.052, H * 0.078);
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.lineJoin = "round";
+
+    /* écusson doré derrière le texte */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gs = c.createRadialGradient(0, 0, tv2 * 0.4, 0, 0, tv2 * 7);
+    gs.addColorStop(0, "rgba(255,214,120,.30)");
+    gs.addColorStop(1, "rgba(255,150,40,0)");
+    c.fillStyle = gs;
+    c.beginPath(); c.arc(0, 0, tv2 * 7, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* couronne de laurier, deux arcs de feuilles */
+    c.strokeStyle = "rgba(255,206,110,.85)";
+    c.lineWidth = Math.max(2, tv2 * 0.09);
+    [-1, 1].forEach(function(sn){
+      c.beginPath();
+      c.arc(0, tv2 * 0.1, tv2 * 4.6, sn > 0 ? -0.9 : Math.PI + 0.9,
+            sn > 0 ? 0.9 : Math.PI - 0.9, sn < 0);
+      c.stroke();
+      for(var lf = 0; lf < 7; lf++){
+        var al2 = (-0.8 + lf * 0.266) * sn + (sn < 0 ? Math.PI : 0);
+        var lx = Math.cos(al2) * tv2 * 4.6, ly = tv2 * 0.1 + Math.sin(al2) * tv2 * 4.6;
+        c.save();
+        c.translate(lx, ly); c.rotate(al2 + 1.57);
+        c.fillStyle = "rgba(255,196,84,.8)";
+        c.beginPath(); c.ellipse(0, 0, tv2 * 0.34, tv2 * 0.13, 0, 0, 6.2832); c.fill();
+        c.restore();
+      }
+    });
+
+    /* première ligne : le pseudo, en grand */
+    c.font = "900 " + (tv2 * 1.18) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.26; c.strokeStyle = "#1a0e02";
+    c.strokeText(lignes[0], 0, -tv2 * 0.62);
+    var g2 = c.createLinearGradient(0, -tv2 * 1.2, 0, tv2 * 0.1);
+    g2.addColorStop(0, "#fff6d4"); g2.addColorStop(0.5, "#ffcf4e"); g2.addColorStop(1, "#e08a12");
+    c.fillStyle = g2;
+    c.fillText(lignes[0], 0, -tv2 * 0.62);
+
+    /* seconde ligne : la récompense, propre à l'île */
+    c.font = "800 " + (tv2 * 0.74) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.20;
+    c.strokeText(lignes[1], 0, tv2 * 0.72);
+    c.fillStyle = "#ffe9b8";
+    c.fillText(lignes[1], 0, tv2 * 0.72);
     c.restore();
   }
 }

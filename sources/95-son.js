@@ -97,6 +97,8 @@ var son = {
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
   bobine:function(){ this.souffle(2600, 700, 0.28, 0.10); this.bip("sawtooth", 300, 90, 0.2, 0.06); },
   rampe:function(){ this.bip("sawtooth", 210, 90, 0.16, 0.05); },
+  grondement:function(){ this.souffle(220, 40, 2.4, 0.16); this.bip("sine", 90, 34, 2.0, 0.12); },
+  tweety:function(){ this.bip("sine", 1760, 980, 0.22, 0.07); this.bip("sine", 1320, 620, 0.30, 0.05); },
   recolte:function(){ this.bip("sine", 880, 1560, 0.09, 0.05); },
   energie:function(){ this.bip("triangle", 720, 1180, 0.10, 0.055); },
   gong:function(){ this.bip("sine", 520, 300, 0.30, 0.075); this.bip("sine", 780, 520, 0.22, 0.04); },

@@ -25,6 +25,9 @@ var EQ = {
 
   /* Débarquement */
   NB_BARGES            : 8,
+  /* Plafond absolu d'une navette. La capacité réelle dépend du type
+     embarqué (UNI[t].places) : une Meuf et son gros fusil tiennent
+     moins nombreuses qu'un Mec. */
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
@@ -73,6 +76,18 @@ var EQ = {
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
   BILAN_SECONDES       : 8
 };
+
+/* Combien de troupes de ce type tiennent dans une navette. */
+function placesNavette(type){
+  var f = UNI[type];
+  return Math.min(EQ.PLACES_PAR_BARGE, (f && f.places) || EQ.PLACES_PAR_BARGE);
+}
+/* Effectif maximum d'une vie, toutes navettes au plus gros type. */
+function flotteMaximum(){
+  var m = 0;
+  for(var t in UNI) m = Math.max(m, placesNavette(t));
+  return EQ.NB_BARGES * m;
+}
 
 /* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
    Brouillard : c'est lui qui sert de référence visuelle au joueur. */
@@ -213,9 +228,9 @@ var DEF = {
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
 var UNI = {
   meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34 },
+         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34, places:12 },
   mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:0.84, rayon:0.42 }
+         degats:100, cadence:1600, vitesse:0.84, rayon:0.42, places:15 }
 };
 var TYPES_TROUPE = ["meuf", "mec"];
 
@@ -225,7 +240,11 @@ var CRE = {
   sanglier:{ nom:"Sanglier de cendre", pv:420, detection:7.5, portee:1.1, degats:70, cadence:1800, vitesse:0.55, rayon:0.55, charge:10, vitesseCharge:4.2 },
   crapaud :{ nom:"Crapaud gluant",     pv:180, detection:5.0, portee:5.0, degats:0,  cadence:2600, vitesse:0.0,  rayon:0.38, ralenti:0.6, dureeRalenti:4 },
   /* Gégé : inoffensive, elle ne fait que détaler. Ne la tuez pas. */
-  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 }
+  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 },
+  /* Tweety : un canari. Il vole, se pose, sautille, et s'envole dès
+     qu'on approche. Inoffensif, comme Gégé — et comme elle, on le
+     regrettera. */
+  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 }
 };
 
 /* ----------------------------------------------------------------
@@ -263,10 +282,20 @@ var CAP = {
    environ 4 100 dégâts/s. Seul et sans opposition, il faut donc à peu
    près une heure pour abattre la première île ; à quinze, quatre minutes. */
 var CARTES = [
-  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000 },
-  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000 },
-  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000 }
+  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000,
+    victoire:"Millie lui offre d'aller boire un verre !" },
+  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000,
+    victoire:"Millie l'invite dans sa cabane !" },
+  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000,
+    victoire:"Millie l'invite à se rouler dans la paille !" }
 ];
+
+/* Le message de victoire nomme celui qui a le plus contribué à faire
+   tomber le Brasier, et change avec le thème de l'île. */
+function texteVictoire(index, pseudo){
+  var f = CARTES[index % CARTES.length];
+  return [ (pseudo || "?") + " termine n°1 !", f.victoire ];
+}
 
 /* ----------------------------------------------------------------
    Dimensions du monde
@@ -435,13 +464,16 @@ function genereCarte(codeSalon, index){
       c.creatures.push({ t:esp, gx:cx, gy:cy, teinte:(al() * 2) | 0 });
     }
   }
-  /* Gégé la belette : une seule par île, quelque part à mi-chemin */
-  for(var g = 0; g < 500; g++){
-    var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
-    if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
-    c.creatures.push({ t:"belette", gx:bx, gy:by, teinte:0 });
-    break;
-  }
+  /* Gégé la belette et Tweety le canari : un seul de chaque par île,
+     quelque part à mi-chemin. */
+  ["belette", "tweety"].forEach(function(esp2){
+    for(var g = 0; g < 500; g++){
+      var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
+      if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
+      c.creatures.push({ t:esp2, gx:bx, gy:by, teinte:0 });
+      break;
+    }
+  });
   return c;
 }
 
@@ -607,6 +639,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
      pv points de vie du Brasier
      d  bitmap des bâtiments détruits, six bits par caractère
      g  nom de qui a tué Gégé la belette (vide tant qu'elle vit)
+     w  nom de qui a tué Tweety le canari (vide tant qu'il vit)
 
    Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
    les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
@@ -664,7 +697,7 @@ function compteBits(s){
 }
 
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"" };
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -683,7 +716,7 @@ function fusionneMonde(a, b){
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
-                       d:b.d || "", g:b.g || "" };
+                       d:b.d || "", g:b.g || "", w:b.w || "" };
   if(ra > rb) return a;
   return {
     v : Math.max(a.v, b.v),
@@ -691,8 +724,10 @@ function fusionneMonde(a, b){
     c : a.c,
     pv: Math.min(a.pv, b.pv),
     d : unionBits(a.d, b.d),
-    /* Gégé ne meurt qu'une fois : le premier nom inscrit y reste. */
-    g : a.g || b.g || ""
+    /* Gégé et Tweety ne meurent qu'une fois : le premier nom inscrit
+       y reste, quel que soit l'ordre d'arrivée des messages. */
+    g : a.g || b.g || "",
+    w : a.w || b.w || ""
   };
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
@@ -701,7 +736,8 @@ function fusionneMonde(a, b){
 function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
-         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "");
+         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
+         (a.w || "") === (b.w || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */

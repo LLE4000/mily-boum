@@ -455,6 +455,9 @@ var EQ = {
 
   /* Débarquement */
   NB_BARGES            : 8,
+  /* Plafond absolu d'une navette. La capacité réelle dépend du type
+     embarqué (UNI[t].places) : une Meuf et son gros fusil tiennent
+     moins nombreuses qu'un Mec. */
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
@@ -503,6 +506,18 @@ var EQ = {
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
   BILAN_SECONDES       : 8
 };
+
+/* Combien de troupes de ce type tiennent dans une navette. */
+function placesNavette(type){
+  var f = UNI[type];
+  return Math.min(EQ.PLACES_PAR_BARGE, (f && f.places) || EQ.PLACES_PAR_BARGE);
+}
+/* Effectif maximum d'une vie, toutes navettes au plus gros type. */
+function flotteMaximum(){
+  var m = 0;
+  for(var t in UNI) m = Math.max(m, placesNavette(t));
+  return EQ.NB_BARGES * m;
+}
 
 /* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
    Brouillard : c'est lui qui sert de référence visuelle au joueur. */
@@ -643,9 +658,9 @@ var DEF = {
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
 var UNI = {
   meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34 },
+         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34, places:12 },
   mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:0.84, rayon:0.42 }
+         degats:100, cadence:1600, vitesse:0.84, rayon:0.42, places:15 }
 };
 var TYPES_TROUPE = ["meuf", "mec"];
 
@@ -655,7 +670,11 @@ var CRE = {
   sanglier:{ nom:"Sanglier de cendre", pv:420, detection:7.5, portee:1.1, degats:70, cadence:1800, vitesse:0.55, rayon:0.55, charge:10, vitesseCharge:4.2 },
   crapaud :{ nom:"Crapaud gluant",     pv:180, detection:5.0, portee:5.0, degats:0,  cadence:2600, vitesse:0.0,  rayon:0.38, ralenti:0.6, dureeRalenti:4 },
   /* Gégé : inoffensive, elle ne fait que détaler. Ne la tuez pas. */
-  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 }
+  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 },
+  /* Tweety : un canari. Il vole, se pose, sautille, et s'envole dès
+     qu'on approche. Inoffensif, comme Gégé — et comme elle, on le
+     regrettera. */
+  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 }
 };
 
 /* ----------------------------------------------------------------
@@ -693,10 +712,20 @@ var CAP = {
    environ 4 100 dégâts/s. Seul et sans opposition, il faut donc à peu
    près une heure pour abattre la première île ; à quinze, quatre minutes. */
 var CARTES = [
-  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000 },
-  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000 },
-  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000 }
+  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000,
+    victoire:"Millie lui offre d'aller boire un verre !" },
+  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000,
+    victoire:"Millie l'invite dans sa cabane !" },
+  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000,
+    victoire:"Millie l'invite à se rouler dans la paille !" }
 ];
+
+/* Le message de victoire nomme celui qui a le plus contribué à faire
+   tomber le Brasier, et change avec le thème de l'île. */
+function texteVictoire(index, pseudo){
+  var f = CARTES[index % CARTES.length];
+  return [ (pseudo || "?") + " termine n°1 !", f.victoire ];
+}
 
 /* ----------------------------------------------------------------
    Dimensions du monde
@@ -865,13 +894,16 @@ function genereCarte(codeSalon, index){
       c.creatures.push({ t:esp, gx:cx, gy:cy, teinte:(al() * 2) | 0 });
     }
   }
-  /* Gégé la belette : une seule par île, quelque part à mi-chemin */
-  for(var g = 0; g < 500; g++){
-    var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
-    if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
-    c.creatures.push({ t:"belette", gx:bx, gy:by, teinte:0 });
-    break;
-  }
+  /* Gégé la belette et Tweety le canari : un seul de chaque par île,
+     quelque part à mi-chemin. */
+  ["belette", "tweety"].forEach(function(esp2){
+    for(var g = 0; g < 500; g++){
+      var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
+      if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
+      c.creatures.push({ t:esp2, gx:bx, gy:by, teinte:0 });
+      break;
+    }
+  });
   return c;
 }
 
@@ -1037,6 +1069,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
      pv points de vie du Brasier
      d  bitmap des bâtiments détruits, six bits par caractère
      g  nom de qui a tué Gégé la belette (vide tant qu'elle vit)
+     w  nom de qui a tué Tweety le canari (vide tant qu'il vit)
 
    Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
    les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
@@ -1094,7 +1127,7 @@ function compteBits(s){
 }
 
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"" };
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1113,7 +1146,7 @@ function fusionneMonde(a, b){
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
-                       d:b.d || "", g:b.g || "" };
+                       d:b.d || "", g:b.g || "", w:b.w || "" };
   if(ra > rb) return a;
   return {
     v : Math.max(a.v, b.v),
@@ -1121,8 +1154,10 @@ function fusionneMonde(a, b){
     c : a.c,
     pv: Math.min(a.pv, b.pv),
     d : unionBits(a.d, b.d),
-    /* Gégé ne meurt qu'une fois : le premier nom inscrit y reste. */
-    g : a.g || b.g || ""
+    /* Gégé et Tweety ne meurent qu'une fois : le premier nom inscrit
+       y reste, quel que soit l'ordre d'arrivée des messages. */
+    g : a.g || b.g || "",
+    w : a.w || b.w || ""
   };
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
@@ -1131,7 +1166,8 @@ function fusionneMonde(a, b){
 function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
-         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "");
+         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
+         (a.w || "") === (b.w || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
@@ -4020,6 +4056,22 @@ function construitSpriteQG(){
    Dessin en direct
    --------------------------------------------------------------- */
 function dessineQG(c, tps){
+  /* Pendant la séquence finale, la forteresse s'enfonce, penche et
+     s'assombrit. Tout le dessin qui suit passe par cette transformation,
+     sprites et flammes comprises. */
+  var eff = (jeu.fin && jeu.fin.effondrement) || 0;
+  if(eff > 0){
+    c.save();
+    c.translate(Math.sin(tps * 23) * eff * 7, eff * 132);
+    c.rotate(Math.sin(tps * 1.6) * eff * 0.055);
+    c.scale(1 + eff * 0.05, 1 - eff * 0.20);
+    dessineQGcorps(c, tps, eff);
+    c.restore();
+    return;
+  }
+  dessineQGcorps(c, tps, 0);
+}
+function dessineQGcorps(c, tps, eff){
   var q = jeu.qg;
   var p = versEcran(cam, q.gx, q.gy);
   var z = cam.z;
@@ -6176,6 +6228,99 @@ function dessineCrapaud(c, k, tps){
   c.restore();
 }
 
+/* ---------------- Tweety le canari ----------------
+   Repère local : les pattes en (0,0). L'altitude est passée par k.z,
+   ce qui permet de séparer l'ombre au sol de l'oiseau lui-même. */
+function dessineTweety(c, k, tps){
+  var z = k.z || 0;
+  var vole = z > 0.5;
+  var ph = k.phase;
+  var bat = Math.sin(ph);                     // battement d'ailes
+  var sautille = vole ? 0 : Math.abs(Math.sin(ph)) * 2.2;
+
+  /* ombre au sol : elle rétrécit quand il monte */
+  var fo = Math.max(0, 1 - z / 34);
+  c.fillStyle = "rgba(0,0,0," + (0.26 * fo) + ")";
+  c.beginPath();
+  c.ellipse(0, 0, 5.4 * fo + 1.4, 2.1 * fo + 0.6, 0, 0, 6.2832);
+  c.fill();
+
+  c.save();
+  c.translate(0, -z - sautille);
+
+  /* pattes, seulement au sol */
+  if(!vole){
+    c.strokeStyle = "#e0921c"; c.lineWidth = 1.3; c.lineCap = "round";
+    var ec = Math.sin(ph) * 1.5;
+    c.beginPath(); c.moveTo(-1.4, -3.6); c.lineTo(-1.8 - ec, -0.2); c.stroke();
+    c.beginPath(); c.moveTo(1.4, -3.6);  c.lineTo(1.8 + ec, -0.2);  c.stroke();
+  }
+
+  /* queue */
+  c.fillStyle = "#e8b31c";
+  c.beginPath();
+  c.moveTo(-3.6, -7.2);
+  c.lineTo(-10.5, -6.4 + bat * 1.2);
+  c.lineTo(-10.2, -9.4 + bat * 1.2);
+  c.closePath(); c.fill();
+
+  /* aile arrière, puis corps, puis aile avant : un peu de profondeur */
+  var ouv = vole ? bat * 7.5 : Math.min(0, bat) * 1.4;
+  c.fillStyle = "#d9a415";
+  c.beginPath();
+  c.ellipse(-1.6, -8.6 - ouv * 0.5, 4.6, 2.5, -0.5 - ouv * 0.07, 0, 6.2832);
+  c.fill();
+
+  /* corps : le jaune franc du canari */
+  var g = c.createRadialGradient(-1.6, -12, 0.6, 0, -9.6, 7.4);
+  g.addColorStop(0, "#fff2a0");
+  g.addColorStop(0.55, "#ffd21e");
+  g.addColorStop(1, "#e0a412");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -8.8, 5.4, 5.0, 0, 0, 6.2832); c.fill();
+
+  /* aile avant */
+  c.fillStyle = "#ffdf55";
+  c.beginPath();
+  c.ellipse(0.6, -9.2 + ouv * 0.5, 5.0, 2.7, 0.42 + ouv * 0.09, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = "rgba(190,130,10,.45)"; c.lineWidth = 0.7;
+  c.beginPath();
+  c.ellipse(0.6, -9.2 + ouv * 0.5, 5.0, 2.7, 0.42 + ouv * 0.09, 0, 6.2832);
+  c.stroke();
+
+  /* tête, plus grosse que le corps ne le voudrait : c'est un canari */
+  var gt = c.createRadialGradient(3.4, -17.4, 0.5, 4.4, -15.6, 5.6);
+  gt.addColorStop(0, "#fff6bc");
+  gt.addColorStop(1, "#f0bd16");
+  c.fillStyle = gt;
+  c.beginPath(); c.ellipse(4.2, -15.4, 4.3, 4.1, 0, 0, 6.2832); c.fill();
+  /* houppette */
+  c.fillStyle = "#ffd21e";
+  c.beginPath();
+  c.moveTo(3.0, -19.2);
+  c.quadraticCurveTo(3.6, -22.6, 5.6, -21.0);
+  c.quadraticCurveTo(4.8, -19.6, 5.2, -18.9);
+  c.closePath(); c.fill();
+
+  /* bec */
+  c.fillStyle = "#f57f1b";
+  c.beginPath();
+  c.moveTo(7.6, -15.8); c.lineTo(11.4, -14.8); c.lineTo(7.6, -13.8);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(120,60,8,.5)"; c.lineWidth = 0.6;
+  c.beginPath(); c.moveTo(7.6, -14.8); c.lineTo(11.0, -14.8); c.stroke();
+
+  /* œil : grand, rond, très ouvert */
+  c.fillStyle = "#ffffff";
+  c.beginPath(); c.ellipse(5.6, -16.4, 2.2, 2.3, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#17131c";
+  c.beginPath(); c.arc(6.1, -16.3, 1.35, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.95)";
+  c.beginPath(); c.arc(5.6, -16.9, 0.55, 0, 6.2832); c.fill();
+  c.restore();
+}
+
 /* ---------------- Gégé la belette ---------------- */
 function dessineBelette(c, k, tps){
   var ph = k.phase;
@@ -6254,6 +6399,7 @@ function dessineBelette(c, k, tps){
 
 var DESSIN_CRE = {
   belette:dessineBelette,
+  tweety:dessineTweety,
   braisard:dessineBraisard, piqueur:dessinePiqueur,
   sanglier:dessineSanglier, crapaud:dessineCrapaud
 };
@@ -6379,7 +6525,8 @@ function nouvelleCarte(index, pvConnu){
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
-    tueurGege:"",              // nom du responsable, une fois pour toutes
+    tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
+    messageTweety:0,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -6413,6 +6560,11 @@ function nouvelleCarte(index, pvConnu){
       jeu.tueurGege = String(monde.g).substr(0, 14);
       for(var w = 0; w < jeu.creatures.length; w++)
         if(jeu.creatures[w].t === "belette") jeu.creatures[w].pv = 0;
+    }
+    if(monde.w){
+      jeu.tueurTweety = String(monde.w).substr(0, 14);
+      for(var w2 = 0; w2 < jeu.creatures.length; w2++)
+        if(jeu.creatures[w2].t === "tweety") jeu.creatures[w2].pv = 0;
     }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
@@ -6851,6 +7003,13 @@ function abimeCreature(c, d){
       jeu.tueurGege = monNom;
       son.gege();
       envoieGege();                                // que tout le salon le sache
+      signaleMonde();
+    }
+    if(c.t === "tweety"){
+      jeu.messageTweety = 3.0;
+      jeu.tueurTweety = monNom;
+      son.tweety();
+      envoieTweety();
       signaleMonde();
     }
     demandeMajBarres();
@@ -7325,6 +7484,7 @@ function majCreatures(dt, tps){
     if(c && c.pv <= 0) c = k.cible = null;
 
     if(k.t === "belette"){ majBelette(k, f, c, dt); continue; }
+    if(k.t === "tweety"){ majTweety(k, f, c, dt); continue; }
     if(k.t === "sanglier"){ majSanglier(k, f, c, dt); continue; }
     if(k.t === "crapaud"){ majCrapaud(k, f, c, dt, tps); continue; }
 
@@ -7366,6 +7526,59 @@ function deplaceCreature(k, dx, dy, pas){
   if(!bloque(nx, k.gy)) k.gx = nx;
   if(!bloque(k.gx, ny)) k.gy = ny;
 }
+/* Tweety : il alterne les postures. Posé, il sautille et picore ; on
+   approche, il décolle en flèche ; puis il plane et redescend se poser
+   un peu plus loin. L'altitude (k.z) est ce qui le distingue de tout le
+   reste du bestiaire — elle sert au dessin et à son ombre. */
+function majTweety(k, f, c, dt){
+  k.z = k.z || 0;
+  k.butT = (k.butT || 0) - dt;
+
+  if(c){
+    /* effarouché : décollage immédiat, à l'opposé et bien haut */
+    var dx = k.gx - c.gx, dy = k.gy - c.gy;
+    var d = Math.hypot(dx, dy) || 1;
+    k.etat = "envol";
+    k.z = Math.min(34, k.z + 58 * dt);
+    var a = Math.atan2(dy, dx) + Math.sin(jeu.tps * 1.7 + k.n) * 0.45;
+    deplaceCreature(k, Math.cos(a), Math.sin(a), f.vitesse * dt);
+    k.phase += dt * 26;                       // battement d'ailes rapide
+    k.droite = (Math.cos(a) - Math.sin(a)) > 0;
+    k.butT = 1.6;
+    return;
+  }
+
+  if(k.butT <= 0 || !k.but){
+    /* il choisit un nouveau perchoir, ou décide de picorer sur place */
+    if(k.etat === "vol" || Math.random() < 0.55){
+      k.etat = "pose";
+      k.butT = 2.4 + Math.random() * 4.5;
+      k.but = null;
+    }else{
+      k.etat = "vol";
+      k.butT = 1.8 + Math.random() * 2.6;
+      k.but = { gx:borne(k.ox + (Math.random() - 0.5) * 22, 4, PLAGE_X0 - 3),
+                gy:borne(k.oy + (Math.random() - 0.5) * 22, 4, GH - 5) };
+    }
+  }
+
+  if(k.etat === "vol" && k.but){
+    var vx = k.but.gx - k.gx, vy = k.but.gy - k.gy;
+    var dv = Math.hypot(vx, vy);
+    k.z = Math.min(26, k.z + 42 * dt);
+    if(dv > 0.4){
+      deplaceCreature(k, vx, vy, f.vitesse * 0.62 * dt);
+      k.droite = (vx - vy) > 0;
+    }else{ k.but = null; k.butT = 0; }
+    k.phase += dt * 20;
+    return;
+  }
+
+  /* posé : il redescend, puis sautille et picore */
+  k.z = Math.max(0, k.z - 46 * dt);
+  k.phase += dt * (k.z > 0.5 ? 20 : 5.5);
+}
+
 /* Gégé : elle vaque à ses affaires et détale dès qu'on approche. */
 function majBelette(k, f, c, dt){
   if(c){
@@ -7796,33 +8009,112 @@ function majMort(dt){
 /* ---------------------------------------------------------------
    Chute du QG : la séquence finale
    --------------------------------------------------------------- */
-function declencheFin(){
-  jeu.fin = { age:0, tete:null, confettis:null, texte:0 };
-  envoieCarte(jeu.index + 1);
-  son.boum(1.9);
+/* Qui a le plus contribué ? Le classement local vaut ce que valent les
+   messages reçus, mais c'est la même information que le TOP DÉGÂTS que
+   tout le monde a sous les yeux depuis le début de la partie. */
+function championDeLaPartie(){
+  var meilleur = { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
+  for(var id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(j.g > meilleur.g) meilleur = { nom:j.nom || "?", g:j.g, moi:0 };
+  }
+  return meilleur;
 }
+
+function declencheFin(){
+  jeu.fin = {
+    age:0, tete:null, confettis:null, texte:0,
+    champion:championDeLaPartie(),
+    effondrement:0,          // 0 → 1 : la forteresse s'enfonce et penche
+    debris:[], ondes:[], colonne:[],
+    prochaineFumee:0
+  };
+  envoieCarte(jeu.index + 1);
+  son.grondement();
+}
+var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
+var FIN_SOUFFLE = 3.2;           // s : instant de la déflagration
+
 function majFin(dt){
   var F = jeu.fin;
   F.age += dt;
   var p = jeu.qg;
-  if(F.age < 2.1){
-    /* pétarade */
+
+  /* ---- 1. l'effondrement : elle s'enfonce, penche, et se déchire ---- */
+  if(F.age < FIN_EFFONDREMENT){
+    var t = F.age / FIN_EFFONDREMENT;
+    /* courbe accélérée : imperceptible d'abord, brutale à la fin */
+    F.effondrement = t * t * t;
     F.prochain = (F.prochain || 0) - dt;
     if(F.prochain <= 0){
-      F.prochain = 0.055 + Math.random() * 0.07;
-      var a = Math.random() * 6.2832, r = Math.random() * 3.4;
+      /* les explosions remontent les terrasses au fur et à mesure */
+      F.prochain = 0.10 - t * 0.062;
+      var a = Math.random() * 6.2832, r = (0.6 + Math.random() * 3.2) * (1 - t * 0.4);
       jeu.effets.push({ t:"boum", gx:p.gx + Math.cos(a) * r, gy:p.gy + Math.sin(a) * r,
-                        age:0, duree:0.5, r:0.8 + Math.random(), force:1 });
-      jeu.secousse = Math.min(20, jeu.secousse + 1.2 + F.age);
-      son.boum(0.35 + Math.random() * 0.3);
+                        age:0, duree:0.5 + Math.random() * 0.3,
+                        r:0.7 + Math.random() * (0.8 + t * 1.6), force:1 });
+      jeu.secousse = Math.min(18, jeu.secousse + 1.0 + t * 4);
+      son.boum(0.28 + Math.random() * 0.28 + t * 0.3);
+      /* des débris partent déjà, arrachés à la maçonnerie */
+      if(Math.random() < 0.5 + t) ajouteDebris(F, 1 + (t * 3 | 0), 0.6 + t);
+    }
+    /* colonne de fumée qui grossit tout au long de la chute */
+    F.prochaineFumee -= dt;
+    if(F.prochaineFumee <= 0){
+      F.prochaineFumee = 0.12;
+      F.colonne.push({ x:(Math.random() - 0.5) * 60, y:0, vy:-38 - Math.random() * 40,
+                       r:14 + Math.random() * 22, age:0, duree:3.2 + Math.random() * 2 });
     }
   }
-  if(F.age >= 2.1 && !F.tete){
-    F.flash = 1;
-    F.tete = { x:0, y:0, vy:-320, rot:0, age:0 };
-    jeu.secousse = 24;
-    son.boum(1.9);
+
+  /* ---- 2. la déflagration ---- */
+  if(F.age >= FIN_SOUFFLE && !F.tete){
+    F.flash = 1.9;
+    F.effondrement = 1;
+    F.tete = { x:0, y:0, vy:-340, rot:0, age:0 };
+    jeu.secousse = 30;
+    son.boum(2.2);
     son.sifflet();
+    /* trois ondes de choc concentriques */
+    for(var o = 0; o < 3; o++) F.ondes.push({ age:-o * 0.16, r:0 });
+    /* et une pluie de débris, dans toutes les directions */
+    ajouteDebris(F, 90, 2.6);
+    /* le champignon de fumée */
+    for(var m = 0; m < 26; m++){
+      F.colonne.push({ x:(Math.random() - 0.5) * 130, y:-Math.random() * 90,
+                       vy:-52 - Math.random() * 70, r:22 + Math.random() * 36,
+                       age:0, duree:4.5 + Math.random() * 3 });
+    }
+  }
+
+  /* ---- 3. la vie des morceaux ---- */
+  for(var i = F.debris.length - 1; i >= 0; i--){
+    var d = F.debris[i];
+    d.age += dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.vy += 340 * dt;                     // gravité
+    d.rot += d.vr * dt;
+    if(d.y > d.sol){                      // rebond amorti, puis il s'immobilise
+      d.y = d.sol;
+      d.vy = -d.vy * 0.34;
+      d.vx *= 0.6; d.vr *= 0.5;
+      if(Math.abs(d.vy) < 24){ d.vy = 0; d.vx = 0; d.vr = 0; }
+    }
+    if(d.age > d.duree) F.debris.splice(i, 1);
+  }
+  for(var q = F.ondes.length - 1; q >= 0; q--){
+    F.ondes[q].age += dt;
+    F.ondes[q].r = Math.max(0, F.ondes[q].age) * 900;
+    if(F.ondes[q].age > 1.5) F.ondes.splice(q, 1);
+  }
+  for(var f2 = F.colonne.length - 1; f2 >= 0; f2--){
+    var fu = F.colonne[f2];
+    fu.age += dt;
+    fu.y += fu.vy * dt;
+    fu.vy *= (1 - dt * 0.5);              // elle ralentit en montant
+    fu.r += dt * 22;
+    if(fu.age > fu.duree) F.colonne.splice(f2, 1);
   }
   if(F.tete){
     F.tete.age += dt;
@@ -7830,7 +8122,7 @@ function majFin(dt){
     F.tete.vy += 60 * dt;
     F.tete.rot += dt * 7;
   }
-  if(F.age >= 2.4 && !F.confettis){
+  if(F.age >= FIN_SOUFFLE + 1.8 && !F.confettis){
     F.confettis = [];
     for(var i = 0; i < 160; i++){
       F.confettis.push({
@@ -7849,9 +8141,29 @@ function majFin(dt){
     }
   }
   if(F.flash > 0) F.flash -= dt * 2.2;
-  if(F.age >= 4.2 && !F.bilanMontre){
+  /* le sacre doit avoir le temps d'être lu avant que le tableau
+     de bilan ne recouvre l'écran */
+  if(F.age >= 10.5 && !F.bilanMontre){
     F.bilanMontre = 1;
     montreBilan();
+  }
+}
+
+/* Éclats de maçonnerie projetés. Ils vivent en coordonnées ÉCRAN
+   relatives au pied du Brasier : le tri de profondeur n'a rien à leur
+   apprendre, ils volent au-dessus de tout. */
+function ajouteDebris(F, n, force){
+  for(var i = 0; i < n; i++){
+    var a = Math.random() * 6.2832;
+    var v = (90 + Math.random() * 320) * force;
+    F.debris.push({
+      x:(Math.random() - 0.5) * 40, y:-40 - Math.random() * 220,
+      vx:Math.cos(a) * v, vy:-Math.abs(Math.sin(a)) * v - 120 * force,
+      rot:Math.random() * 6.2832, vr:(Math.random() - 0.5) * 15,
+      w:4 + Math.random() * 13, sol:20 + Math.random() * 90,
+      teinte:(Math.random() * 3) | 0, feu:Math.random() < 0.34,
+      age:0, duree:3.4 + Math.random() * 2.6
+    });
   }
 }
 
@@ -7861,6 +8173,7 @@ function majFin(dt){
 function majJeu(dt){
   jeu.tps += dt;
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
+  if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
@@ -8025,7 +8338,7 @@ function mondeCourant(){
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
-           g:jeu.tueurGege || "" };
+           g:jeu.tueurGege || "", w:jeu.tueurTweety || "" };
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -8072,6 +8385,11 @@ function appliqueMondeAuJeu(m){
     tueGegeLocale();
     change++;
   }
+  if(m.w && !jeu.tueurTweety){
+    jeu.tueurTweety = String(m.w).substr(0, 14);
+    tueCreatureLocale("tweety");
+    change++;
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -8083,13 +8401,14 @@ function appliqueMondeAuJeu(m){
 
 /* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le
    deuil ni recréditer d'Énergie. */
-function tueGegeLocale(){
+function tueCreatureLocale(espece){
   if(!jeu) return;
   for(var i = 0; i < jeu.creatures.length; i++){
     var k = jeu.creatures[i];
-    if(k.t === "belette" && k.pv > 0) k.pv = 0;
+    if(k.t === espece && k.pv > 0) k.pv = 0;
   }
 }
+function tueGegeLocale(){ tueCreatureLocale("belette"); }
 
 /* ---------------------------------------------------------------
    REMISE À ZÉRO DU SALON
@@ -8110,7 +8429,7 @@ function remetSalonAZero(){
   cycleSalon = (cycleSalon | 0) + 1;
   carteSalon = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"" };
+            pv:CARTES[0].pvQG, d:"", g:"", w:"" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -8229,6 +8548,15 @@ function recoit(txt){
       signaleMonde();
       demandeMajBarres();
     }
+  }else if(m.t === "tweety"){
+    if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurTweety){
+      jeu.tueurTweety = (m.nom || "?").substr(0, 14);
+      jeu.messageTweety = 3.0;
+      tueCreatureLocale("tweety");
+      son.tweety();
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -8314,6 +8642,7 @@ function majReseau(dt){
 /* Le sort de Gégé fait partie du monde : il se diffuse tout de suite,
    et il est aussi porté par l'instantané pour ceux qui arriveront après. */
 function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
+function envoieTweety(){ envoie({ t:"tweety", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 
@@ -9260,14 +9589,77 @@ function rendu(tps, dt){
   repereEcran(ctx);
   dessineVisee(ctx, tps);
 
-  /* Gégé la belette */
+  /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
+  if(jeu.messageTweety > 0) dessineTweetyDeuil(ctx, tps);
 
   /* séquence finale */
   if(jeu.fin) dessineFin(ctx, tps);
 
   /* minicarte */
   majMinicarte(tps);
+}
+
+/* ---------------------------------------------------------------
+   « Elle est où Tweety ? Elle nous manque à tous. »
+   Aucune accusation, aucun « vous avez tué » : le deuil est collectif
+   et l'absurde vient de là.
+   --------------------------------------------------------------- */
+function dessineTweetyDeuil(c, tps){
+  var t = 1 - jeu.messageTweety / 3;
+  repereEcran(c);
+  c.fillStyle = "rgba(6,8,16," + (0.50 * Math.min(1, (1 - t) * 2.2)) + ")";
+  c.fillRect(0, 0, W, H);
+
+  var ent = Math.min(1, t / 0.24);
+  var mont = 1 - Math.exp(-ent * 5);            // le texte monte et se pose
+  var sortie = t > 0.86 ? (t - 0.86) / 0.14 : 0;
+  var alpha = 1 - sortie;
+
+  c.save();
+  c.globalAlpha = alpha;
+  c.translate(W / 2, H * 0.44 + (1 - mont) * 70 + sortie * 30);
+  var taille = Math.min(W * 0.072, H * 0.108);
+  c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.lineJoin = "round";
+
+  /* halo froid : ce n'est pas une explosion, c'est un chagrin */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gh = c.createRadialGradient(0, 0, taille * 0.2, 0, 0, taille * 5.5);
+  gh.addColorStop(0, "rgba(255,225,120,.26)");
+  gh.addColorStop(1, "rgba(255,200,60,0)");
+  c.fillStyle = gh;
+  c.beginPath(); c.arc(0, 0, taille * 5.5, 0, 6.2832); c.fill();
+  c.restore();
+
+  var lignes = ["Elle est où Tweety ?", "Elle nous manque à tous."];
+  for(var i = 0; i < 2; i++){
+    var y = (i - 0.5) * taille * 1.2;
+    c.lineWidth = taille * 0.22; c.strokeStyle = "#120e04";
+    c.strokeText(lignes[i], 0, y);
+    var g = c.createLinearGradient(0, y - taille * 0.55, 0, y + taille * 0.55);
+    g.addColorStop(0, "#fff6c8");
+    g.addColorStop(0.5, "#ffd21e");
+    g.addColorStop(1, "#d99a10");
+    c.fillStyle = g;
+    c.fillText(lignes[i], 0, y);
+  }
+
+  /* une plume jaune qui descend en tournoyant */
+  c.save();
+  c.translate(Math.sin(tps * 1.3) * taille * 1.6, -taille * 2.0 + t * taille * 4.4);
+  c.rotate(Math.sin(tps * 2.1) * 0.7);
+  c.globalAlpha = alpha * 0.95;
+  c.fillStyle = "#ffd21e";
+  c.beginPath();
+  c.ellipse(0, 0, taille * 0.09, taille * 0.28, 0, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = "rgba(160,110,10,.6)"; c.lineWidth = Math.max(1, taille * 0.014);
+  c.beginPath(); c.moveTo(0, -taille * 0.26); c.lineTo(0, taille * 0.26); c.stroke();
+  c.restore();
+  c.restore();
 }
 
 /* ---------------------------------------------------------------
@@ -9329,13 +9721,92 @@ function dessineGege(c, tps){
    La séquence finale
    --------------------------------------------------------------- */
 var COULEURS_CONFETTIS = ["#ff5a4a", "#ffd070", "#6ee08a", "#7de6ff", "#c98adf", "#ff8a1e"];
+var TEINTES_DEBRIS = ["#6d5a60", "#463a40", "#3a2f34"];
+
 function dessineFin(c, tps){
   var F = jeu.fin;
   repereEcran(c);
+  var pq = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
+  var z = cam.z;
+
+  /* ---- ondes de choc : trois anneaux qui balaient l'écran ---- */
+  for(var w = 0; w < F.ondes.length; w++){
+    var on = F.ondes[w];
+    if(on.age <= 0) continue;
+    var av = Math.max(0, 1 - on.age / 1.5);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(255,226,170," + (0.55 * av * av) + ")";
+    c.lineWidth = Math.max(1.5, 26 * av * z);
+    c.beginPath();
+    c.ellipse(pq.x, pq.y - 60 * z, on.r * z, on.r * z * 0.5, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+  }
+
+  /* ---- colonne de fumée : elle s'élève et s'épaissit ---- */
+  for(var f2 = 0; f2 < F.colonne.length; f2++){
+    var fu = F.colonne[f2];
+    var tf = fu.age / fu.duree;
+    var af = Math.min(1, fu.age * 3) * (1 - tf) * 0.55;
+    var teinte = tf < 0.35 ? "#4a3a3a" : "#6a6068";
+    bouffee(c, pq.x + fu.x * z + Math.sin(fu.age * 1.1 + f2) * 14 * z,
+            pq.y + (fu.y - 30) * z,
+            (fu.r + tf * 26) * z, af, teinte);
+  }
+
   /* flash blanc */
   if(F.flash > 0){
     c.fillStyle = "rgba(255,255,255," + Math.min(1, F.flash) + ")";
     c.fillRect(0, 0, W, H);
+  }
+
+  /* ---- boule de feu, juste après la déflagration ---- */
+  if(F.tete && F.tete.age < 2.4){
+    var tb = F.tete.age / 2.4;
+    /* la boule monte à 900 unités monde : à la distance de jeu elle
+       remplit l'écran, ce qui est bien le but d'une déflagration */
+    var rb = (110 + Math.sqrt(tb) * 900) * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ab = (1 - tb) * (1 - tb) * (1 - tb * 0.35);
+    var gb = c.createRadialGradient(pq.x, pq.y - 130 * z, rb * 0.08,
+                                    pq.x, pq.y - 130 * z, rb);
+    gb.addColorStop(0.00, "rgba(255,252,232," + (0.95 * ab) + ")");
+    gb.addColorStop(0.22, "rgba(255,206,110," + (0.85 * ab) + ")");
+    gb.addColorStop(0.52, "rgba(255,118,28," + (0.60 * ab) + ")");
+    gb.addColorStop(0.80, "rgba(190,44,12," + (0.30 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(90,16,6,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.arc(pq.x, pq.y - 130 * z, rb, 0, 6.2832); c.fill();
+    c.restore();
+  }
+
+  /* ---- débris : blocs de maçonnerie, certains encore en feu ---- */
+  for(var d2 = 0; d2 < F.debris.length; d2++){
+    var d = F.debris[d2];
+    var ad = Math.min(1, (d.duree - d.age) / 0.8);
+    c.save();
+    c.globalAlpha = ad;
+    c.translate(pq.x + d.x * z, pq.y + d.y * z);
+    c.rotate(d.rot);
+    var lw = d.w * 1.7 * z;
+    c.fillStyle = TEINTES_DEBRIS[d.teinte];
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.66);
+    c.fillStyle = "rgba(255,255,255,.12)";
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.2);
+    c.restore();
+    if(d.feu && d.age < 2.2){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gf2 = c.createRadialGradient(pq.x + d.x * z, pq.y + d.y * z, 0.5,
+                                       pq.x + d.x * z, pq.y + d.y * z, lw * 2.4);
+      gf2.addColorStop(0, "rgba(255,190,90," + (0.55 * ad) + ")");
+      gf2.addColorStop(1, "rgba(255,110,20,0)");
+      c.fillStyle = gf2;
+      c.beginPath(); c.arc(pq.x + d.x * z, pq.y + d.y * z, lw * 2.4, 0, 6.2832); c.fill();
+      c.restore();
+    }
   }
   /* la tête qui décolle */
   if(F.tete && F.tete.age < 3){
@@ -9378,14 +9849,16 @@ function dessineFin(c, tps){
       c.restore();
     }
   }
-  /* MILY BOUM ! avec rebond élastique */
-  if(F.age >= 2.4){
-    var tt = Math.min(1, (F.age - 2.4) / 0.75);
+  /* ---- MILY BOUM ! puis le sacre du meilleur contributeur ---- */
+  if(F.age >= FIN_SOUFFLE + 1.3){
+    var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
     var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
     var osc = Math.sin(F.age * 3) * 0.035;
+    /* le titre remonte pour laisser la place au message de victoire */
+    var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
     c.save();
-    c.translate(W / 2, H * 0.42);
-    c.scale(ela, ela);
+    c.translate(W / 2, H * (0.42 - monte * 0.14));
+    c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
     c.rotate(osc);
     var taille = Math.min(W, H) * 0.155;
     c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
@@ -9397,11 +9870,74 @@ function dessineFin(c, tps){
     g.addColorStop(0, "#ffe6a8"); g.addColorStop(0.5, "#ff8a1e"); g.addColorStop(1, "#e0431a");
     c.fillStyle = g;
     c.fillText("MILY BOUM !", 0, 0);
-    c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
-    c.lineWidth = taille * 0.07;
-    c.strokeText("la gardienne a décollé", 0, taille * 0.68);
-    c.fillStyle = "#ffd9a8";
-    c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    if(monte < 0.5){
+      c.globalAlpha = 1 - monte * 2;
+      c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
+      c.lineWidth = taille * 0.07;
+      c.strokeText("la gardienne a décollé", 0, taille * 0.68);
+      c.fillStyle = "#ffd9a8";
+      c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    }
+    c.restore();
+  }
+
+  /* ---- le sacre : qui a le plus contribué, et ce que Millie lui offre ---- */
+  if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
+    var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
+    var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
+    var lignes = texteVictoire(jeu.index, F.champion.nom);
+    c.save();
+    c.translate(W / 2, H * 0.56);
+    c.scale(elv, elv);
+    c.rotate(Math.sin(F.age * 2.2) * 0.018);
+    var tv2 = Math.min(W * 0.052, H * 0.078);
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.lineJoin = "round";
+
+    /* écusson doré derrière le texte */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gs = c.createRadialGradient(0, 0, tv2 * 0.4, 0, 0, tv2 * 7);
+    gs.addColorStop(0, "rgba(255,214,120,.30)");
+    gs.addColorStop(1, "rgba(255,150,40,0)");
+    c.fillStyle = gs;
+    c.beginPath(); c.arc(0, 0, tv2 * 7, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* couronne de laurier, deux arcs de feuilles */
+    c.strokeStyle = "rgba(255,206,110,.85)";
+    c.lineWidth = Math.max(2, tv2 * 0.09);
+    [-1, 1].forEach(function(sn){
+      c.beginPath();
+      c.arc(0, tv2 * 0.1, tv2 * 4.6, sn > 0 ? -0.9 : Math.PI + 0.9,
+            sn > 0 ? 0.9 : Math.PI - 0.9, sn < 0);
+      c.stroke();
+      for(var lf = 0; lf < 7; lf++){
+        var al2 = (-0.8 + lf * 0.266) * sn + (sn < 0 ? Math.PI : 0);
+        var lx = Math.cos(al2) * tv2 * 4.6, ly = tv2 * 0.1 + Math.sin(al2) * tv2 * 4.6;
+        c.save();
+        c.translate(lx, ly); c.rotate(al2 + 1.57);
+        c.fillStyle = "rgba(255,196,84,.8)";
+        c.beginPath(); c.ellipse(0, 0, tv2 * 0.34, tv2 * 0.13, 0, 0, 6.2832); c.fill();
+        c.restore();
+      }
+    });
+
+    /* première ligne : le pseudo, en grand */
+    c.font = "900 " + (tv2 * 1.18) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.26; c.strokeStyle = "#1a0e02";
+    c.strokeText(lignes[0], 0, -tv2 * 0.62);
+    var g2 = c.createLinearGradient(0, -tv2 * 1.2, 0, tv2 * 0.1);
+    g2.addColorStop(0, "#fff6d4"); g2.addColorStop(0.5, "#ffcf4e"); g2.addColorStop(1, "#e08a12");
+    c.fillStyle = g2;
+    c.fillText(lignes[0], 0, -tv2 * 0.62);
+
+    /* seconde ligne : la récompense, propre à l'île */
+    c.font = "800 " + (tv2 * 0.74) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.20;
+    c.strokeText(lignes[1], 0, tv2 * 0.72);
+    c.fillStyle = "#ffe9b8";
+    c.fillText(lignes[1], 0, tv2 * 0.72);
     c.restore();
   }
 }
@@ -10010,6 +10546,10 @@ function majPodium(){
     h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
        + '</b> a tué Gégé la belette</div>';
   }
+  if(jeu.tueurTweety){
+    h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
+       + '</b> a tué Tweety</div>';
+  }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
@@ -10107,13 +10647,21 @@ function dessineLogo(){
 function construitBriefing(){
   /* barges par défaut : que des Meufs */
   compoBarges = [];
-  for(var i = 0; i < EQ.NB_BARGES; i++) compoBarges.push({ type:"meuf", n:EQ.PLACES_PAR_BARGE });
+  for(var i = 0; i < EQ.NB_BARGES; i++)
+    compoBarges.push({ type:"meuf", n:placesNavette("meuf") });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
     if(sauv.nom) $("pseudo").value = sauv.nom;
-    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type)
+    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type){
       compoBarges = sauv.compo;
+      /* une composition d'avant le plafond par type peut dépasser */
+      for(var q = 0; q < compoBarges.length; q++){
+        if(!UNI[compoBarges[q].type]) compoBarges[q].type = TYPES_TROUPE[0];
+        compoBarges[q].n = Math.max(0, Math.min(placesNavette(compoBarges[q].type),
+                                                compoBarges[q].n | 0));
+      }
+    }
     if(sauv.relais) $("relais").value = sauv.relais;
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
@@ -10180,7 +10728,7 @@ function majBargesBrief(){
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
     h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
-       + '<span>' + b.n + '/' + EQ.PLACES_PAR_BARGE + '</span></div>'
+       + '<span>' + b.n + '/' + placesNavette(b.type) + '</span></div>'
        + '<div class="choixT">';
     for(var t = 0; t < TYPES_TROUPE.length; t++){
       var cle = TYPES_TROUPE[t];
@@ -10211,7 +10759,9 @@ function majBargesBrief(){
     pts[m].addEventListener("click", function(){
       var i2 = +this.getAttribute("data-i");
       compoBarges[i2].type = this.getAttribute("data-t");
-      if(compoBarges[i2].n === 0) compoBarges[i2].n = EQ.PLACES_PAR_BARGE;
+      /* changer de type reborne l'effectif : douze Meufs, quinze Mecs */
+      var maxi = placesNavette(compoBarges[i2].type);
+      compoBarges[i2].n = compoBarges[i2].n === 0 ? maxi : Math.min(maxi, compoBarges[i2].n);
       majBargesBrief(); sauvegarde();
     });
   }
@@ -10220,7 +10770,7 @@ function majBargesBrief(){
     minis[n].addEventListener("click", function(){
       var i3 = +this.getAttribute("data-i"), d = +this.getAttribute("data-d");
       var bb = compoBarges[i3];
-      bb.n = Math.max(0, Math.min(EQ.PLACES_PAR_BARGE, bb.n + d));
+      bb.n = Math.max(0, Math.min(placesNavette(bb.type), bb.n + d));
       majBargesBrief(); sauvegarde();
     });
   }
@@ -10479,6 +11029,8 @@ var son = {
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
   bobine:function(){ this.souffle(2600, 700, 0.28, 0.10); this.bip("sawtooth", 300, 90, 0.2, 0.06); },
   rampe:function(){ this.bip("sawtooth", 210, 90, 0.16, 0.05); },
+  grondement:function(){ this.souffle(220, 40, 2.4, 0.16); this.bip("sine", 90, 34, 2.0, 0.12); },
+  tweety:function(){ this.bip("sine", 1760, 980, 0.22, 0.07); this.bip("sine", 1320, 620, 0.30, 0.05); },
   recolte:function(){ this.bip("sine", 880, 1560, 0.09, 0.05); },
   energie:function(){ this.bip("triangle", 720, 1180, 0.10, 0.055); },
   gong:function(){ this.bip("sine", 520, 300, 0.30, 0.075); this.bip("sine", 780, 520, 0.22, 0.04); },

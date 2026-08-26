@@ -138,7 +138,7 @@ function mondeCourant(){
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
-           g:jeu.tueurGege || "" };
+           g:jeu.tueurGege || "", w:jeu.tueurTweety || "" };
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -185,6 +185,11 @@ function appliqueMondeAuJeu(m){
     tueGegeLocale();
     change++;
   }
+  if(m.w && !jeu.tueurTweety){
+    jeu.tueurTweety = String(m.w).substr(0, 14);
+    tueCreatureLocale("tweety");
+    change++;
+  }
   jeu.file.adopteMinimum(m.pv);
   jeu.qg.pv = jeu.file.pv;
   if(change){
@@ -196,13 +201,14 @@ function appliqueMondeAuJeu(m){
 
 /* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le
    deuil ni recréditer d'Énergie. */
-function tueGegeLocale(){
+function tueCreatureLocale(espece){
   if(!jeu) return;
   for(var i = 0; i < jeu.creatures.length; i++){
     var k = jeu.creatures[i];
-    if(k.t === "belette" && k.pv > 0) k.pv = 0;
+    if(k.t === espece && k.pv > 0) k.pv = 0;
   }
 }
+function tueGegeLocale(){ tueCreatureLocale("belette"); }
 
 /* ---------------------------------------------------------------
    REMISE À ZÉRO DU SALON
@@ -223,7 +229,7 @@ function remetSalonAZero(){
   cycleSalon = (cycleSalon | 0) + 1;
   carteSalon = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"" };
+            pv:CARTES[0].pvQG, d:"", g:"", w:"" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -342,6 +348,15 @@ function recoit(txt){
       signaleMonde();
       demandeMajBarres();
     }
+  }else if(m.t === "tweety"){
+    if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurTweety){
+      jeu.tueurTweety = (m.nom || "?").substr(0, 14);
+      jeu.messageTweety = 3.0;
+      tueCreatureLocale("tweety");
+      son.tweety();
+      signaleMonde();
+      demandeMajBarres();
+    }
   }else if(m.t === "carte"){
     if(typeof m.c === "number" && m.c > carteSalon){
       carteSalon = m.c;
@@ -427,6 +442,7 @@ function majReseau(dt){
 /* Le sort de Gégé fait partie du monde : il se diffuse tout de suite,
    et il est aussi porté par l'instantané pour ceux qui arriveront après. */
 function envoieGege(){ envoie({ t:"gege", nom:monNom, c:jeu ? jeu.index : 0 }); }
+function envoieTweety(){ envoie({ t:"tweety", nom:monNom, c:jeu ? jeu.index : 0 }); }
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 
