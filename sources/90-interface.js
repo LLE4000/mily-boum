@@ -840,6 +840,31 @@ function lancePartie(){
 }
 
 /* Boutons du HUD */
+/* Le bouton n'existe que dans le briefing : impossible de l'effleurer
+   en pleine partie. Double garde-fou — un mot de passe, puis une
+   confirmation qui annonce ce que ça détruit. */
+function installeRaz(){
+  var b = $("btRaz");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var mot = prompt("Mot de passe pour réinitialiser le salon :");
+    if(mot === null) return;
+    if(mot.trim().toLowerCase() !== MOT_RAZ){
+      alert("Mot de passe incorrect. Rien n'a été touché.");
+      return;
+    }
+    if(!confirm("Remettre l'île à neuf POUR TOUT LE SALON ?\n\n"
+              + "• toutes les défenses détruites reviennent\n"
+              + "• le Brasier retrouve toute sa vie\n"
+              + "• Gégé la belette est de nouveau vivante\n\n"
+              + "Les autres joueurs verront le changement immédiatement.")) return;
+    remetSalonAZero();
+    if(enJeu){ nouvelleCarte(0); construitFondMini(); majBarres(); }
+    majMondes();
+    alert("Salon réinitialisé. L'île est repartie à neuf.");
+  });
+}
+
 function installeBoutons(){
   $("btZp").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1.25); });
   $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });

@@ -460,6 +460,12 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
+  /* Le classement s'appelle TOP DÉGÂTS : il doit compter TOUS les
+     dégâts, pas seulement ceux portés au Brasier. Un joueur qui démonte
+     des centaines de défenses sans jamais atteindre la forteresse
+     restait affiché à zéro. On ne compte que ce qui est réellement
+     retiré, pour qu'un coup fatal surdimensionné ne gonfle pas le score. */
+  jeu.degatsMoi += Math.max(0, Math.min(d, b.pv));
   b.pv -= d;
   if(b.pv <= 0){
     b.vivant = 0;

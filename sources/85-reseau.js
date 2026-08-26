@@ -204,6 +204,31 @@ function tueGegeLocale(){
   }
 }
 
+/* ---------------------------------------------------------------
+   REMISE À ZÉRO DU SALON
+   Le monde étant partagé et retenu par le courtier, une remise à zéro
+   purement locale serait écrasée dans la seconde par l'instantané du
+   relais. Il faut donc publier un monde neuf — et le faire GAGNER, ce
+   qu'assure le numéro de campagne : la fusion étant monotone, un cycle
+   supérieur écrase tout, chez tout le monde, y compris chez ceux qui se
+   connecteront demain.
+
+   Le mot de passe n'est pas une sécurité — le jeu est un fichier que
+   n'importe qui peut lire. C'est un cran d'arrêt : il empêche une
+   fausse manœuvre et un joueur de passage d'effacer la partie de tous.
+   --------------------------------------------------------------- */
+var MOT_RAZ = "mily";          // à changer dans sources/85-reseau.js
+
+function remetSalonAZero(){
+  cycleSalon = (cycleSalon | 0) + 1;
+  carteSalon = 0;
+  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"" };
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return monde;
+}
+
 /* Miroir local : le courtier public ne garantit pas de conserver ses
    messages retenus éternellement. On garde donc le même instantané
    dans le navigateur, et on adopte le plus complet des deux. */

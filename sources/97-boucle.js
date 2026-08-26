@@ -23,6 +23,7 @@ function demarre(){
   construitBriefing();
   installeSaisie();
   installeBoutons();
+  installeRaz();
 
   monNom = ($("pseudo").value || "Recrue").substr(0, 14);
   connecteRelais($("relais").value);

@@ -362,6 +362,9 @@ select.champ{cursor:pointer}
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
+    <div class="ligne" style="justify-content:center;margin-bottom:6px">
+      <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
+    </div>
     <div id="pied">Mily Boum — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
   </div>
 </div>
@@ -6796,6 +6799,12 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
+  /* Le classement s'appelle TOP DÉGÂTS : il doit compter TOUS les
+     dégâts, pas seulement ceux portés au Brasier. Un joueur qui démonte
+     des centaines de défenses sans jamais atteindre la forteresse
+     restait affiché à zéro. On ne compte que ce qui est réellement
+     retiré, pour qu'un coup fatal surdimensionné ne gonfle pas le score. */
+  jeu.degatsMoi += Math.max(0, Math.min(d, b.pv));
   b.pv -= d;
   if(b.pv <= 0){
     b.vivant = 0;
@@ -8073,6 +8082,31 @@ function tueGegeLocale(){
     var k = jeu.creatures[i];
     if(k.t === "belette" && k.pv > 0) k.pv = 0;
   }
+}
+
+/* ---------------------------------------------------------------
+   REMISE À ZÉRO DU SALON
+   Le monde étant partagé et retenu par le courtier, une remise à zéro
+   purement locale serait écrasée dans la seconde par l'instantané du
+   relais. Il faut donc publier un monde neuf — et le faire GAGNER, ce
+   qu'assure le numéro de campagne : la fusion étant monotone, un cycle
+   supérieur écrase tout, chez tout le monde, y compris chez ceux qui se
+   connecteront demain.
+
+   Le mot de passe n'est pas une sécurité — le jeu est un fichier que
+   n'importe qui peut lire. C'est un cran d'arrêt : il empêche une
+   fausse manœuvre et un joueur de passage d'effacer la partie de tous.
+   --------------------------------------------------------------- */
+var MOT_RAZ = "mily";          // à changer dans sources/85-reseau.js
+
+function remetSalonAZero(){
+  cycleSalon = (cycleSalon | 0) + 1;
+  carteSalon = 0;
+  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"" };
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return monde;
 }
 
 /* Miroir local : le courtier public ne garantit pas de conserver ses
@@ -10277,6 +10311,31 @@ function lancePartie(){
 }
 
 /* Boutons du HUD */
+/* Le bouton n'existe que dans le briefing : impossible de l'effleurer
+   en pleine partie. Double garde-fou — un mot de passe, puis une
+   confirmation qui annonce ce que ça détruit. */
+function installeRaz(){
+  var b = $("btRaz");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var mot = prompt("Mot de passe pour réinitialiser le salon :");
+    if(mot === null) return;
+    if(mot.trim().toLowerCase() !== MOT_RAZ){
+      alert("Mot de passe incorrect. Rien n'a été touché.");
+      return;
+    }
+    if(!confirm("Remettre l'île à neuf POUR TOUT LE SALON ?\n\n"
+              + "• toutes les défenses détruites reviennent\n"
+              + "• le Brasier retrouve toute sa vie\n"
+              + "• Gégé la belette est de nouveau vivante\n\n"
+              + "Les autres joueurs verront le changement immédiatement.")) return;
+    remetSalonAZero();
+    if(enJeu){ nouvelleCarte(0); construitFondMini(); majBarres(); }
+    majMondes();
+    alert("Salon réinitialisé. L'île est repartie à neuf.");
+  });
+}
+
 function installeBoutons(){
   $("btZp").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1.25); });
   $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });
@@ -10461,6 +10520,7 @@ function demarre(){
   construitBriefing();
   installeSaisie();
   installeBoutons();
+  installeRaz();
 
   monNom = ($("pseudo").value || "Recrue").substr(0, 14);
   connecteRelais($("relais").value);
