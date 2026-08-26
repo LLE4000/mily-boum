@@ -15,6 +15,9 @@ fs.mkdirSync(sortie, { recursive: true });
 const scenes = [
   { nom: "1-briefing", vue: { width: 1280, height: 880 }, action: null, attente: 900 },
   { nom: "2-plage",    vue: { width: 1280, height: 720 }, attente: 2600, action: `
+      /* le pseudo est obligatoire depuis que le champ n'en invente plus */
+      document.getElementById("pseudo").value = "Recrue";
+      majEtatPseudo();
       lancePartie();
       cam.z = 0.62; centreSur(PLAGE_X0 + 2, GH/2); borneCamera();
       poseBarge(GW - 5, GH/2);
