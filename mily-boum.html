@@ -398,7 +398,7 @@ select.champ{cursor:pointer}
   </div>
 
   <div class="bloc p" id="bc">
-    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">5:00</span>
+    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">1:00</span>
   </div>
 
   <div id="flash"></div>
@@ -427,7 +427,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.03";
+var VERSION = "v0.04";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -454,7 +454,7 @@ var EQ = {
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
-  ATTENTE_RENFORT      : 300,   // secondes (5 minutes)
+  ATTENTE_RENFORT      : 60,    // secondes (1 minute)
 
   /* QG */
   QG_ERUPTION_MIN      : 7.0,   // secondes entre deux éruptions

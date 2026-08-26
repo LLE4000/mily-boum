@@ -508,6 +508,10 @@ G("8. Cohérence des règles de jeu");
   ok("l'Énergie tactique a remplacé la Poudre",
      N.EQ.ENERGIE_DEPART === 220 && N.EQ.ENERGIE_PAR_BATIMENT === 5 &&
      N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
+  /* l'attente de renfort est un choix de rythme, pas un détail : on la
+     verrouille pour qu'un réglage ne la rallonge pas en douce. */
+  ok("une minute d'attente après la mort",
+     N.EQ.ATTENTE_RENFORT === 60, N.EQ.ATTENTE_RENFORT + " s");
   (function(){
     var m = N.genereCarte("MILY", 0);
     var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
