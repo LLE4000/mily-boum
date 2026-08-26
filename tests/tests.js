@@ -25,7 +25,7 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_REACTEURS",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
@@ -309,6 +309,103 @@ G("4. Déterminisme de la génération de carte");
      N.zoneDePlan(0, 0) === 0 &&
      N.zoneDePlan(N.GW * 2, N.GH * 2) === N.NB_ZONES - 1 &&
      N.zoneDePlan(-50, -50) === 0);
+
+  /* ---- LE TABLEAU DES DÉGÂTS PARTAGÉ ----
+     « Roro a fait 3 M de dégâts et il n'est plus là car il s'est
+     déconnecté. » Le score appartient au salon : il voyage dans
+     l'instantané retenu et ne redescend jamais. */
+  G("3c. Le classement survit aux déconnexions");
+  (function(){
+    ok("aller-retour d'encodage", (function(){
+      var t = N.decodeScores(N.encodeScores({ Roro:3000000, Lu:12, Karim:450 }));
+      return t.Roro === 3000000 && t.Lu === 12 && t.Karim === 450;
+    })());
+    ok("le classement est trié, meilleur d'abord",
+       N.encodeScores({ Lu:12, Roro:3000000, Karim:450 }).indexOf("Roro:3000000") === 0);
+    ok("deux appareils encodent la MÊME chaîne",
+       N.encodeScores({ Lu:12, Roro:900 }) === N.encodeScores({ Roro:900, Lu:12 }));
+    /* le cœur du problème : Roro se déconnecte, son score doit rester */
+    var avecRoro = N.encodeScores({ Roro:3000000, Lu:120000 });
+    var sansRoro = N.encodeScores({ Lu:250000 });
+    var apres = N.decodeScores(N.fusionneScores(avecRoro, sansRoro));
+    ok("un joueur déconnecté garde son score", apres.Roro === 3000000, "" + apres.Roro);
+    ok("et celui qui joue encore voit le sien monter", apres.Lu === 250000, "" + apres.Lu);
+    ok("un score ne redescend jamais",
+       N.decodeScores(N.fusionneScores(avecRoro, N.encodeScores({ Roro:5 }))).Roro === 3000000);
+    ok("la fusion est commutative",
+       N.fusionneScores(avecRoro, sansRoro) === N.fusionneScores(sansRoro, avecRoro));
+    ok("la fusion est idempotente",
+       N.fusionneScores(avecRoro, avecRoro) === avecRoro);
+    ok("fusionner avec rien ne perd rien",
+       N.fusionneScores(avecRoro, "") === avecRoro && N.fusionneScores("", avecRoro) === avecRoro);
+    /* un pseudo hostile ne doit pas pouvoir casser le format */
+    var sale = N.decodeScores(N.encodeScores({ "a|b:c":700 }));
+    ok("les séparateurs sont retirés des pseudos", sale.abc === 700, JSON.stringify(sale));
+    ok("une chaîne pourrie ne renvoie rien de faux",
+       Object.keys(N.decodeScores("n'importe quoi|::|x:")).length === 0);
+    ok("le tableau est borné", N.encodeScores((function(){
+      var t = {}; for(var i = 0; i < 40; i++) t["j" + i] = 1000 - i; return t;
+    })()).split("|").length === N.SCORES_GARDES, "" + N.SCORES_GARDES);
+    /* et il voyage vraiment dans l'instantané */
+    var m1 = N.mondeVide(0, 1000, 0), m2 = N.mondeVide(0, 1000, 0);
+    m1.s = avecRoro; m2.s = sansRoro;
+    var mf = N.fusionneMonde(m1, m2);
+    ok("l'instantané du salon transporte le classement",
+       N.decodeScores(mf.s).Roro === 3000000 && N.decodeScores(mf.s).Lu === 250000);
+    ok("un classement différent force une republication",
+       !N.memeMonde(m1, m2));
+  })();
+
+  /* ---- L'OGRE ----
+     Une navette n'en embarque QU'UN, et cet ogre doit valoir la barge
+     de douze Meufs qu'il remplace. Ces deux règles sont le contrat de
+     la troupe : elles se vérifient en chiffres, ici, et non à l'œil. */
+  G("4b. L'Ogre");
+  (function(){
+    var M = N.UNI.meuf, O = N.UNI.ogre;
+    ok("l'Ogre existe et s'appelle Ogre", !!O && O.nom === "Ogre");
+    if(!O) return;
+    ok("il est proposé au briefing", N.TYPES_TROUPE.indexOf("ogre") >= 0);
+    /* UNE navette = UN ogre. Le plafond passe par placesNavette(), qui
+       est le SEUL chemin par lequel l'interface et le débarquement
+       bornent un effectif : c'est donc lui qu'il faut tenir. */
+    ok("une navette n'embarque qu'UN Ogre", N.placesNavette("ogre") === 1,
+       "" + N.placesNavette("ogre"));
+    ok("l'ancien plafond de 12/15 ne s'applique pas à lui",
+       N.placesNavette("ogre") < N.placesNavette("meuf") &&
+       N.placesNavette("ogre") < N.placesNavette("mec"));
+    ok("l'Ogre ne gonfle pas la flotte maximale",
+       N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("mec"),
+       "" + N.flotteMaximum());
+    /* Puissance : les deux valeurs se règlent ENSEMBLE. */
+    var dpsM = M.degats / (M.cadence / 1000);
+    var dpsO = O.degats / (O.cadence / 1000);
+    var r = dpsO / (dpsM * 12);
+    ok("1 Ogre ≈ la puissance des 12 Meufs d'une barge (×" + r.toFixed(3) + ")",
+       r >= 1.0 && r <= 1.10, dpsO.toFixed(1) + " contre " + (dpsM * 12).toFixed(1));
+    ok("il n'a surtout pas la puissance d'UNE Meuf",
+       dpsO > dpsM * 10, "×" + (dpsO / dpsM).toFixed(1) + " une Meuf");
+    ok("sa cadence reste dynamique (moins d'une seconde)", O.cadence < 1000, O.cadence + " ms");
+    /* Résistance et faiblesse. */
+    ok("santé = celle d'une Meuf × 1,5", O.pv === Math.round(M.pv * 1.5), O.pv + " / " + M.pv);
+    ok("il encaisse 5× les dégâts d'un lance-roquettes", O.vulnRoquette === 5, "" + O.vulnRoquette);
+    ok("aucune autre troupe n'a cette faiblesse",
+       !M.vulnRoquette && !N.UNI.mec.vulnRoquette);
+    ok("et aucune défense ne l'a non plus",
+       Object.keys(N.DEF).every(function(t){ return !N.DEF[t].vulnRoquette; }));
+    /* Vitesse : 10 % au-dessus de la Meuf, malgré la masse. */
+    ok("vitesse = celle d'une Meuf × 1,10",
+       Math.abs(O.vitesse / M.vitesse - 1.10) < 1e-6,
+       O.vitesse + " / " + M.vitesse + " = ×" + (O.vitesse / M.vitesse).toFixed(4));
+    ok("il est bien plus rapide qu'une Meuf, pas plus lent", O.vitesse > M.vitesse);
+    /* Il tire de loin : il ne doit jamais venir se coller au bâtiment. */
+    ok("il s'arrête loin de sa cible pour lancer", O.arret > 3, "" + O.arret);
+    ok("son arrêt reste sous sa portée", O.arret < O.portee, O.arret + " < " + O.portee);
+    /* Encombrement : plus large que les autres, mais franchissable. */
+    ok("il est plus encombrant que le Mec", O.rayon > N.UNI.mec.rayon,
+       O.rayon + " > " + N.UNI.mec.rayon);
+    ok("sans devenir infranchissable", O.rayon < 1.0, "" + O.rayon);
+  })();
 
   /* ---- LES CINQ CELLULES ÉLECTRIQUES ----
      Elles portent le bouclier du Brasier : leur nombre, leurs PV et

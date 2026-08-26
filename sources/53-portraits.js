@@ -436,6 +436,15 @@ var PORTRAITS = { meuf:{ f:portraitMeuf, h:84 }, mec:{ f:portraitMec, h:84 } };
 /* Dessine le portrait dans un rectangle de largeur donnée. */
 function dessinePortrait(c, cle, x, y, larg){
   var p = PORTRAITS[cle];
+  /* Une troupe peut apporter son propre portrait depuis un fichier
+     chargé APRÈS celui-ci — c'est le cas de l'Ogre, qui vit dans
+     62-ogre.js. On résout donc « portraitOgre » au premier appel plutôt
+     qu'au chargement, où la fonction n'existe pas encore. */
+  if(!p){
+    var f = (typeof window !== "undefined")
+          ? window["portrait" + cle.charAt(0).toUpperCase() + cle.slice(1)] : null;
+    if(typeof f === "function") p = PORTRAITS[cle] = { f:f, h:84 };
+  }
   if(!p) return;
   var k = larg / 100;
   c.save();

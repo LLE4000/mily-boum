@@ -321,8 +321,12 @@ function majListeBarges(){
   var html = "";
   for(var i = 0; i < jeu.barges.length; i++){
     var b = jeu.barges[i];
-    html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + '" data-i="' + i + '">'
-          + '<div class="n">' + b.n + '</div>'
+    /* La navette d'Ogre se repère AVANT d'appuyer : un seul passager,
+       mais c'est celui qui vaut les douze autres. */
+    var seul = placesNavette(b.type) === 1;
+    html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
+          + '" data-i="' + i + '">'
+          + '<div class="n">' + (seul ? "☠" : b.n) + '</div>'
           + '<div class="d">' + UNI[b.type].nom + '</div></div>';
   }
   if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;padding:6px 10px">aucune</div>';
@@ -607,18 +611,53 @@ function dessineIcone(m, c){
    Toujours affiché, même seul : c'est le tableau de bord de la
    partie, pas une décoration qui apparaît quand un ami arrive. */
 var podiumHtml = null;
+/* ---------------------------------------------------------------
+   LE CLASSEMENT DU SALON — une seule source de vérité
+   Il se construit PAR PSEUDO à partir de trois sources qui se
+   complètent : nos propres dégâts, le registre de ce que CETTE session
+   a entendu, et le tableau publié dans l'instantané retenu du salon.
+   C'est ce dernier qui fait qu'un joueur parti — ou parti avant même
+   qu'on arrive — garde sa place : son score appartient au monde, pas à
+   la mémoire de celui qui l'a vu jouer. Il a fallu ça parce qu'un
+   joueur à trois millions de dégâts disparaissait du tableau à la
+   seconde où il fermait son navigateur.
+   Le podium en jeu, le bilan de fin d'île et le sacre du vainqueur
+   lisent tous les trois ICI : sinon ils se contrediraient.
+   --------------------------------------------------------------- */
+function classementSalon(){
+  var par = {};
+  function pose(nom, g, moi, present){
+    if(!nom || nom === "?" || !(g > 0)) return;
+    var e = par[nom];
+    if(!e) e = par[nom] = { nom:nom, g:0, moi:0, present:0 };
+    if(g > e.g) e.g = g;
+    if(moi) e.moi = 1;
+    if(present) e.present = 1;
+  }
+  if(jeu) pose(monNom, jeu.degatsMoi, 1, 1);
+  for(var id in scoresSalon){
+    var e2 = scoresSalon[id];
+    pose(e2.nom, e2.g, 0, autresJoueurs[id] ? 1 : 0);
+  }
+  var partages = decodeScores(monde && monde.s);
+  for(var nm in partages) pose(nm, partages[nm], 0, 0);
+
+  var l = [], k;
+  for(k in par){
+    l.push({ nom:par[k].nom, g:par[k].g, moi:par[k].moi, absent:par[k].present ? 0 : 1 });
+  }
+  /* à score égal, l'ordre alphabétique : deux appareils doivent afficher
+     le même classement, jamais deux ordres différents */
+  l.sort(function(a, b){ return b.g - a.g || (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0); });
+  return l;
+}
+
 function majPodium(){
   if(!jeu) return;
   /* Le classement se lit dans le REGISTRE, pas dans la liste des
      joueurs entendus : un joueur qui ferme son navigateur garde sa
      place et son score. On marque seulement qu'il n'est plus là. */
-  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1, absent:0 }];
-  for(var id in scoresSalon){
-    var e = scoresSalon[id];
-    if(e.nom === "?" && !e.g) continue;          // jamais rien dit, jamais rien fait
-    l.push({ nom:e.nom, g:e.g, moi:0, absent:autresJoueurs[id] ? 0 : 1 });
-  }
-  l.sort(function(a, b){ return b.g - a.g; });
+  var l = classementSalon();
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < Math.min(3, l.length); i++){
@@ -668,15 +707,15 @@ function montreBilan(){
   if(bilanActif) return;
   bilanActif = true;
   bilanT = EQ.BILAN_SECONDES;
-  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
-  for(var id in autresJoueurs) l.push({ nom:autresJoueurs[id].nom, g:autresJoueurs[id].g, moi:0 });
-  l.sort(function(a, b){ return b.g - a.g; });
+  /* Même source que le podium en jeu : un joueur déconnecté garde sa
+     place au bilan, avec la marque ⏻ pour dire qu'il n'est plus là. */
+  var l = classementSalon();
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < l.length; i++){
-    h += '<div class="r' + (l[i].moi ? " moi" : "") + '">'
+    h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "") + '">'
        + '<span>' + (med[i] || (i + 1) + ".") + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + '</span>'
+       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
        + '<span class="v">' + nombre(l[i].g) + ' dégâts</span></div>';
   }
   $("bilanLi").innerHTML = h;
@@ -833,8 +872,12 @@ function majBargesBrief(){
   var h = "";
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
+    /* « 1 Ogre » et pas « Ogre — 1 par navette » : l'intitulé partage
+       la ligne avec « Navette n », et une phrase entière l'y écrasait. */
     h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
-       + '<span>' + b.n + '/' + placesNavette(b.type) + '</span></div>'
+       + '<span>' + (placesNavette(b.type) === 1
+           ? "1 Ogre"
+           : b.n + '/' + placesNavette(b.type)) + '</span></div>'
        + '<div class="choixT">';
     for(var t = 0; t < TYPES_TROUPE.length; t++){
       var cle = TYPES_TROUPE[t];
@@ -883,13 +926,28 @@ function majBargesBrief(){
   /* total */
   var tot = 0, cpt = {};
   compoBarges.forEach(function(bb){ tot += bb.n; cpt[bb.type] = (cpt[bb.type] || 0) + bb.n; });
-  var det = TYPES_TROUPE.map(function(t2){ return (cpt[t2] || 0) + " " + UNI[t2].nom + "s"; }).join(", ");
+  var det = TYPES_TROUPE.map(function(t2){ return nommeTroupes(t2, cpt[t2] || 0); }).join(", ");
   $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
+/* Pastille de couleur par type de troupe. */
+var PION_TROUPE = { meuf:"f", mec:"m", ogre:"o" };
+/* « 1 Ogre », « 12 Meufs » : le pluriel suit l'effectif, pas le type.
+   « 1 Ogres » sur la seule navette qui n'en embarque qu'un aurait été
+   la plus visible des fautes. */
+function nommeTroupes(type, n){
+  return n + " " + UNI[type].nom + (n > 1 ? "s" : "");
+}
 function rangeeNavette(i, b){
-  return '<div class="rangee"><span class="lab">'
-       + '<span class="pion ' + (b.type === "meuf" ? "f" : "m") + '"></span>'
-       + UNI[b.type].nom + 's</span>'
+  var maxi = placesNavette(b.type);
+  var lab = '<span class="lab"><span class="pion ' + (PION_TROUPE[b.type] || "m")
+          + '"></span>' + UNI[b.type].nom + (maxi > 1 ? "s" : "") + '</span>';
+  /* Une navette d'Ogre en embarque UN, jamais deux : les boutons +/−
+     n'ont plus rien à régler et prétendre le contraire serait mentir. */
+  if(maxi === 1){
+    return '<div class="rangee">' + lab
+         + '<span class="unSeul">1 par navette</span></div>';
+  }
+  return '<div class="rangee">' + lab
        + '<button class="mini" data-i="' + i + '" data-d="-1">−</button>'
        + '<span class="compt">' + b.n + '</span>'
        + '<button class="mini" data-i="' + i + '" data-d="1">+</button></div>';

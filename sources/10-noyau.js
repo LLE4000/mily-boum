@@ -257,9 +257,34 @@ var UNI = {
   meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
          degats:54,  cadence:1300, vitesse:1.62, rayon:0.34, places:12 },
   mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 }
+         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 },
+
+  /* ------------------------------------------------------------
+     L'OGRE. Une navette n'en embarque qu'UN SEUL, et cet ogre doit
+     valoir la barge de douze Meufs qu'il remplace.
+
+     Douze Meufs : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
+     chacune, donc 498,5 dégâts/s pour la barge entière. L'Ogre lance
+     440 par hache toutes les 850 ms, soit 517,6 dégâts/s : 3,8 % de
+     mieux que les douze, ce qui reste dans le « très légèrement plus
+     puissant » et pas au-delà. Les deux valeurs se règlent ENSEMBLE —
+     changer l'une sans l'autre casse l'équivalence.
+     La cadence est volontairement courte : il doit mitrailler le
+     bâtiment de haches, pas poser une hache toutes les cinq secondes.
+
+     Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Meuf,
+     jamais immortel.
+     Faiblesse : il encaisse CINQ FOIS les dégâts d'un lance-roquettes
+     (le Frelon). C'est sa contrepartie assumée — un ogre lâché seul
+     sous une batterie de missiles fond à vue d'œil.
+     Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Meuf,
+     malgré sa masse : son animation est lourde, pas son déplacement.
+     ------------------------------------------------------------ */
+  ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
+         degats:440, cadence:850, vitesse:1.782, rayon:0.72, places:1,
+         vitesseHache:9.5, armement:0.28, vulnRoquette:5, ech:3 }
 };
-var TYPES_TROUPE = ["meuf", "mec"];
+var TYPES_TROUPE = ["meuf", "mec", "ogre"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },
@@ -907,11 +932,64 @@ function zonesPeintes(zones){
 
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
-           p:"", pn:0, tg:0 };
+           p:"", pn:0, tg:0, s:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
          typeof m.v === "number" && m.c >= 0 && m.pv >= 0;
+}
+
+/* ----------------------------------------------------------------
+   LE TABLEAU DES DÉGÂTS, DANS L'INSTANTANÉ PARTAGÉ
+
+   Il ne vivait que dans la mémoire de chaque joueur : celui qui avait
+   démonté trois millions de points de défenses disparaissait du
+   classement dès qu'il fermait son navigateur, et un joueur arrivé
+   après lui ne l'y voyait jamais. Le score appartient au SALON, pas à
+   la session qui l'a observé — il part donc dans l'instantané retenu,
+   au même titre que les bâtiments détruits.
+
+   Format : « nom:dégâts|nom:dégâts ». Les deux séparateurs sont
+   retirés des pseudos à l'encodage, ce qui suffit : un pseudo fait au
+   plus quatorze caractères et n'a pas d'autre structure à préserver.
+   ---------------------------------------------------------------- */
+var SCORES_GARDES = 8;          // on retient les huit meilleurs, on affiche trois
+
+function encodeScores(tab){
+  var l = [], k;
+  for(k in tab){
+    var n = String(k).replace(/[|:]/g, "").substr(0, 14);
+    var g = Math.max(0, Math.round(tab[k] || 0));
+    if(!n || !g) continue;
+    l.push({ n:n, g:g });
+  }
+  /* tri décroissant, puis par nom : deux clients qui ont les mêmes
+     scores doivent produire exactement la même chaîne, sinon ils se
+     republieraient mutuellement à l'infini */
+  l.sort(function(a, b){ return b.g - a.g || (a.n < b.n ? -1 : a.n > b.n ? 1 : 0); });
+  l = l.slice(0, SCORES_GARDES);
+  return l.map(function(e){ return e.n + ":" + e.g; }).join("|");
+}
+function decodeScores(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var j = p[i].lastIndexOf(":");
+    if(j <= 0) continue;
+    var n = p[i].substr(0, j), g = parseInt(p[i].substr(j + 1), 10);
+    if(!n || !(g > 0)) continue;
+    if(!out[n] || g > out[n]) out[n] = g;
+  }
+  return out;
+}
+/* Union par pseudo, en gardant le PLUS GRAND score de chacun. Comme
+   unionBits : commutative, associative, idempotente, et monotone — un
+   score ne redescend jamais, quel que soit l'ordre d'arrivée. */
+function fusionneScores(a, b){
+  var x = decodeScores(a), y = decodeScores(b), k;
+  for(k in y) if(!x[k] || y[k] > x[k]) x[k] = y[k];
+  return encodeScores(x);
 }
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
@@ -943,16 +1021,19 @@ function fusionneMonde(a, b){
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   var pl = meilleurPlan(a, b);
+  /* Une île plus avancée écrase la précédente : ses destructions ET
+     son tableau des dégâts, exactement comme jeu.degatsMoi qui repart
+     à zéro à chaque île. */
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0 };
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "" };
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
        bien son plan qui l'emporte. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0)) return a;
     return { v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
-             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0 };
+             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0, s:a.s || "" };
   }
   return {
     v : Math.max(a.v, b.v),
@@ -964,6 +1045,8 @@ function fusionneMonde(a, b){
        y reste, quel que soit l'ordre d'arrivée des messages. */
     g : a.g || b.g || "",
     w : a.w || b.w || "",
+    /* le meilleur score de chacun survit à sa déconnexion */
+    s : fusionneScores(a.s, b.s),
     p : pl.p, pn: pl.pn, tg: a.tg | 0
   };
 }
@@ -974,7 +1057,7 @@ function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
          (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
-         (a.w || "") === (b.w || "") &&
+         (a.w || "") === (b.w || "") && (a.s || "") === (b.s || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0);
 }

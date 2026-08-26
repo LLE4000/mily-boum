@@ -173,7 +173,10 @@ select.champ{cursor:pointer}
 #barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
 .barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px}
 .barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:7px;display:flex;justify-content:space-between}
-.choixT{display:flex;gap:7px;margin-bottom:8px}
+/* Trois types de troupe et non plus deux : à gap 7 les vignettes
+   devenaient trop étroites pour leur intitulé, qui passait à la ligne
+   et mangeait le portrait. */
+.choixT{display:flex;gap:5px;margin-bottom:8px}
 .pt{
   flex:1;position:relative;border-radius:11px;overflow:hidden;cursor:pointer;
   border:2px solid rgba(255,255,255,.10);background:#241733;padding:0;
@@ -184,7 +187,7 @@ select.champ{cursor:pointer}
   position:absolute;left:0;right:0;bottom:0;font:700 11px/1.1 inherit;text-align:center;
   background:linear-gradient(180deg,rgba(10,5,14,0),rgba(10,5,14,.88));padding:14px 0 4px;color:#e8dcf0;
 }
-.pt .role{display:block;font-weight:400;font-size:9px;color:#b9abc6;letter-spacing:.2px}
+.pt .role{display:block;font-weight:400;font-size:8.5px;line-height:1.15;color:#b9abc6;letter-spacing:0}
 .pt:active{transform:scale(.97)}
 .pt.on{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.30),0 6px 16px rgba(0,0,0,.5)}
 .pt.on .nm{color:var(--braise)}
@@ -197,6 +200,10 @@ select.champ{cursor:pointer}
 .pion{width:12px;height:12px;border-radius:3px;flex:none}
 .pion.f{background:linear-gradient(180deg,#54e2ce,#2fb9a8)}
 .pion.m{background:linear-gradient(180deg,#8fa65c,#5b6b3a)}
+.pion.o{background:linear-gradient(180deg,#c8663a,#7a2f18)}
+/* L'Ogre n'a qu'une place : les boutons +/− n'ont rien à régler, on
+   dit simplement combien il y en a et on n'invite pas à en ajouter. */
+.rangee .unSeul{color:var(--or);font-weight:700;font-size:12px;letter-spacing:.4px}
 .compt{min-width:24px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
 .mini{width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:#2a1a38;
   color:var(--texte);font:700 16px/1 inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -302,6 +309,12 @@ select.champ{cursor:pointer}
   background:#1d1229;text-align:center;cursor:pointer;font-size:11px;line-height:1.15;
 }
 .bg1.sel{border-color:var(--braise);background:linear-gradient(180deg,#4a2a12,#2a1608);box-shadow:0 0 0 2px rgba(255,138,30,.3)}
+/* La navette d'Ogre : un seul passager, mais on doit la reconnaître au
+   premier coup d'œil parmi les sept autres. */
+.bg1.ogre{width:56px;border-color:rgba(220,120,70,.55);background:linear-gradient(180deg,#3a1a14,#22100c)}
+.bg1.ogre .n{color:#ff9a5c;font-size:15px}
+.bg1.ogre .d{color:#e8b48c;font-weight:700;letter-spacing:.5px}
+.bg1.ogre.sel{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.45)}
 .bg1 .n{font-weight:800;color:var(--cyan);font-size:13px}
 .bg1 .d{color:var(--gris);font-size:9px}
 

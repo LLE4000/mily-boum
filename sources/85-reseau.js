@@ -176,7 +176,7 @@ function mondeCourant(){
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.tg | 0) === tirageSalon) return monde;
     return { v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
-             g:monde.g || "", w:monde.w || "",
+             g:monde.g || "", w:monde.w || "", s:monde.s || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
   }
   var bits = [], i;
@@ -184,7 +184,27 @@ function mondeCourant(){
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
+           /* Le tableau des dégâts part dans l'instantané RETENU : c'est
+              ce qui le fait survivre à la déconnexion de celui qui les a
+              faits, et même à la déconnexion de tout le monde. */
+           s:tableauScores(),
            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
+}
+
+/* Le classement tel qu'on le connaît, prêt à être publié : nos propres
+   dégâts, plus tout ce que le registre a retenu des autres. */
+function tableauScores(){
+  var t = {}, id;
+  for(id in scoresSalon){
+    var e = scoresSalon[id];
+    if(!e.nom || e.nom === "?" || !e.g) continue;
+    if(!t[e.nom] || e.g > t[e.nom]) t[e.nom] = e.g;
+  }
+  if(monNom && jeu && jeu.degatsMoi > 0){
+    var g = Math.round(jeu.degatsMoi);
+    if(!t[monNom] || g > t[monNom]) t[monNom] = g;
+  }
+  return encodeScores(t);
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne

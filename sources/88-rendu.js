@@ -515,6 +515,48 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#ffe9a0";
     c.beginPath(); c.arc(p.x, p.y - (10 + (1 - t) * 90) * z, 4 * z, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "hacheBoum"){
+    /* ---- IMPACT DE HACHE ----
+       Pas une explosion : un COUP. Un éclat blanc très bref, une gerbe
+       d'esquilles qui part dans le sens du fer, et de la poussière qui
+       retombe. Ce qui doit se lire, c'est la masse. */
+    var th = t, fh2 = 1 - th;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* l'éclat du choc, sur les deux premières dixièmes */
+    if(th < 0.28){
+      var kb = 1 - th / 0.28;
+      var rb2 = (10 + kb * 22) * z;
+      var gb2 = c.createRadialGradient(p.x, p.y - 6 * z, 1, p.x, p.y - 6 * z, rb2);
+      gb2.addColorStop(0, "rgba(255,252,238," + (0.85 * kb) + ")");
+      gb2.addColorStop(0.45, "rgba(255,214,150," + (0.42 * kb) + ")");
+      gb2.addColorStop(1, "rgba(200,150,90,0)");
+      c.fillStyle = gb2;
+      c.beginPath(); c.arc(p.x, p.y - 6 * z, rb2, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* esquilles : des éclats sombres qui giclent et retombent */
+    var alH2 = prng(((e.gx * 733 + e.gy * 197) | 0) + 5);
+    c.save();
+    for(var ih2 = 0; ih2 < 9; ih2++){
+      var aH2 = alH2() * 6.2832;
+      var vH2 = 0.5 + alH2() * 0.9;
+      var dH2 = th * vH2 * 46 * z;
+      var yH2 = p.y - 6 * z - Math.sin(th * Math.PI) * 22 * z * vH2 + th * th * 26 * z;
+      c.globalAlpha = fh2 * 0.85;
+      c.fillStyle = ih2 % 3 ? "#4a3f36" : "#7a6a58";
+      c.save();
+      c.translate(p.x + Math.cos(aH2) * dH2, yH2 + Math.sin(aH2) * dH2 * 0.45);
+      c.rotate(aH2 + th * 9);
+      c.fillRect(-1.6 * z, -0.9 * z, 3.2 * z, 1.8 * z);
+      c.restore();
+    }
+    c.restore();
+    /* poussière qui monte puis retombe */
+    for(var jh = 0; jh < 3; jh++){
+      bouffee(c, p.x + (jh - 1) * 7 * z, p.y - (4 + th * 15) * z,
+              (5 + th * 12) * z, fh2 * 0.36, jh % 2 ? "#b9a887" : "#8d7f6a");
+    }
   }else if(e.t === "cellHS"){
     /* ---- UNE CELLULE ÉLECTRIQUE LÂCHE ----
        Toute la charge qu'elle retenait part d'un coup et n'est plus
@@ -633,10 +675,111 @@ function dessineEffet(c, e, tps){
 }
 
 /* Projectiles */
+/* ---------------------------------------------------------------
+   LA HACHE DE L'OGRE
+   Une hache de guerre, pas une hachette : elle est lancée par un bras
+   trois fois plus gros que celui d'une Meuf et elle doit peser en
+   conséquence à l'écran. Le tracé est sorti dans sa propre fonction
+   parce qu'il sert deux fois — le fer lui-même, et les fantômes de la
+   traînée.
+   --------------------------------------------------------------- */
+var HACHE_ECH = 2.72;   // 3,4 ramené à 80 % : elle mangeait l'ogre
+function formeHache(c, fantome){
+  /* manche : bois sombre, gros talon contrepoids */
+  c.lineCap = "round";
+  c.strokeStyle = "#4a3320"; c.lineWidth = 4.2;
+  c.beginPath(); c.moveTo(-8, 6.2); c.lineTo(6.5, -5); c.stroke();
+  c.strokeStyle = "#2b1d10"; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(-8, 6.2); c.lineTo(6.5, -5); c.stroke();
+  c.fillStyle = "#3a2a18";
+  c.beginPath(); c.arc(-8.6, 6.8, 2.6, 0, 6.2832); c.fill();
+  /* deux viroles de fer qui tiennent le fer sur le manche */
+  c.strokeStyle = "#8b8f96"; c.lineWidth = 1.1;
+  c.beginPath(); c.moveTo(2.6, -1.4); c.lineTo(4.6, -2.9); c.stroke();
+  c.beginPath(); c.moveTo(0.6, 0.2); c.lineTo(2.6, -1.3); c.stroke();
+  /* le fer : une lame large à double biseau */
+  if(fantome){
+    c.fillStyle = "#c4ccd6";
+  }else{
+    c.fillStyle = degCache(c, "hacheFer", function(){
+      var g = c.createLinearGradient(2, -14, 15, 3);
+      g.addColorStop(0, "#f6f9fc");
+      g.addColorStop(0.38, "#c2ccd8");
+      g.addColorStop(0.74, "#8a95a2");
+      g.addColorStop(1, "#4e5966");
+      return g;
+    });
+  }
+  c.beginPath();
+  c.moveTo(3.4, -4.6);
+  c.quadraticCurveTo(9.5, -14.5, 17.5, -5.2);   // dos de la lame
+  c.quadraticCurveTo(18.4, -1.2, 16.4, 2.4);    // pointe basse
+  c.quadraticCurveTo(9.2, 5.2, 2.4, 2.2);       // gorge
+  c.closePath(); c.fill();
+  if(fantome) return;
+  c.strokeStyle = "rgba(26,34,44,.8)"; c.lineWidth = 1.1; c.stroke();
+  /* tranchant : c'est ce liseré qui accroche la lumière en tournant et
+     qui fait lire la rotation d'un coup d'œil */
+  c.strokeStyle = "rgba(255,255,255,.92)"; c.lineWidth = 1.9;
+  c.beginPath();
+  c.moveTo(10.6, -12.6);
+  c.quadraticCurveTo(18.4, -5.4, 15.6, 2.9);
+  c.stroke();
+  /* ébréchures : elle revient de la guerre, elle aussi */
+  c.strokeStyle = "rgba(60,70,82,.55)"; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(13.2, -8.4); c.lineTo(10.4, -6.2); c.stroke();
+  c.beginPath(); c.moveTo(14.6, -1.2); c.lineTo(11.4, -0.4); c.stroke();
+}
+
 function dessineProjectile(c, p, tps){
   var e = versEcran(cam, p.gx, p.gy);
   var z = cam.z;
   var zz = (p.z || 0) * z;
+  if(p.t === "hache"){
+    /* ---- LA HACHE DE L'OGRE ----
+       Elle tourne VRAIMENT : la rotation vient de la simulation
+       (p.rot), pas d'une animation décorative, et elle est calée sur la
+       durée du vol. On dessine l'ombre au sol pour que la cloche se
+       lise, la traînée pour donner la vitesse, puis le fer. */
+    var hx = e.x, hy = e.y - 8 * z - zz;
+    /* ombre : elle se resserre quand la hache monte */
+    var fo = Math.max(0.12, 1 - (p.z || 0) / 120);
+    c.save();
+    c.globalAlpha = 0.26 * fo;
+    c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 6 * fo * z, 3 * fo * z, 0, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* Traînée : trois positions passées le long de la cloche, redessinées
+       comme des haches fantômes et non comme des billes — trois taches
+       rondes derrière une hache ressemblaient à des bulles de savon. Les
+       positions sont recalculées, pas mémorisées : trois interpolations
+       coûtent moins qu'un tableau d'historique par projectile. */
+    c.save();
+    for(var st = 3; st >= 1; st--){
+      var kt = (p.age - st * 0.030) / p.duree;
+      if(kt <= 0) continue;
+      var qx = p.x0 + (p.but.gx - p.x0) * kt, qy = p.y0 + (p.but.gy - p.y0) * kt;
+      var qz = p.z0 * (1 - kt) + p.haut * 4 * kt * (1 - kt);
+      var qe = versEcran(cam, qx, qy);
+      c.globalAlpha = 0.26 - st * 0.06;
+      c.save();
+      c.translate(qe.x, qe.y - 8 * z - qz * z);
+      c.scale(z * HACHE_ECH, z * HACHE_ECH);
+      c.rotate(p.rot - st * p.spin * 0.030);
+      formeHache(c, 1);
+      c.restore();
+    }
+    c.restore();
+
+    c.save();
+    c.translate(hx, hy);
+    c.scale(z * HACHE_ECH, z * HACHE_ECH);
+    c.rotate(p.rot);
+    formeHache(c, 0);
+    c.restore();
+    return;
+  }
   if(p.t === "roquetteJ" || p.t === "roquette"){
     var hx = e.x, hy = e.y - 18 * z - zz;
 

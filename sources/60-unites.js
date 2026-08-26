@@ -651,6 +651,11 @@ function dessineMec(c, phase, variante, tir){
 
 /* Aiguillage */
 function dessineUnite(c, type, phase, variante, tir){
+  /* L'Ogre vit dans son propre fichier (62-ogre.js) : il est trois fois
+     plus grand que les deux autres et n'a rien en commun avec eux. Le
+     garde-fou typeof le rend optionnel — si un jour on retire le
+     fichier, le jeu tombe sur la Meuf au lieu de planter. */
+  if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
   if(type === "mec") dessineMec(c, phase, variante, tir);
   else dessineMeuf(c, phase, variante, tir);
 }
@@ -660,13 +665,18 @@ function dessineUnite(c, type, phase, variante, tir){
    24 pré-rendus : 6 poses × 2 orientations × 2 types, désaturés une
    seule fois au niveau des pixels. Pas de ctx.filter : trop lent.
    --------------------------------------------------------------- */
-var VIG_W = 84, VIG_H = 88, VIG_OX = 42, VIG_OY = 74, VIG_ECH = 1.6;
+/* La planche doit contenir l'OGRE, qui monte trois fois plus haut
+   qu'une Meuf : dimensionnée sur les petits, elle lui coupait la tête
+   et les épaules. L'origine descend d'autant. */
+var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
+/* L'ordre fait foi : vignette() calcule son indice dessus. */
+var VIG_TYPES = ["meuf", "mec", "ogre"];
 
 function construitVignettesGrises(){
   vignettes = [];
-  var types = ["meuf", "mec"];
-  for(var ti = 0; ti < 2; ti++){
+  var types = VIG_TYPES;
+  for(var ti = 0; ti < types.length; ti++){
     for(var dr = 0; dr < 2; dr++){
       for(var ph = 0; ph < 6; ph++){
         var cv = nouveauCanvas(VIG_W * VIG_ECH, VIG_H * VIG_ECH);
@@ -691,7 +701,8 @@ function construitVignettesGrises(){
   }
 }
 function vignette(type, droite, phase){
-  var ti = (type === "mec") ? 1 : 0;
+  var ti = VIG_TYPES.indexOf(type);
+  if(ti < 0) ti = 0;
   var dr = droite ? 1 : 0;
   var ph = Math.floor(((phase % 6.2832) + 6.2832) % 6.2832 / 6.2832 * 6) % 6;
   return vignettes[ti * 12 + dr * 6 + ph];

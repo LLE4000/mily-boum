@@ -550,8 +550,19 @@ function creeUnite(type, gx, gy){
 /* ---------------------------------------------------------------
    Dégâts
    --------------------------------------------------------------- */
+/* Combien une troupe encaisse d'un lance-roquettes. Un pour tout le
+   monde, cinq pour l'Ogre : c'est sa faiblesse tactique, et elle ne
+   vaut QUE pour les roquettes du Frelon. Ni les mitrailleuses, ni le
+   chalumeau, ni la bobine, ni les créatures, ni les éruptions du
+   Brasier, ni les capacités — et surtout pas les bâtiments, qui ne
+   passent jamais par ici. */
+function multRoquette(u){
+  var f = UNI[u.t];
+  return (f && f.vulnRoquette) || 1;
+}
 function toucheUnite(u, degats, opt){
   if(u.pv <= 0) return;
+  if(opt && opt.roquette) degats *= multRoquette(u);
   u.pv -= degats;
   if(opt){
     if(opt.brulure) u.brulure = Math.max(u.brulure, EQ.BRULURE_DUREE);
@@ -972,7 +983,13 @@ function majUnites(dt){
          centre — le décalage n'avantage ni ne pénalise personne. */
       var etal = Math.min(rayonFormation() * 0.55, (portee + rayonCible) * 0.7);
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
-      u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
+      /* Cadence du cycle de marche, en radians par seconde. Elle dit le
+         NOMBRE de pas, pas la vitesse : l'Ogre avance plus vite qu'une
+         Meuf (1,782 contre 1,62) tout en faisant deux fois moins de pas
+         pour la même distance. C'est exactement ça, une enjambée — et
+         c'est pour ça qu'il ne faut surtout pas ralentir son cycle en
+         croyant ralentir le personnage. */
+      u.phase += dt * (u.t === "ogre" ? 4.1 : (u.t === "mec" ? 6.2 : 8.6));
     }else{
       /* Arrivée à SA portée (f.arret, propre au type). Elle tire —
          sauf si la fumée la couvre, auquel cas elle se tient prête
@@ -981,8 +998,19 @@ function majUnites(dt){
       u.prochainTir -= dt * 1000;
       if(cachee){
         armeSansTirer(u);
+      }else if(f.armement && u.prochainTir > 0 && u.prochainTir <= f.armement * 1000){
+        /* ARMEMENT. L'Ogre attrape une hache et ramène le bras en
+           arrière AVANT de lancer : sans ce temps-là, la hache
+           jaillirait d'un bras au repos. La fenêtre s'ouvre un peu
+           avant l'échéance ; le lancer part quand elle expire.
+           u.tir est REMIS À UN à chaque image de l'armement, sinon il
+           se dégraderait pendant la montée du bras et la pose
+           s'affaisserait juste avant le lancer. */
+        u.arme = 1;
+        u.tir = 1;
       }else if(u.prochainTir <= 0){
         u.prochainTir = f.cadence;
+        u.arme = 0;
         u.tir = 1;
         tireUnite(u, but, c);
       }
@@ -1000,6 +1028,7 @@ function majUnites(dt){
 function armeSansTirer(u){
   if(u.prochainTir < 0) u.prochainTir = 0;
   u.tir = 0;
+  u.arme = 0;
 }
 function chercheCibleUnite(u){
   var meilleur = null, md = 1e9;
@@ -1023,6 +1052,38 @@ function chercheCibleUnite(u){
 }
 function tireUnite(u, but, c){
   var f = UNI[u.t];
+  if(u.t === "ogre"){
+    /* LA HACHE. Elle part de la hauteur d'épaule d'un ogre — soit très
+       au-dessus de tout le reste — décrit une cloche et tourne sur
+       elle-même pendant tout le vol. Sa vitesse angulaire est calée sur
+       la durée du trajet, calculée ICI une fois pour toutes : réglée
+       en dur, une hache lancée à bout portant tournait comme une
+       toupie et une hache lancée au loin semblait planer. */
+    var dh = Math.hypot(but.gx - u.gx, but.gy - u.gy) || 1;
+    var duree = Math.max(0.18, dh / f.vitesseHache);
+    /* La hache part de l'ÉPAULE, pas du nombril, et déjà un peu devant
+       lui : lâchée au centre de l'unité, elle traversait visiblement
+       son propre torse à l'image du lancer. La hauteur suit l'échelle
+       du personnage — trente unités conviennent à une Meuf, pas à un
+       ogre qui en fait trois fois plus. */
+    var ech = f.ech || 1;
+    var ax = u.gx + (but.gx - u.gx) / dh * 0.55 * ech;
+    var ay = u.gy + (but.gy - u.gy) / dh * 0.55 * ech;
+    jeu.projectiles.push({
+      t:"hache", gx:ax, gy:ay, x0:ax, y0:ay,
+      cible:c, but:{ gx:but.gx, gy:but.gy },
+      degats:f.degats, vit:f.vitesseHache, age:0, duree:duree,
+      /* deux tours et demi à trois tours et demi de vol, selon la
+         distance : c'est ce qui donne le poids */
+      spin:(6.2832 * (2.5 + Math.min(1, dh / 6))) / duree,
+      /* départ à hauteur d'épaule, arrivée au sol : la cloche est
+         d'autant plus haute que le jet est long */
+      haut:(20 + Math.min(26, dh * 3.6)) * ech,
+      z0:30 * ech, ang:Math.atan2(but.gy - u.gy, but.gx - u.gx), n:jeu.nSuiv++
+    });
+    if(son.hache) son.hache();
+    return;
+  }
   if(u.t === "meuf"){
     jeu.projectiles.push({
       t:"roquetteJ", gx:u.gx, gy:u.gy - 0.2, vx:0, vy:0, cible:c, but:but,
@@ -1035,6 +1096,17 @@ function tireUnite(u, but, c){
     jeu.effets.push({ t:"coup", gx:but.gx, gy:but.gy, age:0, duree:0.22 });
     son.coupMec();
   }
+}
+/* L'IMPACT D'UNE HACHE. Quatre cents kilos d'acier lancés par un ogre :
+   ça doit s'entendre et ça doit secouer. Un choc franc, un anneau de
+   poussière, quelques éclats, et une secousse de caméra courte — assez
+   pour qu'on la sente, pas assez pour gêner la visée. */
+function impactHache(gx, gy){
+  jeu.effets.push({ t:"hacheBoum", gx:gx, gy:gy, age:0, duree:0.42 });
+  jeu.effets.push({ t:"onde", gx:gx, gy:gy, age:0, duree:0.34, r:1.1 });
+  jeu.effets.push({ t:"poussiere", gx:gx, gy:gy, age:0, duree:0.55 });
+  jeu.secousse = Math.min(6, jeu.secousse + 1.5);
+  if(son.impactHache) son.impactHache();
 }
 function appliqueDegatsCible(c, d, but){
   if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
@@ -1257,6 +1329,25 @@ function majProjectiles(dt){
   for(var i = jeu.projectiles.length - 1; i >= 0; i--){
     var p = jeu.projectiles[i];
     p.age += dt;
+    if(p.t === "hache"){
+      /* La hache suit une cloche entre le point de lancer et le point
+         visé. On interpole dans le TEMPS, pas à vitesse constante :
+         c'est la seule façon d'avoir une cloche propre, et ça garantit
+         qu'elle arrive exactement au bout de sa durée quelle que soit
+         la distance. Elle ne poursuit PAS sa cible : une hache lancée
+         est lancée, elle tombe où elle a été jetée. */
+      var kh = Math.min(1, p.age / p.duree);
+      p.gx = p.x0 + (p.but.gx - p.x0) * kh;
+      p.gy = p.y0 + (p.but.gy - p.y0) * kh;
+      p.z = p.z0 * (1 - kh) + p.haut * 4 * kh * (1 - kh);
+      p.rot = p.age * p.spin;
+      if(kh >= 1){
+        appliqueDegatsCible(p.cible, p.degats, p.but);
+        impactHache(p.but.gx, p.but.gy);
+        jeu.projectiles.splice(i, 1);
+      }
+      continue;
+    }
     if(p.t === "roquetteJ" || p.t === "roquette"){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
@@ -1282,8 +1373,12 @@ function majProjectiles(dt){
           /* ceinture et bretelles : la cible est déjà lâchée dès
              qu'elle entre dans la fumée, mais si elle s'y glisse à
              l'image même de l'impact, la roquette ne la touche pas */
-          if(p.cible && p.cible.pv > 0 && !masquee(p.cible)) toucheUnite(p.cible, p.degats);
-          else degatsZone(bx, by, 0.8, p.degats, { epargneCachees:1 });
+          /* roquette:1 — c'est ce drapeau, et lui seul, qui déclenche
+             la vulnérabilité de l'Ogre aux lance-roquettes. Il est posé
+             sur le coup au but ET sur le souffle : une roquette qui
+             éclate à côté de lui doit faire mal elle aussi. */
+          if(p.cible && p.cible.pv > 0 && !masquee(p.cible)) toucheUnite(p.cible, p.degats, { roquette:1 });
+          else degatsZone(bx, by, 0.8, p.degats, { epargneCachees:1, roquette:1 });
         }
         if(p.t === "roquette"){
           /* une roquette qui pique du ciel doit marquer le sol : boule
@@ -2001,12 +2096,13 @@ function majMort(dt){
    messages reçus, mais c'est la même information que le TOP DÉGÂTS que
    tout le monde a sous les yeux depuis le début de la partie. */
 function championDeLaPartie(){
-  var meilleur = { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
-  for(var id in autresJoueurs){
-    var j = autresJoueurs[id];
-    if(j.g > meilleur.g) meilleur = { nom:j.nom || "?", g:j.g, moi:0 };
-  }
-  return meilleur;
+  /* Le sacre lit le MÊME classement que le podium et le bilan. Il lisait
+     autrefois autresJoueurs, où un joueur déconnecté n'existe plus :
+     celui qui avait fait le gros du travail pouvait donc se voir voler
+     la première place en partant deux minutes avant la fin. */
+  var l = (typeof classementSalon === "function") ? classementSalon() : null;
+  if(l && l.length) return { nom:l[0].nom, g:l[0].g, moi:l[0].moi };
+  return { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
 }
 
 function declencheFin(){

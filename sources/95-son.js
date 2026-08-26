@@ -92,6 +92,14 @@ var son = {
 
   tirMeuf:function(){ this.bip("square", 880, 420, 0.075, 0.055); },
   coupMec:function(){ this.bip("sawtooth", 150, 62, 0.13, 0.10); },
+  /* Le lancer de l'Ogre : un souffle grave qui monte, l'effort d'un
+     bras énorme. L'impact, lui, descend d'un coup — c'est de la masse
+     qui s'arrête, pas une déflagration. */
+  hache:function(){ this.bip("triangle", 120, 260, 0.11, 0.07); },
+  impactHache:function(){
+    this.bip("sawtooth", 190, 44, 0.17, 0.13);
+    this.bip("square", 720, 180, 0.05, 0.05);
+  },
   tirFrelon:function(){ this.souffle(900, 220, 0.35, 0.12); },
   tirPilon:function(){ this.bip("sine", 190, 70, 0.22, 0.13); },
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
