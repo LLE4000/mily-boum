@@ -170,11 +170,11 @@ select.champ{cursor:pointer}
 
 /* — haut gauche — */
 #hg{position:absolute;top:calc(8px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-#ress{display:flex;gap:12px;align-items:center;font-weight:700;font-size:15px;white-space:nowrap}
+#ress{display:flex;gap:14px;align-items:center;justify-content:center;font-weight:700;font-size:15px;white-space:nowrap;padding:5px 10px}
 #ress .k{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;font-weight:700}
-#poudreV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
+#energieV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
 #unitesV{color:var(--cyan);font-variant-numeric:tabular-nums}
-#podium{min-width:150px;font-size:12px;display:none}
+#podium{min-width:158px;font-size:12px}
 #podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
 #podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
@@ -214,7 +214,8 @@ select.champ{cursor:pointer}
 .bg1 .d{color:var(--gris);font-size:9px}
 
 /* — bas droite : capacités — */
-#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));padding:6px}
+#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
+#capsBoite{padding:6px}
 #caps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .cap{
   position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
@@ -346,7 +347,7 @@ select.champ{cursor:pointer}
           <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
           <li>Une navette ne transporte <b>qu'un seul type de troupe</b>. En bas à gauche, choisis-en une puis appuie sur la plage à l'est : elle se vide d'un coup.</li>
           <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Balises</b> : les troupes courent vers la fusée sans tirer.</li>
-          <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
+          <li>Chaque bâtiment détruit rapporte <b>5 d'Énergie tactique</b>. Chaque emploi d'une capacité renchérit le suivant. La <b>Nova</b>, elle, ne coûte rien : on n'en a qu'<b>une par vie</b>.</li>
           <li>Huit capacités : <b>Nova</b>, <b>Poulets ×10</b> (des leurres !), <b>Brouillard</b>, <b>Salve</b>, <b>Cryo</b> (gèle les défenses 12 s), <b>Soin</b>, <b>Balise</b> et <b>Viper</b>.</li>
           <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-chalumeau porte plus loin que tes Meufs : passe un Mec devant.</li>
           <li>Le Brasier a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
@@ -366,11 +367,7 @@ select.champ{cursor:pointer}
 <!-- ============================ JEU ============================ -->
 <div id="hud">
   <div id="hg">
-    <div class="bloc p" id="ress">
-      <span><span class="k">Poudre</span> <span id="poudreV">150</span></span>
-      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
-    </div>
-    <div class="bloc p" id="podium"><div class="t">Podium</div><div id="podiumL"></div></div>
+    <div class="bloc p" id="podium"><div class="t">Top dégâts</div><div id="podiumL"></div></div>
     <div id="zoomB" class="p">
       <button class="bt" id="btZp" title="Zoom avant">+</button>
       <button class="bt" id="btZm" title="Zoom arrière">−</button>
@@ -392,7 +389,13 @@ select.champ{cursor:pointer}
     <div id="listeBarges"></div>
   </div>
 
-  <div class="bloc p" id="bd"><div id="caps"></div></div>
+  <div id="bd">
+    <div class="bloc p" id="ress">
+      <span><span class="k">Énergie</span> <span id="energieV">220</span></span>
+      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
+    </div>
+    <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+  </div>
 
   <div class="bloc p" id="bc">
     <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">5:00</span>
@@ -425,10 +428,17 @@ select.champ{cursor:pointer}
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
    ---------------------------------------------------------------- */
 var EQ = {
-  /* Économie */
-  POUDRE_DEPART        : 150,   // poudre au début de chaque carte
-  POUDRE_PAR_BATIMENT  : 3,     // gain par bâtiment détruit
-  POUDRE_BONUS_RENFORT : 40,    // bonus quand la flotte revient après la mort
+  /* Économie — l'Énergie tactique alimente les capacités.
+     Revue à la hausse : le jeu est plus vivant quand on peut relancer
+     régulièrement Brouillard, Balise, Cryo, Soin, Salve, Viper et
+     Poulets, sans pour autant que ce soit gratuit. */
+  ENERGIE_DEPART       : 220,   // énergie au début de chaque carte
+  ENERGIE_PAR_BATIMENT : 5,     // gain par bâtiment détruit
+  ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
+  ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
+
+  /* Nova : une seule charge par vie, jamais cumulable */
+  NOVA_PAR_VIE         : 1,
 
   /* Débarquement */
   NB_BARGES            : 8,
@@ -463,13 +473,52 @@ var EQ = {
   UNITES_DIFFUSEES     : 20,    // unités échantillonnées par joueur
   PERIODE_PING         : 20000, // ms
 
-  /* Éclairante */
-  BALISE_RAYON          : 1.1,   // distance à laquelle une troupe est libérée de la fusée
+  /* Balise */
+  BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
+
+  /* Formation et dispersion des troupes
+     Le groupe doit occuper environ 80 % de la surface d'un Brouillard :
+     un disque de 80 % de surface a un rayon de sqrt(0,8) ≈ 0,894 fois
+     celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
+     soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
+  FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
+  SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
+  SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
 
   /* Divers */
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
   BILAN_SECONDES       : 8
 };
+
+/* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
+   Brouillard : c'est lui qui sert de référence visuelle au joueur. */
+function rayonFormation(){
+  return CAP.brouillard.rayon * Math.sqrt(EQ.FORMATION_PART_SURFACE);
+}
+
+/* ----------------------------------------------------------------
+   ANCRE DE FORMATION
+   Chaque unité reçoit une place stable dans le disque unité, tirée
+   d'une spirale de Vogel (angle d'or). La spirale couvre le disque
+   régulièrement sans jamais former de rangées — donc pas de grille
+   militaire — et le bruit stable ajouté ensuite lui rend une
+   irrégularité organique. L'unité vise SA place, pas celle de sa
+   voisine : le groupe s'étale avant même de se toucher.
+   ---------------------------------------------------------------- */
+var ANGLE_OR = 2.399963229728653;
+function bruitStable(n, sel){
+  var v = Math.sin(n * (sel ? 78.233 : 12.9898) + sel * 4.1) * 43758.5453;
+  return v - Math.floor(v);
+}
+function ancreFormation(n){
+  /* Le bruit reste modeste : au-delà, deux places voisines finissent
+     par se confondre et la spirale perd l'intérêt qu'elle avait. */
+  var a = n * ANGLE_OR + (bruitStable(n, 1) - 0.5) * 0.34;
+  var r = Math.sqrt((n % EQ.FORMATION_EFFECTIF + 0.5) / EQ.FORMATION_EFFECTIF);
+  r = Math.min(1, r * (1 + (bruitStable(n, 0) - 0.5) * 0.13));
+  return { x:Math.cos(a) * r, y:Math.sin(a) * r };
+}
 
 /* ----------------------------------------------------------------
    Générateur pseudo-aléatoire déterministe (xorshift 32 bits)
@@ -588,7 +637,7 @@ var CRE = {
    Chaque emploi renchérit le suivant : coût = base + pas × usages.
    ---------------------------------------------------------------- */
 var COUT = {
-  nova      :{ base:14, pas:4, nom:"Nova" },
+  nova      :{ base:0,  pas:0, nom:"Nova" },
   poulets   :{ base:4,  pas:2, nom:"Poulets ×10" },
   brouillard:{ base:3,  pas:1, nom:"Brouillard" },
   salve     :{ base:10, pas:3, nom:"Salve" },
@@ -604,11 +653,11 @@ function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] |
 var CAP = {
   nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45 },
   poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
-  brouillard:{ rayon:4.2, duree:10.0 },
+  brouillard:{ rayon:4.2, duree:20.0 },
   salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },
   cryo      :{ rayon:4.0, duree:12.0 },
   soin      :{ rayon:3.0, duree:6.0, pvParSeconde:30 },
-  balise    :{ duree:25.0 },
+  balise    :{ duree:30.0 },
   viper     :{ degats:220, rayon:1.5, vitesse:34 }
 };
 
@@ -5138,6 +5187,23 @@ var C_MEC = {
   pantalon:"#3a3a32", botte:"#232320", laiton:"#c9a24a"
 };
 
+/* ---------------------------------------------------------------
+   Cache de dégradés.
+   Les couleurs et les coordonnées locales d'un soldat ne changent
+   jamais : à 120 unités, en recréer une demi-douzaine par unité et par
+   image faisait ~600 CanvasGradient et autant de parsages de chaînes
+   hexadécimales à chaque frame. Un CanvasGradient est résolu dans le
+   repère courant AU MOMENT du remplissage : on peut donc le construire
+   une fois en coordonnées locales et le réutiliser partout.
+   --------------------------------------------------------------- */
+var cacheDeg = {};
+function degCache(c, cle, fabrique){
+  var g = cacheDeg[cle];
+  if(!g){ g = fabrique(); cacheDeg[cle] = g; }
+  return g;
+}
+function videCacheDegrades(){ cacheDeg = {}; }
+
 /* Cycle de marche : renvoie les décalages des membres */
 function pose(phase, ampleur){
   var s = Math.sin(phase), c2 = Math.cos(phase);
@@ -5196,9 +5262,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.closePath(); c.fill();
 
   /* --- buste : manches claires puis plastron sombre --- */
-  var gM = c.createLinearGradient(-6, -24, 6, -14);
-  gM.addColorStop(0, "#ffffff"); gM.addColorStop(0.5, C.tenue); gM.addColorStop(1, C.tenueO);
-  c.fillStyle = gM;
+  c.fillStyle = degCache(c, "meufManches", function(){
+    var g = c.createLinearGradient(-6, -24, 6, -14);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, C.tenue); g.addColorStop(1, C.tenueO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-5.2, -13.6);
   c.lineTo(-6.0, -22.6);
@@ -5207,9 +5275,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.quadraticCurveTo(0, -12.4, -5.2, -13.6);
   c.closePath(); c.fill();
   /* plastron */
-  var gP = c.createLinearGradient(-5, -22, 5, -15);
-  gP.addColorStop(0, C.plastronC); gP.addColorStop(0.45, C.plastron); gP.addColorStop(1, C.plastronO);
-  c.fillStyle = gP;
+  c.fillStyle = degCache(c, "meufPlastron", function(){
+    var g = c.createLinearGradient(-5, -22, 5, -15);
+    g.addColorStop(0, C.plastronC); g.addColorStop(0.45, C.plastron); g.addColorStop(1, C.plastronO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-4.2, -14.4);
   c.lineTo(-4.6, -21.4);
@@ -5251,9 +5321,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   /* --- le gros fusil, porté sur l'épaule --- */
   c.save();
   c.translate(1.2, -23.8); c.rotate(-0.30);
-  var gT = c.createLinearGradient(0, -3.4, 0, 3.4);
-  gT.addColorStop(0, C.armeC); gT.addColorStop(0.45, C.arme); gT.addColorStop(1, C.armeO);
-  c.fillStyle = gT;
+  c.fillStyle = degCache(c, "meufFusil", function(){
+    var g = c.createLinearGradient(0, -3.4, 0, 3.4);
+    g.addColorStop(0, C.armeC); g.addColorStop(0.45, C.arme); g.addColorStop(1, C.armeO);
+    return g;
+  });
   c.beginPath();
   if(c.roundRect) c.roundRect(-11, -3.2, 23, 6.4, 1.6); else c.rect(-11, -3.2, 23, 6.4);
   c.fill();
@@ -5280,10 +5352,12 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(12.4, -0.2, 1.5, 2.4, 0, 0, 6.2832); c.fill();
   c.save();
   c.globalCompositeOperation = "lighter";
-  var gl = c.createRadialGradient(12.4, -0.2, 0.4, 12.4, -0.2, tir ? 10 : 4);
-  gl.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.45));
-  gl.addColorStop(1, rgba(C.lueur, 0));
-  c.fillStyle = gl;
+  c.fillStyle = degCache(c, "meufBouche" + (tir ? 1 : 0), function(){
+    var g = c.createRadialGradient(12.4, -0.2, 0.4, 12.4, -0.2, tir ? 10 : 4);
+    g.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.45));
+    g.addColorStop(1, rgba(C.lueur, 0));
+    return g;
+  });
   c.beginPath(); c.arc(12.4, -0.2, tir ? 10 : 4, 0, 6.2832); c.fill();
   c.restore();
   /* lunette */
@@ -5298,9 +5372,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.translate(0, -27.2);
   c.fillStyle = C.cheveux;
   c.beginPath(); c.ellipse(-0.2, 0.2, 5.0, 5.2, 0, 0, 6.2832); c.fill();
-  var gPe = c.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, 4.8);
-  gPe.addColorStop(0, ecl(C.peau, 1.06)); gPe.addColorStop(1, C.peauO);
-  c.fillStyle = gPe;
+  c.fillStyle = degCache(c, "meufVisage", function(){
+    var g = c.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, 4.8);
+    g.addColorStop(0, ecl(C.peau, 1.06)); g.addColorStop(1, C.peauO);
+    return g;
+  });
   c.beginPath(); c.ellipse(0.3, 0.6, 4.0, 4.4, 0, 0, 6.2832); c.fill();
   /* yeux en amande */
   c.fillStyle = "#1e1822";
@@ -5380,9 +5456,11 @@ function dessineMec(c, phase, variante, tir){
   c.lineTo(6.8, -16.2);
   c.quadraticCurveTo(0, -14.6, -6.8, -16.2);
   c.closePath(); c.fill();
-  var gG = c.createLinearGradient(-9, -28, 9, -17);
-  gG.addColorStop(0, C.giletC); gG.addColorStop(0.5, C.gilet); gG.addColorStop(1, C.giletO);
-  c.fillStyle = gG;
+  c.fillStyle = degCache(c, "mecGilet", function(){
+    var g = c.createLinearGradient(-9, -28, 9, -17);
+    g.addColorStop(0, C.giletC); g.addColorStop(0.5, C.gilet); g.addColorStop(1, C.giletO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-6.0, -16.6);
   c.lineTo(-8.2, -26.2);
@@ -5443,10 +5521,12 @@ function dessineMec(c, phase, variante, tir){
   if(tir){
     c.save();
     c.globalCompositeOperation = "lighter";
-    var gf = c.createRadialGradient(11.6, 0, 0.4, 11.6, 0, 9);
-    gf.addColorStop(0, "rgba(255,232,170,.95)");
-    gf.addColorStop(1, "rgba(255,120,30,0)");
-    c.fillStyle = gf;
+    c.fillStyle = degCache(c, "mecBouche", function(){
+      var g = c.createRadialGradient(11.6, 0, 0.4, 11.6, 0, 9);
+      g.addColorStop(0, "rgba(255,232,170,.95)");
+      g.addColorStop(1, "rgba(255,120,30,0)");
+      return g;
+    });
     c.beginPath(); c.arc(11.6, 0, 9, 0, 6.2832); c.fill();
     c.restore();
   }
@@ -5457,9 +5537,11 @@ function dessineMec(c, phase, variante, tir){
   /* --- tête, barbe et casque --- */
   c.save();
   c.translate(0.4, -32.2);
-  var gP2 = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
-  gP2.addColorStop(0, ecl(C.peau, 1.08)); gP2.addColorStop(1, C.peauO);
-  c.fillStyle = gP2;
+  c.fillStyle = degCache(c, "mecVisage", function(){
+    var g = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
+    g.addColorStop(0, ecl(C.peau, 1.08)); g.addColorStop(1, C.peauO);
+    return g;
+  });
   c.beginPath(); c.ellipse(0, 0, 4.6, 4.8, 0, 0, 6.2832); c.fill();
   /* barbe courte */
   c.fillStyle = C.barbe;
@@ -5491,9 +5573,11 @@ function dessineMec(c, phase, variante, tir){
   c.quadraticCurveTo(4.0, -2.6, 3.0, -2.0);
   c.closePath(); c.fill();
   /* casque */
-  var gC = c.createLinearGradient(-5, -7, 5, -2);
-  gC.addColorStop(0, C.casqueC); gC.addColorStop(0.55, C.casque); gC.addColorStop(1, C.casqueO);
-  c.fillStyle = gC;
+  c.fillStyle = degCache(c, "mecCasque", function(){
+    var g = c.createLinearGradient(-5, -7, 5, -2);
+    g.addColorStop(0, C.casqueC); g.addColorStop(0.55, C.casque); g.addColorStop(1, C.casqueO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-5.2, -1.6);
   c.quadraticCurveTo(-5.6, -7.6, 0, -7.8);
@@ -6079,7 +6163,8 @@ function nouvelleCarte(index, pvConnu){
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
-    poudre:EQ.POUDRE_DEPART,
+    navettes:[],
+    energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -6174,6 +6259,102 @@ function construitGrilleUnites(){
      pour des troupes et gaspillent leurs munitions dessus */
   for(var k2 = 0; k2 < jeu.poulets.length; k2++) range(jeu.poulets[k2]);
 }
+/* ---------------------------------------------------------------
+   SÉPARATION LOCALE
+   L'ancre de formation étale le groupe à l'approche ; la séparation
+   l'empêche de s'empiler une fois arrivé — à l'arrêt, en train de
+   tirer, ou tassé contre un mur.
+
+   Grille dédiée, de maille égale au diamètre de confort : une unité
+   n'a donc que ses huit cases voisines à consulter. Tri par comptage
+   dans des tableaux typés réutilisés d'une image à l'autre — aucune
+   allocation par image, et le coût suit le nombre de voisines réelles,
+   pas l'effectif total.
+   --------------------------------------------------------------- */
+var sepDebut = null, sepTete = null, sepOrdre = null, sepW = 0, sepH = 0;
+var sepX = null, sepY = null, sepR = null, sepPx = null, sepPy = null;
+
+function reserveSeparation(n){
+  if(sepX && sepX.length >= n) return;
+  var cap = Math.max(256, n * 2);
+  sepX = new Float32Array(cap); sepY = new Float32Array(cap);
+  sepR = new Float32Array(cap);
+  sepPx = new Float32Array(cap); sepPy = new Float32Array(cap);
+  sepOrdre = new Int32Array(cap);
+}
+
+function separeUnites(dt){
+  var lst = jeu.unites, n = lst.length;
+  if(n < 2) return;
+  reserveSeparation(n);
+  var maille = EQ.SEPARATION_MAILLE;
+  var w = Math.ceil(GW / maille) + 1;
+  if(sepW !== w){
+    sepW = w; sepH = Math.ceil(GH / maille) + 1;
+    sepDebut = new Int32Array(sepW * sepH + 1);
+    sepTete = new Int32Array(sepW * sepH);
+  }
+  var nc = sepW * sepH, i, c;
+  sepDebut.fill(0); sepTete.fill(0);
+
+  /* copie plate + comptage par case */
+  for(i = 0; i < n; i++){
+    var u = lst[i];
+    sepX[i] = u.gx; sepY[i] = u.gy; sepR[i] = UNI[u.t].rayon;
+    sepPx[i] = 0; sepPy[i] = 0;
+    var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
+    if(cx < 0) cx = 0; else if(cx >= sepW) cx = sepW - 1;
+    if(cy < 0) cy = 0; else if(cy >= sepH) cy = sepH - 1;
+    u.sepC = cy * sepW + cx;
+    sepDebut[u.sepC + 1]++;
+  }
+  for(c = 0; c < nc; c++) sepDebut[c + 1] += sepDebut[c];
+  for(i = 0; i < n; i++){
+    c = lst[i].sepC;
+    sepOrdre[sepDebut[c] + sepTete[c]] = i;
+    sepTete[c]++;
+  }
+
+  /* répulsion : chaque paire traitée une seule fois (j > i) */
+  for(i = 0; i < n; i++){
+    var cx0 = lst[i].sepC % sepW, cy0 = (lst[i].sepC / sepW) | 0;
+    for(var jy = cy0 - 1; jy <= cy0 + 1; jy++){
+      if(jy < 0 || jy >= sepH) continue;
+      for(var jx = cx0 - 1; jx <= cx0 + 1; jx++){
+        if(jx < 0 || jx >= sepW) continue;
+        var cc = jy * sepW + jx;
+        for(var k = sepDebut[cc]; k < sepDebut[cc + 1]; k++){
+          var j = sepOrdre[k];
+          if(j <= i) continue;
+          var dx = sepX[i] - sepX[j], dy = sepY[i] - sepY[j];
+          var conf = sepR[i] + sepR[j];
+          var d2 = dx * dx + dy * dy;
+          if(d2 >= conf * conf) continue;
+          var d = Math.sqrt(d2);
+          if(d < 1e-4){
+            /* exactement superposées : on les sépare sur un axe stable */
+            var a = (i * ANGLE_OR) % 6.2832;
+            dx = Math.cos(a); dy = Math.sin(a); d = 1;
+          }else{ dx /= d; dy /= d; }
+          var chev = (conf - d) * 0.5;
+          sepPx[i] += dx * chev; sepPy[i] += dy * chev;
+          sepPx[j] -= dx * chev; sepPy[j] -= dy * chev;
+        }
+      }
+    }
+  }
+
+  /* application, plafonnée pour rester stable quel que soit dt */
+  var vmax = EQ.SEPARATION_VITESSE * dt;
+  for(i = 0; i < n; i++){
+    var px = sepPx[i], py = sepPy[i];
+    var l = Math.hypot(px, py);
+    if(l < 1e-5) continue;
+    if(l > vmax) l = vmax;
+    deplace(lst[i], px, py, l);
+  }
+}
+
 function unitesAutour(gx, gy, r, sortie){
   sortie.length = 0;
   var x0 = Math.max(0, ((gx - r) / GU) | 0), x1 = Math.min(GUW - 1, ((gx + r) / GU) | 0);
@@ -6214,37 +6395,129 @@ function centreSur(gx, gy){
   cam.py = H / 2 - p.y * cam.z;
 }
 
+/* ---------------------------------------------------------------
+   LE DÉBARQUEMENT
+   Les troupes n'apparaissent plus par magie à l'intérieur des terres :
+   une navette arrive du large, ralentit, accoste, ouvre sa rampe, et
+   les soldats en sortent par petits groupes avant de gagner le sable.
+
+   Trois états : "approche" -> "accostage" -> "retrait". Les unités ne
+   sont créées qu'une fois la rampe ouverte, à la sortie de la rampe.
+   --------------------------------------------------------------- */
+/* Le rivage JOUABLE n'est pas PLAGE_X0 (première colonne de sable, à
+   140) mais le bord est de la grille : deplace() borne les unités à
+   GW - 0.5, et le sable mouillé de matiereCase() commence vers GW - 6.
+   La navette accoste donc là où est vraiment l'eau — c'est ce décalage
+   de onze cases qui faisait « apparaître » les troupes en pleine terre. */
+var RIVAGE_GX = GW + 1.0;      // la navette flotte : elle s'arrête DANS l'eau
+var RAMPE_GX  = GW - 1.0;      // pied de rampe : première case où l'on marche
+
+var NAV = {
+  DEPART      : 11.0,   // cases au large du point d'accostage
+  VITESSE     : 13.0,   // cases/s en pleine mer
+  VITESSE_MIN : 2.2,    // cases/s juste avant de toucher le sable
+  FREINAGE    : 5.0,    // distance sur laquelle elle ralentit
+  RAMPE       : 0.45,   // s pour abaisser la rampe
+  CADENCE     : 0.085,  // s entre deux soldats qui sortent
+  PAUSE       : 0.35,   // s avant de repartir
+  RETRAIT     : 2.6     // s de marche arrière avant disparition
+};
+
 function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
-  if(!b) return message("Plus aucune barge.");
-  gx = borne(gx, PLAGE_X0, GW - 1.2);
+  if(!b) return message("Plus aucune navette.");
+  /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
+     long de la plage. Elle s'arrête toujours au bord de l'eau, et les
+     troupes gagnent le sable à pied. */
   gy = borne(gy, 3, GH - 4);
-  var pose = 0, k = 0;
-  /* déploiement en spirale autour du drapeau */
-  while(pose < b.n && k < 600){
-    var a = k * 2.399963, r = 0.42 * Math.sqrt(k);
-    var x = gx + Math.cos(a) * r, y = gy + Math.sin(a) * r;
-    k++;
-    if(bloque(x, y)) continue;
-    creeUnite(b.type, x, y);
-    pose++;
-  }
-  jeu.effets.push({ t:"drapeau", gx:gx, gy:gy, age:0, duree:6 });
+  var gxA = RIVAGE_GX;
+  jeu.navettes.push({
+    type:b.type, reste:b.n, sortis:0,
+    gx:gxA + NAV.DEPART, gy:gy, gxA:gxA,
+    etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
+    n:jeu.nSuiv++
+  });
   jeu.barges.splice(jeu.bargeSel, 1);
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
-  majBarres();
+  demandeMajBarres();
   son.debarque();
+}
+
+function majNavettes(dt){
+  for(var i = jeu.navettes.length - 1; i >= 0; i--){
+    var v = jeu.navettes[i];
+    v.tangage += dt * 2.4;
+    if(v.etat === "approche"){
+      var d = v.gx - v.gxA;
+      /* elle ralentit franchement en approchant du rivage */
+      var vit = NAV.VITESSE_MIN +
+                (NAV.VITESSE - NAV.VITESSE_MIN) * Math.min(1, d / NAV.FREINAGE);
+      v.gx -= vit * dt;
+      if(v.gx <= v.gxA){
+        v.gx = v.gxA;
+        v.etat = "accostage";
+        v.minuteur = 0;
+        son.rampe();
+      }
+      continue;
+    }
+    if(v.etat === "accostage"){
+      v.minuteur += dt;
+      v.rampe = Math.min(1, v.minuteur / NAV.RAMPE);
+      if(v.rampe < 1) continue;
+      /* les soldats sortent en file, pas tous d'un bloc */
+      var du = v.minuteur - NAV.RAMPE;
+      var voulus = Math.min(v.reste, Math.floor(du / NAV.CADENCE) + 1);
+      while(v.sortis < voulus){
+        sortDeNavette(v);
+        v.sortis++;
+      }
+      if(v.sortis >= v.reste && du > v.reste * NAV.CADENCE + NAV.PAUSE){
+        v.etat = "retrait";
+        v.minuteur = 0;
+      }
+      continue;
+    }
+    /* retrait : elle repart au large, rampe relevée */
+    v.minuteur += dt;
+    v.rampe = Math.max(0, 1 - v.minuteur / NAV.RAMPE);
+    v.gx += (NAV.VITESSE_MIN + v.minuteur * 3.4) * dt;
+    if(v.minuteur > NAV.RETRAIT) jeu.navettes.splice(i, 1);
+  }
+}
+
+/* Un soldat descend la rampe : il naît au pied de celle-ci, un peu
+   devant la coque, avec une petite dispersion latérale. La séparation
+   locale et l'ancre de formation font le reste dès la frame suivante. */
+function sortDeNavette(v){
+  var k = v.sortis;
+  var lat = ((k % 5) - 2) * 0.34 + (bruitStable(v.n * 31 + k, 0) - 0.5) * 0.30;
+  var av = (k % 3) * 0.30;
+  var x = RAMPE_GX - av, y = v.gy + lat;
+  /* si le pied de rampe est encombré, on décale le long du rivage */
+  for(var essai = 0; essai < 8 && bloque(x, y); essai++){
+    y += (essai % 2 ? 1 : -1) * 0.42 * (essai + 1);
+    x = RAMPE_GX - av;
+  }
+  if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
+  creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
 }
 function creeUnite(type, gx, gy){
   var f = UNI[type];
+  var n = jeu.nSuiv++;
+  var an = ancreFormation(n);
   jeu.unites.push({
-    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:jeu.nSuiv++,
+    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:n,
+    /* place stable dans le disque unité : c'est elle qui donne au
+       groupe sa surface au lieu d'un empilement sur un point */
+    ancX:an.x, ancY:an.y, sepC:0,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
     prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
     pousse:{ x:0, y:0 }
   });
+  return jeu.unites[jeu.unites.length - 1];
 }
 
 /* ---------------------------------------------------------------
@@ -6295,16 +6568,16 @@ function abimeBatiment(b, d){
       jeu.balise = null;
       for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
     }
-    jeu.poudre += EQ.POUDRE_PAR_BATIMENT;
+    jeu.energie += EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
     jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
     jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
     if(jeu.crateres.length > 160) jeu.crateres.shift();
     jeu.secousse = Math.min(9, jeu.secousse + 3);
     son.boum(0.42);
-    son.poudre();
+    son.energie();
     envoieDestruction(b.n);
-    majBarres();
+    demandeMajBarres();
   }
 }
 function abimeCreature(c, d){
@@ -6312,12 +6585,12 @@ function abimeCreature(c, d){
   c.pv -= d;
   if(c.pv <= 0){
     jeu.effets.push({ t:"mortCre", gx:c.gx, gy:c.gy, age:0, duree:0.7, typ:c.t });
-    jeu.poudre += 1;
+    jeu.energie += EQ.ENERGIE_PAR_CREATURE;
     if(c.t === "belette"){
       jeu.messageGege = 3.0;                       // trois secondes de deuil
       son.gege();
     }
-    majBarres();
+    demandeMajBarres();
   }
 }
 function abimeQG(d){
@@ -6403,7 +6676,11 @@ function majUnites(dt){
         u.droite = (dxb - dyb) > 0;
         u.cible = { k:"bat", o:bc };
         if(db > f.arret){
-          deplace(u, dxb, dyb, vit * dt);
+          /* même éventail que pour une cible ordinaire : la troupe
+             encercle le bâtiment désigné au lieu de s'entasser sur la
+             face qu'elle a abordée */
+          var eb = rayonFormation() * 0.55;
+          deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
           u.phase += dt * 1.5;
@@ -6417,18 +6694,25 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* 1) fusée au sol : ralliement sans tirer, jusqu'à ce que la
-              troupe ait atteint (ou traversé) la zone de la fusée */
-        var dxf = balise.gx - u.gx, dyf = balise.gy - u.gy;
+        /* 1) balise au sol : ralliement sans tirer. Chaque troupe a SA
+              place autour de la balise — la balise est une zone de
+              rassemblement, pas un pixel — et se libère dès qu'elle y
+              est, pour son propre compte. */
+        var rf = rayonFormation();
+        var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
+        var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        if(df > EQ.BALISE_RAYON){
+        /* filet de sécurité : si la place assignée tombe dans l'eau ou
+           dans un mur, être entré dans le cercle suffit */
+        var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
+        if(df > EQ.BALISE_RAYON && dCentre > rf){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
           u.cible = null;
           continue;
         }
-        /* zone atteinte : cette fusée ne l'influence plus, jamais */
+        /* place atteinte : cette balise ne l'influence plus, jamais */
         u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
@@ -6462,7 +6746,12 @@ function majUnites(dt){
     u.droite = (dx - dy) > 0;
 
     if(d > portee){
-      deplace(u, dx, dy, vit * dt);
+      /* on marche vers SA place autour de la cible, pas vers le centre :
+         la troupe aborde l'objectif en éventail au lieu de s'entasser
+         sur l'arc le plus proche. La portée, elle, reste mesurée au
+         centre — le décalage n'avantage ni ne pénalise personne. */
+      var etal = rayonFormation() * 0.55;
+      deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
       /* à portée : on tire */
@@ -6622,6 +6911,7 @@ function tireDefense(b, f, c, d, tps){
       var du = Math.hypot(u.gx - b.gx, u.gy - b.gy);
       if(du > f.portee) continue;
       if(!dansCone(Math.atan2(u.gy - b.gy, u.gx - b.gx), ang, f.cone)) continue;
+      if(masquee(u)) continue;              // la fumée coupe aussi le cône
       toucheUnite(u, f.degats, { brulure:1 });
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
@@ -6657,7 +6947,12 @@ function majProjectiles(dt){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
         if(p.cible.k){ if(p.cible.o && (p.cible.o.vivant !== 0)){ bx = p.cible.o.gx; by = p.cible.o.gy; } }
-        else if(p.cible.pv > 0){ bx = p.cible.gx; by = p.cible.gy; }
+        else if(p.cible.pv > 0){
+          /* la cible s'est glissée dans un Brouillard : la roquette
+             perd le contact et tombe là où elle croyait la trouver */
+          if(p.t === "roquette" && masquee(p.cible)) p.cible = null;
+          else { bx = p.cible.gx; by = p.cible.gy; }
+        }
       }
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
       var pas = p.vit * dt;
@@ -6993,9 +7288,16 @@ function lanceEruption(){
 /* ---------------------------------------------------------------
    Capacités
    --------------------------------------------------------------- */
+/* La Nova ne se paie pas en Énergie : on en a UNE par vie, point.
+   C'est ce qui la garde rare, et ce qui rend son emploi mémorable. */
+function capaciteDisponible(m){
+  if(m === "nova") return jeu.novaDispo > 0;
+  return jeu.energie >= coutActuel(m, jeu.usages);
+}
 function armeCapacite(m){
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
-    message("Pas assez de Poudre pour " + COUT[m].nom + ".");
+  if(!capaciteDisponible(m)){
+    message(m === "nova" ? "Nova déjà employée : il faut une nouvelle vie."
+                         : "Pas assez d'Énergie pour " + COUT[m].nom + ".");
     return;
   }
   jeu.capArmee = (jeu.capArmee === m) ? null : m;
@@ -7003,14 +7305,15 @@ function armeCapacite(m){
   if(jeu.capArmee) son.gong();
 }
 function utiliseCapacite(m, gx, gy){
-  var c = coutActuel(m, jeu.usages);
-  if(jeu.poudre < c){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message("Plus assez de Poudre : " + COUT[m].nom + " désarmée.");
+    message(m === "nova" ? "Nova déjà employée pendant cette vie."
+                         : "Plus assez d'Énergie : " + COUT[m].nom + " désarmée.");
     return;
   }
-  jeu.poudre -= c;
+  if(m === "nova") jeu.novaDispo--;
+  else jeu.energie -= coutActuel(m, jeu.usages);
   jeu.usages[m]++;
 
   if(m === "balise"){
@@ -7094,12 +7397,12 @@ function utiliseCapacite(m, gx, gy){
     son.nova();
   }
 
-  majBarres();
+  demandeMajBarres();
   majMenu();
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message(COUT[m].nom + " désarmée : Poudre insuffisante.");
+    if(m !== "nova") message(COUT[m].nom + " désarmée : Énergie insuffisante.");
   }
 }
 
@@ -7172,7 +7475,8 @@ function geleeParCryo(b){
    --------------------------------------------------------------- */
 function majMort(dt){
   if(!jeu.mort){
-    if(jeu.unites.length === 0 && jeu.barges.length === 0 && jeu.tps > 3){
+    if(jeu.unites.length === 0 && jeu.barges.length === 0 &&
+       jeu.navettes.length === 0 && jeu.tps > 3){
       jeu.mort = true;
       jeu.tempsRenfort = EQ.ATTENTE_RENFORT;
       var p = jeu.dernierePerte || { gx:PLAGE_X0 + 2, gy:GH / 2 };
@@ -7199,10 +7503,11 @@ function majMort(dt){
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
-    jeu.poudre += EQ.POUDRE_BONUS_RENFORT;
+    jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
+    jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     montreBandeauFantome(false);
     majBarres();
-    message("Flotte neuve ! +" + EQ.POUDRE_BONUS_RENFORT + " Poudre.");
+    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
     son.renfort();
   }
 }
@@ -7278,7 +7583,9 @@ function majJeu(dt){
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
+  majNavettes(dt);
   majUnites(dt);
+  separeUnites(dt);
   majPoulets(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
@@ -7423,7 +7730,7 @@ function recoit(txt){
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
       jeu.file.adopteMinimum(m.pv);
       jeu.qg.pv = jeu.file.pv;
-      majBarres();
+      demandeMajBarres();
     }
     majMondes();
   }else if(m.t === "etat"){
@@ -7441,7 +7748,7 @@ function recoit(txt){
       jeu.file.applique(m.id, m.s, m.d);
       jeu.qg.pv = jeu.file.pv;
       if(jeu.qg.pv <= 0 && !jeu.fin) declencheFin();
-      majBarres();
+      demandeMajBarres();
     }
   }else if(m.t === "det"){
     if(jeu && typeof m.n === "number"){
@@ -7991,6 +8298,39 @@ function dessineZonesSol(c, tps){
     c.stroke();
     c.restore();
   }
+  /* Emprise au sol du Brouillard. Elle dit une chose et une seule :
+     « tout ce qui est dans ce cercle est masqué ». Elle est donc plus
+     franche que le nuage — liseré plein, liseré animé, et des
+     épaisseurs plafonnées en pixels écran pour rester lisible au
+     dézoom, là où la fumée seule devenait invisible.
+     Repère MONDE : ce bloc est peint entre repereMonde et repereEcran,
+     les longueurs sont en unités monde et les traits divisés par cam.z. */
+  for(i = 0; i < jeu.brouillards.length; i++){
+    var zb = jeu.brouillards[i], pb = iso(zb.gx, zb.gy);
+    var ab = Math.min(1, zb.age * 3) * Math.min(1, (zb.duree - zb.age) / 1.5);
+    var bx = zb.r * RX, by = zb.r * RY;
+    c.save();
+    var gb = c.createRadialGradient(pb.x, pb.y, bx * 0.14, pb.x, pb.y, bx);
+    gb.addColorStop(0.00, "rgba(214,210,224," + (0.30 * ab) + ")");
+    gb.addColorStop(0.62, "rgba(178,172,190," + (0.24 * ab) + ")");
+    gb.addColorStop(0.93, "rgba(152,146,164," + (0.15 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(142,136,154,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(228,224,238," + (0.66 * ab) + ")";
+    c.lineWidth = Math.max(1.6 / cam.z, 2.6);
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.stroke();
+    if(c.setLineDash){
+      var pas = Math.max(7 / cam.z, 12);
+      c.setLineDash([pas, pas * 0.8]);
+      c.lineDashOffset = -tps * pas * 0.9;
+      c.strokeStyle = "rgba(255,255,255," + (0.36 * ab) + ")";
+      c.lineWidth = Math.max(1 / cam.z, 1.6);
+      c.beginPath(); c.ellipse(pb.x, pb.y, bx * 0.93, by * 0.93, 0, 0, 6.2832); c.stroke();
+      c.setLineDash([]);
+    }
+    c.restore();
+  }
   /* zones cryogéniques : les tourelles prises dedans sont muettes */
   for(i = 0; i < jeu.cryos.length; i++){
     var zc = jeu.cryos[i], pz = iso(zc.gx, zc.gy);
@@ -8058,20 +8398,137 @@ function dessineZonesSol(c, tps){
 }
 
 /* Nuage de fumigène — volumétrique, dans le tri de profondeur */
+/* Le volume de fumée du Brouillard. L'emprise au sol, elle, est
+   peinte avec le Cryo dans dessineZonesSol : un disque posé au sol n'a
+   rien à faire dans la pile de profondeur, il repasserait par-dessus
+   les unités situées devant lui.
+   Attention : bouffee() REMPLACE globalAlpha au lieu de le multiplier.
+   Le fondu doit donc passer par l'argument, pas par un globalAlpha
+   parent — c'est ce qui rendait l'ancien fondu inopérant. */
 function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
-  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.2);
-  c.save();
-  c.globalAlpha = 0.72 * a;
-  for(var i = 0; i < 12; i++){
-    var ang = i / 12 * 6.2832 + tps * 0.25;
-    var rr = f.r * (0.35 + (i % 3) * 0.25);
-    var pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr * 0.9);
-    bouffee(c, pp.x, pp.y - (14 + (i % 4) * 7) * z + Math.sin(tps * 1.4 + i) * 3 * z,
-            (11 + (i % 3) * 5) * z, 0.5, i % 2 ? "#8e8894" : "#a9a3ae");
+  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.5);
+  var i, ang, rr, pp;
+
+  /* nappe basse qui court le long du sol, au bord même de la zone */
+  for(i = 0; i < 14; i++){
+    ang = i / 14 * 6.2832 - tps * 0.18;
+    rr = f.r * (0.80 + (i % 3) * 0.07);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (4 + (i % 3) * 4) * z + Math.sin(tps * 1.1 + i) * 2 * z,
+            (13 + (i % 4) * 4) * z, 0.40 * a, i % 2 ? "#a29cac" : "#b8b2c2");
   }
-  bouffee(c, p.x, p.y - 20 * z, 26 * z, 0.55, "#9a94a2");
+  /* volutes qui montent au-dessus */
+  for(i = 0; i < 12; i++){
+    ang = i / 12 * 6.2832 + tps * 0.25;
+    rr = f.r * (0.35 + (i % 3) * 0.25);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (16 + (i % 4) * 8) * z + Math.sin(tps * 1.4 + i) * 3 * z,
+            (12 + (i % 3) * 5) * z, 0.5 * a, i % 2 ? "#8e8894" : "#a9a3ae");
+  }
+  bouffee(c, p.x, p.y - 22 * z, 28 * z, 0.55 * a, "#9a94a2");
+
+  /* décompte : combien de temps la zone tient encore */
+  if(z > 0.30){
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 48 * z),
+               Math.max(10, 13 * z), "#e6e2f0");
+  }
+}
+
+/* ---------------------------------------------------------------
+   LA NAVETTE DE DÉBARQUEMENT
+   Coque à fond plat, timonerie arrière, rampe d'étrave qui s'abaisse.
+   Elle tangue tant qu'elle flotte et se cale une fois échouée.
+   --------------------------------------------------------------- */
+var NAV_ECH = 1.75;            // une navette porte quinze soldats : elle est grosse
+function dessineNavette(c, v, tps){
+  var p = versEcran(cam, v.gx, v.gy);
+  var z = cam.z * NAV_ECH;
+  var flotte = v.etat !== "accostage" || v.rampe < 1;
+  var tang = flotte ? Math.sin(v.tangage) * 1.6 * z : Math.sin(tps * 1.6 + v.n) * 0.5 * z;
+  var y = p.y + tang;
+
+  /* sillage et écume d'étrave */
+  c.save();
+  c.globalAlpha = 0.30;
+  c.fillStyle = "#eaf7f6";
+  for(var w = 0; w < 4; w++){
+    var dw = (18 + w * 15) * z;
+    c.beginPath();
+    c.ellipse(p.x + dw * 0.9, y + dw * 0.42, (13 - w * 2) * z, (6 - w) * z, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* ombre portée sur l'eau */
+  c.save();
+  c.globalAlpha = 0.22; c.fillStyle = "#0b2b34";
+  c.beginPath(); c.ellipse(p.x, p.y + 5 * z, 30 * z, 12 * z, 0, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* coque : un trapèze isométrique, étrave vers l'ouest (gx décroissant) */
+  var A = { x:p.x - 30 * z, y:y - 2 * z };     // étrave
+  var B = { x:p.x + 26 * z, y:y - 12 * z };    // arrière bâbord
+  var D = { x:p.x + 26 * z, y:y + 10 * z };    // arrière tribord
+  var E = { x:p.x - 26 * z, y:y + 8 * z };
+  c.fillStyle = "#4c5a52";
+  c.beginPath();
+  c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.lineTo(D.x, D.y); c.lineTo(E.x, E.y);
+  c.closePath(); c.fill();
+  /* pont */
+  c.fillStyle = "#6c7a6e";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(D.x, D.y - 7 * z); c.lineTo(E.x, E.y - 7 * z);
+  c.closePath(); c.fill();
+  /* bordé, côté éclairé */
+  c.fillStyle = "#8a9a86";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(B.x, B.y); c.lineTo(A.x, A.y);
+  c.closePath(); c.fill();
+
+  /* timonerie à l'arrière */
+  c.fillStyle = "#586652";
+  c.fillRect(p.x + 10 * z, y - 24 * z, 15 * z, 14 * z);
+  c.fillStyle = "#39443a";
+  c.fillRect(p.x + 12 * z, y - 21 * z, 11 * z, 5 * z);
+  c.fillStyle = "#9fb09a";
+  c.fillRect(p.x + 10 * z, y - 25 * z, 15 * z, 2 * z);
+  /* mât et fanion */
+  c.strokeStyle = "#39443a"; c.lineWidth = Math.max(1, 1.6 * z);
+  c.beginPath(); c.moveTo(p.x + 17 * z, y - 25 * z); c.lineTo(p.x + 17 * z, y - 38 * z); c.stroke();
+  c.fillStyle = "#ff8a1e";
+  c.beginPath();
+  c.moveTo(p.x + 17 * z, y - 38 * z);
+  c.lineTo(p.x + 28 * z + Math.sin(tps * 5 + v.n) * 2 * z, y - 35 * z);
+  c.lineTo(p.x + 17 * z, y - 32 * z);
+  c.closePath(); c.fill();
+
+  /* rampe d'étrave : verticale fermée, rabattue sur le sable ouverte */
+  var ang = v.rampe * 1.35;
+  c.save();
+  c.translate(A.x, A.y - 7 * z);
+  c.fillStyle = "#7d8c78";
+  var lg = 20 * z;
+  var dx = -Math.cos(ang) * 0, dy = 0;
+  c.beginPath();
+  c.moveTo(0, 0);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z + 16 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42 + 7 * z);
+  c.lineTo(16 * z, 7 * z);
+  c.closePath(); c.fill();
+  c.strokeStyle = "#4c5a52"; c.lineWidth = Math.max(1, 1.2 * z);
+  c.stroke();
+  c.restore();
+
+  /* bandes d'avertissement sur le pont */
+  c.save();
+  c.globalAlpha = 0.55;
+  c.fillStyle = "#e8c437";
+  for(var q = 0; q < 3; q++)
+    c.fillRect(p.x - 12 * z + q * 9 * z, y - 12 * z, 4 * z, 3 * z);
   c.restore();
 }
 
@@ -8103,33 +8560,54 @@ function dessineFusee(c, tps){
    Visée d'une capacité
    --------------------------------------------------------------- */
 var viseur = { actif:false, x:0, y:0 };
+/* Aperçu de placement : une table, pas une chaîne de ternaires — la
+   prochaine capacité ajoutée ne pourra plus être oubliée en silence.
+   Ce qui n'est pas listé prend CAP[m].rayon, ce qui couvre nova, cryo,
+   brouillard, soin, salve et viper sans rien écrire de plus. */
+var VISEE_RAYON = { balise:1.2, poulets:0 };   // 0 = rempli au premier appel
+var VISEE_COUL = {
+  soin:"#6ee08a", brouillard:"#c9c4d2", balise:"#ffd070",
+  cryo:"#9ad8ff", poulets:"#f4e2a8", nova:"#ff6a2a",
+  salve:"#ffb14a", viper:"#ff8a1e"
+};
 function dessineVisee(c, tps){
   var m = jeu.capArmee;
   if(!m) return;
+  if(!VISEE_RAYON.poulets) VISEE_RAYON.poulets = CAP.poulets.rayon;
   var vue = rectVisible(60);
   /* cercles de portée de toutes les défenses */
   c.save();
   repereMonde(c);
-  c.setLineDash([7, 6]);
-  c.lineWidth = 1.4 / cam.z;
-  for(var i = 0; i < jeu.batiments.length; i++){
-    var b = jeu.batiments[i];
-    if(!b.vivant || !DEF[b.t].portee) continue;
-    if(!visible(vue, b.gx, b.gy)) continue;
-    var p = iso(b.gx, b.gy);
-    c.strokeStyle = "rgba(255,90,60,.30)";
-    c.beginPath(); c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832); c.stroke();
+  /* Trait plein, un seul beginPath pour toutes les défenses, et rien
+     du tout au-delà d'un certain dézoom : en pointillés et une ellipse
+     par bâtiment, ce bloc coûtait à lui seul le geste de placement. */
+  if(cam.z > 0.22){
+    c.strokeStyle = "rgba(255,90,60,.26)";
+    c.lineWidth = Math.max(1.2 / cam.z, 1.1);
+    c.beginPath();
+    var traces = 0;
+    for(var i = 0; i < jeu.batiments.length && traces < 90; i++){
+      var b = jeu.batiments[i];
+      if(!b.vivant || !DEF[b.t].portee) continue;
+      if(!visible(vue, b.gx, b.gy)) continue;
+      var p = iso(b.gx, b.gy);
+      c.moveTo(p.x + DEF[b.t].portee * RX, p.y);
+      c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832);
+      traces++;
+    }
+    c.stroke();
   }
-  c.setLineDash([]);
   c.restore();
   repereEcran(c);
 
   if(!viseur.actif) return;
   var w = versMonde(cam, viseur.x, viseur.y);
-  var r = m === "viper" ? CAP.viper.rayon : m === "salve" ? CAP.salve.rayon
-        : m === "brouillard" ? CAP.brouillard.rayon : m === "soin" ? CAP.soin.rayon : 1.2;
+  /* Le rayon d'aperçu se LIT dans CAP : la chaîne de ternaires qui
+     traînait ici oubliait cryo, nova et poulets, et leur affichait un
+     cercle de 1,2 case pour une zone qui en couvre 4. */
+  var r = VISEE_RAYON[m] !== undefined ? VISEE_RAYON[m] : (CAP[m] && CAP[m].rayon) || 1.2;
   var pe = versEcran(cam, w.gx, w.gy);
-  var coul = m === "soin" ? "#6ee08a" : m === "brouillard" ? "#c9c4d2" : m === "balise" ? "#ffd070" : "#ff8a1e";
+  var coul = VISEE_COUL[m] || "#ff8a1e";
   c.save();
   c.globalAlpha = 0.85;
   c.strokeStyle = coul; c.lineWidth = 2.2;
@@ -8223,7 +8701,21 @@ function rendu(tps, dt){
   for(i = 0; i < jeu.brouillards.length; i++){
     pile.push({ d:jeu.brouillards[i].gx + jeu.brouillards[i].gy + 0.4, k:7, o:jeu.brouillards[i] });
   }
-  pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  /* navettes de débarquement : elles sont à cheval sur l'eau et le sable */
+  for(i = 0; i < jeu.navettes.length; i++){
+    var nv = jeu.navettes[i];
+    if(!visible(vueL, nv.gx, nv.gy)) continue;
+    pile.push({ d:nv.gx + nv.gy - 0.2, k:11, o:nv });
+  }
+  /* Le Brasier coûte deux sprites 700×700 et une soixantaine de foyers :
+     il n'a rien à faire dans la pile quand il est hors champ. Sa marge
+     est large — la forteresse dépasse très haut au-dessus de sa case. */
+  {
+    var pq = iso(jeu.qg.gx, jeu.qg.gy);
+    if(pq.x > vueL.x0 - 420 && pq.x < vueL.x1 + 420 &&
+       pq.y > vueL.y0 - 700 && pq.y < vueL.y1 + 260)
+      pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  }
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   for(i = 0; i < pile.length; i++){
@@ -8240,6 +8732,7 @@ function rendu(tps, dt){
       case 8: dessineQG(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
+      case 11: dessineNavette(ctx, it.o, tps); break;
     }
   }
   if(jeu.balise) dessineFusee(ctx, tps);
@@ -8521,10 +9014,13 @@ function zoomVers(sx, sy, facteur){
    --------------------------------------------------------------- */
 var pointeurs = {}, ordrePt = [];
 var glisse = null, pincee = null;
+var SEUIL_TAP = 9;          // px : au-delà, c'est un glissé, pas un tap
 
+var rectCv = null;
+function invalideRect(){ rectCv = null; }
 function posEv(e){
-  var r = cv.getBoundingClientRect();
-  return { x:e.clientX - r.left, y:e.clientY - r.top };
+  if(!rectCv) rectCv = cv.getBoundingClientRect();
+  return { x:e.clientX - rectCv.left, y:e.clientY - rectCv.top };
 }
 function installeSaisie(){
   cv.addEventListener("pointerdown", function(e){
@@ -8557,9 +9053,14 @@ function installeSaisie(){
       appliquePince(cam, pincee, a.x, a.y, b.x, b.y, ZMIN, ZMAX);
       borneCamera();
     }else if(glisse){
-      if(jeu.capArmee && viseur.actif){
+      /* Le viseur suit le doigt, MAIS la caméra suit aussi : armer une
+         capacité ne doit jamais confisquer le pan. Tant que le doigt
+         n'a pas franchi le seuil de tap, on ne fait que viser ; au-delà,
+         c'est un glissé de caméra et la visée s'efface. */
+      if(jeu.capArmee && viseur.actif && pt.bouge < SEUIL_TAP){
         viseur.x = p.x; viseur.y = p.y;
       }else{
+        if(viseur.actif) viseur.actif = false;
         cam.px = glisse.px + (p.x - glisse.x);
         cam.py = glisse.py + (p.y - glisse.y);
         borneCamera();
@@ -8576,14 +9077,18 @@ function installeSaisie(){
     var k = ordrePt.indexOf(e.pointerId);
     if(k >= 0) ordrePt.splice(k, 1);
 
-    if(etaitSeul && pt.bouge < 9){
+    if(etaitSeul && pt.bouge < SEUIL_TAP){
       appuie(pt.x, pt.y);
     }
     if(ordrePt.length === 1){
       /* on repart de la position du doigt restant : pas de saut */
       var r = pointeurs[ordrePt[0]];
       glisse = { px:cam.px, py:cam.py, x:r.x, y:r.y };
+      r.bouge = 0;
       pincee = null;
+      /* après un pincement, le doigt restant peut de nouveau viser */
+      viseur.actif = !!jeu.capArmee;
+      viseur.x = r.x; viseur.y = r.y;
     }else if(ordrePt.length === 0){
       glisse = null; pincee = null; viseur.actif = false;
     }
@@ -8598,9 +9103,10 @@ function installeSaisie(){
     e.preventDefault();
   }, { passive:false });
 
-  window.addEventListener("resize", function(){ ajuste(); borneCamera(); });
-  window.addEventListener("orientationchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
-  document.addEventListener("fullscreenchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
+  window.addEventListener("resize", function(){ invalideRect(); ajuste(); borneCamera(); });
+  window.addEventListener("scroll", invalideRect, true);
+  window.addEventListener("orientationchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
+  document.addEventListener("fullscreenchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
 
   /* minicarte cliquable */
   miniCv.addEventListener("pointerdown", function(e){
@@ -8664,9 +9170,17 @@ function majBandeauFantome(t){
 function nombre(n){
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+/* Le HUD ne se reconstruit JAMAIS depuis la simulation : abimeBatiment
+   appelait majBarres() une fois par bâtiment détruit, donc une Nova qui
+   en démonte dix refaisait dix fois l'innerHTML de la liste des navettes
+   dans la même image. On lève un drapeau, la boucle le consomme. */
+var barresSales = false;
+function demandeMajBarres(){ barresSales = true; }
+
 function majBarres(){
   if(!jeu) return;
-  $("poudreV").textContent = Math.floor(jeu.poudre);
+  barresSales = false;
+  $("energieV").textContent = Math.floor(jeu.energie);
   $("unitesV").textContent = jeu.unites.length;
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
@@ -8674,9 +9188,16 @@ function majBarres(){
   $("nomCarte").textContent = CARTES[jeu.index % CARTES.length].nom;
   majListeBarges();
   majMenu();
+  majPodium();
 }
+var signatureBarges = null;
 function majListeBarges(){
   var l = $("listeBarges");
+  /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
+     coûte cher, et rien ne change entre deux débarquements */
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
+  if(sig === signatureBarges) return;
+  signatureBarges = sig;
   var html = "";
   for(var i = 0; i < jeu.barges.length; i++){
     var b = jeu.barges[i];
@@ -8733,9 +9254,9 @@ function majMenu(){
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
     els[k].classList.toggle("arme", jeu.capArmee === m);
-    var c = coutActuel(m, jeu.usages);
-    $("cx_" + m).textContent = c;
-    els[k].classList.toggle("pauvre", jeu.poudre < c);
+    /* la Nova n'a pas de prix : sa pastille compte les charges restantes */
+    $("cx_" + m).textContent = (m === "nova") ? jeu.novaDispo : coutActuel(m, jeu.usages);
+    els[k].classList.toggle("pauvre", !capaciteDisponible(m));
   }
 }
 
@@ -8953,7 +9474,10 @@ function dessineIcone(m, c){
   c.restore();
 }
 
-/* --- podium --- */
+/* --- podium : le classement des dégâts, en haut à gauche ---
+   Toujours affiché, même seul : c'est le tableau de bord de la
+   partie, pas une décoration qui apparaît quand un ami arrive. */
+var podiumHtml = null;
 function majPodium(){
   if(!jeu) return;
   var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
@@ -8969,8 +9493,7 @@ function majPodium(){
        + '<span class="n">' + echappe(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
-  $("podiumL").innerHTML = h;
-  $("podium").style.display = l.length > 1 ? "block" : "none";
+  if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
   return String(s).replace(/[&<>"]/g, function(c){
@@ -9383,7 +9906,8 @@ var son = {
   tirPilon:function(){ this.bip("sine", 190, 70, 0.22, 0.13); },
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
   bobine:function(){ this.souffle(2600, 700, 0.28, 0.10); this.bip("sawtooth", 300, 90, 0.2, 0.06); },
-  poudre:function(){ this.bip("triangle", 720, 1180, 0.10, 0.055); },
+  rampe:function(){ this.bip("sawtooth", 210, 90, 0.16, 0.05); },
+  energie:function(){ this.bip("triangle", 720, 1180, 0.10, 0.055); },
   gong:function(){ this.bip("sine", 520, 300, 0.30, 0.075); this.bip("sine", 780, 520, 0.22, 0.04); },
   balise:function(){ this.bip("sine", 300, 1500, 0.5, 0.07); },
   brouillard:function(){ this.souffle(1800, 400, 0.65, 0.09); },
@@ -9495,7 +10019,7 @@ function boucle(maintenant){
 var lentT = 0, lentT2 = 0;
 function majBarresLent(dt){
   lentT -= dt;
-  if(lentT <= 0){ lentT = 0.2; majBarres(); }
+  if(lentT <= 0 || barresSales){ lentT = 0.2; majBarres(); }
 }
 function majEtatReseauLent(dt){
   lentT2 -= dt;

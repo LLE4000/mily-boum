@@ -24,6 +24,23 @@ var C_MEC = {
   pantalon:"#3a3a32", botte:"#232320", laiton:"#c9a24a"
 };
 
+/* ---------------------------------------------------------------
+   Cache de dégradés.
+   Les couleurs et les coordonnées locales d'un soldat ne changent
+   jamais : à 120 unités, en recréer une demi-douzaine par unité et par
+   image faisait ~600 CanvasGradient et autant de parsages de chaînes
+   hexadécimales à chaque frame. Un CanvasGradient est résolu dans le
+   repère courant AU MOMENT du remplissage : on peut donc le construire
+   une fois en coordonnées locales et le réutiliser partout.
+   --------------------------------------------------------------- */
+var cacheDeg = {};
+function degCache(c, cle, fabrique){
+  var g = cacheDeg[cle];
+  if(!g){ g = fabrique(); cacheDeg[cle] = g; }
+  return g;
+}
+function videCacheDegrades(){ cacheDeg = {}; }
+
 /* Cycle de marche : renvoie les décalages des membres */
 function pose(phase, ampleur){
   var s = Math.sin(phase), c2 = Math.cos(phase);
@@ -82,9 +99,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.closePath(); c.fill();
 
   /* --- buste : manches claires puis plastron sombre --- */
-  var gM = c.createLinearGradient(-6, -24, 6, -14);
-  gM.addColorStop(0, "#ffffff"); gM.addColorStop(0.5, C.tenue); gM.addColorStop(1, C.tenueO);
-  c.fillStyle = gM;
+  c.fillStyle = degCache(c, "meufManches", function(){
+    var g = c.createLinearGradient(-6, -24, 6, -14);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, C.tenue); g.addColorStop(1, C.tenueO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-5.2, -13.6);
   c.lineTo(-6.0, -22.6);
@@ -93,9 +112,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.quadraticCurveTo(0, -12.4, -5.2, -13.6);
   c.closePath(); c.fill();
   /* plastron */
-  var gP = c.createLinearGradient(-5, -22, 5, -15);
-  gP.addColorStop(0, C.plastronC); gP.addColorStop(0.45, C.plastron); gP.addColorStop(1, C.plastronO);
-  c.fillStyle = gP;
+  c.fillStyle = degCache(c, "meufPlastron", function(){
+    var g = c.createLinearGradient(-5, -22, 5, -15);
+    g.addColorStop(0, C.plastronC); g.addColorStop(0.45, C.plastron); g.addColorStop(1, C.plastronO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-4.2, -14.4);
   c.lineTo(-4.6, -21.4);
@@ -137,9 +158,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   /* --- le gros fusil, porté sur l'épaule --- */
   c.save();
   c.translate(1.2, -23.8); c.rotate(-0.30);
-  var gT = c.createLinearGradient(0, -3.4, 0, 3.4);
-  gT.addColorStop(0, C.armeC); gT.addColorStop(0.45, C.arme); gT.addColorStop(1, C.armeO);
-  c.fillStyle = gT;
+  c.fillStyle = degCache(c, "meufFusil", function(){
+    var g = c.createLinearGradient(0, -3.4, 0, 3.4);
+    g.addColorStop(0, C.armeC); g.addColorStop(0.45, C.arme); g.addColorStop(1, C.armeO);
+    return g;
+  });
   c.beginPath();
   if(c.roundRect) c.roundRect(-11, -3.2, 23, 6.4, 1.6); else c.rect(-11, -3.2, 23, 6.4);
   c.fill();
@@ -166,10 +189,12 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(12.4, -0.2, 1.5, 2.4, 0, 0, 6.2832); c.fill();
   c.save();
   c.globalCompositeOperation = "lighter";
-  var gl = c.createRadialGradient(12.4, -0.2, 0.4, 12.4, -0.2, tir ? 10 : 4);
-  gl.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.45));
-  gl.addColorStop(1, rgba(C.lueur, 0));
-  c.fillStyle = gl;
+  c.fillStyle = degCache(c, "meufBouche" + (tir ? 1 : 0), function(){
+    var g = c.createRadialGradient(12.4, -0.2, 0.4, 12.4, -0.2, tir ? 10 : 4);
+    g.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.45));
+    g.addColorStop(1, rgba(C.lueur, 0));
+    return g;
+  });
   c.beginPath(); c.arc(12.4, -0.2, tir ? 10 : 4, 0, 6.2832); c.fill();
   c.restore();
   /* lunette */
@@ -184,9 +209,11 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.translate(0, -27.2);
   c.fillStyle = C.cheveux;
   c.beginPath(); c.ellipse(-0.2, 0.2, 5.0, 5.2, 0, 0, 6.2832); c.fill();
-  var gPe = c.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, 4.8);
-  gPe.addColorStop(0, ecl(C.peau, 1.06)); gPe.addColorStop(1, C.peauO);
-  c.fillStyle = gPe;
+  c.fillStyle = degCache(c, "meufVisage", function(){
+    var g = c.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, 4.8);
+    g.addColorStop(0, ecl(C.peau, 1.06)); g.addColorStop(1, C.peauO);
+    return g;
+  });
   c.beginPath(); c.ellipse(0.3, 0.6, 4.0, 4.4, 0, 0, 6.2832); c.fill();
   /* yeux en amande */
   c.fillStyle = "#1e1822";
@@ -266,9 +293,11 @@ function dessineMec(c, phase, variante, tir){
   c.lineTo(6.8, -16.2);
   c.quadraticCurveTo(0, -14.6, -6.8, -16.2);
   c.closePath(); c.fill();
-  var gG = c.createLinearGradient(-9, -28, 9, -17);
-  gG.addColorStop(0, C.giletC); gG.addColorStop(0.5, C.gilet); gG.addColorStop(1, C.giletO);
-  c.fillStyle = gG;
+  c.fillStyle = degCache(c, "mecGilet", function(){
+    var g = c.createLinearGradient(-9, -28, 9, -17);
+    g.addColorStop(0, C.giletC); g.addColorStop(0.5, C.gilet); g.addColorStop(1, C.giletO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-6.0, -16.6);
   c.lineTo(-8.2, -26.2);
@@ -329,10 +358,12 @@ function dessineMec(c, phase, variante, tir){
   if(tir){
     c.save();
     c.globalCompositeOperation = "lighter";
-    var gf = c.createRadialGradient(11.6, 0, 0.4, 11.6, 0, 9);
-    gf.addColorStop(0, "rgba(255,232,170,.95)");
-    gf.addColorStop(1, "rgba(255,120,30,0)");
-    c.fillStyle = gf;
+    c.fillStyle = degCache(c, "mecBouche", function(){
+      var g = c.createRadialGradient(11.6, 0, 0.4, 11.6, 0, 9);
+      g.addColorStop(0, "rgba(255,232,170,.95)");
+      g.addColorStop(1, "rgba(255,120,30,0)");
+      return g;
+    });
     c.beginPath(); c.arc(11.6, 0, 9, 0, 6.2832); c.fill();
     c.restore();
   }
@@ -343,9 +374,11 @@ function dessineMec(c, phase, variante, tir){
   /* --- tête, barbe et casque --- */
   c.save();
   c.translate(0.4, -32.2);
-  var gP2 = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
-  gP2.addColorStop(0, ecl(C.peau, 1.08)); gP2.addColorStop(1, C.peauO);
-  c.fillStyle = gP2;
+  c.fillStyle = degCache(c, "mecVisage", function(){
+    var g = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
+    g.addColorStop(0, ecl(C.peau, 1.08)); g.addColorStop(1, C.peauO);
+    return g;
+  });
   c.beginPath(); c.ellipse(0, 0, 4.6, 4.8, 0, 0, 6.2832); c.fill();
   /* barbe courte */
   c.fillStyle = C.barbe;
@@ -377,9 +410,11 @@ function dessineMec(c, phase, variante, tir){
   c.quadraticCurveTo(4.0, -2.6, 3.0, -2.0);
   c.closePath(); c.fill();
   /* casque */
-  var gC = c.createLinearGradient(-5, -7, 5, -2);
-  gC.addColorStop(0, C.casqueC); gC.addColorStop(0.55, C.casque); gC.addColorStop(1, C.casqueO);
-  c.fillStyle = gC;
+  c.fillStyle = degCache(c, "mecCasque", function(){
+    var g = c.createLinearGradient(-5, -7, 5, -2);
+    g.addColorStop(0, C.casqueC); g.addColorStop(0.55, C.casque); g.addColorStop(1, C.casqueO);
+    return g;
+  });
   c.beginPath();
   c.moveTo(-5.2, -1.6);
   c.quadraticCurveTo(-5.6, -7.6, 0, -7.8);

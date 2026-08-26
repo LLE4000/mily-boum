@@ -170,11 +170,11 @@ select.champ{cursor:pointer}
 
 /* — haut gauche — */
 #hg{position:absolute;top:calc(8px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-#ress{display:flex;gap:12px;align-items:center;font-weight:700;font-size:15px;white-space:nowrap}
+#ress{display:flex;gap:14px;align-items:center;justify-content:center;font-weight:700;font-size:15px;white-space:nowrap;padding:5px 10px}
 #ress .k{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;font-weight:700}
-#poudreV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
+#energieV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
 #unitesV{color:var(--cyan);font-variant-numeric:tabular-nums}
-#podium{min-width:150px;font-size:12px;display:none}
+#podium{min-width:158px;font-size:12px}
 #podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
 #podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
@@ -214,7 +214,8 @@ select.champ{cursor:pointer}
 .bg1 .d{color:var(--gris);font-size:9px}
 
 /* — bas droite : capacités — */
-#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));padding:6px}
+#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
+#capsBoite{padding:6px}
 #caps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .cap{
   position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
@@ -346,7 +347,7 @@ select.champ{cursor:pointer}
           <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
           <li>Une navette ne transporte <b>qu'un seul type de troupe</b>. En bas à gauche, choisis-en une puis appuie sur la plage à l'est : elle se vide d'un coup.</li>
           <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Balises</b> : les troupes courent vers la fusée sans tirer.</li>
-          <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
+          <li>Chaque bâtiment détruit rapporte <b>5 d'Énergie tactique</b>. Chaque emploi d'une capacité renchérit le suivant. La <b>Nova</b>, elle, ne coûte rien : on n'en a qu'<b>une par vie</b>.</li>
           <li>Huit capacités : <b>Nova</b>, <b>Poulets ×10</b> (des leurres !), <b>Brouillard</b>, <b>Salve</b>, <b>Cryo</b> (gèle les défenses 12 s), <b>Soin</b>, <b>Balise</b> et <b>Viper</b>.</li>
           <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-chalumeau porte plus loin que tes Meufs : passe un Mec devant.</li>
           <li>Le Brasier a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
@@ -366,11 +367,7 @@ select.champ{cursor:pointer}
 <!-- ============================ JEU ============================ -->
 <div id="hud">
   <div id="hg">
-    <div class="bloc p" id="ress">
-      <span><span class="k">Poudre</span> <span id="poudreV">150</span></span>
-      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
-    </div>
-    <div class="bloc p" id="podium"><div class="t">Podium</div><div id="podiumL"></div></div>
+    <div class="bloc p" id="podium"><div class="t">Top dégâts</div><div id="podiumL"></div></div>
     <div id="zoomB" class="p">
       <button class="bt" id="btZp" title="Zoom avant">+</button>
       <button class="bt" id="btZm" title="Zoom arrière">−</button>
@@ -392,7 +389,13 @@ select.champ{cursor:pointer}
     <div id="listeBarges"></div>
   </div>
 
-  <div class="bloc p" id="bd"><div id="caps"></div></div>
+  <div id="bd">
+    <div class="bloc p" id="ress">
+      <span><span class="k">Énergie</span> <span id="energieV">220</span></span>
+      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
+    </div>
+    <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+  </div>
 
   <div class="bloc p" id="bc">
     <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">5:00</span>

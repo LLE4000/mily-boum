@@ -59,7 +59,7 @@ function boucle(maintenant){
 var lentT = 0, lentT2 = 0;
 function majBarresLent(dt){
   lentT -= dt;
-  if(lentT <= 0){ lentT = 0.2; majBarres(); }
+  if(lentT <= 0 || barresSales){ lentT = 0.2; majBarres(); }
 }
 function majEtatReseauLent(dt){
   lentT2 -= dt;

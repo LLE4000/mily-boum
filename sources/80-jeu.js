@@ -31,7 +31,8 @@ function nouvelleCarte(index, pvConnu){
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
-    poudre:EQ.POUDRE_DEPART,
+    navettes:[],
+    energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
@@ -126,6 +127,102 @@ function construitGrilleUnites(){
      pour des troupes et gaspillent leurs munitions dessus */
   for(var k2 = 0; k2 < jeu.poulets.length; k2++) range(jeu.poulets[k2]);
 }
+/* ---------------------------------------------------------------
+   SÉPARATION LOCALE
+   L'ancre de formation étale le groupe à l'approche ; la séparation
+   l'empêche de s'empiler une fois arrivé — à l'arrêt, en train de
+   tirer, ou tassé contre un mur.
+
+   Grille dédiée, de maille égale au diamètre de confort : une unité
+   n'a donc que ses huit cases voisines à consulter. Tri par comptage
+   dans des tableaux typés réutilisés d'une image à l'autre — aucune
+   allocation par image, et le coût suit le nombre de voisines réelles,
+   pas l'effectif total.
+   --------------------------------------------------------------- */
+var sepDebut = null, sepTete = null, sepOrdre = null, sepW = 0, sepH = 0;
+var sepX = null, sepY = null, sepR = null, sepPx = null, sepPy = null;
+
+function reserveSeparation(n){
+  if(sepX && sepX.length >= n) return;
+  var cap = Math.max(256, n * 2);
+  sepX = new Float32Array(cap); sepY = new Float32Array(cap);
+  sepR = new Float32Array(cap);
+  sepPx = new Float32Array(cap); sepPy = new Float32Array(cap);
+  sepOrdre = new Int32Array(cap);
+}
+
+function separeUnites(dt){
+  var lst = jeu.unites, n = lst.length;
+  if(n < 2) return;
+  reserveSeparation(n);
+  var maille = EQ.SEPARATION_MAILLE;
+  var w = Math.ceil(GW / maille) + 1;
+  if(sepW !== w){
+    sepW = w; sepH = Math.ceil(GH / maille) + 1;
+    sepDebut = new Int32Array(sepW * sepH + 1);
+    sepTete = new Int32Array(sepW * sepH);
+  }
+  var nc = sepW * sepH, i, c;
+  sepDebut.fill(0); sepTete.fill(0);
+
+  /* copie plate + comptage par case */
+  for(i = 0; i < n; i++){
+    var u = lst[i];
+    sepX[i] = u.gx; sepY[i] = u.gy; sepR[i] = UNI[u.t].rayon;
+    sepPx[i] = 0; sepPy[i] = 0;
+    var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
+    if(cx < 0) cx = 0; else if(cx >= sepW) cx = sepW - 1;
+    if(cy < 0) cy = 0; else if(cy >= sepH) cy = sepH - 1;
+    u.sepC = cy * sepW + cx;
+    sepDebut[u.sepC + 1]++;
+  }
+  for(c = 0; c < nc; c++) sepDebut[c + 1] += sepDebut[c];
+  for(i = 0; i < n; i++){
+    c = lst[i].sepC;
+    sepOrdre[sepDebut[c] + sepTete[c]] = i;
+    sepTete[c]++;
+  }
+
+  /* répulsion : chaque paire traitée une seule fois (j > i) */
+  for(i = 0; i < n; i++){
+    var cx0 = lst[i].sepC % sepW, cy0 = (lst[i].sepC / sepW) | 0;
+    for(var jy = cy0 - 1; jy <= cy0 + 1; jy++){
+      if(jy < 0 || jy >= sepH) continue;
+      for(var jx = cx0 - 1; jx <= cx0 + 1; jx++){
+        if(jx < 0 || jx >= sepW) continue;
+        var cc = jy * sepW + jx;
+        for(var k = sepDebut[cc]; k < sepDebut[cc + 1]; k++){
+          var j = sepOrdre[k];
+          if(j <= i) continue;
+          var dx = sepX[i] - sepX[j], dy = sepY[i] - sepY[j];
+          var conf = sepR[i] + sepR[j];
+          var d2 = dx * dx + dy * dy;
+          if(d2 >= conf * conf) continue;
+          var d = Math.sqrt(d2);
+          if(d < 1e-4){
+            /* exactement superposées : on les sépare sur un axe stable */
+            var a = (i * ANGLE_OR) % 6.2832;
+            dx = Math.cos(a); dy = Math.sin(a); d = 1;
+          }else{ dx /= d; dy /= d; }
+          var chev = (conf - d) * 0.5;
+          sepPx[i] += dx * chev; sepPy[i] += dy * chev;
+          sepPx[j] -= dx * chev; sepPy[j] -= dy * chev;
+        }
+      }
+    }
+  }
+
+  /* application, plafonnée pour rester stable quel que soit dt */
+  var vmax = EQ.SEPARATION_VITESSE * dt;
+  for(i = 0; i < n; i++){
+    var px = sepPx[i], py = sepPy[i];
+    var l = Math.hypot(px, py);
+    if(l < 1e-5) continue;
+    if(l > vmax) l = vmax;
+    deplace(lst[i], px, py, l);
+  }
+}
+
 function unitesAutour(gx, gy, r, sortie){
   sortie.length = 0;
   var x0 = Math.max(0, ((gx - r) / GU) | 0), x1 = Math.min(GUW - 1, ((gx + r) / GU) | 0);
@@ -166,37 +263,129 @@ function centreSur(gx, gy){
   cam.py = H / 2 - p.y * cam.z;
 }
 
+/* ---------------------------------------------------------------
+   LE DÉBARQUEMENT
+   Les troupes n'apparaissent plus par magie à l'intérieur des terres :
+   une navette arrive du large, ralentit, accoste, ouvre sa rampe, et
+   les soldats en sortent par petits groupes avant de gagner le sable.
+
+   Trois états : "approche" -> "accostage" -> "retrait". Les unités ne
+   sont créées qu'une fois la rampe ouverte, à la sortie de la rampe.
+   --------------------------------------------------------------- */
+/* Le rivage JOUABLE n'est pas PLAGE_X0 (première colonne de sable, à
+   140) mais le bord est de la grille : deplace() borne les unités à
+   GW - 0.5, et le sable mouillé de matiereCase() commence vers GW - 6.
+   La navette accoste donc là où est vraiment l'eau — c'est ce décalage
+   de onze cases qui faisait « apparaître » les troupes en pleine terre. */
+var RIVAGE_GX = GW + 1.0;      // la navette flotte : elle s'arrête DANS l'eau
+var RAMPE_GX  = GW - 1.0;      // pied de rampe : première case où l'on marche
+
+var NAV = {
+  DEPART      : 11.0,   // cases au large du point d'accostage
+  VITESSE     : 13.0,   // cases/s en pleine mer
+  VITESSE_MIN : 2.2,    // cases/s juste avant de toucher le sable
+  FREINAGE    : 5.0,    // distance sur laquelle elle ralentit
+  RAMPE       : 0.45,   // s pour abaisser la rampe
+  CADENCE     : 0.085,  // s entre deux soldats qui sortent
+  PAUSE       : 0.35,   // s avant de repartir
+  RETRAIT     : 2.6     // s de marche arrière avant disparition
+};
+
 function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
-  if(!b) return message("Plus aucune barge.");
-  gx = borne(gx, PLAGE_X0, GW - 1.2);
+  if(!b) return message("Plus aucune navette.");
+  /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
+     long de la plage. Elle s'arrête toujours au bord de l'eau, et les
+     troupes gagnent le sable à pied. */
   gy = borne(gy, 3, GH - 4);
-  var pose = 0, k = 0;
-  /* déploiement en spirale autour du drapeau */
-  while(pose < b.n && k < 600){
-    var a = k * 2.399963, r = 0.42 * Math.sqrt(k);
-    var x = gx + Math.cos(a) * r, y = gy + Math.sin(a) * r;
-    k++;
-    if(bloque(x, y)) continue;
-    creeUnite(b.type, x, y);
-    pose++;
-  }
-  jeu.effets.push({ t:"drapeau", gx:gx, gy:gy, age:0, duree:6 });
+  var gxA = RIVAGE_GX;
+  jeu.navettes.push({
+    type:b.type, reste:b.n, sortis:0,
+    gx:gxA + NAV.DEPART, gy:gy, gxA:gxA,
+    etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
+    n:jeu.nSuiv++
+  });
   jeu.barges.splice(jeu.bargeSel, 1);
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
-  majBarres();
+  demandeMajBarres();
   son.debarque();
+}
+
+function majNavettes(dt){
+  for(var i = jeu.navettes.length - 1; i >= 0; i--){
+    var v = jeu.navettes[i];
+    v.tangage += dt * 2.4;
+    if(v.etat === "approche"){
+      var d = v.gx - v.gxA;
+      /* elle ralentit franchement en approchant du rivage */
+      var vit = NAV.VITESSE_MIN +
+                (NAV.VITESSE - NAV.VITESSE_MIN) * Math.min(1, d / NAV.FREINAGE);
+      v.gx -= vit * dt;
+      if(v.gx <= v.gxA){
+        v.gx = v.gxA;
+        v.etat = "accostage";
+        v.minuteur = 0;
+        son.rampe();
+      }
+      continue;
+    }
+    if(v.etat === "accostage"){
+      v.minuteur += dt;
+      v.rampe = Math.min(1, v.minuteur / NAV.RAMPE);
+      if(v.rampe < 1) continue;
+      /* les soldats sortent en file, pas tous d'un bloc */
+      var du = v.minuteur - NAV.RAMPE;
+      var voulus = Math.min(v.reste, Math.floor(du / NAV.CADENCE) + 1);
+      while(v.sortis < voulus){
+        sortDeNavette(v);
+        v.sortis++;
+      }
+      if(v.sortis >= v.reste && du > v.reste * NAV.CADENCE + NAV.PAUSE){
+        v.etat = "retrait";
+        v.minuteur = 0;
+      }
+      continue;
+    }
+    /* retrait : elle repart au large, rampe relevée */
+    v.minuteur += dt;
+    v.rampe = Math.max(0, 1 - v.minuteur / NAV.RAMPE);
+    v.gx += (NAV.VITESSE_MIN + v.minuteur * 3.4) * dt;
+    if(v.minuteur > NAV.RETRAIT) jeu.navettes.splice(i, 1);
+  }
+}
+
+/* Un soldat descend la rampe : il naît au pied de celle-ci, un peu
+   devant la coque, avec une petite dispersion latérale. La séparation
+   locale et l'ancre de formation font le reste dès la frame suivante. */
+function sortDeNavette(v){
+  var k = v.sortis;
+  var lat = ((k % 5) - 2) * 0.34 + (bruitStable(v.n * 31 + k, 0) - 0.5) * 0.30;
+  var av = (k % 3) * 0.30;
+  var x = RAMPE_GX - av, y = v.gy + lat;
+  /* si le pied de rampe est encombré, on décale le long du rivage */
+  for(var essai = 0; essai < 8 && bloque(x, y); essai++){
+    y += (essai % 2 ? 1 : -1) * 0.42 * (essai + 1);
+    x = RAMPE_GX - av;
+  }
+  if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
+  creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
 }
 function creeUnite(type, gx, gy){
   var f = UNI[type];
+  var n = jeu.nSuiv++;
+  var an = ancreFormation(n);
   jeu.unites.push({
-    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:jeu.nSuiv++,
+    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:n,
+    /* place stable dans le disque unité : c'est elle qui donne au
+       groupe sa surface au lieu d'un empilement sur un point */
+    ancX:an.x, ancY:an.y, sepC:0,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
     prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
     pousse:{ x:0, y:0 }
   });
+  return jeu.unites[jeu.unites.length - 1];
 }
 
 /* ---------------------------------------------------------------
@@ -247,16 +436,16 @@ function abimeBatiment(b, d){
       jeu.balise = null;
       for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
     }
-    jeu.poudre += EQ.POUDRE_PAR_BATIMENT;
+    jeu.energie += EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
     jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
     jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
     if(jeu.crateres.length > 160) jeu.crateres.shift();
     jeu.secousse = Math.min(9, jeu.secousse + 3);
     son.boum(0.42);
-    son.poudre();
+    son.energie();
     envoieDestruction(b.n);
-    majBarres();
+    demandeMajBarres();
   }
 }
 function abimeCreature(c, d){
@@ -264,12 +453,12 @@ function abimeCreature(c, d){
   c.pv -= d;
   if(c.pv <= 0){
     jeu.effets.push({ t:"mortCre", gx:c.gx, gy:c.gy, age:0, duree:0.7, typ:c.t });
-    jeu.poudre += 1;
+    jeu.energie += EQ.ENERGIE_PAR_CREATURE;
     if(c.t === "belette"){
       jeu.messageGege = 3.0;                       // trois secondes de deuil
       son.gege();
     }
-    majBarres();
+    demandeMajBarres();
   }
 }
 function abimeQG(d){
@@ -355,7 +544,11 @@ function majUnites(dt){
         u.droite = (dxb - dyb) > 0;
         u.cible = { k:"bat", o:bc };
         if(db > f.arret){
-          deplace(u, dxb, dyb, vit * dt);
+          /* même éventail que pour une cible ordinaire : la troupe
+             encercle le bâtiment désigné au lieu de s'entasser sur la
+             face qu'elle a abordée */
+          var eb = rayonFormation() * 0.55;
+          deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
           u.phase += dt * 1.5;
@@ -369,18 +562,25 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* 1) fusée au sol : ralliement sans tirer, jusqu'à ce que la
-              troupe ait atteint (ou traversé) la zone de la fusée */
-        var dxf = balise.gx - u.gx, dyf = balise.gy - u.gy;
+        /* 1) balise au sol : ralliement sans tirer. Chaque troupe a SA
+              place autour de la balise — la balise est une zone de
+              rassemblement, pas un pixel — et se libère dès qu'elle y
+              est, pour son propre compte. */
+        var rf = rayonFormation();
+        var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
+        var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        if(df > EQ.BALISE_RAYON){
+        /* filet de sécurité : si la place assignée tombe dans l'eau ou
+           dans un mur, être entré dans le cercle suffit */
+        var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
+        if(df > EQ.BALISE_RAYON && dCentre > rf){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
           u.cible = null;
           continue;
         }
-        /* zone atteinte : cette fusée ne l'influence plus, jamais */
+        /* place atteinte : cette balise ne l'influence plus, jamais */
         u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
@@ -414,7 +614,12 @@ function majUnites(dt){
     u.droite = (dx - dy) > 0;
 
     if(d > portee){
-      deplace(u, dx, dy, vit * dt);
+      /* on marche vers SA place autour de la cible, pas vers le centre :
+         la troupe aborde l'objectif en éventail au lieu de s'entasser
+         sur l'arc le plus proche. La portée, elle, reste mesurée au
+         centre — le décalage n'avantage ni ne pénalise personne. */
+      var etal = rayonFormation() * 0.55;
+      deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
       /* à portée : on tire */
@@ -574,6 +779,7 @@ function tireDefense(b, f, c, d, tps){
       var du = Math.hypot(u.gx - b.gx, u.gy - b.gy);
       if(du > f.portee) continue;
       if(!dansCone(Math.atan2(u.gy - b.gy, u.gx - b.gx), ang, f.cone)) continue;
+      if(masquee(u)) continue;              // la fumée coupe aussi le cône
       toucheUnite(u, f.degats, { brulure:1 });
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
@@ -609,7 +815,12 @@ function majProjectiles(dt){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
         if(p.cible.k){ if(p.cible.o && (p.cible.o.vivant !== 0)){ bx = p.cible.o.gx; by = p.cible.o.gy; } }
-        else if(p.cible.pv > 0){ bx = p.cible.gx; by = p.cible.gy; }
+        else if(p.cible.pv > 0){
+          /* la cible s'est glissée dans un Brouillard : la roquette
+             perd le contact et tombe là où elle croyait la trouver */
+          if(p.t === "roquette" && masquee(p.cible)) p.cible = null;
+          else { bx = p.cible.gx; by = p.cible.gy; }
+        }
       }
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
       var pas = p.vit * dt;
@@ -945,9 +1156,16 @@ function lanceEruption(){
 /* ---------------------------------------------------------------
    Capacités
    --------------------------------------------------------------- */
+/* La Nova ne se paie pas en Énergie : on en a UNE par vie, point.
+   C'est ce qui la garde rare, et ce qui rend son emploi mémorable. */
+function capaciteDisponible(m){
+  if(m === "nova") return jeu.novaDispo > 0;
+  return jeu.energie >= coutActuel(m, jeu.usages);
+}
 function armeCapacite(m){
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
-    message("Pas assez de Poudre pour " + COUT[m].nom + ".");
+  if(!capaciteDisponible(m)){
+    message(m === "nova" ? "Nova déjà employée : il faut une nouvelle vie."
+                         : "Pas assez d'Énergie pour " + COUT[m].nom + ".");
     return;
   }
   jeu.capArmee = (jeu.capArmee === m) ? null : m;
@@ -955,14 +1173,15 @@ function armeCapacite(m){
   if(jeu.capArmee) son.gong();
 }
 function utiliseCapacite(m, gx, gy){
-  var c = coutActuel(m, jeu.usages);
-  if(jeu.poudre < c){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message("Plus assez de Poudre : " + COUT[m].nom + " désarmée.");
+    message(m === "nova" ? "Nova déjà employée pendant cette vie."
+                         : "Plus assez d'Énergie : " + COUT[m].nom + " désarmée.");
     return;
   }
-  jeu.poudre -= c;
+  if(m === "nova") jeu.novaDispo--;
+  else jeu.energie -= coutActuel(m, jeu.usages);
   jeu.usages[m]++;
 
   if(m === "balise"){
@@ -1046,12 +1265,12 @@ function utiliseCapacite(m, gx, gy){
     son.nova();
   }
 
-  majBarres();
+  demandeMajBarres();
   majMenu();
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message(COUT[m].nom + " désarmée : Poudre insuffisante.");
+    if(m !== "nova") message(COUT[m].nom + " désarmée : Énergie insuffisante.");
   }
 }
 
@@ -1124,7 +1343,8 @@ function geleeParCryo(b){
    --------------------------------------------------------------- */
 function majMort(dt){
   if(!jeu.mort){
-    if(jeu.unites.length === 0 && jeu.barges.length === 0 && jeu.tps > 3){
+    if(jeu.unites.length === 0 && jeu.barges.length === 0 &&
+       jeu.navettes.length === 0 && jeu.tps > 3){
       jeu.mort = true;
       jeu.tempsRenfort = EQ.ATTENTE_RENFORT;
       var p = jeu.dernierePerte || { gx:PLAGE_X0 + 2, gy:GH / 2 };
@@ -1151,10 +1371,11 @@ function majMort(dt){
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
-    jeu.poudre += EQ.POUDRE_BONUS_RENFORT;
+    jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
+    jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     montreBandeauFantome(false);
     majBarres();
-    message("Flotte neuve ! +" + EQ.POUDRE_BONUS_RENFORT + " Poudre.");
+    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
     son.renfort();
   }
 }
@@ -1230,7 +1451,9 @@ function majJeu(dt){
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
+  majNavettes(dt);
   majUnites(dt);
+  separeUnites(dt);
   majPoulets(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);

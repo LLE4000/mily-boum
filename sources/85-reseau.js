@@ -124,7 +124,7 @@ function recoit(txt){
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
       jeu.file.adopteMinimum(m.pv);
       jeu.qg.pv = jeu.file.pv;
-      majBarres();
+      demandeMajBarres();
     }
     majMondes();
   }else if(m.t === "etat"){
@@ -142,7 +142,7 @@ function recoit(txt){
       jeu.file.applique(m.id, m.s, m.d);
       jeu.qg.pv = jeu.file.pv;
       if(jeu.qg.pv <= 0 && !jeu.fin) declencheFin();
-      majBarres();
+      demandeMajBarres();
     }
   }else if(m.t === "det"){
     if(jeu && typeof m.n === "number"){

@@ -10,10 +10,17 @@
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
    ---------------------------------------------------------------- */
 var EQ = {
-  /* Économie */
-  POUDRE_DEPART        : 150,   // poudre au début de chaque carte
-  POUDRE_PAR_BATIMENT  : 3,     // gain par bâtiment détruit
-  POUDRE_BONUS_RENFORT : 40,    // bonus quand la flotte revient après la mort
+  /* Économie — l'Énergie tactique alimente les capacités.
+     Revue à la hausse : le jeu est plus vivant quand on peut relancer
+     régulièrement Brouillard, Balise, Cryo, Soin, Salve, Viper et
+     Poulets, sans pour autant que ce soit gratuit. */
+  ENERGIE_DEPART       : 220,   // énergie au début de chaque carte
+  ENERGIE_PAR_BATIMENT : 5,     // gain par bâtiment détruit
+  ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
+  ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
+
+  /* Nova : une seule charge par vie, jamais cumulable */
+  NOVA_PAR_VIE         : 1,
 
   /* Débarquement */
   NB_BARGES            : 8,
@@ -48,13 +55,52 @@ var EQ = {
   UNITES_DIFFUSEES     : 20,    // unités échantillonnées par joueur
   PERIODE_PING         : 20000, // ms
 
-  /* Éclairante */
-  BALISE_RAYON          : 1.1,   // distance à laquelle une troupe est libérée de la fusée
+  /* Balise */
+  BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
+
+  /* Formation et dispersion des troupes
+     Le groupe doit occuper environ 80 % de la surface d'un Brouillard :
+     un disque de 80 % de surface a un rayon de sqrt(0,8) ≈ 0,894 fois
+     celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
+     soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
+  FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
+  SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
+  SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
 
   /* Divers */
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
   BILAN_SECONDES       : 8
 };
+
+/* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
+   Brouillard : c'est lui qui sert de référence visuelle au joueur. */
+function rayonFormation(){
+  return CAP.brouillard.rayon * Math.sqrt(EQ.FORMATION_PART_SURFACE);
+}
+
+/* ----------------------------------------------------------------
+   ANCRE DE FORMATION
+   Chaque unité reçoit une place stable dans le disque unité, tirée
+   d'une spirale de Vogel (angle d'or). La spirale couvre le disque
+   régulièrement sans jamais former de rangées — donc pas de grille
+   militaire — et le bruit stable ajouté ensuite lui rend une
+   irrégularité organique. L'unité vise SA place, pas celle de sa
+   voisine : le groupe s'étale avant même de se toucher.
+   ---------------------------------------------------------------- */
+var ANGLE_OR = 2.399963229728653;
+function bruitStable(n, sel){
+  var v = Math.sin(n * (sel ? 78.233 : 12.9898) + sel * 4.1) * 43758.5453;
+  return v - Math.floor(v);
+}
+function ancreFormation(n){
+  /* Le bruit reste modeste : au-delà, deux places voisines finissent
+     par se confondre et la spirale perd l'intérêt qu'elle avait. */
+  var a = n * ANGLE_OR + (bruitStable(n, 1) - 0.5) * 0.34;
+  var r = Math.sqrt((n % EQ.FORMATION_EFFECTIF + 0.5) / EQ.FORMATION_EFFECTIF);
+  r = Math.min(1, r * (1 + (bruitStable(n, 0) - 0.5) * 0.13));
+  return { x:Math.cos(a) * r, y:Math.sin(a) * r };
+}
 
 /* ----------------------------------------------------------------
    Générateur pseudo-aléatoire déterministe (xorshift 32 bits)
@@ -173,7 +219,7 @@ var CRE = {
    Chaque emploi renchérit le suivant : coût = base + pas × usages.
    ---------------------------------------------------------------- */
 var COUT = {
-  nova      :{ base:14, pas:4, nom:"Nova" },
+  nova      :{ base:0,  pas:0, nom:"Nova" },
   poulets   :{ base:4,  pas:2, nom:"Poulets ×10" },
   brouillard:{ base:3,  pas:1, nom:"Brouillard" },
   salve     :{ base:10, pas:3, nom:"Salve" },
@@ -189,11 +235,11 @@ function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] |
 var CAP = {
   nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45 },
   poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
-  brouillard:{ rayon:4.2, duree:10.0 },
+  brouillard:{ rayon:4.2, duree:20.0 },
   salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },
   cryo      :{ rayon:4.0, duree:12.0 },
   soin      :{ rayon:3.0, duree:6.0, pvParSeconde:30 },
-  balise    :{ duree:25.0 },
+  balise    :{ duree:30.0 },
   viper     :{ degats:220, rayon:1.5, vitesse:34 }
 };
 

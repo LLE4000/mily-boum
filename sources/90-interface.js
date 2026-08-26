@@ -45,10 +45,13 @@ function zoomVers(sx, sy, facteur){
    --------------------------------------------------------------- */
 var pointeurs = {}, ordrePt = [];
 var glisse = null, pincee = null;
+var SEUIL_TAP = 9;          // px : au-delà, c'est un glissé, pas un tap
 
+var rectCv = null;
+function invalideRect(){ rectCv = null; }
 function posEv(e){
-  var r = cv.getBoundingClientRect();
-  return { x:e.clientX - r.left, y:e.clientY - r.top };
+  if(!rectCv) rectCv = cv.getBoundingClientRect();
+  return { x:e.clientX - rectCv.left, y:e.clientY - rectCv.top };
 }
 function installeSaisie(){
   cv.addEventListener("pointerdown", function(e){
@@ -81,9 +84,14 @@ function installeSaisie(){
       appliquePince(cam, pincee, a.x, a.y, b.x, b.y, ZMIN, ZMAX);
       borneCamera();
     }else if(glisse){
-      if(jeu.capArmee && viseur.actif){
+      /* Le viseur suit le doigt, MAIS la caméra suit aussi : armer une
+         capacité ne doit jamais confisquer le pan. Tant que le doigt
+         n'a pas franchi le seuil de tap, on ne fait que viser ; au-delà,
+         c'est un glissé de caméra et la visée s'efface. */
+      if(jeu.capArmee && viseur.actif && pt.bouge < SEUIL_TAP){
         viseur.x = p.x; viseur.y = p.y;
       }else{
+        if(viseur.actif) viseur.actif = false;
         cam.px = glisse.px + (p.x - glisse.x);
         cam.py = glisse.py + (p.y - glisse.y);
         borneCamera();
@@ -100,14 +108,18 @@ function installeSaisie(){
     var k = ordrePt.indexOf(e.pointerId);
     if(k >= 0) ordrePt.splice(k, 1);
 
-    if(etaitSeul && pt.bouge < 9){
+    if(etaitSeul && pt.bouge < SEUIL_TAP){
       appuie(pt.x, pt.y);
     }
     if(ordrePt.length === 1){
       /* on repart de la position du doigt restant : pas de saut */
       var r = pointeurs[ordrePt[0]];
       glisse = { px:cam.px, py:cam.py, x:r.x, y:r.y };
+      r.bouge = 0;
       pincee = null;
+      /* après un pincement, le doigt restant peut de nouveau viser */
+      viseur.actif = !!jeu.capArmee;
+      viseur.x = r.x; viseur.y = r.y;
     }else if(ordrePt.length === 0){
       glisse = null; pincee = null; viseur.actif = false;
     }
@@ -122,9 +134,10 @@ function installeSaisie(){
     e.preventDefault();
   }, { passive:false });
 
-  window.addEventListener("resize", function(){ ajuste(); borneCamera(); });
-  window.addEventListener("orientationchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
-  document.addEventListener("fullscreenchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
+  window.addEventListener("resize", function(){ invalideRect(); ajuste(); borneCamera(); });
+  window.addEventListener("scroll", invalideRect, true);
+  window.addEventListener("orientationchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
+  document.addEventListener("fullscreenchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
 
   /* minicarte cliquable */
   miniCv.addEventListener("pointerdown", function(e){
@@ -188,9 +201,17 @@ function majBandeauFantome(t){
 function nombre(n){
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+/* Le HUD ne se reconstruit JAMAIS depuis la simulation : abimeBatiment
+   appelait majBarres() une fois par bâtiment détruit, donc une Nova qui
+   en démonte dix refaisait dix fois l'innerHTML de la liste des navettes
+   dans la même image. On lève un drapeau, la boucle le consomme. */
+var barresSales = false;
+function demandeMajBarres(){ barresSales = true; }
+
 function majBarres(){
   if(!jeu) return;
-  $("poudreV").textContent = Math.floor(jeu.poudre);
+  barresSales = false;
+  $("energieV").textContent = Math.floor(jeu.energie);
   $("unitesV").textContent = jeu.unites.length;
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
@@ -198,9 +219,16 @@ function majBarres(){
   $("nomCarte").textContent = CARTES[jeu.index % CARTES.length].nom;
   majListeBarges();
   majMenu();
+  majPodium();
 }
+var signatureBarges = null;
 function majListeBarges(){
   var l = $("listeBarges");
+  /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
+     coûte cher, et rien ne change entre deux débarquements */
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
+  if(sig === signatureBarges) return;
+  signatureBarges = sig;
   var html = "";
   for(var i = 0; i < jeu.barges.length; i++){
     var b = jeu.barges[i];
@@ -257,9 +285,9 @@ function majMenu(){
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
     els[k].classList.toggle("arme", jeu.capArmee === m);
-    var c = coutActuel(m, jeu.usages);
-    $("cx_" + m).textContent = c;
-    els[k].classList.toggle("pauvre", jeu.poudre < c);
+    /* la Nova n'a pas de prix : sa pastille compte les charges restantes */
+    $("cx_" + m).textContent = (m === "nova") ? jeu.novaDispo : coutActuel(m, jeu.usages);
+    els[k].classList.toggle("pauvre", !capaciteDisponible(m));
   }
 }
 
@@ -477,7 +505,10 @@ function dessineIcone(m, c){
   c.restore();
 }
 
-/* --- podium --- */
+/* --- podium : le classement des dégâts, en haut à gauche ---
+   Toujours affiché, même seul : c'est le tableau de bord de la
+   partie, pas une décoration qui apparaît quand un ami arrive. */
+var podiumHtml = null;
 function majPodium(){
   if(!jeu) return;
   var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
@@ -493,8 +524,7 @@ function majPodium(){
        + '<span class="n">' + echappe(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
-  $("podiumL").innerHTML = h;
-  $("podium").style.display = l.length > 1 ? "block" : "none";
+  if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
   return String(s).replace(/[&<>"]/g, function(c){

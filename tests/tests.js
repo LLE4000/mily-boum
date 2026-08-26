@@ -20,6 +20,7 @@ try{
   N = new Function(source + "\nreturn {" + [
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
+    "rayonFormation","ancreFormation","ANGLE_OR",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "genereCarte","empreinteCarte","utf8Octets","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
@@ -349,7 +350,7 @@ G("8. Cohérence des règles de jeu");
   var attendu = {
     balise:[1,5,10,20], brouillard:[3,7,12,22], poulets:[4,12,22,42],
     soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
-    salve:[10,22,37,67], nova:[14,30,50,90]
+    salve:[10,22,37,67], nova:[0,0,0,0]      // la Nova ne se paie pas en Énergie
   };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
@@ -362,6 +363,51 @@ G("8. Cohérence des règles de jeu");
   });
   ok("barème des huit capacités (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
   ok("huit capacités exactement", Object.keys(N.COUT).length === 8);
+  ok("la Nova est gratuite en Énergie : c'est la charge par vie qui la limite",
+     N.COUT.nova.base === 0 && N.COUT.nova.pas === 0 && N.EQ.NOVA_PAR_VIE === 1);
+
+  /* durées des zones */
+  ok("Brouillard : 20 s", N.CAP.brouillard.duree === 20);
+  ok("Balise : 30 s", N.CAP.balise.duree === 30);
+  ok("Brouillard et Cryo ont des diamètres comparables (écart < 15 %)",
+     Math.abs(N.CAP.brouillard.rayon - N.CAP.cryo.rayon) / N.CAP.cryo.rayon < 0.15);
+
+  /* formation : le groupe doit couvrir ≈ 80 % du cercle de Brouillard */
+  var rf = N.rayonFormation();
+  ok("rayon de formation = " + rf.toFixed(2) + " cases (80 % de la surface du Brouillard)",
+     Math.abs(Math.PI * rf * rf / (Math.PI * N.CAP.brouillard.rayon * N.CAP.brouillard.rayon) - 0.80) < 0.001);
+  (function(){
+    /* la spirale doit couvrir le disque sans trou ni empilement */
+    var pts = [], i, j;
+    for(i = 0; i < 120; i++) pts.push(N.ancreFormation(i));
+    var hors = 0, minD = 1e9, moyR = 0;
+    for(i = 0; i < pts.length; i++){
+      var r = Math.hypot(pts[i].x, pts[i].y);
+      if(r > 1.0001) hors++;
+      moyR += r;
+      for(j = i + 1; j < pts.length; j++){
+        var d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+        if(d < minD) minD = d;
+      }
+    }
+    moyR /= pts.length;
+    ok("les 120 places de formation tiennent dans le disque unité", hors === 0, hors + " hors disque");
+    /* Les places n'ont pas à être espacées de la distance de confort :
+       c'est separeUnites() qui écarte les soldats. Elles doivent
+       simplement être toutes distinctes, pour qu'aucune paire ne vise
+       le même point. */
+    ok("aucune place confondue avec une autre (écart mini " + (minD * rf).toFixed(2) + " case)",
+       minD * rf > 0.10, (minD * rf).toFixed(3));
+    ok("les places couvrent le disque sans se tasser au centre (rayon moyen "
+       + moyR.toFixed(2) + " ≈ 0,67)", moyR > 0.55 && moyR < 0.78, moyR.toFixed(3));
+  })();
+
+  /* économie : plus généreuse qu'avant, mais toujours finie */
+  ok("l'Énergie tactique a remplacé la Poudre",
+     N.EQ.ENERGIE_DEPART === 220 && N.EQ.ENERGIE_PAR_BATIMENT === 5 &&
+     N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
+  ok("une carte entière ne finance pas tout à volonté",
+     N.EQ.ENERGIE_DEPART + 490 * N.EQ.ENERGIE_PAR_BATIMENT < 3000);
 
   /* traversée */
   var cases = (N.GW - 4) - N.QG_GX;

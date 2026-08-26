@@ -448,6 +448,39 @@ function dessineZonesSol(c, tps){
     c.stroke();
     c.restore();
   }
+  /* Emprise au sol du Brouillard. Elle dit une chose et une seule :
+     « tout ce qui est dans ce cercle est masqué ». Elle est donc plus
+     franche que le nuage — liseré plein, liseré animé, et des
+     épaisseurs plafonnées en pixels écran pour rester lisible au
+     dézoom, là où la fumée seule devenait invisible.
+     Repère MONDE : ce bloc est peint entre repereMonde et repereEcran,
+     les longueurs sont en unités monde et les traits divisés par cam.z. */
+  for(i = 0; i < jeu.brouillards.length; i++){
+    var zb = jeu.brouillards[i], pb = iso(zb.gx, zb.gy);
+    var ab = Math.min(1, zb.age * 3) * Math.min(1, (zb.duree - zb.age) / 1.5);
+    var bx = zb.r * RX, by = zb.r * RY;
+    c.save();
+    var gb = c.createRadialGradient(pb.x, pb.y, bx * 0.14, pb.x, pb.y, bx);
+    gb.addColorStop(0.00, "rgba(214,210,224," + (0.30 * ab) + ")");
+    gb.addColorStop(0.62, "rgba(178,172,190," + (0.24 * ab) + ")");
+    gb.addColorStop(0.93, "rgba(152,146,164," + (0.15 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(142,136,154,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(228,224,238," + (0.66 * ab) + ")";
+    c.lineWidth = Math.max(1.6 / cam.z, 2.6);
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.stroke();
+    if(c.setLineDash){
+      var pas = Math.max(7 / cam.z, 12);
+      c.setLineDash([pas, pas * 0.8]);
+      c.lineDashOffset = -tps * pas * 0.9;
+      c.strokeStyle = "rgba(255,255,255," + (0.36 * ab) + ")";
+      c.lineWidth = Math.max(1 / cam.z, 1.6);
+      c.beginPath(); c.ellipse(pb.x, pb.y, bx * 0.93, by * 0.93, 0, 0, 6.2832); c.stroke();
+      c.setLineDash([]);
+    }
+    c.restore();
+  }
   /* zones cryogéniques : les tourelles prises dedans sont muettes */
   for(i = 0; i < jeu.cryos.length; i++){
     var zc = jeu.cryos[i], pz = iso(zc.gx, zc.gy);
@@ -515,20 +548,137 @@ function dessineZonesSol(c, tps){
 }
 
 /* Nuage de fumigène — volumétrique, dans le tri de profondeur */
+/* Le volume de fumée du Brouillard. L'emprise au sol, elle, est
+   peinte avec le Cryo dans dessineZonesSol : un disque posé au sol n'a
+   rien à faire dans la pile de profondeur, il repasserait par-dessus
+   les unités situées devant lui.
+   Attention : bouffee() REMPLACE globalAlpha au lieu de le multiplier.
+   Le fondu doit donc passer par l'argument, pas par un globalAlpha
+   parent — c'est ce qui rendait l'ancien fondu inopérant. */
 function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
-  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.2);
-  c.save();
-  c.globalAlpha = 0.72 * a;
-  for(var i = 0; i < 12; i++){
-    var ang = i / 12 * 6.2832 + tps * 0.25;
-    var rr = f.r * (0.35 + (i % 3) * 0.25);
-    var pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr * 0.9);
-    bouffee(c, pp.x, pp.y - (14 + (i % 4) * 7) * z + Math.sin(tps * 1.4 + i) * 3 * z,
-            (11 + (i % 3) * 5) * z, 0.5, i % 2 ? "#8e8894" : "#a9a3ae");
+  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.5);
+  var i, ang, rr, pp;
+
+  /* nappe basse qui court le long du sol, au bord même de la zone */
+  for(i = 0; i < 14; i++){
+    ang = i / 14 * 6.2832 - tps * 0.18;
+    rr = f.r * (0.80 + (i % 3) * 0.07);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (4 + (i % 3) * 4) * z + Math.sin(tps * 1.1 + i) * 2 * z,
+            (13 + (i % 4) * 4) * z, 0.40 * a, i % 2 ? "#a29cac" : "#b8b2c2");
   }
-  bouffee(c, p.x, p.y - 20 * z, 26 * z, 0.55, "#9a94a2");
+  /* volutes qui montent au-dessus */
+  for(i = 0; i < 12; i++){
+    ang = i / 12 * 6.2832 + tps * 0.25;
+    rr = f.r * (0.35 + (i % 3) * 0.25);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (16 + (i % 4) * 8) * z + Math.sin(tps * 1.4 + i) * 3 * z,
+            (12 + (i % 3) * 5) * z, 0.5 * a, i % 2 ? "#8e8894" : "#a9a3ae");
+  }
+  bouffee(c, p.x, p.y - 22 * z, 28 * z, 0.55 * a, "#9a94a2");
+
+  /* décompte : combien de temps la zone tient encore */
+  if(z > 0.30){
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 48 * z),
+               Math.max(10, 13 * z), "#e6e2f0");
+  }
+}
+
+/* ---------------------------------------------------------------
+   LA NAVETTE DE DÉBARQUEMENT
+   Coque à fond plat, timonerie arrière, rampe d'étrave qui s'abaisse.
+   Elle tangue tant qu'elle flotte et se cale une fois échouée.
+   --------------------------------------------------------------- */
+var NAV_ECH = 1.75;            // une navette porte quinze soldats : elle est grosse
+function dessineNavette(c, v, tps){
+  var p = versEcran(cam, v.gx, v.gy);
+  var z = cam.z * NAV_ECH;
+  var flotte = v.etat !== "accostage" || v.rampe < 1;
+  var tang = flotte ? Math.sin(v.tangage) * 1.6 * z : Math.sin(tps * 1.6 + v.n) * 0.5 * z;
+  var y = p.y + tang;
+
+  /* sillage et écume d'étrave */
+  c.save();
+  c.globalAlpha = 0.30;
+  c.fillStyle = "#eaf7f6";
+  for(var w = 0; w < 4; w++){
+    var dw = (18 + w * 15) * z;
+    c.beginPath();
+    c.ellipse(p.x + dw * 0.9, y + dw * 0.42, (13 - w * 2) * z, (6 - w) * z, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* ombre portée sur l'eau */
+  c.save();
+  c.globalAlpha = 0.22; c.fillStyle = "#0b2b34";
+  c.beginPath(); c.ellipse(p.x, p.y + 5 * z, 30 * z, 12 * z, 0, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* coque : un trapèze isométrique, étrave vers l'ouest (gx décroissant) */
+  var A = { x:p.x - 30 * z, y:y - 2 * z };     // étrave
+  var B = { x:p.x + 26 * z, y:y - 12 * z };    // arrière bâbord
+  var D = { x:p.x + 26 * z, y:y + 10 * z };    // arrière tribord
+  var E = { x:p.x - 26 * z, y:y + 8 * z };
+  c.fillStyle = "#4c5a52";
+  c.beginPath();
+  c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.lineTo(D.x, D.y); c.lineTo(E.x, E.y);
+  c.closePath(); c.fill();
+  /* pont */
+  c.fillStyle = "#6c7a6e";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(D.x, D.y - 7 * z); c.lineTo(E.x, E.y - 7 * z);
+  c.closePath(); c.fill();
+  /* bordé, côté éclairé */
+  c.fillStyle = "#8a9a86";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(B.x, B.y); c.lineTo(A.x, A.y);
+  c.closePath(); c.fill();
+
+  /* timonerie à l'arrière */
+  c.fillStyle = "#586652";
+  c.fillRect(p.x + 10 * z, y - 24 * z, 15 * z, 14 * z);
+  c.fillStyle = "#39443a";
+  c.fillRect(p.x + 12 * z, y - 21 * z, 11 * z, 5 * z);
+  c.fillStyle = "#9fb09a";
+  c.fillRect(p.x + 10 * z, y - 25 * z, 15 * z, 2 * z);
+  /* mât et fanion */
+  c.strokeStyle = "#39443a"; c.lineWidth = Math.max(1, 1.6 * z);
+  c.beginPath(); c.moveTo(p.x + 17 * z, y - 25 * z); c.lineTo(p.x + 17 * z, y - 38 * z); c.stroke();
+  c.fillStyle = "#ff8a1e";
+  c.beginPath();
+  c.moveTo(p.x + 17 * z, y - 38 * z);
+  c.lineTo(p.x + 28 * z + Math.sin(tps * 5 + v.n) * 2 * z, y - 35 * z);
+  c.lineTo(p.x + 17 * z, y - 32 * z);
+  c.closePath(); c.fill();
+
+  /* rampe d'étrave : verticale fermée, rabattue sur le sable ouverte */
+  var ang = v.rampe * 1.35;
+  c.save();
+  c.translate(A.x, A.y - 7 * z);
+  c.fillStyle = "#7d8c78";
+  var lg = 20 * z;
+  var dx = -Math.cos(ang) * 0, dy = 0;
+  c.beginPath();
+  c.moveTo(0, 0);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z + 16 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42 + 7 * z);
+  c.lineTo(16 * z, 7 * z);
+  c.closePath(); c.fill();
+  c.strokeStyle = "#4c5a52"; c.lineWidth = Math.max(1, 1.2 * z);
+  c.stroke();
+  c.restore();
+
+  /* bandes d'avertissement sur le pont */
+  c.save();
+  c.globalAlpha = 0.55;
+  c.fillStyle = "#e8c437";
+  for(var q = 0; q < 3; q++)
+    c.fillRect(p.x - 12 * z + q * 9 * z, y - 12 * z, 4 * z, 3 * z);
   c.restore();
 }
 
@@ -560,33 +710,54 @@ function dessineFusee(c, tps){
    Visée d'une capacité
    --------------------------------------------------------------- */
 var viseur = { actif:false, x:0, y:0 };
+/* Aperçu de placement : une table, pas une chaîne de ternaires — la
+   prochaine capacité ajoutée ne pourra plus être oubliée en silence.
+   Ce qui n'est pas listé prend CAP[m].rayon, ce qui couvre nova, cryo,
+   brouillard, soin, salve et viper sans rien écrire de plus. */
+var VISEE_RAYON = { balise:1.2, poulets:0 };   // 0 = rempli au premier appel
+var VISEE_COUL = {
+  soin:"#6ee08a", brouillard:"#c9c4d2", balise:"#ffd070",
+  cryo:"#9ad8ff", poulets:"#f4e2a8", nova:"#ff6a2a",
+  salve:"#ffb14a", viper:"#ff8a1e"
+};
 function dessineVisee(c, tps){
   var m = jeu.capArmee;
   if(!m) return;
+  if(!VISEE_RAYON.poulets) VISEE_RAYON.poulets = CAP.poulets.rayon;
   var vue = rectVisible(60);
   /* cercles de portée de toutes les défenses */
   c.save();
   repereMonde(c);
-  c.setLineDash([7, 6]);
-  c.lineWidth = 1.4 / cam.z;
-  for(var i = 0; i < jeu.batiments.length; i++){
-    var b = jeu.batiments[i];
-    if(!b.vivant || !DEF[b.t].portee) continue;
-    if(!visible(vue, b.gx, b.gy)) continue;
-    var p = iso(b.gx, b.gy);
-    c.strokeStyle = "rgba(255,90,60,.30)";
-    c.beginPath(); c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832); c.stroke();
+  /* Trait plein, un seul beginPath pour toutes les défenses, et rien
+     du tout au-delà d'un certain dézoom : en pointillés et une ellipse
+     par bâtiment, ce bloc coûtait à lui seul le geste de placement. */
+  if(cam.z > 0.22){
+    c.strokeStyle = "rgba(255,90,60,.26)";
+    c.lineWidth = Math.max(1.2 / cam.z, 1.1);
+    c.beginPath();
+    var traces = 0;
+    for(var i = 0; i < jeu.batiments.length && traces < 90; i++){
+      var b = jeu.batiments[i];
+      if(!b.vivant || !DEF[b.t].portee) continue;
+      if(!visible(vue, b.gx, b.gy)) continue;
+      var p = iso(b.gx, b.gy);
+      c.moveTo(p.x + DEF[b.t].portee * RX, p.y);
+      c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832);
+      traces++;
+    }
+    c.stroke();
   }
-  c.setLineDash([]);
   c.restore();
   repereEcran(c);
 
   if(!viseur.actif) return;
   var w = versMonde(cam, viseur.x, viseur.y);
-  var r = m === "viper" ? CAP.viper.rayon : m === "salve" ? CAP.salve.rayon
-        : m === "brouillard" ? CAP.brouillard.rayon : m === "soin" ? CAP.soin.rayon : 1.2;
+  /* Le rayon d'aperçu se LIT dans CAP : la chaîne de ternaires qui
+     traînait ici oubliait cryo, nova et poulets, et leur affichait un
+     cercle de 1,2 case pour une zone qui en couvre 4. */
+  var r = VISEE_RAYON[m] !== undefined ? VISEE_RAYON[m] : (CAP[m] && CAP[m].rayon) || 1.2;
   var pe = versEcran(cam, w.gx, w.gy);
-  var coul = m === "soin" ? "#6ee08a" : m === "brouillard" ? "#c9c4d2" : m === "balise" ? "#ffd070" : "#ff8a1e";
+  var coul = VISEE_COUL[m] || "#ff8a1e";
   c.save();
   c.globalAlpha = 0.85;
   c.strokeStyle = coul; c.lineWidth = 2.2;
@@ -680,7 +851,21 @@ function rendu(tps, dt){
   for(i = 0; i < jeu.brouillards.length; i++){
     pile.push({ d:jeu.brouillards[i].gx + jeu.brouillards[i].gy + 0.4, k:7, o:jeu.brouillards[i] });
   }
-  pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  /* navettes de débarquement : elles sont à cheval sur l'eau et le sable */
+  for(i = 0; i < jeu.navettes.length; i++){
+    var nv = jeu.navettes[i];
+    if(!visible(vueL, nv.gx, nv.gy)) continue;
+    pile.push({ d:nv.gx + nv.gy - 0.2, k:11, o:nv });
+  }
+  /* Le Brasier coûte deux sprites 700×700 et une soixantaine de foyers :
+     il n'a rien à faire dans la pile quand il est hors champ. Sa marge
+     est large — la forteresse dépasse très haut au-dessus de sa case. */
+  {
+    var pq = iso(jeu.qg.gx, jeu.qg.gy);
+    if(pq.x > vueL.x0 - 420 && pq.x < vueL.x1 + 420 &&
+       pq.y > vueL.y0 - 700 && pq.y < vueL.y1 + 260)
+      pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  }
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   for(i = 0; i < pile.length; i++){
@@ -697,6 +882,7 @@ function rendu(tps, dt){
       case 8: dessineQG(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
+      case 11: dessineNavette(ctx, it.o, tps); break;
     }
   }
   if(jeu.balise) dessineFusee(ctx, tps);
