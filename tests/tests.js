@@ -258,6 +258,50 @@ G("4. Déterminisme de la génération de carte");
      N.empreinteCarte(t1) !== N.empreinteCarte(a));
   ok("un même tirage redonne la même carte chez tout le monde",
      N.empreinteCarte(t1) === N.empreinteCarte(N.genereCarte("MILY", 0, "", 1)));
+  /* ISOLATION — la propriété qui fait qu'un éditeur est utilisable :
+     repeindre une zone ne doit RIEN changer ailleurs. Elle ne tient que
+     parce que chaque nœud du quadrillage consomme le même nombre de
+     tirages qu'on le garde ou qu'on le saute ; un « continue » posé
+     trop tôt décalerait la suite de la séquence et rebattrait l'île
+     jusqu'à l'autre bout. */
+  (function(){
+    var base = N.planVide();
+    base[2 * N.ZONES_L + 2] = 1 | (2 << 3);
+    var cible = [], zx, zy;
+    for(zx = 9; zx <= 11; zx++) for(zy = 6; zy <= 9; zy++) cible.push(zy * N.ZONES_L + zx);
+    var noeud = function(b){ return N.zoneDePlan(Math.round(b.gx), Math.round(b.gy)); };
+    var hors = function(m){
+      return m.batiments.filter(function(b){
+        return b.t !== "cellule" && cible.indexOf(noeud(b)) < 0;
+      });
+    };
+    var A = N.genereCarte("MILY", 0, N.encodePlan(base), 0);
+    [["type", 3 | (2 << 3)], ["densité", 0 | (3 << 3)], ["type et densité", 5 | (1 << 3)]]
+    .forEach(function(v){
+      var mod = base.slice(), i;
+      for(i = 0; i < cible.length; i++) mod[cible[i]] = v[1];
+      var B = N.genereCarte("MILY", 0, N.encodePlan(mod), 0);
+      var ha = hors(A), hb = hors(B), pareil = ha.length === hb.length;
+      if(pareil) for(i = 0; i < ha.length; i++){
+        if(ha[i].t !== hb[i].t ||
+           Math.abs(ha[i].gx - hb[i].gx) > 1e-12 || Math.abs(ha[i].gy - hb[i].gy) > 1e-12){
+          pareil = false; break;
+        }
+      }
+      ok("changer le " + v[0] + " d'une zone ne touche rien ailleurs (" + ha.length + " bâtiments)",
+         pareil);
+    });
+    /* et à l'intérieur, le type imposé s'applique bien à tous */
+    var mod2 = base.slice();
+    for(var k = 0; k < cible.length; k++) mod2[cible[k]] = 3 | (3 << 3);
+    var C = N.genereCarte("MILY", 0, N.encodePlan(mod2), 0);
+    var dedans = C.batiments.filter(function(b){
+      return b.t !== "cellule" && cible.indexOf(noeud(b)) >= 0;
+    });
+    ok("dans une zone peinte, tout est du type demandé (" + dedans.length + " bâtiments)",
+       dedans.length > 0 && dedans.every(function(b){ return b.t === "frelon"; }));
+  })();
+
   ok("zoneDePlan reste dans la grille aux quatre coins",
      N.zoneDePlan(0, 0) === 0 &&
      N.zoneDePlan(N.GW * 2, N.GH * 2) === N.NB_ZONES - 1 &&

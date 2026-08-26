@@ -11,7 +11,10 @@ var W = 960, H = 600, dpr = 1;
    Création d'une carte
    --------------------------------------------------------------- */
 function nouvelleCarte(index, pvConnu){
-  carte = genereCarte(CODE_SALON, index);
+  /* La carte suit le plan du salon et son tirage courant : c'est ce
+     couple, diffusé dans l'instantané retenu, qui garantit que tout le
+     monde voit exactement les mêmes défenses. */
+  carte = genereCarte(CODE_SALON, index, planSalon, tirageSalon);
   jeu = {
     index:index,
     tps:0,

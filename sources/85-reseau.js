@@ -15,6 +15,14 @@ var CLE_MONDE = "milyboum:monde:" + CODE_SALON;
 var monde = null;            // dernier instantané connu
 var mondeSale = false;       // on a du nouveau à publier
 var mondeT = 0;              // étranglement des republications
+
+/* LE PLAN DE DÉFENSE DU SALON.
+   planSalon  : la recette, encodée (voir encodePlan dans le noyau)
+   numeroPlan : compteur monotone, il tranche deux plans concurrents
+   tirageSalon: quelle réalisation de la recette on joue en ce moment.
+   Ces trois-là voyagent dans l'instantané retenu, donc un joueur qui
+   arrive trois heures plus tard reçoit la même carte que les autres. */
+var planSalon = "", numeroPlan = 0, tirageSalon = 0;
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
 var monId = "";
@@ -143,12 +151,23 @@ function envoie(obj){
 
 /* Ce que la partie en cours sait du monde, sous forme d'instantané. */
 function mondeCourant(){
-  if(!jeu) return monde;
+  /* Sans partie en cours, il faut quand même savoir estampiller le
+     plan : on peint depuis le briefing, où `jeu` est nul, et sans ça
+     un plan tout juste validé ne serait jamais publié. */
+  if(!jeu){
+    if(!monde) return null;
+    if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
+       (monde.tg | 0) === tirageSalon) return monde;
+    return { v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
+             g:monde.g || "", w:monde.w || "",
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
+  }
   var bits = [], i;
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
   return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
-           g:jeu.tueurGege || "", w:jeu.tueurTweety || "" };
+           g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
+           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -159,6 +178,26 @@ function adopteMonde(m, source){
   var avant = monde;
   monde = fusionneMonde(monde, m);
   if(!memeMonde(avant, monde)) sauveMondeLocal();
+
+  /* Le plan ou le tirage ont changé ailleurs : notre carte n'est plus
+     la bonne. On l'adopte AVANT d'appliquer les destructions, sinon on
+     éteindrait des bâtiments d'après les indices de l'ancienne carte. */
+  if((monde.p || "") !== planSalon || (monde.pn | 0) !== numeroPlan ||
+     (monde.tg | 0) !== tirageSalon){
+    var tiragePrecedent = tirageSalon;
+    planSalon   = monde.p || "";
+    numeroPlan  = monde.pn | 0;
+    tirageSalon = monde.tg | 0;
+    if(typeof rafraichitPlan === "function") rafraichitPlan();
+    if(jeu && tiragePrecedent !== tirageSalon){
+      /* la carte est rebattue : on la refait, il n'y a rien à sauver
+         des destructions précédentes, elles ne désignent plus rien */
+      nouvelleCarte(jeu.index);
+      if(typeof construitFondMini === "function") construitFondMini();
+      if(typeof majBarres === "function") majBarres();
+      if(typeof message === "function") message("Le plan de défense a changé : nouvelle carte.");
+    }
+  }
   /* si notre partie en cours ignore des destructions annoncées, on les
      applique tout de suite ; si c'est nous qui en savons plus, on le
      fera savoir à la prochaine publication */
@@ -238,11 +277,35 @@ var MOT_RAZ = "mily";          // à changer dans sources/85-reseau.js
 function remetSalonAZero(){
   cycleSalon = (cycleSalon | 0) + 1;
   carteSalon = 0;
+  /* Nouveau tirage : les défenses sont rebattues selon le plan en
+     vigueur. Même recette, autre carte — c'est ce qui fait qu'on ne
+     rejoue jamais deux fois la même île. Le PLAN, lui, survit : la
+     remise à zéro efface la guerre, pas le dessin. */
+  tirageSalon = (tirageSalon | 0) + 1;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"" };
+            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
+}
+
+/* Le joueur vient de valider un nouveau plan. C'est un changement de
+   carte : on repart sur un tirage neuf, donc sur une île intacte —
+   les bâtiments détruits de l'ancienne carte ne désignent plus rien. */
+function enregistrePlan(chaine){
+  if(chaine === planSalon) return false;
+  planSalon   = chaine;
+  numeroPlan  = (numeroPlan | 0) + 1;
+  tirageSalon = (tirageSalon | 0) + 1;
+  cycleSalon  = (cycleSalon | 0) + 1;
+  carteSalon  = 0;
+  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            p:planSalon, pn:numeroPlan, tg:tirageSalon };
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return true;
 }
 
 /* Miroir local : le courtier public ne garantit pas de conserver ses

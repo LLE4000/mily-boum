@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.06";
+var VERSION = "v0.07";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -360,7 +360,13 @@ function genereCarte(codeSalon, index, plan, tirage){
                    : graineCarte(codeSalon, index);
   var al  = prng(gr);
   var fic = CARTES[index % CARTES.length];
+  /* Un plan dont toutes les zones sont « auto » N'EST PAS un plan : on
+     repasse alors sur la séquence de tirages d'origine. Sans ça, une
+     chaîne corrompue — ou un plan que le joueur vient de tout gommer —
+     aurait donné une carte différente de la carte d'origine tout en
+     n'exprimant aucune intention. */
   var zones = (plan && typeof plan === "string" && plan.length) ? decodePlan(plan) : null;
+  if(zones && !zonesPeintes(zones)) zones = null;
   var c = {
     index:index, graine:gr, nom:fic.nom, biome:fic.biome, tirage:tirage,
     batiments:[], rochers:[], decors:[], creatures:[],
@@ -381,26 +387,45 @@ function genereCarte(codeSalon, index, plan, tirage){
       var z  = zones ? zones[zoneDePlan(lx, ly)] : 0;
       var zt = z & 7, zd = (z >> 3) & 3;
       var saut = zd ? DENSITES[zd].saut : 0.28;
-
-      if(al() < saut) continue;                                   // allées
       var dx = lx - QG_GX, dy = ly - QG_GY;
-      if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;        // emprise du Brasier
       var d = Math.hypot(dx, dy);
-      /* Le tirage de bande est consommé DANS TOUS LES CAS, même quand
-         la zone impose son type. Sans cela, peindre une seule zone
-         décalerait toute la suite des tirages et rebattrait la carte
-         entière : on veut qu'un coup de pinceau ne change que ce qu'il
-         touche. */
-      var tAuto = d < 30 ? tirePondere(al, bandeProche)
-                : d < 62 ? tirePondere(al, bandeMoy)
-                         : tirePondere(al, bandeLoin);
+      var tAuto, rSaut, gx, gy, ang;
+
+      if(zones){
+        /* AVEC PLAN : chaque nœud consomme le MÊME nombre de tirages,
+           qu'on le garde ou qu'on le saute. C'est ce qui fait qu'un
+           coup de pinceau ne change que ce qu'il touche. Court-circuiter
+           sur « continue » suffirait à décaler toute la suite de la
+           séquence : changer la densité d'une seule zone rebattrait la
+           carte entière, jusqu'à l'autre bout de l'île. */
+        rSaut = al();
+        tAuto = d < 30 ? tirePondere(al, bandeProche)
+              : d < 62 ? tirePondere(al, bandeMoy)
+                       : tirePondere(al, bandeLoin);
+        gx = lx + (al() - 0.5) * 0.7;
+        gy = ly + (al() - 0.5) * 0.7;
+        ang = al() * 6.2832;
+        if(rSaut < saut) continue;                                // allées
+        if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;      // emprise du Brasier
+      }else{
+        /* SANS PLAN : la séquence d'origine, tirage pour tirage. C'est
+           elle qui garantit que la carte des salons déjà en cours ne
+           bouge pas d'un pouce. */
+        if(al() < 0.28) continue;
+        if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;
+        tAuto = d < 30 ? tirePondere(al, bandeProche)
+              : d < 62 ? tirePondere(al, bandeMoy)
+                       : tirePondere(al, bandeLoin);
+        gx = lx + (al() - 0.5) * 0.7;
+        gy = ly + (al() - 0.5) * 0.7;
+        ang = al() * 6.2832;
+      }
+
       var t = zt ? TYPES_PLAN[zt] : tAuto;
-      var gx = lx + (al() - 0.5) * 0.7;
-      var gy = ly + (al() - 0.5) * 0.7;
       var f = DEF[t];
       c.batiments.push({
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
-        ang:(al() * 6.2832), vivant:1, n:c.batiments.length
+        ang:ang, vivant:1, n:c.batiments.length
       });
     }
   }

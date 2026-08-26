@@ -24,6 +24,8 @@ function demarre(){
   installeSaisie();
   installeBoutons();
   installeRaz();
+  installePlan();
+  rafraichitPlan();
 
   monNom = pseudoSaisi();
   connecteRelais($("relais").value);

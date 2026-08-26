@@ -91,6 +91,49 @@ canvas{display:block}
 .champ:focus{border-color:var(--braise);box-shadow:0 0 0 3px rgba(255,138,30,.16)}
 select.champ{cursor:pointer}
 
+/* ---------------- ÉDITEUR DE DÉFENSES ----------------
+   Plein écran au-dessus du briefing (30), sous le bilan (40). */
+#planResume{font-size:13px;color:var(--gris);line-height:1.5}
+#plan{
+  position:fixed;inset:0;z-index:35;display:none;
+  background:#120b1a;color:var(--texte);flex-direction:column;
+  touch-action:none;overscroll-behavior:contain;
+}
+#plan.on{display:flex}
+#planHaut{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 14px;border-bottom:1px solid rgba(255,168,72,.22);flex:none;
+}
+#planTitre{font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-size:14px}
+#planCorps{flex:1;display:flex;min-height:0}
+#planScene{flex:1;min-width:0;min-height:0;position:relative;background:#0d1a14;overflow:hidden}
+#planCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#planOutils{
+  flex:none;width:280px;padding:12px;overflow-y:auto;
+  border-left:1px solid rgba(255,168,72,.22);display:flex;flex-direction:column;gap:10px;
+}
+#planInfo,#planCompte,#planAvert{font-size:12.5px;color:var(--gris);line-height:1.45}
+#planAvert{color:var(--or)}
+#planSousTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise)}
+.pzs{display:flex;flex-wrap:wrap;gap:6px}
+/* Classe .pz et non .pt : les vignettes de troupes du briefing
+   occupent déjà .pt, sont définies plus bas, et leur flex:1 écrasait
+   ces tuiles-ci jusqu'à réduire les noms à une seule lettre. */
+.pz{
+  display:flex;align-items:center;gap:6px;cursor:pointer;flex:0 0 auto;
+  white-space:nowrap;
+  background:#1d1428;border:1px solid rgba(255,168,72,.22);border-radius:9px;
+  padding:6px 9px;font-size:12.5px;color:var(--texte);
+}
+.pz i{width:11px;height:11px;border-radius:3px;flex:none}
+.pz.on{border-color:var(--braise);background:#2c1c34;box-shadow:0 0 0 2px rgba(255,138,30,.22)}
+/* En portrait l'outillage passe SOUS la carte : sur un téléphone tenu
+   droit, une colonne de 280 px ne laisserait presque rien à peindre. */
+@media (max-aspect-ratio:1/1){
+  #planCorps{flex-direction:column}
+  #planOutils{width:auto;max-height:46vh;border-left:none;border-top:1px solid rgba(255,168,72,.22)}
+}
+
 #etatRes{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;flex-wrap:wrap}
 .pastille{width:9px;height:9px;border-radius:50%;background:#7a6a86;box-shadow:0 0 8px currentColor;flex:none}
 .pastille.ok{background:var(--vert);color:var(--vert)}
@@ -348,6 +391,14 @@ select.champ{cursor:pointer}
       <div id="totalTroupes"></div>
     </div>
 
+    <div class="carteP">
+      <h2>Plan de défense</h2>
+      <div id="planResume">Défenses d'origine — la carte que tout le monde connaît.</div>
+      <div class="ligne" style="margin-top:8px">
+        <button id="btPlan" class="bt">🗺 Voir la carte de haut</button>
+      </div>
+    </div>
+
     <button id="lancer" class="bt pri">DÉBARQUER</button>
     <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
@@ -358,6 +409,32 @@ select.champ{cursor:pointer}
       <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
     </div>
     <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+  </div>
+</div>
+
+<!-- ================== ÉDITEUR DE DÉFENSES ==================
+     Frère de #brief, jamais son enfant : l'enveloppe du briefing est en
+     touch-action:pan-y et se serait battue avec le doigt qui peint. -->
+<div id="plan">
+  <div id="planHaut">
+    <div id="planTitre">Plan de défense</div>
+    <button id="btPlanFerme" class="bt ptt">✕ Fermer</button>
+  </div>
+  <div id="planCorps">
+    <div id="planScene"><canvas id="planCv"></canvas></div>
+    <div id="planOutils">
+      <div id="planInfo">Choisis une défense, puis peins la carte au doigt.</div>
+      <div class="pzs" id="planPalette"></div>
+      <div id="planSousTitre">Densité de remplissage</div>
+      <div class="pzs" id="planDensites"></div>
+      <div id="planCompte"></div>
+      <div class="ligne">
+        <button id="btPlanAnnule" class="bt ptt">↶ Annuler</button>
+        <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
+      </div>
+      <button id="btPlanValide" class="bt pri">Valider pour tout le salon</button>
+      <div id="planAvert"></div>
+    </div>
   </div>
 </div>
 
