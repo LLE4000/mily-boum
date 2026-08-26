@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.14";
+var VERSION = "v0.15";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -36,7 +36,7 @@ var EQ = {
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
-  ATTENTE_RENFORT      : 60,    // secondes (1 minute)
+  ATTENTE_RENFORT      : 15,    // secondes
 
   /* QG */
   QG_ERUPTION_MIN      : 7.0,   // secondes entre deux éruptions
@@ -240,11 +240,14 @@ var DEF = {
 
 /* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
+/* Vitesses relevées de vingt pour cent : 1,35 → 1,62 et 0,84 → 1,008.
+   L'île fait cent trois cases de la plage au Brasier ; à l'ancienne
+   allure la traversée seule mangeait la partie. */
 var UNI = {
   meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34, places:12 },
+         degats:54,  cadence:1300, vitesse:1.62, rayon:0.34, places:12 },
   mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:0.84, rayon:0.42, places:15 }
+         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 }
 };
 var TYPES_TROUPE = ["meuf", "mec"];
 

@@ -225,6 +225,9 @@ select.champ{cursor:pointer}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
 #podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 #podium .moi .n{color:var(--vert);font-weight:700}
+/* joueur déconnecté : il garde sa place et son score, en sourdine */
+#podium .parti .n{opacity:.55}
+#podium .parti .v{opacity:.75}
 #podium .gg{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.10);font-size:11px;color:#e6b98a;line-height:1.35}
 #podium .gg b{color:#ffb45c}
 #zoomB{display:flex;gap:5px}
@@ -493,7 +496,7 @@ select.champ{cursor:pointer}
   </div>
 
   <div class="bloc p" id="bc">
-    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">1:00</span>
+    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">0:15</span>
   </div>
 
   <div id="flash"></div>

@@ -536,17 +536,22 @@ function dessineIcone(m, c){
 var podiumHtml = null;
 function majPodium(){
   if(!jeu) return;
-  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
-  for(var id in autresJoueurs){
-    var j = autresJoueurs[id];
-    l.push({ nom:j.nom, g:j.g, moi:0 });
+  /* Le classement se lit dans le REGISTRE, pas dans la liste des
+     joueurs entendus : un joueur qui ferme son navigateur garde sa
+     place et son score. On marque seulement qu'il n'est plus là. */
+  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1, absent:0 }];
+  for(var id in scoresSalon){
+    var e = scoresSalon[id];
+    if(e.nom === "?" && !e.g) continue;          // jamais rien dit, jamais rien fait
+    l.push({ nom:e.nom, g:e.g, moi:0, absent:autresJoueurs[id] ? 0 : 1 });
   }
   l.sort(function(a, b){ return b.g - a.g; });
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < Math.min(3, l.length); i++){
-    h += '<div class="r' + (l[i].moi ? " moi" : "") + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + '</span>'
+    h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
+       + '"><span>' + med[i] + '</span>'
+       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
   /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur

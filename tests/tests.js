@@ -622,8 +622,8 @@ G("8. Cohérence des règles de jeu");
      N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
   /* l'attente de renfort est un choix de rythme, pas un détail : on la
      verrouille pour qu'un réglage ne la rallonge pas en douce. */
-  ok("une minute d'attente après la mort",
-     N.EQ.ATTENTE_RENFORT === 60, N.EQ.ATTENTE_RENFORT + " s");
+  ok("quinze secondes d'attente après la mort",
+     N.EQ.ATTENTE_RENFORT === 15, N.EQ.ATTENTE_RENFORT + " s");
   (function(){
     var m = N.genereCarte("MILY", 0);
     var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
@@ -647,8 +647,10 @@ G("8. Cohérence des règles de jeu");
   /* traversée */
   var cases = (N.GW - 4) - N.QG_GX;
   var couv = N.CAP.balise.duree * N.UNI.meuf.vitesse;
+  /* 30 s × 1,62 case/s. La valeur est épinglée exprès : elle dit ce
+     qu'une Balise achète réellement, et elle doit bouger sciemment. */
   ok(N.CAP.balise.duree + " s de Balise couvrent " + couv.toFixed(0) + " cases",
-     Math.abs(couv - 40.5) < 0.01, couv.toFixed(2));
+     Math.abs(couv - 48.6) < 0.01, couv.toFixed(2));
   ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
      Math.ceil(cases / couv) <= 6);
   ok("la version est au format vX.YY", /^v\d+\.\d{2}$/.test(N.VERSION), N.VERSION);

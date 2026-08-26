@@ -225,6 +225,9 @@ select.champ{cursor:pointer}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
 #podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 #podium .moi .n{color:var(--vert);font-weight:700}
+/* joueur déconnecté : il garde sa place et son score, en sourdine */
+#podium .parti .n{opacity:.55}
+#podium .parti .v{opacity:.75}
 #podium .gg{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.10);font-size:11px;color:#e6b98a;line-height:1.35}
 #podium .gg b{color:#ffb45c}
 #zoomB{display:flex;gap:5px}
@@ -493,7 +496,7 @@ select.champ{cursor:pointer}
   </div>
 
   <div class="bloc p" id="bc">
-    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">1:00</span>
+    <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">0:15</span>
   </div>
 
   <div id="flash"></div>
@@ -522,7 +525,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.14";
+var VERSION = "v0.15";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -549,7 +552,7 @@ var EQ = {
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
-  ATTENTE_RENFORT      : 60,    // secondes (1 minute)
+  ATTENTE_RENFORT      : 15,    // secondes
 
   /* QG */
   QG_ERUPTION_MIN      : 7.0,   // secondes entre deux éruptions
@@ -753,11 +756,14 @@ var DEF = {
 
 /* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
+/* Vitesses relevées de vingt pour cent : 1,35 → 1,62 et 0,84 → 1,008.
+   L'île fait cent trois cases de la plage au Brasier ; à l'ancienne
+   allure la traversée seule mangeait la partie. */
 var UNI = {
   meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34, places:12 },
+         degats:54,  cadence:1300, vitesse:1.62, rayon:0.34, places:12 },
   mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:0.84, rayon:0.42, places:15 }
+         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 }
 };
 var TYPES_TROUPE = ["meuf", "mec"];
 
@@ -8852,15 +8858,24 @@ function majUnites(dt){
        la zone remet son drapeau à zéro, sans toucher à ses voisines. */
     if(balise && u.baliseOrdre === balise.id){
       var bc = balise.cible;
-      if(bc && bc.vivant){
-        /* balise posée sur un bâtiment : il devient la cible
-           prioritaire, et l'ordre tient tant qu'il est debout */
+      var qgVise = !!balise.surQG;
+      /* Debout ? Un bâtiment a un drapeau `vivant`, le Brasier a des
+         points de vie : la question ne se pose pas de la même façon. */
+      var cibleDebout = bc && (qgVise ? bc.pv > 0 : bc.vivant);
+      if(cibleDebout){
+        /* Balise posée sur une cible : elle devient prioritaire, et
+           l'ordre tient tant qu'elle est debout. Les troupes s'arrêtent
+           à LEUR portée du bord de l'objectif et TIRENT dessus — elles
+           n'essaient jamais d'entrer dedans. Le rayon du Brasier
+           (5,6 cases) est bien plus large que celui d'une défense :
+           sans ce calcul, elles fonçaient dans ses murs. */
+        var rc = qgVise ? RAYON_QG : bc.e * 0.42;
         var dxb = bc.gx - u.gx, dyb = bc.gy - u.gy;
-        var db = Math.hypot(dxb, dyb) - bc.e * 0.42;
+        var db = Math.hypot(dxb, dyb) - rc;
         u.droite = (dxb - dyb) > 0;
-        u.cible = { k:"bat", o:bc };
+        u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
-          var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
+          var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
@@ -9725,17 +9740,25 @@ function utiliseCapacite(m, gx, gy){
   jeu.usages[m]++;
 
   if(m === "balise"){
-    /* si la Balise tombe sur un bâtiment, il devient la cible prioritaire */
-    var vise = null, mdv = 1e9;
-    batimentsAutour(gx, gy, 3, tmpBat);
-    for(var v = 0; v < tmpBat.length; v++){
-      var bv = tmpBat[v];
-      var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
-      if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
+    /* Sur quoi la fusée est-elle tombée ? Le BRASIER d'abord — il est
+       énorme et prioritaire : posée dessus, la Balise doit lancer
+       l'assaut du QG, pas envoyer les troupes s'entasser contre ses
+       murs en essayant d'entrer. Un bâtiment ensuite. Sinon, c'est un
+       simple point de ralliement au sol. */
+    var vise = null, surQG = 0, mdv = 1e9;
+    if(Math.hypot(gx - jeu.qg.gx, gy - jeu.qg.gy) <= RAYON_QG + 2.5 && jeu.qg.pv > 0){
+      vise = jeu.qg; surQG = 1;
+    }else{
+      batimentsAutour(gx, gy, 3, tmpBat);
+      for(var v = 0; v < tmpBat.length; v++){
+        var bv = tmpBat[v];
+        var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
+        if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
+      }
     }
     jeu.idBalise = (jeu.idBalise || 0) + 1;
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
-                   id:jeu.idBalise, cible:vise };
+                   id:jeu.idBalise, cible:vise, surQG:surQG };
     /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
        le ciblage en cours : aucune ne doit continuer à taper une
        défense proche tant qu'elle n'a pas rejoint la balise. */
@@ -9950,6 +9973,11 @@ function majMort(dt){
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
+    /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
+       renchérit le suivant ; après trois ou quatre morts, la note était
+       telle qu'on ne pouvait plus rien lancer du tout. Le compteur
+       d'usages repart donc à zéro avec la flotte. */
+    for(var cu in jeu.usages) jeu.usages[cu] = 0;
     montreBandeauFantome(false);
     majBarres();
     message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
@@ -10174,6 +10202,23 @@ var mondeT = 0;              // étranglement des republications
    Ces trois-là voyagent dans l'instantané retenu, donc un joueur qui
    arrive trois heures plus tard reçoit la même carte que les autres. */
 var planSalon = "", numeroPlan = 0, tirageSalon = 0;
+
+/* LE TABLEAU DES SCORES DU SALON.
+   `autresJoueurs` ne retient QUE les joueurs actuellement entendus : il
+   est purgé dès qu'un appareil se tait, et le classement perdait alors
+   le nom en même temps que la présence. Or des dégâts infligés restent
+   infligés. Ce registre-ci garde donc nom et score de chacun pour la
+   durée de la partie, qu'il soit encore branché ou non ; seule une
+   remise à zéro du salon l'efface. */
+var scoresSalon = {};
+function noteScore(id, nom, degats){
+  var e = scoresSalon[id];
+  if(!e) e = scoresSalon[id] = { nom:"?", g:0 };
+  if(nom) e.nom = nom;
+  /* les dégâts ne redescendent jamais : un joueur qui se reconnecte
+     repart à zéro de son côté, on ne va pas effacer ce qu'il a fait */
+  if(typeof degats === "number" && degats > e.g) e.g = degats;
+}
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
 var monId = "";
@@ -10428,6 +10473,7 @@ function tueGegeLocale(){ tueCreatureLocale("belette"); }
 var MOT_RAZ = "mily4000";
 
 function remetSalonAZero(){
+  scoresSalon = {};            // l'île repart à neuf, le tableau aussi
   cycleSalon = (cycleSalon | 0) + 1;
   carteSalon = 0;
   /* Nouveau tirage : les défenses sont rebattues selon le plan en
@@ -10524,6 +10570,7 @@ function recoit(txt){
 
   if(m.t === "bonjour"){
     j.nom = (m.nom || "?").substr(0, 14);
+    noteScore(m.id, j.nom, 0);
     if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
     annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
   }else if(m.t === "sync"){
@@ -10547,6 +10594,7 @@ function recoit(txt){
     j.n = m.n | 0;
     j.g = m.g | 0;
     j.nom = m.nom ? m.nom.substr(0, 14) : j.nom;
+    noteScore(m.id, j.nom, j.g);
     majUnitesDistantes(j, m.p || []);
     if(m.m && m.f){
       if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
@@ -10576,6 +10624,7 @@ function recoit(txt){
     /* signe de vie d'un joueur encore au briefing : rien à faire de
        plus, j.vu vient d'être rafraîchi et son nom est à jour */
     if(m.nom) j.nom = String(m.nom).substr(0, 14);
+    noteScore(m.id, j.nom, 0);
   }else if(m.t === "cap"){
     /* Capacité d'un autre joueur, sur NOTRE île : on la voit, et ses
        zones agissent — son Cryo gèle nos défenses, son Brouillard
@@ -13538,17 +13587,22 @@ function dessineIcone(m, c){
 var podiumHtml = null;
 function majPodium(){
   if(!jeu) return;
-  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
-  for(var id in autresJoueurs){
-    var j = autresJoueurs[id];
-    l.push({ nom:j.nom, g:j.g, moi:0 });
+  /* Le classement se lit dans le REGISTRE, pas dans la liste des
+     joueurs entendus : un joueur qui ferme son navigateur garde sa
+     place et son score. On marque seulement qu'il n'est plus là. */
+  var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1, absent:0 }];
+  for(var id in scoresSalon){
+    var e = scoresSalon[id];
+    if(e.nom === "?" && !e.g) continue;          // jamais rien dit, jamais rien fait
+    l.push({ nom:e.nom, g:e.g, moi:0, absent:autresJoueurs[id] ? 0 : 1 });
   }
   l.sort(function(a, b){ return b.g - a.g; });
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < Math.min(3, l.length); i++){
-    h += '<div class="r' + (l[i].moi ? " moi" : "") + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + '</span>'
+    h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
+       + '"><span>' + med[i] + '</span>'
+       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
   /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur

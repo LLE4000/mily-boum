@@ -23,6 +23,23 @@ var mondeT = 0;              // étranglement des republications
    Ces trois-là voyagent dans l'instantané retenu, donc un joueur qui
    arrive trois heures plus tard reçoit la même carte que les autres. */
 var planSalon = "", numeroPlan = 0, tirageSalon = 0;
+
+/* LE TABLEAU DES SCORES DU SALON.
+   `autresJoueurs` ne retient QUE les joueurs actuellement entendus : il
+   est purgé dès qu'un appareil se tait, et le classement perdait alors
+   le nom en même temps que la présence. Or des dégâts infligés restent
+   infligés. Ce registre-ci garde donc nom et score de chacun pour la
+   durée de la partie, qu'il soit encore branché ou non ; seule une
+   remise à zéro du salon l'efface. */
+var scoresSalon = {};
+function noteScore(id, nom, degats){
+  var e = scoresSalon[id];
+  if(!e) e = scoresSalon[id] = { nom:"?", g:0 };
+  if(nom) e.nom = nom;
+  /* les dégâts ne redescendent jamais : un joueur qui se reconnecte
+     repart à zéro de son côté, on ne va pas effacer ce qu'il a fait */
+  if(typeof degats === "number" && degats > e.g) e.g = degats;
+}
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
 var monId = "";
@@ -277,6 +294,7 @@ function tueGegeLocale(){ tueCreatureLocale("belette"); }
 var MOT_RAZ = "mily4000";
 
 function remetSalonAZero(){
+  scoresSalon = {};            // l'île repart à neuf, le tableau aussi
   cycleSalon = (cycleSalon | 0) + 1;
   carteSalon = 0;
   /* Nouveau tirage : les défenses sont rebattues selon le plan en
@@ -373,6 +391,7 @@ function recoit(txt){
 
   if(m.t === "bonjour"){
     j.nom = (m.nom || "?").substr(0, 14);
+    noteScore(m.id, j.nom, 0);
     if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
     annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
   }else if(m.t === "sync"){
@@ -396,6 +415,7 @@ function recoit(txt){
     j.n = m.n | 0;
     j.g = m.g | 0;
     j.nom = m.nom ? m.nom.substr(0, 14) : j.nom;
+    noteScore(m.id, j.nom, j.g);
     majUnitesDistantes(j, m.p || []);
     if(m.m && m.f){
       if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
@@ -425,6 +445,7 @@ function recoit(txt){
     /* signe de vie d'un joueur encore au briefing : rien à faire de
        plus, j.vu vient d'être rafraîchi et son nom est à jour */
     if(m.nom) j.nom = String(m.nom).substr(0, 14);
+    noteScore(m.id, j.nom, 0);
   }else if(m.t === "cap"){
     /* Capacité d'un autre joueur, sur NOTRE île : on la voit, et ses
        zones agissent — son Cryo gèle nos défenses, son Brouillard

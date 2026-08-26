@@ -685,15 +685,24 @@ function majUnites(dt){
        la zone remet son drapeau à zéro, sans toucher à ses voisines. */
     if(balise && u.baliseOrdre === balise.id){
       var bc = balise.cible;
-      if(bc && bc.vivant){
-        /* balise posée sur un bâtiment : il devient la cible
-           prioritaire, et l'ordre tient tant qu'il est debout */
+      var qgVise = !!balise.surQG;
+      /* Debout ? Un bâtiment a un drapeau `vivant`, le Brasier a des
+         points de vie : la question ne se pose pas de la même façon. */
+      var cibleDebout = bc && (qgVise ? bc.pv > 0 : bc.vivant);
+      if(cibleDebout){
+        /* Balise posée sur une cible : elle devient prioritaire, et
+           l'ordre tient tant qu'elle est debout. Les troupes s'arrêtent
+           à LEUR portée du bord de l'objectif et TIRENT dessus — elles
+           n'essaient jamais d'entrer dedans. Le rayon du Brasier
+           (5,6 cases) est bien plus large que celui d'une défense :
+           sans ce calcul, elles fonçaient dans ses murs. */
+        var rc = qgVise ? RAYON_QG : bc.e * 0.42;
         var dxb = bc.gx - u.gx, dyb = bc.gy - u.gy;
-        var db = Math.hypot(dxb, dyb) - bc.e * 0.42;
+        var db = Math.hypot(dxb, dyb) - rc;
         u.droite = (dxb - dyb) > 0;
-        u.cible = { k:"bat", o:bc };
+        u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
-          var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
+          var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
@@ -1558,17 +1567,25 @@ function utiliseCapacite(m, gx, gy){
   jeu.usages[m]++;
 
   if(m === "balise"){
-    /* si la Balise tombe sur un bâtiment, il devient la cible prioritaire */
-    var vise = null, mdv = 1e9;
-    batimentsAutour(gx, gy, 3, tmpBat);
-    for(var v = 0; v < tmpBat.length; v++){
-      var bv = tmpBat[v];
-      var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
-      if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
+    /* Sur quoi la fusée est-elle tombée ? Le BRASIER d'abord — il est
+       énorme et prioritaire : posée dessus, la Balise doit lancer
+       l'assaut du QG, pas envoyer les troupes s'entasser contre ses
+       murs en essayant d'entrer. Un bâtiment ensuite. Sinon, c'est un
+       simple point de ralliement au sol. */
+    var vise = null, surQG = 0, mdv = 1e9;
+    if(Math.hypot(gx - jeu.qg.gx, gy - jeu.qg.gy) <= RAYON_QG + 2.5 && jeu.qg.pv > 0){
+      vise = jeu.qg; surQG = 1;
+    }else{
+      batimentsAutour(gx, gy, 3, tmpBat);
+      for(var v = 0; v < tmpBat.length; v++){
+        var bv = tmpBat[v];
+        var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
+        if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
+      }
     }
     jeu.idBalise = (jeu.idBalise || 0) + 1;
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
-                   id:jeu.idBalise, cible:vise };
+                   id:jeu.idBalise, cible:vise, surQG:surQG };
     /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
        le ciblage en cours : aucune ne doit continuer à taper une
        défense proche tant qu'elle n'a pas rejoint la balise. */
@@ -1783,6 +1800,11 @@ function majMort(dt){
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
+    /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
+       renchérit le suivant ; après trois ou quatre morts, la note était
+       telle qu'on ne pouvait plus rien lancer du tout. Le compteur
+       d'usages repart donc à zéro avec la flotte. */
+    for(var cu in jeu.usages) jeu.usages[cu] = 0;
     montreBandeauFantome(false);
     majBarres();
     message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
