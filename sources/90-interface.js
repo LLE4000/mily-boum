@@ -653,6 +653,10 @@ function construitBriefing(){
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
      rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
      posé d'office donnait un salon peuplé d'inconnus interchangeables. */
+  /* une seule source de vérité pour la version : la constante du noyau */
+  $("versionJeu").textContent = VERSION;
+  $("versionBrief").textContent = VERSION;
+
   dessineLogo();
   majBargesBrief();
   majMondes();

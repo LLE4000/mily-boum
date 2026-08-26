@@ -204,7 +204,11 @@ select.champ{cursor:pointer}
 }
 
 /* — haut droite : minicarte — */
-#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));padding:5px}
+#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));
+    display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+#hd .bloc{padding:5px}
+#versionJeu{font-size:11px;letter-spacing:1.2px;font-weight:700;color:var(--gris);
+            text-shadow:0 1px 3px rgba(0,0,0,.7);padding-right:2px}
 #mini{width:132px;height:118px;display:block;border-radius:8px;background:#0c1c28}
 
 /* — bas gauche : barges — */
@@ -372,7 +376,7 @@ select.champ{cursor:pointer}
     <div class="ligne" style="justify-content:center;margin-bottom:6px">
       <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
     </div>
-    <div id="pied">Mily Boum — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+    <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
   </div>
 </div>
 
@@ -394,7 +398,10 @@ select.champ{cursor:pointer}
   </div>
   <div id="bandeauAlerte">⚠ Le QG charge une éruption ⚠</div>
 
-  <div class="bloc p" id="hd"><canvas id="mini" width="264" height="236"></canvas></div>
+  <div id="hd">
+    <div class="bloc p"><canvas id="mini" width="264" height="236"></canvas></div>
+    <div id="versionJeu">v0.01</div>
+  </div>
 
   <div class="bloc p" id="bg">
     <div class="t">Navettes</div>

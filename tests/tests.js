@@ -21,7 +21,7 @@ try{
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
     "rayonFormation","ancreFormation","ANGLE_OR","inverseRadical","RAYON_QG",
-    "placesNavette","flotteMaximum","texteVictoire","TYPES_TROUPE",
+    "placesNavette","flotteMaximum","texteVictoire","TYPES_TROUPE","VERSION",
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
@@ -535,6 +535,7 @@ G("8. Cohérence des règles de jeu");
      Math.abs(couv - 40.5) < 0.01, couv.toFixed(2));
   ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
      Math.ceil(cases / couv) <= 6);
+  ok("la version est au format vX.YY", /^v\d+\.\d{2}$/.test(N.VERSION), N.VERSION);
   ok("huit navettes par vie", N.EQ.NB_BARGES === 8);
   ok("douze Meufs par navette au maximum", N.placesNavette("meuf") === 12);
   ok("quinze Mecs par navette au maximum", N.placesNavette("mec") === 15);
