@@ -25,6 +25,7 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
+    "NB_REACTEURS",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
@@ -241,13 +242,15 @@ G("4. Déterminisme de la génération de carte");
   var zf = N.planVide();
   for(var jz = 0; jz < N.NB_ZONES; jz++) zf[jz] = 3 | (3 << 3);   // frelon, saturé
   var cf = N.genereCarte("MILY", 0, N.encodePlan(zf), 0);
-  var defF = cf.batiments.filter(function(b){ return b.t !== "cellule"; });
+  /* les cellules d'énergie et les cellules électriques ne sont pas des
+     défenses : le plan ne les concerne pas. */
+  var defF = cf.batiments.filter(function(b){ return b.t !== "cellule" && b.t !== "reacteur"; });
   ok("plan « Frelon partout, saturé » : " + defF.length + " défenses, toutes Frelon",
      defF.length > 500 && defF.every(function(b){ return b.t === "frelon"; }));
   var zc = N.planVide();
   for(var kz = 0; kz < N.NB_ZONES; kz++) zc[kz] = 0 | (1 << 3);   // clairsemé partout
   var cc = N.genereCarte("MILY", 0, N.encodePlan(zc), 0);
-  var defC = cc.batiments.filter(function(b){ return b.t !== "cellule"; }).length;
+  var defC = cc.batiments.filter(function(b){ return b.t !== "cellule" && b.t !== "reacteur"; }).length;
   ok("densité « clairsemé » retire des défenses (" + defC + " < " + (a.batiments.length - 121) + ")",
      defC < defF.length * 0.75, "" + defC);
 
@@ -306,6 +309,56 @@ G("4. Déterminisme de la génération de carte");
      N.zoneDePlan(0, 0) === 0 &&
      N.zoneDePlan(N.GW * 2, N.GH * 2) === N.NB_ZONES - 1 &&
      N.zoneDePlan(-50, -50) === 0);
+
+  /* ---- LES CINQ CELLULES ÉLECTRIQUES ----
+     Elles portent le bouclier du Brasier : leur nombre, leurs PV et
+     leur placement sont du contrat de jeu, pas de la décoration. */
+  G("5b. Les cellules électriques et le bouclier du Brasier");
+  ok("cinq cellules par la constante", N.NB_REACTEURS === 5);
+  ok("200 000 PV chacune", N.DEF.reacteur.pv === 200000, "" + N.DEF.reacteur.pv);
+  ok("elles portent le bouclier, et ne tirent pas",
+     N.DEF.reacteur.bouclier === 1 && N.DEF.reacteur.degats === 0 && N.DEF.reacteur.portee === 0);
+  (function(){
+    var manque = "", malPlace = "", pasIndexe = "", dedans = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var m = N.genereCarte("MILY", i);
+      var lst = m.reacteurs || [];
+      if(lst.length !== N.NB_REACTEURS){ manque += "île" + i + "(" + lst.length + ") "; continue; }
+      /* chacune doit désigner le bon bâtiment dans le tableau : c'est
+         cet indice que le réseau diffuse pour dire « celle-là est
+         tombée ». Un décalage d'un cran détruirait une autre défense. */
+      for(var k = 0; k < lst.length; k++){
+        var b = m.batiments[lst[k].n];
+        if(!b || b.t !== "reacteur" || b.gx !== lst[k].gx || b.gy !== lst[k].gy)
+          pasIndexe += "île" + i + "#" + k + " ";
+        if(b && b.pv !== 200000) manque += "pv île" + i + " ";
+        /* jamais dans la mer, jamais dans la roche du bord */
+        if(lst[k].gx < 3 || lst[k].gx > N.PLAGE_X0 - 2 ||
+           lst[k].gy < 3 || lst[k].gy > N.GH - 3) dedans += "île" + i + "#" + k + " ";
+        /* ni collée au Brasier : elles doivent forcer à se répartir */
+        if(Math.hypot(lst[k].gx - N.QG_GX, lst[k].gy - N.QG_GY) < 18)
+          malPlace += "île" + i + "#" + k + " ";
+      }
+    }
+    ok("les cinq îles ont bien leurs cinq cellules", manque === "", manque);
+    ok("chaque cellule pointe sur son propre bâtiment", pasIndexe === "", pasIndexe);
+    ok("aucune cellule hors de la terre praticable", dedans === "", dedans);
+    ok("aucune cellule collée au Brasier", malPlace === "", malPlace);
+  })();
+  /* Les salons déjà en cours désignent les bâtiments détruits par leur
+     INDICE : si les cellules n'étaient pas ajoutées en dernier, chaque
+     bit pointerait sur le mauvais bâtiment chez tout le monde. */
+  (function(){
+    var m = N.genereCarte("MILY", 0);
+    var apres = 0, n = m.batiments.length;
+    for(var i = n - N.NB_REACTEURS; i < n; i++)
+      if(m.batiments[i].t === "reacteur") apres++;
+    ok("les cellules occupent les cinq DERNIERS indices du tableau",
+       apres === N.NB_REACTEURS, apres + "/" + N.NB_REACTEURS);
+    var avant = m.batiments.slice(0, n - N.NB_REACTEURS)
+                 .filter(function(b){ return b.t === "reacteur"; }).length;
+    ok("et aucune ne s'est glissée avant", avant === 0, "" + avant);
+  })();
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){
     var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
@@ -580,18 +633,32 @@ G("8. Cohérence des règles de jeu");
     for(var i = 0; i < N.CARTES.length; i++){
       var l = N.texteVictoire(i, "Thimote");
       if(l.length !== 2 || l[0].indexOf("Thimote") !== 0 ||
-         l[0].indexOf("n°1") < 0 || !l[1] || l[1].indexOf("Millie") < 0){
+         l[0].indexOf("n°1") < 0 || !l[1] || l[1].indexOf("Mily") < 0){
         bon = false; det += "île" + i + " ";
       }
     }
     ok("chaque île a son message de victoire, avec le pseudo en tête", bon, det);
-    ok("les trois messages sont différents",
-       N.texteVictoire(0, "X")[1] !== N.texteVictoire(1, "X")[1] &&
-       N.texteVictoire(1, "X")[1] !== N.texteVictoire(2, "X")[1]);
+    ok("il y a bien cinq îles", N.CARTES.length === 5, "" + N.CARTES.length);
+    var vus = {}, tousDifferents = true;
+    for(var iv = 0; iv < N.CARTES.length; iv++){
+      var m = N.texteVictoire(iv, "X")[1];
+      if(vus[m]) tousDifferents = false;
+      vus[m] = 1;
+    }
+    ok("les cinq messages sont différents", tousDifferents);
     ok("plage : le verre", N.texteVictoire(0, "X")[1].indexOf("boire un verre") > 0);
     ok("forêt : la cabane", N.texteVictoire(1, "X")[1].indexOf("cabane") > 0);
     ok("campagne : la paille", N.texteVictoire(2, "X")[1].indexOf("paille") > 0);
-    ok("le message boucle avec les îles", N.texteVictoire(3, "X")[1] === N.texteVictoire(0, "X")[1]);
+    ok("soirée hippie : chez elle", N.texteVictoire(3, "X")[1].indexOf("chez elle") > 0);
+    ok("le Sud : elle l'aime", N.texteVictoire(4, "X")[1].indexOf("aime") > 0);
+    ok("le message boucle avec les îles", N.texteVictoire(5, "X")[1] === N.texteVictoire(0, "X")[1]);
+    /* Elle s'appelle MILY. Aucune orthographe fantaisiste nulle part. */
+    var fautes = "";
+    for(var ic = 0; ic < N.CARTES.length; ic++){
+      var tout = N.CARTES[ic].nom + " " + N.CARTES[ic].victoire;
+      if(/Mill?ie|Milly|Milyy|Miley/i.test(tout)) fautes += N.CARTES[ic].nom + " ";
+    }
+    ok("elle s'écrit MILY partout, jamais Millie ni Milly", fautes === "", fautes);
   })();
 
   /* Tweety : un canari par île, inoffensif, et qui vole. */

@@ -515,6 +515,120 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#ffe9a0";
     c.beginPath(); c.arc(p.x, p.y - (10 + (1 - t) * 90) * z, 4 * z, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "cellHS"){
+    /* ---- UNE CELLULE ÉLECTRIQUE LÂCHE ----
+       Toute la charge qu'elle retenait part d'un coup et n'est plus
+       contenue par rien : les arcs ne tournent plus sagement autour
+       des bobines, ils giclent au hasard, de plus en plus faibles,
+       puis la lumière s'éteint. */
+    var fh = 1 - t;
+    /* La cellule est le bâtiment le plus haut de l'île après le Brasier :
+       une décharge calée sur la hauteur d'une tourelle ordinaire se
+       perdait dans son socle. On la place à mi-mât. */
+    var hh = 210 * z;
+    var yh = p.y - hh * 0.55;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* la décharge : un flash blanc-bleu très bref */
+    if(t < 0.30){
+      var kf = 1 - t / 0.30;
+      var rf = 300 * z * (0.4 + kf);
+      var gf2 = c.createRadialGradient(p.x, yh, 2, p.x, yh, rf);
+      gf2.addColorStop(0, "rgba(250,255,255," + (0.95 * kf) + ")");
+      gf2.addColorStop(0.30, "rgba(150,225,255," + (0.62 * kf) + ")");
+      gf2.addColorStop(1, "rgba(60,140,230,0)");
+      c.fillStyle = gf2;
+      c.beginPath(); c.arc(p.x, yh, rf, 0, 6.2832); c.fill();
+      /* la colonne de courant qui saute du mât : verticale, franche,
+         c'est elle qu'on voit d'un bout à l'autre de l'île */
+      var gc2 = c.createLinearGradient(p.x, p.y, p.x, p.y - hh * 1.5);
+      gc2.addColorStop(0, "rgba(180,238,255," + (0.70 * kf) + ")");
+      gc2.addColorStop(0.55, "rgba(230,250,255," + (0.55 * kf) + ")");
+      gc2.addColorStop(1, "rgba(150,220,255,0)");
+      c.fillStyle = gc2;
+      c.fillRect(p.x - 16 * z * (0.4 + kf), p.y - hh * 1.5, 32 * z * (0.4 + kf), hh * 1.5);
+      /* l'onde au sol, pour que la chute se voie de loin */
+      c.strokeStyle = "rgba(160,230,255," + (0.55 * kf) + ")";
+      c.lineWidth = Math.max(1.5, 7 * kf * z);
+      c.beginPath();
+      c.ellipse(p.x, p.y, (40 + (1 - kf) * 260) * z, (20 + (1 - kf) * 130) * z, 0, 0, 6.2832);
+      c.stroke();
+    }
+    /* arcs incontrôlés : ils partent du fût vers le sol, au hasard,
+       et se raréfient à mesure que la charge tombe */
+    var alH = prng((e.gx * 613 + e.gy * 71) | 0);
+    var nbH = Math.max(0, Math.round(14 * fh));
+    c.lineCap = "round";
+    for(var ih = 0; ih < nbH; ih++){
+      var aH = alH() * 6.2832 + tps * 1.7;
+      var lgH = (70 + alH() * 170) * z * (0.4 + fh);
+      var x1H = p.x + Math.cos(aH) * lgH;
+      var y1H = yh + Math.sin(aH) * lgH * 0.55;
+      c.beginPath();
+      c.moveTo(p.x, yh);
+      var seg = 5;
+      for(var sH = 1; sH <= seg; sH++){
+        var kH = sH / seg;
+        var ecH = (alH() - 0.5) * 44 * z * (1 - Math.abs(kH - 0.5) * 1.2);
+        c.lineTo(p.x + (x1H - p.x) * kH - Math.sin(aH) * ecH,
+                 yh + (y1H - yh) * kH + Math.cos(aH) * ecH * 0.55);
+      }
+      var aA = (0.35 + 0.60 * fh) * (0.5 + alH() * 0.5);
+      c.strokeStyle = "rgba(60,155,255," + (aA * 0.5) + ")";
+      c.lineWidth = Math.max(2, 7 * z); c.stroke();
+      c.strokeStyle = "rgba(215,248,255," + aA + ")";
+      c.lineWidth = Math.max(0.9, 2.2 * z); c.stroke();
+    }
+    /* la lumière du cœur qui meurt, en sursautant */
+    var vac = fh * fh * (0.55 + 0.45 * Math.sin(tps * 41 + e.gx));
+    lueurRapide(c, p.x, yh, 140 * z * (0.3 + fh), "#7fd8ff", 0.60 * vac);
+    c.restore();
+    /* fumée : elle, elle survit à la lumière */
+    if(t > 0.25){
+      var mS = (t - 0.25) / 0.75;
+      for(var jS = 0; jS < 4; jS++){
+        bouffee(c, p.x + Math.sin(tps * 0.8 + jS * 2) * 14 * z,
+                yh - mS * 70 * z - jS * 9 * z,
+                (10 + mS * 26) * z, (1 - mS) * 0.32, jS % 2 ? "#4a4a56" : "#6a6472");
+      }
+    }
+  }else if(e.t === "coupure"){
+    /* ---- LA COUPURE ----
+       La dernière cellule est tombée. Tout ce qui restait de courant
+       dans les câbles reflue vers le Brasier, claque une dernière fois
+       sur sa coque, puis le noir. C'est le signal que la forteresse est
+       enfin attaquable : ça doit se voir de partout. */
+    var fc = 1 - t;
+    var yc2 = p.y - 190 * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* l'onde qui court au sol, très large : elle passe sous le joueur
+       même s'il est à l'autre bout de l'île */
+    var rc2 = 30 + t * 900;
+    c.strokeStyle = "rgba(150,230,255," + (0.55 * fc * fc) + ")";
+    c.lineWidth = Math.max(1.5, 9 * fc * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rc2 * z, rc2 * 0.5 * z, 0, 0, 6.2832);
+    c.stroke();
+    /* le dernier crépitement sur la coque, qui s'éteint par à-coups */
+    if(t < 0.6){
+      var kc = 1 - t / 0.6;
+      var alC = prng(9137);
+      c.lineCap = "round";
+      for(var ic = 0; ic < 14; ic++){
+        if(alC() > 0.35 + kc * 0.65) continue;      // ça saute, ça hoquette
+        var xC = p.x + (alC() - 0.5) * 420 * z;
+        var yC = p.y - alC() * 340 * z;
+        c.strokeStyle = "rgba(215,248,255," + (0.75 * kc) + ")";
+        c.lineWidth = Math.max(1, 2.4 * z);
+        c.beginPath(); c.moveTo(xC, yC);
+        for(var sC = 0; sC < 3; sC++)
+          c.lineTo(xC + (alC() - 0.5) * 60 * z, yC + (alC() - 0.5) * 60 * z);
+        c.stroke();
+      }
+      lueurRapide(c, p.x, yc2, 380 * z * (0.5 + kc * 0.6), "#8fdcff", 0.34 * kc);
+    }
+    c.restore();
   }
 }
 
@@ -819,10 +933,278 @@ function dessineProjectile(c, p, tps){
 }
 
 /* ---------------------------------------------------------------
+   LE BOUCLIER DU BRASIER
+   Tant qu'une cellule électrique tient, la forteresse est intouchable.
+   Il faut que ça se VOIE, sans jamais masquer le Brasier : le joueur
+   doit pouvoir lire, d'un coup d'œil et sans compter, combien il en
+   reste. On ne peint donc pas une bulle opaque mais une cage d'arcs
+   qui court sur la silhouette — dense et régulière à cinq cellules,
+   clairsemée et vacillante à une seule.
+   Le dessin ne touche à rien de la forteresse : il vient PAR-DESSUS,
+   après dessineQG(), et n'entre jamais dans son sprite.
+   --------------------------------------------------------------- */
+/* Le visage du Brasier occupe toute la colonne centrale. On n'y touche
+   pas : les arcs restent SUR LES FLANCS de la maçonnerie, entre ces
+   deux abscisses locales, et n'entrent jamais dans la bande centrale. */
+var BQ_FLANC0 = 118, BQ_FLANC1 = 236;   // demi-largeurs de la zone d'arcs
+var BQ_HAUT = -330, BQ_BAS = 26;        // du pied de la coque à son sommet
+
+function dessineBouclierQG(c, tps){
+  if(!jeu.bouclier || jeu.fin) return;
+  var q = jeu.qg;
+  var p = versEcran(cam, q.gx, q.gy);
+  var z = cam.z;
+  if(z < 0.09) return;                          // de très loin, le halo suffit
+  var nb = typeof NB_REACTEURS === "number" ? NB_REACTEURS : 5;
+  var f = jeu.bouclier / nb;                    // 1 = intact, 0.2 = dernière
+
+  /* L'INSTABILITÉ. À cinq cellules le courant est parfaitement lisse ;
+     à une seule il hoquette et manque de lâcher. Deux sinus déphasés
+     suffisent à donner une alimentation qui faiblit — et surtout ils
+     sont déterministes : un vrai aléatoire scintillerait différemment
+     à chaque image et donnerait mal aux yeux. */
+  var instab = 1 - f;
+  var bat = 1
+          - instab * 0.62 * Math.max(0, Math.sin(tps * 11.3))
+          - instab * 0.34 * Math.max(0, Math.sin(tps * 27.1 + 1.7));
+  bat = Math.max(0.10, bat);
+
+  c.save();
+  c.translate(p.x, p.y);
+  c.scale(z, z);
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  c.lineJoin = "round";
+
+  /* ---- 1. L'ANNEAU AU PIED : c'est là que les cinq câbles arrivent.
+     Il pulse au rythme des impulsions, et son intensité dit à elle
+     seule combien de cellules alimentent encore. ---- */
+  var rx0 = 232, ry0 = 116;
+  var pouls = 0.5 + 0.5 * Math.sin(tps * 3.4);
+  var gr = c.createRadialGradient(0, 0, rx0 * 0.55, 0, 0, rx0 * 1.16);
+  gr.addColorStop(0, "rgba(70,170,255,0)");
+  gr.addColorStop(0.80, "rgba(90,195,255," + (0.24 * f * bat) + ")");
+  gr.addColorStop(0.97, "rgba(170,232,255," + (0.46 * f * bat * (0.6 + pouls * 0.4)) + ")");
+  gr.addColorStop(1, "rgba(140,215,255,0)");
+  c.fillStyle = gr;
+  c.beginPath(); c.ellipse(0, 0, rx0 * 1.16, ry0 * 1.16, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(0, 0, rx0, ry0, 0, 0, 6.2832);
+  c.strokeStyle = "rgba(70,175,255," + (0.30 * f * bat) + ")";
+  c.lineWidth = 11; c.stroke();
+  c.strokeStyle = "rgba(210,246,255," + (0.55 * f * bat) + ")";
+  c.lineWidth = 2.6; c.stroke();
+
+  /* ---- 2. LES MONTANTS : une colonne d'énergie par cellule encore
+     debout. Elles grimpent le long des flancs, et le joueur peut les
+     COMPTER — c'est la lecture la plus directe de ce qui lui reste à
+     détruire. ---- */
+  var i, s;
+  for(i = 0; i < jeu.bouclier; i++){
+    /* réparties de part et d'autre, jamais au milieu */
+    var cote = (i % 2) ? 1 : -1;
+    var rang = Math.floor(i / 2);
+    var xb = cote * (BQ_FLANC0 + rang * (BQ_FLANC1 - BQ_FLANC0) / 2.2);
+    /* la décharge monte, puis recommence : le sens est toujours
+       du sol vers le sommet, comme dans les câbles */
+    var mont = ((tps * 0.62 + i * 0.37) % 1);
+    var hautArc = BQ_BAS + (BQ_HAUT - BQ_BAS) * (0.35 + f * 0.65);
+    var alpha = (0.52 + 0.30 * Math.sin(tps * 2.7 + i * 1.3)) * bat;
+
+    /* Le tracé est monté une fois puis peint trois fois : une nappe
+       large et bleue qui pose la lumière sur la pierre, un trait franc,
+       puis un cœur blanc très fin. Sans ces trois passes l'arc se perd
+       sur une forteresse déjà lumineuse. */
+    c.beginPath();
+    for(s = 0; s <= 14; s++){
+      var k = s / 14;
+      var yy = BQ_BAS + (hautArc - BQ_BAS) * k;
+      /* le zigzag, resserré près du sol et près du sommet */
+      var amp = 15 * Math.sin(k * Math.PI);
+      var xx = xb + Math.sin(k * 17.3 + tps * 4.1 + i * 2.2) * amp
+                  + Math.sin(k * 6.1 - tps * 2.3) * amp * 0.5;
+      /* le flanc se resserre en montant : la coque est pyramidale */
+      xx *= 1 - k * 0.34;
+      if(s === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.strokeStyle = "rgba(58,150,255," + (alpha * 0.55) + ")";
+    c.lineWidth = 13; c.stroke();
+    c.strokeStyle = "rgba(150,224,255," + alpha + ")";
+    c.lineWidth = 4.6; c.stroke();
+    c.strokeStyle = "rgba(240,253,255," + (alpha * 0.9) + ")";
+    c.lineWidth = 1.7; c.stroke();
+
+    /* la charge qui remonte le long du montant */
+    var yc3 = BQ_BAS + (hautArc - BQ_BAS) * mont;
+    var xc3 = xb * (1 - mont * 0.34);
+    lueurRapide(c, xc3, yc3, 46, "#a9e8ff", 0.46 * bat);
+
+    /* le pied, ancré dans l'anneau */
+    lueurRapide(c, xb, BQ_BAS, 34, "#8fdcff", 0.34 * bat);
+  }
+
+  /* ---- 3. LE GRÉSILLEMENT sur la maçonnerie : la texture du champ.
+     Toujours sur les flancs, jamais dans la bande du visage. ---- */
+  var alB = prng(7717);
+  var petits = Math.round(3 + f * 8);
+  for(i = 0; i < petits; i++){
+    var pha = (tps * 0.9 + i * 0.61) % 1;
+    var av = Math.sin(pha * Math.PI) * bat * 0.55;
+    var bx = (alB() < 0.5 ? -1 : 1) * (BQ_FLANC0 + alB() * (BQ_FLANC1 - BQ_FLANC0));
+    var by = BQ_BAS + (BQ_HAUT - BQ_BAS) * alB() * (0.3 + f * 0.7);
+    if(av <= 0.02) continue;
+    c.strokeStyle = "rgba(214,250,255," + av + ")";
+    c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(bx, by);
+    for(s = 0; s < 3; s++)
+      c.lineTo(bx + (alB() - 0.5) * 54, by + (alB() - 0.5) * 54);
+    c.stroke();
+  }
+
+  /* ---- 4. UN COUP ENCAISSÉ. Sans ça, le joueur croit que ses tirs ne
+     portent pas du tout : le champ doit visiblement les renvoyer. ---- */
+  if(jeu.boucliertouche > 0){
+    var kt = Math.min(1, jeu.boucliertouche / 0.22);
+    var gt = c.createRadialGradient(0, -140, 60, 0, -140, 340);
+    gt.addColorStop(0, "rgba(120,205,255,0)");
+    gt.addColorStop(0.72, "rgba(150,222,255," + (0.14 * kt) + ")");
+    gt.addColorStop(0.94, "rgba(200,242,255," + (0.34 * kt) + ")");
+    gt.addColorStop(1, "rgba(210,246,255,0)");
+    c.fillStyle = gt;
+    c.beginPath(); c.ellipse(0, -140, 340, 300, 0, 0, 6.2832); c.fill();
+  }
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   LES CÂBLES DU BOUCLIER
+   Cinq câbles noirs posés au sol, un par cellule électrique, qui
+   rejoignent le Brasier presque en ligne droite en contournant les
+   bâtiments. Ce ne sont pas des décorations : ils DISENT au joueur
+   d'où vient l'invulnérabilité de la forteresse. Il faut donc que
+   l'énergie s'y voie circuler, et que le sens de circulation soit
+   sans ambiguïté — de la cellule vers le Brasier.
+   Le tracé lui-même est calculé une fois par carte (construitCables),
+   ici on ne fait que le peindre.
+   --------------------------------------------------------------- */
+var IMPULSIONS = 3;          // impulsions simultanées par câble
+var VIT_IMPULSION = 13;      // cases par seconde
+
+function dessineCables(c, tps){
+  if(!jeu.cables || !jeu.cables.length) return;
+  var vue = rectVisible(0);
+  c.save();
+  c.lineCap = "round";
+  c.lineJoin = "round";
+  for(var i = 0; i < jeu.cables.length; i++){
+    var cb = jeu.cables[i], pts = cb.pts;
+    if(pts.length < 2) continue;
+    /* un câble mort perd sa lumière en 1,4 s mais reste posé au sol :
+       le joueur doit continuer à voir par où passait le courant.
+       Le fondu est décompté par majBouclier() — le rendu ne décide de
+       rien, il ne fait que lire. */
+    var vif = cb.morte ? (cb.fondu || 0) / 1.4 : 1;
+
+    /* La gaine, puis le câble par-dessus. Le chemin n'est monté qu'une
+       fois et repeint quatre fois — mais surtout on n'y met QUE les
+       segments à l'écran : un câble traverse l'île entière, et stroker
+       ses cent points quand on en voit dix coûtait plus cher que tous
+       les cratères réunis. */
+    c.beginPath();
+    var ouvert = 0, vus = 0;
+    for(var k = 0; k < pts.length; k++){
+      var pk = iso(pts[k].gx, pts[k].gy);
+      var dans = pk.x > vue.x0 - 200 && pk.x < vue.x1 + 200 &&
+                 pk.y > vue.y0 - 200 && pk.y < vue.y1 + 200;
+      /* on garde le point précédent et le suivant d'un segment visible,
+         sinon le câble serait coupé net au bord de l'écran */
+      if(!dans && !ouvert) continue;
+      if(!ouvert){ c.moveTo(pk.x, pk.y); ouvert = 1; continue; }
+      c.lineTo(pk.x, pk.y);
+      vus++;
+      if(!dans) ouvert = 0;
+    }
+    if(!vus) continue;                 // câble entièrement hors champ
+    c.strokeStyle = "rgba(18,16,22,.55)";
+    c.lineWidth = 9;
+    c.stroke();
+    c.strokeStyle = cb.morte ? "#2b2830" : "#1e2b34";
+    c.lineWidth = 5;
+    c.stroke();
+    /* liseré supérieur : sans lui le câble s'aplatit sur le sol */
+    c.strokeStyle = cb.morte ? "rgba(96,92,104,.45)" : "rgba(96,132,152,.55)";
+    c.lineWidth = 1.6;
+    c.stroke();
+
+    if(vif <= 0.01) continue;
+
+    /* le halo continu du conducteur : faible, mais il donne au câble
+       sa couleur électrique même entre deux impulsions */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(70,190,255," + (0.30 * vif) + ")";
+    c.lineWidth = 2.2;
+    c.stroke();
+
+    /* LES IMPULSIONS. Elles courent à vitesse constante le long de la
+       longueur cumulée, donc sans ralentir dans les virages, et
+       toujours vers le Brasier. */
+    for(var q = 0; q < IMPULSIONS; q++){
+      var d = ((tps * VIT_IMPULSION + i * 5.7 + q * cb.lg / IMPULSIONS) % cb.lg);
+      var seg = segmentCable(cb, d);
+      if(!seg) continue;
+      var ps = iso(seg.gx, seg.gy);
+      if(ps.x < vue.x0 - 80 || ps.x > vue.x1 + 80 ||
+         ps.y < vue.y0 - 80 || ps.y > vue.y1 + 80) continue;
+      /* la traîne : quelques points derrière la tête, de plus en plus
+         faibles — c'est elle qui donne le SENS de circulation */
+      for(var tr = 4; tr >= 0; tr--){
+        var st = segmentCable(cb, d - tr * 0.85);
+        if(!st) continue;
+        var pt2 = iso(st.gx, st.gy);
+        var af = (1 - tr / 5) * vif;
+        c.fillStyle = "rgba(180,238,255," + (0.75 * af * af) + ")";
+        c.beginPath();
+        c.ellipse(pt2.x, pt2.y, 3.6 * af + 1.2, 2.0 * af + 0.8, 0, 0, 6.2832);
+        c.fill();
+      }
+      lueurRapide(c, ps.x, ps.y, 26, "#8fe4ff", 0.5 * vif);
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
+/* Où se trouve, en coordonnées monde, le point situé à la distance d
+   du départ du câble. Recherche linéaire : quelques dizaines de points
+   par câble, cinq câbles — c'est gratuit devant le reste de l'image. */
+function segmentCable(cb, d){
+  var pts = cb.pts;
+  if(d < 0) d += cb.lg;
+  if(d < 0 || d > cb.lg) return null;
+  /* Dichotomie, pas balayage : les distances cumulées sont croissantes,
+     et un balayage linéaire coûtait cent tours de boucle par point
+     d'impulsion — six points par impulsion, quinze impulsions, soit
+     neuf mille tours par image pour dessiner quinze taches. */
+  var lo = 1, hi = pts.length - 1;
+  while(lo < hi){
+    var mi = (lo + hi) >> 1;
+    if(pts[mi].d >= d) hi = mi; else lo = mi + 1;
+  }
+  var d0 = pts[lo - 1].d, dl = pts[lo].d - d0;
+  var f = dl > 0.0001 ? (d - d0) / dl : 0;
+  return { gx:pts[lo - 1].gx + (pts[lo].gx - pts[lo - 1].gx) * f,
+           gy:pts[lo - 1].gy + (pts[lo].gy - pts[lo - 1].gy) * f };
+}
+
+/* ---------------------------------------------------------------
    Zones au sol (dessinées en repère monde)
    --------------------------------------------------------------- */
 function dessineZonesSol(c, tps){
   var i;
+  /* les câbles du bouclier passent SOUS tout le reste : ce sont eux
+     qui sont posés au sol, les cratères et les flaques leur passent
+     dessus comme au terrain */
+  dessineCables(c, tps);
   /* cratères */
   c.save();
   c.globalAlpha = 0.34;
@@ -1439,7 +1821,7 @@ function rendu(tps, dt){
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
       case 7: dessineBrouillard(ctx, it.o, tps); break;
-      case 8: dessineQG(ctx, tps); break;
+      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
@@ -1463,6 +1845,9 @@ function rendu(tps, dt){
   /* visée */
   repereEcran(ctx);
   dessineVisee(ctx, tps);
+
+  /* la coupure de courant : elle passe devant tout le reste */
+  if(jeu.coupure > 0) dessineCoupure(ctx, tps);
 
   /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
@@ -1534,6 +1919,99 @@ function dessineTweetyDeuil(c, tps){
   c.strokeStyle = "rgba(160,110,10,.6)"; c.lineWidth = Math.max(1, taille * 0.014);
   c.beginPath(); c.moveTo(0, -taille * 0.26); c.lineTo(0, taille * 0.26); c.stroke();
   c.restore();
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   « PROTECTION DU QG DÉSACTIVÉE »
+   Le moment le plus important de la partie : le Brasier vient de
+   devenir attaquable. Ça ne peut pas passer dans le petit bandeau
+   ordinaire — il faut que le joueur lève la tête. Deux secondes et
+   demie, en travers de l'écran, avec le grésillement d'un néon qui
+   claque et qui meurt.
+   --------------------------------------------------------------- */
+function dessineCoupure(c, tps){
+  var t = 1 - jeu.coupure / 2.6;                   // 0 → 1
+  repereEcran(c);
+  var ent = Math.min(1, t / 0.12);                 // arrivée quasi instantanée
+  var sortie = t > 0.80 ? (t - 0.80) / 0.20 : 0;
+  var vis = ent * (1 - sortie);
+  if(vis <= 0.01) return;
+
+  /* le noir qui tombe : l'île perd son courant, l'écran s'assombrit
+     brièvement puis se rallume */
+  c.fillStyle = "rgba(2,6,14," + (0.42 * Math.sin(Math.min(1, t / 0.5) * Math.PI)) + ")";
+  c.fillRect(0, 0, W, H);
+
+  /* le néon : il claque deux fois avant de tenir, comme un disjoncteur */
+  var claque = t < 0.30 ? (Math.sin(t * 78) > -0.25 ? 1 : 0.18) : 1;
+  var y = H * 0.21;                                // haut : le Brasier reste visible
+  var s = "PROTECTION DU QG DÉSACTIVÉE";
+  var taille = Math.min(W * 0.062, H * 0.088);
+
+  c.save();
+  c.globalAlpha = vis * claque;
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.lineJoin = "round";
+  /* La phrase est longue : sur un écran étroit — une tablette en
+     portrait — elle déborderait des deux côtés. On la mesure et on
+     rétrécit jusqu'à ce qu'elle tienne, plutôt que de la couper. */
+  c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  var lgT = c.measureText(s).width;
+  if(lgT > W * 0.88){
+    taille *= W * 0.88 / lgT;
+    c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  }
+
+  /* barre électrique derrière le texte */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gbar = c.createLinearGradient(0, y, W, y);
+  gbar.addColorStop(0.00, "rgba(60,150,255,0)");
+  gbar.addColorStop(0.50, "rgba(150,225,255,.30)");
+  gbar.addColorStop(1.00, "rgba(60,150,255,0)");
+  c.fillStyle = gbar;
+  c.fillRect(0, y - taille * 0.86, W, taille * 1.72);
+  c.restore();
+
+  c.lineWidth = Math.max(4, taille * 0.20);
+  c.strokeStyle = "#04121f";
+  c.strokeText(s, W / 2, y);
+  var gt = c.createLinearGradient(0, y - taille * 0.6, 0, y + taille * 0.6);
+  gt.addColorStop(0, "#ffffff");
+  gt.addColorStop(0.5, "#c9f2ff");
+  gt.addColorStop(1, "#6cc2ff");
+  c.fillStyle = gt;
+  c.fillText(s, W / 2, y);
+
+  /* les arcs qui courent le long du texte pendant qu'il claque */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var lg = c.measureText(s).width;
+  var alC = prng(4051);
+  c.strokeStyle = "rgba(200,246,255,.85)";
+  c.lineWidth = Math.max(1, taille * 0.045);
+  c.lineCap = "round";
+  for(var i = 0; i < 11; i++){
+    /* de courtes étincelles qui filent le long du mot, pas des gribouillis :
+       de longs zigzags lisaient comme des débris posés sur le texte */
+    var x0 = W / 2 - lg / 2 + ((alC() + tps * 0.55) % 1) * lg;
+    var y0 = y + (alC() - 0.5) * taille * 1.25;
+    var dir = alC() < 0.5 ? -1 : 1;
+    c.beginPath(); c.moveTo(x0, y0);
+    for(var k = 1; k <= 3; k++)
+      c.lineTo(x0 + dir * k * taille * 0.11,
+               y0 + (k % 2 ? 1 : -1) * taille * 0.075);
+    c.stroke();
+  }
+  c.restore();
+
+  /* la ligne qui dit quoi faire, une fois le titre posé */
+  if(t > 0.22){
+    c.globalAlpha = vis * Math.min(1, (t - 0.22) / 0.18);
+    texteCerne(c, "Le Brasier est vulnérable — à l'assaut !",
+               W / 2, y + taille * 1.15, taille * 0.40, "#ffd98a", "center");
+  }
   c.restore();
 }
 
@@ -1729,10 +2207,13 @@ function dessineFin(c, tps){
     var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
     var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
     var osc = Math.sin(F.age * 3) * 0.035;
-    /* le titre remonte pour laisser la place au message de victoire */
+    /* le titre remonte pour laisser la place au message de victoire, puis
+       une seconde fois quand le classement s'installe en bas : les trois
+       — explosion, sacre, classement — doivent tenir à l'écran ensemble */
     var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
+    var monte2 = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
     c.save();
-    c.translate(W / 2, H * (0.42 - monte * 0.14));
+    c.translate(W / 2, H * (0.42 - monte * 0.14 - monte2 * 0.12));
     c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
     c.rotate(osc);
     var taille = Math.min(W, H) * 0.155;
@@ -1756,14 +2237,15 @@ function dessineFin(c, tps){
     c.restore();
   }
 
-  /* ---- le sacre : qui a le plus contribué, et ce que Millie lui offre ---- */
+  /* ---- le sacre : qui a le plus contribué, et ce que Mily lui offre ---- */
   if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
     var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
     var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
     var lignes = texteVictoire(jeu.index, F.champion.nom);
+    var mv = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
     c.save();
-    c.translate(W / 2, H * 0.56);
-    c.scale(elv, elv);
+    c.translate(W / 2, H * (0.56 - mv * 0.14));
+    c.scale(elv * (1 - mv * 0.12), elv * (1 - mv * 0.12));
     c.rotate(Math.sin(F.age * 2.2) * 0.018);
     var tv2 = Math.min(W * 0.052, H * 0.078);
     c.textAlign = "center"; c.textBaseline = "middle";
@@ -1860,6 +2342,44 @@ function majMinicarte(tps){
   miniCtx.beginPath(); miniCtx.arc(q.x, q.y, 6, 0, 6.2832); miniCtx.fill();
   miniCtx.strokeStyle = "#ffe0a0"; miniCtx.lineWidth = 1.6;
   miniCtx.beginPath(); miniCtx.arc(q.x, q.y, 8 + Math.sin(tps * 3) * 1.6, 0, 6.2832); miniCtx.stroke();
+  /* LES CINQ CELLULES ÉLECTRIQUES.
+     Elles sont aux quatre extrémités et au centre d'une île de 152×136
+     cases : sans repère, le joueur passe la partie à les chercher au
+     lieu de les attaquer. On trace donc leur câble jusqu'au Brasier et
+     on marque chaque cellule — vive, elle bat en bleu électrique ;
+     détruite, il ne reste qu'une croix éteinte, pour qu'on sache d'un
+     coup d'œil combien il en reste et de quel côté. */
+  if(jeu.cables && jeu.cables.length){
+    miniCtx.save();
+    miniCtx.lineWidth = 1;
+    for(var ic = 0; ic < jeu.cables.length; ic++){
+      var cb = jeu.cables[ic];
+      miniCtx.strokeStyle = cb.morte ? "rgba(120,116,130,.35)" : "rgba(110,200,255,.45)";
+      miniCtx.beginPath();
+      for(var kc = 0; kc < cb.pts.length; kc += 3){
+        var pc = px(cb.pts[kc].gx, cb.pts[kc].gy);
+        if(kc === 0) miniCtx.moveTo(pc.x, pc.y); else miniCtx.lineTo(pc.x, pc.y);
+      }
+      miniCtx.stroke();
+    }
+    for(var ir = 0; ir < jeu.reacteurs.length; ir++){
+      var rr = jeu.reacteurs[ir], pr = px(rr.gx, rr.gy);
+      if(rr.bat.vivant){
+        var bp = 0.5 + 0.5 * Math.sin(tps * 4 + ir);
+        miniCtx.fillStyle = "rgba(140,225,255," + (0.55 + bp * 0.45) + ")";
+        miniCtx.beginPath(); miniCtx.arc(pr.x, pr.y, 4, 0, 6.2832); miniCtx.fill();
+        miniCtx.strokeStyle = "rgba(230,250,255,.9)"; miniCtx.lineWidth = 1.3;
+        miniCtx.beginPath(); miniCtx.arc(pr.x, pr.y, 5.5 + bp * 2, 0, 6.2832); miniCtx.stroke();
+      }else{
+        miniCtx.strokeStyle = "rgba(150,146,158,.75)"; miniCtx.lineWidth = 1.4;
+        miniCtx.beginPath();
+        miniCtx.moveTo(pr.x - 3, pr.y - 3); miniCtx.lineTo(pr.x + 3, pr.y + 3);
+        miniCtx.moveTo(pr.x + 3, pr.y - 3); miniCtx.lineTo(pr.x - 3, pr.y + 3);
+        miniCtx.stroke();
+      }
+    }
+    miniCtx.restore();
+  }
   /* unités */
   miniCtx.fillStyle = "#7de6ff";
   for(var i = 0; i < jeu.unites.length; i++){

@@ -20,6 +20,24 @@ var BIOMES = {
     herbe:"#8f9a52", allee:"#dcc890", roche:"#7a7480",
     eauC:"#86c6e8", eau:"#2f76a6", eauO:"#154566", ecume:"#f0f8ff",
     fond:"#4a92bc", basFond:"#96cfe2", ciel:"#0c2836"
+  },
+  /* Nuit de festival. Le piège serait de tout noircir : c'est la
+     lumière qui fait la fête, donc le sol reste juste assombri et
+     l'eau garde des reflets chauds — indigo dessous, rose dessus. */
+  hippie: {
+    sol1:"#3e4433", sol2:"#333a2c", sable:"#8e846c", sableO:"#5c5548",
+    herbe:"#3d5636", allee:"#7a6b50", roche:"#443c56",
+    eauC:"#c489cc", eau:"#544ab8", eauO:"#332a80", ecume:"#ffe6f6",
+    fond:"#6a4fb4", basFond:"#b98ad6", ciel:"#3a1a4c"
+  },
+  /* Plein midi en Provence. Tout est délavé par la lumière : l'ocre
+     tire au blanc, le vert tire au gris, et seule la mer garde une
+     couleur franche. C'est l'exact contraire de la soirée hippie. */
+  sud: {
+    sol1:"#dcc79a", sol2:"#cdb684", sable:"#f0e2c0", sableO:"#c8b088",
+    herbe:"#a7b183", allee:"#f2e7cc", roche:"#c6bba4",
+    eauC:"#b6f7ec", eau:"#189ad6", eauO:"#0a4e94", ecume:"#f6ffff",
+    fond:"#38b6da", basFond:"#93ecdd", ciel:"#a4dcf2"
   }
 };
 
@@ -221,6 +239,377 @@ function clotureBout(c, gx, gy, s){
   c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - 13 * s); c.stroke();
   c.beginPath(); c.moveTo(p.x - 10 * s, p.y - 9 * s); c.lineTo(p.x + 10 * s, p.y - 11 * s); c.stroke();
 }
+
+/* ================================================================
+   DÉCORS DE LA SOIRÉE HIPPIE
+   Tout est cuit dans un sprite : aucune horloge, aucun tirage au sort
+   ici. Les feux et les ampoules sont donc figés — mais leur halo
+   suffit à faire vivre la prairie de nuit.
+   ================================================================ */
+
+/* Un point du long flanc d'une caisse, repéré par sa position t le long
+   de l'axe gy et sa hauteur hh. boite() ne sait peindre ses faces que
+   d'un seul aplat : pour y poser une peinture, il faut viser soi-même. */
+function pointFlanc(gx, gy, w, d, z0, t, hh){
+  var q = iso(gx + w / 2, gy - d / 2 + d * t);
+  return { x:q.x, y:q.y - z0 - hh };
+}
+function traceFlanc(c, gx, gy, w, d, z0, h0, h1){
+  var a = pointFlanc(gx, gy, w, d, z0, 0, h1), b = pointFlanc(gx, gy, w, d, z0, 1, h1);
+  var e = pointFlanc(gx, gy, w, d, z0, 1, h0), f = pointFlanc(gx, gy, w, d, z0, 0, h0);
+  c.beginPath();
+  c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(e.x, e.y); c.lineTo(f.x, f.y);
+  c.closePath();
+}
+/* Le combi peint. Il est couché le long de gy pour que son grand flanc
+   tombe sur la face éclairée à 75 % : c'est là que va la peinture. */
+function combi(c, gx, gy, s){
+  var w = 0.86 * s, d = 1.55 * s, z0 = 4.2 * s, h = 13 * s;
+  ombreRonde(c, gx, gy, 0.95 * s, 0.3);
+  /* les roues d'abord : la caisse leur mange le haut, elles ont l'air posées */
+  var ra = iso(gx + 0.42 * s, gy - 0.52 * s), rb = iso(gx + 0.42 * s, gy + 0.52 * s);
+  c.fillStyle = "#231c2b";
+  c.beginPath(); c.ellipse(ra.x, ra.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(rb.x, rb.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
+  /* la caisse crème, puis le toit relevé en toile orange */
+  var cr = faces("#f0e4cc");
+  boite(c, gx, gy, w, d, z0, h, cr.t, cr.g, cr.d);
+  var to = faces("#e8813a");
+  boite(c, gx - 0.05 * s, gy, w * 0.80, d * 0.80, z0 + h, 5.4 * s, to.t, to.g, to.d);
+  /* la peinture du flanc */
+  c.save();
+  traceFlanc(c, gx, gy, w, d, z0, 0, h); c.clip();
+  /* bande turquoise en bas, séparée par un liseré magenta */
+  c.fillStyle = "#2fb2bd";
+  traceFlanc(c, gx, gy, w, d, z0, 0, h * 0.44); c.fill();
+  c.fillStyle = "#e0559f";
+  traceFlanc(c, gx, gy, w, d, z0, h * 0.44, h * 0.52); c.fill();
+  /* le soleil levant, motif obligé du combi */
+  var so = pointFlanc(gx, gy, w, d, z0, 0.26, h * 0.62);
+  c.fillStyle = "#ffd85a";
+  c.beginPath(); c.arc(so.x, so.y, 4.2 * s, 0, 6.2832); c.fill();
+  c.strokeStyle = "#ffd85a"; c.lineWidth = 1.2 * s;
+  for(var k = 0; k < 7; k++){
+    var a2 = k / 7 * 6.2832;
+    c.beginPath();
+    c.moveTo(so.x + Math.cos(a2) * 5.4 * s, so.y + Math.sin(a2) * 5.4 * s);
+    c.lineTo(so.x + Math.cos(a2) * 7.6 * s, so.y + Math.sin(a2) * 7.6 * s);
+    c.stroke();
+  }
+  /* une spirale à l'autre bout */
+  var sp = pointFlanc(gx, gy, w, d, z0, 0.76, h * 0.66);
+  c.strokeStyle = "#7fd94f"; c.lineWidth = 1.4 * s;
+  c.beginPath();
+  for(var m = 0; m < 22; m++){
+    var an = m * 0.55, rr = 0.42 * s * m * 0.7;
+    var xx = sp.x + Math.cos(an) * rr, yy = sp.y + Math.sin(an) * rr;
+    if(m === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+  }
+  c.stroke();
+  /* les hublots, allumés */
+  c.fillStyle = "#ffd489";
+  for(var n = 0; n < 2; n++){
+    var t0 = 0.44 + n * 0.20;
+    var h1 = pointFlanc(gx, gy, w, d, z0, t0, h * 0.94);
+    var h2 = pointFlanc(gx, gy, w, d, z0, t0 + 0.14, h * 0.94);
+    var h3 = pointFlanc(gx, gy, w, d, z0, t0 + 0.14, h * 0.58);
+    var h4 = pointFlanc(gx, gy, w, d, z0, t0, h * 0.58);
+    c.beginPath();
+    c.moveTo(h1.x, h1.y); c.lineTo(h2.x, h2.y); c.lineTo(h3.x, h3.y); c.lineTo(h4.x, h4.y);
+    c.closePath(); c.fill();
+  }
+  c.restore();
+  /* le pare-brise : c'est lui qui donne l'air habité */
+  var g1 = iso(gx + w / 2, gy + d / 2), g2 = iso(gx - w / 2, gy + d / 2);
+  c.fillStyle = "#ffc978";
+  c.beginPath();
+  c.moveTo(g1.x - 1.5 * s, g1.y - z0 - h * 0.94); c.lineTo(g2.x + 1.5 * s, g2.y - z0 - h * 0.94);
+  c.lineTo(g2.x + 1.5 * s, g2.y - z0 - h * 0.50); c.lineTo(g1.x - 1.5 * s, g1.y - z0 - h * 0.50);
+  c.closePath(); c.fill();
+  var pv = iso(gx, gy + d / 2);
+  lueurRapide(c, pv.x, pv.y - z0 - h * 0.7, 22 * s, "#ffb44a", 0.42);
+}
+/* Le tipi. La toile est éclairée de l'intérieur : le dégradé va du
+   gris lunaire en haut à l'orange du foyer en bas. */
+function tipi(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.6 * s, 0.28);
+  var rx = 19 * s, h = 31 * s;
+  c.save();
+  c.beginPath();
+  c.moveTo(p.x - rx, p.y);
+  c.lineTo(p.x - rx * 0.15, p.y - h);
+  c.lineTo(p.x + rx * 0.15, p.y - h);
+  c.lineTo(p.x + rx, p.y);
+  c.ellipse(p.x, p.y, rx, rx * 0.42, 0, 0, Math.PI);
+  c.closePath();
+  c.clip();
+  var g = c.createLinearGradient(0, p.y - h, 0, p.y + rx * 0.4);
+  g.addColorStop(0, "#a89cb4");
+  g.addColorStop(0.5, "#ddcdb2");
+  g.addColorStop(1, "#ffc47c");
+  c.fillStyle = g;
+  c.fillRect(p.x - rx - 2, p.y - h - 2, rx * 2 + 4, h + rx + 4);
+  /* coutures verticales, puis deux chevrons peints */
+  c.strokeStyle = "rgba(120,96,74,.28)"; c.lineWidth = 1 * s;
+  for(var i = -2; i <= 2; i++){
+    c.beginPath();
+    c.moveTo(p.x + i * 3 * s, p.y - h); c.lineTo(p.x + i * rx * 0.42, p.y + rx * 0.4);
+    c.stroke();
+  }
+  var teintes = ["#d8478f", "#3fc9c0"];
+  for(var b = 0; b < 2; b++){
+    var yb = p.y - h * (0.30 + b * 0.26);
+    c.strokeStyle = teintes[b]; c.lineWidth = 2.2 * s; c.lineJoin = "round";
+    c.beginPath();
+    for(var k = 0; k <= 8; k++){
+      var xx = p.x - rx + k * rx / 4;
+      var yy = yb + (k % 2 ? 2.4 * s : -2.4 * s);
+      if(k === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.stroke();
+  }
+  c.restore();
+  /* les perches qui se croisent au sommet */
+  c.strokeStyle = "#8a6f4e"; c.lineWidth = 1.5 * s; c.lineCap = "round";
+  for(var q = 0; q < 4; q++){
+    c.beginPath();
+    c.moveTo(p.x + (q - 1.5) * 1.6 * s, p.y - h + 3 * s);
+    c.lineTo(p.x + (q - 1.5) * 4.4 * s, p.y - h - 9 * s);
+    c.stroke();
+  }
+  /* un fanion en haut d'une perche */
+  c.fillStyle = "#ffb43c";
+  c.beginPath();
+  c.moveTo(p.x + 6.6 * s, p.y - h - 9 * s);
+  c.lineTo(p.x + 13 * s, p.y - h - 6.5 * s);
+  c.lineTo(p.x + 6.6 * s, p.y - h - 4 * s);
+  c.closePath(); c.fill();
+  /* l'ouverture et la lumière qui en sort */
+  lueurRapide(c, p.x, p.y - 6 * s, 26 * s, "#ff9a3c", 0.5);
+  var go = c.createLinearGradient(0, p.y - 15 * s, 0, p.y);
+  go.addColorStop(0, "#3b2a34"); go.addColorStop(1, "#ffcf7e");
+  c.fillStyle = go;
+  c.beginPath();
+  c.moveTo(p.x - 4.4 * s, p.y + 1 * s);
+  c.lineTo(p.x, p.y - 15 * s);
+  c.lineTo(p.x + 4.4 * s, p.y + 1 * s);
+  c.closePath(); c.fill();
+}
+/* La guirlande d'ampoules. Elle est tracée à plat dans l'écran : ce
+   n'est pas un volume, c'est une ligne de lumière tendue en travers. */
+function guirlande(c, gx, gy, s){
+  var p = iso(gx, gy);
+  var demi = 27 * s, haut = 31 * s;
+  c.strokeStyle = "#6b5a48"; c.lineWidth = 2.2 * s; c.lineCap = "round";
+  c.beginPath(); c.moveTo(p.x - demi, p.y + 2 * s); c.lineTo(p.x - demi + 2 * s, p.y - haut); c.stroke();
+  c.beginPath(); c.moveTo(p.x + demi, p.y + 2 * s); c.lineTo(p.x + demi - 2 * s, p.y - haut); c.stroke();
+  var ax = p.x - demi + 2 * s, ay = p.y - haut;
+  var bx = p.x + demi - 2 * s, by = p.y - haut;
+  var cx = p.x, cy = p.y - haut + 26 * s;
+  c.strokeStyle = "rgba(28,20,32,.6)"; c.lineWidth = 1.1 * s;
+  c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo(cx, cy, bx, by); c.stroke();
+  var teintes = ["#ff5aa8", "#ffc23c", "#4fe3d8", "#a06bff", "#8ce04a", "#ff7a3c"];
+  for(var i = 1; i < 10; i++){
+    var t = i / 10, u = 1 - t;
+    var x = u * u * ax + 2 * u * t * cx + t * t * bx;
+    var y = u * u * ay + 2 * u * t * cy + t * t * by;
+    var col = teintes[i % 6];
+    c.strokeStyle = "rgba(28,20,32,.55)"; c.lineWidth = 0.9 * s;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 2.6 * s); c.stroke();
+    lueurRapide(c, x, y + 4.4 * s, 12 * s, col, 0.6);
+    c.fillStyle = col;
+    c.beginPath(); c.ellipse(x, y + 4.6 * s, 2.3 * s, 2.9 * s, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,255,255,.8)";
+    c.beginPath(); c.ellipse(x - 0.7 * s, y + 3.8 * s, 0.9 * s, 1.1 * s, 0, 0, 6.2832); c.fill();
+  }
+}
+/* Le foyer. La flamme est figée à une heure choisie, sinon chaque
+   reconstruction du sprite donnerait un feu différent. */
+function feuDeCamp(c, gx, gy, s){
+  var p = iso(gx, gy);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var g = c.createRadialGradient(p.x, p.y, 2, p.x, p.y, 40 * s);
+  g.addColorStop(0, "rgba(255,158,66,.62)");
+  g.addColorStop(0.45, "rgba(255,132,44,.22)");
+  g.addColorStop(1, "rgba(255,120,40,0)");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(p.x, p.y, 40 * s, 20 * s, 0, 0, 6.2832); c.fill();
+  c.restore();
+  for(var i = 0; i < 8; i++){
+    var a = i / 8 * 6.2832 + 0.4;
+    var sx = p.x + Math.cos(a) * 12 * s, sy = p.y + Math.sin(a) * 6 * s;
+    c.fillStyle = "#514a5c";
+    c.beginPath(); c.ellipse(sx, sy, 3.4 * s, 2.3 * s, a, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,166,86,.5)";
+    c.beginPath(); c.ellipse(sx - Math.cos(a) * 1.2 * s, sy - Math.sin(a) * 0.8 * s, 2.1 * s, 1.3 * s, a, 0, 6.2832); c.fill();
+  }
+  c.strokeStyle = "#4a3524"; c.lineWidth = 3.2 * s; c.lineCap = "round";
+  c.beginPath(); c.moveTo(p.x - 7 * s, p.y + 2 * s); c.lineTo(p.x + 6 * s, p.y - 3 * s); c.stroke();
+  c.beginPath(); c.moveTo(p.x - 6 * s, p.y - 3 * s); c.lineTo(p.x + 7 * s, p.y + 2 * s); c.stroke();
+  flamme(c, p.x, p.y - 2 * s, 21 * s, 0.62, s * 0.95);
+  braises(c, p.x, p.y - 7 * s, 0.62, 9, s * 0.9, 26);
+}
+
+/* ================================================================
+   DÉCORS DU SUD — tout est lavé par le soleil de midi
+   ================================================================ */
+function cypres(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.36 * s, 0.26);
+  var h = 52 * s, w = 7.6 * s;
+  function silhouette(){
+    c.beginPath();
+    c.moveTo(p.x, p.y - h);
+    c.bezierCurveTo(p.x + w, p.y - h * 0.62, p.x + w * 0.94, p.y - h * 0.16, p.x + w * 0.40, p.y);
+    c.lineTo(p.x - w * 0.40, p.y);
+    c.bezierCurveTo(p.x - w * 0.94, p.y - h * 0.16, p.x - w, p.y - h * 0.62, p.x, p.y - h);
+    c.closePath();
+  }
+  var g = c.createLinearGradient(p.x - w, 0, p.x + w, 0);
+  g.addColorStop(0, "#5c7d52"); g.addColorStop(0.42, "#33513a"); g.addColorStop(1, "#1e3324");
+  c.fillStyle = g;
+  silhouette(); c.fill();
+  /* le feuillage en écailles. Des virgules posées à intervalle
+     régulier tricotaient une chaussette : leurs places sortent donc du
+     hachage déterministe, irrégulier mais identique à chaque partie. */
+  c.save();
+  silhouette(); c.clip();
+  c.lineCap = "round";
+  for(var i = 0; i < 46; i++){
+    var t = (i + alea2d(i, 3, 11) * 0.9) / 46;
+    var yy = p.y - h * (0.02 + t * 0.96);
+    var lg = w * (0.95 - t * 0.42);
+    var xx = p.x + (alea2d(i, 1, 7) - 0.5) * 2 * lg * 0.8;
+    var lo = (0.7 + alea2d(i, 2, 5) * 0.8) * s;
+    var clair = alea2d(i, 4, 3) > 0.62;
+    c.strokeStyle = clair ? "rgba(150,186,128,.34)" : "rgba(18,36,22,.24)";
+    c.lineWidth = 1.7 * s;
+    c.beginPath();
+    c.moveTo(xx - 2 * lo, yy + 1.4 * lo);
+    c.quadraticCurveTo(xx, yy - 0.3 * lo, xx + 2 * lo, yy - 1.6 * lo);
+    c.stroke();
+  }
+  c.restore();
+  /* le soleil frappe le flanc gauche */
+  c.strokeStyle = "rgba(206,226,166,.4)"; c.lineWidth = 1.5 * s;
+  c.beginPath();
+  c.moveTo(p.x, p.y - h);
+  c.bezierCurveTo(p.x - w * 0.94, p.y - h * 0.62, p.x - w * 0.9, p.y - h * 0.2, p.x - w * 0.42, p.y - h * 0.04);
+  c.stroke();
+  c.strokeStyle = "#6b5a44"; c.lineWidth = 2 * s;
+  c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - 4 * s); c.stroke();
+}
+function olivier(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.52 * s, 0.24);
+  /* deux troncs noueux qui partent en sens contraire : c'est ce
+     déséquilibre qui fait l'olivier, pas le feuillage */
+  c.lineCap = "round";
+  c.strokeStyle = "#8b7c68"; c.lineWidth = 6 * s;
+  c.beginPath(); c.moveTo(p.x - 1.5 * s, p.y);
+  c.quadraticCurveTo(p.x - 7 * s, p.y - 8 * s, p.x - 7.5 * s, p.y - 16 * s); c.stroke();
+  c.beginPath(); c.moveTo(p.x + 2 * s, p.y);
+  c.quadraticCurveTo(p.x + 6 * s, p.y - 7 * s, p.x + 6.5 * s, p.y - 15 * s); c.stroke();
+  c.strokeStyle = "#c8b99f"; c.lineWidth = 2 * s;
+  c.beginPath(); c.moveTo(p.x - 3 * s, p.y - 1 * s);
+  c.quadraticCurveTo(p.x - 8 * s, p.y - 8 * s, p.x - 8.4 * s, p.y - 15 * s); c.stroke();
+  /* le feuillage se monte en trois couches : masse sombre, corps
+     gris-vert, puis l'argenture du dessous des feuilles côté soleil.
+     C'est ce dernier étage qui fait reconnaître un olivier. */
+  var lobes = [[-8, -20, 10, 7.4], [7, -19, 9, 6.8], [0, -25, 10.5, 7.8],
+               [-2, -16, 8.6, 6], [10.5, -24, 6.4, 5.2], [-11.5, -25, 7, 5.4],
+               [3, -29, 7, 5]];
+  for(var i = 0; i < lobes.length; i++){
+    c.fillStyle = "#5c7049";
+    c.beginPath();
+    c.ellipse(p.x + lobes[i][0] * s, p.y + (lobes[i][1] + 1.6) * s,
+              lobes[i][2] * s, lobes[i][3] * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  for(i = 0; i < lobes.length; i++){
+    c.fillStyle = i % 2 ? "#7f9366" : "#8fa576";
+    c.beginPath();
+    c.ellipse(p.x + lobes[i][0] * s, p.y + lobes[i][1] * s,
+              lobes[i][2] * 0.92 * s, lobes[i][3] * 0.92 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  for(i = 0; i < lobes.length; i++){
+    c.fillStyle = "rgba(186,204,158,.42)";
+    c.beginPath();
+    c.ellipse(p.x + (lobes[i][0] - 2.4) * s, p.y + (lobes[i][1] - 2) * s,
+              lobes[i][2] * 0.5 * s, lobes[i][3] * 0.46 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.fillStyle = "rgba(226,236,206,.42)";
+  for(var k = 0; k < 18; k++){
+    var a = k * 2.399963;
+    var r = 2 + 2.8 * Math.sqrt(k);
+    c.beginPath();
+    c.ellipse(p.x + Math.cos(a) * r * 1.5 * s, p.y - 22 * s + Math.sin(a) * r * s,
+              1.4 * s, 0.8 * s, a, 0, 6.2832);
+    c.fill();
+  }
+}
+function lavande(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.45 * s, 0.2);
+  /* le violet ne tient que si le feuillage reste argenté : on pose
+     d'abord la touffe grise, les épis viennent après */
+  for(var i = 0; i < 3; i++){
+    c.fillStyle = ["#93a37d", "#849371", "#a4b28c"][i];
+    c.beginPath();
+    c.ellipse(p.x + (i - 1) * 4.6 * s, p.y - 2 * s, 6.6 * s, 3.6 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.lineCap = "round";
+  for(var k = 0; k < 11; k++){
+    var bx = p.x + (k - 5) * 2.2 * s, by = p.y - 3 * s;
+    var ex = bx + (k - 5) * 0.5 * s, ey = by - 9 * s - (k % 3) * 2.4 * s;
+    c.strokeStyle = "#6f8a5e"; c.lineWidth = 1.1 * s;
+    c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.stroke();
+    var g = c.createLinearGradient(ex, ey - 1 * s, ex, ey + 5 * s);
+    g.addColorStop(0, "#d0aef6"); g.addColorStop(1, "#6b47a8");
+    c.strokeStyle = g; c.lineWidth = 2.5 * s;
+    c.beginPath(); c.moveTo(ex, ey + 4.5 * s); c.lineTo(ex, ey); c.stroke();
+  }
+}
+function muretSec(c, gx, gy, s){
+  /* muret de pierres sèches : deux rangs décalés de calcaire pâle,
+     et le pot de terre cuite qui donne la seule note chaude */
+  var pierres = ["#efe8d6", "#c9bda3", "#ded5c0", "#b6ab90"];
+  ombreContact(c, gx, gy, 0.6 * s, 1.7 * s, 0.2);
+  for(var i = 0; i < 3; i++){
+    var f = faces(pierres[i]);
+    boite(c, gx, gy - 0.52 * s + i * 0.52 * s, 0.46 * s, 0.48 * s, 0, 7 * s, f.t, f.g, f.d);
+    /* le joint creux entre deux pierres : sans lui, le muret n'est
+       qu'un bloc de sucre */
+    var jt = iso(gx + 0.23 * s, gy - 0.28 * s + i * 0.52 * s);
+    c.strokeStyle = "rgba(96,86,66,.45)"; c.lineWidth = 1.2;
+    c.beginPath();
+    c.moveTo(jt.x, jt.y - 7 * s); c.lineTo(jt.x - 0.46 * s * TW / 2, jt.y - 7 * s + 0.46 * s * TH / 2);
+    c.stroke();
+  }
+  for(var k = 0; k < 2; k++){
+    var f2 = faces(pierres[k + 2]);
+    boite(c, gx, gy - 0.26 * s + k * 0.52 * s, 0.42 * s, 0.44 * s, 7 * s, 5.4 * s, f2.t, f2.g, f2.d);
+  }
+  cylindre(c, gx + 0.45 * s, gy + 0.55 * s, 0.17 * s, 0, 6.4 * s, "#a85c38", "#8d4b2c");
+  cylindre(c, gx + 0.45 * s, gy + 0.55 * s, 0.20 * s, 6.4 * s, 1.6 * s, "#c96f45", "#a85c38");
+  var pp = iso(gx + 0.45 * s, gy + 0.55 * s);
+  for(var m = 0; m < 5; m++){
+    var a = m / 5 * 6.2832 + 0.6;
+    c.fillStyle = m % 2 ? "#5e7a4c" : "#6f8c58";
+    c.beginPath();
+    c.ellipse(pp.x + Math.cos(a) * 3 * s, pp.y - 10 * s + Math.sin(a) * 2 * s, 3.2 * s, 2.4 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.fillStyle = "#d8434a";
+  c.beginPath(); c.arc(pp.x + 1.5 * s, pp.y - 12.5 * s, 2 * s, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(pp.x - 2.5 * s, pp.y - 11 * s, 1.6 * s, 0, 6.2832); c.fill();
+}
+
 function dessineDecor(c, biome, d){
   if(biome === "plage"){
     if(d.v === 0) palmier(c, d.gx, d.gy, d.s);
@@ -239,7 +628,7 @@ function dessineDecor(c, biome, d){
     if(d.v <= 1) sapin(c, d.gx, d.gy, d.s);
     else if(d.v === 2) buisson(c, d.gx, d.gy, d.s, "#2f6b34");
     else cylindre(c, d.gx, d.gy, 0.24 * d.s, 0, 6 * d.s, "#8a6a44", "#5a4126");
-  }else{
+  }else if(biome === "campagne"){
     if(d.v === 0) meule(c, d.gx, d.gy, d.s);
     else if(d.v === 1) buisson(c, d.gx, d.gy, d.s * 0.8, "#7d8a46");
     else if(d.v === 2) clotureBout(c, d.gx, d.gy, d.s);
@@ -248,6 +637,16 @@ function dessineDecor(c, biome, d){
       c.fillStyle = "rgba(90,70,40,.35)";
       c.beginPath(); c.ellipse(q.x, q.y, 9 * d.s, 4 * d.s, 0, 0, 6.2832); c.fill();
     }
+  }else if(biome === "hippie"){
+    if(d.v === 0) combi(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) tipi(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) guirlande(c, d.gx, d.gy, d.s);
+    else feuDeCamp(c, d.gx, d.gy, d.s);
+  }else if(biome === "sud"){
+    if(d.v === 0) cypres(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) olivier(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) lavande(c, d.gx, d.gy, d.s);
+    else muretSec(c, d.gx, d.gy, d.s);
   }
 }
 
@@ -379,6 +778,20 @@ var MATIERES = {
     herbe1:"#9aa851", herbe2:"#7c8a44",
     sable1:"#e0cb95", sable2:"#cdb47c",
     mouille:"#9c8154", roche1:"#7f7986", roche2:"#635e6c"
+  },
+  hippie: {
+    fond1:"#454a39", fond2:"#383e31",                     // prairie piétinée, à la nuit tombée
+    tache1:"#565b42", tache2:"#282d24",
+    herbe1:"#4c6743", herbe2:"#33442b",
+    sable1:"#9c917a", sable2:"#847a66",
+    mouille:"#585448", roche1:"#4b4260", roche2:"#352f45"
+  },
+  sud: {
+    fond1:"#ddc99d", fond2:"#cdb682",                     // garrigue sèche, brûlée de soleil
+    tache1:"#efdfb8", tache2:"#b49b68",
+    herbe1:"#aab586", herbe2:"#8b9765",
+    sable1:"#f2e5c6", sable2:"#e2d0a8",
+    mouille:"#b6a179", roche1:"#d0c5ad", roche2:"#a89b83"
   }
 };
 
@@ -509,6 +922,196 @@ function construitSol(carteC){
       c.fillStyle = al() < 0.5 ? "#39562a" : "#6f9046";
       c.beginPath(); c.ellipse(pp.x, pp.y, 14 + al() * 28, 7 + al() * 13, 0, 0, 6.2832); c.fill();
     }
+  }
+  if(carteC.biome === "hippie"){
+    /* La prairie de nuit, éclairée par la fête. On peint la lumière
+       AVANT tout le reste, en mode additif : une nuit d'où l'on
+       n'aurait retiré que de la couleur serait sinistre. */
+    var TEINTES = ["#ff4f9e", "#ffb43c", "#3fe0d8", "#9d6bff", "#8ee04a"];
+    /* le voile de nuit : il refroidit TOUT le sol d'un coup, sable
+       compris. Sans lui, la plage restait en plein jour au milieu
+       d'une prairie de nuit. */
+    c.save();
+    c.globalAlpha = 0.40;
+    c.fillStyle = "#1b1440";
+    traceIle(c, 6, 0, 0); c.fill();
+    c.restore();
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* les grandes nappes de scène, puis les petites flaques serrées :
+       deux échelles, sinon la lumière fait une purée uniforme */
+    for(i = 0; i < 26; i++){
+      var ax2 = 4 + al() * (PLAGE_X0 - 6), ay2 = al() * GH;
+      var pa = iso(ax2, ay2);
+      var ra = 200 + al() * 190;
+      var ta = TEINTES[(al() * 5) | 0];
+      var ga = c.createRadialGradient(pa.x, pa.y, 4, pa.x, pa.y, ra);
+      ga.addColorStop(0, rgba(ta, 0.20));
+      ga.addColorStop(0.5, rgba(ta, 0.07));
+      ga.addColorStop(1, rgba(ta, 0));
+      c.fillStyle = ga;
+      c.beginPath(); c.ellipse(pa.x, pa.y, ra, ra / 2, 0, 0, 6.2832); c.fill();
+    }
+    for(i = 0; i < 320; i++){
+      var lx = 2 + al() * (PLAGE_X0 - 3), ly = al() * GH;
+      var pl = iso(lx, ly);
+      var rl = 26 + al() * 110;
+      var tl = TEINTES[(al() * 5) | 0];
+      var gl = c.createRadialGradient(pl.x, pl.y, 2, pl.x, pl.y, rl);
+      gl.addColorStop(0, rgba(tl, 0.40));
+      gl.addColorStop(0.42, rgba(tl, 0.13));
+      gl.addColorStop(1, rgba(tl, 0));
+      c.fillStyle = gl;
+      c.beginPath(); c.ellipse(pl.x, pl.y, rl, rl / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* pistes de danse : l'herbe y est tassée, pâlie, et cerclée */
+    c.save();
+    for(i = 0; i < 34; i++){
+      var dx2 = 6 + al() * (PLAGE_X0 - 10), dy2 = 3 + al() * (GH - 6);
+      var pd = iso(dx2, dy2);
+      var rd = 34 + al() * 54;
+      c.globalAlpha = 0.16 + al() * 0.12;
+      c.fillStyle = "#a89d78";
+      c.beginPath(); c.ellipse(pd.x, pd.y, rd, rd / 2, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.22;
+      c.strokeStyle = "#c9bd93"; c.lineWidth = 2;
+      c.beginPath(); c.ellipse(pd.x, pd.y, rd * 0.72, rd * 0.36, 0, 0, 6.2832); c.stroke();
+    }
+    c.restore();
+    /* spirales peintes à même l'herbe, à la bombe */
+    c.save();
+    c.globalAlpha = 0.3; c.lineWidth = 2.6; c.lineCap = "round";
+    for(i = 0; i < 130; i++){
+      var sx2 = 4 + al() * (PLAGE_X0 - 8), sy2 = 2 + al() * (GH - 4);
+      var ps = iso(sx2, sy2);
+      var sens = al() < 0.5 ? 1 : -1;
+      c.strokeStyle = TEINTES[(al() * 5) | 0];
+      c.beginPath();
+      for(var ks = 0; ks < 26; ks++){
+        var an2 = ks * 0.52 * sens, rr3 = ks * 1.15;
+        var xs = ps.x + Math.cos(an2) * rr3 * 2, ys = ps.y + Math.sin(an2) * rr3;
+        if(ks === 0) c.moveTo(xs, ys); else c.lineTo(xs, ys);
+      }
+      c.stroke();
+    }
+    /* confettis */
+    for(i = 0; i < 1800; i++){
+      var cx3 = al() * PLAGE_X0, cy3 = al() * GH;
+      var pc = iso(cx3, cy3);
+      c.globalAlpha = 0.4 + al() * 0.4;
+      c.fillStyle = TEINTES[(al() * 5) | 0];
+      c.fillRect(pc.x, pc.y, 1.8 + al() * 1.6, 1.4);
+    }
+    c.restore();
+  }
+  if(carteC.biome === "sud"){
+    /* De larges plaques de paille et d'ocre rouge, posées les
+       premières : l'île entière au même beige donnait un désert, pas
+       un été provençal. */
+    c.save();
+    for(i = 0; i < 70; i++){
+      var tx2 = al() * PLAGE_X0, ty2 = al() * GH;
+      var pt2 = iso(tx2, ty2);
+      var rt = 150 + al() * 300;
+      var gt = c.createRadialGradient(pt2.x, pt2.y, 6, pt2.x, pt2.y, rt);
+      var ct = al() < 0.5 ? "#e8cf86" : "#c9a071";
+      gt.addColorStop(0, rgba(ct, 0.26));
+      gt.addColorStop(1, rgba(ct, 0));
+      c.fillStyle = gt;
+      c.beginPath(); c.ellipse(pt2.x, pt2.y, rt, rt / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* Les rangs de lavande, par parcelles : un champ qui couvrirait
+       toute l'île se lirait comme une trame, pas comme un paysage.
+       Le damier vaut mieux qu'un tirage libre : deux champs tirés au
+       hasard finissaient par se chevaucher, et deux trames croisées
+       font un tissu écossais, pas de la Provence. */
+    var CX0 = LARGEUR_ROCHE + 2, CY0 = 2, CW = 25, CH = 21;
+    var NCX = Math.floor((PLAGE_X0 - 5 - CX0) / CW), NCY = Math.floor((GH - 3 - CY0) / CH);
+    c.save();
+    c.lineCap = "butt";
+    for(var cy2 = 0; cy2 < NCY; cy2++){
+      for(var cx2 = 0; cx2 < NCX; cx2++){
+        if(al() > 0.62) continue;                       // une parcelle sur trois reste en friche
+        var qx = CX0 + cx2 * CW + 1.5, qy = CY0 + cy2 * CH + 1.5;
+        var ql = CW - 3 - al() * 4, qh = CH - 3 - al() * 4;
+        /* une parcelle sur deux est plantée dans l'autre sens : sans
+           ça, toute l'île se lit comme un papier peint rayé */
+        var travers = ((cx2 + cy2) % 2) === 1;
+        var nr = travers ? ql : qh;
+        for(var jr = 0.6; jr < nr; jr += 1.15){
+          var r1, r2;
+          if(travers){ r1 = iso(qx + jr, qy); r2 = iso(qx + jr, qy + qh); }
+          else { r1 = iso(qx, qy + jr); r2 = iso(qx + ql, qy + jr); }
+          /* la terre nue entre deux rangs : c'est ce blanc qui fait
+             lire les rangs. Et le pointillé donne des touffes plutôt
+             qu'un trait peint : un rang de lavande, ça se compte. */
+          c.setLineDash([]);
+          c.globalAlpha = 0.26;
+          c.strokeStyle = "#f0e0b8"; c.lineWidth = 4.4;
+          c.beginPath(); c.moveTo(r1.x, r1.y + 4); c.lineTo(r2.x, r2.y + 4); c.stroke();
+          c.setLineDash([12, 5]);
+          c.lineDashOffset = (jr * 37) % 17;
+          c.globalAlpha = 0.55;
+          c.strokeStyle = "#664496"; c.lineWidth = 5;
+          c.beginPath(); c.moveTo(r1.x, r1.y); c.lineTo(r2.x, r2.y); c.stroke();
+          c.globalAlpha = 0.34;
+          c.strokeStyle = "#bb9ee8"; c.lineWidth = 1.7;
+          c.beginPath(); c.moveTo(r1.x, r1.y - 2); c.lineTo(r2.x, r2.y - 2); c.stroke();
+        }
+        /* le chemin de terre qui borde la parcelle */
+        c.setLineDash([]);
+        c.globalAlpha = 0.28;
+        c.strokeStyle = "#f4e8c8"; c.lineWidth = 7;
+        var b1 = iso(qx - 0.9, qy - 0.9), b2 = iso(qx + ql + 0.9, qy - 0.9);
+        var b3 = iso(qx + ql + 0.9, qy + qh + 0.9), b4 = iso(qx - 0.9, qy + qh + 0.9);
+        c.beginPath();
+        c.moveTo(b1.x, b1.y); c.lineTo(b2.x, b2.y); c.lineTo(b3.x, b3.y); c.lineTo(b4.x, b4.y);
+        c.closePath(); c.stroke();
+      }
+    }
+    c.setLineDash([]);
+    c.restore();
+    /* affleurements de calcaire : les dalles blanches qui percent la
+       garrigue, et qui cassent l'ocre uniforme */
+    c.save();
+    for(i = 0; i < 420; i++){
+      var kx = al() * PLAGE_X0, ky = al() * GH;
+      var pk = iso(kx, ky);
+      c.globalAlpha = 0.18 + al() * 0.16;
+      c.fillStyle = al() < 0.5 ? "#f4eddc" : "#e2d8c2";
+      c.beginPath(); c.ellipse(pk.x, pk.y, 8 + al() * 22, 4 + al() * 10, al() * 3, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.12;
+      c.fillStyle = "#9a8a6c";
+      c.beginPath(); c.ellipse(pk.x + 2, pk.y + 3, 7 + al() * 16, 3 + al() * 7, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* terre craquelée entre les parcelles */
+    c.save();
+    c.globalAlpha = 0.2; c.strokeStyle = "#a2895c"; c.lineWidth = 1.2;
+    for(i = 0; i < 900; i++){
+      var fx2 = al() * PLAGE_X0, fy2 = al() * GH;
+      if(matiereCase(fx2 | 0, fy2 | 0, gr).herbe > 0.4) continue;
+      var pf = iso(fx2, fy2);
+      c.beginPath();
+      c.moveTo(pf.x, pf.y);
+      for(var kf = 0; kf < 3; kf++){
+        c.lineTo(pf.x + (al() - 0.5) * 26, pf.y + (al() - 0.5) * 13);
+      }
+      c.stroke();
+    }
+    c.restore();
+    /* touffes de garrigue : petits coussins argentés, très éparpillés */
+    c.save();
+    c.globalAlpha = 0.26;
+    for(i = 0; i < 2000; i++){
+      var bx2 = al() * PLAGE_X0, by2 = al() * GH;
+      var pb = iso(bx2, by2);
+      c.fillStyle = al() < 0.5 ? "#9fae7e" : "#c3cba6";
+      c.beginPath(); c.ellipse(pb.x, pb.y, 5 + al() * 9, 2.4 + al() * 4, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
   }
   /* touffes d'herbe éparses, partout où l'herbe domine */
   c.globalAlpha = 0.4;

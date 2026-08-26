@@ -142,6 +142,17 @@ select.champ{cursor:pointer}
 .pastille.att{background:var(--or);color:var(--or)}
 .pastille.ko{background:var(--rouge);color:var(--rouge)}
 
+/* L'objectif intermédiaire, annoncé AVANT le débarquement : sans ça, le
+   joueur tire une heure sur une forteresse qui ne bouge pas et croit à
+   un bug. */
+#objBouclier{
+  margin-top:11px;padding:9px 11px;border-radius:11px;font-size:13px;line-height:1.5;
+  color:var(--texte);background:linear-gradient(180deg,rgba(20,52,80,.75),rgba(12,28,46,.85));
+  border:1px solid rgba(150,225,255,.30);
+}
+#objBouclier b{color:#a9e8ff}
+#objBouclier i{color:var(--or);font-style:normal;font-weight:700}
+
 /* cartes du monde */
 .mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .monde{
@@ -206,6 +217,11 @@ select.champ{cursor:pointer}
    ============================================================ */
 #hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:none}
 #hud.on{display:block}
+/* Séquence finale : les panneaux de jeu n'ont plus rien à commander et
+   ils encombreraient l'explosion. On les efface en douceur ; seule la
+   jauge du Brasier reste, à zéro, pour dire pourquoi tout saute. */
+#hud.fin #hg,#hud.fin #bg,#hud.fin #bd,#hud.fin #hd{
+  opacity:0;pointer-events:none;transition:opacity .8s ease}
 #hud .p{pointer-events:auto}
 
 .bloc{
@@ -239,6 +255,13 @@ select.champ{cursor:pointer}
 #jaugeQG{height:13px;border-radius:8px;background:#2a1030;border:1px solid rgba(255,255,255,.14);overflow:hidden;position:relative}
 #jaugeQGin{height:100%;width:100%;background:linear-gradient(90deg,#ff3a2a,#ff8a1e 60%,#ffd070);transition:width .25s ease;box-shadow:0 0 12px rgba(255,120,30,.6) inset}
 #jaugeQGtx{position:absolute;inset:0;font-size:10px;font-weight:700;line-height:13px;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums}
+/* Le Brasier est sous bouclier : la jauge passe au bleu électrique et
+   annonce ce qu'il reste à détruire, au lieu d'afficher des PV qui ne
+   bougeront pas. */
+#jaugeQG.protege{background:#0d2438;border-color:rgba(150,225,255,.45)}
+#jaugeQG.protege #jaugeQGin{background:linear-gradient(90deg,#1c5f9a,#3fa8e0 55%,#a9e8ff);
+  box-shadow:0 0 12px rgba(110,205,255,.6) inset;animation:bouclierPouls 1.6s ease-in-out infinite}
+@keyframes bouclierPouls{0%,100%{opacity:.72}50%{opacity:1}}
 #bandeauAlerte{
   position:absolute;top:calc(6px + var(--sat));left:50%;transform:translateX(-50%);
   background:linear-gradient(180deg,rgba(255,60,30,.94),rgba(150,20,10,.94));
@@ -322,26 +345,34 @@ select.champ{cursor:pointer}
 }
 #flash.on{opacity:1}
 
-/* — bilan — */
+/* — bilan —
+   Il occupait tout l'écran, fond compris : la destruction du Brasier,
+   qui est le seul vrai spectacle du jeu, disparaissait derrière lui au
+   bout de dix secondes. Le classement est donc descendu EN BAS, sur un
+   fond qui ne monte pas plus haut que lui — l'explosion, les flammes,
+   les débris et la phrase de victoire restent visibles au-dessus.
+   Le padding bas suit --sab : sur tablette, la barre système du
+   constructeur ne recouvre jamais le compte à rebours. */
 #bilan{
-  position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
-  background:radial-gradient(70% 60% at 50% 40%,rgba(70,25,10,.75),rgba(8,4,12,.94));
-  padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab));
+  position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;justify-content:center;
+  background:linear-gradient(180deg,rgba(8,4,12,0) 42%,rgba(12,5,14,.62) 64%,rgba(8,4,12,.93));
+  padding:0 16px calc(14px + var(--sab));
+  pointer-events:none;
 }
 #bilan.on{display:flex}
-#bilanIn{max-width:520px;width:100%;text-align:center}
-#bilanTi{font-size:clamp(26px,7vw,42px);font-weight:900;letter-spacing:2px;
+#bilanIn{max-width:520px;width:100%;text-align:center;pointer-events:auto}
+#bilanTi{font-size:clamp(15px,3.4vw,20px);font-weight:900;letter-spacing:2px;
   background:linear-gradient(180deg,#ffe6a8,#ff8a1e 55%,#e0431a);
   -webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 3px 0 rgba(0,0,0,.55));margin-bottom:4px}
-#bilanSs{color:var(--gris);font-size:13px;margin-bottom:14px}
-#bilanLi{text-align:left;font-size:14px;max-height:38vh;overflow-y:auto}
+  filter:drop-shadow(0 2px 0 rgba(0,0,0,.55));margin-bottom:6px}
+#bilanSs{display:none}
+#bilanLi{text-align:left;font-size:14px;max-height:26vh;overflow-y:auto}
 #bilanLi .r{display:flex;gap:8px;padding:5px 8px;border-radius:9px}
 #bilanLi .r:nth-child(odd){background:rgba(255,255,255,.05)}
 #bilanLi .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #bilanLi .r .v{color:var(--or);font-weight:700;font-variant-numeric:tabular-nums}
 #bilanLi .moi .n{color:var(--vert);font-weight:800}
-#bilanTps{margin-top:14px;font-size:13px;color:var(--gris)}
+#bilanTps{margin-top:9px;font-size:13px;color:var(--gris)}
 #bilanTps b{color:var(--cyan);font-size:20px}
 
 /* — paliers de réduction — */
@@ -353,8 +384,24 @@ select.champ{cursor:pointer}
   .cap canvas{width:26px;height:26px}
   .cap .nm{font-size:8px}
   #hc{width:min(300px,46vw);padding:4px 8px 6px}
-  #mini{width:104px;height:92px}
+  /* 104 × 93 et non 104 × 92 : le canevas fait 264 × 236, et une boîte
+     qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
+  #mini{width:104px;height:93px}
   .bg1{width:40px}
+}
+/* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
+   minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
+   qui elle est centrée sur l'ÉCRAN. À 768 px de large — un iPad en
+   portrait — les trois se chevauchaient déjà. Sous 800 px la jauge ne
+   se centre donc plus sur l'écran mais DANS la place qui reste entre
+   ses deux voisins : plus rien ne passe sous rien, dans les deux sens
+   de rotation. */
+@media (max-width:800px){
+  #hg{max-width:205px}
+  #hc{
+    left:calc(221px + var(--sal));right:calc(160px + var(--sar));
+    width:auto;max-width:360px;margin:0 auto;transform:none;
+  }
 }
 @media (max-width:600px){
   #caps{grid-template-columns:repeat(4,1fr);gap:4px}
@@ -366,7 +413,8 @@ select.champ{cursor:pointer}
 }
 @media (max-width:430px){
   #hd{display:none}
-  #hc{width:min(230px,44vw)}
+  /* la minicarte est masquée : la jauge récupère toute la droite */
+  #hc{right:calc(8px + var(--sar))}
   .cap{width:46px;height:46px}
   .cap canvas{width:22px;height:22px}
   .cap .nm{font-size:7px}
@@ -401,8 +449,15 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Les trois îles</h2>
+      <h2>Les cinq îles</h2>
       <div class="mondes" id="mondes"></div>
+      <div id="objBouclier">
+        <b>⚡ Le Brasier est sous bouclier.</b>
+        Cinq <i>cellules électriques</i> l'alimentent — quatre aux extrémités
+        de l'île, une au centre — reliées à lui par un câble au sol.
+        <b>200 000 PV chacune.</b> Tant qu'il en reste une debout,
+        le Brasier ne perd pas un seul point de vie.
+      </div>
     </div>
 
     <div class="carteP">
@@ -504,7 +559,7 @@ select.champ{cursor:pointer}
 
 <!-- ============================ BILAN ============================ -->
 <div id="bilan"><div id="bilanIn">
-  <div id="bilanTi">MILY BOUM !</div>
+  <div id="bilanTi">Top dégâts</div>
   <div id="bilanSs">la gardienne a décollé</div>
   <div class="bloc" id="bilanLi"></div>
   <div id="bilanTps">Île suivante dans <b id="bilanC">8</b> s</div>

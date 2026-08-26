@@ -11,6 +11,10 @@ var W = 960, H = 600, dpr = 1;
    Création d'une carte
    --------------------------------------------------------------- */
 function nouvelleCarte(index, pvConnu){
+  /* les panneaux de commande, effacés pendant la séquence finale de
+     l'île précédente, reviennent avec la nouvelle */
+  var hud = document.getElementById("hud");
+  if(hud) hud.classList.remove("fin");
   /* La carte suit le plan du salon et son tirage courant : c'est ce
      couple, diffusé dans l'instantané retenu, qui garantit que tout le
      monde voit exactement les mêmes défenses. */
@@ -34,6 +38,9 @@ function nouvelleCarte(index, pvConnu){
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
+    /* Le bouclier du Brasier : les cinq cellules, leurs câbles, et le
+       compte de celles qui tiennent encore. */
+    reacteurs:[], cables:[], bouclier:0, boucliercoups:0, boucliertouche:0, coupure:0,
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -88,9 +95,103 @@ function nouvelleCarte(index, pvConnu){
   degatsEnAttente = 0;
   serieReseau = 0;
   construitGrilles();
+  construitCables();
   construitContourIle();
   construitSol(carte);
   centreSurPlage();
+}
+
+/* ---------------------------------------------------------------
+   LES CÂBLES DU BOUCLIER
+   Chaque cellule électrique est reliée au Brasier par un câble posé
+   au sol. On le trace APRÈS construitGrilles() : c'est la carte
+   d'occupation qui dit où sont les bâtiments, et le câble doit les
+   contourner au lieu de leur passer au travers.
+   Le tracé est quasi rectiligne : on avance vers le Brasier, et
+   lorsqu'un pas tombe sur un obstacle on cherche le décalage LATÉRAL
+   le plus faible qui dégage — d'abord un demi-pas, puis un pas entier,
+   jusqu'à trois. Le câble épouse donc le bâtiment et reprend aussitôt
+   sa ligne, sans jamais partir en zigzag.
+   --------------------------------------------------------------- */
+/* Un segment de câble est-il posable ? On échantillonne finement : un
+   simple test d'arrivée laisserait le câble traverser un bâtiment de
+   part en part pour atterrir libre de l'autre côté. */
+var cableDepart = null;          // la cellule d'où part le tracé en cours
+function cableLibre(x0, y0, x1, y1){
+  var n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.35));
+  for(var i = 0; i <= n; i++){
+    var f = i / n;
+    var x = x0 + (x1 - x0) * f, y = y0 + (y1 - y0) * f;
+    /* le pied du Brasier est forcément « bloqué » : c'est justement là
+       qu'on veut arriver. Idem pour l'emprise de la cellule elle-même,
+       d'où le câble sort. */
+    if(Math.hypot(x - jeu.qg.gx, y - jeu.qg.gy) < RAYON_QG + 2) continue;
+    if(cableDepart && Math.hypot(x - cableDepart.gx, y - cableDepart.gy) < 3) continue;
+    if(bloque(x, y)) return 0;
+  }
+  return 1;
+}
+
+function construitCables(){
+  jeu.reacteurs = [];
+  jeu.cables = [];
+  var lst = carte.reacteurs || [];
+  for(var i = 0; i < lst.length; i++){
+    var bat = jeu.batiments[lst[i].n];
+    if(!bat || bat.t !== "reacteur") continue;
+    jeu.reacteurs.push({ bat:bat, gx:bat.gx, gy:bat.gy, n:i });
+
+    cableDepart = bat;
+    var pts = [{ gx:bat.gx, gy:bat.gy }];
+    var cx = bat.gx, cy = bat.gy;
+    var garde = 0;
+    while(Math.hypot(cx - jeu.qg.gx, cy - jeu.qg.gy) > RAYON_QG + 1.2 && garde++ < 700){
+      var dx = jeu.qg.gx - cx, dy = jeu.qg.gy - cy;
+      var l = Math.hypot(dx, dy) || 1;
+      dx /= l; dy /= l;
+      var pas = 1.4;
+      var nx = cx + dx * pas, ny = cy + dy * pas;
+      if(!cableLibre(cx, cy, nx, ny)){
+        /* obstacle : on longe. Décalages latéraux croissants, des deux
+           côtés, on garde le premier qui dégage — et c'est bien tout le
+           SEGMENT qu'on teste, pas seulement son arrivée : sinon le
+           câble atterrit à côté du bâtiment en lui passant au travers. */
+        var tx = -dy, ty = dx, ok = 0;
+        for(var e = 1; e <= 11 && !ok; e++){
+          for(var sg = 1; sg >= -1 && !ok; sg -= 2){
+            var ex = cx + dx * pas * 0.45 + tx * sg * e * 0.62;
+            var ey = cy + dy * pas * 0.45 + ty * sg * e * 0.62;
+            if(cableLibre(cx, cy, ex, ey)){ nx = ex; ny = ey; ok = 1; }
+          }
+        }
+        /* dernier recours : reculer perpendiculairement pour se dégager
+           d'un cul-de-sac, sinon on passe outre plutôt que boucler */
+        if(!ok){
+          for(var e2 = 1; e2 <= 8 && !ok; e2++){
+            for(var sg2 = 1; sg2 >= -1 && !ok; sg2 -= 2){
+              var fx = cx + tx * sg2 * e2 * 0.7 - dx * 0.5;
+              var fy = cy + ty * sg2 * e2 * 0.7 - dy * 0.5;
+              if(cableLibre(cx, cy, fx, fy)){ nx = fx; ny = fy; ok = 1; }
+            }
+          }
+        }
+        if(!ok){ nx = cx + dx * pas; ny = cy + dy * pas; }
+      }
+      cx = nx; cy = ny;
+      pts.push({ gx:cx, gy:cy });
+    }
+    pts.push({ gx:jeu.qg.gx, gy:jeu.qg.gy });
+    /* longueur cumulée : elle sert au rendu pour faire courir
+       l'impulsion lumineuse à vitesse constante */
+    var lg = 0;
+    for(var k = 1; k < pts.length; k++){
+      lg += Math.hypot(pts[k].gx - pts[k - 1].gx, pts[k].gy - pts[k - 1].gy);
+      pts[k].d = lg;
+    }
+    pts[0].d = 0;
+    jeu.cables.push({ pts:pts, lg:lg, bat:bat, n:i });
+  }
+  jeu.bouclier = reacteursVivants();
 }
 
 /* ---------------------------------------------------------------
@@ -562,8 +663,89 @@ function abimeCreature(c, d){
     demandeMajBarres();
   }
 }
+/* Combien de cellules électriques alimentent encore le bouclier. */
+function reacteursVivants(){
+  var n = 0;
+  for(var i = 0; i < jeu.reacteurs.length; i++) if(jeu.reacteurs[i].bat.vivant) n++;
+  return n;
+}
+
+/* ---------------------------------------------------------------
+   LE BOUCLIER, IMAGE PAR IMAGE
+   Une cellule peut tomber par trois chemins très différents : sous nos
+   propres tirs, par le message « det » d'un autre joueur, ou d'un coup
+   à la lecture d'un instantané de salon. Plutôt que de greffer le même
+   traitement à trois endroits — et d'en oublier un quatrième demain —
+   on regarde simplement, à chaque image, quelles cellules viennent de
+   s'éteindre. La mise en scène part de là, quelle qu'en soit la cause.
+   --------------------------------------------------------------- */
+function majBouclier(dt){
+  if(jeu.coupure > 0) jeu.coupure = Math.max(0, jeu.coupure - dt);
+  if(jeu.boucliertouche > 0) jeu.boucliertouche = Math.max(0, jeu.boucliertouche - dt);
+  for(var ic = 0; ic < jeu.cables.length; ic++){
+    var cc = jeu.cables[ic];
+    if(cc.morte && cc.fondu > 0) cc.fondu = Math.max(0, cc.fondu - dt);
+  }
+  var n = 0, i, r;
+  for(i = 0; i < jeu.reacteurs.length; i++){
+    r = jeu.reacteurs[i];
+    var vif = !!r.bat.vivant;
+    if(vif) n++;
+    if(r.etaitVive === undefined){ r.etaitVive = vif; continue; }
+    if(r.etaitVive && !vif){
+      r.etaitVive = false;
+      r.eteinte = jeu.tps;                 // l'heure exacte de sa mort
+      tombeReacteur(r);
+    }
+  }
+  var avant = jeu.bouclier;
+  jeu.bouclier = n;
+  if(avant > 0 && n === 0 && !jeu.fin) coupeLeCourant();
+}
+
+/* Une cellule s'effondre : décharge incontrôlée, arcs qui partent dans
+   tous les sens, petite explosion, et la lumière qui s'éteint. Son
+   câble cesse de battre mais reste posé au sol. */
+function tombeReacteur(r){
+  var b = r.bat;
+  jeu.effets.push({ t:"cellHS", gx:b.gx, gy:b.gy, age:0, duree:1.8 });
+  jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.9, r:2.6, force:1.3 });
+  jeu.secousse = Math.min(11, jeu.secousse + 5);
+  for(var i = 0; i < jeu.cables.length; i++){
+    if(jeu.cables[i].bat === b){ jeu.cables[i].morte = 1; jeu.cables[i].fondu = 1.4; }
+  }
+  if(son && son.boum) son.boum(0.55);
+}
+
+/* La dernière cellule vient de tomber. Le courant lâche d'un coup :
+   toute l'énergie encore prise dans les câbles reflue vers le Brasier
+   et claque, puis plus rien. Le Brasier devient enfin attaquable. */
+function coupeLeCourant(){
+  jeu.coupure = 2.6;
+  jeu.effets.push({ t:"coupure", gx:jeu.qg.gx, gy:jeu.qg.gy, age:0, duree:2.6 });
+  jeu.secousse = Math.min(14, jeu.secousse + 9);
+  if(son && son.boum) son.boum(0.85);
+  /* la bannière est peinte sur le canevas par dessineCoupure() : elle
+     tient les 2,6 s de la coupure, bien plus visible que le bandeau
+     ordinaire, et elle crépite. */
+}
 function abimeQG(d){
   if(jeu.qg.pv <= 0) return;
+  /* LE BOUCLIER. Tant qu'une seule cellule électrique tient debout, le
+     Brasier ne perd pas un point de vie. Les troupes peuvent tirer —
+     c'est même voulu, les impacts crépitent sur le champ — mais rien
+     n'entame la coque. Le joueur doit d'abord faire tomber les cinq
+     cellules, ce qui l'oblige à se répartir sur toute l'île. */
+  if(jeu.bouclier > 0){
+    jeu.boucliercoups = (jeu.boucliercoups || 0) + 1;
+    jeu.boucliertouche = 0.22;        // le champ encaisse : ça doit se voir
+    if(jeu.boucliercoups % 40 === 1 && !jeu.fin){
+      message("Le Brasier est protégé : détruis les " + jeu.bouclier
+            + " cellule" + (jeu.bouclier > 1 ? "s" : "") + " électrique"
+            + (jeu.bouclier > 1 ? "s" : "") + " qui l'alimentent.");
+    }
+    return;
+  }
   d = Math.round(d);
   if(d <= 0) return;
   jeu.serieDeg++;
@@ -1836,6 +2018,10 @@ function declencheFin(){
     prochaineFumee:0
   };
   envoieCarte(jeu.index + 1);
+  /* les panneaux de commande s'effacent : plus rien à commander, et
+     ils masqueraient la chute de la forteresse */
+  var h = document.getElementById("hud");
+  if(h) h.classList.add("fin");
   son.grondement();
 }
 var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
@@ -1845,6 +2031,14 @@ function majFin(dt){
   var F = jeu.fin;
   F.age += dt;
   var p = jeu.qg;
+
+  /* ---- 0. LA CAMÉRA REVIENT SUR LE BRASIER ----
+     C'est le seul moment de la partie qui mérite d'être regardé, et le
+     joueur est presque toujours ailleurs quand il tombe — au fond de la
+     plage, ou sur la cellule qu'il achevait. On le ramène en douceur,
+     sans coupure, et on recule un peu : la déflagration monte très
+     haut. Ensuite plus personne ne touche à la caméra. */
+  cadreLaFin(dt);
 
   /* ---- 1. l'effondrement : elle s'enfonce, penche, et se déchire ---- */
   if(F.age < FIN_EFFONDREMENT){
@@ -1955,6 +2149,21 @@ function majFin(dt){
   }
 }
 
+/* Le cadrage de la séquence finale. On vise un zoom qui laisse tenir la
+   forteresse ET sa colonne de fumée dans la hauteur disponible : sur une
+   tablette en portrait, la hauteur est le facteur limitant, en paysage
+   c'est la largeur. Le point visé est légèrement AU-DESSUS du pied de la
+   forteresse, sinon l'explosion sort par le haut de l'écran. */
+function cadreLaFin(dt){
+  var zBut = borne(Math.min(W / 1000, H / 900), ZMIN, 0.7);
+  var pBut = iso(jeu.qg.gx, jeu.qg.gy);
+  /* approche exponentielle : rapide au début, elle se pose sans à-coup */
+  var k = 1 - Math.exp(-dt * 2.6);
+  cam.z += (zBut - cam.z) * k;
+  cam.px += (W / 2 - pBut.x * cam.z - cam.px) * k;
+  cam.py += (H * 0.60 - pBut.y * cam.z - cam.py) * k;
+}
+
 /* Éclats de maçonnerie projetés. Ils vivent en coordonnées ÉCRAN
    relatives au pied du Brasier : le tri de profondeur n'a rien à leur
    apprendre, ils volent au-dessus de tout. */
@@ -1981,6 +2190,7 @@ function majJeu(dt){
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
+  majBouclier(dt);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
   majNavettes(dt);

@@ -235,8 +235,18 @@ var DEF = {
   silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 },
   /* La cellule ne se défend pas et ne sert qu'à une chose : se faire
      récolter. Elles poussent par petits champs d'une quinzaine. */
-  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 }
+  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 },
+  /* LA CELLULE ÉLECTRIQUE. Cinq par île, quatre aux extrémités et une
+     au centre : elles alimentent le bouclier du Brasier, qui est
+     invulnérable tant qu'il en reste une debout. Elles ne tirent pas,
+     mais elles encaissent — ce sont les objectifs intermédiaires qui
+     obligent le salon à se répartir sur toute la carte. */
+  reacteur:  { nom:"Cellule électrique", desc:"réacteur du bouclier du Brasier",
+               pv:200000, portee:0, degats:0, cadence:0, emprise:3, tourelle:1, bouclier:1 }
 };
+
+/* Combien de cellules électriques protègent le Brasier. */
+var NB_REACTEURS = 5;
 
 /* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
@@ -293,18 +303,24 @@ var CAP = {
   viper     :{ degats:220, rayon:1.5, vitesse:34 }
 };
 
-/* Les trois îles, jouées dans l'ordre */
-/* Les trois îles, jouées dans l'ordre.
+/* Les cinq îles, jouées dans l'ordre.
    Le Brasier est un objectif COLLECTIF : ~100 tireuses au contact font
    environ 4 100 dégâts/s. Seul et sans opposition, il faut donc à peu
-   près une heure pour abattre la première île ; à quinze, quatre minutes. */
+   près une heure pour abattre la première île ; à quinze, quatre minutes.
+   S'y ajoutent maintenant le million de PV des cinq cellules
+   électriques, qu'il faut avoir démonté AVANT de pouvoir l'entamer.
+   Elle s'appelle MILY. M-I-L-Y. Pas Millie, pas Milly. */
 var CARTES = [
-  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000,
-    victoire:"Millie lui offre d'aller boire un verre !" },
-  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000,
-    victoire:"Millie l'invite dans sa cabane !" },
-  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000,
-    victoire:"Millie l'invite à se rouler dans la paille !" }
+  { nom:"Mily à la plage",        biome:"plage",    pvQG:15000000,
+    victoire:"Mily lui offre d'aller boire un verre !" },
+  { nom:"Mily en forêt",          biome:"foret",    pvQG:20000000,
+    victoire:"Mily l'invite dans sa cabane !" },
+  { nom:"Mily à la campagne",     biome:"campagne", pvQG:26000000,
+    victoire:"Mily l'invite à se rouler dans la paille !" },
+  { nom:"Mily en soirée hippie",  biome:"hippie",   pvQG:31000000,
+    victoire:"Mily t'invite à venir chez elle !" },
+  { nom:"Mily dans le Sud",       biome:"sud",      pvQG:37000000,
+    victoire:"Mily te dit qu'elle t'aime !" }
 ];
 
 /* Le message de victoire nomme celui qui a le plus contribué à faire
@@ -538,6 +554,53 @@ function genereCarte(codeSalon, index, plan, tirage){
       break;
     }
   });
+
+  /* --- LES CINQ CELLULES ÉLECTRIQUES ---
+     Quatre aux extrémités de la terre praticable, une au centre. Elles
+     sont ajoutées EN DERNIER, exprès : le bitmap des destructions
+     désigne les bâtiments par leur indice, et une insertion au milieu
+     aurait fait pointer chaque bit sur le mauvais bâtiment dans tous
+     les salons déjà en cours. En queue de liste, les anciens indices
+     ne bougent pas d'un cran.
+     On ne supprime aucun bâtiment existant pour leur faire place —
+     même raison. On cherche plutôt, autour du point idéal, l'endroit
+     libre le plus proche. */
+  var marge = LARGEUR_ROCHE + 5;
+  var ideals = [
+    [marge + 4,        marge + 4],                 // extrémité nord-ouest
+    [PLAGE_X0 - 9,     marge + 4],                 // extrémité nord-est
+    [marge + 4,        GH - marge - 4],            // extrémité sud-ouest
+    [PLAGE_X0 - 9,     GH - marge - 4],            // extrémité sud-est
+    [(QG_GX + PLAGE_X0) / 2, GH / 2]               // le centre
+  ];
+  c.reacteurs = [];
+  var fr = DEF.reacteur;
+  for(var ir = 0; ir < ideals.length; ir++){
+    var vx = ideals[ir][0], vy = ideals[ir][1];
+    /* spirale de recherche : on s'écarte du point idéal jusqu'à trouver
+       une place franche, loin du Brasier et des bâtiments déjà posés */
+    var trouve = null;
+    for(var pas = 0; pas < 90 && !trouve; pas++){
+      var ang = pas * ANGLE_OR;
+      var ray = pas * 0.85;
+      var px2 = borne(vx + Math.cos(ang) * ray, marge, PLAGE_X0 - 5);
+      var py2 = borne(vy + Math.sin(ang) * ray, marge, GH - marge);
+      if(Math.hypot(px2 - QG_GX, py2 - QG_GY) < 20) continue;
+      var libre = 1;
+      for(var jb = 0; jb < c.batiments.length; jb++){
+        var bb = c.batiments[jb];
+        if(Math.hypot(bb.gx - px2, bb.gy - py2) < (fr.emprise + bb.e) * 0.55 + 1.2){ libre = 0; break; }
+      }
+      if(libre) trouve = { gx:px2, gy:py2 };
+    }
+    if(!trouve) trouve = { gx:vx, gy:vy };
+    trouve.n = c.batiments.length;
+    c.reacteurs.push(trouve);
+    c.batiments.push({
+      t:"reacteur", gx:trouve.gx, gy:trouve.gy, pv:fr.pv, pvMax:fr.pv,
+      e:fr.emprise, ang:0, vivant:1, n:c.batiments.length
+    });
+  }
   return c;
 }
 
@@ -695,7 +758,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
 
    L'instantané tient en cinq champs :
      v  numéro de version, monotone croissant
-     cy numéro de campagne — il s'incrémente quand les trois îles sont
+     cy numéro de campagne — il s'incrémente quand les cinq îles sont
         tombées et que l'on repart de la première. Sans lui, revenir à
         l'île 0 serait vu comme un instantané périmé et le salon
         resterait figé sur la dernière île à jamais.

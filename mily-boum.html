@@ -142,6 +142,17 @@ select.champ{cursor:pointer}
 .pastille.att{background:var(--or);color:var(--or)}
 .pastille.ko{background:var(--rouge);color:var(--rouge)}
 
+/* L'objectif intermédiaire, annoncé AVANT le débarquement : sans ça, le
+   joueur tire une heure sur une forteresse qui ne bouge pas et croit à
+   un bug. */
+#objBouclier{
+  margin-top:11px;padding:9px 11px;border-radius:11px;font-size:13px;line-height:1.5;
+  color:var(--texte);background:linear-gradient(180deg,rgba(20,52,80,.75),rgba(12,28,46,.85));
+  border:1px solid rgba(150,225,255,.30);
+}
+#objBouclier b{color:#a9e8ff}
+#objBouclier i{color:var(--or);font-style:normal;font-weight:700}
+
 /* cartes du monde */
 .mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .monde{
@@ -206,6 +217,11 @@ select.champ{cursor:pointer}
    ============================================================ */
 #hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:none}
 #hud.on{display:block}
+/* Séquence finale : les panneaux de jeu n'ont plus rien à commander et
+   ils encombreraient l'explosion. On les efface en douceur ; seule la
+   jauge du Brasier reste, à zéro, pour dire pourquoi tout saute. */
+#hud.fin #hg,#hud.fin #bg,#hud.fin #bd,#hud.fin #hd{
+  opacity:0;pointer-events:none;transition:opacity .8s ease}
 #hud .p{pointer-events:auto}
 
 .bloc{
@@ -239,6 +255,13 @@ select.champ{cursor:pointer}
 #jaugeQG{height:13px;border-radius:8px;background:#2a1030;border:1px solid rgba(255,255,255,.14);overflow:hidden;position:relative}
 #jaugeQGin{height:100%;width:100%;background:linear-gradient(90deg,#ff3a2a,#ff8a1e 60%,#ffd070);transition:width .25s ease;box-shadow:0 0 12px rgba(255,120,30,.6) inset}
 #jaugeQGtx{position:absolute;inset:0;font-size:10px;font-weight:700;line-height:13px;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums}
+/* Le Brasier est sous bouclier : la jauge passe au bleu électrique et
+   annonce ce qu'il reste à détruire, au lieu d'afficher des PV qui ne
+   bougeront pas. */
+#jaugeQG.protege{background:#0d2438;border-color:rgba(150,225,255,.45)}
+#jaugeQG.protege #jaugeQGin{background:linear-gradient(90deg,#1c5f9a,#3fa8e0 55%,#a9e8ff);
+  box-shadow:0 0 12px rgba(110,205,255,.6) inset;animation:bouclierPouls 1.6s ease-in-out infinite}
+@keyframes bouclierPouls{0%,100%{opacity:.72}50%{opacity:1}}
 #bandeauAlerte{
   position:absolute;top:calc(6px + var(--sat));left:50%;transform:translateX(-50%);
   background:linear-gradient(180deg,rgba(255,60,30,.94),rgba(150,20,10,.94));
@@ -322,26 +345,34 @@ select.champ{cursor:pointer}
 }
 #flash.on{opacity:1}
 
-/* — bilan — */
+/* — bilan —
+   Il occupait tout l'écran, fond compris : la destruction du Brasier,
+   qui est le seul vrai spectacle du jeu, disparaissait derrière lui au
+   bout de dix secondes. Le classement est donc descendu EN BAS, sur un
+   fond qui ne monte pas plus haut que lui — l'explosion, les flammes,
+   les débris et la phrase de victoire restent visibles au-dessus.
+   Le padding bas suit --sab : sur tablette, la barre système du
+   constructeur ne recouvre jamais le compte à rebours. */
 #bilan{
-  position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
-  background:radial-gradient(70% 60% at 50% 40%,rgba(70,25,10,.75),rgba(8,4,12,.94));
-  padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab));
+  position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;justify-content:center;
+  background:linear-gradient(180deg,rgba(8,4,12,0) 42%,rgba(12,5,14,.62) 64%,rgba(8,4,12,.93));
+  padding:0 16px calc(14px + var(--sab));
+  pointer-events:none;
 }
 #bilan.on{display:flex}
-#bilanIn{max-width:520px;width:100%;text-align:center}
-#bilanTi{font-size:clamp(26px,7vw,42px);font-weight:900;letter-spacing:2px;
+#bilanIn{max-width:520px;width:100%;text-align:center;pointer-events:auto}
+#bilanTi{font-size:clamp(15px,3.4vw,20px);font-weight:900;letter-spacing:2px;
   background:linear-gradient(180deg,#ffe6a8,#ff8a1e 55%,#e0431a);
   -webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 3px 0 rgba(0,0,0,.55));margin-bottom:4px}
-#bilanSs{color:var(--gris);font-size:13px;margin-bottom:14px}
-#bilanLi{text-align:left;font-size:14px;max-height:38vh;overflow-y:auto}
+  filter:drop-shadow(0 2px 0 rgba(0,0,0,.55));margin-bottom:6px}
+#bilanSs{display:none}
+#bilanLi{text-align:left;font-size:14px;max-height:26vh;overflow-y:auto}
 #bilanLi .r{display:flex;gap:8px;padding:5px 8px;border-radius:9px}
 #bilanLi .r:nth-child(odd){background:rgba(255,255,255,.05)}
 #bilanLi .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #bilanLi .r .v{color:var(--or);font-weight:700;font-variant-numeric:tabular-nums}
 #bilanLi .moi .n{color:var(--vert);font-weight:800}
-#bilanTps{margin-top:14px;font-size:13px;color:var(--gris)}
+#bilanTps{margin-top:9px;font-size:13px;color:var(--gris)}
 #bilanTps b{color:var(--cyan);font-size:20px}
 
 /* — paliers de réduction — */
@@ -353,8 +384,24 @@ select.champ{cursor:pointer}
   .cap canvas{width:26px;height:26px}
   .cap .nm{font-size:8px}
   #hc{width:min(300px,46vw);padding:4px 8px 6px}
-  #mini{width:104px;height:92px}
+  /* 104 × 93 et non 104 × 92 : le canevas fait 264 × 236, et une boîte
+     qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
+  #mini{width:104px;height:93px}
   .bg1{width:40px}
+}
+/* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
+   minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
+   qui elle est centrée sur l'ÉCRAN. À 768 px de large — un iPad en
+   portrait — les trois se chevauchaient déjà. Sous 800 px la jauge ne
+   se centre donc plus sur l'écran mais DANS la place qui reste entre
+   ses deux voisins : plus rien ne passe sous rien, dans les deux sens
+   de rotation. */
+@media (max-width:800px){
+  #hg{max-width:205px}
+  #hc{
+    left:calc(221px + var(--sal));right:calc(160px + var(--sar));
+    width:auto;max-width:360px;margin:0 auto;transform:none;
+  }
 }
 @media (max-width:600px){
   #caps{grid-template-columns:repeat(4,1fr);gap:4px}
@@ -366,7 +413,8 @@ select.champ{cursor:pointer}
 }
 @media (max-width:430px){
   #hd{display:none}
-  #hc{width:min(230px,44vw)}
+  /* la minicarte est masquée : la jauge récupère toute la droite */
+  #hc{right:calc(8px + var(--sar))}
   .cap{width:46px;height:46px}
   .cap canvas{width:22px;height:22px}
   .cap .nm{font-size:7px}
@@ -401,8 +449,15 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Les trois îles</h2>
+      <h2>Les cinq îles</h2>
       <div class="mondes" id="mondes"></div>
+      <div id="objBouclier">
+        <b>⚡ Le Brasier est sous bouclier.</b>
+        Cinq <i>cellules électriques</i> l'alimentent — quatre aux extrémités
+        de l'île, une au centre — reliées à lui par un câble au sol.
+        <b>200 000 PV chacune.</b> Tant qu'il en reste une debout,
+        le Brasier ne perd pas un seul point de vie.
+      </div>
     </div>
 
     <div class="carteP">
@@ -504,7 +559,7 @@ select.champ{cursor:pointer}
 
 <!-- ============================ BILAN ============================ -->
 <div id="bilan"><div id="bilanIn">
-  <div id="bilanTi">MILY BOUM !</div>
+  <div id="bilanTi">Top dégâts</div>
   <div id="bilanSs">la gardienne a décollé</div>
   <div class="bloc" id="bilanLi"></div>
   <div id="bilanTps">Île suivante dans <b id="bilanC">8</b> s</div>
@@ -751,8 +806,18 @@ var DEF = {
   silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 },
   /* La cellule ne se défend pas et ne sert qu'à une chose : se faire
      récolter. Elles poussent par petits champs d'une quinzaine. */
-  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 }
+  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 },
+  /* LA CELLULE ÉLECTRIQUE. Cinq par île, quatre aux extrémités et une
+     au centre : elles alimentent le bouclier du Brasier, qui est
+     invulnérable tant qu'il en reste une debout. Elles ne tirent pas,
+     mais elles encaissent — ce sont les objectifs intermédiaires qui
+     obligent le salon à se répartir sur toute la carte. */
+  reacteur:  { nom:"Cellule électrique", desc:"réacteur du bouclier du Brasier",
+               pv:200000, portee:0, degats:0, cadence:0, emprise:3, tourelle:1, bouclier:1 }
 };
+
+/* Combien de cellules électriques protègent le Brasier. */
+var NB_REACTEURS = 5;
 
 /* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
    faite pour qu'on puisse en ajouter d'autres sans rien casser. */
@@ -809,18 +874,24 @@ var CAP = {
   viper     :{ degats:220, rayon:1.5, vitesse:34 }
 };
 
-/* Les trois îles, jouées dans l'ordre */
-/* Les trois îles, jouées dans l'ordre.
+/* Les cinq îles, jouées dans l'ordre.
    Le Brasier est un objectif COLLECTIF : ~100 tireuses au contact font
    environ 4 100 dégâts/s. Seul et sans opposition, il faut donc à peu
-   près une heure pour abattre la première île ; à quinze, quatre minutes. */
+   près une heure pour abattre la première île ; à quinze, quatre minutes.
+   S'y ajoutent maintenant le million de PV des cinq cellules
+   électriques, qu'il faut avoir démonté AVANT de pouvoir l'entamer.
+   Elle s'appelle MILY. M-I-L-Y. Pas Millie, pas Milly. */
 var CARTES = [
-  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000,
-    victoire:"Millie lui offre d'aller boire un verre !" },
-  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000,
-    victoire:"Millie l'invite dans sa cabane !" },
-  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000,
-    victoire:"Millie l'invite à se rouler dans la paille !" }
+  { nom:"Mily à la plage",        biome:"plage",    pvQG:15000000,
+    victoire:"Mily lui offre d'aller boire un verre !" },
+  { nom:"Mily en forêt",          biome:"foret",    pvQG:20000000,
+    victoire:"Mily l'invite dans sa cabane !" },
+  { nom:"Mily à la campagne",     biome:"campagne", pvQG:26000000,
+    victoire:"Mily l'invite à se rouler dans la paille !" },
+  { nom:"Mily en soirée hippie",  biome:"hippie",   pvQG:31000000,
+    victoire:"Mily t'invite à venir chez elle !" },
+  { nom:"Mily dans le Sud",       biome:"sud",      pvQG:37000000,
+    victoire:"Mily te dit qu'elle t'aime !" }
 ];
 
 /* Le message de victoire nomme celui qui a le plus contribué à faire
@@ -1054,6 +1125,53 @@ function genereCarte(codeSalon, index, plan, tirage){
       break;
     }
   });
+
+  /* --- LES CINQ CELLULES ÉLECTRIQUES ---
+     Quatre aux extrémités de la terre praticable, une au centre. Elles
+     sont ajoutées EN DERNIER, exprès : le bitmap des destructions
+     désigne les bâtiments par leur indice, et une insertion au milieu
+     aurait fait pointer chaque bit sur le mauvais bâtiment dans tous
+     les salons déjà en cours. En queue de liste, les anciens indices
+     ne bougent pas d'un cran.
+     On ne supprime aucun bâtiment existant pour leur faire place —
+     même raison. On cherche plutôt, autour du point idéal, l'endroit
+     libre le plus proche. */
+  var marge = LARGEUR_ROCHE + 5;
+  var ideals = [
+    [marge + 4,        marge + 4],                 // extrémité nord-ouest
+    [PLAGE_X0 - 9,     marge + 4],                 // extrémité nord-est
+    [marge + 4,        GH - marge - 4],            // extrémité sud-ouest
+    [PLAGE_X0 - 9,     GH - marge - 4],            // extrémité sud-est
+    [(QG_GX + PLAGE_X0) / 2, GH / 2]               // le centre
+  ];
+  c.reacteurs = [];
+  var fr = DEF.reacteur;
+  for(var ir = 0; ir < ideals.length; ir++){
+    var vx = ideals[ir][0], vy = ideals[ir][1];
+    /* spirale de recherche : on s'écarte du point idéal jusqu'à trouver
+       une place franche, loin du Brasier et des bâtiments déjà posés */
+    var trouve = null;
+    for(var pas = 0; pas < 90 && !trouve; pas++){
+      var ang = pas * ANGLE_OR;
+      var ray = pas * 0.85;
+      var px2 = borne(vx + Math.cos(ang) * ray, marge, PLAGE_X0 - 5);
+      var py2 = borne(vy + Math.sin(ang) * ray, marge, GH - marge);
+      if(Math.hypot(px2 - QG_GX, py2 - QG_GY) < 20) continue;
+      var libre = 1;
+      for(var jb = 0; jb < c.batiments.length; jb++){
+        var bb = c.batiments[jb];
+        if(Math.hypot(bb.gx - px2, bb.gy - py2) < (fr.emprise + bb.e) * 0.55 + 1.2){ libre = 0; break; }
+      }
+      if(libre) trouve = { gx:px2, gy:py2 };
+    }
+    if(!trouve) trouve = { gx:vx, gy:vy };
+    trouve.n = c.batiments.length;
+    c.reacteurs.push(trouve);
+    c.batiments.push({
+      t:"reacteur", gx:trouve.gx, gy:trouve.gy, pv:fr.pv, pvMax:fr.pv,
+      e:fr.emprise, ang:0, vivant:1, n:c.batiments.length
+    });
+  }
   return c;
 }
 
@@ -1211,7 +1329,7 @@ FileDegats.prototype.adopteMinimum = function(pv){
 
    L'instantané tient en cinq champs :
      v  numéro de version, monotone croissant
-     cy numéro de campagne — il s'incrémente quand les trois îles sont
+     cy numéro de campagne — il s'incrémente quand les cinq îles sont
         tombées et que l'on repart de la première. Sans lui, revenir à
         l'île 0 serait vu comme un instantané périmé et le salon
         resterait figé sur la dernière île à jamais.
@@ -1912,6 +2030,24 @@ var BIOMES = {
     herbe:"#8f9a52", allee:"#dcc890", roche:"#7a7480",
     eauC:"#86c6e8", eau:"#2f76a6", eauO:"#154566", ecume:"#f0f8ff",
     fond:"#4a92bc", basFond:"#96cfe2", ciel:"#0c2836"
+  },
+  /* Nuit de festival. Le piège serait de tout noircir : c'est la
+     lumière qui fait la fête, donc le sol reste juste assombri et
+     l'eau garde des reflets chauds — indigo dessous, rose dessus. */
+  hippie: {
+    sol1:"#3e4433", sol2:"#333a2c", sable:"#8e846c", sableO:"#5c5548",
+    herbe:"#3d5636", allee:"#7a6b50", roche:"#443c56",
+    eauC:"#c489cc", eau:"#544ab8", eauO:"#332a80", ecume:"#ffe6f6",
+    fond:"#6a4fb4", basFond:"#b98ad6", ciel:"#3a1a4c"
+  },
+  /* Plein midi en Provence. Tout est délavé par la lumière : l'ocre
+     tire au blanc, le vert tire au gris, et seule la mer garde une
+     couleur franche. C'est l'exact contraire de la soirée hippie. */
+  sud: {
+    sol1:"#dcc79a", sol2:"#cdb684", sable:"#f0e2c0", sableO:"#c8b088",
+    herbe:"#a7b183", allee:"#f2e7cc", roche:"#c6bba4",
+    eauC:"#b6f7ec", eau:"#189ad6", eauO:"#0a4e94", ecume:"#f6ffff",
+    fond:"#38b6da", basFond:"#93ecdd", ciel:"#a4dcf2"
   }
 };
 
@@ -2113,6 +2249,375 @@ function clotureBout(c, gx, gy, s){
   c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - 13 * s); c.stroke();
   c.beginPath(); c.moveTo(p.x - 10 * s, p.y - 9 * s); c.lineTo(p.x + 10 * s, p.y - 11 * s); c.stroke();
 }
+
+/* ================================================================
+   DÉCORS DE LA SOIRÉE HIPPIE
+   Tout est cuit dans un sprite : aucune horloge, aucun tirage au sort
+   ici. Les feux et les ampoules sont donc figés — mais leur halo
+   suffit à faire vivre la prairie de nuit.
+   ================================================================ */
+
+/* Un point du long flanc d'une caisse, repéré par sa position t le long
+   de l'axe gy et sa hauteur hh. boite() ne sait peindre ses faces que
+   d'un seul aplat : pour y poser une peinture, il faut viser soi-même. */
+function pointFlanc(gx, gy, w, d, z0, t, hh){
+  var q = iso(gx + w / 2, gy - d / 2 + d * t);
+  return { x:q.x, y:q.y - z0 - hh };
+}
+function traceFlanc(c, gx, gy, w, d, z0, h0, h1){
+  var a = pointFlanc(gx, gy, w, d, z0, 0, h1), b = pointFlanc(gx, gy, w, d, z0, 1, h1);
+  var e = pointFlanc(gx, gy, w, d, z0, 1, h0), f = pointFlanc(gx, gy, w, d, z0, 0, h0);
+  c.beginPath();
+  c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(e.x, e.y); c.lineTo(f.x, f.y);
+  c.closePath();
+}
+/* Le combi peint. Il est couché le long de gy pour que son grand flanc
+   tombe sur la face éclairée à 75 % : c'est là que va la peinture. */
+function combi(c, gx, gy, s){
+  var w = 0.86 * s, d = 1.55 * s, z0 = 4.2 * s, h = 13 * s;
+  ombreRonde(c, gx, gy, 0.95 * s, 0.3);
+  /* les roues d'abord : la caisse leur mange le haut, elles ont l'air posées */
+  var ra = iso(gx + 0.42 * s, gy - 0.52 * s), rb = iso(gx + 0.42 * s, gy + 0.52 * s);
+  c.fillStyle = "#231c2b";
+  c.beginPath(); c.ellipse(ra.x, ra.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(rb.x, rb.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
+  /* la caisse crème, puis le toit relevé en toile orange */
+  var cr = faces("#f0e4cc");
+  boite(c, gx, gy, w, d, z0, h, cr.t, cr.g, cr.d);
+  var to = faces("#e8813a");
+  boite(c, gx - 0.05 * s, gy, w * 0.80, d * 0.80, z0 + h, 5.4 * s, to.t, to.g, to.d);
+  /* la peinture du flanc */
+  c.save();
+  traceFlanc(c, gx, gy, w, d, z0, 0, h); c.clip();
+  /* bande turquoise en bas, séparée par un liseré magenta */
+  c.fillStyle = "#2fb2bd";
+  traceFlanc(c, gx, gy, w, d, z0, 0, h * 0.44); c.fill();
+  c.fillStyle = "#e0559f";
+  traceFlanc(c, gx, gy, w, d, z0, h * 0.44, h * 0.52); c.fill();
+  /* le soleil levant, motif obligé du combi */
+  var so = pointFlanc(gx, gy, w, d, z0, 0.26, h * 0.62);
+  c.fillStyle = "#ffd85a";
+  c.beginPath(); c.arc(so.x, so.y, 4.2 * s, 0, 6.2832); c.fill();
+  c.strokeStyle = "#ffd85a"; c.lineWidth = 1.2 * s;
+  for(var k = 0; k < 7; k++){
+    var a2 = k / 7 * 6.2832;
+    c.beginPath();
+    c.moveTo(so.x + Math.cos(a2) * 5.4 * s, so.y + Math.sin(a2) * 5.4 * s);
+    c.lineTo(so.x + Math.cos(a2) * 7.6 * s, so.y + Math.sin(a2) * 7.6 * s);
+    c.stroke();
+  }
+  /* une spirale à l'autre bout */
+  var sp = pointFlanc(gx, gy, w, d, z0, 0.76, h * 0.66);
+  c.strokeStyle = "#7fd94f"; c.lineWidth = 1.4 * s;
+  c.beginPath();
+  for(var m = 0; m < 22; m++){
+    var an = m * 0.55, rr = 0.42 * s * m * 0.7;
+    var xx = sp.x + Math.cos(an) * rr, yy = sp.y + Math.sin(an) * rr;
+    if(m === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+  }
+  c.stroke();
+  /* les hublots, allumés */
+  c.fillStyle = "#ffd489";
+  for(var n = 0; n < 2; n++){
+    var t0 = 0.44 + n * 0.20;
+    var h1 = pointFlanc(gx, gy, w, d, z0, t0, h * 0.94);
+    var h2 = pointFlanc(gx, gy, w, d, z0, t0 + 0.14, h * 0.94);
+    var h3 = pointFlanc(gx, gy, w, d, z0, t0 + 0.14, h * 0.58);
+    var h4 = pointFlanc(gx, gy, w, d, z0, t0, h * 0.58);
+    c.beginPath();
+    c.moveTo(h1.x, h1.y); c.lineTo(h2.x, h2.y); c.lineTo(h3.x, h3.y); c.lineTo(h4.x, h4.y);
+    c.closePath(); c.fill();
+  }
+  c.restore();
+  /* le pare-brise : c'est lui qui donne l'air habité */
+  var g1 = iso(gx + w / 2, gy + d / 2), g2 = iso(gx - w / 2, gy + d / 2);
+  c.fillStyle = "#ffc978";
+  c.beginPath();
+  c.moveTo(g1.x - 1.5 * s, g1.y - z0 - h * 0.94); c.lineTo(g2.x + 1.5 * s, g2.y - z0 - h * 0.94);
+  c.lineTo(g2.x + 1.5 * s, g2.y - z0 - h * 0.50); c.lineTo(g1.x - 1.5 * s, g1.y - z0 - h * 0.50);
+  c.closePath(); c.fill();
+  var pv = iso(gx, gy + d / 2);
+  lueurRapide(c, pv.x, pv.y - z0 - h * 0.7, 22 * s, "#ffb44a", 0.42);
+}
+/* Le tipi. La toile est éclairée de l'intérieur : le dégradé va du
+   gris lunaire en haut à l'orange du foyer en bas. */
+function tipi(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.6 * s, 0.28);
+  var rx = 19 * s, h = 31 * s;
+  c.save();
+  c.beginPath();
+  c.moveTo(p.x - rx, p.y);
+  c.lineTo(p.x - rx * 0.15, p.y - h);
+  c.lineTo(p.x + rx * 0.15, p.y - h);
+  c.lineTo(p.x + rx, p.y);
+  c.ellipse(p.x, p.y, rx, rx * 0.42, 0, 0, Math.PI);
+  c.closePath();
+  c.clip();
+  var g = c.createLinearGradient(0, p.y - h, 0, p.y + rx * 0.4);
+  g.addColorStop(0, "#a89cb4");
+  g.addColorStop(0.5, "#ddcdb2");
+  g.addColorStop(1, "#ffc47c");
+  c.fillStyle = g;
+  c.fillRect(p.x - rx - 2, p.y - h - 2, rx * 2 + 4, h + rx + 4);
+  /* coutures verticales, puis deux chevrons peints */
+  c.strokeStyle = "rgba(120,96,74,.28)"; c.lineWidth = 1 * s;
+  for(var i = -2; i <= 2; i++){
+    c.beginPath();
+    c.moveTo(p.x + i * 3 * s, p.y - h); c.lineTo(p.x + i * rx * 0.42, p.y + rx * 0.4);
+    c.stroke();
+  }
+  var teintes = ["#d8478f", "#3fc9c0"];
+  for(var b = 0; b < 2; b++){
+    var yb = p.y - h * (0.30 + b * 0.26);
+    c.strokeStyle = teintes[b]; c.lineWidth = 2.2 * s; c.lineJoin = "round";
+    c.beginPath();
+    for(var k = 0; k <= 8; k++){
+      var xx = p.x - rx + k * rx / 4;
+      var yy = yb + (k % 2 ? 2.4 * s : -2.4 * s);
+      if(k === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.stroke();
+  }
+  c.restore();
+  /* les perches qui se croisent au sommet */
+  c.strokeStyle = "#8a6f4e"; c.lineWidth = 1.5 * s; c.lineCap = "round";
+  for(var q = 0; q < 4; q++){
+    c.beginPath();
+    c.moveTo(p.x + (q - 1.5) * 1.6 * s, p.y - h + 3 * s);
+    c.lineTo(p.x + (q - 1.5) * 4.4 * s, p.y - h - 9 * s);
+    c.stroke();
+  }
+  /* un fanion en haut d'une perche */
+  c.fillStyle = "#ffb43c";
+  c.beginPath();
+  c.moveTo(p.x + 6.6 * s, p.y - h - 9 * s);
+  c.lineTo(p.x + 13 * s, p.y - h - 6.5 * s);
+  c.lineTo(p.x + 6.6 * s, p.y - h - 4 * s);
+  c.closePath(); c.fill();
+  /* l'ouverture et la lumière qui en sort */
+  lueurRapide(c, p.x, p.y - 6 * s, 26 * s, "#ff9a3c", 0.5);
+  var go = c.createLinearGradient(0, p.y - 15 * s, 0, p.y);
+  go.addColorStop(0, "#3b2a34"); go.addColorStop(1, "#ffcf7e");
+  c.fillStyle = go;
+  c.beginPath();
+  c.moveTo(p.x - 4.4 * s, p.y + 1 * s);
+  c.lineTo(p.x, p.y - 15 * s);
+  c.lineTo(p.x + 4.4 * s, p.y + 1 * s);
+  c.closePath(); c.fill();
+}
+/* La guirlande d'ampoules. Elle est tracée à plat dans l'écran : ce
+   n'est pas un volume, c'est une ligne de lumière tendue en travers. */
+function guirlande(c, gx, gy, s){
+  var p = iso(gx, gy);
+  var demi = 27 * s, haut = 31 * s;
+  c.strokeStyle = "#6b5a48"; c.lineWidth = 2.2 * s; c.lineCap = "round";
+  c.beginPath(); c.moveTo(p.x - demi, p.y + 2 * s); c.lineTo(p.x - demi + 2 * s, p.y - haut); c.stroke();
+  c.beginPath(); c.moveTo(p.x + demi, p.y + 2 * s); c.lineTo(p.x + demi - 2 * s, p.y - haut); c.stroke();
+  var ax = p.x - demi + 2 * s, ay = p.y - haut;
+  var bx = p.x + demi - 2 * s, by = p.y - haut;
+  var cx = p.x, cy = p.y - haut + 26 * s;
+  c.strokeStyle = "rgba(28,20,32,.6)"; c.lineWidth = 1.1 * s;
+  c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo(cx, cy, bx, by); c.stroke();
+  var teintes = ["#ff5aa8", "#ffc23c", "#4fe3d8", "#a06bff", "#8ce04a", "#ff7a3c"];
+  for(var i = 1; i < 10; i++){
+    var t = i / 10, u = 1 - t;
+    var x = u * u * ax + 2 * u * t * cx + t * t * bx;
+    var y = u * u * ay + 2 * u * t * cy + t * t * by;
+    var col = teintes[i % 6];
+    c.strokeStyle = "rgba(28,20,32,.55)"; c.lineWidth = 0.9 * s;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 2.6 * s); c.stroke();
+    lueurRapide(c, x, y + 4.4 * s, 12 * s, col, 0.6);
+    c.fillStyle = col;
+    c.beginPath(); c.ellipse(x, y + 4.6 * s, 2.3 * s, 2.9 * s, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,255,255,.8)";
+    c.beginPath(); c.ellipse(x - 0.7 * s, y + 3.8 * s, 0.9 * s, 1.1 * s, 0, 0, 6.2832); c.fill();
+  }
+}
+/* Le foyer. La flamme est figée à une heure choisie, sinon chaque
+   reconstruction du sprite donnerait un feu différent. */
+function feuDeCamp(c, gx, gy, s){
+  var p = iso(gx, gy);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var g = c.createRadialGradient(p.x, p.y, 2, p.x, p.y, 40 * s);
+  g.addColorStop(0, "rgba(255,158,66,.62)");
+  g.addColorStop(0.45, "rgba(255,132,44,.22)");
+  g.addColorStop(1, "rgba(255,120,40,0)");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(p.x, p.y, 40 * s, 20 * s, 0, 0, 6.2832); c.fill();
+  c.restore();
+  for(var i = 0; i < 8; i++){
+    var a = i / 8 * 6.2832 + 0.4;
+    var sx = p.x + Math.cos(a) * 12 * s, sy = p.y + Math.sin(a) * 6 * s;
+    c.fillStyle = "#514a5c";
+    c.beginPath(); c.ellipse(sx, sy, 3.4 * s, 2.3 * s, a, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,166,86,.5)";
+    c.beginPath(); c.ellipse(sx - Math.cos(a) * 1.2 * s, sy - Math.sin(a) * 0.8 * s, 2.1 * s, 1.3 * s, a, 0, 6.2832); c.fill();
+  }
+  c.strokeStyle = "#4a3524"; c.lineWidth = 3.2 * s; c.lineCap = "round";
+  c.beginPath(); c.moveTo(p.x - 7 * s, p.y + 2 * s); c.lineTo(p.x + 6 * s, p.y - 3 * s); c.stroke();
+  c.beginPath(); c.moveTo(p.x - 6 * s, p.y - 3 * s); c.lineTo(p.x + 7 * s, p.y + 2 * s); c.stroke();
+  flamme(c, p.x, p.y - 2 * s, 21 * s, 0.62, s * 0.95);
+  braises(c, p.x, p.y - 7 * s, 0.62, 9, s * 0.9, 26);
+}
+
+/* ================================================================
+   DÉCORS DU SUD — tout est lavé par le soleil de midi
+   ================================================================ */
+function cypres(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.36 * s, 0.26);
+  var h = 52 * s, w = 7.6 * s;
+  function silhouette(){
+    c.beginPath();
+    c.moveTo(p.x, p.y - h);
+    c.bezierCurveTo(p.x + w, p.y - h * 0.62, p.x + w * 0.94, p.y - h * 0.16, p.x + w * 0.40, p.y);
+    c.lineTo(p.x - w * 0.40, p.y);
+    c.bezierCurveTo(p.x - w * 0.94, p.y - h * 0.16, p.x - w, p.y - h * 0.62, p.x, p.y - h);
+    c.closePath();
+  }
+  var g = c.createLinearGradient(p.x - w, 0, p.x + w, 0);
+  g.addColorStop(0, "#5c7d52"); g.addColorStop(0.42, "#33513a"); g.addColorStop(1, "#1e3324");
+  c.fillStyle = g;
+  silhouette(); c.fill();
+  /* le feuillage en écailles. Des bandes traversant toute la
+     silhouette donnaient un bonbon rayé : ce sont donc de courtes
+     virgules décalées, jamais une ligne continue. */
+  c.save();
+  silhouette(); c.clip();
+  c.lineCap = "round";
+  for(var i = 0; i < 34; i++){
+    var t = i / 34;
+    var yy = p.y - h * (0.03 + t * 0.95);
+    var lg = w * (0.95 - t * 0.45);
+    var xx = p.x + ((i % 3) - 1) * lg * 0.62;
+    c.strokeStyle = (i % 3 === 1) ? "rgba(146,182,124,.32)" : "rgba(18,36,22,.26)";
+    c.lineWidth = 1.9 * s;
+    c.beginPath();
+    c.moveTo(xx - 2.3 * s, yy + 1.7 * s);
+    c.quadraticCurveTo(xx, yy - 0.4 * s, xx + 2.3 * s, yy - 1.9 * s);
+    c.stroke();
+  }
+  c.restore();
+  /* le soleil frappe le flanc gauche */
+  c.strokeStyle = "rgba(206,226,166,.4)"; c.lineWidth = 1.5 * s;
+  c.beginPath();
+  c.moveTo(p.x, p.y - h);
+  c.bezierCurveTo(p.x - w * 0.94, p.y - h * 0.62, p.x - w * 0.9, p.y - h * 0.2, p.x - w * 0.42, p.y - h * 0.04);
+  c.stroke();
+  c.strokeStyle = "#6b5a44"; c.lineWidth = 2 * s;
+  c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - 4 * s); c.stroke();
+}
+function olivier(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.52 * s, 0.24);
+  /* deux troncs noueux qui partent en sens contraire : c'est ce
+     déséquilibre qui fait l'olivier, pas le feuillage */
+  c.lineCap = "round";
+  c.strokeStyle = "#8b7c68"; c.lineWidth = 6 * s;
+  c.beginPath(); c.moveTo(p.x - 1.5 * s, p.y);
+  c.quadraticCurveTo(p.x - 7 * s, p.y - 8 * s, p.x - 7.5 * s, p.y - 16 * s); c.stroke();
+  c.beginPath(); c.moveTo(p.x + 2 * s, p.y);
+  c.quadraticCurveTo(p.x + 6 * s, p.y - 7 * s, p.x + 6.5 * s, p.y - 15 * s); c.stroke();
+  c.strokeStyle = "#c8b99f"; c.lineWidth = 2 * s;
+  c.beginPath(); c.moveTo(p.x - 3 * s, p.y - 1 * s);
+  c.quadraticCurveTo(p.x - 8 * s, p.y - 8 * s, p.x - 8.4 * s, p.y - 15 * s); c.stroke();
+  /* le feuillage se monte en trois couches : masse sombre, corps
+     gris-vert, puis l'argenture du dessous des feuilles côté soleil.
+     C'est ce dernier étage qui fait reconnaître un olivier. */
+  var lobes = [[-8, -20, 10, 7.4], [7, -19, 9, 6.8], [0, -25, 10.5, 7.8],
+               [-2, -16, 8.6, 6], [10.5, -24, 6.4, 5.2], [-11.5, -25, 7, 5.4],
+               [3, -29, 7, 5]];
+  for(var i = 0; i < lobes.length; i++){
+    c.fillStyle = "#5c7049";
+    c.beginPath();
+    c.ellipse(p.x + lobes[i][0] * s, p.y + (lobes[i][1] + 1.6) * s,
+              lobes[i][2] * s, lobes[i][3] * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  for(i = 0; i < lobes.length; i++){
+    c.fillStyle = i % 2 ? "#7f9366" : "#8fa576";
+    c.beginPath();
+    c.ellipse(p.x + lobes[i][0] * s, p.y + lobes[i][1] * s,
+              lobes[i][2] * 0.92 * s, lobes[i][3] * 0.92 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  for(i = 0; i < lobes.length; i++){
+    c.fillStyle = "rgba(186,204,158,.42)";
+    c.beginPath();
+    c.ellipse(p.x + (lobes[i][0] - 2.4) * s, p.y + (lobes[i][1] - 2) * s,
+              lobes[i][2] * 0.5 * s, lobes[i][3] * 0.46 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.fillStyle = "rgba(226,236,206,.42)";
+  for(var k = 0; k < 18; k++){
+    var a = k * 2.399963;
+    var r = 2 + 2.8 * Math.sqrt(k);
+    c.beginPath();
+    c.ellipse(p.x + Math.cos(a) * r * 1.5 * s, p.y - 22 * s + Math.sin(a) * r * s,
+              1.4 * s, 0.8 * s, a, 0, 6.2832);
+    c.fill();
+  }
+}
+function lavande(c, gx, gy, s){
+  var p = iso(gx, gy);
+  ombreRonde(c, gx, gy, 0.45 * s, 0.2);
+  /* le violet ne tient que si le feuillage reste argenté : on pose
+     d'abord la touffe grise, les épis viennent après */
+  for(var i = 0; i < 3; i++){
+    c.fillStyle = ["#93a37d", "#849371", "#a4b28c"][i];
+    c.beginPath();
+    c.ellipse(p.x + (i - 1) * 4.6 * s, p.y - 2 * s, 6.6 * s, 3.6 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.lineCap = "round";
+  for(var k = 0; k < 11; k++){
+    var bx = p.x + (k - 5) * 2.2 * s, by = p.y - 3 * s;
+    var ex = bx + (k - 5) * 0.5 * s, ey = by - 9 * s - (k % 3) * 2.4 * s;
+    c.strokeStyle = "#6f8a5e"; c.lineWidth = 1.1 * s;
+    c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.stroke();
+    var g = c.createLinearGradient(ex, ey - 1 * s, ex, ey + 5 * s);
+    g.addColorStop(0, "#d0aef6"); g.addColorStop(1, "#6b47a8");
+    c.strokeStyle = g; c.lineWidth = 2.5 * s;
+    c.beginPath(); c.moveTo(ex, ey + 4.5 * s); c.lineTo(ex, ey); c.stroke();
+  }
+}
+function muretSec(c, gx, gy, s){
+  /* muret de pierres sèches : deux rangs décalés de calcaire pâle,
+     et le pot de terre cuite qui donne la seule note chaude */
+  var pierres = ["#efe8d6", "#c9bda3", "#ded5c0", "#b6ab90"];
+  ombreContact(c, gx, gy, 0.6 * s, 1.7 * s, 0.2);
+  for(var i = 0; i < 3; i++){
+    var f = faces(pierres[i]);
+    boite(c, gx, gy - 0.52 * s + i * 0.52 * s, 0.46 * s, 0.48 * s, 0, 7 * s, f.t, f.g, f.d);
+    /* le joint creux entre deux pierres : sans lui, le muret n'est
+       qu'un bloc de sucre */
+    var jt = iso(gx + 0.23 * s, gy - 0.28 * s + i * 0.52 * s);
+    c.strokeStyle = "rgba(96,86,66,.45)"; c.lineWidth = 1.2;
+    c.beginPath();
+    c.moveTo(jt.x, jt.y - 7 * s); c.lineTo(jt.x - 0.46 * s * TW / 2, jt.y - 7 * s + 0.46 * s * TH / 2);
+    c.stroke();
+  }
+  for(var k = 0; k < 2; k++){
+    var f2 = faces(pierres[k + 2]);
+    boite(c, gx, gy - 0.26 * s + k * 0.52 * s, 0.42 * s, 0.44 * s, 7 * s, 5.4 * s, f2.t, f2.g, f2.d);
+  }
+  cylindre(c, gx + 0.45 * s, gy + 0.55 * s, 0.17 * s, 0, 6.4 * s, "#a85c38", "#8d4b2c");
+  cylindre(c, gx + 0.45 * s, gy + 0.55 * s, 0.20 * s, 6.4 * s, 1.6 * s, "#c96f45", "#a85c38");
+  var pp = iso(gx + 0.45 * s, gy + 0.55 * s);
+  for(var m = 0; m < 5; m++){
+    var a = m / 5 * 6.2832 + 0.6;
+    c.fillStyle = m % 2 ? "#5e7a4c" : "#6f8c58";
+    c.beginPath();
+    c.ellipse(pp.x + Math.cos(a) * 3 * s, pp.y - 10 * s + Math.sin(a) * 2 * s, 3.2 * s, 2.4 * s, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.fillStyle = "#d8434a";
+  c.beginPath(); c.arc(pp.x + 1.5 * s, pp.y - 12.5 * s, 2 * s, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(pp.x - 2.5 * s, pp.y - 11 * s, 1.6 * s, 0, 6.2832); c.fill();
+}
+
 function dessineDecor(c, biome, d){
   if(biome === "plage"){
     if(d.v === 0) palmier(c, d.gx, d.gy, d.s);
@@ -2131,7 +2636,7 @@ function dessineDecor(c, biome, d){
     if(d.v <= 1) sapin(c, d.gx, d.gy, d.s);
     else if(d.v === 2) buisson(c, d.gx, d.gy, d.s, "#2f6b34");
     else cylindre(c, d.gx, d.gy, 0.24 * d.s, 0, 6 * d.s, "#8a6a44", "#5a4126");
-  }else{
+  }else if(biome === "campagne"){
     if(d.v === 0) meule(c, d.gx, d.gy, d.s);
     else if(d.v === 1) buisson(c, d.gx, d.gy, d.s * 0.8, "#7d8a46");
     else if(d.v === 2) clotureBout(c, d.gx, d.gy, d.s);
@@ -2140,6 +2645,16 @@ function dessineDecor(c, biome, d){
       c.fillStyle = "rgba(90,70,40,.35)";
       c.beginPath(); c.ellipse(q.x, q.y, 9 * d.s, 4 * d.s, 0, 0, 6.2832); c.fill();
     }
+  }else if(biome === "hippie"){
+    if(d.v === 0) combi(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) tipi(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) guirlande(c, d.gx, d.gy, d.s);
+    else feuDeCamp(c, d.gx, d.gy, d.s);
+  }else if(biome === "sud"){
+    if(d.v === 0) cypres(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) olivier(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) lavande(c, d.gx, d.gy, d.s);
+    else muretSec(c, d.gx, d.gy, d.s);
   }
 }
 
@@ -2271,6 +2786,20 @@ var MATIERES = {
     herbe1:"#9aa851", herbe2:"#7c8a44",
     sable1:"#e0cb95", sable2:"#cdb47c",
     mouille:"#9c8154", roche1:"#7f7986", roche2:"#635e6c"
+  },
+  hippie: {
+    fond1:"#454a39", fond2:"#383e31",                     // prairie piétinée, à la nuit tombée
+    tache1:"#565b42", tache2:"#282d24",
+    herbe1:"#4c6743", herbe2:"#33442b",
+    sable1:"#9c917a", sable2:"#847a66",
+    mouille:"#585448", roche1:"#4b4260", roche2:"#352f45"
+  },
+  sud: {
+    fond1:"#ddc99d", fond2:"#cdb682",                     // garrigue sèche, brûlée de soleil
+    tache1:"#efdfb8", tache2:"#b49b68",
+    herbe1:"#aab586", herbe2:"#8b9765",
+    sable1:"#f2e5c6", sable2:"#e2d0a8",
+    mouille:"#b6a179", roche1:"#d0c5ad", roche2:"#a89b83"
   }
 };
 
@@ -2401,6 +2930,196 @@ function construitSol(carteC){
       c.fillStyle = al() < 0.5 ? "#39562a" : "#6f9046";
       c.beginPath(); c.ellipse(pp.x, pp.y, 14 + al() * 28, 7 + al() * 13, 0, 0, 6.2832); c.fill();
     }
+  }
+  if(carteC.biome === "hippie"){
+    /* La prairie de nuit, éclairée par la fête. On peint la lumière
+       AVANT tout le reste, en mode additif : une nuit d'où l'on
+       n'aurait retiré que de la couleur serait sinistre. */
+    var TEINTES = ["#ff4f9e", "#ffb43c", "#3fe0d8", "#9d6bff", "#8ee04a"];
+    /* le voile de nuit : il refroidit TOUT le sol d'un coup, sable
+       compris. Sans lui, la plage restait en plein jour au milieu
+       d'une prairie de nuit. */
+    c.save();
+    c.globalAlpha = 0.40;
+    c.fillStyle = "#1b1440";
+    traceIle(c, 6, 0, 0); c.fill();
+    c.restore();
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* les grandes nappes de scène, puis les petites flaques serrées :
+       deux échelles, sinon la lumière fait une purée uniforme */
+    for(i = 0; i < 26; i++){
+      var ax2 = 4 + al() * (PLAGE_X0 - 6), ay2 = al() * GH;
+      var pa = iso(ax2, ay2);
+      var ra = 200 + al() * 190;
+      var ta = TEINTES[(al() * 5) | 0];
+      var ga = c.createRadialGradient(pa.x, pa.y, 4, pa.x, pa.y, ra);
+      ga.addColorStop(0, rgba(ta, 0.20));
+      ga.addColorStop(0.5, rgba(ta, 0.07));
+      ga.addColorStop(1, rgba(ta, 0));
+      c.fillStyle = ga;
+      c.beginPath(); c.ellipse(pa.x, pa.y, ra, ra / 2, 0, 0, 6.2832); c.fill();
+    }
+    for(i = 0; i < 320; i++){
+      var lx = 2 + al() * (PLAGE_X0 - 3), ly = al() * GH;
+      var pl = iso(lx, ly);
+      var rl = 26 + al() * 110;
+      var tl = TEINTES[(al() * 5) | 0];
+      var gl = c.createRadialGradient(pl.x, pl.y, 2, pl.x, pl.y, rl);
+      gl.addColorStop(0, rgba(tl, 0.40));
+      gl.addColorStop(0.42, rgba(tl, 0.13));
+      gl.addColorStop(1, rgba(tl, 0));
+      c.fillStyle = gl;
+      c.beginPath(); c.ellipse(pl.x, pl.y, rl, rl / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* pistes de danse : l'herbe y est tassée, pâlie, et cerclée */
+    c.save();
+    for(i = 0; i < 34; i++){
+      var dx2 = 6 + al() * (PLAGE_X0 - 10), dy2 = 3 + al() * (GH - 6);
+      var pd = iso(dx2, dy2);
+      var rd = 34 + al() * 54;
+      c.globalAlpha = 0.16 + al() * 0.12;
+      c.fillStyle = "#a89d78";
+      c.beginPath(); c.ellipse(pd.x, pd.y, rd, rd / 2, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.22;
+      c.strokeStyle = "#c9bd93"; c.lineWidth = 2;
+      c.beginPath(); c.ellipse(pd.x, pd.y, rd * 0.72, rd * 0.36, 0, 0, 6.2832); c.stroke();
+    }
+    c.restore();
+    /* spirales peintes à même l'herbe, à la bombe */
+    c.save();
+    c.globalAlpha = 0.3; c.lineWidth = 2.6; c.lineCap = "round";
+    for(i = 0; i < 130; i++){
+      var sx2 = 4 + al() * (PLAGE_X0 - 8), sy2 = 2 + al() * (GH - 4);
+      var ps = iso(sx2, sy2);
+      var sens = al() < 0.5 ? 1 : -1;
+      c.strokeStyle = TEINTES[(al() * 5) | 0];
+      c.beginPath();
+      for(var ks = 0; ks < 26; ks++){
+        var an2 = ks * 0.52 * sens, rr3 = ks * 1.15;
+        var xs = ps.x + Math.cos(an2) * rr3 * 2, ys = ps.y + Math.sin(an2) * rr3;
+        if(ks === 0) c.moveTo(xs, ys); else c.lineTo(xs, ys);
+      }
+      c.stroke();
+    }
+    /* confettis */
+    for(i = 0; i < 1800; i++){
+      var cx3 = al() * PLAGE_X0, cy3 = al() * GH;
+      var pc = iso(cx3, cy3);
+      c.globalAlpha = 0.4 + al() * 0.4;
+      c.fillStyle = TEINTES[(al() * 5) | 0];
+      c.fillRect(pc.x, pc.y, 1.8 + al() * 1.6, 1.4);
+    }
+    c.restore();
+  }
+  if(carteC.biome === "sud"){
+    /* De larges plaques de paille et d'ocre rouge, posées les
+       premières : l'île entière au même beige donnait un désert, pas
+       un été provençal. */
+    c.save();
+    for(i = 0; i < 70; i++){
+      var tx2 = al() * PLAGE_X0, ty2 = al() * GH;
+      var pt2 = iso(tx2, ty2);
+      var rt = 150 + al() * 300;
+      var gt = c.createRadialGradient(pt2.x, pt2.y, 6, pt2.x, pt2.y, rt);
+      var ct = al() < 0.5 ? "#e8cf86" : "#c9a071";
+      gt.addColorStop(0, rgba(ct, 0.26));
+      gt.addColorStop(1, rgba(ct, 0));
+      c.fillStyle = gt;
+      c.beginPath(); c.ellipse(pt2.x, pt2.y, rt, rt / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* Les rangs de lavande, par parcelles : un champ qui couvrirait
+       toute l'île se lirait comme une trame, pas comme un paysage.
+       Le damier vaut mieux qu'un tirage libre : deux champs tirés au
+       hasard finissaient par se chevaucher, et deux trames croisées
+       font un tissu écossais, pas de la Provence. */
+    var CX0 = LARGEUR_ROCHE + 2, CY0 = 2, CW = 25, CH = 21;
+    var NCX = Math.floor((PLAGE_X0 - 5 - CX0) / CW), NCY = Math.floor((GH - 3 - CY0) / CH);
+    c.save();
+    c.lineCap = "butt";
+    for(var cy2 = 0; cy2 < NCY; cy2++){
+      for(var cx2 = 0; cx2 < NCX; cx2++){
+        if(al() > 0.62) continue;                       // une parcelle sur trois reste en friche
+        var qx = CX0 + cx2 * CW + 1.5, qy = CY0 + cy2 * CH + 1.5;
+        var ql = CW - 3 - al() * 4, qh = CH - 3 - al() * 4;
+        /* une parcelle sur deux est plantée dans l'autre sens : sans
+           ça, toute l'île se lit comme un papier peint rayé */
+        var travers = ((cx2 + cy2) % 2) === 1;
+        var nr = travers ? ql : qh;
+        for(var jr = 0.6; jr < nr; jr += 1.15){
+          var r1, r2;
+          if(travers){ r1 = iso(qx + jr, qy); r2 = iso(qx + jr, qy + qh); }
+          else { r1 = iso(qx, qy + jr); r2 = iso(qx + ql, qy + jr); }
+          /* la terre nue entre deux rangs : c'est ce blanc qui fait
+             lire les rangs. Et le pointillé donne des touffes plutôt
+             qu'un trait peint : un rang de lavande, ça se compte. */
+          c.setLineDash([]);
+          c.globalAlpha = 0.26;
+          c.strokeStyle = "#f0e0b8"; c.lineWidth = 4.4;
+          c.beginPath(); c.moveTo(r1.x, r1.y + 4); c.lineTo(r2.x, r2.y + 4); c.stroke();
+          c.setLineDash([12, 5]);
+          c.lineDashOffset = (jr * 37) % 17;
+          c.globalAlpha = 0.55;
+          c.strokeStyle = "#664496"; c.lineWidth = 5;
+          c.beginPath(); c.moveTo(r1.x, r1.y); c.lineTo(r2.x, r2.y); c.stroke();
+          c.globalAlpha = 0.34;
+          c.strokeStyle = "#bb9ee8"; c.lineWidth = 1.7;
+          c.beginPath(); c.moveTo(r1.x, r1.y - 2); c.lineTo(r2.x, r2.y - 2); c.stroke();
+        }
+        /* le chemin de terre qui borde la parcelle */
+        c.setLineDash([]);
+        c.globalAlpha = 0.28;
+        c.strokeStyle = "#f4e8c8"; c.lineWidth = 7;
+        var b1 = iso(qx - 0.9, qy - 0.9), b2 = iso(qx + ql + 0.9, qy - 0.9);
+        var b3 = iso(qx + ql + 0.9, qy + qh + 0.9), b4 = iso(qx - 0.9, qy + qh + 0.9);
+        c.beginPath();
+        c.moveTo(b1.x, b1.y); c.lineTo(b2.x, b2.y); c.lineTo(b3.x, b3.y); c.lineTo(b4.x, b4.y);
+        c.closePath(); c.stroke();
+      }
+    }
+    c.setLineDash([]);
+    c.restore();
+    /* affleurements de calcaire : les dalles blanches qui percent la
+       garrigue, et qui cassent l'ocre uniforme */
+    c.save();
+    for(i = 0; i < 420; i++){
+      var kx = al() * PLAGE_X0, ky = al() * GH;
+      var pk = iso(kx, ky);
+      c.globalAlpha = 0.18 + al() * 0.16;
+      c.fillStyle = al() < 0.5 ? "#f4eddc" : "#e2d8c2";
+      c.beginPath(); c.ellipse(pk.x, pk.y, 8 + al() * 22, 4 + al() * 10, al() * 3, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.12;
+      c.fillStyle = "#9a8a6c";
+      c.beginPath(); c.ellipse(pk.x + 2, pk.y + 3, 7 + al() * 16, 3 + al() * 7, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    /* terre craquelée entre les parcelles */
+    c.save();
+    c.globalAlpha = 0.2; c.strokeStyle = "#a2895c"; c.lineWidth = 1.2;
+    for(i = 0; i < 900; i++){
+      var fx2 = al() * PLAGE_X0, fy2 = al() * GH;
+      if(matiereCase(fx2 | 0, fy2 | 0, gr).herbe > 0.4) continue;
+      var pf = iso(fx2, fy2);
+      c.beginPath();
+      c.moveTo(pf.x, pf.y);
+      for(var kf = 0; kf < 3; kf++){
+        c.lineTo(pf.x + (al() - 0.5) * 26, pf.y + (al() - 0.5) * 13);
+      }
+      c.stroke();
+    }
+    c.restore();
+    /* touffes de garrigue : petits coussins argentés, très éparpillés */
+    c.save();
+    c.globalAlpha = 0.26;
+    for(i = 0; i < 2000; i++){
+      var bx2 = al() * PLAGE_X0, by2 = al() * GH;
+      var pb = iso(bx2, by2);
+      c.fillStyle = al() < 0.5 ? "#9fae7e" : "#c3cba6";
+      c.beginPath(); c.ellipse(pb.x, pb.y, 5 + al() * 9, 2.4 + al() * 4, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
   }
   /* touffes d'herbe éparses, partout où l'herbe domine */
   c.globalAlpha = 0.4;
@@ -4057,6 +4776,383 @@ SOCLES.cellule = function(c){
   lueur(c, p.x, p.y - 2, 15, "#ffb02a", 0.16);
 };
 
+/* ================================================================
+   LA CELLULE ÉLECTRIQUE — le réacteur du bouclier du Brasier.
+   Cinq par île, quatre aux extrémités et une au centre.
+
+   Le piège, ici, c'était la Bobine : elle est déjà pâle, déjà haute,
+   déjà pleine d'arcs — et il y en a quatre-vingts par carte. Une
+   cellule qui lui ressemble ne sert à rien. Tout est donc construit
+   en opposition à elle :
+     — la Bobine est claire, la cellule est NOIRE ;
+     — la Bobine est cyan-blanc, la cellule est BLEU ÉLECTRIQUE ;
+     — la Bobine culmine à cent pixels, la cellule à cent cinquante-six,
+       c'est-à-dire tout le ciel que la planche de sprite autorise ;
+     — la Bobine porte une petite sphère sur trois griffes, la cellule
+       porte un ANNEAU ÉMETTEUR de quatre-vingts centièmes de case,
+       posé à plat, avec l'orbe suspendu en son centre. Cette galette
+       lumineuse ne ressemble à rien d'autre sur l'île.
+
+   Les cotes sont partagées avec la couche animée : les arcs doivent
+   tomber au pixel sur l'acier, pas à côté.
+   ================================================================ */
+/* Le bleu de la cellule. Il ne sert QUE là : partout ailleurs le jeu
+   parle cyan (MAT.cyanC), et c'est justement pour ça qu'on la
+   reconnaît du premier coup d'œil. */
+var REAC_BLEU  = "#4d8cff";
+var REAC_VIF   = "#8fc0ff";
+var REAC_CLAIR = "#dce9ff";
+
+var REAC_ANNEAUX = [                       // les quatre bobines : hauteur, rayon
+  { z:46,  r:0.58 },
+  { z:68,  r:0.54 },
+  { z:90,  r:0.50 },
+  { z:112, r:0.46 }
+];
+var REAC_BORNES = [[1.06, 0], [0, 1.06], [-1.06, 0], [0, -1.06]];
+var REAC_ZBORNE = 33;                      // les boules d'électrode des contreforts
+var REAC_ZMAT0 = 26, REAC_ZMAT1 = 122;     // le mât, du pied au collier
+var REAC_RMAT0 = 0.40, REAC_RMAT1 = 0.28;  // et son fuselage, à peine fuselé
+var REAC_ZCER = 138, REAC_RCER = 0.80;     // l'anneau émetteur
+var REAC_NCER = 6;                         // ses plots d'électrode
+var REAC_ZORBE = 138, REAC_RORBE = 11;     // l'orbe, suspendu au centre
+var REAC_ZPOINTE = 154;                    // la pointe du paratonnerre
+
+/* Rayon du treillis à la hauteur z */
+function reacRayonMat(z){
+  if(z <= REAC_ZMAT0) return REAC_RMAT0;
+  if(z >= REAC_ZMAT1) return REAC_RMAT1;
+  return REAC_RMAT0 + (REAC_RMAT1 - REAC_RMAT0) * (z - REAC_ZMAT0) / (REAC_ZMAT1 - REAC_ZMAT0);
+}
+/* Position écran du montant k à la hauteur z.
+   Rappel : un cercle du monde de rayon r se projette en l'ellipse
+   (cos a · r · RX, sin a · r · RY), où a est l'angle du monde décalé
+   d'un quart de tour. Les quatre montants, les quatre contreforts et
+   les plots de l'anneau partagent donc le même repère angulaire. */
+function reacMontant(o, k, z){
+  var a = (k & 3) * 1.5708 + 0.7854;
+  var r = reacRayonMat(z);
+  return { x:o.x + Math.cos(a) * r * RX, y:o.y - z + Math.sin(a) * r * RY };
+}
+/* Angle écran d'un contrefort (le même que celui du montant de rang k) */
+function reacAngleBorne(i){ return i * 1.5708 + 0.7854; }
+
+SOCLES.reacteur = function(c){
+  var o = iso(0, 0);
+  var i, k, m, s, a, p1, p2, q;
+
+  ombreContact(c, 0, 0, 3.05, 3.05, 0.32);
+
+  /* ---- dalle de fondation, deux niveaux ---- */
+  prisme(c, 0, 0, 1.42, 12, 0.26, 0, 7, ecl(MAT.beton, 0.86), ecl(MAT.betonO, 0.9));
+  prisme(c, 0, 0, 1.06, 8, 0.3927, 7, 7, ecl(MAT.beton, 0.94), ecl(MAT.betonO, 1.0));
+
+  /* rigoles de mise à la terre : le cuivre file du mât vers le bord */
+  c.save(); c.globalAlpha = 0.40; c.strokeStyle = MAT.cuivre; c.lineWidth = 1.9;
+  for(k = 0; k < 8; k++){
+    a = k / 8 * 6.2832 + 0.3927;
+    p1 = iso(Math.cos(a) * 1.10, Math.sin(a) * 1.10);
+    p2 = iso(Math.cos(a) * 1.38, Math.sin(a) * 1.38);
+    c.beginPath(); c.moveTo(p1.x, p1.y - 7); c.lineTo(p2.x, p2.y - 7); c.stroke();
+  }
+  c.restore();
+  /* bande d'avertissement peinte au bord de la dalle basse */
+  c.save(); c.globalAlpha = 0.55;
+  for(i = 0; i < 24; i++){
+    a = i / 24 * 6.2832;
+    p1 = iso(Math.cos(a) * 1.27, Math.sin(a) * 1.27);
+    c.fillStyle = i % 2 ? MAT.danger : "#1c1a18";
+    c.fillRect(p1.x - 2.2, p1.y - 8.4, 4.4, 2.3);
+  }
+  c.restore();
+  /* boulons d'ancrage du niveau haut */
+  c.fillStyle = "#2b2925";
+  for(i = 0; i < 12; i++){
+    a = i / 12 * 6.2832 + 0.26;
+    p1 = iso(Math.cos(a) * 0.94, Math.sin(a) * 0.94);
+    c.beginPath(); c.arc(p1.x, p1.y - 14, 1.4, 0, 6.2832); c.fill();
+  }
+  salissures(c, o.x - 32, o.y - 13, 64, 11, 11, 5150);
+
+  /* ---- LES QUATRE CONTREFORTS ----
+     Blocs blindés très bas et très noirs : ils élargissent l'assise
+     sans voler un pixel de hauteur au mât, ils donnent aux arcs leurs
+     quatre points d'attache au sol, et chacun avale un conduit qui
+     plonge au bord de la dalle — c'est là que le câble du Brasier
+     vient se brancher, de quelque côté qu'il arrive. */
+  function contrefort(gx, gy){
+    var w = iso(gx, gy);
+    var f = faces("#252d36");
+    boite(c, gx, gy, 0.58, 0.58, 7, 14, f.t, f.g, f.d);
+    plaqueBoulonnee(c, w.x - 7, w.y - 19, 14, 6, "#1c232b");
+    /* casque incliné et lentille bleue */
+    prisme(c, gx, gy, 0.34, 6, 0.5236, 21, 4, "#414d5a", "#171d24");
+    c.fillStyle = REAC_BLEU;
+    c.beginPath(); c.ellipse(w.x, w.y - 25.4, 5.6, 2.8, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(233,242,255,.8)";
+    c.beginPath(); c.ellipse(w.x - 1.4, w.y - 26, 2.4, 1.2, 0, 0, 6.2832); c.fill();
+    /* la borne d'où partent les arcs */
+    cylindre(c, gx, gy, 0.085, 25, 5, "#98a4b1", "#454f5a");
+    c.fillStyle = "#eaf2ff";
+    c.beginPath(); c.arc(w.x, w.y - REAC_ZBORNE, 3.0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(6,16,30,.5)"; c.lineWidth = 0.9;
+    c.beginPath(); c.arc(w.x, w.y - REAC_ZBORNE, 3.0, 0, 6.2832); c.stroke();
+    /* conduit blindé vers le bord de la dalle */
+    var e = iso(gx * 1.34, gy * 1.34);
+    c.lineCap = "round";
+    c.strokeStyle = "#12171d"; c.lineWidth = 6.4;
+    c.beginPath(); c.moveTo(w.x, w.y - 12); c.quadraticCurveTo((w.x + e.x) / 2, w.y - 2, e.x, e.y - 1); c.stroke();
+    c.strokeStyle = "#2c3540"; c.lineWidth = 3.8;
+    c.beginPath(); c.moveTo(w.x, w.y - 13); c.quadraticCurveTo((w.x + e.x) / 2, w.y - 3, e.x, e.y - 2); c.stroke();
+    /* collier de serrage à l'entrée du conduit */
+    c.fillStyle = "#5a6674";
+    c.beginPath(); c.ellipse(e.x, e.y - 1.5, 3.6, 2.2, 0, 0, 6.2832); c.fill();
+    lueur(c, w.x, w.y - 27, 14, REAC_BLEU, 0.30);
+  }
+  for(i = 0; i < 4; i++){
+    if(REAC_BORNES[i][0] + REAC_BORNES[i][1] < 0) contrefort(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+  }
+
+  /* ---- pied du mât ---- */
+  prisme(c, 0, 0, 0.60, 8, 0.3927, 14, 4, "#5f6a75", "#1e242b");
+  cylindre(c, 0, 0, 0.46, 18, 8, "#2f3841", "#12171c");
+  plaqueBoulonnee(c, o.x - 8, o.y - 24, 16, 6, "#1a2028");
+  cylindre(c, 0, 0, 0.52, 26, 3, "#5b6672", "#1b2128");
+
+  /* ---- treillis ---- */
+  function montant(k, avant){
+    var seg = 6, n, w;
+    c.lineCap = "round"; c.lineJoin = "round";
+    c.strokeStyle = "#0d1116"; c.lineWidth = 4.8;
+    c.beginPath();
+    for(n = 0; n <= seg; n++){
+      w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+      if(n === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.stroke();
+    c.strokeStyle = avant ? "#3d4854" : "#1e252d"; c.lineWidth = 3.1;
+    c.beginPath();
+    for(n = 0; n <= seg; n++){
+      w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+      if(n === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.stroke();
+    if(avant){
+      c.strokeStyle = "rgba(186,210,240,.28)"; c.lineWidth = 1.1;
+      c.beginPath();
+      for(n = 0; n <= seg; n++){
+        w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+        if(n === 0) c.moveTo(w.x - 1, w.y - 0.9); else c.lineTo(w.x - 1, w.y - 0.9);
+      }
+      c.stroke();
+    }
+  }
+  /* croisillons d'une face : neuf panneaux en X, ceinturés */
+  function panneaux(k, coul, ep){
+    var np = 9, n, za, zb, A, B, C, D;
+    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
+    for(n = 0; n < np; n++){
+      za = REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / np;
+      zb = REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * (n + 1) / np;
+      A = reacMontant(o, k, za); B = reacMontant(o, k + 1, za);
+      C = reacMontant(o, k, zb); D = reacMontant(o, k + 1, zb);
+      c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(D.x, D.y); c.stroke();
+      c.beginPath(); c.moveTo(B.x, B.y); c.lineTo(C.x, C.y); c.stroke();
+      c.beginPath(); c.moveTo(C.x, C.y); c.lineTo(D.x, D.y); c.stroke();
+    }
+  }
+  montant(2, 0); montant(3, 0);
+  panneaux(2, "#141a20", 1.8);
+
+  /* ---- moitié arrière des bobines ---- */
+  function anneauArriere(an){
+    var cy = o.y - an.z, rx = an.r * RX, ry = an.r * RY, n, aa, xx, yy;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0c1015"; c.lineWidth = 9.4;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    /* la gorge, éteinte du côté sombre */
+    c.strokeStyle = "rgba(77,140,255,.42)"; c.lineWidth = 4.4;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    c.strokeStyle = "#161d24"; c.lineWidth = 1.5;
+    for(n = 0; n <= 18; n++){
+      aa = Math.PI + n / 18 * Math.PI;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.beginPath(); c.moveTo(xx, yy - 2.6); c.lineTo(xx, yy + 2.6); c.stroke();
+    }
+    c.strokeStyle = "#2c353f"; c.lineWidth = 2.2;
+    c.beginPath(); c.ellipse(o.x, cy - 3.6, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    c.beginPath(); c.ellipse(o.x, cy + 3.6, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+  }
+  for(i = 0; i < REAC_ANNEAUX.length; i++) anneauArriere(REAC_ANNEAUX[i]);
+
+  /* ---- L'ÂME : la colonne de lumière qui monte dans l'axe ----
+     Elle est peinte dans le sprite et pas seulement dans la couche
+     animée : au-delà d'un certain éloignement le jeu n'affiche plus
+     que le sprite, et la cellule doit rester une torche. */
+  var rxB = 0.205 * RX, rxH = 0.155 * RX;
+  var gA = c.createLinearGradient(o.x - rxB, 0, o.x + rxB, 0);
+  gA.addColorStop(0.00, "#0e2b56");
+  gA.addColorStop(0.22, "#4d8cff");
+  gA.addColorStop(0.50, "#f2f7ff");
+  gA.addColorStop(0.78, "#5b96ff");
+  gA.addColorStop(1.00, "#0b2246");
+  c.fillStyle = gA;
+  c.beginPath();
+  c.moveTo(o.x - rxB, o.y - 22);
+  c.lineTo(o.x - rxH, o.y - REAC_ZMAT1 - 2);
+  c.lineTo(o.x + rxH, o.y - REAC_ZMAT1 - 2);
+  c.lineTo(o.x + rxB, o.y - 22);
+  c.closePath(); c.fill();
+  /* stries horizontales : l'énergie est feuilletée, pas lisse */
+  c.save(); c.globalAlpha = 0.26; c.strokeStyle = "#061a38"; c.lineWidth = 1;
+  for(s = 26; s < REAC_ZMAT1; s += 5){
+    var rs = rxB + (rxH - rxB) * (s - 22) / (REAC_ZMAT1 - 22);
+    c.beginPath(); c.moveTo(o.x - rs, o.y - s); c.lineTo(o.x + rs, o.y - s); c.stroke();
+  }
+  c.restore();
+  lueur(c, o.x, o.y - 38, 26, REAC_BLEU, 0.36);
+  lueur(c, o.x, o.y - 66, 25, REAC_BLEU, 0.36);
+  lueur(c, o.x, o.y - 94, 24, REAC_BLEU, 0.34);
+  lueur(c, o.x, o.y - 118, 20, REAC_BLEU, 0.30);
+  lueur(c, o.x, o.y - 74, 64, REAC_BLEU, 0.20);
+
+  /* ---- montants avant, faces latérales et avant ---- */
+  montant(0, 1); montant(1, 1);
+  panneaux(1, "#1d242c", 1.9);
+  panneaux(3, "#1d242c", 1.9);
+  panneaux(0, "#2e3843", 2.0);
+  echelle(c, o.x - 17, o.y - 13, 32);
+
+  /* ---- moitié avant des bobines : une gorge de lumière prise entre
+     deux joues d'acier noir. Pas de cuivre : la Bobine en a déjà, et
+     l'orangé tirait toute la silhouette vers elle. ---- */
+  function anneauAvant(an){
+    var cy = o.y - an.z, rx = an.r * RX, ry = an.r * RY, n, aa, xx, yy;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0a0e13"; c.lineWidth = 10.6;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(77,140,255,.92)"; c.lineWidth = 5.2;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(226,238,255,.9)"; c.lineWidth = 2.0;
+    c.beginPath(); c.ellipse(o.x, cy + 0.4, rx, ry, 0, 0, Math.PI); c.stroke();
+    /* barreaux de la cage, qui hachent la lumière */
+    c.strokeStyle = "#161d25"; c.lineWidth = 1.8;
+    for(n = 0; n <= 22; n++){
+      aa = n / 22 * Math.PI;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.beginPath(); c.moveTo(xx, yy - 3.1); c.lineTo(xx, yy + 3.1); c.stroke();
+    }
+    /* joue haute polie, joue basse dans l'ombre */
+    c.strokeStyle = "#576372"; c.lineWidth = 2.6;
+    c.beginPath(); c.ellipse(o.x, cy - 4.1, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(206,226,255,.34)"; c.lineWidth = 1.0;
+    c.beginPath(); c.ellipse(o.x, cy - 5.1, rx * 0.99, ry * 0.99, 0, 0.14, Math.PI - 0.14); c.stroke();
+    c.strokeStyle = "#0d1218"; c.lineWidth = 2.6;
+    c.beginPath(); c.ellipse(o.x, cy + 4.1, rx, ry, 0, 0, Math.PI); c.stroke();
+    /* quatre plots d'électrode sur la couronne */
+    for(n = 0; n < 4; n++){
+      aa = 0.42 + n * 0.76;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.fillStyle = "#d6e6ff";
+      c.beginPath(); c.arc(xx, yy + 5.8, 1.7, 0, 6.2832); c.fill();
+    }
+    lueur(c, o.x, cy + 2, an.r * RX * 1.7, REAC_BLEU, 0.24);
+  }
+  for(i = REAC_ANNEAUX.length - 1; i >= 0; i--) anneauAvant(REAC_ANNEAUX[i]);
+
+  /* ---- contreforts avant ---- */
+  for(i = 0; i < 4; i++){
+    if(REAC_BORNES[i][0] + REAC_BORNES[i][1] > 0) contrefort(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+  }
+
+  /* ---- LE SOMMET : collier, anneau émetteur, orbe, pointe ---- */
+  cylindre(c, 0, 0, 0.26, 118, 5, "#5f6a76", "#1b2128");
+  cylindre(c, 0, 0, 0.20, 123, 4, "#414c58", "#12171d");
+  /* trois bras qui portent le cerceau */
+  for(i = 0; i < 3; i++){
+    a = i / 3 * 6.2832 + 0.5236;
+    var sx0 = o.x + Math.cos(a) * 0.20 * RX, sy0 = o.y - 126 + Math.sin(a) * 0.20 * RY;
+    var sx1 = o.x + Math.cos(a) * REAC_RCER * RX, sy1 = o.y - REAC_ZCER + Math.sin(a) * REAC_RCER * RY;
+    c.lineCap = "round";
+    c.strokeStyle = "#0d1116"; c.lineWidth = 4.6;
+    c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
+    c.strokeStyle = "#3a4652"; c.lineWidth = 2.8;
+    c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
+    c.strokeStyle = "rgba(200,222,255,.28)"; c.lineWidth = 1.0;
+    c.beginPath(); c.moveTo(sx0, sy0 - 1); c.lineTo(sx1, sy1 - 1); c.stroke();
+  }
+  /* le cerceau, en deux moitiés : l'orbe se glisse entre les deux */
+  function cerceau(deb, fin, sombre){
+    var cy = o.y - REAC_ZCER, rx = REAC_RCER * RX, ry = REAC_RCER * RY;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0a0e13"; c.lineWidth = 8.0;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, deb, fin); c.stroke();
+    c.strokeStyle = sombre ? "#1c232b" : "#333e4a"; c.lineWidth = 5.6;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, deb, fin); c.stroke();
+    /* la gorge lumineuse, tournée vers l'intérieur du cerceau */
+    c.strokeStyle = sombre ? "rgba(77,140,255,.50)" : "rgba(143,192,255,.95)";
+    c.lineWidth = 2.2;
+    c.beginPath();
+    c.ellipse(o.x, cy + (sombre ? -1.9 : 1.9), rx * 0.88, ry * 0.88, 0, deb, fin);
+    c.stroke();
+    c.strokeStyle = "rgba(198,220,255,.30)"; c.lineWidth = 1.1;
+    c.beginPath(); c.ellipse(o.x, cy - 3.1, rx, ry, 0, deb, fin); c.stroke();
+  }
+  /* plots d'électrode du cerceau — les points d'attache des grands arcs */
+  function plotsCerceau(avant){
+    var cy = o.y - REAC_ZCER, rx = REAC_RCER * RX, ry = REAC_RCER * RY, n, aa, xx, yy;
+    for(n = 0; n < REAC_NCER; n++){
+      aa = n / REAC_NCER * 6.2832 + 0.5236;
+      if((Math.sin(aa) > 0) !== !!avant) continue;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.strokeStyle = "#2c353f"; c.lineWidth = 2.4;
+      c.beginPath(); c.moveTo(xx, yy - 2); c.lineTo(xx, yy - 6); c.stroke();
+      c.fillStyle = "#eaf2ff";
+      c.beginPath(); c.arc(xx, yy - 7.4, 2.5, 0, 6.2832); c.fill();
+      c.strokeStyle = "rgba(6,16,30,.45)"; c.lineWidth = 0.8;
+      c.beginPath(); c.arc(xx, yy - 7.4, 2.5, 0, 6.2832); c.stroke();
+      lueur(c, xx, yy - 7.4, 9, REAC_VIF, 0.30);
+    }
+  }
+  cerceau(Math.PI, 6.2832, 1);
+  plotsCerceau(0);
+  /* l'orbe : verre bleu sombre, la couche animée y met le feu */
+  sphere(c, 0, 0, REAC_RORBE / RX, REAC_ZORBE, "#2f6ecd", null);
+  c.fillStyle = "rgba(236,244,255,.66)";
+  c.beginPath(); c.arc(o.x, o.y - REAC_ZORBE, REAC_RORBE * 0.42, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(216,232,255,.32)"; c.lineWidth = 1.1;
+  c.beginPath();
+  c.ellipse(o.x, o.y - REAC_ZORBE, REAC_RORBE * 0.92, REAC_RORBE * 0.34, 0, 0, 6.2832);
+  c.stroke();
+  lueur(c, o.x, o.y - REAC_ZORBE, 20, REAC_VIF, 0.36);
+  /* paratonnerre : la pointe qui referme la silhouette */
+  c.strokeStyle = "#12171d"; c.lineWidth = 3.2; c.lineCap = "butt";
+  c.beginPath(); c.moveTo(o.x, o.y - REAC_ZORBE - 4); c.lineTo(o.x, o.y - REAC_ZPOINTE); c.stroke();
+  c.strokeStyle = "#7b8794"; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(o.x - 0.7, o.y - REAC_ZORBE - 4); c.lineTo(o.x - 0.7, o.y - REAC_ZPOINTE); c.stroke();
+  c.fillStyle = "#eaf2ff";
+  c.beginPath(); c.arc(o.x, o.y - REAC_ZPOINTE, 2.3, 0, 6.2832); c.fill();
+  lueur(c, o.x, o.y - REAC_ZPOINTE, 7, REAC_VIF, 0.34);
+  cerceau(0, Math.PI, 0);
+  plotsCerceau(1);
+
+  /* ---- pupitre de couplage, au pied ---- */
+  var fb = faces("#22303c");
+  boite(c, 0.86, 0.50, 0.42, 0.32, 7, 14, fb.t, fb.g, fb.d);
+  q = iso(0.86, 0.50);
+  plaqueBoulonnee(c, q.x - 8, q.y - 20, 16, 6, "#1a262f");
+  c.fillStyle = REAC_VIF; c.beginPath(); c.arc(q.x - 4, q.y - 12, 1.3, 0, 6.2832); c.fill();
+  c.fillStyle = "#6ee08a"; c.beginPath(); c.arc(q.x, q.y - 12, 1.3, 0, 6.2832); c.fill();
+  c.fillStyle = MAT.danger;
+  c.beginPath();
+  c.moveTo(q.x + 3.2, q.y - 19); c.lineTo(q.x + 7.6, q.y - 17.2);
+  c.lineTo(q.x + 5.4, q.y - 12.0); c.closePath(); c.fill();
+  cables(c, q.x - 7, q.y - 6, o.x + 11, o.y - 11, 3);
+
+  /* halo au sol : la dalle baigne dans la lumière de la machine */
+  lueur(c, o.x, o.y - 8, 46, REAC_BLEU, 0.22);
+};
+
 function construitSpritesDefenses(){
   Object.keys(SOCLES).forEach(function(t){
     var cv = nouveauCanvas(SP_W * ECH_SPRITE, SP_H * ECH_SPRITE);
@@ -4878,6 +5974,263 @@ TOURELLES.bobine = function(c, b, ang, tps){
     lueurRapide(c, cx, cy, 58, "#7de6ff", fl * 0.4);
     lueurRapide(c, p.x, p.y - 40, 20, "#7de6ff", fl * 0.3);
   }
+};
+
+/* ----------------------------------------------------------------
+   Un éclair : polyligne bruitée entre deux points.
+   Le bruit vient de sinus et non d'un tirage au sort : à graine égale
+   le trait est identique d'une image à l'autre, ce qui permet de le
+   tenir immobile quelques images puis de le faire sauter d'un coup —
+   c'est ce claquement discret qui fait « électrique », là où un bruit
+   renouvelé à chaque image ne donne que du grésil.
+   ---------------------------------------------------------------- */
+function arcEclair(c, x0, y0, x1, y1, n, amp, gr){
+  var vx = x1 - x0, vy = y1 - y0;
+  var l = Math.hypot(vx, vy) || 1;
+  var nx = -vy / l, ny = vx / l;
+  c.beginPath();
+  c.moveTo(x0, y0);
+  for(var i = 1; i < n; i++){
+    var t = i / n;
+    var d = Math.sin(gr * 1.7 + i * 2.399) * amp * Math.sin(t * Math.PI);
+    c.lineTo(x0 + vx * t + nx * d, y0 + vy * t + ny * d);
+  }
+  c.lineTo(x1, y1);
+  c.stroke();
+}
+
+/* ----------------------------------------------------------------
+   Grand arc de cage : du cerceau de la cellule jusqu'à un contrefort,
+   en s'écartant de la tour.
+   Deux passes : une large et faible pour le halo, une fine et vive
+   pour le cœur. À l'échelle de jeu un trait d'un pixel disparaît au
+   filtrage ; c'est le halo qui le fait exister de loin, et c'est tout
+   l'enjeu — un arc qu'on ne voit qu'en zoom ×4 ne sert à rien.
+   ---------------------------------------------------------------- */
+function arcCage(c, x0, y0, x1, y1, cambre, amp, gr, alpha, ep){
+  var vx = x1 - x0, vy = y1 - y0;
+  var l = Math.hypot(vx, vy) || 1;
+  var nx = -vy / l, ny = vx / l;
+  var i, t, d, k;
+  for(k = 0; k < 2; k++){
+    c.strokeStyle = k
+      ? "rgba(230,240,255," + (alpha * 0.95).toFixed(3) + ")"
+      : "rgba(77,140,255," + (alpha * 0.30).toFixed(3) + ")";
+    c.lineWidth = k ? ep : ep * 3.6;
+    c.beginPath();
+    c.moveTo(x0, y0);
+    for(i = 1; i < 8; i++){
+      t = i / 8;
+      d = (cambre + Math.sin(gr * 1.7 + i * 2.399) * amp) * Math.sin(t * Math.PI);
+      c.lineTo(x0 + vx * t + nx * d, y0 + vy * t + ny * d);
+    }
+    c.lineTo(x1, y1);
+    c.stroke();
+  }
+}
+
+/* ================================================================
+   CELLULE ÉLECTRIQUE — la couche vivante.
+   Rien ne s'y arrête jamais : l'onde de terre bat sur la dalle, l'âme
+   pulse, les arcs rampent autour des quatre bobines, DE GRANDS ARCS
+   DE CAGE tombent du cerceau sur les contreforts, et l'orbe brûle au
+   centre. Tout est déphasé par b.n pour que les cinq cellules de
+   l'île ne battent pas la même mesure, et tout s'affole à mesure que
+   les PV tombent.
+   ================================================================ */
+/* Quel plot du cerceau reçoit l'arc de quel contrefort */
+var REAC_PLOTS = [0, 2, 3, 5];
+
+TOURELLES.reacteur = function(c, b, ang, tps){
+  var o = iso(0, 0);
+  var i, k, a, an, x0, y0, x1, y1, vx, vy, l;
+  var dep = (b.n || 0) * 1.37;
+  var pvm = b.pvMax || 1;
+  var fr = Math.max(0, Math.min(1, b.pv / pvm));
+  var mal = 1 - fr;                            // 0 intacte, 1 à l'agonie
+  /* Scintillement : sous les coups le courant hoquette. Deux sinus de
+     périodes premières entre elles, pour que la panne ne tombe jamais
+     deux fois au même moment. */
+  var vac = 1;
+  if(mal > 0.2){
+    var hic = Math.sin(tps * 17.3 + dep * 3.1) * Math.sin(tps * 6.7 + dep);
+    vac = 1 - (mal - 0.2) * 1.05 * Math.max(0, hic);
+  }
+  var puls = 0.5 + 0.5 * Math.sin(tps * 2.35 + dep);
+  var nerf = 1 + mal * 1.8;                    // amplitude des arcs
+  var tic = Math.floor(tps * (8 + mal * 7) + dep * 5);   // horloge des claquements
+  var cyC = o.y - REAC_ZCER, rxC = REAC_RCER * RX, ryC = REAC_RCER * RY;
+
+  c.save();
+  c.globalCompositeOperation = "lighter";
+
+  /* ---- l'onde de terre ----
+     Toutes les deux secondes et demie la cellule pousse un anneau de
+     lumière sur sa dalle. Une silhouette, même haute, se perd dans une
+     base qui compte cent bâtiments ; ce battement lent, lui, attire
+     l'œil d'un bout à l'autre de l'île. */
+  for(i = 0; i < 2; i++){
+    var po = (tps * 0.4 + i * 0.5 + dep * 0.17) % 1;
+    var ao = (1 - po) * (1 - po) * 0.66 * vac;
+    if(ao > 0.02){
+      var ro = 0.5 + po * 2.4;
+      c.strokeStyle = "rgba(120,175,255," + ao.toFixed(3) + ")";
+      c.lineWidth = 3.4 - po * 2.0;
+      c.beginPath();
+      c.ellipse(o.x, o.y - 4, ro * RX, ro * RY, 0, 0, 6.2832);
+      c.stroke();
+    }
+  }
+
+  /* ---- l'âme : trois impulsions qui montent le long du mât ---- */
+  for(i = 0; i < 3; i++){
+    var mt = (tps * 0.42 + i / 3 + dep * 0.21) % 1;
+    var am = Math.sin(mt * Math.PI) * 0.60 * vac;
+    lueurRapide(c, o.x, o.y - (26 + mt * 96), 13 + am * 8, REAC_VIF, am);
+  }
+
+  /* ---- LES GRANDS ARCS DE CAGE ----
+     Deux sur les quatre à la fois, tirés au sort par l'horloge des
+     claquements. Ils courent sur toute la hauteur de la cellule, en
+     dehors de sa silhouette : c'est la seule chose de la couche
+     vivante qui reste lisible à un zoom de carte. */
+  for(i = 0; i < 4; i++){
+    if(((tic + i * 5) % 4) > (mal > 0.4 ? 1 : 0)) continue;
+    a = REAC_PLOTS[i] / REAC_NCER * 6.2832 + 0.5236;
+    x0 = o.x + Math.cos(a) * rxC;
+    y0 = cyC + Math.sin(a) * ryC - 7.4;
+    var w = iso(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+    x1 = w.x; y1 = w.y - REAC_ZBORNE;
+    arcCage(c, x0, y0, x1, y1,
+            (x0 > o.x ? -1 : 1) * (13 + puls * 5), 7 * nerf, tic * 3 + i,
+            (0.8 + puls * 0.2) * vac, 2.1 + mal * 0.9);
+    lueurRapide(c, x1, y1, 11 + puls * 4, REAC_VIF, 0.5 * vac);
+  }
+
+  /* ---- un arc rampe autour de chaque bobine, en sens alternés ---- */
+  for(i = 0; i < REAC_ANNEAUX.length; i++){
+    an = REAC_ANNEAUX[i];
+    var sens = (i % 2) ? -1 : 1;
+    var a0 = tps * (0.85 + i * 0.29) * sens + dep + i * 1.9;
+    var rxA = an.r * RX, ryA = an.r * RY, cyA = o.y - an.z;
+    for(k = 0; k < 2; k++){
+      c.strokeStyle = k
+        ? "rgba(226,238,255," + ((0.72 + puls * 0.2) * vac).toFixed(3) + ")"
+        : "rgba(77,140,255," + (0.26 * vac).toFixed(3) + ")";
+      c.lineWidth = k ? 1.8 + mal * 0.7 : 6.0;
+      c.beginPath();
+      for(var kk = 0; kk <= 7; kk++){
+        a = a0 + kk * 0.27;
+        var rr = 1 + Math.sin(tps * (21 + i * 5) + kk * 2.7 + dep) * 0.07 * nerf;
+        var px = o.x + Math.cos(a) * rxA * rr;
+        var py = cyA + Math.sin(a) * ryA * rr + Math.sin(tps * 29 + kk * 3.3 + i) * 1.8 * nerf;
+        if(kk === 0) c.moveTo(px, py); else c.lineTo(px, py);
+      }
+      c.stroke();
+    }
+    /* la tête de l'arc, une perle de lumière qui fait le tour */
+    if((i & 1) === (tic & 1)){
+      a = a0 + 7 * 0.27;
+      lueurRapide(c, o.x + Math.cos(a) * rxA, cyA + Math.sin(a) * ryA,
+                  10 + puls * 4, "#ffffff", 0.46 * vac);
+    }
+  }
+
+  /* ---- décharges verticales d'une bobine à la suivante ---- */
+  c.strokeStyle = "rgba(226,238,255," + (0.66 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.7;
+  for(i = 0; i < REAC_ANNEAUX.length - 1; i++){
+    if(((tic + i * 3) % 5) > (mal > 0.4 ? 2 : 1)) continue;
+    var ab = (tic * 1.7 + i * 2.3) % 6.2832;
+    var A = REAC_ANNEAUX[i], B = REAC_ANNEAUX[i + 1];
+    arcEclair(c,
+      o.x + Math.cos(ab) * A.r * RX, o.y - A.z + Math.sin(ab) * A.r * RY,
+      o.x + Math.cos(ab + 0.5) * B.r * RX, o.y - B.z + Math.sin(ab + 0.5) * B.r * RY,
+      5, 4.8 * nerf, tic + i);
+  }
+
+  /* ---- le cerceau nourrit l'orbe ---- */
+  var ox = o.x, oy = o.y - REAC_ZORBE;
+  var tc = Math.floor(tps * 5.5 + dep * 3);
+  for(i = 0; i < REAC_NCER; i++){
+    if(((tc + i) % 3) !== 0) continue;
+    a = i / REAC_NCER * 6.2832 + 0.5236;
+    x0 = o.x + Math.cos(a) * rxC;
+    y0 = cyC + Math.sin(a) * ryC - 7.4;
+    vx = ox - x0; vy = oy - y0; l = Math.hypot(vx, vy) || 1;
+    for(k = 0; k < 2; k++){
+      c.strokeStyle = k
+        ? "rgba(238,246,255," + (0.85 * vac).toFixed(3) + ")"
+        : "rgba(77,140,255," + (0.28 * vac).toFixed(3) + ")";
+      c.lineWidth = k ? 1.9 : 6.2;
+      arcEclair(c, x0, y0, ox - vx / l * REAC_RORBE, oy - vy / l * REAC_RORBE,
+                4, 3.8 * nerf, tc + i * 3);
+    }
+  }
+  /* et un arc rampe sur le cerceau lui-même */
+  var acer = tps * 1.25 + dep;
+  c.strokeStyle = "rgba(214,232,255," + (0.62 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.6;
+  c.beginPath();
+  for(i = 0; i <= 8; i++){
+    a = acer + i * 0.30;
+    var rc = 1 + Math.sin(tps * 17 + i * 2.4 + dep) * 0.06 * nerf;
+    if(i === 0) c.moveTo(o.x + Math.cos(a) * rxC * rc, cyC + Math.sin(a) * ryC * rc);
+    else c.lineTo(o.x + Math.cos(a) * rxC * rc, cyC + Math.sin(a) * ryC * rc);
+  }
+  c.stroke();
+
+  /* ---- l'orbe : cœur blanc et couronne d'arcs qui tourne ---- */
+  var rO = 5.8 + puls * 1.8;
+  c.fillStyle = "rgba(255,255,255," + ((0.48 + puls * 0.30) * vac).toFixed(3) + ")";
+  c.beginPath(); c.arc(ox, oy, rO, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(160,200,255," + (0.52 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.3;
+  for(k = 0; k < 2; k++){
+    var ae = tps * 2.6 + k * 3.1416 + dep;
+    c.beginPath();
+    c.moveTo(ox + Math.cos(ae) * REAC_RORBE, oy + Math.sin(ae) * REAC_RORBE * 0.55);
+    for(i = 1; i <= 5; i++){
+      var aa2 = ae + i * 0.52;
+      var r2 = REAC_RORBE + Math.sin(i * 2.7 + tps * 9 + k * 4 + dep) * 2.8 * nerf;
+      c.lineTo(ox + Math.cos(aa2) * r2, oy + Math.sin(aa2) * r2 * 0.55);
+    }
+    c.stroke();
+  }
+
+  /* ---- la pointe grésille ---- */
+  var tx = o.x, ty = o.y - REAC_ZPOINTE;
+  if((tic % 3) === 0){
+    c.strokeStyle = "rgba(238,246,255," + (0.66 * vac).toFixed(3) + ")";
+    c.lineWidth = 1.3;
+    for(k = 0; k < 2; k++){
+      var ak = (tic * 2.1 + k * 3.7) % 6.2832;
+      arcEclair(c, tx, ty, tx + Math.cos(ak) * 13,
+                ty - 5 - Math.abs(Math.sin(ak)) * 11, 3, 3.0, tic + k);
+    }
+  }
+
+  /* ---- étincelles arrachées quand la cellule souffre ---- */
+  if(mal > 0.35){
+    c.fillStyle = "rgba(196,220,255,.85)";
+    for(i = 0; i < 5; i++){
+      var pe = (tps * 1.15 + i * 0.31 + dep) % 1;
+      var ze = 104 - pe * pe * 96;
+      c.beginPath();
+      c.arc(o.x + Math.sin(tps * 3 + i * 2.2) * (10 + i * 4),
+            o.y - ze, 1.5 * (1 - pe) + 0.4, 0, 6.2832);
+      c.fill();
+    }
+  }
+
+  /* ---- les halos, en dégradés mis en cache ---- */
+  lueurRapide(c, ox, oy, 34 + puls * 12, REAC_VIF, (0.34 + puls * 0.16) * vac);
+  lueurRapide(c, ox, oy, 13, "#ffffff", (0.32 + puls * 0.20) * vac);
+  lueurRapide(c, tx, ty, 10 + puls * 4, REAC_CLAIR, (0.36 + puls * 0.24) * vac);
+  /* l'aura de toute la colonne : c'est elle qu'on voit de loin */
+  lueurRapide(c, o.x, o.y - 74, 74 + puls * 10, REAC_BLEU, (0.24 + puls * 0.10) * vac);
+  lueurRapide(c, o.x, o.y - 6, 54, REAC_BLEU, (0.18 + puls * 0.08) * vac);
+  c.restore();
 };
 
 TOURELLES.cuve = function(){};
@@ -8184,6 +9537,10 @@ var W = 960, H = 600, dpr = 1;
    Création d'une carte
    --------------------------------------------------------------- */
 function nouvelleCarte(index, pvConnu){
+  /* les panneaux de commande, effacés pendant la séquence finale de
+     l'île précédente, reviennent avec la nouvelle */
+  var hud = document.getElementById("hud");
+  if(hud) hud.classList.remove("fin");
   /* La carte suit le plan du salon et son tirage courant : c'est ce
      couple, diffusé dans l'instantané retenu, qui garantit que tout le
      monde voit exactement les mêmes défenses. */
@@ -8207,6 +9564,9 @@ function nouvelleCarte(index, pvConnu){
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
+    /* Le bouclier du Brasier : les cinq cellules, leurs câbles, et le
+       compte de celles qui tiennent encore. */
+    reacteurs:[], cables:[], bouclier:0, boucliercoups:0, boucliertouche:0, coupure:0,
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -8261,9 +9621,103 @@ function nouvelleCarte(index, pvConnu){
   degatsEnAttente = 0;
   serieReseau = 0;
   construitGrilles();
+  construitCables();
   construitContourIle();
   construitSol(carte);
   centreSurPlage();
+}
+
+/* ---------------------------------------------------------------
+   LES CÂBLES DU BOUCLIER
+   Chaque cellule électrique est reliée au Brasier par un câble posé
+   au sol. On le trace APRÈS construitGrilles() : c'est la carte
+   d'occupation qui dit où sont les bâtiments, et le câble doit les
+   contourner au lieu de leur passer au travers.
+   Le tracé est quasi rectiligne : on avance vers le Brasier, et
+   lorsqu'un pas tombe sur un obstacle on cherche le décalage LATÉRAL
+   le plus faible qui dégage — d'abord un demi-pas, puis un pas entier,
+   jusqu'à trois. Le câble épouse donc le bâtiment et reprend aussitôt
+   sa ligne, sans jamais partir en zigzag.
+   --------------------------------------------------------------- */
+/* Un segment de câble est-il posable ? On échantillonne finement : un
+   simple test d'arrivée laisserait le câble traverser un bâtiment de
+   part en part pour atterrir libre de l'autre côté. */
+var cableDepart = null;          // la cellule d'où part le tracé en cours
+function cableLibre(x0, y0, x1, y1){
+  var n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.35));
+  for(var i = 0; i <= n; i++){
+    var f = i / n;
+    var x = x0 + (x1 - x0) * f, y = y0 + (y1 - y0) * f;
+    /* le pied du Brasier est forcément « bloqué » : c'est justement là
+       qu'on veut arriver. Idem pour l'emprise de la cellule elle-même,
+       d'où le câble sort. */
+    if(Math.hypot(x - jeu.qg.gx, y - jeu.qg.gy) < RAYON_QG + 2) continue;
+    if(cableDepart && Math.hypot(x - cableDepart.gx, y - cableDepart.gy) < 3) continue;
+    if(bloque(x, y)) return 0;
+  }
+  return 1;
+}
+
+function construitCables(){
+  jeu.reacteurs = [];
+  jeu.cables = [];
+  var lst = carte.reacteurs || [];
+  for(var i = 0; i < lst.length; i++){
+    var bat = jeu.batiments[lst[i].n];
+    if(!bat || bat.t !== "reacteur") continue;
+    jeu.reacteurs.push({ bat:bat, gx:bat.gx, gy:bat.gy, n:i });
+
+    cableDepart = bat;
+    var pts = [{ gx:bat.gx, gy:bat.gy }];
+    var cx = bat.gx, cy = bat.gy;
+    var garde = 0;
+    while(Math.hypot(cx - jeu.qg.gx, cy - jeu.qg.gy) > RAYON_QG + 1.2 && garde++ < 700){
+      var dx = jeu.qg.gx - cx, dy = jeu.qg.gy - cy;
+      var l = Math.hypot(dx, dy) || 1;
+      dx /= l; dy /= l;
+      var pas = 1.4;
+      var nx = cx + dx * pas, ny = cy + dy * pas;
+      if(!cableLibre(cx, cy, nx, ny)){
+        /* obstacle : on longe. Décalages latéraux croissants, des deux
+           côtés, on garde le premier qui dégage — et c'est bien tout le
+           SEGMENT qu'on teste, pas seulement son arrivée : sinon le
+           câble atterrit à côté du bâtiment en lui passant au travers. */
+        var tx = -dy, ty = dx, ok = 0;
+        for(var e = 1; e <= 11 && !ok; e++){
+          for(var sg = 1; sg >= -1 && !ok; sg -= 2){
+            var ex = cx + dx * pas * 0.45 + tx * sg * e * 0.62;
+            var ey = cy + dy * pas * 0.45 + ty * sg * e * 0.62;
+            if(cableLibre(cx, cy, ex, ey)){ nx = ex; ny = ey; ok = 1; }
+          }
+        }
+        /* dernier recours : reculer perpendiculairement pour se dégager
+           d'un cul-de-sac, sinon on passe outre plutôt que boucler */
+        if(!ok){
+          for(var e2 = 1; e2 <= 8 && !ok; e2++){
+            for(var sg2 = 1; sg2 >= -1 && !ok; sg2 -= 2){
+              var fx = cx + tx * sg2 * e2 * 0.7 - dx * 0.5;
+              var fy = cy + ty * sg2 * e2 * 0.7 - dy * 0.5;
+              if(cableLibre(cx, cy, fx, fy)){ nx = fx; ny = fy; ok = 1; }
+            }
+          }
+        }
+        if(!ok){ nx = cx + dx * pas; ny = cy + dy * pas; }
+      }
+      cx = nx; cy = ny;
+      pts.push({ gx:cx, gy:cy });
+    }
+    pts.push({ gx:jeu.qg.gx, gy:jeu.qg.gy });
+    /* longueur cumulée : elle sert au rendu pour faire courir
+       l'impulsion lumineuse à vitesse constante */
+    var lg = 0;
+    for(var k = 1; k < pts.length; k++){
+      lg += Math.hypot(pts[k].gx - pts[k - 1].gx, pts[k].gy - pts[k - 1].gy);
+      pts[k].d = lg;
+    }
+    pts[0].d = 0;
+    jeu.cables.push({ pts:pts, lg:lg, bat:bat, n:i });
+  }
+  jeu.bouclier = reacteursVivants();
 }
 
 /* ---------------------------------------------------------------
@@ -8735,8 +10189,89 @@ function abimeCreature(c, d){
     demandeMajBarres();
   }
 }
+/* Combien de cellules électriques alimentent encore le bouclier. */
+function reacteursVivants(){
+  var n = 0;
+  for(var i = 0; i < jeu.reacteurs.length; i++) if(jeu.reacteurs[i].bat.vivant) n++;
+  return n;
+}
+
+/* ---------------------------------------------------------------
+   LE BOUCLIER, IMAGE PAR IMAGE
+   Une cellule peut tomber par trois chemins très différents : sous nos
+   propres tirs, par le message « det » d'un autre joueur, ou d'un coup
+   à la lecture d'un instantané de salon. Plutôt que de greffer le même
+   traitement à trois endroits — et d'en oublier un quatrième demain —
+   on regarde simplement, à chaque image, quelles cellules viennent de
+   s'éteindre. La mise en scène part de là, quelle qu'en soit la cause.
+   --------------------------------------------------------------- */
+function majBouclier(dt){
+  if(jeu.coupure > 0) jeu.coupure = Math.max(0, jeu.coupure - dt);
+  if(jeu.boucliertouche > 0) jeu.boucliertouche = Math.max(0, jeu.boucliertouche - dt);
+  for(var ic = 0; ic < jeu.cables.length; ic++){
+    var cc = jeu.cables[ic];
+    if(cc.morte && cc.fondu > 0) cc.fondu = Math.max(0, cc.fondu - dt);
+  }
+  var n = 0, i, r;
+  for(i = 0; i < jeu.reacteurs.length; i++){
+    r = jeu.reacteurs[i];
+    var vif = !!r.bat.vivant;
+    if(vif) n++;
+    if(r.etaitVive === undefined){ r.etaitVive = vif; continue; }
+    if(r.etaitVive && !vif){
+      r.etaitVive = false;
+      r.eteinte = jeu.tps;                 // l'heure exacte de sa mort
+      tombeReacteur(r);
+    }
+  }
+  var avant = jeu.bouclier;
+  jeu.bouclier = n;
+  if(avant > 0 && n === 0 && !jeu.fin) coupeLeCourant();
+}
+
+/* Une cellule s'effondre : décharge incontrôlée, arcs qui partent dans
+   tous les sens, petite explosion, et la lumière qui s'éteint. Son
+   câble cesse de battre mais reste posé au sol. */
+function tombeReacteur(r){
+  var b = r.bat;
+  jeu.effets.push({ t:"cellHS", gx:b.gx, gy:b.gy, age:0, duree:1.8 });
+  jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.9, r:2.6, force:1.3 });
+  jeu.secousse = Math.min(11, jeu.secousse + 5);
+  for(var i = 0; i < jeu.cables.length; i++){
+    if(jeu.cables[i].bat === b){ jeu.cables[i].morte = 1; jeu.cables[i].fondu = 1.4; }
+  }
+  if(son && son.boum) son.boum(0.55);
+}
+
+/* La dernière cellule vient de tomber. Le courant lâche d'un coup :
+   toute l'énergie encore prise dans les câbles reflue vers le Brasier
+   et claque, puis plus rien. Le Brasier devient enfin attaquable. */
+function coupeLeCourant(){
+  jeu.coupure = 2.6;
+  jeu.effets.push({ t:"coupure", gx:jeu.qg.gx, gy:jeu.qg.gy, age:0, duree:2.6 });
+  jeu.secousse = Math.min(14, jeu.secousse + 9);
+  if(son && son.boum) son.boum(0.85);
+  /* la bannière est peinte sur le canevas par dessineCoupure() : elle
+     tient les 2,6 s de la coupure, bien plus visible que le bandeau
+     ordinaire, et elle crépite. */
+}
 function abimeQG(d){
   if(jeu.qg.pv <= 0) return;
+  /* LE BOUCLIER. Tant qu'une seule cellule électrique tient debout, le
+     Brasier ne perd pas un point de vie. Les troupes peuvent tirer —
+     c'est même voulu, les impacts crépitent sur le champ — mais rien
+     n'entame la coque. Le joueur doit d'abord faire tomber les cinq
+     cellules, ce qui l'oblige à se répartir sur toute l'île. */
+  if(jeu.bouclier > 0){
+    jeu.boucliercoups = (jeu.boucliercoups || 0) + 1;
+    jeu.boucliertouche = 0.22;        // le champ encaisse : ça doit se voir
+    if(jeu.boucliercoups % 40 === 1 && !jeu.fin){
+      message("Le Brasier est protégé : détruis les " + jeu.bouclier
+            + " cellule" + (jeu.bouclier > 1 ? "s" : "") + " électrique"
+            + (jeu.bouclier > 1 ? "s" : "") + " qui l'alimentent.");
+    }
+    return;
+  }
   d = Math.round(d);
   if(d <= 0) return;
   jeu.serieDeg++;
@@ -10009,6 +11544,10 @@ function declencheFin(){
     prochaineFumee:0
   };
   envoieCarte(jeu.index + 1);
+  /* les panneaux de commande s'effacent : plus rien à commander, et
+     ils masqueraient la chute de la forteresse */
+  var h = document.getElementById("hud");
+  if(h) h.classList.add("fin");
   son.grondement();
 }
 var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
@@ -10018,6 +11557,14 @@ function majFin(dt){
   var F = jeu.fin;
   F.age += dt;
   var p = jeu.qg;
+
+  /* ---- 0. LA CAMÉRA REVIENT SUR LE BRASIER ----
+     C'est le seul moment de la partie qui mérite d'être regardé, et le
+     joueur est presque toujours ailleurs quand il tombe — au fond de la
+     plage, ou sur la cellule qu'il achevait. On le ramène en douceur,
+     sans coupure, et on recule un peu : la déflagration monte très
+     haut. Ensuite plus personne ne touche à la caméra. */
+  cadreLaFin(dt);
 
   /* ---- 1. l'effondrement : elle s'enfonce, penche, et se déchire ---- */
   if(F.age < FIN_EFFONDREMENT){
@@ -10128,6 +11675,21 @@ function majFin(dt){
   }
 }
 
+/* Le cadrage de la séquence finale. On vise un zoom qui laisse tenir la
+   forteresse ET sa colonne de fumée dans la hauteur disponible : sur une
+   tablette en portrait, la hauteur est le facteur limitant, en paysage
+   c'est la largeur. Le point visé est légèrement AU-DESSUS du pied de la
+   forteresse, sinon l'explosion sort par le haut de l'écran. */
+function cadreLaFin(dt){
+  var zBut = borne(Math.min(W / 1000, H / 900), ZMIN, 0.7);
+  var pBut = iso(jeu.qg.gx, jeu.qg.gy);
+  /* approche exponentielle : rapide au début, elle se pose sans à-coup */
+  var k = 1 - Math.exp(-dt * 2.6);
+  cam.z += (zBut - cam.z) * k;
+  cam.px += (W / 2 - pBut.x * cam.z - cam.px) * k;
+  cam.py += (H * 0.60 - pBut.y * cam.z - cam.py) * k;
+}
+
 /* Éclats de maçonnerie projetés. Ils vivent en coordonnées ÉCRAN
    relatives au pied du Brasier : le tri de profondeur n'a rien à leur
    apprendre, ils volent au-dessus de tout. */
@@ -10154,6 +11716,7 @@ function majJeu(dt){
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
+  majBouclier(dt);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
   majNavettes(dt);
@@ -11677,6 +13240,120 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#ffe9a0";
     c.beginPath(); c.arc(p.x, p.y - (10 + (1 - t) * 90) * z, 4 * z, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "cellHS"){
+    /* ---- UNE CELLULE ÉLECTRIQUE LÂCHE ----
+       Toute la charge qu'elle retenait part d'un coup et n'est plus
+       contenue par rien : les arcs ne tournent plus sagement autour
+       des bobines, ils giclent au hasard, de plus en plus faibles,
+       puis la lumière s'éteint. */
+    var fh = 1 - t;
+    /* La cellule est le bâtiment le plus haut de l'île après le Brasier :
+       une décharge calée sur la hauteur d'une tourelle ordinaire se
+       perdait dans son socle. On la place à mi-mât. */
+    var hh = 210 * z;
+    var yh = p.y - hh * 0.55;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* la décharge : un flash blanc-bleu très bref */
+    if(t < 0.30){
+      var kf = 1 - t / 0.30;
+      var rf = 300 * z * (0.4 + kf);
+      var gf2 = c.createRadialGradient(p.x, yh, 2, p.x, yh, rf);
+      gf2.addColorStop(0, "rgba(250,255,255," + (0.95 * kf) + ")");
+      gf2.addColorStop(0.30, "rgba(150,225,255," + (0.62 * kf) + ")");
+      gf2.addColorStop(1, "rgba(60,140,230,0)");
+      c.fillStyle = gf2;
+      c.beginPath(); c.arc(p.x, yh, rf, 0, 6.2832); c.fill();
+      /* la colonne de courant qui saute du mât : verticale, franche,
+         c'est elle qu'on voit d'un bout à l'autre de l'île */
+      var gc2 = c.createLinearGradient(p.x, p.y, p.x, p.y - hh * 1.5);
+      gc2.addColorStop(0, "rgba(180,238,255," + (0.70 * kf) + ")");
+      gc2.addColorStop(0.55, "rgba(230,250,255," + (0.55 * kf) + ")");
+      gc2.addColorStop(1, "rgba(150,220,255,0)");
+      c.fillStyle = gc2;
+      c.fillRect(p.x - 16 * z * (0.4 + kf), p.y - hh * 1.5, 32 * z * (0.4 + kf), hh * 1.5);
+      /* l'onde au sol, pour que la chute se voie de loin */
+      c.strokeStyle = "rgba(160,230,255," + (0.55 * kf) + ")";
+      c.lineWidth = Math.max(1.5, 7 * kf * z);
+      c.beginPath();
+      c.ellipse(p.x, p.y, (40 + (1 - kf) * 260) * z, (20 + (1 - kf) * 130) * z, 0, 0, 6.2832);
+      c.stroke();
+    }
+    /* arcs incontrôlés : ils partent du fût vers le sol, au hasard,
+       et se raréfient à mesure que la charge tombe */
+    var alH = prng((e.gx * 613 + e.gy * 71) | 0);
+    var nbH = Math.max(0, Math.round(14 * fh));
+    c.lineCap = "round";
+    for(var ih = 0; ih < nbH; ih++){
+      var aH = alH() * 6.2832 + tps * 1.7;
+      var lgH = (70 + alH() * 170) * z * (0.4 + fh);
+      var x1H = p.x + Math.cos(aH) * lgH;
+      var y1H = yh + Math.sin(aH) * lgH * 0.55;
+      c.beginPath();
+      c.moveTo(p.x, yh);
+      var seg = 5;
+      for(var sH = 1; sH <= seg; sH++){
+        var kH = sH / seg;
+        var ecH = (alH() - 0.5) * 44 * z * (1 - Math.abs(kH - 0.5) * 1.2);
+        c.lineTo(p.x + (x1H - p.x) * kH - Math.sin(aH) * ecH,
+                 yh + (y1H - yh) * kH + Math.cos(aH) * ecH * 0.55);
+      }
+      var aA = (0.35 + 0.60 * fh) * (0.5 + alH() * 0.5);
+      c.strokeStyle = "rgba(60,155,255," + (aA * 0.5) + ")";
+      c.lineWidth = Math.max(2, 7 * z); c.stroke();
+      c.strokeStyle = "rgba(215,248,255," + aA + ")";
+      c.lineWidth = Math.max(0.9, 2.2 * z); c.stroke();
+    }
+    /* la lumière du cœur qui meurt, en sursautant */
+    var vac = fh * fh * (0.55 + 0.45 * Math.sin(tps * 41 + e.gx));
+    lueurRapide(c, p.x, yh, 140 * z * (0.3 + fh), "#7fd8ff", 0.60 * vac);
+    c.restore();
+    /* fumée : elle, elle survit à la lumière */
+    if(t > 0.25){
+      var mS = (t - 0.25) / 0.75;
+      for(var jS = 0; jS < 4; jS++){
+        bouffee(c, p.x + Math.sin(tps * 0.8 + jS * 2) * 14 * z,
+                yh - mS * 70 * z - jS * 9 * z,
+                (10 + mS * 26) * z, (1 - mS) * 0.32, jS % 2 ? "#4a4a56" : "#6a6472");
+      }
+    }
+  }else if(e.t === "coupure"){
+    /* ---- LA COUPURE ----
+       La dernière cellule est tombée. Tout ce qui restait de courant
+       dans les câbles reflue vers le Brasier, claque une dernière fois
+       sur sa coque, puis le noir. C'est le signal que la forteresse est
+       enfin attaquable : ça doit se voir de partout. */
+    var fc = 1 - t;
+    var yc2 = p.y - 190 * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    /* l'onde qui court au sol, très large : elle passe sous le joueur
+       même s'il est à l'autre bout de l'île */
+    var rc2 = 30 + t * 900;
+    c.strokeStyle = "rgba(150,230,255," + (0.55 * fc * fc) + ")";
+    c.lineWidth = Math.max(1.5, 9 * fc * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rc2 * z, rc2 * 0.5 * z, 0, 0, 6.2832);
+    c.stroke();
+    /* le dernier crépitement sur la coque, qui s'éteint par à-coups */
+    if(t < 0.6){
+      var kc = 1 - t / 0.6;
+      var alC = prng(9137);
+      c.lineCap = "round";
+      for(var ic = 0; ic < 14; ic++){
+        if(alC() > 0.35 + kc * 0.65) continue;      // ça saute, ça hoquette
+        var xC = p.x + (alC() - 0.5) * 420 * z;
+        var yC = p.y - alC() * 340 * z;
+        c.strokeStyle = "rgba(215,248,255," + (0.75 * kc) + ")";
+        c.lineWidth = Math.max(1, 2.4 * z);
+        c.beginPath(); c.moveTo(xC, yC);
+        for(var sC = 0; sC < 3; sC++)
+          c.lineTo(xC + (alC() - 0.5) * 60 * z, yC + (alC() - 0.5) * 60 * z);
+        c.stroke();
+      }
+      lueurRapide(c, p.x, yc2, 380 * z * (0.5 + kc * 0.6), "#8fdcff", 0.34 * kc);
+    }
+    c.restore();
   }
 }
 
@@ -11981,10 +13658,278 @@ function dessineProjectile(c, p, tps){
 }
 
 /* ---------------------------------------------------------------
+   LE BOUCLIER DU BRASIER
+   Tant qu'une cellule électrique tient, la forteresse est intouchable.
+   Il faut que ça se VOIE, sans jamais masquer le Brasier : le joueur
+   doit pouvoir lire, d'un coup d'œil et sans compter, combien il en
+   reste. On ne peint donc pas une bulle opaque mais une cage d'arcs
+   qui court sur la silhouette — dense et régulière à cinq cellules,
+   clairsemée et vacillante à une seule.
+   Le dessin ne touche à rien de la forteresse : il vient PAR-DESSUS,
+   après dessineQG(), et n'entre jamais dans son sprite.
+   --------------------------------------------------------------- */
+/* Le visage du Brasier occupe toute la colonne centrale. On n'y touche
+   pas : les arcs restent SUR LES FLANCS de la maçonnerie, entre ces
+   deux abscisses locales, et n'entrent jamais dans la bande centrale. */
+var BQ_FLANC0 = 118, BQ_FLANC1 = 236;   // demi-largeurs de la zone d'arcs
+var BQ_HAUT = -330, BQ_BAS = 26;        // du pied de la coque à son sommet
+
+function dessineBouclierQG(c, tps){
+  if(!jeu.bouclier || jeu.fin) return;
+  var q = jeu.qg;
+  var p = versEcran(cam, q.gx, q.gy);
+  var z = cam.z;
+  if(z < 0.09) return;                          // de très loin, le halo suffit
+  var nb = typeof NB_REACTEURS === "number" ? NB_REACTEURS : 5;
+  var f = jeu.bouclier / nb;                    // 1 = intact, 0.2 = dernière
+
+  /* L'INSTABILITÉ. À cinq cellules le courant est parfaitement lisse ;
+     à une seule il hoquette et manque de lâcher. Deux sinus déphasés
+     suffisent à donner une alimentation qui faiblit — et surtout ils
+     sont déterministes : un vrai aléatoire scintillerait différemment
+     à chaque image et donnerait mal aux yeux. */
+  var instab = 1 - f;
+  var bat = 1
+          - instab * 0.62 * Math.max(0, Math.sin(tps * 11.3))
+          - instab * 0.34 * Math.max(0, Math.sin(tps * 27.1 + 1.7));
+  bat = Math.max(0.10, bat);
+
+  c.save();
+  c.translate(p.x, p.y);
+  c.scale(z, z);
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  c.lineJoin = "round";
+
+  /* ---- 1. L'ANNEAU AU PIED : c'est là que les cinq câbles arrivent.
+     Il pulse au rythme des impulsions, et son intensité dit à elle
+     seule combien de cellules alimentent encore. ---- */
+  var rx0 = 232, ry0 = 116;
+  var pouls = 0.5 + 0.5 * Math.sin(tps * 3.4);
+  var gr = c.createRadialGradient(0, 0, rx0 * 0.55, 0, 0, rx0 * 1.16);
+  gr.addColorStop(0, "rgba(70,170,255,0)");
+  gr.addColorStop(0.80, "rgba(90,195,255," + (0.24 * f * bat) + ")");
+  gr.addColorStop(0.97, "rgba(170,232,255," + (0.46 * f * bat * (0.6 + pouls * 0.4)) + ")");
+  gr.addColorStop(1, "rgba(140,215,255,0)");
+  c.fillStyle = gr;
+  c.beginPath(); c.ellipse(0, 0, rx0 * 1.16, ry0 * 1.16, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(0, 0, rx0, ry0, 0, 0, 6.2832);
+  c.strokeStyle = "rgba(70,175,255," + (0.30 * f * bat) + ")";
+  c.lineWidth = 11; c.stroke();
+  c.strokeStyle = "rgba(210,246,255," + (0.55 * f * bat) + ")";
+  c.lineWidth = 2.6; c.stroke();
+
+  /* ---- 2. LES MONTANTS : une colonne d'énergie par cellule encore
+     debout. Elles grimpent le long des flancs, et le joueur peut les
+     COMPTER — c'est la lecture la plus directe de ce qui lui reste à
+     détruire. ---- */
+  var i, s;
+  for(i = 0; i < jeu.bouclier; i++){
+    /* réparties de part et d'autre, jamais au milieu */
+    var cote = (i % 2) ? 1 : -1;
+    var rang = Math.floor(i / 2);
+    var xb = cote * (BQ_FLANC0 + rang * (BQ_FLANC1 - BQ_FLANC0) / 2.2);
+    /* la décharge monte, puis recommence : le sens est toujours
+       du sol vers le sommet, comme dans les câbles */
+    var mont = ((tps * 0.62 + i * 0.37) % 1);
+    var hautArc = BQ_BAS + (BQ_HAUT - BQ_BAS) * (0.35 + f * 0.65);
+    var alpha = (0.52 + 0.30 * Math.sin(tps * 2.7 + i * 1.3)) * bat;
+
+    /* Le tracé est monté une fois puis peint trois fois : une nappe
+       large et bleue qui pose la lumière sur la pierre, un trait franc,
+       puis un cœur blanc très fin. Sans ces trois passes l'arc se perd
+       sur une forteresse déjà lumineuse. */
+    c.beginPath();
+    for(s = 0; s <= 14; s++){
+      var k = s / 14;
+      var yy = BQ_BAS + (hautArc - BQ_BAS) * k;
+      /* le zigzag, resserré près du sol et près du sommet */
+      var amp = 15 * Math.sin(k * Math.PI);
+      var xx = xb + Math.sin(k * 17.3 + tps * 4.1 + i * 2.2) * amp
+                  + Math.sin(k * 6.1 - tps * 2.3) * amp * 0.5;
+      /* le flanc se resserre en montant : la coque est pyramidale */
+      xx *= 1 - k * 0.34;
+      if(s === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.strokeStyle = "rgba(58,150,255," + (alpha * 0.55) + ")";
+    c.lineWidth = 13; c.stroke();
+    c.strokeStyle = "rgba(150,224,255," + alpha + ")";
+    c.lineWidth = 4.6; c.stroke();
+    c.strokeStyle = "rgba(240,253,255," + (alpha * 0.9) + ")";
+    c.lineWidth = 1.7; c.stroke();
+
+    /* la charge qui remonte le long du montant */
+    var yc3 = BQ_BAS + (hautArc - BQ_BAS) * mont;
+    var xc3 = xb * (1 - mont * 0.34);
+    lueurRapide(c, xc3, yc3, 46, "#a9e8ff", 0.46 * bat);
+
+    /* le pied, ancré dans l'anneau */
+    lueurRapide(c, xb, BQ_BAS, 34, "#8fdcff", 0.34 * bat);
+  }
+
+  /* ---- 3. LE GRÉSILLEMENT sur la maçonnerie : la texture du champ.
+     Toujours sur les flancs, jamais dans la bande du visage. ---- */
+  var alB = prng(7717);
+  var petits = Math.round(3 + f * 8);
+  for(i = 0; i < petits; i++){
+    var pha = (tps * 0.9 + i * 0.61) % 1;
+    var av = Math.sin(pha * Math.PI) * bat * 0.55;
+    var bx = (alB() < 0.5 ? -1 : 1) * (BQ_FLANC0 + alB() * (BQ_FLANC1 - BQ_FLANC0));
+    var by = BQ_BAS + (BQ_HAUT - BQ_BAS) * alB() * (0.3 + f * 0.7);
+    if(av <= 0.02) continue;
+    c.strokeStyle = "rgba(214,250,255," + av + ")";
+    c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(bx, by);
+    for(s = 0; s < 3; s++)
+      c.lineTo(bx + (alB() - 0.5) * 54, by + (alB() - 0.5) * 54);
+    c.stroke();
+  }
+
+  /* ---- 4. UN COUP ENCAISSÉ. Sans ça, le joueur croit que ses tirs ne
+     portent pas du tout : le champ doit visiblement les renvoyer. ---- */
+  if(jeu.boucliertouche > 0){
+    var kt = Math.min(1, jeu.boucliertouche / 0.22);
+    var gt = c.createRadialGradient(0, -140, 60, 0, -140, 340);
+    gt.addColorStop(0, "rgba(120,205,255,0)");
+    gt.addColorStop(0.72, "rgba(150,222,255," + (0.14 * kt) + ")");
+    gt.addColorStop(0.94, "rgba(200,242,255," + (0.34 * kt) + ")");
+    gt.addColorStop(1, "rgba(210,246,255,0)");
+    c.fillStyle = gt;
+    c.beginPath(); c.ellipse(0, -140, 340, 300, 0, 0, 6.2832); c.fill();
+  }
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   LES CÂBLES DU BOUCLIER
+   Cinq câbles noirs posés au sol, un par cellule électrique, qui
+   rejoignent le Brasier presque en ligne droite en contournant les
+   bâtiments. Ce ne sont pas des décorations : ils DISENT au joueur
+   d'où vient l'invulnérabilité de la forteresse. Il faut donc que
+   l'énergie s'y voie circuler, et que le sens de circulation soit
+   sans ambiguïté — de la cellule vers le Brasier.
+   Le tracé lui-même est calculé une fois par carte (construitCables),
+   ici on ne fait que le peindre.
+   --------------------------------------------------------------- */
+var IMPULSIONS = 3;          // impulsions simultanées par câble
+var VIT_IMPULSION = 13;      // cases par seconde
+
+function dessineCables(c, tps){
+  if(!jeu.cables || !jeu.cables.length) return;
+  var vue = rectVisible(0);
+  c.save();
+  c.lineCap = "round";
+  c.lineJoin = "round";
+  for(var i = 0; i < jeu.cables.length; i++){
+    var cb = jeu.cables[i], pts = cb.pts;
+    if(pts.length < 2) continue;
+    /* un câble mort perd sa lumière en 1,4 s mais reste posé au sol :
+       le joueur doit continuer à voir par où passait le courant.
+       Le fondu est décompté par majBouclier() — le rendu ne décide de
+       rien, il ne fait que lire. */
+    var vif = cb.morte ? (cb.fondu || 0) / 1.4 : 1;
+
+    /* La gaine, puis le câble par-dessus. Le chemin n'est monté qu'une
+       fois et repeint quatre fois — mais surtout on n'y met QUE les
+       segments à l'écran : un câble traverse l'île entière, et stroker
+       ses cent points quand on en voit dix coûtait plus cher que tous
+       les cratères réunis. */
+    c.beginPath();
+    var ouvert = 0, vus = 0;
+    for(var k = 0; k < pts.length; k++){
+      var pk = iso(pts[k].gx, pts[k].gy);
+      var dans = pk.x > vue.x0 - 200 && pk.x < vue.x1 + 200 &&
+                 pk.y > vue.y0 - 200 && pk.y < vue.y1 + 200;
+      /* on garde le point précédent et le suivant d'un segment visible,
+         sinon le câble serait coupé net au bord de l'écran */
+      if(!dans && !ouvert) continue;
+      if(!ouvert){ c.moveTo(pk.x, pk.y); ouvert = 1; continue; }
+      c.lineTo(pk.x, pk.y);
+      vus++;
+      if(!dans) ouvert = 0;
+    }
+    if(!vus) continue;                 // câble entièrement hors champ
+    c.strokeStyle = "rgba(18,16,22,.55)";
+    c.lineWidth = 9;
+    c.stroke();
+    c.strokeStyle = cb.morte ? "#2b2830" : "#1e2b34";
+    c.lineWidth = 5;
+    c.stroke();
+    /* liseré supérieur : sans lui le câble s'aplatit sur le sol */
+    c.strokeStyle = cb.morte ? "rgba(96,92,104,.45)" : "rgba(96,132,152,.55)";
+    c.lineWidth = 1.6;
+    c.stroke();
+
+    if(vif <= 0.01) continue;
+
+    /* le halo continu du conducteur : faible, mais il donne au câble
+       sa couleur électrique même entre deux impulsions */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(70,190,255," + (0.30 * vif) + ")";
+    c.lineWidth = 2.2;
+    c.stroke();
+
+    /* LES IMPULSIONS. Elles courent à vitesse constante le long de la
+       longueur cumulée, donc sans ralentir dans les virages, et
+       toujours vers le Brasier. */
+    for(var q = 0; q < IMPULSIONS; q++){
+      var d = ((tps * VIT_IMPULSION + i * 5.7 + q * cb.lg / IMPULSIONS) % cb.lg);
+      var seg = segmentCable(cb, d);
+      if(!seg) continue;
+      var ps = iso(seg.gx, seg.gy);
+      if(ps.x < vue.x0 - 80 || ps.x > vue.x1 + 80 ||
+         ps.y < vue.y0 - 80 || ps.y > vue.y1 + 80) continue;
+      /* la traîne : quelques points derrière la tête, de plus en plus
+         faibles — c'est elle qui donne le SENS de circulation */
+      for(var tr = 4; tr >= 0; tr--){
+        var st = segmentCable(cb, d - tr * 0.85);
+        if(!st) continue;
+        var pt2 = iso(st.gx, st.gy);
+        var af = (1 - tr / 5) * vif;
+        c.fillStyle = "rgba(180,238,255," + (0.75 * af * af) + ")";
+        c.beginPath();
+        c.ellipse(pt2.x, pt2.y, 3.6 * af + 1.2, 2.0 * af + 0.8, 0, 0, 6.2832);
+        c.fill();
+      }
+      lueurRapide(c, ps.x, ps.y, 26, "#8fe4ff", 0.5 * vif);
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
+/* Où se trouve, en coordonnées monde, le point situé à la distance d
+   du départ du câble. Recherche linéaire : quelques dizaines de points
+   par câble, cinq câbles — c'est gratuit devant le reste de l'image. */
+function segmentCable(cb, d){
+  var pts = cb.pts;
+  if(d < 0) d += cb.lg;
+  if(d < 0 || d > cb.lg) return null;
+  /* Dichotomie, pas balayage : les distances cumulées sont croissantes,
+     et un balayage linéaire coûtait cent tours de boucle par point
+     d'impulsion — six points par impulsion, quinze impulsions, soit
+     neuf mille tours par image pour dessiner quinze taches. */
+  var lo = 1, hi = pts.length - 1;
+  while(lo < hi){
+    var mi = (lo + hi) >> 1;
+    if(pts[mi].d >= d) hi = mi; else lo = mi + 1;
+  }
+  var d0 = pts[lo - 1].d, dl = pts[lo].d - d0;
+  var f = dl > 0.0001 ? (d - d0) / dl : 0;
+  return { gx:pts[lo - 1].gx + (pts[lo].gx - pts[lo - 1].gx) * f,
+           gy:pts[lo - 1].gy + (pts[lo].gy - pts[lo - 1].gy) * f };
+}
+
+/* ---------------------------------------------------------------
    Zones au sol (dessinées en repère monde)
    --------------------------------------------------------------- */
 function dessineZonesSol(c, tps){
   var i;
+  /* les câbles du bouclier passent SOUS tout le reste : ce sont eux
+     qui sont posés au sol, les cratères et les flaques leur passent
+     dessus comme au terrain */
+  dessineCables(c, tps);
   /* cratères */
   c.save();
   c.globalAlpha = 0.34;
@@ -12601,7 +14546,7 @@ function rendu(tps, dt){
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
       case 7: dessineBrouillard(ctx, it.o, tps); break;
-      case 8: dessineQG(ctx, tps); break;
+      case 8: dessineQG(ctx, tps); dessineBouclierQG(ctx, tps); break;
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
@@ -12625,6 +14570,9 @@ function rendu(tps, dt){
   /* visée */
   repereEcran(ctx);
   dessineVisee(ctx, tps);
+
+  /* la coupure de courant : elle passe devant tout le reste */
+  if(jeu.coupure > 0) dessineCoupure(ctx, tps);
 
   /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
@@ -12696,6 +14644,99 @@ function dessineTweetyDeuil(c, tps){
   c.strokeStyle = "rgba(160,110,10,.6)"; c.lineWidth = Math.max(1, taille * 0.014);
   c.beginPath(); c.moveTo(0, -taille * 0.26); c.lineTo(0, taille * 0.26); c.stroke();
   c.restore();
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   « PROTECTION DU QG DÉSACTIVÉE »
+   Le moment le plus important de la partie : le Brasier vient de
+   devenir attaquable. Ça ne peut pas passer dans le petit bandeau
+   ordinaire — il faut que le joueur lève la tête. Deux secondes et
+   demie, en travers de l'écran, avec le grésillement d'un néon qui
+   claque et qui meurt.
+   --------------------------------------------------------------- */
+function dessineCoupure(c, tps){
+  var t = 1 - jeu.coupure / 2.6;                   // 0 → 1
+  repereEcran(c);
+  var ent = Math.min(1, t / 0.12);                 // arrivée quasi instantanée
+  var sortie = t > 0.80 ? (t - 0.80) / 0.20 : 0;
+  var vis = ent * (1 - sortie);
+  if(vis <= 0.01) return;
+
+  /* le noir qui tombe : l'île perd son courant, l'écran s'assombrit
+     brièvement puis se rallume */
+  c.fillStyle = "rgba(2,6,14," + (0.42 * Math.sin(Math.min(1, t / 0.5) * Math.PI)) + ")";
+  c.fillRect(0, 0, W, H);
+
+  /* le néon : il claque deux fois avant de tenir, comme un disjoncteur */
+  var claque = t < 0.30 ? (Math.sin(t * 78) > -0.25 ? 1 : 0.18) : 1;
+  var y = H * 0.21;                                // haut : le Brasier reste visible
+  var s = "PROTECTION DU QG DÉSACTIVÉE";
+  var taille = Math.min(W * 0.062, H * 0.088);
+
+  c.save();
+  c.globalAlpha = vis * claque;
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.lineJoin = "round";
+  /* La phrase est longue : sur un écran étroit — une tablette en
+     portrait — elle déborderait des deux côtés. On la mesure et on
+     rétrécit jusqu'à ce qu'elle tienne, plutôt que de la couper. */
+  c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  var lgT = c.measureText(s).width;
+  if(lgT > W * 0.88){
+    taille *= W * 0.88 / lgT;
+    c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  }
+
+  /* barre électrique derrière le texte */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gbar = c.createLinearGradient(0, y, W, y);
+  gbar.addColorStop(0.00, "rgba(60,150,255,0)");
+  gbar.addColorStop(0.50, "rgba(150,225,255,.30)");
+  gbar.addColorStop(1.00, "rgba(60,150,255,0)");
+  c.fillStyle = gbar;
+  c.fillRect(0, y - taille * 0.86, W, taille * 1.72);
+  c.restore();
+
+  c.lineWidth = Math.max(4, taille * 0.20);
+  c.strokeStyle = "#04121f";
+  c.strokeText(s, W / 2, y);
+  var gt = c.createLinearGradient(0, y - taille * 0.6, 0, y + taille * 0.6);
+  gt.addColorStop(0, "#ffffff");
+  gt.addColorStop(0.5, "#c9f2ff");
+  gt.addColorStop(1, "#6cc2ff");
+  c.fillStyle = gt;
+  c.fillText(s, W / 2, y);
+
+  /* les arcs qui courent le long du texte pendant qu'il claque */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var lg = c.measureText(s).width;
+  var alC = prng(4051);
+  c.strokeStyle = "rgba(200,246,255,.85)";
+  c.lineWidth = Math.max(1, taille * 0.045);
+  c.lineCap = "round";
+  for(var i = 0; i < 11; i++){
+    /* de courtes étincelles qui filent le long du mot, pas des gribouillis :
+       de longs zigzags lisaient comme des débris posés sur le texte */
+    var x0 = W / 2 - lg / 2 + ((alC() + tps * 0.55) % 1) * lg;
+    var y0 = y + (alC() - 0.5) * taille * 1.25;
+    var dir = alC() < 0.5 ? -1 : 1;
+    c.beginPath(); c.moveTo(x0, y0);
+    for(var k = 1; k <= 3; k++)
+      c.lineTo(x0 + dir * k * taille * 0.11,
+               y0 + (k % 2 ? 1 : -1) * taille * 0.075);
+    c.stroke();
+  }
+  c.restore();
+
+  /* la ligne qui dit quoi faire, une fois le titre posé */
+  if(t > 0.22){
+    c.globalAlpha = vis * Math.min(1, (t - 0.22) / 0.18);
+    texteCerne(c, "Le Brasier est vulnérable — à l'assaut !",
+               W / 2, y + taille * 1.15, taille * 0.40, "#ffd98a", "center");
+  }
   c.restore();
 }
 
@@ -12891,10 +14932,13 @@ function dessineFin(c, tps){
     var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
     var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
     var osc = Math.sin(F.age * 3) * 0.035;
-    /* le titre remonte pour laisser la place au message de victoire */
+    /* le titre remonte pour laisser la place au message de victoire, puis
+       une seconde fois quand le classement s'installe en bas : les trois
+       — explosion, sacre, classement — doivent tenir à l'écran ensemble */
     var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
+    var monte2 = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
     c.save();
-    c.translate(W / 2, H * (0.42 - monte * 0.14));
+    c.translate(W / 2, H * (0.42 - monte * 0.14 - monte2 * 0.12));
     c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
     c.rotate(osc);
     var taille = Math.min(W, H) * 0.155;
@@ -12918,14 +14962,15 @@ function dessineFin(c, tps){
     c.restore();
   }
 
-  /* ---- le sacre : qui a le plus contribué, et ce que Millie lui offre ---- */
+  /* ---- le sacre : qui a le plus contribué, et ce que Mily lui offre ---- */
   if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
     var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
     var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
     var lignes = texteVictoire(jeu.index, F.champion.nom);
+    var mv = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
     c.save();
-    c.translate(W / 2, H * 0.56);
-    c.scale(elv, elv);
+    c.translate(W / 2, H * (0.56 - mv * 0.14));
+    c.scale(elv * (1 - mv * 0.12), elv * (1 - mv * 0.12));
     c.rotate(Math.sin(F.age * 2.2) * 0.018);
     var tv2 = Math.min(W * 0.052, H * 0.078);
     c.textAlign = "center"; c.textBaseline = "middle";
@@ -13022,6 +15067,44 @@ function majMinicarte(tps){
   miniCtx.beginPath(); miniCtx.arc(q.x, q.y, 6, 0, 6.2832); miniCtx.fill();
   miniCtx.strokeStyle = "#ffe0a0"; miniCtx.lineWidth = 1.6;
   miniCtx.beginPath(); miniCtx.arc(q.x, q.y, 8 + Math.sin(tps * 3) * 1.6, 0, 6.2832); miniCtx.stroke();
+  /* LES CINQ CELLULES ÉLECTRIQUES.
+     Elles sont aux quatre extrémités et au centre d'une île de 152×136
+     cases : sans repère, le joueur passe la partie à les chercher au
+     lieu de les attaquer. On trace donc leur câble jusqu'au Brasier et
+     on marque chaque cellule — vive, elle bat en bleu électrique ;
+     détruite, il ne reste qu'une croix éteinte, pour qu'on sache d'un
+     coup d'œil combien il en reste et de quel côté. */
+  if(jeu.cables && jeu.cables.length){
+    miniCtx.save();
+    miniCtx.lineWidth = 1;
+    for(var ic = 0; ic < jeu.cables.length; ic++){
+      var cb = jeu.cables[ic];
+      miniCtx.strokeStyle = cb.morte ? "rgba(120,116,130,.35)" : "rgba(110,200,255,.45)";
+      miniCtx.beginPath();
+      for(var kc = 0; kc < cb.pts.length; kc += 3){
+        var pc = px(cb.pts[kc].gx, cb.pts[kc].gy);
+        if(kc === 0) miniCtx.moveTo(pc.x, pc.y); else miniCtx.lineTo(pc.x, pc.y);
+      }
+      miniCtx.stroke();
+    }
+    for(var ir = 0; ir < jeu.reacteurs.length; ir++){
+      var rr = jeu.reacteurs[ir], pr = px(rr.gx, rr.gy);
+      if(rr.bat.vivant){
+        var bp = 0.5 + 0.5 * Math.sin(tps * 4 + ir);
+        miniCtx.fillStyle = "rgba(140,225,255," + (0.55 + bp * 0.45) + ")";
+        miniCtx.beginPath(); miniCtx.arc(pr.x, pr.y, 4, 0, 6.2832); miniCtx.fill();
+        miniCtx.strokeStyle = "rgba(230,250,255,.9)"; miniCtx.lineWidth = 1.3;
+        miniCtx.beginPath(); miniCtx.arc(pr.x, pr.y, 5.5 + bp * 2, 0, 6.2832); miniCtx.stroke();
+      }else{
+        miniCtx.strokeStyle = "rgba(150,146,158,.75)"; miniCtx.lineWidth = 1.4;
+        miniCtx.beginPath();
+        miniCtx.moveTo(pr.x - 3, pr.y - 3); miniCtx.lineTo(pr.x + 3, pr.y + 3);
+        miniCtx.moveTo(pr.x + 3, pr.y - 3); miniCtx.lineTo(pr.x - 3, pr.y + 3);
+        miniCtx.stroke();
+      }
+    }
+    miniCtx.restore();
+  }
   /* unités */
   miniCtx.fillStyle = "#7de6ff";
   for(var i = 0; i < jeu.unites.length; i++){
@@ -13101,6 +15184,71 @@ var SEUIL_TAP = 9;          // px : au-delà, c'est un glissé, pas un tap
 
 var rectCv = null;
 function invalideRect(){ rectCv = null; }
+
+/* ---------------------------------------------------------------
+   ROTATION DE LA TABLETTE
+   Le canevas change de forme ; le joueur, lui, doit continuer à
+   regarder EXACTEMENT le même endroit de l'île. cam.px/py sont des
+   décalages en pixels d'écran mesurés depuis le coin haut-gauche : les
+   laisser tels quels ancre la carte sur ce coin, et le point visé
+   partait de dix-sept cases d'un bout à l'autre d'un quart de tour.
+   On retient donc le point du monde sous le centre de l'écran, on
+   redimensionne, puis on recadre dessus.
+   L'ORDRE COMPTE : on borne le zoom AVANT centreSur(), jamais après —
+   centreSur() cadre pour le zoom courant, et un zoom rectifié ensuite
+   décalerait le cadrage qu'on vient de poser.
+   --------------------------------------------------------------- */
+function ajusteEtRecadre(){
+  var avantW = W, avantH = H;
+  /* Hors partie (briefing, éditeur), la caméra ne montre rien : on se
+     contente de redimensionner. */
+  var vise = (jeu && avantW > 40 && avantH > 40) ? versMonde(cam, avantW / 2, avantH / 2) : null;
+  invalideRect();
+  ajuste();
+  if(W === avantW && H === avantH) return;   // rien n'a bougé : on ne touche à rien
+  /* Un geste en cours parle en pixels de l'ANCIEN écran : on le jette
+     plutôt que de le laisser téléporter la caméra au doigt suivant. */
+  pointeurs = {}; ordrePt = []; glisse = null; pincee = null;
+  viseur.actif = false;
+  if(vise){
+    cam.z = borne(cam.z, ZMIN, ZMAX);
+    centreSur(vise.gx, vise.gy);
+  }
+  borneCamera();
+}
+
+/* Toutes les façons dont l'écran peut changer de forme aboutissent ici.
+   Sur tablette, aucune n'est fiable seule : « resize » arrive parfois
+   avant que la page ait pris sa nouvelle taille, « orientationchange »
+   arrive AVANT la mise en page, et la fenêtre visuelle (barres du
+   navigateur, clavier) bouge sans prévenir ni l'un ni l'autre. On les
+   écoute donc toutes, plus le canevas lui-même, et ajusteEtRecadre()
+   ne fait rien quand rien n'a bougé : les doublons ne coûtent rien. */
+function installeViewport(){
+  window.addEventListener("resize", ajusteEtRecadre);
+  window.addEventListener("scroll", invalideRect, true);
+  window.addEventListener("orientationchange", function(){
+    invalideRect();
+    ajusteEtRecadre();
+    setTimeout(ajusteEtRecadre, 120);
+    setTimeout(ajusteEtRecadre, 320);
+  });
+  document.addEventListener("fullscreenchange", function(){
+    invalideRect();
+    ajusteEtRecadre();
+    setTimeout(ajusteEtRecadre, 220);
+  });
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize", ajusteEtRecadre);
+    window.visualViewport.addEventListener("scroll", invalideRect);
+  }
+  /* Le dernier filet, et le seul qui parle APRÈS la mise en page : le
+     canevas signale lui-même que sa boîte a changé. */
+  if(window.ResizeObserver){
+    var obs = new ResizeObserver(ajusteEtRecadre);
+    obs.observe(cv);
+  }
+}
 function posEv(e){
   if(!rectCv) rectCv = cv.getBoundingClientRect();
   return { x:e.clientX - rectCv.left, y:e.clientY - rectCv.top };
@@ -13187,10 +15335,7 @@ function installeSaisie(){
     e.preventDefault();
   }, { passive:false });
 
-  window.addEventListener("resize", function(){ invalideRect(); ajuste(); borneCamera(); });
-  window.addEventListener("scroll", invalideRect, true);
-  window.addEventListener("orientationchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
-  document.addEventListener("fullscreenchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
+  installeViewport();
 
   /* minicarte cliquable */
   miniCv.addEventListener("pointerdown", function(e){
@@ -13282,7 +15427,18 @@ function majBarres(){
   $("unitesV").textContent = jeu.unites.length;
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
-  $("jaugeQGtx").textContent = nombre(Math.max(0, jeu.qg.pv)) + " / " + nombre(jeu.qg.pvMax);
+  /* Tant que le bouclier tient, la jauge de PV est un mensonge : elle
+     ne bougera pas d'un pixel quoi qu'on tire. On dit donc à sa place
+     ce qu'il faut faire, et combien il reste à faire. */
+  var jg = $("jaugeQG");
+  if(jeu.bouclier > 0){
+    jg.classList.add("protege");
+    $("jaugeQGtx").textContent = "PROTÉGÉ — " + jeu.bouclier + " cellule"
+      + (jeu.bouclier > 1 ? "s" : "") + " électrique" + (jeu.bouclier > 1 ? "s" : "");
+  }else{
+    jg.classList.remove("protege");
+    $("jaugeQGtx").textContent = nombre(Math.max(0, jeu.qg.pv)) + " / " + nombre(jeu.qg.pvMax);
+  }
   $("nomCarte").textContent = CARTES[jeu.index % CARTES.length].nom;
   majListeBarges();
   majMenu();
@@ -13890,7 +16046,12 @@ function dessineApercu(i){
   var el = $("mn" + i);
   if(!el) return;
   var c = el.getContext("2d");
-  var b = BIOMES[CARTES[i].biome];
+  /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
+     démarrage : construitBriefing() se lance avant la boucle de rendu, si
+     bien qu'un BIOMES[...] indéfini laissait un écran noir et une tablette
+     qui ne répondait plus à la rotation. La vignette se rabat sur la
+     plage, le jeu vit. */
+  var b = BIOMES[CARTES[i].biome] || BIOMES.plage;
   var w = 360, h = 148;
   var g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, b.ciel); g.addColorStop(0.42, b.eau); g.addColorStop(1, b.eauO);
@@ -13907,8 +16068,12 @@ function dessineApercu(i){
   for(var k = 0; k < 22; k++){
     var x = w * 0.16 + al() * w * 0.62, y = h * 0.60 + al() * h * 0.30;
     c.save(); c.translate(x, y); c.scale(0.42, 0.42);
+    /* La vignette doit se reconnaître à la silhouette autant qu'à la
+       palette : en 360×148, c'est la forme du décor qui dit l'île. */
     if(CARTES[i].biome === "plage") palmier(c, 0, 0, 1);
     else if(CARTES[i].biome === "foret") sapin(c, 0, 0, 1);
+    else if(CARTES[i].biome === "hippie") (k % 3 === 0 ? guirlande : tipi)(c, 0, 0, 1);
+    else if(CARTES[i].biome === "sud") (k % 3 === 0 ? olivier : cypres)(c, 0, 0, 1);
     else meule(c, 0, 0, 1);
     c.restore();
   }
@@ -14182,6 +16347,11 @@ function demarre(){
   miniCtx = miniCv.getContext("2d");
   monId = idStable();
   ajuste();
+  /* Le doigt et la rotation d'abord, le décor ensuite : ces écouteurs
+     tenaient derrière construitBriefing(), si bien qu'une vignette d'île
+     qui trébuchait emportait avec elle le redimensionnement du canevas.
+     Tourner la tablette ne dépend d'aucun sprite. */
+  installeSaisie();
   /* le miroir local du monde est lu AVANT toute connexion : si le
      courtier a purgé son message retenu, c'est lui qui reprend la
      main, et sinon la fusion des deux ne perd rien. */
@@ -14193,7 +16363,6 @@ function demarre(){
   construitVignettesGrises();
 
   construitBriefing();
-  installeSaisie();
   installeBoutons();
   installeRaz();
   installePlan();

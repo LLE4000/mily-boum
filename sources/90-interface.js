@@ -50,6 +50,71 @@ var SEUIL_TAP = 9;          // px : au-delà, c'est un glissé, pas un tap
 
 var rectCv = null;
 function invalideRect(){ rectCv = null; }
+
+/* ---------------------------------------------------------------
+   ROTATION DE LA TABLETTE
+   Le canevas change de forme ; le joueur, lui, doit continuer à
+   regarder EXACTEMENT le même endroit de l'île. cam.px/py sont des
+   décalages en pixels d'écran mesurés depuis le coin haut-gauche : les
+   laisser tels quels ancre la carte sur ce coin, et le point visé
+   partait de dix-sept cases d'un bout à l'autre d'un quart de tour.
+   On retient donc le point du monde sous le centre de l'écran, on
+   redimensionne, puis on recadre dessus.
+   L'ORDRE COMPTE : on borne le zoom AVANT centreSur(), jamais après —
+   centreSur() cadre pour le zoom courant, et un zoom rectifié ensuite
+   décalerait le cadrage qu'on vient de poser.
+   --------------------------------------------------------------- */
+function ajusteEtRecadre(){
+  var avantW = W, avantH = H;
+  /* Hors partie (briefing, éditeur), la caméra ne montre rien : on se
+     contente de redimensionner. */
+  var vise = (jeu && avantW > 40 && avantH > 40) ? versMonde(cam, avantW / 2, avantH / 2) : null;
+  invalideRect();
+  ajuste();
+  if(W === avantW && H === avantH) return;   // rien n'a bougé : on ne touche à rien
+  /* Un geste en cours parle en pixels de l'ANCIEN écran : on le jette
+     plutôt que de le laisser téléporter la caméra au doigt suivant. */
+  pointeurs = {}; ordrePt = []; glisse = null; pincee = null;
+  viseur.actif = false;
+  if(vise){
+    cam.z = borne(cam.z, ZMIN, ZMAX);
+    centreSur(vise.gx, vise.gy);
+  }
+  borneCamera();
+}
+
+/* Toutes les façons dont l'écran peut changer de forme aboutissent ici.
+   Sur tablette, aucune n'est fiable seule : « resize » arrive parfois
+   avant que la page ait pris sa nouvelle taille, « orientationchange »
+   arrive AVANT la mise en page, et la fenêtre visuelle (barres du
+   navigateur, clavier) bouge sans prévenir ni l'un ni l'autre. On les
+   écoute donc toutes, plus le canevas lui-même, et ajusteEtRecadre()
+   ne fait rien quand rien n'a bougé : les doublons ne coûtent rien. */
+function installeViewport(){
+  window.addEventListener("resize", ajusteEtRecadre);
+  window.addEventListener("scroll", invalideRect, true);
+  window.addEventListener("orientationchange", function(){
+    invalideRect();
+    ajusteEtRecadre();
+    setTimeout(ajusteEtRecadre, 120);
+    setTimeout(ajusteEtRecadre, 320);
+  });
+  document.addEventListener("fullscreenchange", function(){
+    invalideRect();
+    ajusteEtRecadre();
+    setTimeout(ajusteEtRecadre, 220);
+  });
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize", ajusteEtRecadre);
+    window.visualViewport.addEventListener("scroll", invalideRect);
+  }
+  /* Le dernier filet, et le seul qui parle APRÈS la mise en page : le
+     canevas signale lui-même que sa boîte a changé. */
+  if(window.ResizeObserver){
+    var obs = new ResizeObserver(ajusteEtRecadre);
+    obs.observe(cv);
+  }
+}
 function posEv(e){
   if(!rectCv) rectCv = cv.getBoundingClientRect();
   return { x:e.clientX - rectCv.left, y:e.clientY - rectCv.top };
@@ -136,10 +201,7 @@ function installeSaisie(){
     e.preventDefault();
   }, { passive:false });
 
-  window.addEventListener("resize", function(){ invalideRect(); ajuste(); borneCamera(); });
-  window.addEventListener("scroll", invalideRect, true);
-  window.addEventListener("orientationchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
-  document.addEventListener("fullscreenchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
+  installeViewport();
 
   /* minicarte cliquable */
   miniCv.addEventListener("pointerdown", function(e){
@@ -231,7 +293,18 @@ function majBarres(){
   $("unitesV").textContent = jeu.unites.length;
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
-  $("jaugeQGtx").textContent = nombre(Math.max(0, jeu.qg.pv)) + " / " + nombre(jeu.qg.pvMax);
+  /* Tant que le bouclier tient, la jauge de PV est un mensonge : elle
+     ne bougera pas d'un pixel quoi qu'on tire. On dit donc à sa place
+     ce qu'il faut faire, et combien il reste à faire. */
+  var jg = $("jaugeQG");
+  if(jeu.bouclier > 0){
+    jg.classList.add("protege");
+    $("jaugeQGtx").textContent = "PROTÉGÉ — " + jeu.bouclier + " cellule"
+      + (jeu.bouclier > 1 ? "s" : "") + " électrique" + (jeu.bouclier > 1 ? "s" : "");
+  }else{
+    jg.classList.remove("protege");
+    $("jaugeQGtx").textContent = nombre(Math.max(0, jeu.qg.pv)) + " / " + nombre(jeu.qg.pvMax);
+  }
   $("nomCarte").textContent = CARTES[jeu.index % CARTES.length].nom;
   majListeBarges();
   majMenu();
@@ -839,7 +912,12 @@ function dessineApercu(i){
   var el = $("mn" + i);
   if(!el) return;
   var c = el.getContext("2d");
-  var b = BIOMES[CARTES[i].biome];
+  /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
+     démarrage : construitBriefing() se lance avant la boucle de rendu, si
+     bien qu'un BIOMES[...] indéfini laissait un écran noir et une tablette
+     qui ne répondait plus à la rotation. La vignette se rabat sur la
+     plage, le jeu vit. */
+  var b = BIOMES[CARTES[i].biome] || BIOMES.plage;
   var w = 360, h = 148;
   var g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, b.ciel); g.addColorStop(0.42, b.eau); g.addColorStop(1, b.eauO);
@@ -856,8 +934,12 @@ function dessineApercu(i){
   for(var k = 0; k < 22; k++){
     var x = w * 0.16 + al() * w * 0.62, y = h * 0.60 + al() * h * 0.30;
     c.save(); c.translate(x, y); c.scale(0.42, 0.42);
+    /* La vignette doit se reconnaître à la silhouette autant qu'à la
+       palette : en 360×148, c'est la forme du décor qui dit l'île. */
     if(CARTES[i].biome === "plage") palmier(c, 0, 0, 1);
     else if(CARTES[i].biome === "foret") sapin(c, 0, 0, 1);
+    else if(CARTES[i].biome === "hippie") (k % 3 === 0 ? guirlande : tipi)(c, 0, 0, 1);
+    else if(CARTES[i].biome === "sud") (k % 3 === 0 ? olivier : cypres)(c, 0, 0, 1);
     else meule(c, 0, 0, 1);
     c.restore();
   }

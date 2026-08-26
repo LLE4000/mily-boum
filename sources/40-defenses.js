@@ -1142,6 +1142,383 @@ SOCLES.cellule = function(c){
   lueur(c, p.x, p.y - 2, 15, "#ffb02a", 0.16);
 };
 
+/* ================================================================
+   LA CELLULE ÉLECTRIQUE — le réacteur du bouclier du Brasier.
+   Cinq par île, quatre aux extrémités et une au centre.
+
+   Le piège, ici, c'était la Bobine : elle est déjà pâle, déjà haute,
+   déjà pleine d'arcs — et il y en a quatre-vingts par carte. Une
+   cellule qui lui ressemble ne sert à rien. Tout est donc construit
+   en opposition à elle :
+     — la Bobine est claire, la cellule est NOIRE ;
+     — la Bobine est cyan-blanc, la cellule est BLEU ÉLECTRIQUE ;
+     — la Bobine culmine à cent pixels, la cellule à cent cinquante-six,
+       c'est-à-dire tout le ciel que la planche de sprite autorise ;
+     — la Bobine porte une petite sphère sur trois griffes, la cellule
+       porte un ANNEAU ÉMETTEUR de quatre-vingts centièmes de case,
+       posé à plat, avec l'orbe suspendu en son centre. Cette galette
+       lumineuse ne ressemble à rien d'autre sur l'île.
+
+   Les cotes sont partagées avec la couche animée : les arcs doivent
+   tomber au pixel sur l'acier, pas à côté.
+   ================================================================ */
+/* Le bleu de la cellule. Il ne sert QUE là : partout ailleurs le jeu
+   parle cyan (MAT.cyanC), et c'est justement pour ça qu'on la
+   reconnaît du premier coup d'œil. */
+var REAC_BLEU  = "#4d8cff";
+var REAC_VIF   = "#8fc0ff";
+var REAC_CLAIR = "#dce9ff";
+
+var REAC_ANNEAUX = [                       // les quatre bobines : hauteur, rayon
+  { z:46,  r:0.58 },
+  { z:68,  r:0.54 },
+  { z:90,  r:0.50 },
+  { z:112, r:0.46 }
+];
+var REAC_BORNES = [[1.06, 0], [0, 1.06], [-1.06, 0], [0, -1.06]];
+var REAC_ZBORNE = 33;                      // les boules d'électrode des contreforts
+var REAC_ZMAT0 = 26, REAC_ZMAT1 = 122;     // le mât, du pied au collier
+var REAC_RMAT0 = 0.40, REAC_RMAT1 = 0.28;  // et son fuselage, à peine fuselé
+var REAC_ZCER = 138, REAC_RCER = 0.80;     // l'anneau émetteur
+var REAC_NCER = 6;                         // ses plots d'électrode
+var REAC_ZORBE = 138, REAC_RORBE = 11;     // l'orbe, suspendu au centre
+var REAC_ZPOINTE = 154;                    // la pointe du paratonnerre
+
+/* Rayon du treillis à la hauteur z */
+function reacRayonMat(z){
+  if(z <= REAC_ZMAT0) return REAC_RMAT0;
+  if(z >= REAC_ZMAT1) return REAC_RMAT1;
+  return REAC_RMAT0 + (REAC_RMAT1 - REAC_RMAT0) * (z - REAC_ZMAT0) / (REAC_ZMAT1 - REAC_ZMAT0);
+}
+/* Position écran du montant k à la hauteur z.
+   Rappel : un cercle du monde de rayon r se projette en l'ellipse
+   (cos a · r · RX, sin a · r · RY), où a est l'angle du monde décalé
+   d'un quart de tour. Les quatre montants, les quatre contreforts et
+   les plots de l'anneau partagent donc le même repère angulaire. */
+function reacMontant(o, k, z){
+  var a = (k & 3) * 1.5708 + 0.7854;
+  var r = reacRayonMat(z);
+  return { x:o.x + Math.cos(a) * r * RX, y:o.y - z + Math.sin(a) * r * RY };
+}
+/* Angle écran d'un contrefort (le même que celui du montant de rang k) */
+function reacAngleBorne(i){ return i * 1.5708 + 0.7854; }
+
+SOCLES.reacteur = function(c){
+  var o = iso(0, 0);
+  var i, k, m, s, a, p1, p2, q;
+
+  ombreContact(c, 0, 0, 3.05, 3.05, 0.32);
+
+  /* ---- dalle de fondation, deux niveaux ---- */
+  prisme(c, 0, 0, 1.42, 12, 0.26, 0, 7, ecl(MAT.beton, 0.86), ecl(MAT.betonO, 0.9));
+  prisme(c, 0, 0, 1.06, 8, 0.3927, 7, 7, ecl(MAT.beton, 0.94), ecl(MAT.betonO, 1.0));
+
+  /* rigoles de mise à la terre : le cuivre file du mât vers le bord */
+  c.save(); c.globalAlpha = 0.40; c.strokeStyle = MAT.cuivre; c.lineWidth = 1.9;
+  for(k = 0; k < 8; k++){
+    a = k / 8 * 6.2832 + 0.3927;
+    p1 = iso(Math.cos(a) * 1.10, Math.sin(a) * 1.10);
+    p2 = iso(Math.cos(a) * 1.38, Math.sin(a) * 1.38);
+    c.beginPath(); c.moveTo(p1.x, p1.y - 7); c.lineTo(p2.x, p2.y - 7); c.stroke();
+  }
+  c.restore();
+  /* bande d'avertissement peinte au bord de la dalle basse */
+  c.save(); c.globalAlpha = 0.55;
+  for(i = 0; i < 24; i++){
+    a = i / 24 * 6.2832;
+    p1 = iso(Math.cos(a) * 1.27, Math.sin(a) * 1.27);
+    c.fillStyle = i % 2 ? MAT.danger : "#1c1a18";
+    c.fillRect(p1.x - 2.2, p1.y - 8.4, 4.4, 2.3);
+  }
+  c.restore();
+  /* boulons d'ancrage du niveau haut */
+  c.fillStyle = "#2b2925";
+  for(i = 0; i < 12; i++){
+    a = i / 12 * 6.2832 + 0.26;
+    p1 = iso(Math.cos(a) * 0.94, Math.sin(a) * 0.94);
+    c.beginPath(); c.arc(p1.x, p1.y - 14, 1.4, 0, 6.2832); c.fill();
+  }
+  salissures(c, o.x - 32, o.y - 13, 64, 11, 11, 5150);
+
+  /* ---- LES QUATRE CONTREFORTS ----
+     Blocs blindés très bas et très noirs : ils élargissent l'assise
+     sans voler un pixel de hauteur au mât, ils donnent aux arcs leurs
+     quatre points d'attache au sol, et chacun avale un conduit qui
+     plonge au bord de la dalle — c'est là que le câble du Brasier
+     vient se brancher, de quelque côté qu'il arrive. */
+  function contrefort(gx, gy){
+    var w = iso(gx, gy);
+    var f = faces("#252d36");
+    boite(c, gx, gy, 0.58, 0.58, 7, 14, f.t, f.g, f.d);
+    plaqueBoulonnee(c, w.x - 7, w.y - 19, 14, 6, "#1c232b");
+    /* casque incliné et lentille bleue */
+    prisme(c, gx, gy, 0.34, 6, 0.5236, 21, 4, "#414d5a", "#171d24");
+    c.fillStyle = REAC_BLEU;
+    c.beginPath(); c.ellipse(w.x, w.y - 25.4, 5.6, 2.8, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(233,242,255,.8)";
+    c.beginPath(); c.ellipse(w.x - 1.4, w.y - 26, 2.4, 1.2, 0, 0, 6.2832); c.fill();
+    /* la borne d'où partent les arcs */
+    cylindre(c, gx, gy, 0.085, 25, 5, "#98a4b1", "#454f5a");
+    c.fillStyle = "#eaf2ff";
+    c.beginPath(); c.arc(w.x, w.y - REAC_ZBORNE, 3.0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(6,16,30,.5)"; c.lineWidth = 0.9;
+    c.beginPath(); c.arc(w.x, w.y - REAC_ZBORNE, 3.0, 0, 6.2832); c.stroke();
+    /* conduit blindé vers le bord de la dalle */
+    var e = iso(gx * 1.34, gy * 1.34);
+    c.lineCap = "round";
+    c.strokeStyle = "#12171d"; c.lineWidth = 6.4;
+    c.beginPath(); c.moveTo(w.x, w.y - 12); c.quadraticCurveTo((w.x + e.x) / 2, w.y - 2, e.x, e.y - 1); c.stroke();
+    c.strokeStyle = "#2c3540"; c.lineWidth = 3.8;
+    c.beginPath(); c.moveTo(w.x, w.y - 13); c.quadraticCurveTo((w.x + e.x) / 2, w.y - 3, e.x, e.y - 2); c.stroke();
+    /* collier de serrage à l'entrée du conduit */
+    c.fillStyle = "#5a6674";
+    c.beginPath(); c.ellipse(e.x, e.y - 1.5, 3.6, 2.2, 0, 0, 6.2832); c.fill();
+    lueur(c, w.x, w.y - 27, 14, REAC_BLEU, 0.30);
+  }
+  for(i = 0; i < 4; i++){
+    if(REAC_BORNES[i][0] + REAC_BORNES[i][1] < 0) contrefort(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+  }
+
+  /* ---- pied du mât ---- */
+  prisme(c, 0, 0, 0.60, 8, 0.3927, 14, 4, "#5f6a75", "#1e242b");
+  cylindre(c, 0, 0, 0.46, 18, 8, "#2f3841", "#12171c");
+  plaqueBoulonnee(c, o.x - 8, o.y - 24, 16, 6, "#1a2028");
+  cylindre(c, 0, 0, 0.52, 26, 3, "#5b6672", "#1b2128");
+
+  /* ---- treillis ---- */
+  function montant(k, avant){
+    var seg = 6, n, w;
+    c.lineCap = "round"; c.lineJoin = "round";
+    c.strokeStyle = "#0d1116"; c.lineWidth = 4.8;
+    c.beginPath();
+    for(n = 0; n <= seg; n++){
+      w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+      if(n === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.stroke();
+    c.strokeStyle = avant ? "#3d4854" : "#1e252d"; c.lineWidth = 3.1;
+    c.beginPath();
+    for(n = 0; n <= seg; n++){
+      w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+      if(n === 0) c.moveTo(w.x, w.y); else c.lineTo(w.x, w.y);
+    }
+    c.stroke();
+    if(avant){
+      c.strokeStyle = "rgba(186,210,240,.28)"; c.lineWidth = 1.1;
+      c.beginPath();
+      for(n = 0; n <= seg; n++){
+        w = reacMontant(o, k, REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / seg);
+        if(n === 0) c.moveTo(w.x - 1, w.y - 0.9); else c.lineTo(w.x - 1, w.y - 0.9);
+      }
+      c.stroke();
+    }
+  }
+  /* croisillons d'une face : neuf panneaux en X, ceinturés */
+  function panneaux(k, coul, ep){
+    var np = 9, n, za, zb, A, B, C, D;
+    c.strokeStyle = coul; c.lineWidth = ep; c.lineCap = "butt";
+    for(n = 0; n < np; n++){
+      za = REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * n / np;
+      zb = REAC_ZMAT0 + (REAC_ZMAT1 - REAC_ZMAT0) * (n + 1) / np;
+      A = reacMontant(o, k, za); B = reacMontant(o, k + 1, za);
+      C = reacMontant(o, k, zb); D = reacMontant(o, k + 1, zb);
+      c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(D.x, D.y); c.stroke();
+      c.beginPath(); c.moveTo(B.x, B.y); c.lineTo(C.x, C.y); c.stroke();
+      c.beginPath(); c.moveTo(C.x, C.y); c.lineTo(D.x, D.y); c.stroke();
+    }
+  }
+  montant(2, 0); montant(3, 0);
+  panneaux(2, "#141a20", 1.8);
+
+  /* ---- moitié arrière des bobines ---- */
+  function anneauArriere(an){
+    var cy = o.y - an.z, rx = an.r * RX, ry = an.r * RY, n, aa, xx, yy;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0c1015"; c.lineWidth = 9.4;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    /* la gorge, éteinte du côté sombre */
+    c.strokeStyle = "rgba(77,140,255,.42)"; c.lineWidth = 4.4;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    c.strokeStyle = "#161d24"; c.lineWidth = 1.5;
+    for(n = 0; n <= 18; n++){
+      aa = Math.PI + n / 18 * Math.PI;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.beginPath(); c.moveTo(xx, yy - 2.6); c.lineTo(xx, yy + 2.6); c.stroke();
+    }
+    c.strokeStyle = "#2c353f"; c.lineWidth = 2.2;
+    c.beginPath(); c.ellipse(o.x, cy - 3.6, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+    c.beginPath(); c.ellipse(o.x, cy + 3.6, rx, ry, 0, Math.PI, 6.2832); c.stroke();
+  }
+  for(i = 0; i < REAC_ANNEAUX.length; i++) anneauArriere(REAC_ANNEAUX[i]);
+
+  /* ---- L'ÂME : la colonne de lumière qui monte dans l'axe ----
+     Elle est peinte dans le sprite et pas seulement dans la couche
+     animée : au-delà d'un certain éloignement le jeu n'affiche plus
+     que le sprite, et la cellule doit rester une torche. */
+  var rxB = 0.205 * RX, rxH = 0.155 * RX;
+  var gA = c.createLinearGradient(o.x - rxB, 0, o.x + rxB, 0);
+  gA.addColorStop(0.00, "#0e2b56");
+  gA.addColorStop(0.22, "#4d8cff");
+  gA.addColorStop(0.50, "#f2f7ff");
+  gA.addColorStop(0.78, "#5b96ff");
+  gA.addColorStop(1.00, "#0b2246");
+  c.fillStyle = gA;
+  c.beginPath();
+  c.moveTo(o.x - rxB, o.y - 22);
+  c.lineTo(o.x - rxH, o.y - REAC_ZMAT1 - 2);
+  c.lineTo(o.x + rxH, o.y - REAC_ZMAT1 - 2);
+  c.lineTo(o.x + rxB, o.y - 22);
+  c.closePath(); c.fill();
+  /* stries horizontales : l'énergie est feuilletée, pas lisse */
+  c.save(); c.globalAlpha = 0.26; c.strokeStyle = "#061a38"; c.lineWidth = 1;
+  for(s = 26; s < REAC_ZMAT1; s += 5){
+    var rs = rxB + (rxH - rxB) * (s - 22) / (REAC_ZMAT1 - 22);
+    c.beginPath(); c.moveTo(o.x - rs, o.y - s); c.lineTo(o.x + rs, o.y - s); c.stroke();
+  }
+  c.restore();
+  lueur(c, o.x, o.y - 38, 26, REAC_BLEU, 0.36);
+  lueur(c, o.x, o.y - 66, 25, REAC_BLEU, 0.36);
+  lueur(c, o.x, o.y - 94, 24, REAC_BLEU, 0.34);
+  lueur(c, o.x, o.y - 118, 20, REAC_BLEU, 0.30);
+  lueur(c, o.x, o.y - 74, 64, REAC_BLEU, 0.20);
+
+  /* ---- montants avant, faces latérales et avant ---- */
+  montant(0, 1); montant(1, 1);
+  panneaux(1, "#1d242c", 1.9);
+  panneaux(3, "#1d242c", 1.9);
+  panneaux(0, "#2e3843", 2.0);
+  echelle(c, o.x - 17, o.y - 13, 32);
+
+  /* ---- moitié avant des bobines : une gorge de lumière prise entre
+     deux joues d'acier noir. Pas de cuivre : la Bobine en a déjà, et
+     l'orangé tirait toute la silhouette vers elle. ---- */
+  function anneauAvant(an){
+    var cy = o.y - an.z, rx = an.r * RX, ry = an.r * RY, n, aa, xx, yy;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0a0e13"; c.lineWidth = 10.6;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(77,140,255,.92)"; c.lineWidth = 5.2;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(226,238,255,.9)"; c.lineWidth = 2.0;
+    c.beginPath(); c.ellipse(o.x, cy + 0.4, rx, ry, 0, 0, Math.PI); c.stroke();
+    /* barreaux de la cage, qui hachent la lumière */
+    c.strokeStyle = "#161d25"; c.lineWidth = 1.8;
+    for(n = 0; n <= 22; n++){
+      aa = n / 22 * Math.PI;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.beginPath(); c.moveTo(xx, yy - 3.1); c.lineTo(xx, yy + 3.1); c.stroke();
+    }
+    /* joue haute polie, joue basse dans l'ombre */
+    c.strokeStyle = "#576372"; c.lineWidth = 2.6;
+    c.beginPath(); c.ellipse(o.x, cy - 4.1, rx, ry, 0, 0, Math.PI); c.stroke();
+    c.strokeStyle = "rgba(206,226,255,.34)"; c.lineWidth = 1.0;
+    c.beginPath(); c.ellipse(o.x, cy - 5.1, rx * 0.99, ry * 0.99, 0, 0.14, Math.PI - 0.14); c.stroke();
+    c.strokeStyle = "#0d1218"; c.lineWidth = 2.6;
+    c.beginPath(); c.ellipse(o.x, cy + 4.1, rx, ry, 0, 0, Math.PI); c.stroke();
+    /* quatre plots d'électrode sur la couronne */
+    for(n = 0; n < 4; n++){
+      aa = 0.42 + n * 0.76;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.fillStyle = "#d6e6ff";
+      c.beginPath(); c.arc(xx, yy + 5.8, 1.7, 0, 6.2832); c.fill();
+    }
+    lueur(c, o.x, cy + 2, an.r * RX * 1.7, REAC_BLEU, 0.24);
+  }
+  for(i = REAC_ANNEAUX.length - 1; i >= 0; i--) anneauAvant(REAC_ANNEAUX[i]);
+
+  /* ---- contreforts avant ---- */
+  for(i = 0; i < 4; i++){
+    if(REAC_BORNES[i][0] + REAC_BORNES[i][1] > 0) contrefort(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+  }
+
+  /* ---- LE SOMMET : collier, anneau émetteur, orbe, pointe ---- */
+  cylindre(c, 0, 0, 0.26, 118, 5, "#5f6a76", "#1b2128");
+  cylindre(c, 0, 0, 0.20, 123, 4, "#414c58", "#12171d");
+  /* trois bras qui portent le cerceau */
+  for(i = 0; i < 3; i++){
+    a = i / 3 * 6.2832 + 0.5236;
+    var sx0 = o.x + Math.cos(a) * 0.20 * RX, sy0 = o.y - 126 + Math.sin(a) * 0.20 * RY;
+    var sx1 = o.x + Math.cos(a) * REAC_RCER * RX, sy1 = o.y - REAC_ZCER + Math.sin(a) * REAC_RCER * RY;
+    c.lineCap = "round";
+    c.strokeStyle = "#0d1116"; c.lineWidth = 4.6;
+    c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
+    c.strokeStyle = "#3a4652"; c.lineWidth = 2.8;
+    c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
+    c.strokeStyle = "rgba(200,222,255,.28)"; c.lineWidth = 1.0;
+    c.beginPath(); c.moveTo(sx0, sy0 - 1); c.lineTo(sx1, sy1 - 1); c.stroke();
+  }
+  /* le cerceau, en deux moitiés : l'orbe se glisse entre les deux */
+  function cerceau(deb, fin, sombre){
+    var cy = o.y - REAC_ZCER, rx = REAC_RCER * RX, ry = REAC_RCER * RY;
+    c.lineCap = "butt";
+    c.strokeStyle = "#0a0e13"; c.lineWidth = 8.0;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, deb, fin); c.stroke();
+    c.strokeStyle = sombre ? "#1c232b" : "#333e4a"; c.lineWidth = 5.6;
+    c.beginPath(); c.ellipse(o.x, cy, rx, ry, 0, deb, fin); c.stroke();
+    /* la gorge lumineuse, tournée vers l'intérieur du cerceau */
+    c.strokeStyle = sombre ? "rgba(77,140,255,.50)" : "rgba(143,192,255,.95)";
+    c.lineWidth = 2.2;
+    c.beginPath();
+    c.ellipse(o.x, cy + (sombre ? -1.9 : 1.9), rx * 0.88, ry * 0.88, 0, deb, fin);
+    c.stroke();
+    c.strokeStyle = "rgba(198,220,255,.30)"; c.lineWidth = 1.1;
+    c.beginPath(); c.ellipse(o.x, cy - 3.1, rx, ry, 0, deb, fin); c.stroke();
+  }
+  /* plots d'électrode du cerceau — les points d'attache des grands arcs */
+  function plotsCerceau(avant){
+    var cy = o.y - REAC_ZCER, rx = REAC_RCER * RX, ry = REAC_RCER * RY, n, aa, xx, yy;
+    for(n = 0; n < REAC_NCER; n++){
+      aa = n / REAC_NCER * 6.2832 + 0.5236;
+      if((Math.sin(aa) > 0) !== !!avant) continue;
+      xx = o.x + Math.cos(aa) * rx; yy = cy + Math.sin(aa) * ry;
+      c.strokeStyle = "#2c353f"; c.lineWidth = 2.4;
+      c.beginPath(); c.moveTo(xx, yy - 2); c.lineTo(xx, yy - 6); c.stroke();
+      c.fillStyle = "#eaf2ff";
+      c.beginPath(); c.arc(xx, yy - 7.4, 2.5, 0, 6.2832); c.fill();
+      c.strokeStyle = "rgba(6,16,30,.45)"; c.lineWidth = 0.8;
+      c.beginPath(); c.arc(xx, yy - 7.4, 2.5, 0, 6.2832); c.stroke();
+      lueur(c, xx, yy - 7.4, 9, REAC_VIF, 0.30);
+    }
+  }
+  cerceau(Math.PI, 6.2832, 1);
+  plotsCerceau(0);
+  /* l'orbe : verre bleu sombre, la couche animée y met le feu */
+  sphere(c, 0, 0, REAC_RORBE / RX, REAC_ZORBE, "#2f6ecd", null);
+  c.fillStyle = "rgba(236,244,255,.66)";
+  c.beginPath(); c.arc(o.x, o.y - REAC_ZORBE, REAC_RORBE * 0.42, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(216,232,255,.32)"; c.lineWidth = 1.1;
+  c.beginPath();
+  c.ellipse(o.x, o.y - REAC_ZORBE, REAC_RORBE * 0.92, REAC_RORBE * 0.34, 0, 0, 6.2832);
+  c.stroke();
+  lueur(c, o.x, o.y - REAC_ZORBE, 20, REAC_VIF, 0.36);
+  /* paratonnerre : la pointe qui referme la silhouette */
+  c.strokeStyle = "#12171d"; c.lineWidth = 3.2; c.lineCap = "butt";
+  c.beginPath(); c.moveTo(o.x, o.y - REAC_ZORBE - 4); c.lineTo(o.x, o.y - REAC_ZPOINTE); c.stroke();
+  c.strokeStyle = "#7b8794"; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(o.x - 0.7, o.y - REAC_ZORBE - 4); c.lineTo(o.x - 0.7, o.y - REAC_ZPOINTE); c.stroke();
+  c.fillStyle = "#eaf2ff";
+  c.beginPath(); c.arc(o.x, o.y - REAC_ZPOINTE, 2.3, 0, 6.2832); c.fill();
+  lueur(c, o.x, o.y - REAC_ZPOINTE, 7, REAC_VIF, 0.34);
+  cerceau(0, Math.PI, 0);
+  plotsCerceau(1);
+
+  /* ---- pupitre de couplage, au pied ---- */
+  var fb = faces("#22303c");
+  boite(c, 0.86, 0.50, 0.42, 0.32, 7, 14, fb.t, fb.g, fb.d);
+  q = iso(0.86, 0.50);
+  plaqueBoulonnee(c, q.x - 8, q.y - 20, 16, 6, "#1a262f");
+  c.fillStyle = REAC_VIF; c.beginPath(); c.arc(q.x - 4, q.y - 12, 1.3, 0, 6.2832); c.fill();
+  c.fillStyle = "#6ee08a"; c.beginPath(); c.arc(q.x, q.y - 12, 1.3, 0, 6.2832); c.fill();
+  c.fillStyle = MAT.danger;
+  c.beginPath();
+  c.moveTo(q.x + 3.2, q.y - 19); c.lineTo(q.x + 7.6, q.y - 17.2);
+  c.lineTo(q.x + 5.4, q.y - 12.0); c.closePath(); c.fill();
+  cables(c, q.x - 7, q.y - 6, o.x + 11, o.y - 11, 3);
+
+  /* halo au sol : la dalle baigne dans la lumière de la machine */
+  lueur(c, o.x, o.y - 8, 46, REAC_BLEU, 0.22);
+};
+
 function construitSpritesDefenses(){
   Object.keys(SOCLES).forEach(function(t){
     var cv = nouveauCanvas(SP_W * ECH_SPRITE, SP_H * ECH_SPRITE);
@@ -1963,6 +2340,263 @@ TOURELLES.bobine = function(c, b, ang, tps){
     lueurRapide(c, cx, cy, 58, "#7de6ff", fl * 0.4);
     lueurRapide(c, p.x, p.y - 40, 20, "#7de6ff", fl * 0.3);
   }
+};
+
+/* ----------------------------------------------------------------
+   Un éclair : polyligne bruitée entre deux points.
+   Le bruit vient de sinus et non d'un tirage au sort : à graine égale
+   le trait est identique d'une image à l'autre, ce qui permet de le
+   tenir immobile quelques images puis de le faire sauter d'un coup —
+   c'est ce claquement discret qui fait « électrique », là où un bruit
+   renouvelé à chaque image ne donne que du grésil.
+   ---------------------------------------------------------------- */
+function arcEclair(c, x0, y0, x1, y1, n, amp, gr){
+  var vx = x1 - x0, vy = y1 - y0;
+  var l = Math.hypot(vx, vy) || 1;
+  var nx = -vy / l, ny = vx / l;
+  c.beginPath();
+  c.moveTo(x0, y0);
+  for(var i = 1; i < n; i++){
+    var t = i / n;
+    var d = Math.sin(gr * 1.7 + i * 2.399) * amp * Math.sin(t * Math.PI);
+    c.lineTo(x0 + vx * t + nx * d, y0 + vy * t + ny * d);
+  }
+  c.lineTo(x1, y1);
+  c.stroke();
+}
+
+/* ----------------------------------------------------------------
+   Grand arc de cage : du cerceau de la cellule jusqu'à un contrefort,
+   en s'écartant de la tour.
+   Deux passes : une large et faible pour le halo, une fine et vive
+   pour le cœur. À l'échelle de jeu un trait d'un pixel disparaît au
+   filtrage ; c'est le halo qui le fait exister de loin, et c'est tout
+   l'enjeu — un arc qu'on ne voit qu'en zoom ×4 ne sert à rien.
+   ---------------------------------------------------------------- */
+function arcCage(c, x0, y0, x1, y1, cambre, amp, gr, alpha, ep){
+  var vx = x1 - x0, vy = y1 - y0;
+  var l = Math.hypot(vx, vy) || 1;
+  var nx = -vy / l, ny = vx / l;
+  var i, t, d, k;
+  for(k = 0; k < 2; k++){
+    c.strokeStyle = k
+      ? "rgba(230,240,255," + (alpha * 0.95).toFixed(3) + ")"
+      : "rgba(77,140,255," + (alpha * 0.30).toFixed(3) + ")";
+    c.lineWidth = k ? ep : ep * 3.6;
+    c.beginPath();
+    c.moveTo(x0, y0);
+    for(i = 1; i < 8; i++){
+      t = i / 8;
+      d = (cambre + Math.sin(gr * 1.7 + i * 2.399) * amp) * Math.sin(t * Math.PI);
+      c.lineTo(x0 + vx * t + nx * d, y0 + vy * t + ny * d);
+    }
+    c.lineTo(x1, y1);
+    c.stroke();
+  }
+}
+
+/* ================================================================
+   CELLULE ÉLECTRIQUE — la couche vivante.
+   Rien ne s'y arrête jamais : l'onde de terre bat sur la dalle, l'âme
+   pulse, les arcs rampent autour des quatre bobines, DE GRANDS ARCS
+   DE CAGE tombent du cerceau sur les contreforts, et l'orbe brûle au
+   centre. Tout est déphasé par b.n pour que les cinq cellules de
+   l'île ne battent pas la même mesure, et tout s'affole à mesure que
+   les PV tombent.
+   ================================================================ */
+/* Quel plot du cerceau reçoit l'arc de quel contrefort */
+var REAC_PLOTS = [0, 2, 3, 5];
+
+TOURELLES.reacteur = function(c, b, ang, tps){
+  var o = iso(0, 0);
+  var i, k, a, an, x0, y0, x1, y1, vx, vy, l;
+  var dep = (b.n || 0) * 1.37;
+  var pvm = b.pvMax || 1;
+  var fr = Math.max(0, Math.min(1, b.pv / pvm));
+  var mal = 1 - fr;                            // 0 intacte, 1 à l'agonie
+  /* Scintillement : sous les coups le courant hoquette. Deux sinus de
+     périodes premières entre elles, pour que la panne ne tombe jamais
+     deux fois au même moment. */
+  var vac = 1;
+  if(mal > 0.2){
+    var hic = Math.sin(tps * 17.3 + dep * 3.1) * Math.sin(tps * 6.7 + dep);
+    vac = 1 - (mal - 0.2) * 1.05 * Math.max(0, hic);
+  }
+  var puls = 0.5 + 0.5 * Math.sin(tps * 2.35 + dep);
+  var nerf = 1 + mal * 1.8;                    // amplitude des arcs
+  var tic = Math.floor(tps * (8 + mal * 7) + dep * 5);   // horloge des claquements
+  var cyC = o.y - REAC_ZCER, rxC = REAC_RCER * RX, ryC = REAC_RCER * RY;
+
+  c.save();
+  c.globalCompositeOperation = "lighter";
+
+  /* ---- l'onde de terre ----
+     Toutes les deux secondes et demie la cellule pousse un anneau de
+     lumière sur sa dalle. Une silhouette, même haute, se perd dans une
+     base qui compte cent bâtiments ; ce battement lent, lui, attire
+     l'œil d'un bout à l'autre de l'île. */
+  for(i = 0; i < 2; i++){
+    var po = (tps * 0.4 + i * 0.5 + dep * 0.17) % 1;
+    var ao = (1 - po) * (1 - po) * 0.66 * vac;
+    if(ao > 0.02){
+      var ro = 0.5 + po * 2.4;
+      c.strokeStyle = "rgba(120,175,255," + ao.toFixed(3) + ")";
+      c.lineWidth = 3.4 - po * 2.0;
+      c.beginPath();
+      c.ellipse(o.x, o.y - 4, ro * RX, ro * RY, 0, 0, 6.2832);
+      c.stroke();
+    }
+  }
+
+  /* ---- l'âme : trois impulsions qui montent le long du mât ---- */
+  for(i = 0; i < 3; i++){
+    var mt = (tps * 0.42 + i / 3 + dep * 0.21) % 1;
+    var am = Math.sin(mt * Math.PI) * 0.60 * vac;
+    lueurRapide(c, o.x, o.y - (26 + mt * 96), 13 + am * 8, REAC_VIF, am);
+  }
+
+  /* ---- LES GRANDS ARCS DE CAGE ----
+     Deux sur les quatre à la fois, tirés au sort par l'horloge des
+     claquements. Ils courent sur toute la hauteur de la cellule, en
+     dehors de sa silhouette : c'est la seule chose de la couche
+     vivante qui reste lisible à un zoom de carte. */
+  for(i = 0; i < 4; i++){
+    if(((tic + i * 5) % 4) > (mal > 0.4 ? 1 : 0)) continue;
+    a = REAC_PLOTS[i] / REAC_NCER * 6.2832 + 0.5236;
+    x0 = o.x + Math.cos(a) * rxC;
+    y0 = cyC + Math.sin(a) * ryC - 7.4;
+    var w = iso(REAC_BORNES[i][0], REAC_BORNES[i][1]);
+    x1 = w.x; y1 = w.y - REAC_ZBORNE;
+    arcCage(c, x0, y0, x1, y1,
+            (x0 > o.x ? -1 : 1) * (13 + puls * 5), 7 * nerf, tic * 3 + i,
+            (0.8 + puls * 0.2) * vac, 2.1 + mal * 0.9);
+    lueurRapide(c, x1, y1, 11 + puls * 4, REAC_VIF, 0.5 * vac);
+  }
+
+  /* ---- un arc rampe autour de chaque bobine, en sens alternés ---- */
+  for(i = 0; i < REAC_ANNEAUX.length; i++){
+    an = REAC_ANNEAUX[i];
+    var sens = (i % 2) ? -1 : 1;
+    var a0 = tps * (0.85 + i * 0.29) * sens + dep + i * 1.9;
+    var rxA = an.r * RX, ryA = an.r * RY, cyA = o.y - an.z;
+    for(k = 0; k < 2; k++){
+      c.strokeStyle = k
+        ? "rgba(226,238,255," + ((0.72 + puls * 0.2) * vac).toFixed(3) + ")"
+        : "rgba(77,140,255," + (0.26 * vac).toFixed(3) + ")";
+      c.lineWidth = k ? 1.8 + mal * 0.7 : 6.0;
+      c.beginPath();
+      for(var kk = 0; kk <= 7; kk++){
+        a = a0 + kk * 0.27;
+        var rr = 1 + Math.sin(tps * (21 + i * 5) + kk * 2.7 + dep) * 0.07 * nerf;
+        var px = o.x + Math.cos(a) * rxA * rr;
+        var py = cyA + Math.sin(a) * ryA * rr + Math.sin(tps * 29 + kk * 3.3 + i) * 1.8 * nerf;
+        if(kk === 0) c.moveTo(px, py); else c.lineTo(px, py);
+      }
+      c.stroke();
+    }
+    /* la tête de l'arc, une perle de lumière qui fait le tour */
+    if((i & 1) === (tic & 1)){
+      a = a0 + 7 * 0.27;
+      lueurRapide(c, o.x + Math.cos(a) * rxA, cyA + Math.sin(a) * ryA,
+                  10 + puls * 4, "#ffffff", 0.46 * vac);
+    }
+  }
+
+  /* ---- décharges verticales d'une bobine à la suivante ---- */
+  c.strokeStyle = "rgba(226,238,255," + (0.66 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.7;
+  for(i = 0; i < REAC_ANNEAUX.length - 1; i++){
+    if(((tic + i * 3) % 5) > (mal > 0.4 ? 2 : 1)) continue;
+    var ab = (tic * 1.7 + i * 2.3) % 6.2832;
+    var A = REAC_ANNEAUX[i], B = REAC_ANNEAUX[i + 1];
+    arcEclair(c,
+      o.x + Math.cos(ab) * A.r * RX, o.y - A.z + Math.sin(ab) * A.r * RY,
+      o.x + Math.cos(ab + 0.5) * B.r * RX, o.y - B.z + Math.sin(ab + 0.5) * B.r * RY,
+      5, 4.8 * nerf, tic + i);
+  }
+
+  /* ---- le cerceau nourrit l'orbe ---- */
+  var ox = o.x, oy = o.y - REAC_ZORBE;
+  var tc = Math.floor(tps * 5.5 + dep * 3);
+  for(i = 0; i < REAC_NCER; i++){
+    if(((tc + i) % 3) !== 0) continue;
+    a = i / REAC_NCER * 6.2832 + 0.5236;
+    x0 = o.x + Math.cos(a) * rxC;
+    y0 = cyC + Math.sin(a) * ryC - 7.4;
+    vx = ox - x0; vy = oy - y0; l = Math.hypot(vx, vy) || 1;
+    for(k = 0; k < 2; k++){
+      c.strokeStyle = k
+        ? "rgba(238,246,255," + (0.85 * vac).toFixed(3) + ")"
+        : "rgba(77,140,255," + (0.28 * vac).toFixed(3) + ")";
+      c.lineWidth = k ? 1.9 : 6.2;
+      arcEclair(c, x0, y0, ox - vx / l * REAC_RORBE, oy - vy / l * REAC_RORBE,
+                4, 3.8 * nerf, tc + i * 3);
+    }
+  }
+  /* et un arc rampe sur le cerceau lui-même */
+  var acer = tps * 1.25 + dep;
+  c.strokeStyle = "rgba(214,232,255," + (0.62 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.6;
+  c.beginPath();
+  for(i = 0; i <= 8; i++){
+    a = acer + i * 0.30;
+    var rc = 1 + Math.sin(tps * 17 + i * 2.4 + dep) * 0.06 * nerf;
+    if(i === 0) c.moveTo(o.x + Math.cos(a) * rxC * rc, cyC + Math.sin(a) * ryC * rc);
+    else c.lineTo(o.x + Math.cos(a) * rxC * rc, cyC + Math.sin(a) * ryC * rc);
+  }
+  c.stroke();
+
+  /* ---- l'orbe : cœur blanc et couronne d'arcs qui tourne ---- */
+  var rO = 5.8 + puls * 1.8;
+  c.fillStyle = "rgba(255,255,255," + ((0.48 + puls * 0.30) * vac).toFixed(3) + ")";
+  c.beginPath(); c.arc(ox, oy, rO, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(160,200,255," + (0.52 * vac).toFixed(3) + ")";
+  c.lineWidth = 1.3;
+  for(k = 0; k < 2; k++){
+    var ae = tps * 2.6 + k * 3.1416 + dep;
+    c.beginPath();
+    c.moveTo(ox + Math.cos(ae) * REAC_RORBE, oy + Math.sin(ae) * REAC_RORBE * 0.55);
+    for(i = 1; i <= 5; i++){
+      var aa2 = ae + i * 0.52;
+      var r2 = REAC_RORBE + Math.sin(i * 2.7 + tps * 9 + k * 4 + dep) * 2.8 * nerf;
+      c.lineTo(ox + Math.cos(aa2) * r2, oy + Math.sin(aa2) * r2 * 0.55);
+    }
+    c.stroke();
+  }
+
+  /* ---- la pointe grésille ---- */
+  var tx = o.x, ty = o.y - REAC_ZPOINTE;
+  if((tic % 3) === 0){
+    c.strokeStyle = "rgba(238,246,255," + (0.66 * vac).toFixed(3) + ")";
+    c.lineWidth = 1.3;
+    for(k = 0; k < 2; k++){
+      var ak = (tic * 2.1 + k * 3.7) % 6.2832;
+      arcEclair(c, tx, ty, tx + Math.cos(ak) * 13,
+                ty - 5 - Math.abs(Math.sin(ak)) * 11, 3, 3.0, tic + k);
+    }
+  }
+
+  /* ---- étincelles arrachées quand la cellule souffre ---- */
+  if(mal > 0.35){
+    c.fillStyle = "rgba(196,220,255,.85)";
+    for(i = 0; i < 5; i++){
+      var pe = (tps * 1.15 + i * 0.31 + dep) % 1;
+      var ze = 104 - pe * pe * 96;
+      c.beginPath();
+      c.arc(o.x + Math.sin(tps * 3 + i * 2.2) * (10 + i * 4),
+            o.y - ze, 1.5 * (1 - pe) + 0.4, 0, 6.2832);
+      c.fill();
+    }
+  }
+
+  /* ---- les halos, en dégradés mis en cache ---- */
+  lueurRapide(c, ox, oy, 34 + puls * 12, REAC_VIF, (0.34 + puls * 0.16) * vac);
+  lueurRapide(c, ox, oy, 13, "#ffffff", (0.32 + puls * 0.20) * vac);
+  lueurRapide(c, tx, ty, 10 + puls * 4, REAC_CLAIR, (0.36 + puls * 0.24) * vac);
+  /* l'aura de toute la colonne : c'est elle qu'on voit de loin */
+  lueurRapide(c, o.x, o.y - 74, 74 + puls * 10, REAC_BLEU, (0.24 + puls * 0.10) * vac);
+  lueurRapide(c, o.x, o.y - 6, 54, REAC_BLEU, (0.18 + puls * 0.08) * vac);
+  c.restore();
 };
 
 TOURELLES.cuve = function(){};

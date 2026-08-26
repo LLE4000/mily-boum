@@ -10,6 +10,11 @@ function demarre(){
   miniCtx = miniCv.getContext("2d");
   monId = idStable();
   ajuste();
+  /* Le doigt et la rotation d'abord, le décor ensuite : ces écouteurs
+     tenaient derrière construitBriefing(), si bien qu'une vignette d'île
+     qui trébuchait emportait avec elle le redimensionnement du canevas.
+     Tourner la tablette ne dépend d'aucun sprite. */
+  installeSaisie();
   /* le miroir local du monde est lu AVANT toute connexion : si le
      courtier a purgé son message retenu, c'est lui qui reprend la
      main, et sinon la fusion des deux ne perd rien. */
@@ -21,7 +26,6 @@ function demarre(){
   construitVignettesGrises();
 
   construitBriefing();
-  installeSaisie();
   installeBoutons();
   installeRaz();
   installePlan();
