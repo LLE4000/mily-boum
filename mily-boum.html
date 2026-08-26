@@ -506,7 +506,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.10";
+var VERSION = "v0.11";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -7611,8 +7611,15 @@ function appliqueDegatsCible(c, d, but){
    Mise à jour des défenses
    --------------------------------------------------------------- */
 function majDefenses(dt, tps){
-  /* boîte englobante de toutes les troupes */
-  if(!jeu.unites.length){
+  /* Boîte englobante de tout ce qui peut être PRIS pour une troupe :
+     les unités ET les poulets leurres. L'ancien code s'endormait dès
+     que jeu.unites était vide et sa boîte ignorait les poulets — des
+     leurres largués seuls, flotte morte ou occupée ailleurs, ne
+     réveillaient donc jamais une seule tourelle. C'est pourtant tout
+     leur intérêt, et depuis que les capacités des autres joueurs
+     agissent chez nous, leurs poulets aussi doivent détourner nos
+     défenses simulées. */
+  if(!jeu.unites.length && !jeu.poulets.length){
     for(var q = 0; q < jeu.batiments.length; q++){
       var bq = jeu.batiments[q];
       if(bq.flash > 0) bq.flash -= dt * 6;
@@ -7625,6 +7632,11 @@ function majDefenses(dt, tps){
     var u = jeu.unites[i];
     if(u.gx < bx0) bx0 = u.gx; if(u.gx > bx1) bx1 = u.gx;
     if(u.gy < by0) by0 = u.gy; if(u.gy > by1) by1 = u.gy;
+  }
+  for(var i2 = 0; i2 < jeu.poulets.length; i2++){
+    var u2 = jeu.poulets[i2];
+    if(u2.gx < bx0) bx0 = u2.gx; if(u2.gx > bx1) bx1 = u2.gx;
+    if(u2.gy < by0) by0 = u2.gy; if(u2.gy > by1) by1 = u2.gy;
   }
 
   for(var k = 0; k < jeu.batiments.length; k++){
@@ -7880,7 +7892,7 @@ function majProjectiles(dt){
     }else if(p.t === "nova"){
       var tn = p.age / p.duree;
       if(tn >= 1){
-        explosionNova(p.cx, p.cy);
+        explosionNova(p.cx, p.cy, p.distante);
         jeu.projectiles.splice(i, 1);
         continue;
       }
@@ -8319,7 +8331,33 @@ function utiliseCapacite(m, gx, gy){
     jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });
     son.balise();
 
-  }else if(m === "brouillard"){
+  }else{
+    lanceCapacite(m, gx, gy, false);
+  }
+
+  /* Les autres joueurs de l'île doivent VOIR cette capacité — et ses
+     zones doivent agir chez eux aussi. La Balise, elle, n'ordonne
+     qu'à nos propres troupes : rien à montrer. */
+  if(m !== "balise") envoie({ t:"cap", m:m, x:gx, y:gy, c:jeu.index });
+
+  demandeMajBarres();
+  majMenu();
+  if(!capaciteDisponible(m)){
+    jeu.capArmee = null;
+    majMenu();
+    if(m !== "nova") message(COUT[m].nom + " désarmée : Énergie insuffisante.");
+  }
+}
+
+/* Fait exister une capacité sur le terrain. `distante` distingue la
+   nôtre de celle d'un AUTRE joueur du salon : la sienne est montrée à
+   l'identique et ses ZONES agissent pour de vrai — son Cryo gèle nos
+   défenses simulées, son Brouillard cache nos troupes, son Soin les
+   répare, ses Poulets détournent les tourelles — mais elle n'inflige
+   AUCUN dégât local. Ses dégâts à lui voyagent déjà par « deg » et
+   « det » : les rejouer ici les compterait deux fois. */
+function lanceCapacite(m, gx, gy, distante){
+  if(m === "brouillard"){
     jeu.brouillards.push({ gx:gx, gy:gy, r:CAP.brouillard.rayon, age:0, duree:CAP.brouillard.duree });
     son.brouillard();
 
@@ -8356,7 +8394,7 @@ function utiliseCapacite(m, gx, gy){
     jeu.projectiles.push({
       t:"viper", gx:gx - 5.5, gy:gy - 5.5, x0:gx - 5.5, y0:gy - 5.5,
       cx:gx, cy:gy, age:0, duree:Math.max(0.45, 9 / CAP.viper.vitesse),
-      degats:CAP.viper.degats, zone:CAP.viper.rayon, haut:230, fumee:[]
+      degats:distante ? 0 : CAP.viper.degats, zone:CAP.viper.rayon, haut:230, fumee:[]
     });
     jeu.effets.push({ t:"frappe", gx:gx, gy:gy, age:0, duree:0.5 });
     son.viper();
@@ -8377,7 +8415,7 @@ function utiliseCapacite(m, gx, gy){
         x0:gx + Math.cos(ad) * 26, y0:gy + Math.sin(ad) * 26 - 22,
         cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
         duree:0.75 + i / CAP.salve.nb * CAP.salve.duree, age:0,
-        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:150,
+        degats:distante ? 0 : CAP.salve.degats, zone:CAP.salve.zone, haut:150,
         allie:1, tousCamps:1
       });
     }
@@ -8387,29 +8425,23 @@ function utiliseCapacite(m, gx, gy){
     /* gros spectacle, dégâts mesurés */
     jeu.projectiles.push({
       t:"nova", gx:gx - 3, gy:gy - 9, x0:gx - 3, y0:gy - 9,
-      cx:gx, cy:gy, age:0, duree:1.15, haut:300
+      cx:gx, cy:gy, age:0, duree:1.15, haut:300, distante:distante ? 1 : 0
     });
     son.nova();
-  }
-
-  demandeMajBarres();
-  majMenu();
-  if(!capaciteDisponible(m)){
-    jeu.capArmee = null;
-    majMenu();
-    if(m !== "nova") message(COUT[m].nom + " désarmée : Énergie insuffisante.");
   }
 }
 
 /* --------------- Nova : le champignon --------------- */
-function explosionNova(gx, gy){
+function explosionNova(gx, gy, distante){
   var C = CAP.nova;
-  /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
-  degatsZoneEnnemis(gx, gy, C.rayon, C.degats);
-  degatsZone(gx, gy, C.rayon, C.degats);
-  /* souffle : plus large, beaucoup plus doux */
-  degatsZoneEnnemis(gx, gy, C.rayonSouffle, C.degatsSouffle);
-  degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  if(!distante){
+    /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
+    degatsZoneEnnemis(gx, gy, C.rayon, C.degats);
+    degatsZone(gx, gy, C.rayon, C.degats);
+    /* souffle : plus large, beaucoup plus doux */
+    degatsZoneEnnemis(gx, gy, C.rayonSouffle, C.degatsSouffle);
+    degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  }
   jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0, duree:3.2, r:C.rayon });
   jeu.crateres.push({ gx:gx, gy:gy, r:C.rayon * 0.75 });
   if(jeu.crateres.length > 160) jeu.crateres.shift();
@@ -9122,6 +9154,22 @@ function recoit(txt){
         signaleMonde();
       }
     }
+  }else if(m.t === "ici"){
+    /* signe de vie d'un joueur encore au briefing : rien à faire de
+       plus, j.vu vient d'être rafraîchi et son nom est à jour */
+    if(m.nom) j.nom = String(m.nom).substr(0, 14);
+  }else if(m.t === "cap"){
+    /* Capacité d'un autre joueur, sur NOTRE île : on la voit, et ses
+       zones agissent — son Cryo gèle nos défenses, son Brouillard
+       cache nos troupes, son Soin les répare, ses Poulets détournent
+       les tourelles. lanceCapacite(distante=vrai) n'inflige aucun
+       dégât local : les siens arrivent par « deg »/« det ». */
+    if(jeu && !jeu.fin && m.c === jeu.index &&
+       typeof m.x === "number" && typeof m.y === "number" &&
+       isFinite(m.x) && isFinite(m.y) &&
+       Object.prototype.hasOwnProperty.call(CAP, m.m) && m.m !== "balise"){
+      lanceCapacite(m.m, borne(m.x, 0, GW), borne(m.y, 0, GH), true);
+    }
   }else if(m.t === "gege"){
     if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurGege){
       jeu.tueurGege = (m.nom || "?").substr(0, 14);
@@ -9168,7 +9216,7 @@ function majUnitesDistantes(j, p){
 function interpoleDistants(dt){
   for(var id in autresJoueurs){
     var j = autresJoueurs[id];
-    if(tempsGlobal - j.vu > 8){ delete autresJoueurs[id]; majPodium(); continue; }
+    if(tempsGlobal - j.vu > 15){ delete autresJoueurs[id]; majPodium(); continue; }
     for(var i = 0; i < j.unites.length; i++){
       var u = j.unites[i];
       var dx = u.cx - u.gx, dy = u.cy - u.gy;
@@ -9192,6 +9240,18 @@ function majReseau(dt){
   if(!reseau.connecte) return;
   reseau.pingT -= dt * 1000;
   if(reseau.pingT <= 0){ reseau.pingT = EQ.PERIODE_PING; envoieTrame(paquetPing()); }
+
+  /* Présence depuis le BRIEFING : sans partie lancée on n'émet aucun
+     « etat », donc l'autre joueur disparaissait du salon au bout de la
+     purge alors qu'il était bel et bien là, en train de composer sa
+     flotte. Un petit signe de vie suffit. */
+  if(!jeu){
+    reseau.iciT = (reseau.iciT || 0) - dt * 1000;
+    if(reseau.iciT <= 0 && monNom){
+      reseau.iciT = 4000;
+      envoie({ t:"ici", nom:monNom });
+    }
+  }
 
   reseau.etatT -= dt * 1000;
   if(reseau.etatT <= 0){
@@ -12065,6 +12125,19 @@ function majPodium(){
   if(jeu.tueurTweety){
     h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
        + '</b> a tué Tweety</div>';
+  }
+  /* Qui est réellement entendu, là, maintenant. C'est la réponse à
+     « pourquoi je ne vois que mon nom ? » : si le relais est tombé ou
+     que l'autre appareil est sur un autre relais, ça se LIT ici au
+     lieu de se deviner. */
+  if(!reseau.connecte){
+    h += '<div class="gg">🔌 hors ligne — relais injoignable</div>';
+  }else{
+    var noms = [], idj;
+    for(idj in autresJoueurs) noms.push(echappe(autresJoueurs[idj].nom));
+    h += '<div class="gg">🌐 ' + (noms.length
+       ? "en ligne avec " + noms.slice(0, 4).join(", ")
+       : "seul dans le salon pour l'instant") + '</div>';
   }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }

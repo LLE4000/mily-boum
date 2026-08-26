@@ -421,6 +421,22 @@ function recoit(txt){
         signaleMonde();
       }
     }
+  }else if(m.t === "ici"){
+    /* signe de vie d'un joueur encore au briefing : rien à faire de
+       plus, j.vu vient d'être rafraîchi et son nom est à jour */
+    if(m.nom) j.nom = String(m.nom).substr(0, 14);
+  }else if(m.t === "cap"){
+    /* Capacité d'un autre joueur, sur NOTRE île : on la voit, et ses
+       zones agissent — son Cryo gèle nos défenses, son Brouillard
+       cache nos troupes, son Soin les répare, ses Poulets détournent
+       les tourelles. lanceCapacite(distante=vrai) n'inflige aucun
+       dégât local : les siens arrivent par « deg »/« det ». */
+    if(jeu && !jeu.fin && m.c === jeu.index &&
+       typeof m.x === "number" && typeof m.y === "number" &&
+       isFinite(m.x) && isFinite(m.y) &&
+       Object.prototype.hasOwnProperty.call(CAP, m.m) && m.m !== "balise"){
+      lanceCapacite(m.m, borne(m.x, 0, GW), borne(m.y, 0, GH), true);
+    }
   }else if(m.t === "gege"){
     if(jeu && (typeof m.c !== "number" || m.c === jeu.index) && !jeu.tueurGege){
       jeu.tueurGege = (m.nom || "?").substr(0, 14);
@@ -467,7 +483,7 @@ function majUnitesDistantes(j, p){
 function interpoleDistants(dt){
   for(var id in autresJoueurs){
     var j = autresJoueurs[id];
-    if(tempsGlobal - j.vu > 8){ delete autresJoueurs[id]; majPodium(); continue; }
+    if(tempsGlobal - j.vu > 15){ delete autresJoueurs[id]; majPodium(); continue; }
     for(var i = 0; i < j.unites.length; i++){
       var u = j.unites[i];
       var dx = u.cx - u.gx, dy = u.cy - u.gy;
@@ -491,6 +507,18 @@ function majReseau(dt){
   if(!reseau.connecte) return;
   reseau.pingT -= dt * 1000;
   if(reseau.pingT <= 0){ reseau.pingT = EQ.PERIODE_PING; envoieTrame(paquetPing()); }
+
+  /* Présence depuis le BRIEFING : sans partie lancée on n'émet aucun
+     « etat », donc l'autre joueur disparaissait du salon au bout de la
+     purge alors qu'il était bel et bien là, en train de composer sa
+     flotte. Un petit signe de vie suffit. */
+  if(!jeu){
+    reseau.iciT = (reseau.iciT || 0) - dt * 1000;
+    if(reseau.iciT <= 0 && monNom){
+      reseau.iciT = 4000;
+      envoie({ t:"ici", nom:monNom });
+    }
+  }
 
   reseau.etatT -= dt * 1000;
   if(reseau.etatT <= 0){

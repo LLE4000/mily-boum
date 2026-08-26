@@ -545,6 +545,19 @@ function majPodium(){
     h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
        + '</b> a tué Tweety</div>';
   }
+  /* Qui est réellement entendu, là, maintenant. C'est la réponse à
+     « pourquoi je ne vois que mon nom ? » : si le relais est tombé ou
+     que l'autre appareil est sur un autre relais, ça se LIT ici au
+     lieu de se deviner. */
+  if(!reseau.connecte){
+    h += '<div class="gg">🔌 hors ligne — relais injoignable</div>';
+  }else{
+    var noms = [], idj;
+    for(idj in autresJoueurs) noms.push(echappe(autresJoueurs[idj].nom));
+    h += '<div class="gg">🌐 ' + (noms.length
+       ? "en ligne avec " + noms.slice(0, 4).join(", ")
+       : "seul dans le salon pour l'instant") + '</div>';
+  }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
