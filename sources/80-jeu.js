@@ -421,7 +421,19 @@ function creeUnite(type, gx, gy){
     ancX:an.x, ancY:an.y, sepC:0,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
-    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
+    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1,
+    /* Ordre de Balise, STRICTEMENT individuel : il vaut l'identifiant
+       de la balise tant que CETTE unité ne l'a pas atteinte, et 0
+       ensuite. Une unité qui débarque pendant qu'une balise est active
+       reçoit l'ordre elle aussi. */
+    baliseOrdre:(jeu && jeu.balise) ? jeu.balise.id : 0,
+    baliseMeilleure:1e9, baliseStagne:0,
+    /* Seuil d'enlisement propre à chaque unité. Deux voisines collées
+       au même mur cesseraient de progresser à la même image ; avec un
+       seuil identique elles se libéreraient ensemble, ce qui ressemble
+       à une libération de groupe. Étalé sur 2,6 à 4,4 s, chacune part
+       pour son propre compte. */
+    baliseSeuil:2.6 + Math.random() * 1.8,
     pousse:{ x:0, y:0 }
   });
   return jeu.unites[jeu.unites.length - 1];
@@ -479,7 +491,7 @@ function abimeBatiment(b, d){
     /* une fusée posée sur ce bâtiment cesse d'agir dès qu'il tombe */
     if(jeu.balise && jeu.balise.cible === b){
       jeu.balise = null;
-      for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
+      libereBalise();
     }
     jeu.energie += DEF[b.t].recolte ? EQ.ENERGIE_PAR_CELLULE : EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
@@ -500,6 +512,16 @@ function abimeBatiment(b, d){
     demandeMajBarres();
   }
 }
+/* Une balise qui s'éteint ne laisse personne sous ses ordres : sans
+   ça, le drapeau resterait posé sur des unités jusqu'à leur mort. */
+function libereBalise(){
+  for(var i = 0; i < jeu.unites.length; i++){
+    jeu.unites[i].baliseOrdre = 0;
+    jeu.unites[i].cible = null;
+    jeu.unites[i].prochainCiblage = 0;
+  }
+}
+
 function abimeCreature(c, d){
   if(c.pv <= 0) return;
   c.pv -= d;
@@ -604,21 +626,22 @@ function majUnites(dt){
        Deux comportements, selon l'endroit où la fusée est tombée.
        L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
        propre compte, les autres continuent de converger.               */
-    if(balise && u.baliseVue !== balise.id){
+    /* --- BALISE : un ordre individuel, prioritaire sur tout ------------
+       Tant que u.baliseOrdre vaut l'identifiant de la balise en cours,
+       cette unité — et elle seule — est sous les ordres. Rien ne l'en
+       libère : ni une défense à portée, ni le Brouillard, ni un
+       changement de zone. Seul le fait QU'ELLE ait atteint ou franchi
+       la zone remet son drapeau à zéro, sans toucher à ses voisines. */
+    if(balise && u.baliseOrdre === balise.id){
       var bc = balise.cible;
       if(bc && bc.vivant){
-        /* 2) fusée posée sur une défense ou un bâtiment :
-              on y va et on le démonte en priorité */
+        /* balise posée sur un bâtiment : il devient la cible
+           prioritaire, et l'ordre tient tant qu'il est debout */
         var dxb = bc.gx - u.gx, dyb = bc.gy - u.gy;
         var db = Math.hypot(dxb, dyb) - bc.e * 0.42;
         u.droite = (dxb - dyb) > 0;
         u.cible = { k:"bat", o:bc };
         if(db > f.arret){
-          /* même éventail que pour une cible ordinaire : la troupe
-             encercle le bâtiment désigné au lieu de s'entasser sur la
-             face qu'elle a abordée */
-          /* plafonné par la marge d'arrêt : un décalage plus grand que
-             la portée empêcherait la troupe d'entrer en portée du tout */
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
@@ -634,37 +657,47 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* 1) balise au sol : ralliement sans tirer. Chaque troupe a SA
-              place autour de la balise — la balise est une zone de
-              rassemblement, pas un pixel — et se libère dès qu'elle y
-              est, pour son propre compte. */
+        /* balise au sol : chacune marche vers SA place, sans tirer */
         var rf = rayonFormation();
         var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
         var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        /* Filet de sécurité — et RIEN QUE ça. Testé sur la seule
-           distance au centre, il se déclenchait pour tout le monde :
-           chaque troupe franchit le bord du disque avant d'atteindre sa
-           place, donc toutes se libéraient à 3,76 cases du point visé.
-           Il ne joue désormais que si la place est vraiment inatteignable. */
         var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
-        if(df > EQ.BALISE_RAYON && !(dCentre <= rf && bloque(pvx, pvy))){
+        /* Atteinte de la zone : soit elle est sur sa place, soit elle a
+           franchi le cercle — c'est le « atteint OU dépassé » demandé.
+           Le repli sur le cercle sert aussi de filet quand la place
+           assignée tombe dans l'eau ou dans un mur. */
+        var arrivee = (df <= EQ.BALISE_RAYON) ||
+                      (dCentre <= rf && (dCentre <= EQ.BALISE_RAYON || bloque(pvx, pvy)));
+        /* Garde-fou contre l'enlisement. deplace() ne sait que longer un
+           obstacle, pas le contourner : une troupe lancée à travers un
+           champ de défenses peut se coller à un mur et ne plus avancer
+           d'un pouce. Sans ce garde-fou elle resterait plantée là les
+           trente secondes de la balise, ce qui est PIRE que le défaut
+           d'origine. On mesure donc son meilleur rapprochement : si elle
+           ne gagne plus rien pendant trois secondes, on considère
+           qu'elle a fait ce qu'elle pouvait et on la libère — elle
+           seule. */
+        if(dCentre < u.baliseMeilleure - 0.05){
+          u.baliseMeilleure = dCentre;
+          u.baliseStagne = 0;
+        }else{
+          u.baliseStagne += dt;
+          if(u.baliseStagne > (u.baliseSeuil || 3.0)) arrivee = true;
+        }
+        if(!arrivee){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
           u.cible = null;
-          continue;
+          continue;                       // rien d'autre ne la concerne
         }
-        /* place atteinte : cette balise ne l'influence plus, jamais */
-        u.baliseVue = balise.id;
-        u.cible = null;
-        u.prochainCiblage = 0;
-      }else{
-        /* la cible de la fusée est tombée : libération immédiate */
-        u.baliseVue = balise.id;
-        u.cible = null;
-        u.prochainCiblage = 0;
       }
+      /* CETTE unité est arrivée — ou sa cible désignée est tombée.
+         Elle seule est libérée, et elle repart aussitôt en chasse. */
+      u.baliseOrdre = 0;
+      u.cible = null;
+      u.prochainCiblage = 0;
     }
 
     /* --- recherche de cible, espacée --- */
@@ -834,17 +867,25 @@ function tireDefense(b, f, c, d, tps){
   if(b.t === "crible"){
     b.recul = 1;
     var touche = mitraTouche(d, Math.random());
-    if(touche){
-      toucheUnite(c, f.degats);
-      jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:c.gx, ey:c.gy, age:0, duree:0.09 });
+    /* Chaque balle finit quelque part : une gerbe de sable marque le
+       point de chute. C'est cette grêle d'impacts qui fait comprendre,
+       même en dézoomant, quelle zone la mitrailleuse est en train
+       d'arroser — les traçantes seules sont trop fugaces. */
+    var disp = touche ? 0.42 : 0.95;              // dispersion, en cases
+    var ai = Math.random() * 6.2832, ri = Math.sqrt(Math.random()) * disp;
+    var ex = c.gx + Math.cos(ai) * ri, ey = c.gy + Math.sin(ai) * ri;
+    if(!touche){
+      /* balle franchement perdue : elle part plus loin, au-delà */
+      var a = Math.atan2(c.gy - b.gy, c.gx - b.gx) + (Math.random() - 0.5) * 0.30;
+      var dd = d * (1.05 + Math.random() * 0.35);
+      ex = b.gx + Math.cos(a) * dd; ey = b.gy + Math.sin(a) * dd;
     }else{
-      /* balle perdue : elle passe à côté et meurt dans le sable */
-      var a = Math.atan2(c.gy - b.gy, c.gx - b.gx) + (Math.random() - 0.5) * 0.34;
-      var dd = d * (1.15 + Math.random() * 0.5);
-      var ex = b.gx + Math.cos(a) * dd, ey = b.gy + Math.sin(a) * dd;
-      jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey, age:0, duree:0.11, perdue:1 });
-      jeu.effets.push({ t:"poussiere", gx:ex, gy:ey, age:0, duree:0.42 });
+      toucheUnite(c, f.degats);
     }
+    jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey,
+                      age:0, duree:0.10, perdue:touche ? 0 : 1 });
+    jeu.effets.push({ t:"impact", gx:ex, gy:ey, age:0, duree:0.34 });
+    son.tirCrible();
   }else if(b.t === "chalumeau"){
     /* cône de chalumeau : tout ce qui est dans le cône prend et brûle */
     var ang = b.angle;
@@ -859,6 +900,7 @@ function tireDefense(b, f, c, d, tps){
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
                       ouv:f.cone, age:0, duree:0.22 });
+    son.jetFlamme();
   }else if(b.t === "frelon"){
     b.recul = 1;
     jeu.projectiles.push({ t:"roquette", gx:b.gx, gy:b.gy, z:26, cible:c,
@@ -867,14 +909,19 @@ function tireDefense(b, f, c, d, tps){
     son.tirFrelon();
   }else if(b.t === "pilon"){
     b.recul = 1; b.chargement = 1;
-    var vol = d / f.vitesseProj;
+    /* Une cloche haute et lente : c'est la lisibilité de la trajectoire
+       qui dit d'où vient le coup. Trop tendue, on ne voit rien partir. */
+    var vol = Math.max(0.85, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bombe", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
-      cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone, haut:38 + d * 3.2 });
+      cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone,
+      haut:34 + d * 4.6 });
+    jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.45 });
     son.tirPilon();
   }else if(b.t === "bobine"){
-    var vol2 = d / f.vitesseProj;
+    var vol2 = Math.max(0.7, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bobine", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
-      cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone, ralenti:f.ralenti });
+      cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone,
+      ralenti:f.ralenti, haut:30 + d * 2.6 });
     son.tirBobine();
   }
 }
@@ -949,10 +996,29 @@ function majProjectiles(dt){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
           if(!p.allie || p.tousCamps) degatsZone(p.cx, p.cy, p.zone, p.degats);
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
-          jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.62, r:p.zone, force:1 });
+          jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0,
+                            duree:p.salve ? 0.85 : 0.62,
+                            r:p.zone * (p.salve ? 1.5 : 1), force:p.salve ? 1.4 : 1 });
           jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.55 });
           if(jeu.crateres.length > 160) jeu.crateres.shift();
-          son.boum(0.42);
+          /* Anneau de souffle au sol : c'est lui qui dit « obus » plutôt
+             que « boule de feu ». Il reste discret pour un tir de Pilon
+             et s'élargit franchement pour une Salve. */
+          jeu.effets.push({ t:"onde", gx:p.cx, gy:p.cy, age:0,
+                            duree:p.salve ? 0.55 : 0.42,
+                            r:p.zone * (p.salve ? 2.2 : 1.5) });
+          if(p.salve){
+            /* onde au sol + gerbe de sable : quelque chose de lourd
+               vient de tomber du ciel */
+            for(var ge = 0; ge < 7; ge++){
+              var age2 = Math.random() * 6.2832, rge = Math.random() * p.zone * 0.9;
+              jeu.effets.push({ t:"impact",
+                gx:p.cx + Math.cos(age2) * rge, gy:p.cy + Math.sin(age2) * rge,
+                age:0, duree:0.4 });
+            }
+            jeu.secousse = Math.min(12, jeu.secousse + 3);
+          }
+          son.boum(p.salve ? 0.7 : 0.42);
         }else{
           degatsZone(p.cx, p.cy, p.zone, p.degats, { ralenti:p.ralenti, type:"elec" });
           jeu.effets.push({ t:"eclair", gx:p.cx, gy:p.cy, age:0, duree:0.42, r:p.zone });
@@ -1222,7 +1288,7 @@ function majZones(dt){
   }
   if(jeu.balise){
     jeu.balise.reste -= dt;
-    if(jeu.balise.reste <= 0) jeu.balise = null;
+    if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
   }
 }
 
@@ -1330,6 +1396,16 @@ function utiliseCapacite(m, gx, gy){
     jeu.idBalise = (jeu.idBalise || 0) + 1;
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
                    id:jeu.idBalise, cible:vise };
+    /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
+       le ciblage en cours : aucune ne doit continuer à taper une
+       défense proche tant qu'elle n'a pas rejoint la balise. */
+    for(var z2 = 0; z2 < jeu.unites.length; z2++){
+      jeu.unites[z2].baliseOrdre = jeu.balise.id;
+      jeu.unites[z2].baliseMeilleure = 1e9;
+      jeu.unites[z2].baliseStagne = 0;
+      jeu.unites[z2].baliseSeuil = 2.6 + Math.random() * 1.8;
+      jeu.unites[z2].cible = null;
+    }
     jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });
     son.balise();
 
@@ -1380,12 +1456,19 @@ function utiliseCapacite(m, gx, gy){
        ils touchent bâtiments, créatures ET troupes, alliées comprises */
     for(var i = 0; i < CAP.salve.nb; i++){
       var a = Math.random() * 6.2832, r = Math.sqrt(Math.random()) * CAP.salve.rayon;
+      /* Ils partent de haut et de loin, et retombent en piqué : on doit
+         VOIR quelque chose tomber du ciel, pas une explosion qui naît
+         au sol. La hauteur de cloche est franche, et les départs sont
+         échelonnés pour que la salve dure. */
+      var ad = Math.random() * 6.2832;
       jeu.projectiles.push({
-        t:"bombe", gx:gx + Math.cos(a) * 16, gy:gy - 16,
-        x0:gx + Math.cos(a) * 9, y0:gy - 12,
+        t:"bombe", salve:1,
+        gx:gx + Math.cos(ad) * 26, gy:gy + Math.sin(ad) * 26 - 22,
+        x0:gx + Math.cos(ad) * 26, y0:gy + Math.sin(ad) * 26 - 22,
         cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
-        duree:0.45 + i / CAP.salve.nb * CAP.salve.duree, age:0,
-        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:70, allie:1, tousCamps:1
+        duree:0.75 + i / CAP.salve.nb * CAP.salve.duree, age:0,
+        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:150,
+        allie:1, tousCamps:1
       });
     }
     son.salve();

@@ -88,14 +88,81 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "traceur"){
-    var q = versEcran(cam, e.ex, e.ey);
+    /* ---- MITRAILLEUSE, la traçante ----
+       Un trait court et vif, avec une tête lumineuse qui file le long
+       du segment : c'est elle qui donne la vitesse. */
+    var q3 = versEcran(cam, e.ex, e.ey);
+    var av = Math.min(1, e.age / e.duree);
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.strokeStyle = e.perdue ? "rgba(255,220,150,.55)" : "rgba(255,240,190,.9)";
-    c.lineWidth = (e.perdue ? 1.1 : 1.6) * Math.max(0.6, z);
+    var x1 = p.x, y1 = p.y - 20 * z, x2 = q3.x, y2 = q3.y - 10 * z;
+    /* la traçante ne s'affiche que sur la portion déjà parcourue */
+    var xa = x1 + (x2 - x1) * Math.max(0, av - 0.45);
+    var xb = x1 + (x2 - x1) * av;
+    var ya = y1 + (y2 - y1) * Math.max(0, av - 0.45);
+    var yb = y1 + (y2 - y1) * av;
+    c.strokeStyle = e.perdue ? "rgba(255,214,150,.5)" : "rgba(255,244,206,.92)";
+    c.lineWidth = (e.perdue ? 1.2 : 2.0) * Math.max(0.7, z);
+    c.lineCap = "round";
+    c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.stroke();
+    /* tête */
+    var gt2 = c.createRadialGradient(xb, yb, 0, xb, yb, 5.5 * z);
+    gt2.addColorStop(0, "rgba(255,252,226,.95)");
+    gt2.addColorStop(1, "rgba(255,170,50,0)");
+    c.fillStyle = gt2;
+    c.beginPath(); c.arc(xb, yb, 5.5 * z, 0, 6.2832); c.fill();
+    c.restore();
+  }else if(e.t === "onde"){
+    /* onde de choc au sol : un anneau qui s'élargit et s'efface */
+    var ao = (1 - t) * (1 - t);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(255,238,196," + (0.55 * ao) + ")";
+    c.lineWidth = Math.max(1.4, 7 * ao * z);
     c.beginPath();
-    c.moveTo(p.x, p.y - 18 * z); c.lineTo(q.x, q.y - 12 * z);
+    c.ellipse(p.x, p.y, e.r * 26 * t * z, e.r * 13 * t * z, 0, 0, 6.2832);
     c.stroke();
+    c.restore();
+    /* poussière soulevée par l'anneau */
+    c.save();
+    c.globalAlpha = ao * 0.22;
+    c.fillStyle = "#d8c9a4";
+    for(var no = 0; no < 8; no++){
+      var ano = no / 8 * 6.2832;
+      c.beginPath();
+      c.ellipse(p.x + Math.cos(ano) * e.r * 24 * t * z,
+                p.y + Math.sin(ano) * e.r * 12 * t * z - t * 6 * z,
+                (3 + t * 9) * z, (1.6 + t * 4) * z, 0, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }else if(e.t === "impact"){
+    /* ---- MITRAILLEUSE, l'impact au sol ----
+       Ce sont EUX qui font comprendre quelle zone est arrosée. Une
+       gerbe de sable, quelques éclats, et un petit cratère clair. */
+    var ai = 1 - t;
+    c.save();
+    /* gerbe */
+    c.globalAlpha = ai * 0.5;
+    c.fillStyle = "#e2d3ac";
+    c.beginPath();
+    c.ellipse(p.x, p.y - 3 * z - t * 7 * z, (2.6 + t * 8) * z, (1.4 + t * 4) * z, 0, 0, 6.2832);
+    c.fill();
+    /* éclats projetés, en étoile stable (graine sur la position) */
+    var ali = prng(((e.gx * 733 + e.gy * 191) | 0) || 7);
+    c.globalAlpha = ai;
+    c.fillStyle = "#c9b78e";
+    for(var ei = 0; ei < 5; ei++){
+      var aei = ali() * 6.2832, dei = t * (5 + ali() * 11) * z;
+      c.beginPath();
+      c.arc(p.x + Math.cos(aei) * dei, p.y - 2 * z + Math.sin(aei) * dei * 0.5 - t * 9 * z,
+            1.15 * z * (1 - t * 0.6), 0, 6.2832);
+      c.fill();
+    }
+    /* petite marque au sol qui reste un instant */
+    c.globalAlpha = ai * 0.28;
+    c.fillStyle = "#7a6a4c";
+    c.beginPath(); c.ellipse(p.x, p.y, 2.6 * z, 1.3 * z, 0, 0, 6.2832); c.fill();
     c.restore();
   }else if(e.t === "poussiere"){
     c.save();
@@ -104,26 +171,74 @@ function dessineEffet(c, e, tps){
     c.beginPath(); c.ellipse(p.x, p.y - 3 * z, (4 + t * 9) * z, (2 + t * 4) * z, 0, 0, 6.2832); c.fill();
     c.restore();
   }else if(e.t === "cone"){
+    /* ---- LANCE-FLAMMES ----
+       Un jet continu, pas une bouffée : trois nappes superposées qui
+       ondulent le long de l'axe, du blanc-jaune au cœur jusqu'au rouge
+       sombre aux bords, une trace de chaleur au sol, et de la fumée qui
+       se détache en bout de course. La turbulence est pilotée par le
+       temps global — donc fluide d'une image à l'autre, contrairement
+       à un Math.random() qui grésille. */
+    var NAPPES = [
+      { c1:"#c0210a", c2:"#ff4a0e", l:1.00, w:1.00, a:0.50, v:0.0 },
+      { c1:"#ff7a12", c2:"#ffb43a", l:0.86, w:0.66, a:0.62, v:1.7 },
+      { c1:"#ffd76a", c2:"#fff6d0", l:0.62, w:0.34, a:0.70, v:3.4 }
+    ];
+    var puls = 1 - t * 0.25;                       // il retombe en fin de bouffée
     c.save();
     c.globalCompositeOperation = "lighter";
-    var n = 16;
-    for(var k = 0; k < n; k++){
-      var f2 = k / n;
-      var aa = e.ang + (Math.random() - 0.5) * e.ouv * 2 * (0.3 + f2);
-      var dd2 = e.portee * f2;
-      var pp = versEcran(cam, e.gx + Math.cos(aa) * dd2, e.gy + Math.sin(aa) * dd2);
-      var rr = (3 + f2 * 11) * z;
-      var gg = c.createRadialGradient(pp.x, pp.y - 12 * z, 0, pp.x, pp.y - 12 * z, rr);
-      gg.addColorStop(0, "rgba(255,240,190," + (0.7 * (1 - t)) + ")");
-      gg.addColorStop(0.4, "rgba(255,140,30," + (0.55 * (1 - t)) + ")");
-      gg.addColorStop(1, "rgba(200,40,10,0)");
-      c.fillStyle = gg;
-      c.beginPath(); c.arc(pp.x, pp.y - 12 * z, rr, 0, 6.2832); c.fill();
+    for(var nn = 0; nn < NAPPES.length; nn++){
+      var N = NAPPES[nn];
+      var pas = 9;
+      c.beginPath();
+      /* bord supérieur, puis bord inférieur en sens inverse */
+      for(var cote = 0; cote < 2; cote++){
+        for(var kk = 0; kk <= pas; kk++){
+          var q = cote ? (1 - kk / pas) : (kk / pas);
+          var dq = e.portee * N.l * q * puls;
+          /* l'axe serpente doucement */
+          var lacet = Math.sin(tps * 9 + N.v + q * 5.5) * e.ouv * 0.34 * q;
+          var aq = e.ang + lacet;
+          /* largeur : pincée à la buse, évasée au bout, qui bat */
+          var demi = e.ouv * dq * N.w *
+                     (0.34 + q * 0.85) * (0.9 + Math.sin(tps * 13 + q * 7 + N.v) * 0.14);
+          var sgn = cote ? -1 : 1;
+          var pp2 = versEcran(cam, e.gx + Math.cos(aq) * dq, e.gy + Math.sin(aq) * dq);
+          /* on écarte perpendiculairement, à l'écran */
+          var per = vecteurEcran(aq + 1.5708);
+          var xx2 = pp2.x + per.x * demi * 26 * z * sgn;
+          var yy2 = pp2.y + per.y * demi * 26 * z * sgn - (13 + q * 9) * z;
+          if(cote === 0 && kk === 0) c.moveTo(xx2, yy2); else c.lineTo(xx2, yy2);
+        }
+      }
+      c.closePath();
+      var pf = versEcran(cam, e.gx, e.gy);
+      var pl = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee, e.gy + Math.sin(e.ang) * e.portee);
+      var gn2 = c.createLinearGradient(pf.x, pf.y, pl.x, pl.y);
+      gn2.addColorStop(0, rgba(N.c2, N.a * (1 - t * 0.4)));
+      gn2.addColorStop(0.45, rgba(N.c1, N.a * 0.9 * (1 - t * 0.4)));
+      gn2.addColorStop(1, rgba(N.c1, 0));
+      c.fillStyle = gn2;
+      c.fill();
     }
     c.restore();
-    /* lueur au sol */
-    var pe = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * 0.5, e.gy + Math.sin(e.ang) * e.portee * 0.5);
-    lueur(c, pe.x, pe.y, e.portee * 12 * z, "#ff8a1e", 0.16 * (1 - t));
+
+    /* fumée qui se détache au bout du jet */
+    for(var fz = 0; fz < 4; fz++){
+      var qf = 0.72 + fz * 0.11;
+      var pf2 = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * qf,
+                               e.gy + Math.sin(e.ang) * e.portee * qf);
+      bouffee(c, pf2.x + Math.sin(tps * 3 + fz) * 5 * z,
+              pf2.y - (24 + fz * 11) * z - t * 22 * z,
+              (5 + fz * 4) * z, (1 - t) * 0.17, "#584c50");
+    }
+
+    /* braise au sol sous le jet : on voit ce qui brûle */
+    for(var gz = 1; gz <= 5; gz++){
+      var qg2 = gz / 5;
+      var pg2 = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * qg2,
+                               e.gy + Math.sin(e.ang) * e.portee * qg2);
+      lueur(c, pg2.x, pg2.y, e.portee * (5 + qg2 * 9) * z, "#ff6a14", 0.10 * (1 - t));
+    }
   }else if(e.t === "souffle"){
     var d = vecteurEcran(e.ang);
     c.save();
@@ -134,24 +249,101 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "eclair"){
+    /* ---- ÉLECTROBOMBE, l'impact ----
+       Un dôme d'énergie qui se déploie d'un coup et se dissipe, une
+       onde au sol, des arcs qui montent du point d'impact, et des
+       ramifications qui courent sur le sable. On ne peut pas la
+       confondre avec autre chose. */
+    var re = e.r * 26 * z;                       // rayon écran de l'effet
+    var ouvre = Math.min(1, t / 0.16);           // le dôme jaillit très vite
+    var fane = Math.max(0, 1 - Math.max(0, t - 0.16) / 0.84);
+    var rd = re * (0.25 + ouvre * 0.9);
+
+    /* flash blanc au tout premier instant */
+    if(t < 0.10){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gfl = c.createRadialGradient(p.x, p.y - 14 * z, 0, p.x, p.y - 14 * z, re * 1.5);
+      gfl.addColorStop(0, "rgba(244,254,255," + (0.9 * (1 - t / 0.10)) + ")");
+      gfl.addColorStop(1, "rgba(140,220,255,0)");
+      c.fillStyle = gfl;
+      c.beginPath(); c.arc(p.x, p.y - 14 * z, re * 1.5, 0, 6.2832); c.fill();
+      c.restore();
+    }
+
+    /* onde de choc au sol */
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.strokeStyle = "rgba(160,240,255," + (1 - t) + ")";
-    c.lineWidth = 2 * z;
-    for(var b = 0; b < 5; b++){
-      var a2 = b / 5 * 6.2832 + t * 3;
+    c.strokeStyle = "rgba(150,238,255," + (0.65 * fane) + ")";
+    c.lineWidth = Math.max(1.4, 5 * fane * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd * 1.25, rd * 0.62, 0, 0, 6.2832);
+    c.stroke();
+
+    /* LE DÔME : deux calottes concentriques, remplies puis cerclées */
+    var gd = c.createRadialGradient(p.x, p.y - rd * 0.30, rd * 0.10,
+                                    p.x, p.y - rd * 0.30, rd);
+    gd.addColorStop(0.00, "rgba(226,252,255," + (0.30 * fane) + ")");
+    gd.addColorStop(0.62, "rgba(110,214,255," + (0.20 * fane) + ")");
+    gd.addColorStop(0.93, "rgba(90,180,255," + (0.42 * fane) + ")");
+    gd.addColorStop(1.00, "rgba(70,150,230,0)");
+    c.fillStyle = gd;
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd, rd * 0.95, 0, Math.PI, 0);
+    c.ellipse(p.x, p.y, rd, rd * 0.42, 0, 0, Math.PI);
+    c.closePath(); c.fill();
+    c.strokeStyle = "rgba(198,248,255," + (0.70 * fane) + ")";
+    c.lineWidth = Math.max(1.2, 2.6 * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd, rd * 0.95, 0, Math.PI, 0);
+    c.stroke();
+    /* méridiens : ils donnent au dôme son volume */
+    for(var md = 0; md < 5; md++){
+      var fm = (md / 4) * 2 - 1;
+      c.strokeStyle = "rgba(170,240,255," + (0.26 * fane) + ")";
+      c.lineWidth = Math.max(0.8, 1.4 * z);
       c.beginPath();
-      c.moveTo(p.x, p.y - 30 * z);
-      var xx = p.x, yy = p.y - 30 * z;
-      for(var m2 = 0; m2 < 4; m2++){
-        xx += Math.cos(a2) * e.r * 9 * z / 4 + (Math.random() - 0.5) * 8 * z;
-        yy += Math.sin(a2) * e.r * 5 * z / 4 + 7 * z + (Math.random() - 0.5) * 5 * z;
-        c.lineTo(xx, yy);
+      c.ellipse(p.x, p.y, Math.abs(fm) * rd, rd * 0.95, 0, Math.PI, 0);
+      c.stroke();
+    }
+
+    /* arcs qui jaillissent du point d'impact vers le haut du dôme */
+    var ale = prng(((e.gx * 419 + e.gy * 877) | 0) || 3);
+    c.strokeStyle = "rgba(226,252,255," + (0.85 * fane) + ")";
+    c.lineWidth = Math.max(1, 2.1 * z);
+    c.lineCap = "round";
+    for(var na = 0; na < 7; na++){
+      var aa2 = ale() * 6.2832;
+      c.beginPath();
+      c.moveTo(p.x, p.y - 4 * z);
+      var xe2 = p.x, ye2 = p.y - 4 * z;
+      for(var ke = 1; ke <= 4; ke++){
+        var fe2 = ke / 4;
+        xe2 = p.x + Math.cos(aa2) * rd * fe2 * (0.85 + ale() * 0.3);
+        ye2 = p.y - rd * 0.9 * fe2 * fe2 + Math.sin(aa2) * rd * 0.4 * fe2;
+        c.lineTo(xe2, ye2);
+      }
+      c.stroke();
+    }
+
+    /* ramifications au sol : elles courent en rampant */
+    c.strokeStyle = "rgba(140,226,255," + (0.55 * fane) + ")";
+    c.lineWidth = Math.max(0.9, 1.7 * z);
+    for(var nr = 0; nr < 9; nr++){
+      var ar2 = (nr / 9) * 6.2832 + ale() * 0.4;
+      var xr = p.x, yr = p.y;
+      c.beginPath(); c.moveTo(xr, yr);
+      for(var kr = 1; kr <= 4; kr++){
+        var lr = rd * 1.25 * (kr / 4) * ouvre;
+        var jr = (ale() - 0.5) * 0.5;
+        xr = p.x + Math.cos(ar2 + jr) * lr;
+        yr = p.y + Math.sin(ar2 + jr) * lr * 0.5;
+        c.lineTo(xr, yr);
       }
       c.stroke();
     }
     c.restore();
-    lueur(c, p.x, p.y - 10 * z, e.r * 20 * z, "#7de6ff", 0.4 * (1 - t));
+    lueur(c, p.x, p.y - 10 * z, rd * 1.4, "#7de6ff", 0.34 * fane);
   }else if(e.t === "coup"){
     c.save();
     c.globalAlpha = 1 - t;
@@ -391,15 +583,143 @@ function dessineProjectile(c, p, tps){
     c.save(); c.globalAlpha = 0.2; c.fillStyle = "#000";
     c.beginPath(); c.ellipse(e.x, e.y, 6 * cam.z, 3 * cam.z, 0, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "bobine"){
+  }else if(p.t === "bombe"){
+    /* ---- MORTIER et missiles de SALVE ----
+       L'obus n'était tout simplement pas dessiné : l'explosion
+       apparaissait au sol sans que rien ne tombe. Il a désormais une
+       ombre au sol qui trahit sa hauteur, une traînée, et — pour un
+       missile de Salve — une tête enflammée qu'on suit dans sa chute. */
+    var salve = !!p.salve;
+    var hy2 = e.y - zz - 10 * z;
+    var tp = Math.min(1, p.age / p.duree);
+    var monte = tp < 0.5;
+
+    /* ombre au sol : elle rétrécit quand l'obus monte. C'est elle qui
+       rend la trajectoire lisible en isométrie. */
+    var fo2 = Math.max(0.12, 1 - (p.z || 0) / 90);
+    c.save();
+    c.globalAlpha = 0.24 * fo2;
+    c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 5.5 * fo2 * z, 2.7 * fo2 * z, 0, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* traînée : fumée sur la montée, feu sur la descente */
+    var dep = versEcran(cam, p.x0, p.y0);
+    var nT = salve ? 12 : 7;
+    for(var s4 = 1; s4 <= nT; s4++){
+      var t4 = s4 / nT;
+      var ta = Math.max(0, tp - t4 * (salve ? 0.30 : 0.20));
+      var xa2 = p.x0 + (p.cx - p.x0) * ta, ya2 = p.y0 + (p.cy - p.y0) * ta;
+      var za2 = (p.haut || 30) * 4 * ta * (1 - ta);
+      var pt4 = versEcran(cam, xa2, ya2);
+      var yy4 = pt4.y - za2 * z - 10 * z;
+      if(salve && !monte){
+        /* la traînée s'embrase à la descente : on suit le missile */
+        c.save();
+        c.globalCompositeOperation = "lighter";
+        var gs4 = c.createRadialGradient(pt4.x, yy4, 0, pt4.x, yy4, (4 + t4 * 13) * z);
+        gs4.addColorStop(0, "rgba(255,222,150," + ((1 - t4) * 0.55) + ")");
+        gs4.addColorStop(0.5, "rgba(255,130,34," + ((1 - t4) * 0.30) + ")");
+        gs4.addColorStop(1, "rgba(200,50,10,0)");
+        c.fillStyle = gs4;
+        c.beginPath(); c.arc(pt4.x, yy4, (4 + t4 * 13) * z, 0, 6.2832); c.fill();
+        c.restore();
+      }
+      bouffee(c, pt4.x, yy4, (2.2 + t4 * (salve ? 9 : 5.5)) * z,
+              (1 - t4) * (salve ? 0.34 : 0.24), salve ? "#a89c98" : "#8e8682");
+    }
+
+    /* le corps : ogive orientée dans le sens du vol */
+    var dxv = (p.cx - p.x0), dyv = (p.cy - p.y0);
+    var pv2 = versEcran(cam, p.x0 + dxv * Math.min(1, tp + 0.05),
+                             p.y0 + dyv * Math.min(1, tp + 0.05));
+    var zv = (p.haut || 30) * 4 * Math.min(1, tp + 0.05) * (1 - Math.min(1, tp + 0.05));
+    var angV = Math.atan2((pv2.y - zv * z) - hy2, pv2.x - e.x);
+    c.save();
+    c.translate(e.x, hy2);
+    c.rotate(angV);
+    c.scale(z, z);
+    if(salve){
+      c.fillStyle = "#cfd3d8";
+      c.beginPath();
+      c.moveTo(9, 0); c.lineTo(-6, -3.1); c.lineTo(-6, 3.1);
+      c.closePath(); c.fill();
+      c.fillStyle = "#b03828";
+      c.fillRect(-2, -3.1, 3, 6.2);
+      c.fillStyle = "#7d848c";
+      c.beginPath();
+      c.moveTo(-6, -3.1); c.lineTo(-10, -5.4); c.lineTo(-6, -1.2); c.closePath(); c.fill();
+      c.beginPath();
+      c.moveTo(-6, 3.1); c.lineTo(-10, 5.4); c.lineTo(-6, 1.2); c.closePath(); c.fill();
+    }else{
+      c.fillStyle = "#3e4a3a";
+      c.beginPath();
+      c.moveTo(6.5, 0); c.lineTo(-4.5, -2.7); c.lineTo(-4.5, 2.7);
+      c.closePath(); c.fill();
+      c.fillStyle = "#8e9a72";
+      c.fillRect(-4.5, -2.7, 2, 5.4);
+    }
+    c.restore();
+
+    /* tête enflammée : elle rend le missile repérable de loin */
     c.save();
     c.globalCompositeOperation = "lighter";
-    var g3 = c.createRadialGradient(e.x, e.y - zz - 8 * z, 0, e.x, e.y - zz - 8 * z, 11 * z);
-    g3.addColorStop(0, "rgba(220,250,255,.95)");
-    g3.addColorStop(0.4, "rgba(125,230,255,.6)");
+    var rTete = (salve ? (monte ? 12 : 20) : 8) * z;
+    var gte = c.createRadialGradient(e.x, hy2, 0, e.x, hy2, rTete);
+    gte.addColorStop(0, "rgba(255,250,224,.95)");
+    gte.addColorStop(0.35, "rgba(255,186,72,.65)");
+    gte.addColorStop(1, "rgba(255,90,20,0)");
+    c.fillStyle = gte;
+    c.beginPath(); c.arc(e.x, hy2, rTete, 0, 6.2832); c.fill();
+    c.restore();
+
+  }else if(p.t === "bobine"){
+    /* ---- ÉLECTROBOMBE, le projectile ----
+       Une bille d'énergie qui grésille, avec des arcs qui lui tournent
+       autour et une ombre au sol pour la trajectoire. */
+    var hb = e.y - zz - 10 * z;
+    c.save();
+    c.globalAlpha = 0.2;
+    c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 5 * z, 2.5 * z, 0, 0, 6.2832); c.fill();
+    c.restore();
+
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var g3 = c.createRadialGradient(e.x, hb, 0, e.x, hb, 15 * z);
+    g3.addColorStop(0, "rgba(232,252,255,.98)");
+    g3.addColorStop(0.32, "rgba(125,230,255,.72)");
     g3.addColorStop(1, "rgba(60,160,220,0)");
     c.fillStyle = g3;
-    c.beginPath(); c.arc(e.x, e.y - zz - 8 * z, 11 * z, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(e.x, hb, 15 * z, 0, 6.2832); c.fill();
+    /* arcs en orbite */
+    c.strokeStyle = "rgba(190,246,255,.8)";
+    c.lineWidth = Math.max(0.8, 1.4 * z);
+    for(var ab = 0; ab < 3; ab++){
+      var a0b = tps * 11 + ab * 2.09;
+      c.beginPath();
+      var xb2 = e.x + Math.cos(a0b) * 5 * z, yb2 = hb + Math.sin(a0b) * 3 * z;
+      c.moveTo(xb2, yb2);
+      for(var kb = 1; kb <= 3; kb++){
+        var ak = a0b + kb * 0.8;
+        c.lineTo(e.x + Math.cos(ak) * (6 + kb * 2.4) * z,
+                 hb + Math.sin(ak) * (3.5 + kb * 1.6) * z);
+      }
+      c.stroke();
+    }
+    /* traînée de scintilles */
+    var depb = versEcran(cam, p.x0, p.y0);
+    var tb2 = Math.min(1, p.age / p.duree);
+    for(var sb = 1; sb <= 6; sb++){
+      var tt5 = sb / 6;
+      var ta5 = Math.max(0, tb2 - tt5 * 0.18);
+      var pb5 = versEcran(cam, p.x0 + (p.cx - p.x0) * ta5, p.y0 + (p.cy - p.y0) * ta5);
+      var zb5 = (p.haut || 30) * 4 * ta5 * (1 - ta5);
+      c.fillStyle = "rgba(150,236,255," + ((1 - tt5) * 0.42) + ")";
+      c.beginPath();
+      c.arc(pb5.x, pb5.y - zb5 * z - 10 * z, (3.4 - tt5 * 2.4) * z, 0, 6.2832);
+      c.fill();
+    }
     c.restore();
   }
 }

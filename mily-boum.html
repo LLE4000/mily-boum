@@ -446,7 +446,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.01";
+var VERSION = "v0.02";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -6925,7 +6925,19 @@ function creeUnite(type, gx, gy){
     ancX:an.x, ancY:an.y, sepC:0,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
-    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
+    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1,
+    /* Ordre de Balise, STRICTEMENT individuel : il vaut l'identifiant
+       de la balise tant que CETTE unité ne l'a pas atteinte, et 0
+       ensuite. Une unité qui débarque pendant qu'une balise est active
+       reçoit l'ordre elle aussi. */
+    baliseOrdre:(jeu && jeu.balise) ? jeu.balise.id : 0,
+    baliseMeilleure:1e9, baliseStagne:0,
+    /* Seuil d'enlisement propre à chaque unité. Deux voisines collées
+       au même mur cesseraient de progresser à la même image ; avec un
+       seuil identique elles se libéreraient ensemble, ce qui ressemble
+       à une libération de groupe. Étalé sur 2,6 à 4,4 s, chacune part
+       pour son propre compte. */
+    baliseSeuil:2.6 + Math.random() * 1.8,
     pousse:{ x:0, y:0 }
   });
   return jeu.unites[jeu.unites.length - 1];
@@ -6983,7 +6995,7 @@ function abimeBatiment(b, d){
     /* une fusée posée sur ce bâtiment cesse d'agir dès qu'il tombe */
     if(jeu.balise && jeu.balise.cible === b){
       jeu.balise = null;
-      for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
+      libereBalise();
     }
     jeu.energie += DEF[b.t].recolte ? EQ.ENERGIE_PAR_CELLULE : EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
@@ -7004,6 +7016,16 @@ function abimeBatiment(b, d){
     demandeMajBarres();
   }
 }
+/* Une balise qui s'éteint ne laisse personne sous ses ordres : sans
+   ça, le drapeau resterait posé sur des unités jusqu'à leur mort. */
+function libereBalise(){
+  for(var i = 0; i < jeu.unites.length; i++){
+    jeu.unites[i].baliseOrdre = 0;
+    jeu.unites[i].cible = null;
+    jeu.unites[i].prochainCiblage = 0;
+  }
+}
+
 function abimeCreature(c, d){
   if(c.pv <= 0) return;
   c.pv -= d;
@@ -7108,21 +7130,22 @@ function majUnites(dt){
        Deux comportements, selon l'endroit où la fusée est tombée.
        L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
        propre compte, les autres continuent de converger.               */
-    if(balise && u.baliseVue !== balise.id){
+    /* --- BALISE : un ordre individuel, prioritaire sur tout ------------
+       Tant que u.baliseOrdre vaut l'identifiant de la balise en cours,
+       cette unité — et elle seule — est sous les ordres. Rien ne l'en
+       libère : ni une défense à portée, ni le Brouillard, ni un
+       changement de zone. Seul le fait QU'ELLE ait atteint ou franchi
+       la zone remet son drapeau à zéro, sans toucher à ses voisines. */
+    if(balise && u.baliseOrdre === balise.id){
       var bc = balise.cible;
       if(bc && bc.vivant){
-        /* 2) fusée posée sur une défense ou un bâtiment :
-              on y va et on le démonte en priorité */
+        /* balise posée sur un bâtiment : il devient la cible
+           prioritaire, et l'ordre tient tant qu'il est debout */
         var dxb = bc.gx - u.gx, dyb = bc.gy - u.gy;
         var db = Math.hypot(dxb, dyb) - bc.e * 0.42;
         u.droite = (dxb - dyb) > 0;
         u.cible = { k:"bat", o:bc };
         if(db > f.arret){
-          /* même éventail que pour une cible ordinaire : la troupe
-             encercle le bâtiment désigné au lieu de s'entasser sur la
-             face qu'elle a abordée */
-          /* plafonné par la marge d'arrêt : un décalage plus grand que
-             la portée empêcherait la troupe d'entrer en portée du tout */
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
@@ -7138,37 +7161,47 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* 1) balise au sol : ralliement sans tirer. Chaque troupe a SA
-              place autour de la balise — la balise est une zone de
-              rassemblement, pas un pixel — et se libère dès qu'elle y
-              est, pour son propre compte. */
+        /* balise au sol : chacune marche vers SA place, sans tirer */
         var rf = rayonFormation();
         var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
         var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        /* Filet de sécurité — et RIEN QUE ça. Testé sur la seule
-           distance au centre, il se déclenchait pour tout le monde :
-           chaque troupe franchit le bord du disque avant d'atteindre sa
-           place, donc toutes se libéraient à 3,76 cases du point visé.
-           Il ne joue désormais que si la place est vraiment inatteignable. */
         var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
-        if(df > EQ.BALISE_RAYON && !(dCentre <= rf && bloque(pvx, pvy))){
+        /* Atteinte de la zone : soit elle est sur sa place, soit elle a
+           franchi le cercle — c'est le « atteint OU dépassé » demandé.
+           Le repli sur le cercle sert aussi de filet quand la place
+           assignée tombe dans l'eau ou dans un mur. */
+        var arrivee = (df <= EQ.BALISE_RAYON) ||
+                      (dCentre <= rf && (dCentre <= EQ.BALISE_RAYON || bloque(pvx, pvy)));
+        /* Garde-fou contre l'enlisement. deplace() ne sait que longer un
+           obstacle, pas le contourner : une troupe lancée à travers un
+           champ de défenses peut se coller à un mur et ne plus avancer
+           d'un pouce. Sans ce garde-fou elle resterait plantée là les
+           trente secondes de la balise, ce qui est PIRE que le défaut
+           d'origine. On mesure donc son meilleur rapprochement : si elle
+           ne gagne plus rien pendant trois secondes, on considère
+           qu'elle a fait ce qu'elle pouvait et on la libère — elle
+           seule. */
+        if(dCentre < u.baliseMeilleure - 0.05){
+          u.baliseMeilleure = dCentre;
+          u.baliseStagne = 0;
+        }else{
+          u.baliseStagne += dt;
+          if(u.baliseStagne > (u.baliseSeuil || 3.0)) arrivee = true;
+        }
+        if(!arrivee){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
           u.cible = null;
-          continue;
+          continue;                       // rien d'autre ne la concerne
         }
-        /* place atteinte : cette balise ne l'influence plus, jamais */
-        u.baliseVue = balise.id;
-        u.cible = null;
-        u.prochainCiblage = 0;
-      }else{
-        /* la cible de la fusée est tombée : libération immédiate */
-        u.baliseVue = balise.id;
-        u.cible = null;
-        u.prochainCiblage = 0;
       }
+      /* CETTE unité est arrivée — ou sa cible désignée est tombée.
+         Elle seule est libérée, et elle repart aussitôt en chasse. */
+      u.baliseOrdre = 0;
+      u.cible = null;
+      u.prochainCiblage = 0;
     }
 
     /* --- recherche de cible, espacée --- */
@@ -7338,17 +7371,25 @@ function tireDefense(b, f, c, d, tps){
   if(b.t === "crible"){
     b.recul = 1;
     var touche = mitraTouche(d, Math.random());
-    if(touche){
-      toucheUnite(c, f.degats);
-      jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:c.gx, ey:c.gy, age:0, duree:0.09 });
+    /* Chaque balle finit quelque part : une gerbe de sable marque le
+       point de chute. C'est cette grêle d'impacts qui fait comprendre,
+       même en dézoomant, quelle zone la mitrailleuse est en train
+       d'arroser — les traçantes seules sont trop fugaces. */
+    var disp = touche ? 0.42 : 0.95;              // dispersion, en cases
+    var ai = Math.random() * 6.2832, ri = Math.sqrt(Math.random()) * disp;
+    var ex = c.gx + Math.cos(ai) * ri, ey = c.gy + Math.sin(ai) * ri;
+    if(!touche){
+      /* balle franchement perdue : elle part plus loin, au-delà */
+      var a = Math.atan2(c.gy - b.gy, c.gx - b.gx) + (Math.random() - 0.5) * 0.30;
+      var dd = d * (1.05 + Math.random() * 0.35);
+      ex = b.gx + Math.cos(a) * dd; ey = b.gy + Math.sin(a) * dd;
     }else{
-      /* balle perdue : elle passe à côté et meurt dans le sable */
-      var a = Math.atan2(c.gy - b.gy, c.gx - b.gx) + (Math.random() - 0.5) * 0.34;
-      var dd = d * (1.15 + Math.random() * 0.5);
-      var ex = b.gx + Math.cos(a) * dd, ey = b.gy + Math.sin(a) * dd;
-      jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey, age:0, duree:0.11, perdue:1 });
-      jeu.effets.push({ t:"poussiere", gx:ex, gy:ey, age:0, duree:0.42 });
+      toucheUnite(c, f.degats);
     }
+    jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey,
+                      age:0, duree:0.10, perdue:touche ? 0 : 1 });
+    jeu.effets.push({ t:"impact", gx:ex, gy:ey, age:0, duree:0.34 });
+    son.tirCrible();
   }else if(b.t === "chalumeau"){
     /* cône de chalumeau : tout ce qui est dans le cône prend et brûle */
     var ang = b.angle;
@@ -7363,6 +7404,7 @@ function tireDefense(b, f, c, d, tps){
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
                       ouv:f.cone, age:0, duree:0.22 });
+    son.jetFlamme();
   }else if(b.t === "frelon"){
     b.recul = 1;
     jeu.projectiles.push({ t:"roquette", gx:b.gx, gy:b.gy, z:26, cible:c,
@@ -7371,14 +7413,19 @@ function tireDefense(b, f, c, d, tps){
     son.tirFrelon();
   }else if(b.t === "pilon"){
     b.recul = 1; b.chargement = 1;
-    var vol = d / f.vitesseProj;
+    /* Une cloche haute et lente : c'est la lisibilité de la trajectoire
+       qui dit d'où vient le coup. Trop tendue, on ne voit rien partir. */
+    var vol = Math.max(0.85, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bombe", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
-      cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone, haut:38 + d * 3.2 });
+      cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone,
+      haut:34 + d * 4.6 });
+    jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.45 });
     son.tirPilon();
   }else if(b.t === "bobine"){
-    var vol2 = d / f.vitesseProj;
+    var vol2 = Math.max(0.7, d / f.vitesseProj);
     jeu.projectiles.push({ t:"bobine", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
-      cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone, ralenti:f.ralenti });
+      cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone,
+      ralenti:f.ralenti, haut:30 + d * 2.6 });
     son.tirBobine();
   }
 }
@@ -7453,10 +7500,29 @@ function majProjectiles(dt){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
           if(!p.allie || p.tousCamps) degatsZone(p.cx, p.cy, p.zone, p.degats);
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
-          jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.62, r:p.zone, force:1 });
+          jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0,
+                            duree:p.salve ? 0.85 : 0.62,
+                            r:p.zone * (p.salve ? 1.5 : 1), force:p.salve ? 1.4 : 1 });
           jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.55 });
           if(jeu.crateres.length > 160) jeu.crateres.shift();
-          son.boum(0.42);
+          /* Anneau de souffle au sol : c'est lui qui dit « obus » plutôt
+             que « boule de feu ». Il reste discret pour un tir de Pilon
+             et s'élargit franchement pour une Salve. */
+          jeu.effets.push({ t:"onde", gx:p.cx, gy:p.cy, age:0,
+                            duree:p.salve ? 0.55 : 0.42,
+                            r:p.zone * (p.salve ? 2.2 : 1.5) });
+          if(p.salve){
+            /* onde au sol + gerbe de sable : quelque chose de lourd
+               vient de tomber du ciel */
+            for(var ge = 0; ge < 7; ge++){
+              var age2 = Math.random() * 6.2832, rge = Math.random() * p.zone * 0.9;
+              jeu.effets.push({ t:"impact",
+                gx:p.cx + Math.cos(age2) * rge, gy:p.cy + Math.sin(age2) * rge,
+                age:0, duree:0.4 });
+            }
+            jeu.secousse = Math.min(12, jeu.secousse + 3);
+          }
+          son.boum(p.salve ? 0.7 : 0.42);
         }else{
           degatsZone(p.cx, p.cy, p.zone, p.degats, { ralenti:p.ralenti, type:"elec" });
           jeu.effets.push({ t:"eclair", gx:p.cx, gy:p.cy, age:0, duree:0.42, r:p.zone });
@@ -7726,7 +7792,7 @@ function majZones(dt){
   }
   if(jeu.balise){
     jeu.balise.reste -= dt;
-    if(jeu.balise.reste <= 0) jeu.balise = null;
+    if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
   }
 }
 
@@ -7834,6 +7900,16 @@ function utiliseCapacite(m, gx, gy){
     jeu.idBalise = (jeu.idBalise || 0) + 1;
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
                    id:jeu.idBalise, cible:vise };
+    /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
+       le ciblage en cours : aucune ne doit continuer à taper une
+       défense proche tant qu'elle n'a pas rejoint la balise. */
+    for(var z2 = 0; z2 < jeu.unites.length; z2++){
+      jeu.unites[z2].baliseOrdre = jeu.balise.id;
+      jeu.unites[z2].baliseMeilleure = 1e9;
+      jeu.unites[z2].baliseStagne = 0;
+      jeu.unites[z2].baliseSeuil = 2.6 + Math.random() * 1.8;
+      jeu.unites[z2].cible = null;
+    }
     jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });
     son.balise();
 
@@ -7884,12 +7960,19 @@ function utiliseCapacite(m, gx, gy){
        ils touchent bâtiments, créatures ET troupes, alliées comprises */
     for(var i = 0; i < CAP.salve.nb; i++){
       var a = Math.random() * 6.2832, r = Math.sqrt(Math.random()) * CAP.salve.rayon;
+      /* Ils partent de haut et de loin, et retombent en piqué : on doit
+         VOIR quelque chose tomber du ciel, pas une explosion qui naît
+         au sol. La hauteur de cloche est franche, et les départs sont
+         échelonnés pour que la salve dure. */
+      var ad = Math.random() * 6.2832;
       jeu.projectiles.push({
-        t:"bombe", gx:gx + Math.cos(a) * 16, gy:gy - 16,
-        x0:gx + Math.cos(a) * 9, y0:gy - 12,
+        t:"bombe", salve:1,
+        gx:gx + Math.cos(ad) * 26, gy:gy + Math.sin(ad) * 26 - 22,
+        x0:gx + Math.cos(ad) * 26, y0:gy + Math.sin(ad) * 26 - 22,
         cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
-        duree:0.45 + i / CAP.salve.nb * CAP.salve.duree, age:0,
-        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:70, allie:1, tousCamps:1
+        duree:0.75 + i / CAP.salve.nb * CAP.salve.duree, age:0,
+        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:150,
+        allie:1, tousCamps:1
       });
     }
     son.salve();
@@ -8757,14 +8840,81 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "traceur"){
-    var q = versEcran(cam, e.ex, e.ey);
+    /* ---- MITRAILLEUSE, la traçante ----
+       Un trait court et vif, avec une tête lumineuse qui file le long
+       du segment : c'est elle qui donne la vitesse. */
+    var q3 = versEcran(cam, e.ex, e.ey);
+    var av = Math.min(1, e.age / e.duree);
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.strokeStyle = e.perdue ? "rgba(255,220,150,.55)" : "rgba(255,240,190,.9)";
-    c.lineWidth = (e.perdue ? 1.1 : 1.6) * Math.max(0.6, z);
+    var x1 = p.x, y1 = p.y - 20 * z, x2 = q3.x, y2 = q3.y - 10 * z;
+    /* la traçante ne s'affiche que sur la portion déjà parcourue */
+    var xa = x1 + (x2 - x1) * Math.max(0, av - 0.45);
+    var xb = x1 + (x2 - x1) * av;
+    var ya = y1 + (y2 - y1) * Math.max(0, av - 0.45);
+    var yb = y1 + (y2 - y1) * av;
+    c.strokeStyle = e.perdue ? "rgba(255,214,150,.5)" : "rgba(255,244,206,.92)";
+    c.lineWidth = (e.perdue ? 1.2 : 2.0) * Math.max(0.7, z);
+    c.lineCap = "round";
+    c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.stroke();
+    /* tête */
+    var gt2 = c.createRadialGradient(xb, yb, 0, xb, yb, 5.5 * z);
+    gt2.addColorStop(0, "rgba(255,252,226,.95)");
+    gt2.addColorStop(1, "rgba(255,170,50,0)");
+    c.fillStyle = gt2;
+    c.beginPath(); c.arc(xb, yb, 5.5 * z, 0, 6.2832); c.fill();
+    c.restore();
+  }else if(e.t === "onde"){
+    /* onde de choc au sol : un anneau qui s'élargit et s'efface */
+    var ao = (1 - t) * (1 - t);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(255,238,196," + (0.55 * ao) + ")";
+    c.lineWidth = Math.max(1.4, 7 * ao * z);
     c.beginPath();
-    c.moveTo(p.x, p.y - 18 * z); c.lineTo(q.x, q.y - 12 * z);
+    c.ellipse(p.x, p.y, e.r * 26 * t * z, e.r * 13 * t * z, 0, 0, 6.2832);
     c.stroke();
+    c.restore();
+    /* poussière soulevée par l'anneau */
+    c.save();
+    c.globalAlpha = ao * 0.22;
+    c.fillStyle = "#d8c9a4";
+    for(var no = 0; no < 8; no++){
+      var ano = no / 8 * 6.2832;
+      c.beginPath();
+      c.ellipse(p.x + Math.cos(ano) * e.r * 24 * t * z,
+                p.y + Math.sin(ano) * e.r * 12 * t * z - t * 6 * z,
+                (3 + t * 9) * z, (1.6 + t * 4) * z, 0, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }else if(e.t === "impact"){
+    /* ---- MITRAILLEUSE, l'impact au sol ----
+       Ce sont EUX qui font comprendre quelle zone est arrosée. Une
+       gerbe de sable, quelques éclats, et un petit cratère clair. */
+    var ai = 1 - t;
+    c.save();
+    /* gerbe */
+    c.globalAlpha = ai * 0.5;
+    c.fillStyle = "#e2d3ac";
+    c.beginPath();
+    c.ellipse(p.x, p.y - 3 * z - t * 7 * z, (2.6 + t * 8) * z, (1.4 + t * 4) * z, 0, 0, 6.2832);
+    c.fill();
+    /* éclats projetés, en étoile stable (graine sur la position) */
+    var ali = prng(((e.gx * 733 + e.gy * 191) | 0) || 7);
+    c.globalAlpha = ai;
+    c.fillStyle = "#c9b78e";
+    for(var ei = 0; ei < 5; ei++){
+      var aei = ali() * 6.2832, dei = t * (5 + ali() * 11) * z;
+      c.beginPath();
+      c.arc(p.x + Math.cos(aei) * dei, p.y - 2 * z + Math.sin(aei) * dei * 0.5 - t * 9 * z,
+            1.15 * z * (1 - t * 0.6), 0, 6.2832);
+      c.fill();
+    }
+    /* petite marque au sol qui reste un instant */
+    c.globalAlpha = ai * 0.28;
+    c.fillStyle = "#7a6a4c";
+    c.beginPath(); c.ellipse(p.x, p.y, 2.6 * z, 1.3 * z, 0, 0, 6.2832); c.fill();
     c.restore();
   }else if(e.t === "poussiere"){
     c.save();
@@ -8773,26 +8923,74 @@ function dessineEffet(c, e, tps){
     c.beginPath(); c.ellipse(p.x, p.y - 3 * z, (4 + t * 9) * z, (2 + t * 4) * z, 0, 0, 6.2832); c.fill();
     c.restore();
   }else if(e.t === "cone"){
+    /* ---- LANCE-FLAMMES ----
+       Un jet continu, pas une bouffée : trois nappes superposées qui
+       ondulent le long de l'axe, du blanc-jaune au cœur jusqu'au rouge
+       sombre aux bords, une trace de chaleur au sol, et de la fumée qui
+       se détache en bout de course. La turbulence est pilotée par le
+       temps global — donc fluide d'une image à l'autre, contrairement
+       à un Math.random() qui grésille. */
+    var NAPPES = [
+      { c1:"#c0210a", c2:"#ff4a0e", l:1.00, w:1.00, a:0.50, v:0.0 },
+      { c1:"#ff7a12", c2:"#ffb43a", l:0.86, w:0.66, a:0.62, v:1.7 },
+      { c1:"#ffd76a", c2:"#fff6d0", l:0.62, w:0.34, a:0.70, v:3.4 }
+    ];
+    var puls = 1 - t * 0.25;                       // il retombe en fin de bouffée
     c.save();
     c.globalCompositeOperation = "lighter";
-    var n = 16;
-    for(var k = 0; k < n; k++){
-      var f2 = k / n;
-      var aa = e.ang + (Math.random() - 0.5) * e.ouv * 2 * (0.3 + f2);
-      var dd2 = e.portee * f2;
-      var pp = versEcran(cam, e.gx + Math.cos(aa) * dd2, e.gy + Math.sin(aa) * dd2);
-      var rr = (3 + f2 * 11) * z;
-      var gg = c.createRadialGradient(pp.x, pp.y - 12 * z, 0, pp.x, pp.y - 12 * z, rr);
-      gg.addColorStop(0, "rgba(255,240,190," + (0.7 * (1 - t)) + ")");
-      gg.addColorStop(0.4, "rgba(255,140,30," + (0.55 * (1 - t)) + ")");
-      gg.addColorStop(1, "rgba(200,40,10,0)");
-      c.fillStyle = gg;
-      c.beginPath(); c.arc(pp.x, pp.y - 12 * z, rr, 0, 6.2832); c.fill();
+    for(var nn = 0; nn < NAPPES.length; nn++){
+      var N = NAPPES[nn];
+      var pas = 9;
+      c.beginPath();
+      /* bord supérieur, puis bord inférieur en sens inverse */
+      for(var cote = 0; cote < 2; cote++){
+        for(var kk = 0; kk <= pas; kk++){
+          var q = cote ? (1 - kk / pas) : (kk / pas);
+          var dq = e.portee * N.l * q * puls;
+          /* l'axe serpente doucement */
+          var lacet = Math.sin(tps * 9 + N.v + q * 5.5) * e.ouv * 0.34 * q;
+          var aq = e.ang + lacet;
+          /* largeur : pincée à la buse, évasée au bout, qui bat */
+          var demi = e.ouv * dq * N.w *
+                     (0.34 + q * 0.85) * (0.9 + Math.sin(tps * 13 + q * 7 + N.v) * 0.14);
+          var sgn = cote ? -1 : 1;
+          var pp2 = versEcran(cam, e.gx + Math.cos(aq) * dq, e.gy + Math.sin(aq) * dq);
+          /* on écarte perpendiculairement, à l'écran */
+          var per = vecteurEcran(aq + 1.5708);
+          var xx2 = pp2.x + per.x * demi * 26 * z * sgn;
+          var yy2 = pp2.y + per.y * demi * 26 * z * sgn - (13 + q * 9) * z;
+          if(cote === 0 && kk === 0) c.moveTo(xx2, yy2); else c.lineTo(xx2, yy2);
+        }
+      }
+      c.closePath();
+      var pf = versEcran(cam, e.gx, e.gy);
+      var pl = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee, e.gy + Math.sin(e.ang) * e.portee);
+      var gn2 = c.createLinearGradient(pf.x, pf.y, pl.x, pl.y);
+      gn2.addColorStop(0, rgba(N.c2, N.a * (1 - t * 0.4)));
+      gn2.addColorStop(0.45, rgba(N.c1, N.a * 0.9 * (1 - t * 0.4)));
+      gn2.addColorStop(1, rgba(N.c1, 0));
+      c.fillStyle = gn2;
+      c.fill();
     }
     c.restore();
-    /* lueur au sol */
-    var pe = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * 0.5, e.gy + Math.sin(e.ang) * e.portee * 0.5);
-    lueur(c, pe.x, pe.y, e.portee * 12 * z, "#ff8a1e", 0.16 * (1 - t));
+
+    /* fumée qui se détache au bout du jet */
+    for(var fz = 0; fz < 4; fz++){
+      var qf = 0.72 + fz * 0.11;
+      var pf2 = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * qf,
+                               e.gy + Math.sin(e.ang) * e.portee * qf);
+      bouffee(c, pf2.x + Math.sin(tps * 3 + fz) * 5 * z,
+              pf2.y - (24 + fz * 11) * z - t * 22 * z,
+              (5 + fz * 4) * z, (1 - t) * 0.17, "#584c50");
+    }
+
+    /* braise au sol sous le jet : on voit ce qui brûle */
+    for(var gz = 1; gz <= 5; gz++){
+      var qg2 = gz / 5;
+      var pg2 = versEcran(cam, e.gx + Math.cos(e.ang) * e.portee * qg2,
+                               e.gy + Math.sin(e.ang) * e.portee * qg2);
+      lueur(c, pg2.x, pg2.y, e.portee * (5 + qg2 * 9) * z, "#ff6a14", 0.10 * (1 - t));
+    }
   }else if(e.t === "souffle"){
     var d = vecteurEcran(e.ang);
     c.save();
@@ -8803,24 +9001,101 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "eclair"){
+    /* ---- ÉLECTROBOMBE, l'impact ----
+       Un dôme d'énergie qui se déploie d'un coup et se dissipe, une
+       onde au sol, des arcs qui montent du point d'impact, et des
+       ramifications qui courent sur le sable. On ne peut pas la
+       confondre avec autre chose. */
+    var re = e.r * 26 * z;                       // rayon écran de l'effet
+    var ouvre = Math.min(1, t / 0.16);           // le dôme jaillit très vite
+    var fane = Math.max(0, 1 - Math.max(0, t - 0.16) / 0.84);
+    var rd = re * (0.25 + ouvre * 0.9);
+
+    /* flash blanc au tout premier instant */
+    if(t < 0.10){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gfl = c.createRadialGradient(p.x, p.y - 14 * z, 0, p.x, p.y - 14 * z, re * 1.5);
+      gfl.addColorStop(0, "rgba(244,254,255," + (0.9 * (1 - t / 0.10)) + ")");
+      gfl.addColorStop(1, "rgba(140,220,255,0)");
+      c.fillStyle = gfl;
+      c.beginPath(); c.arc(p.x, p.y - 14 * z, re * 1.5, 0, 6.2832); c.fill();
+      c.restore();
+    }
+
+    /* onde de choc au sol */
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.strokeStyle = "rgba(160,240,255," + (1 - t) + ")";
-    c.lineWidth = 2 * z;
-    for(var b = 0; b < 5; b++){
-      var a2 = b / 5 * 6.2832 + t * 3;
+    c.strokeStyle = "rgba(150,238,255," + (0.65 * fane) + ")";
+    c.lineWidth = Math.max(1.4, 5 * fane * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd * 1.25, rd * 0.62, 0, 0, 6.2832);
+    c.stroke();
+
+    /* LE DÔME : deux calottes concentriques, remplies puis cerclées */
+    var gd = c.createRadialGradient(p.x, p.y - rd * 0.30, rd * 0.10,
+                                    p.x, p.y - rd * 0.30, rd);
+    gd.addColorStop(0.00, "rgba(226,252,255," + (0.30 * fane) + ")");
+    gd.addColorStop(0.62, "rgba(110,214,255," + (0.20 * fane) + ")");
+    gd.addColorStop(0.93, "rgba(90,180,255," + (0.42 * fane) + ")");
+    gd.addColorStop(1.00, "rgba(70,150,230,0)");
+    c.fillStyle = gd;
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd, rd * 0.95, 0, Math.PI, 0);
+    c.ellipse(p.x, p.y, rd, rd * 0.42, 0, 0, Math.PI);
+    c.closePath(); c.fill();
+    c.strokeStyle = "rgba(198,248,255," + (0.70 * fane) + ")";
+    c.lineWidth = Math.max(1.2, 2.6 * z);
+    c.beginPath();
+    c.ellipse(p.x, p.y, rd, rd * 0.95, 0, Math.PI, 0);
+    c.stroke();
+    /* méridiens : ils donnent au dôme son volume */
+    for(var md = 0; md < 5; md++){
+      var fm = (md / 4) * 2 - 1;
+      c.strokeStyle = "rgba(170,240,255," + (0.26 * fane) + ")";
+      c.lineWidth = Math.max(0.8, 1.4 * z);
       c.beginPath();
-      c.moveTo(p.x, p.y - 30 * z);
-      var xx = p.x, yy = p.y - 30 * z;
-      for(var m2 = 0; m2 < 4; m2++){
-        xx += Math.cos(a2) * e.r * 9 * z / 4 + (Math.random() - 0.5) * 8 * z;
-        yy += Math.sin(a2) * e.r * 5 * z / 4 + 7 * z + (Math.random() - 0.5) * 5 * z;
-        c.lineTo(xx, yy);
+      c.ellipse(p.x, p.y, Math.abs(fm) * rd, rd * 0.95, 0, Math.PI, 0);
+      c.stroke();
+    }
+
+    /* arcs qui jaillissent du point d'impact vers le haut du dôme */
+    var ale = prng(((e.gx * 419 + e.gy * 877) | 0) || 3);
+    c.strokeStyle = "rgba(226,252,255," + (0.85 * fane) + ")";
+    c.lineWidth = Math.max(1, 2.1 * z);
+    c.lineCap = "round";
+    for(var na = 0; na < 7; na++){
+      var aa2 = ale() * 6.2832;
+      c.beginPath();
+      c.moveTo(p.x, p.y - 4 * z);
+      var xe2 = p.x, ye2 = p.y - 4 * z;
+      for(var ke = 1; ke <= 4; ke++){
+        var fe2 = ke / 4;
+        xe2 = p.x + Math.cos(aa2) * rd * fe2 * (0.85 + ale() * 0.3);
+        ye2 = p.y - rd * 0.9 * fe2 * fe2 + Math.sin(aa2) * rd * 0.4 * fe2;
+        c.lineTo(xe2, ye2);
+      }
+      c.stroke();
+    }
+
+    /* ramifications au sol : elles courent en rampant */
+    c.strokeStyle = "rgba(140,226,255," + (0.55 * fane) + ")";
+    c.lineWidth = Math.max(0.9, 1.7 * z);
+    for(var nr = 0; nr < 9; nr++){
+      var ar2 = (nr / 9) * 6.2832 + ale() * 0.4;
+      var xr = p.x, yr = p.y;
+      c.beginPath(); c.moveTo(xr, yr);
+      for(var kr = 1; kr <= 4; kr++){
+        var lr = rd * 1.25 * (kr / 4) * ouvre;
+        var jr = (ale() - 0.5) * 0.5;
+        xr = p.x + Math.cos(ar2 + jr) * lr;
+        yr = p.y + Math.sin(ar2 + jr) * lr * 0.5;
+        c.lineTo(xr, yr);
       }
       c.stroke();
     }
     c.restore();
-    lueur(c, p.x, p.y - 10 * z, e.r * 20 * z, "#7de6ff", 0.4 * (1 - t));
+    lueur(c, p.x, p.y - 10 * z, rd * 1.4, "#7de6ff", 0.34 * fane);
   }else if(e.t === "coup"){
     c.save();
     c.globalAlpha = 1 - t;
@@ -9060,15 +9335,143 @@ function dessineProjectile(c, p, tps){
     c.save(); c.globalAlpha = 0.2; c.fillStyle = "#000";
     c.beginPath(); c.ellipse(e.x, e.y, 6 * cam.z, 3 * cam.z, 0, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "bobine"){
+  }else if(p.t === "bombe"){
+    /* ---- MORTIER et missiles de SALVE ----
+       L'obus n'était tout simplement pas dessiné : l'explosion
+       apparaissait au sol sans que rien ne tombe. Il a désormais une
+       ombre au sol qui trahit sa hauteur, une traînée, et — pour un
+       missile de Salve — une tête enflammée qu'on suit dans sa chute. */
+    var salve = !!p.salve;
+    var hy2 = e.y - zz - 10 * z;
+    var tp = Math.min(1, p.age / p.duree);
+    var monte = tp < 0.5;
+
+    /* ombre au sol : elle rétrécit quand l'obus monte. C'est elle qui
+       rend la trajectoire lisible en isométrie. */
+    var fo2 = Math.max(0.12, 1 - (p.z || 0) / 90);
+    c.save();
+    c.globalAlpha = 0.24 * fo2;
+    c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 5.5 * fo2 * z, 2.7 * fo2 * z, 0, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* traînée : fumée sur la montée, feu sur la descente */
+    var dep = versEcran(cam, p.x0, p.y0);
+    var nT = salve ? 12 : 7;
+    for(var s4 = 1; s4 <= nT; s4++){
+      var t4 = s4 / nT;
+      var ta = Math.max(0, tp - t4 * (salve ? 0.30 : 0.20));
+      var xa2 = p.x0 + (p.cx - p.x0) * ta, ya2 = p.y0 + (p.cy - p.y0) * ta;
+      var za2 = (p.haut || 30) * 4 * ta * (1 - ta);
+      var pt4 = versEcran(cam, xa2, ya2);
+      var yy4 = pt4.y - za2 * z - 10 * z;
+      if(salve && !monte){
+        /* la traînée s'embrase à la descente : on suit le missile */
+        c.save();
+        c.globalCompositeOperation = "lighter";
+        var gs4 = c.createRadialGradient(pt4.x, yy4, 0, pt4.x, yy4, (4 + t4 * 13) * z);
+        gs4.addColorStop(0, "rgba(255,222,150," + ((1 - t4) * 0.55) + ")");
+        gs4.addColorStop(0.5, "rgba(255,130,34," + ((1 - t4) * 0.30) + ")");
+        gs4.addColorStop(1, "rgba(200,50,10,0)");
+        c.fillStyle = gs4;
+        c.beginPath(); c.arc(pt4.x, yy4, (4 + t4 * 13) * z, 0, 6.2832); c.fill();
+        c.restore();
+      }
+      bouffee(c, pt4.x, yy4, (2.2 + t4 * (salve ? 9 : 5.5)) * z,
+              (1 - t4) * (salve ? 0.34 : 0.24), salve ? "#a89c98" : "#8e8682");
+    }
+
+    /* le corps : ogive orientée dans le sens du vol */
+    var dxv = (p.cx - p.x0), dyv = (p.cy - p.y0);
+    var pv2 = versEcran(cam, p.x0 + dxv * Math.min(1, tp + 0.05),
+                             p.y0 + dyv * Math.min(1, tp + 0.05));
+    var zv = (p.haut || 30) * 4 * Math.min(1, tp + 0.05) * (1 - Math.min(1, tp + 0.05));
+    var angV = Math.atan2((pv2.y - zv * z) - hy2, pv2.x - e.x);
+    c.save();
+    c.translate(e.x, hy2);
+    c.rotate(angV);
+    c.scale(z, z);
+    if(salve){
+      c.fillStyle = "#cfd3d8";
+      c.beginPath();
+      c.moveTo(9, 0); c.lineTo(-6, -3.1); c.lineTo(-6, 3.1);
+      c.closePath(); c.fill();
+      c.fillStyle = "#b03828";
+      c.fillRect(-2, -3.1, 3, 6.2);
+      c.fillStyle = "#7d848c";
+      c.beginPath();
+      c.moveTo(-6, -3.1); c.lineTo(-10, -5.4); c.lineTo(-6, -1.2); c.closePath(); c.fill();
+      c.beginPath();
+      c.moveTo(-6, 3.1); c.lineTo(-10, 5.4); c.lineTo(-6, 1.2); c.closePath(); c.fill();
+    }else{
+      c.fillStyle = "#3e4a3a";
+      c.beginPath();
+      c.moveTo(6.5, 0); c.lineTo(-4.5, -2.7); c.lineTo(-4.5, 2.7);
+      c.closePath(); c.fill();
+      c.fillStyle = "#8e9a72";
+      c.fillRect(-4.5, -2.7, 2, 5.4);
+    }
+    c.restore();
+
+    /* tête enflammée : elle rend le missile repérable de loin */
     c.save();
     c.globalCompositeOperation = "lighter";
-    var g3 = c.createRadialGradient(e.x, e.y - zz - 8 * z, 0, e.x, e.y - zz - 8 * z, 11 * z);
-    g3.addColorStop(0, "rgba(220,250,255,.95)");
-    g3.addColorStop(0.4, "rgba(125,230,255,.6)");
+    var rTete = (salve ? (monte ? 12 : 20) : 8) * z;
+    var gte = c.createRadialGradient(e.x, hy2, 0, e.x, hy2, rTete);
+    gte.addColorStop(0, "rgba(255,250,224,.95)");
+    gte.addColorStop(0.35, "rgba(255,186,72,.65)");
+    gte.addColorStop(1, "rgba(255,90,20,0)");
+    c.fillStyle = gte;
+    c.beginPath(); c.arc(e.x, hy2, rTete, 0, 6.2832); c.fill();
+    c.restore();
+
+  }else if(p.t === "bobine"){
+    /* ---- ÉLECTROBOMBE, le projectile ----
+       Une bille d'énergie qui grésille, avec des arcs qui lui tournent
+       autour et une ombre au sol pour la trajectoire. */
+    var hb = e.y - zz - 10 * z;
+    c.save();
+    c.globalAlpha = 0.2;
+    c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 5 * z, 2.5 * z, 0, 0, 6.2832); c.fill();
+    c.restore();
+
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var g3 = c.createRadialGradient(e.x, hb, 0, e.x, hb, 15 * z);
+    g3.addColorStop(0, "rgba(232,252,255,.98)");
+    g3.addColorStop(0.32, "rgba(125,230,255,.72)");
     g3.addColorStop(1, "rgba(60,160,220,0)");
     c.fillStyle = g3;
-    c.beginPath(); c.arc(e.x, e.y - zz - 8 * z, 11 * z, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(e.x, hb, 15 * z, 0, 6.2832); c.fill();
+    /* arcs en orbite */
+    c.strokeStyle = "rgba(190,246,255,.8)";
+    c.lineWidth = Math.max(0.8, 1.4 * z);
+    for(var ab = 0; ab < 3; ab++){
+      var a0b = tps * 11 + ab * 2.09;
+      c.beginPath();
+      var xb2 = e.x + Math.cos(a0b) * 5 * z, yb2 = hb + Math.sin(a0b) * 3 * z;
+      c.moveTo(xb2, yb2);
+      for(var kb = 1; kb <= 3; kb++){
+        var ak = a0b + kb * 0.8;
+        c.lineTo(e.x + Math.cos(ak) * (6 + kb * 2.4) * z,
+                 hb + Math.sin(ak) * (3.5 + kb * 1.6) * z);
+      }
+      c.stroke();
+    }
+    /* traînée de scintilles */
+    var depb = versEcran(cam, p.x0, p.y0);
+    var tb2 = Math.min(1, p.age / p.duree);
+    for(var sb = 1; sb <= 6; sb++){
+      var tt5 = sb / 6;
+      var ta5 = Math.max(0, tb2 - tt5 * 0.18);
+      var pb5 = versEcran(cam, p.x0 + (p.cx - p.x0) * ta5, p.y0 + (p.cy - p.y0) * ta5);
+      var zb5 = (p.haut || 30) * 4 * ta5 * (1 - ta5);
+      c.fillStyle = "rgba(150,236,255," + ((1 - tt5) * 0.42) + ")";
+      c.beginPath();
+      c.arc(pb5.x, pb5.y - zb5 * z - 10 * z, (3.4 - tt5 * 2.4) * z, 0, 6.2832);
+      c.fill();
+    }
     c.restore();
   }
 }
@@ -11045,6 +11448,9 @@ var son = {
   tirBobine:function(){ this.bip("square", 1400, 620, 0.10, 0.05); },
   bobine:function(){ this.souffle(2600, 700, 0.28, 0.10); this.bip("sawtooth", 300, 90, 0.2, 0.06); },
   rampe:function(){ this.bip("sawtooth", 210, 90, 0.16, 0.05); },
+  tirCrible:function(){ this.bip("square", 620, 240, 0.045, 0.020); },
+  jetFlamme:function(){ this.souffle(900, 260, 0.20, 0.045); },
+  impactSol:function(){ this.bip("triangle", 260, 120, 0.05, 0.025); },
   grondement:function(){ this.souffle(220, 40, 2.4, 0.16); this.bip("sine", 90, 34, 2.0, 0.12); },
   tweety:function(){ this.bip("sine", 1760, 980, 0.22, 0.07); this.bip("sine", 1320, 620, 0.30, 0.05); },
   recolte:function(){ this.bip("sine", 880, 1560, 0.09, 0.05); },
