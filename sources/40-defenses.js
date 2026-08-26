@@ -3495,9 +3495,13 @@ function spriteTourelle(t, ang){
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, brouillonTour.width, brouillonTour.height);
   c.setTransform(ECH_TOUR, 0, 0, ECH_TOUR, 110 * ECH_TOUR, 190 * ECH_TOUR);
-  /* un bâtiment neutre : plein de vie, l'arme froide, rien en cours */
+  /* Un bâtiment neutre : plein de vie, l'arme froide, rien en cours.
+     chargement:0, comme tout bâtiment au repos (80-jeu.js le crée à 0
+     et il y retombe en un tiers de seconde) — à 1, chaque Pilon gelé
+     portait un obus jaune planté dans la gueule du tube, qui
+     disparaissait d'un coup au réveil. */
   TOURELLES[t](c, { n:0, angle:pas * 6.2832 / PAS_TOUR, flash:0, recul:0,
-                    chargement:1, gonfle:0, pv:1, pvMax:1, cible:null,
+                    chargement:0, gonfle:0, pv:1, pvMax:1, cible:null,
                     prochainTir:0, t:t },
                pas * 6.2832 / PAS_TOUR, 0.37);
   var cd = cadreOpaque(brouillonTour);

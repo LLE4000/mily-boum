@@ -1063,6 +1063,12 @@ function lancePartie(){
   $("brief").style.display = "none";
   $("hud").classList.add("on");
   enJeu = true;
+  /* Chaque partie repart à la définition native : le plafond abaissé
+     par une partie qui ramait ne doit pas condamner la suivante —
+     autre carte, autre poids. Si celle-ci rame aussi, le gouverneur
+     redescendra tout seul en quelques secondes. */
+  dprPlafond = 4;
+  lissageImg = 16; gouvLent = 0; gouvVite = 0;
   ajuste();
   nouvelleCarte(carteSalon);
   construitFondMini();

@@ -60,12 +60,18 @@ function boucle(maintenant){
   majEtatReseauLent(dt);
 
   if(!enJeu) return;
+  /* Le gouverneur passe AVANT le rendu, jamais après : son ajuste()
+     redimensionne le canevas, ce qui l'efface en noir — appelé après,
+     il détruisait l'image tout juste peinte et chaque cran de
+     définition se payait d'un éclair noir plein écran, précisément
+     sur l'appareil qui ramait déjà. Appelé avant, le canevas effacé
+     est repeint dans la même image : le changement est invisible. */
+  gouverneResolution(dt);
   majFaune(dt);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);
   majBarresLent(dt);
-  gouverneResolution(dt);
 }
 
 /* ---------------------------------------------------------------
