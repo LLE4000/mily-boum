@@ -6,17 +6,33 @@
    extraient du fichier et exécutent tel quel.
    ================================================================ */
 
+/* Version du jeu — une seule définition, affichée en haut à droite et
+   dans le pied du briefing. Elle monte d'un centième à chaque mise en
+   ligne : v0.01, v0.02, v0.03… */
+var VERSION = "v0.01";
+
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
    ---------------------------------------------------------------- */
 var EQ = {
-  /* Économie */
-  POUDRE_DEPART        : 150,   // poudre au début de chaque carte
-  POUDRE_PAR_BATIMENT  : 3,     // gain par bâtiment détruit
-  POUDRE_BONUS_RENFORT : 40,    // bonus quand la flotte revient après la mort
+  /* Économie — l'Énergie tactique alimente les capacités.
+     Revue à la hausse : le jeu est plus vivant quand on peut relancer
+     régulièrement Brouillard, Balise, Cryo, Soin, Salve, Viper et
+     Poulets, sans pour autant que ce soit gratuit. */
+  ENERGIE_DEPART       : 220,   // énergie au début de chaque carte
+  ENERGIE_PAR_BATIMENT : 5,     // gain par bâtiment détruit
+  ENERGIE_PAR_CELLULE  : 9,     // gain par cellule énergétique récoltée
+  ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
+  ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
+
+  /* Nova : une seule charge par vie, jamais cumulable */
+  NOVA_PAR_VIE         : 1,
 
   /* Débarquement */
   NB_BARGES            : 8,
+  /* Plafond absolu d'une navette. La capacité réelle dépend du type
+     embarqué (UNI[t].places) : une Meuf et son gros fusil tiennent
+     moins nombreuses qu'un Mec. */
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
@@ -38,7 +54,7 @@ var EQ = {
   QG_VAGUE_DEGATS      : 62,
 
   /* Réglages fins demandés */
-  MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la mitrailleuse rate
+  MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
   MITRA_CHANCE_LOIN    : 1 / 3, // une balle sur trois touche
   BRULURE_DPS          : 14,
   BRULURE_DUREE        : 3.0,
@@ -48,13 +64,74 @@ var EQ = {
   UNITES_DIFFUSEES     : 20,    // unités échantillonnées par joueur
   PERIODE_PING         : 20000, // ms
 
-  /* Éclairante */
-  FUSEE_RAYON          : 1.1,   // distance à laquelle une troupe est libérée de la fusée
+  /* Balise */
+  BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
+
+  /* Formation et dispersion des troupes
+     Le groupe doit occuper environ 80 % de la surface d'un Brouillard :
+     un disque de 80 % de surface a un rayon de sqrt(0,8) ≈ 0,894 fois
+     celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
+     soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
+  FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
+  SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
+  SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
 
   /* Divers */
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
   BILAN_SECONDES       : 8
 };
+
+/* Combien de troupes de ce type tiennent dans une navette. */
+function placesNavette(type){
+  var f = UNI[type];
+  return Math.min(EQ.PLACES_PAR_BARGE, (f && f.places) || EQ.PLACES_PAR_BARGE);
+}
+/* Effectif maximum d'une vie, toutes navettes au plus gros type. */
+function flotteMaximum(){
+  var m = 0;
+  for(var t in UNI) m = Math.max(m, placesNavette(t));
+  return EQ.NB_BARGES * m;
+}
+
+/* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
+   Brouillard : c'est lui qui sert de référence visuelle au joueur. */
+function rayonFormation(){
+  return CAP.brouillard.rayon * Math.sqrt(EQ.FORMATION_PART_SURFACE);
+}
+
+/* ----------------------------------------------------------------
+   ANCRE DE FORMATION
+   Chaque unité reçoit une place stable dans le disque unité, tirée
+   d'une spirale de Vogel (angle d'or). La spirale couvre le disque
+   régulièrement sans jamais former de rangées — donc pas de grille
+   militaire — et le bruit stable ajouté ensuite lui rend une
+   irrégularité organique. L'unité vise SA place, pas celle de sa
+   voisine : le groupe s'étale avant même de se toucher.
+   ---------------------------------------------------------------- */
+var ANGLE_OR = 2.399963229728653;
+function bruitStable(n, sel){
+  var v = Math.sin(n * (sel ? 78.233 : 12.9898) + sel * 4.1) * 43758.5453;
+  return v - Math.floor(v);
+}
+/* Inverse radical en base 2 (van der Corput) : pour TOUTE plage
+   contiguë de n, la suite couvre [0,1[ régulièrement. Une rampe
+   « n modulo effectif » ne le fait pas : les quinze soldats d'une même
+   navette, dont les n se suivent, recevaient tous un rayon voisin et
+   se retrouvaient sur un mince anneau au lieu d'un disque. */
+function inverseRadical(n){
+  var b = 0, f = 0.5, m = (n | 0) + 1;
+  while(m){ if(m & 1) b += f; f *= 0.5; m >>= 1; }
+  return b;
+}
+function ancreFormation(n){
+  /* Le bruit reste modeste : au-delà, deux places voisines finissent
+     par se confondre et la spirale perd l'intérêt qu'elle avait. */
+  var a = n * ANGLE_OR + (bruitStable(n, 1) - 0.5) * 0.34;
+  var r = Math.sqrt(inverseRadical(n));
+  r = Math.min(1, r * (1 + (bruitStable(n, 0) - 0.5) * 0.13));
+  return { x:Math.cos(a) * r, y:Math.sin(a) * r };
+}
 
 /* ----------------------------------------------------------------
    Générateur pseudo-aléatoire déterministe (xorshift 32 bits)
@@ -136,20 +213,31 @@ function dansCone(angleCible, angleTourelle, demiAngle){
 /* ----------------------------------------------------------------
    Fiches techniques
    ---------------------------------------------------------------- */
+/* Les défenses gardent une résistance MOYENNE : une poignée de tireuses
+   doit en venir à bout en quelques secondes, pour que la progression
+   dans la base reste vivante. Toute la dureté est dans le Brasier. */
 var DEF = {
-  mitrailleuse:{ nom:"Mitrailleuse",         pv:940,  portee:5.15, degats:5,  cadence:110,  emprise:2, tourelle:1 },
-  flammes:     { nom:"Lance-flammes",        pv:1080, portee:5.6,  degats:10, cadence:150,  emprise:2, tourelle:1, cone:0.5 },
-  roquettes:   { nom:"Lance-roquettes",      pv:1120, portee:9.0,  degats:80, cadence:2700, emprise:3, tourelle:1, vitesseProj:8.5 },
-  mortier:     { nom:"Mortier",              pv:1040, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
-  electro:     { nom:"Lance-électrobombes",  pv:1000, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
-  reservoir:   { nom:"Réservoir",            pv:700,  portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },
-  entrepot:    { nom:"Entrepôt",             pv:820,  portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 }
+  crible:    { nom:"Crible",    desc:"tourelle automatique jumelée", pv:720, portee:5.15, degats:5,  cadence:110,  emprise:2, tourelle:1 },
+  chalumeau: { nom:"Chalumeau", desc:"projeteur incendiaire",        pv:780, portee:5.6,  degats:10, cadence:150,  emprise:2, tourelle:1, cone:0.5 },
+  frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:9.0,  degats:80, cadence:2700, emprise:3, tourelle:1, vitesseProj:8.5 },
+  pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
+  bobine:    { nom:"Bobine",    desc:"pylône à arc",                 pv:700, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
+  cuve:      { nom:"Cuve",      desc:"citerne de naphte",            pv:420, portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },
+  silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 },
+  /* La cellule ne se défend pas et ne sert qu'à une chose : se faire
+     récolter. Elles poussent par petits champs d'une quinzaine. */
+  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 }
 };
 
+/* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
+   faite pour qu'on puisse en ajouter d'autres sans rien casser. */
 var UNI = {
-  meuf:{ nom:"Meuf", pv:110, portee:5.0, arret:4.75, degats:54,  cadence:1300, vitesse:1.35, rayon:0.34 },
-  mec :{ nom:"Mec",  pv:560, portee:1.9, arret:1.70, degats:100, cadence:1600, vitesse:0.84, rayon:0.42 }
+  meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
+         degats:54,  cadence:1300, vitesse:1.35, rayon:0.34, places:12 },
+  mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
+         degats:100, cadence:1600, vitesse:0.84, rayon:0.42, places:15 }
 };
+var TYPES_TROUPE = ["meuf", "mec"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },
@@ -157,44 +245,77 @@ var CRE = {
   sanglier:{ nom:"Sanglier de cendre", pv:420, detection:7.5, portee:1.1, degats:70, cadence:1800, vitesse:0.55, rayon:0.55, charge:10, vitesseCharge:4.2 },
   crapaud :{ nom:"Crapaud gluant",     pv:180, detection:5.0, portee:5.0, degats:0,  cadence:2600, vitesse:0.0,  rayon:0.38, ralenti:0.6, dureeRalenti:4 },
   /* Gégé : inoffensive, elle ne fait que détaler. Ne la tuez pas. */
-  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 }
+  belette :{ nom:"Gégé la belette",    pv:90,  detection:7.5, portee:0,   degats:0,  cadence:0,    vitesse:2.10, rayon:0.28, fuit:1 },
+  /* Tweety : un canari. Il vole, se pose, sautille, et s'envole dès
+     qu'on approche. Inoffensif, comme Gégé — et comme elle, on le
+     regrettera. */
+  tweety  :{ nom:"Tweety",             pv:60,  detection:9.0, portee:0,   degats:0,  cadence:0,    vitesse:3.40, rayon:0.22, fuit:1, vole:1 }
 };
 
-/* Coûts croissants — chaque emploi renchérit le suivant */
+/* ----------------------------------------------------------------
+   LES HUIT CAPACITÉS
+   Chaque emploi renchérit le suivant : coût = base + pas × usages.
+   ---------------------------------------------------------------- */
 var COUT = {
-  fusee  :{ base:1,  pas:1, nom:"Éclairante" },
-  fumee  :{ base:3,  pas:1, nom:"Fumigène"   },
-  soins  :{ base:5,  pas:2, nom:"Soins"      },
-  obus   :{ base:6,  pas:2, nom:"Obus"       },
-  barrage:{ base:10, pas:3, nom:"Barrage"    }
+  nova      :{ base:0,  pas:0, nom:"Nova" },
+  poulets   :{ base:4,  pas:2, nom:"Poulets ×10" },
+  brouillard:{ base:3,  pas:1, nom:"Brouillard" },
+  salve     :{ base:10, pas:3, nom:"Salve" },
+  cryo      :{ base:8,  pas:3, nom:"Cryo" },
+  soin      :{ base:5,  pas:2, nom:"Soin" },
+  balise    :{ base:1,  pas:1, nom:"Balise" },
+  viper     :{ base:6,  pas:2, nom:"Viper" }
 };
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 
-/* Capacités — effets */
+/* Effets. La Nova est spectaculaire mais raisonnable : c'est le grand
+   flash et le champignon qui font le spectacle, pas les chiffres. */
 var CAP = {
-  fusee  :{ duree:25.0, rayon:0.0 },
-  fumee  :{ duree:8.5,  rayon:2.7 },
-  soins  :{ duree:5.0,  rayon:2.6, pvParSeconde:28 },
-  obus   :{ degats:170, rayon:1.3 },
-  barrage:{ nb:14, rayon:3.6, duree:2.2, degats:54 }
+  nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45 },
+  poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
+  brouillard:{ rayon:4.2, duree:20.0 },
+  salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },
+  cryo      :{ rayon:4.0, duree:12.0 },
+  soin      :{ rayon:3.0, duree:6.0, pvParSeconde:30 },
+  balise    :{ duree:30.0 },
+  viper     :{ degats:220, rayon:1.5, vitesse:34 }
 };
 
 /* Les trois îles, jouées dans l'ordre */
+/* Les trois îles, jouées dans l'ordre.
+   Le Brasier est un objectif COLLECTIF : ~100 tireuses au contact font
+   environ 4 100 dégâts/s. Seul et sans opposition, il faut donc à peu
+   près une heure pour abattre la première île ; à quinze, quatre minutes. */
 var CARTES = [
-  { nom:"Mily à la plage",    biome:"plage",    pvQG:750000  },
-  { nom:"Mily en forêt",      biome:"foret",    pvQG:950000  },
-  { nom:"Mily à la campagne",  biome:"campagne", pvQG:1200000 }
+  { nom:"Mily à la plage",     biome:"plage",    pvQG:15000000,
+    victoire:"Millie lui offre d'aller boire un verre !" },
+  { nom:"Mily en forêt",       biome:"foret",    pvQG:20000000,
+    victoire:"Millie l'invite dans sa cabane !" },
+  { nom:"Mily à la campagne",  biome:"campagne", pvQG:26000000,
+    victoire:"Millie l'invite à se rouler dans la paille !" }
 ];
+
+/* Le message de victoire nomme celui qui a le plus contribué à faire
+   tomber le Brasier, et change avec le thème de l'île. */
+function texteVictoire(index, pseudo){
+  var f = CARTES[index % CARTES.length];
+  return [ (pseudo || "?") + " termine n°1 !", f.victoire ];
+}
 
 /* ----------------------------------------------------------------
    Dimensions du monde
    ---------------------------------------------------------------- */
-var GW = 116, GH = 104;          // 12 064 cases
-var QG_GX = 9, QG_GY = 52;       // fond ouest
-var QG_EMPRISE = 7;
-var PLAGE_X0 = GW - 9;           // première colonne de sable praticable (107)
+var GW = 152, GH = 136;          // 20 672 cases — une île volontairement immense
+var QG_GX = 9, QG_GY = 68;       // le Brasier, au fond ouest
+var QG_EMPRISE = 12;      // le Brasier écrase tout le reste de la carte
+var PLAGE_X0 = GW - 12;          // première colonne de sable praticable (140)
 var MARGE_SOL = 8;               // marge de tuiles autour de la grille
-var SOL_ECH = 0.5;               // sol pré-calculé en demi-résolution
+var SOL_MPX_MAX = 7.0;           // budget mémoire du canevas de sol
+var SOL_ECH = 0.5;               // recalculé par tailleSolPrecalcule()
+/* Rayon en cases autour des bords où le sol devient rocailleux */
+var LARGEUR_ROCHE = 7;
+/* Rayon d'arrêt des troupes devant le Brasier (il est énorme) */
+var RAYON_QG = 5.6;
 
 /* Taille du canevas de sol pré-calculé — vérifiée par les tests */
 function tailleSolPrecalcule(){
@@ -207,8 +328,14 @@ function tailleSolPrecalcule(){
   }
   var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
   var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
-  var w = Math.ceil((x1 - x0) * SOL_ECH), h = Math.ceil((y1 - y0) * SOL_ECH);
-  return { x0:x0, y0:y0, w:w, h:h, mpx:(w * h) / 1e6 };
+  var lp = x1 - x0, hp = y1 - y0;              // pleine résolution
+  /* L'échelle s'adapte pour que le canevas reste sous le budget mémoire.
+     Seul le sol plat y est cuit : rochers, falaises et décors sont
+     dessinés en direct, donc rien de net n'est perdu à l'agrandissement. */
+  SOL_ECH = Math.min(0.5, Math.sqrt(SOL_MPX_MAX * 1e6 / (lp * hp)));
+  var w = Math.ceil(lp * SOL_ECH), h = Math.ceil(hp * SOL_ECH);
+  return { x0:x0, y0:y0, w:w, h:h, ech:SOL_ECH, mpx:(w * h) / 1e6,
+           mpxPlein:(lp * hp) / 1e6 };
 }
 
 /* ----------------------------------------------------------------
@@ -233,18 +360,18 @@ function genereCarte(codeSalon, index){
   };
 
   /* --- Bâtiments : lattice militaire tous les 5 carreaux, 30 % sautés --- */
-  var bandeProche = [["roquettes",0.30],["electro",0.40],["mortier",0.20],["reservoir",0.10]];
-  var bandeMoy    = [["mortier",0.26],["electro",0.45],["mitrailleuse",0.19],["entrepot",0.10]];
-  var bandeLoin   = [["mitrailleuse",0.42],["flammes",0.20],["mortier",0.22],["entrepot",0.16]];
+  var bandeProche = [["frelon",0.38],["bobine",0.34],["pilon",0.18],["cuve",0.10]];
+  var bandeMoy    = [["pilon",0.26],["bobine",0.45],["crible",0.19],["silo",0.10]];
+  var bandeLoin   = [["crible",0.42],["chalumeau",0.20],["pilon",0.22],["silo",0.16]];
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
     for(var ly = 3; ly <= GH - 4; ly += 5){
       if(al() < 0.28) continue;                                   // allées
       var dx = lx - QG_GX, dy = ly - QG_GY;
-      if(Math.abs(dx) <= 5 && Math.abs(dy) <= 5) continue;        // emprise du QG
+      if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;        // emprise du Brasier
       var d = Math.hypot(dx, dy);
-      var t = d < 24 ? tirePondere(al, bandeProche)
-            : d < 44 ? tirePondere(al, bandeMoy)
+      var t = d < 30 ? tirePondere(al, bandeProche)
+            : d < 62 ? tirePondere(al, bandeMoy)
                      : tirePondere(al, bandeLoin);
       var gx = lx + (al() - 0.5) * 0.7;
       var gy = ly + (al() - 0.5) * 0.7;
@@ -253,6 +380,33 @@ function genereCarte(codeSalon, index){
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
         ang:(al() * 6.2832), vivant:1, n:c.batiments.length
       });
+    }
+  }
+
+  /* --- Champs de cellules énergétiques ---
+     Des petits bosquets d'une quinzaine de cellules, posés dans les
+     allées laissées libres par le quadrillage militaire. Ils ne se
+     défendent pas : ils ne sont là que pour être récoltés. */
+  c.champs = [];
+  for(var cx = 14; cx <= PLAGE_X0 - 6; cx += 32){
+    for(var cy = 12; cy <= GH - 9; cy += 40){
+      if(al() < 0.22) continue;
+      var fx = cx + (al() - 0.5) * 5, fy = cy + (al() - 0.5) * 6;
+      if(Math.hypot(fx - QG_GX, fy - QG_GY) < 14) continue;   // pas au pied du Brasier
+      var n = 13 + ((al() * 5) | 0);                          // treize à dix-sept
+      c.champs.push({ gx:fx, gy:fy, n:n });
+      var fc = DEF.cellule;
+      for(var k = 0; k < n; k++){
+        /* spirale d'or : le champ est dense mais jamais aligné */
+        var a2 = k * 2.399963 + al() * 0.5;
+        var r2 = 0.62 * Math.sqrt(k) + al() * 0.22;
+        var bx = fx + Math.cos(a2) * r2, by = fy + Math.sin(a2) * r2 * 0.92;
+        if(bx < 4 || bx > PLAGE_X0 - 2 || by < 3 || by > GH - 4) continue;
+        c.batiments.push({
+          t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
+          ang:al() * 6.2832, vivant:1, n:c.batiments.length
+        });
+      }
     }
   }
 
@@ -281,28 +435,28 @@ function genereCarte(codeSalon, index){
     falaise(-3.1 + al() * 0.5, y + al() * 0.35, 2);
   }
   /* quelques rochers isolés dans les champs */
-  for(var i = 0; i < 90; i++){
+  for(var i = 0; i < 180; i++){
     var rx = 4 + al() * (PLAGE_X0 - 6), ry = 3 + al() * (GH - 6);
-    if(Math.hypot(rx - QG_GX, ry - QG_GY) < 12) continue;
+    if(Math.hypot(rx - QG_GX, ry - QG_GY) < 15) continue;
     c.rochers.push({ gx:rx, gy:ry, r:0.32 + al() * 0.4, s:al() * 6.2832, v:(al() * 3) | 0 });
   }
 
   /* --- Décors du biome --- */
-  var nbDec = 260;
+  var nbDec = 520;
   for(var j = 0; j < nbDec; j++){
     var px = 1 + al() * (GW + 2), py = 1 + al() * (GH - 2);
-    if(Math.hypot(px - QG_GX, py - QG_GY) < 9) continue;
+    if(Math.hypot(px - QG_GX, py - QG_GY) < 13) continue;
     c.decors.push({ gx:px, gy:py, s:0.8 + al() * 0.5, v:(al() * 4) | 0 });
   }
 
-  /* --- Créatures : 4 espèces, 40 à 60 par carte --- */
+  /* --- Créatures : quatre espèces hostiles, réparties sur toute l'île --- */
   var especes = ["braisard","piqueur","sanglier","crapaud"];
-  var nbCre = 40 + ((al() * 21) | 0);
+  var nbCre = 70 + ((al() * 31) | 0);
   var k = 0, poses = 0;
   while(c.creatures.length < nbCre && k < 4000){
     k++;
     var cx = 8 + al() * (PLAGE_X0 - 12), cy = 4 + al() * (GH - 8);
-    if(Math.hypot(cx - QG_GX, cy - QG_GY) < 11) continue;
+    if(Math.hypot(cx - QG_GX, cy - QG_GY) < 15) continue;
     /* les quatre premières espèces sont garanties, le reste est tiré au sort */
     var esp = (poses < 4) ? especes[poses] : especes[(al() * 4) | 0];
     poses++;
@@ -315,13 +469,16 @@ function genereCarte(codeSalon, index){
       c.creatures.push({ t:esp, gx:cx, gy:cy, teinte:(al() * 2) | 0 });
     }
   }
-  /* Gégé la belette : une seule par île, quelque part à mi-chemin */
-  for(var g = 0; g < 500; g++){
-    var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
-    if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
-    c.creatures.push({ t:"belette", gx:bx, gy:by, teinte:0 });
-    break;
-  }
+  /* Gégé la belette et Tweety le canari : un seul de chaque par île,
+     quelque part à mi-chemin. */
+  ["belette", "tweety"].forEach(function(esp2){
+    for(var g = 0; g < 500; g++){
+      var bx = 20 + al() * (PLAGE_X0 - 26), by = 6 + al() * (GH - 12);
+      if(Math.hypot(bx - QG_GX, by - QG_GY) < 14) continue;
+      c.creatures.push({ t:esp2, gx:bx, gy:by, teinte:0 });
+      break;
+    }
+  });
   return c;
 }
 
@@ -410,9 +567,13 @@ function paquetSubscribe(idPaquet, sujet){
   var corps = [(idPaquet >> 8) & 255, idPaquet & 255].concat(chaineMqtt(sujet), [0]);
   return trame(0x82, corps);
 }
-function paquetPublish(sujet, message){
+/* retenu : le courtier conserve ce message et le sert d'office à tout
+   nouvel abonné. C'est là-dessus que repose la persistance du monde —
+   sans lui, un message n'atteint que les clients connectés à l'instant
+   précis où il passe. */
+function paquetPublish(sujet, message, retenu){
   var corps = chaineMqtt(sujet).concat(utf8Octets(message));
-  return trame(0x30, corps);
+  return trame(retenu ? 0x31 : 0x30, corps);
 }
 function paquetPing(){ return new Uint8Array([0xc0, 0x00]); }
 function paquetDeconnexion(){ return new Uint8Array([0xe0, 0x00]); }
@@ -466,7 +627,125 @@ FileDegats.prototype.adopteMinimum = function(pv){
   if(typeof pv === "number" && pv >= 0 && pv < this.pv) this.pv = pv;
 };
 
-/* Précision dégressive de la mitrailleuse (réglage fin §5.3) */
+/* ----------------------------------------------------------------
+   INSTANTANÉ DU MONDE — la persistance du salon
+   Le monde ne vit plus seulement dans la mémoire de chaque navigateur :
+   un instantané compact circule, et le courtier en garde le dernier
+   (message MQTT RETENU). Quiconque arrive — en cours de partie ou des
+   heures plus tard — le reçoit et reprend le monde là où il en était.
+
+   L'instantané tient en cinq champs :
+     v  numéro de version, monotone croissant
+     cy numéro de campagne — il s'incrémente quand les trois îles sont
+        tombées et que l'on repart de la première. Sans lui, revenir à
+        l'île 0 serait vu comme un instantané périmé et le salon
+        resterait figé sur la dernière île à jamais.
+     c  index de l'île en cours
+     pv points de vie du Brasier
+     d  bitmap des bâtiments détruits, six bits par caractère
+     g  nom de qui a tué Gégé la belette (vide tant qu'elle vit)
+     w  nom de qui a tué Tweety le canari (vide tant qu'il vit)
+
+   Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
+   les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
+   d'arrivée des messages sans importance, et deux clients qui publient
+   en même temps sans conséquence.
+   ---------------------------------------------------------------- */
+var ALPHA_BITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-";
+
+function encodeBits(bits){
+  var s = "", i, k, v;
+  for(i = 0; i < bits.length; i += 6){
+    v = 0;
+    for(k = 0; k < 6; k++) if(bits[i + k]) v |= (1 << k);
+    s += ALPHA_BITS.charAt(v);
+  }
+  return s;
+}
+function decodeBits(s, n){
+  var bits = [], i, k, v, j;
+  for(i = 0; i < n; i++) bits.push(0);
+  if(typeof s !== "string") return bits;
+  for(i = 0; i < s.length; i++){
+    v = ALPHA_BITS.indexOf(s.charAt(i));
+    if(v < 0) continue;
+    for(k = 0; k < 6; k++){
+      j = i * 6 + k;
+      if(j < n && (v & (1 << k))) bits[j] = 1;
+    }
+  }
+  return bits;
+}
+/* OU bit à bit de deux bitmaps encodés, sans les décoder entièrement */
+function unionBits(a, b){
+  a = typeof a === "string" ? a : "";
+  b = typeof b === "string" ? b : "";
+  var n = Math.max(a.length, b.length), s = "", i, va, vb;
+  for(i = 0; i < n; i++){
+    va = i < a.length ? ALPHA_BITS.indexOf(a.charAt(i)) : 0;
+    vb = i < b.length ? ALPHA_BITS.indexOf(b.charAt(i)) : 0;
+    if(va < 0) va = 0;
+    if(vb < 0) vb = 0;
+    s += ALPHA_BITS.charAt(va | vb);
+  }
+  return s;
+}
+function compteBits(s){
+  var n = 0, i, v, k;
+  if(typeof s !== "string") return 0;
+  for(i = 0; i < s.length; i++){
+    v = ALPHA_BITS.indexOf(s.charAt(i));
+    if(v <= 0) continue;
+    for(k = 0; k < 6; k++) if(v & (1 << k)) n++;
+  }
+  return n;
+}
+
+function mondeVide(index, pvMax, cycle){
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"" };
+}
+function mondeValide(m){
+  return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
+         typeof m.v === "number" && m.c >= 0 && m.pv >= 0;
+}
+/* Position d'un instantané dans la progression : campagne d'abord,
+   île ensuite. C'est cet ordre qui décide qui écrase qui. */
+function rangMonde(m){ return (m.cy | 0) * 1000 + (m.c | 0); }
+
+/* Fusion monotone. Une île plus avancée écrase tout : ses bâtiments
+   n'ont rien à voir avec ceux de la précédente. À rang égal, une
+   défense détruite ne se relève jamais et les PV ne remontent jamais —
+   c'est ce qui rend l'ordre d'arrivée des messages sans importance. */
+function fusionneMonde(a, b){
+  if(!mondeValide(a)) return mondeValide(b) ? b : null;
+  if(!mondeValide(b)) return a;
+  var ra = rangMonde(a), rb = rangMonde(b);
+  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
+                       d:b.d || "", g:b.g || "", w:b.w || "" };
+  if(ra > rb) return a;
+  return {
+    v : Math.max(a.v, b.v),
+    cy: a.cy | 0,
+    c : a.c,
+    pv: Math.min(a.pv, b.pv),
+    d : unionBits(a.d, b.d),
+    /* Gégé et Tweety ne meurent qu'une fois : le premier nom inscrit
+       y reste, quel que soit l'ordre d'arrivée des messages. */
+    g : a.g || b.g || "",
+    w : a.w || b.w || ""
+  };
+}
+/* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
+   que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
+   se renverraient l'instantané en boucle. */
+function memeMonde(a, b){
+  if(!mondeValide(a) || !mondeValide(b)) return false;
+  return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
+         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
+         (a.w || "") === (b.w || "");
+}
+
+/* Précision dégressive de la crible (réglage fin §5.3) */
 function mitraTouche(distance, tirage){
   if(distance <= EQ.MITRA_SEUIL_PRECISION) return true;
   return tirage < EQ.MITRA_CHANCE_LOIN;

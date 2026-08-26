@@ -113,10 +113,29 @@ select.champ{cursor:pointer}
 .monde.faite .etat{color:var(--vert)}
 .monde.verrou{opacity:.42}
 
-/* barges */
-#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px}
-.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:8px 9px}
-.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:6px;display:flex;justify-content:space-between}
+/* navettes */
+#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px}
+.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:7px;display:flex;justify-content:space-between}
+.choixT{display:flex;gap:7px;margin-bottom:8px}
+.pt{
+  flex:1;position:relative;border-radius:11px;overflow:hidden;cursor:pointer;
+  border:2px solid rgba(255,255,255,.10);background:#241733;padding:0;
+  transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.pt canvas{width:100%;height:84px;display:block}
+.pt .nm{
+  position:absolute;left:0;right:0;bottom:0;font:700 11px/1.1 inherit;text-align:center;
+  background:linear-gradient(180deg,rgba(10,5,14,0),rgba(10,5,14,.88));padding:14px 0 4px;color:#e8dcf0;
+}
+.pt .role{display:block;font-weight:400;font-size:9px;color:#b9abc6;letter-spacing:.2px}
+.pt:active{transform:scale(.97)}
+.pt.on{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.30),0 6px 16px rgba(0,0,0,.5)}
+.pt.on .nm{color:var(--braise)}
+.pt.on::after{
+  content:"✔";position:absolute;top:5px;right:6px;width:19px;height:19px;border-radius:50%;
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 12px/19px inherit;text-align:center;
+}
 .rangee{display:flex;align-items:center;gap:6px;margin:4px 0}
 .rangee .lab{flex:1;font-size:13px;display:flex;align-items:center;gap:6px}
 .pion{width:12px;height:12px;border-radius:3px;flex:none}
@@ -135,6 +154,10 @@ select.champ{cursor:pointer}
 .aide li{margin:3px 0}
 
 #lancer{width:100%;font-size:19px;padding:16px;margin:4px 0 8px;border-radius:16px;letter-spacing:1px}
+#avertPseudo{display:none;margin-top:8px;text-align:center;font-size:13px;font-weight:700;color:#ffb45c}
+#avertPseudo.on{display:block}
+#pseudo.manque{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.25)}
+.bt.pri:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.5)}
 #pied{text-align:center;color:#6b5c78;font-size:11px;padding:6px 0 2px}
 
 /* ============================================================
@@ -151,16 +174,18 @@ select.champ{cursor:pointer}
 
 /* — haut gauche — */
 #hg{position:absolute;top:calc(8px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-#ress{display:flex;gap:12px;align-items:center;font-weight:700;font-size:15px;white-space:nowrap}
+#ress{display:flex;gap:14px;align-items:center;justify-content:center;font-weight:700;font-size:15px;white-space:nowrap;padding:5px 10px}
 #ress .k{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;font-weight:700}
-#poudreV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
+#energieV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
 #unitesV{color:var(--cyan);font-variant-numeric:tabular-nums}
-#podium{min-width:150px;font-size:12px;display:none}
+#podium{min-width:158px;font-size:12px}
 #podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
 #podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
 #podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 #podium .moi .n{color:var(--vert);font-weight:700}
+#podium .gg{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.10);font-size:11px;color:#e6b98a;line-height:1.35}
+#podium .gg b{color:#ffb45c}
 #zoomB{display:flex;gap:5px}
 #zoomB button{width:36px;height:36px;padding:0;font-size:17px;border-radius:11px;display:flex;align-items:center;justify-content:center}
 
@@ -179,7 +204,11 @@ select.champ{cursor:pointer}
 }
 
 /* — haut droite : minicarte — */
-#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));padding:5px}
+#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));
+    display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+#hd .bloc{padding:5px}
+#versionJeu{font-size:11px;letter-spacing:1.2px;font-weight:700;color:var(--gris);
+            text-shadow:0 1px 3px rgba(0,0,0,.7);padding-right:2px}
 #mini{width:132px;height:118px;display:block;border-radius:8px;background:#0c1c28}
 
 /* — bas gauche : barges — */
@@ -195,10 +224,11 @@ select.champ{cursor:pointer}
 .bg1 .d{color:var(--gris);font-size:9px}
 
 /* — bas droite : capacités — */
-#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));padding:6px}
-#caps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
+#capsBoite{padding:6px}
+#caps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .cap{
-  position:relative;width:64px;height:60px;border-radius:12px;cursor:pointer;
+  position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
   border:1px solid rgba(255,255,255,.13);background:linear-gradient(180deg,#2c1a3c,#1a0f26);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   transition:transform .08s ease;
@@ -260,25 +290,27 @@ select.champ{cursor:pointer}
   #hg{gap:4px}
   #ress{font-size:13px}
   #zoomB button{width:31px;height:31px;font-size:15px}
-  .cap{width:56px;height:52px}
-  .cap canvas{width:24px;height:24px}
-  .cap .nm{font-size:8.5px}
+  .cap{width:54px;height:50px}
+  .cap canvas{width:26px;height:26px}
+  .cap .nm{font-size:8px}
   #hc{width:min(300px,46vw);padding:4px 8px 6px}
   #mini{width:104px;height:92px}
   .bg1{width:40px}
 }
 @media (max-width:600px){
-  #caps{grid-template-columns:repeat(3,1fr);gap:5px}
-  .cap{width:56px;height:52px}
-  .cap canvas{width:24px;height:24px}
-  .cap .nm{font-size:8.5px}
+  #caps{grid-template-columns:repeat(4,1fr);gap:4px}
+  .cap{width:52px;height:50px}
+  .cap canvas{width:25px;height:25px}
+  .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
   #bg{max-width:52vw}
 }
 @media (max-width:430px){
   #hd{display:none}
   #hc{width:min(230px,44vw)}
-  .cap{width:50px;height:48px}
+  .cap{width:46px;height:46px}
+  .cap canvas{width:22px;height:22px}
+  .cap .nm{font-size:7px}
   .bg1{width:36px;font-size:10px}
   #ress{font-size:12px;gap:8px}
 }
@@ -297,7 +329,9 @@ select.champ{cursor:pointer}
     <div class="carteP">
       <h2>Salon</h2>
       <div class="ligne">
-        <input id="pseudo" class="champ" maxlength="14" placeholder="Ton pseudo" autocomplete="off">
+        <input id="pseudo" class="champ" maxlength="14" required
+               placeholder="Indiquez votre pseudo" autocomplete="off"
+               aria-label="Votre pseudo">
         <select id="relais" class="champ" style="flex:0 0 auto;min-width:190px">
           <option value="wss://broker.emqx.io:8084/mqtt">Relais EMQX (défaut)</option>
           <option value="wss://broker.hivemq.com:8884/mqtt">Relais HiveMQ (secours)</option>
@@ -313,7 +347,7 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Composition des huit barges</h2>
+      <h2>Composition des huit navettes</h2>
       <div id="barges"></div>
       <div id="totalTroupes"></div>
     </div>
@@ -323,36 +357,37 @@ select.champ{cursor:pointer}
       <div class="aide">
         <ul>
           <li>Un doigt qui glisse déplace la vue, deux doigts pincent pour <b>zoomer</b>.</li>
-          <li>En bas à gauche, choisis une <b>barge</b> puis appuie sur la plage à l'est : les 15 places se vident d'un coup.</li>
-          <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Éclairantes</b> : les troupes courent vers la fusée sans tirer.</li>
-          <li>Chaque bâtiment détruit rapporte <b>3 points de Poudre</b>. Chaque emploi d'une capacité renchérit le suivant.</li>
-          <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-flammes porte plus loin que tes Meufs : passe un Mec devant.</li>
-          <li>Le QG a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
+          <li>Une navette ne transporte <b>qu'un seul type de troupe</b>. En bas à gauche, choisis-en une puis appuie sur la plage à l'est : elle se vide d'un coup.</li>
+          <li>Il y a <b>103 cases</b> entre la plage et le QG. Enchaîne les <b>Balises</b> : les troupes courent vers la fusée sans tirer.</li>
+          <li>Chaque bâtiment détruit rapporte <b>5 d'Énergie tactique</b>. Chaque emploi d'une capacité renchérit le suivant. La <b>Nova</b>, elle, ne coûte rien : on n'en a qu'<b>une par vie</b>.</li>
+          <li>Huit capacités : <b>Nova</b>, <b>Poulets ×10</b> (des leurres !), <b>Brouillard</b>, <b>Salve</b>, <b>Cryo</b> (gèle les défenses 12 s), <b>Soin</b>, <b>Balise</b> et <b>Viper</b>.</li>
+          <li>Les <b>Meufs</b> tirent de loin mais fondent ; les <b>Mecs</b> encaissent. Le lance-chalumeau porte plus loin que tes Meufs : passe un Mec devant.</li>
+          <li>Le Brasier a des centaines de milliers de points de vie : <b>on le tombe à plusieurs</b>. Toute la salle joue la même carte.</li>
         </ul>
       </div>
     </div>
 
     <button id="lancer" class="bt pri">DÉBARQUER</button>
+    <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
-    <div id="pied">Mily Boum — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+    <div class="ligne" style="justify-content:center;margin-bottom:6px">
+      <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
+    </div>
+    <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
   </div>
 </div>
 
 <!-- ============================ JEU ============================ -->
 <div id="hud">
   <div id="hg">
-    <div class="bloc p" id="ress">
-      <span><span class="k">Poudre</span> <span id="poudreV">150</span></span>
-      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
-    </div>
-    <div class="bloc p" id="podium"><div class="t">Podium</div><div id="podiumL"></div></div>
+    <div class="bloc p" id="podium"><div class="t">Top dégâts</div><div id="podiumL"></div></div>
     <div id="zoomB" class="p">
       <button class="bt" id="btZp" title="Zoom avant">+</button>
       <button class="bt" id="btZm" title="Zoom arrière">−</button>
-      <button class="bt" id="btCentre" title="Centrer sur le QG">◎</button>
+      <button class="bt" id="btCentre" title="Centrer sur le Brasier">◎</button>
       <button class="bt" id="btPlein2" title="Plein écran">⛶</button>
     </div>
   </div>
@@ -363,14 +398,23 @@ select.champ{cursor:pointer}
   </div>
   <div id="bandeauAlerte">⚠ Le QG charge une éruption ⚠</div>
 
-  <div class="bloc p" id="hd"><canvas id="mini" width="264" height="236"></canvas></div>
+  <div id="hd">
+    <div class="bloc p"><canvas id="mini" width="264" height="236"></canvas></div>
+    <div id="versionJeu">v0.01</div>
+  </div>
 
   <div class="bloc p" id="bg">
-    <div class="t">Barges</div>
+    <div class="t">Navettes</div>
     <div id="listeBarges"></div>
   </div>
 
-  <div class="bloc p" id="bd"><div id="caps"></div></div>
+  <div id="bd">
+    <div class="bloc p" id="ress">
+      <span><span class="k">Énergie</span> <span id="energieV">220</span></span>
+      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
+    </div>
+    <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+  </div>
 
   <div class="bloc p" id="bc">
     <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">5:00</span>

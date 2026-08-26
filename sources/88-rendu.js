@@ -3,6 +3,12 @@
    ================================================================ */
 
 var cv = null, ctx = null;
+var secX = 0, secY = 0;                 // décalage de la secousse d'écran
+function repereMonde(c){
+  c.setTransform(dpr * cam.z, 0, 0, dpr * cam.z,
+                 (secX + cam.px) * dpr, (secY + cam.py) * dpr);
+}
+function repereEcran(c){ c.setTransform(dpr, 0, 0, dpr, secX * dpr, secY * dpr); }
 var miniCv = null, miniCtx = null, miniFond = null, miniProchain = 0;
 var pile = [];
 
@@ -12,6 +18,16 @@ function rectVisible(m){
     x0:(0 - cam.px) / cam.z - m, y0:(0 - cam.py) / cam.z - m,
     x1:(W - cam.px) / cam.z + m, y1:(H - cam.py) / cam.z + m
   };
+}
+/* Le rectangle visible touche-t-il la côte ? Quand la caméra est bien à
+   l'intérieur des terres, l'île couvre tout l'écran : inutile de peindre
+   la mer, l'écume et le ressac sous un sol opaque. */
+function coteVisible(vue){
+  var a = deIso(vue.x0, vue.y0), b = deIso(vue.x1, vue.y0);
+  var c = deIso(vue.x1, vue.y1), d = deIso(vue.x0, vue.y1);
+  var gx0 = Math.min(a.gx, b.gx, c.gx, d.gx), gx1 = Math.max(a.gx, b.gx, c.gx, d.gx);
+  var gy0 = Math.min(a.gy, b.gy, c.gy, d.gy), gy1 = Math.max(a.gy, b.gy, c.gy, d.gy);
+  return !(gx0 > 1.5 && gx1 < GW - 1.5 && gy0 > 1.5 && gy1 < GH - 1.5);
 }
 function visible(vue, gx, gy){
   var p = iso(gx, gy);
@@ -50,6 +66,27 @@ function dessineEffet(c, e, tps){
     }
     /* fumée qui reste */
     bouffee(c, p.x, p.y - (10 + t * 26) * z, (8 + t * 18) * z, (1 - t) * 0.34, "#3a3238");
+  }else if(e.t === "recolte"){
+    /* éclat doré qui monte : on vient d'engranger de l'Énergie */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ar = (1 - t) * (1 - t);
+    var yr = p.y - 14 * z - t * 30 * z;
+    var gr2 = c.createRadialGradient(p.x, yr, 0.5, p.x, yr, 24 * z);
+    gr2.addColorStop(0, "rgba(255,232,150," + (0.9 * ar) + ")");
+    gr2.addColorStop(0.45, "rgba(255,184,70," + (0.5 * ar) + ")");
+    gr2.addColorStop(1, "rgba(255,150,40,0)");
+    c.fillStyle = gr2;
+    c.beginPath(); c.arc(p.x, yr, 24 * z, 0, 6.2832); c.fill();
+    for(var er = 0; er < 6; er++){
+      var aer = er * 1.047 + t * 2.2;
+      c.fillStyle = "rgba(255," + (210 + er * 6) + ",120," + ar + ")";
+      c.beginPath();
+      c.arc(p.x + Math.cos(aer) * (6 + t * 20) * z,
+            yr + Math.sin(aer) * (3 + t * 9) * z, 2.1 * z * (1 - t * 0.5), 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
   }else if(e.t === "traceur"){
     var q = versEcran(cam, e.ex, e.ey);
     c.save();
@@ -176,7 +213,76 @@ function dessineEffet(c, e, tps){
     c.strokeStyle = "#ffd070"; c.lineWidth = 2.4 * z;
     c.beginPath(); c.ellipse(p.x, p.y, (60 - t * 45) * z, (30 - t * 22) * z, 0, 0, 6.2832); c.stroke();
     c.restore();
-  }else if(e.t === "fuseeLancee"){
+  }else if(e.t === "cryo"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.strokeStyle = "#d8f4ff"; c.lineWidth = 3 * z;
+    c.beginPath();
+    c.ellipse(p.x, p.y, e.r * RX * z * (0.3 + t * 0.8), e.r * RY * z * (0.3 + t * 0.8), 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+  }else if(e.t === "caisse"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.fillStyle = "#a5854e";
+    c.fillRect(p.x - 9 * z, p.y - (10 + t * 20) * z, 18 * z, 12 * z);
+    c.fillStyle = "rgba(255,255,255,.3)";
+    c.fillRect(p.x - 9 * z, p.y - (10 + t * 20) * z, 18 * z, 3 * z);
+    c.restore();
+  }else if(e.t === "plumes"){
+    c.save();
+    c.globalAlpha = 1 - t;
+    c.fillStyle = "#fff8ec";
+    for(var pl2 = 0; pl2 < 6; pl2++){
+      var apl = pl2 * 1.05 + 0.3;
+      c.save();
+      c.translate(p.x + Math.cos(apl) * t * 22 * z, p.y - 10 * z + Math.sin(apl) * t * 12 * z - t * 6 * z);
+      c.rotate(apl + t * 3);
+      c.beginPath(); c.ellipse(0, 0, 3.4 * z, 1.4 * z, 0, 0, 6.2832); c.fill();
+      c.restore();
+    }
+    c.restore();
+  }else if(e.t === "nova"){
+    var a2 = 1 - t;
+    c.save();
+    /* flash */
+    if(t < 0.16){
+      c.fillStyle = "rgba(255,255,245," + (1 - t / 0.16) * 0.9 + ")";
+      c.fillRect(-W, -H, W * 3, H * 3);
+    }
+    c.globalCompositeOperation = "lighter";
+    /* boule de feu */
+    var rb = e.r * RX * z * (0.4 + Math.min(1, t * 3) * 1.5);
+    var gb2 = c.createRadialGradient(p.x, p.y - rb * 0.45, rb * 0.08, p.x, p.y - rb * 0.45, rb);
+    gb2.addColorStop(0, "rgba(255,255,235," + (0.95 * a2) + ")");
+    gb2.addColorStop(0.28, "rgba(255,196,80," + (0.85 * a2) + ")");
+    gb2.addColorStop(0.62, "rgba(238,86,24," + (0.5 * a2) + ")");
+    gb2.addColorStop(1, "rgba(120,20,8,0)");
+    c.fillStyle = gb2;
+    c.beginPath(); c.arc(p.x, p.y - rb * 0.45, rb, 0, 6.2832); c.fill();
+    /* anneau de souffle au sol */
+    var rr2 = e.r * RX * z * (0.5 + t * 3.2);
+    c.strokeStyle = "rgba(255,236,190," + (0.55 * a2) + ")";
+    c.lineWidth = (10 - t * 8) * z;
+    c.beginPath(); c.ellipse(p.x, p.y, rr2, rr2 / 2, 0, 0, 6.2832); c.stroke();
+    c.restore();
+    /* le champignon */
+    c.save();
+    c.globalAlpha = Math.min(1, a2 * 1.4);
+    var mt = Math.min(1, t * 1.5);
+    var yc = p.y - (24 + mt * 150) * z;
+    for(var s2 = 0; s2 < 7; s2++){
+      bouffee(c, p.x + Math.sin(s2 * 1.7 + t * 3) * 8 * z,
+              p.y - (14 + s2 * 18 * mt) * z, (9 + s2 * 2) * z * (0.5 + mt), 0.45, "#6a5a52");
+    }
+    for(var h2 = 0; h2 < 9; h2++){
+      var ah = h2 / 9 * 6.2832;
+      bouffee(c, p.x + Math.cos(ah) * (14 + mt * 46) * z, yc + Math.sin(ah) * (7 + mt * 16) * z,
+              (16 + mt * 20) * z, 0.42, h2 % 2 ? "#7a6258" : "#94786a");
+    }
+    bouffee(c, p.x, yc - 8 * z, (22 + mt * 34) * z, 0.5, "#8a7264");
+    c.restore();
+  }else if(e.t === "baliseLancee"){
     c.save();
     c.globalCompositeOperation = "lighter";
     c.globalAlpha = 1 - t;
@@ -212,7 +318,7 @@ function dessineProjectile(c, p, tps){
     c.fillStyle = g;
     c.beginPath(); c.arc(e.x - (d ? d.x * 6 * z : 0), e.y - 18 * z - zz - (d ? d.y * 6 * z : 0), 9 * z, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "obus"){
+  }else if(p.t === "viper"){
     c.save();
     c.fillStyle = p.braise ? "#ff8a1e" : (p.allie ? "#ffd070" : "#d8b52e");
     c.beginPath(); c.ellipse(e.x, e.y - zz - 6 * z, 3 * z, 4.6 * z, 0, 0, 6.2832); c.fill();
@@ -228,7 +334,64 @@ function dessineProjectile(c, p, tps){
     c.save(); c.globalAlpha = 0.22; c.fillStyle = "#000";
     c.beginPath(); c.ellipse(e.x, e.y, 4 * z, 2 * z, 0, 0, 6.2832); c.fill();
     c.restore();
-  }else if(p.t === "electro"){
+  }else if(p.t === "viper" || p.t === "nova"){
+    var nova = p.t === "nova";
+    var hy = e.y - zz;
+    /* traînée de fumée */
+    c.save();
+    c.globalAlpha = 0.5;
+    for(var s3 = 1; s3 <= 9; s3++){
+      var t3 = s3 / 9;
+      var px3 = e.x + (versEcran(cam, p.x0, p.y0).x - e.x) * t3;
+      var pz3 = p.z * (1 - (p.age / p.duree)) * 0;
+      var py3 = hy + ((versEcran(cam, p.x0, p.y0).y - p.haut * cam.z) - hy) * t3;
+      bouffee(c, px3, py3, (3 + t3 * (nova ? 13 : 8)) * cam.z, (1 - t3) * 0.5, "#b4aca8");
+    }
+    c.restore();
+    c.save();
+    c.translate(e.x, hy);
+    c.rotate(Math.atan2(p.cy - p.y0 + 0.001, p.cx - p.x0) * 0 + 0.9);
+    c.scale(cam.z, cam.z);
+    if(nova){
+      /* ogive trapue à ailerons, bandes de danger */
+      c.fillStyle = "#d8d2c4";
+      c.beginPath();
+      c.moveTo(0, -16); c.quadraticCurveTo(9, -6, 8, 12);
+      c.lineTo(-8, 12); c.quadraticCurveTo(-9, -6, 0, -16);
+      c.closePath(); c.fill();
+      c.fillStyle = "#e8c437";
+      c.fillRect(-8, -2, 16, 5);
+      c.fillStyle = "#1c1a18";
+      for(var b3 = -1; b3 <= 1; b3++) c.fillRect(b3 * 5 - 1.4, -2, 2.8, 5);
+      c.fillStyle = "#b8433a";
+      c.beginPath(); c.moveTo(-8, 12); c.lineTo(-13, 19); c.lineTo(-4, 15); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(8, 12); c.lineTo(13, 19); c.lineTo(4, 15); c.closePath(); c.fill();
+    }else{
+      /* Viper : long, fin, ailerons nets */
+      c.fillStyle = "#cfd6dc";
+      c.beginPath();
+      c.moveTo(0, -18); c.quadraticCurveTo(4.5, -6, 4, 12);
+      c.lineTo(-4, 12); c.quadraticCurveTo(-4.5, -6, 0, -18);
+      c.closePath(); c.fill();
+      c.fillStyle = "#2f8ea4";
+      c.fillRect(-4, -4, 8, 3.4);
+      c.fillStyle = "#8a949c";
+      c.beginPath(); c.moveTo(-4, 10); c.lineTo(-9, 17); c.lineTo(-2, 14); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(4, 10); c.lineTo(9, 17); c.lineTo(2, 14); c.closePath(); c.fill();
+    }
+    /* jet du propulseur */
+    c.globalCompositeOperation = "lighter";
+    var gj2 = c.createRadialGradient(0, 16, 0, 0, 16, nova ? 16 : 12);
+    gj2.addColorStop(0, "rgba(255,240,190,.9)");
+    gj2.addColorStop(0.45, "rgba(255,150,40,.6)");
+    gj2.addColorStop(1, "rgba(255,80,20,0)");
+    c.fillStyle = gj2;
+    c.beginPath(); c.ellipse(0, 16, nova ? 9 : 6, nova ? 16 : 12, 0, 0, 6.2832); c.fill();
+    c.restore();
+    c.save(); c.globalAlpha = 0.2; c.fillStyle = "#000";
+    c.beginPath(); c.ellipse(e.x, e.y, 6 * cam.z, 3 * cam.z, 0, 0, 6.2832); c.fill();
+    c.restore();
+  }else if(p.t === "bobine"){
     c.save();
     c.globalCompositeOperation = "lighter";
     var g3 = c.createRadialGradient(e.x, e.y - zz - 8 * z, 0, e.x, e.y - zz - 8 * z, 11 * z);
@@ -288,9 +451,9 @@ function dessineZonesSol(c, tps){
     c.beginPath(); c.ellipse(r2.x - 6, r2.y - 3, g2.r * RX * 0.35, g2.r * RY * 0.35, 0, 0, 6.2832); c.fill();
     c.restore();
   }
-  /* zones de soins */
-  for(i = 0; i < jeu.soins.length; i++){
-    var s = jeu.soins[i], t = iso(s.gx, s.gy);
+  /* zones de soin */
+  for(i = 0; i < jeu.soin.length; i++){
+    var s = jeu.soin[i], t = iso(s.gx, s.gy);
     var a3 = Math.min(1, (s.duree - s.age) / 1.0);
     c.save();
     c.globalCompositeOperation = "lighter";
@@ -304,6 +467,64 @@ function dessineZonesSol(c, tps){
     c.ellipse(t.x, t.y, s.r * RX * (0.75 + 0.25 * Math.sin(tps * 3)),
               s.r * RY * (0.75 + 0.25 * Math.sin(tps * 3)), 0, 0, 6.2832);
     c.stroke();
+    c.restore();
+  }
+  /* Emprise au sol du Brouillard. Elle dit une chose et une seule :
+     « tout ce qui est dans ce cercle est masqué ». Elle est donc plus
+     franche que le nuage — liseré plein, liseré animé, et des
+     épaisseurs plafonnées en pixels écran pour rester lisible au
+     dézoom, là où la fumée seule devenait invisible.
+     Repère MONDE : ce bloc est peint entre repereMonde et repereEcran,
+     les longueurs sont en unités monde et les traits divisés par cam.z. */
+  for(i = 0; i < jeu.brouillards.length; i++){
+    var zb = jeu.brouillards[i], pb = iso(zb.gx, zb.gy);
+    var ab = Math.min(1, zb.age * 3) * Math.min(1, (zb.duree - zb.age) / 1.5);
+    var bx = zb.r * RX, by = zb.r * RY;
+    c.save();
+    var gb = c.createRadialGradient(pb.x, pb.y, bx * 0.14, pb.x, pb.y, bx);
+    gb.addColorStop(0.00, "rgba(214,210,224," + (0.30 * ab) + ")");
+    gb.addColorStop(0.62, "rgba(178,172,190," + (0.24 * ab) + ")");
+    gb.addColorStop(0.93, "rgba(152,146,164," + (0.15 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(142,136,154,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(228,224,238," + (0.66 * ab) + ")";
+    c.lineWidth = Math.max(1.6 / cam.z, 2.6);
+    c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.stroke();
+    if(c.setLineDash){
+      var pas = Math.max(7 / cam.z, 12);
+      c.setLineDash([pas, pas * 0.8]);
+      c.lineDashOffset = -tps * pas * 0.9;
+      c.strokeStyle = "rgba(255,255,255," + (0.36 * ab) + ")";
+      c.lineWidth = Math.max(1 / cam.z, 1.6);
+      c.beginPath(); c.ellipse(pb.x, pb.y, bx * 0.93, by * 0.93, 0, 0, 6.2832); c.stroke();
+      c.setLineDash([]);
+    }
+    c.restore();
+  }
+  /* zones cryogéniques : les tourelles prises dedans sont muettes */
+  for(i = 0; i < jeu.cryos.length; i++){
+    var zc = jeu.cryos[i], pz = iso(zc.gx, zc.gy);
+    var az = Math.min(1, zc.age * 3) * Math.min(1, (zc.duree - zc.age) / 1.5);
+    c.save();
+    var gz = c.createRadialGradient(pz.x, pz.y, 4, pz.x, pz.y, zc.r * RX);
+    gz.addColorStop(0, "rgba(190,240,255," + (0.42 * az) + ")");
+    gz.addColorStop(0.7, "rgba(120,200,255," + (0.26 * az) + ")");
+    gz.addColorStop(1, "rgba(90,170,255,0)");
+    c.fillStyle = gz;
+    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(220,250,255," + (0.6 * az) + ")"; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.stroke();
+    /* cristaux de givre */
+    var alz = prng((zc.gx * 313 + zc.gy * 977) | 0);
+    c.fillStyle = "rgba(230,250,255," + (0.5 * az) + ")";
+    for(var q = 0; q < 18; q++){
+      var aq = alz() * 6.2832, rq = Math.sqrt(alz()) * zc.r;
+      var px2 = pz.x + Math.cos(aq) * rq * RX, py2 = pz.y + Math.sin(aq) * rq * RY;
+      c.beginPath();
+      c.moveTo(px2, py2 - 6); c.lineTo(px2 + 3, py2); c.lineTo(px2, py2 + 6); c.lineTo(px2 - 3, py2);
+      c.closePath(); c.fill();
+    }
     c.restore();
   }
   /* vague de feu */
@@ -331,8 +552,8 @@ function dessineZonesSol(c, tps){
     c.restore();
   }
   /* point de ralliement */
-  if(jeu.fusee){
-    var pf = iso(jeu.fusee.gx, jeu.fusee.gy);
+  if(jeu.balise){
+    var pf = iso(jeu.balise.gx, jeu.balise.gy);
     c.save();
     c.globalCompositeOperation = "lighter";
     var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, 90);
@@ -348,26 +569,143 @@ function dessineZonesSol(c, tps){
 }
 
 /* Nuage de fumigène — volumétrique, dans le tri de profondeur */
-function dessineFumigene(c, f, tps){
+/* Le volume de fumée du Brouillard. L'emprise au sol, elle, est
+   peinte avec le Cryo dans dessineZonesSol : un disque posé au sol n'a
+   rien à faire dans la pile de profondeur, il repasserait par-dessus
+   les unités situées devant lui.
+   Attention : bouffee() REMPLACE globalAlpha au lieu de le multiplier.
+   Le fondu doit donc passer par l'argument, pas par un globalAlpha
+   parent — c'est ce qui rendait l'ancien fondu inopérant. */
+function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
-  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.2);
-  c.save();
-  c.globalAlpha = 0.72 * a;
-  for(var i = 0; i < 12; i++){
-    var ang = i / 12 * 6.2832 + tps * 0.25;
-    var rr = f.r * (0.35 + (i % 3) * 0.25);
-    var pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr * 0.9);
-    bouffee(c, pp.x, pp.y - (14 + (i % 4) * 7) * z + Math.sin(tps * 1.4 + i) * 3 * z,
-            (11 + (i % 3) * 5) * z, 0.5, i % 2 ? "#8e8894" : "#a9a3ae");
+  var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.5);
+  var i, ang, rr, pp;
+
+  /* nappe basse qui court le long du sol, au bord même de la zone */
+  for(i = 0; i < 14; i++){
+    ang = i / 14 * 6.2832 - tps * 0.18;
+    rr = f.r * (0.80 + (i % 3) * 0.07);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (4 + (i % 3) * 4) * z + Math.sin(tps * 1.1 + i) * 2 * z,
+            (13 + (i % 4) * 4) * z, 0.40 * a, i % 2 ? "#a29cac" : "#b8b2c2");
   }
-  bouffee(c, p.x, p.y - 20 * z, 26 * z, 0.55, "#9a94a2");
+  /* volutes qui montent au-dessus */
+  for(i = 0; i < 12; i++){
+    ang = i / 12 * 6.2832 + tps * 0.25;
+    rr = f.r * (0.35 + (i % 3) * 0.25);
+    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+    bouffee(c, pp.x, pp.y - (16 + (i % 4) * 8) * z + Math.sin(tps * 1.4 + i) * 3 * z,
+            (12 + (i % 3) * 5) * z, 0.5 * a, i % 2 ? "#8e8894" : "#a9a3ae");
+  }
+  bouffee(c, p.x, p.y - 22 * z, 28 * z, 0.55 * a, "#9a94a2");
+
+  /* décompte : combien de temps la zone tient encore */
+  if(z > 0.30){
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 48 * z),
+               Math.max(10, 13 * z), "#e6e2f0");
+  }
+}
+
+/* ---------------------------------------------------------------
+   LA NAVETTE DE DÉBARQUEMENT
+   Coque à fond plat, timonerie arrière, rampe d'étrave qui s'abaisse.
+   Elle tangue tant qu'elle flotte et se cale une fois échouée.
+   --------------------------------------------------------------- */
+var NAV_ECH = 1.75;            // une navette porte quinze soldats : elle est grosse
+function dessineNavette(c, v, tps){
+  var p = versEcran(cam, v.gx, v.gy);
+  var z = cam.z * NAV_ECH;
+  var flotte = v.etat !== "accostage" || v.rampe < 1;
+  var tang = flotte ? Math.sin(v.tangage) * 1.6 * z : Math.sin(tps * 1.6 + v.n) * 0.5 * z;
+  var y = p.y + tang;
+
+  /* sillage et écume d'étrave */
+  c.save();
+  c.globalAlpha = 0.30;
+  c.fillStyle = "#eaf7f6";
+  for(var w = 0; w < 4; w++){
+    var dw = (18 + w * 15) * z;
+    c.beginPath();
+    c.ellipse(p.x + dw * 0.9, y + dw * 0.42, (13 - w * 2) * z, (6 - w) * z, 0, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* ombre portée sur l'eau */
+  c.save();
+  c.globalAlpha = 0.22; c.fillStyle = "#0b2b34";
+  c.beginPath(); c.ellipse(p.x, p.y + 5 * z, 30 * z, 12 * z, 0, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* coque : un trapèze isométrique, étrave vers l'ouest (gx décroissant) */
+  var A = { x:p.x - 30 * z, y:y - 2 * z };     // étrave
+  var B = { x:p.x + 26 * z, y:y - 12 * z };    // arrière bâbord
+  var D = { x:p.x + 26 * z, y:y + 10 * z };    // arrière tribord
+  var E = { x:p.x - 26 * z, y:y + 8 * z };
+  c.fillStyle = "#4c5a52";
+  c.beginPath();
+  c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.lineTo(D.x, D.y); c.lineTo(E.x, E.y);
+  c.closePath(); c.fill();
+  /* pont */
+  c.fillStyle = "#6c7a6e";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(D.x, D.y - 7 * z); c.lineTo(E.x, E.y - 7 * z);
+  c.closePath(); c.fill();
+  /* bordé, côté éclairé */
+  c.fillStyle = "#8a9a86";
+  c.beginPath();
+  c.moveTo(A.x, A.y - 7 * z); c.lineTo(B.x, B.y - 7 * z);
+  c.lineTo(B.x, B.y); c.lineTo(A.x, A.y);
+  c.closePath(); c.fill();
+
+  /* timonerie à l'arrière */
+  c.fillStyle = "#586652";
+  c.fillRect(p.x + 10 * z, y - 24 * z, 15 * z, 14 * z);
+  c.fillStyle = "#39443a";
+  c.fillRect(p.x + 12 * z, y - 21 * z, 11 * z, 5 * z);
+  c.fillStyle = "#9fb09a";
+  c.fillRect(p.x + 10 * z, y - 25 * z, 15 * z, 2 * z);
+  /* mât et fanion */
+  c.strokeStyle = "#39443a"; c.lineWidth = Math.max(1, 1.6 * z);
+  c.beginPath(); c.moveTo(p.x + 17 * z, y - 25 * z); c.lineTo(p.x + 17 * z, y - 38 * z); c.stroke();
+  c.fillStyle = "#ff8a1e";
+  c.beginPath();
+  c.moveTo(p.x + 17 * z, y - 38 * z);
+  c.lineTo(p.x + 28 * z + Math.sin(tps * 5 + v.n) * 2 * z, y - 35 * z);
+  c.lineTo(p.x + 17 * z, y - 32 * z);
+  c.closePath(); c.fill();
+
+  /* rampe d'étrave : verticale fermée, rabattue sur le sable ouverte */
+  var ang = v.rampe * 1.35;
+  c.save();
+  c.translate(A.x, A.y - 7 * z);
+  c.fillStyle = "#7d8c78";
+  var lg = 34 * z;      // assez longue pour retomber sur le sable
+  var dx = -Math.cos(ang) * 0, dy = 0;
+  c.beginPath();
+  c.moveTo(0, 0);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42);
+  c.lineTo(-lg * Math.sin(ang) - 2 * z + 16 * z, -lg * Math.cos(ang) + lg * Math.sin(ang) * 0.42 + 7 * z);
+  c.lineTo(16 * z, 7 * z);
+  c.closePath(); c.fill();
+  c.strokeStyle = "#4c5a52"; c.lineWidth = Math.max(1, 1.2 * z);
+  c.stroke();
+  c.restore();
+
+  /* bandes d'avertissement sur le pont */
+  c.save();
+  c.globalAlpha = 0.55;
+  c.fillStyle = "#e8c437";
+  for(var q = 0; q < 3; q++)
+    c.fillRect(p.x - 12 * z + q * 9 * z, y - 12 * z, 4 * z, 3 * z);
   c.restore();
 }
 
 /* La fusée éclairante elle-même, avec son décompte */
 function dessineFusee(c, tps){
-  var f = jeu.fusee;
+  var f = jeu.balise;
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
   c.save();
@@ -393,33 +731,57 @@ function dessineFusee(c, tps){
    Visée d'une capacité
    --------------------------------------------------------------- */
 var viseur = { actif:false, x:0, y:0 };
+/* Aperçu de placement : une table, pas une chaîne de ternaires — la
+   prochaine capacité ajoutée ne pourra plus être oubliée en silence.
+   Ce qui n'est pas listé prend CAP[m].rayon, ce qui couvre nova, cryo,
+   brouillard, soin, salve et viper sans rien écrire de plus. */
+var VISEE_RAYON = { poulets:0 };              // 0 = rempli au premier appel
+var VISEE_COUL = {
+  soin:"#6ee08a", brouillard:"#c9c4d2", balise:"#ffd070",
+  cryo:"#9ad8ff", poulets:"#f4e2a8", nova:"#ff6a2a",
+  salve:"#ffb14a", viper:"#ff8a1e"
+};
 function dessineVisee(c, tps){
   var m = jeu.capArmee;
   if(!m) return;
+  if(!VISEE_RAYON.poulets) VISEE_RAYON.poulets = CAP.poulets.rayon;
+  /* la Balise rassemble sur tout le disque de formation, pas sur le
+     point cliqué : l'aperçu doit montrer ce disque */
+  VISEE_RAYON.balise = rayonFormation();
   var vue = rectVisible(60);
   /* cercles de portée de toutes les défenses */
   c.save();
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.translate(cam.px, cam.py); c.scale(cam.z, cam.z);
-  c.setLineDash([7, 6]);
-  c.lineWidth = 1.4 / cam.z;
-  for(var i = 0; i < jeu.batiments.length; i++){
-    var b = jeu.batiments[i];
-    if(!b.vivant || !DEF[b.t].portee) continue;
-    if(!visible(vue, b.gx, b.gy)) continue;
-    var p = iso(b.gx, b.gy);
-    c.strokeStyle = "rgba(255,90,60,.30)";
-    c.beginPath(); c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832); c.stroke();
+  repereMonde(c);
+  /* Trait plein, un seul beginPath pour toutes les défenses, et rien
+     du tout au-delà d'un certain dézoom : en pointillés et une ellipse
+     par bâtiment, ce bloc coûtait à lui seul le geste de placement. */
+  if(cam.z > 0.22){
+    c.strokeStyle = "rgba(255,90,60,.26)";
+    c.lineWidth = Math.max(1.2 / cam.z, 1.1);
+    c.beginPath();
+    var traces = 0;
+    for(var i = 0; i < jeu.batiments.length && traces < 90; i++){
+      var b = jeu.batiments[i];
+      if(!b.vivant || !DEF[b.t].portee) continue;
+      if(!visible(vue, b.gx, b.gy)) continue;
+      var p = iso(b.gx, b.gy);
+      c.moveTo(p.x + DEF[b.t].portee * RX, p.y);
+      c.ellipse(p.x, p.y, DEF[b.t].portee * RX, DEF[b.t].portee * RY, 0, 0, 6.2832);
+      traces++;
+    }
+    c.stroke();
   }
-  c.setLineDash([]);
   c.restore();
+  repereEcran(c);
 
   if(!viseur.actif) return;
   var w = versMonde(cam, viseur.x, viseur.y);
-  var r = m === "obus" ? CAP.obus.rayon : m === "barrage" ? CAP.barrage.rayon
-        : m === "fumee" ? CAP.fumee.rayon : m === "soins" ? CAP.soins.rayon : 1.2;
+  /* Le rayon d'aperçu se LIT dans CAP : la chaîne de ternaires qui
+     traînait ici oubliait cryo, nova et poulets, et leur affichait un
+     cercle de 1,2 case pour une zone qui en couvre 4. */
+  var r = VISEE_RAYON[m] !== undefined ? VISEE_RAYON[m] : (CAP[m] && CAP[m].rayon) || 1.2;
   var pe = versEcran(cam, w.gx, w.gy);
-  var coul = m === "soins" ? "#6ee08a" : m === "fumee" ? "#c9c4d2" : m === "fusee" ? "#ffd070" : "#ff8a1e";
+  var coul = VISEE_COUL[m] || "#ff8a1e";
   c.save();
   c.globalAlpha = 0.85;
   c.strokeStyle = coul; c.lineWidth = 2.2;
@@ -434,42 +796,38 @@ function dessineVisee(c, tps){
   c.moveTo(pe.x, pe.y - 8); c.lineTo(pe.x, pe.y + 8);
   c.stroke();
   c.restore();
-  if(m === "debarquer"){
-    var ok = w.gx >= PLAGE_X0 - 1.5;
-    texteCerne(c, ok ? "Débarquer ici" : "Seulement sur la plage à l'est",
-               pe.x, pe.y - 30, 13, ok ? "#6ee08a" : "#ff8a6a");
-  }
+
 }
 
 /* ---------------------------------------------------------------
    Boucle de rendu
    --------------------------------------------------------------- */
 function rendu(tps, dt){
-  var sx = 0, sy = 0;
+  secX = 0; secY = 0;
   if(jeu.secousse > 0){
-    sx = (Math.random() - 0.5) * jeu.secousse;
-    sy = (Math.random() - 0.5) * jeu.secousse;
+    secX = (Math.random() - 0.5) * jeu.secousse;
+    secY = (Math.random() - 0.5) * jeu.secousse;
   }
-  ctx.setTransform(dpr, 0, 0, dpr, sx * dpr, sy * dpr);
+  repereEcran(ctx);
   ctx.clearRect(-40, -40, W + 80, H + 80);
 
   var vue = rectVisible(0);
 
-  /* ---- décor ---- */
-  ctx.save();
-  ctx.translate(cam.px, cam.py);
-  ctx.scale(cam.z, cam.z);
-  dessineEau(ctx, tps, vue);
+  /* ---- mer et terrain, dans le repère du monde ---- */
+  repereMonde(ctx);
+  var mer = coteVisible(vue);
+  if(mer) dessineEau(ctx, tps, vue);
   dessineSol(ctx, vue);
-  dessineEcume(ctx, tps);
-  dessineRessac(ctx, tps);
+  if(mer){ dessineEcume(ctx, tps); dessineRessac(ctx, tps); }
   dessineZonesSol(ctx, tps);
-  ctx.restore();
+  repereEcran(ctx);
 
   /* ---- entités triées en profondeur ---- */
   pile.length = 0;
   var i;
   var vueL = rectVisible(0);
+  /* décor : rochers, falaises et végétation, dans le tri de profondeur */
+  decorVisible(vueL, pile);
   for(i = 0; i < jeu.batiments.length; i++){
     var b = jeu.batiments[i];
     if(!b.vivant) continue;
@@ -480,6 +838,11 @@ function rendu(tps, dt){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;
     pile.push({ d:u.gx + u.gy, k:1, o:u });
+  }
+  for(i = 0; i < jeu.poulets.length; i++){
+    var pl = jeu.poulets[i];
+    if(!visible(vueL, pl.gx, pl.gy)) continue;
+    pile.push({ d:pl.gx + pl.gy, k:10, o:pl });
   }
   for(i = 0; i < jeu.creatures.length; i++){
     var k2 = jeu.creatures[i];
@@ -509,10 +872,28 @@ function rendu(tps, dt){
     if(!visible(vueL, ef.gx, ef.gy)) continue;
     pile.push({ d:ef.gx + ef.gy + 0.2, k:6, o:ef });
   }
-  for(i = 0; i < jeu.fumees.length; i++){
-    pile.push({ d:jeu.fumees[i].gx + jeu.fumees[i].gy + 0.4, k:7, o:jeu.fumees[i] });
+  for(i = 0; i < jeu.brouillards.length; i++){
+    pile.push({ d:jeu.brouillards[i].gx + jeu.brouillards[i].gy + 0.4, k:7, o:jeu.brouillards[i] });
   }
-  pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  /* navettes de débarquement : elles sont à cheval sur l'eau et le sable */
+  for(i = 0; i < jeu.navettes.length; i++){
+    var nv = jeu.navettes[i];
+    if(!visible(vueL, nv.gx, nv.gy)) continue;
+    pile.push({ d:nv.gx + nv.gy - 0.2, k:11, o:nv });
+  }
+  /* Le Brasier coûte deux sprites 700×700 et une soixantaine de foyers :
+     il n'a rien à faire dans la pile quand il est hors champ. Sa marge
+     est large — la forteresse dépasse très haut au-dessus de sa case. */
+  {
+    var pq = iso(jeu.qg.gx, jeu.qg.gy);
+    /* La forteresse monte de ~600 unités monde AU-DESSUS de sa case et
+       n'en descend que d'une centaine : les marges verticales doivent
+       donc être dissymétriques dans CE sens-là. Inversées, elles
+       escamotaient le Brasier alors qu'il était encore à l'écran. */
+    if(pq.x > vueL.x0 - 480 && pq.x < vueL.x1 + 480 &&
+       pq.y > vueL.y0 - 120 && pq.y < vueL.y1 + 700)
+      pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
+  }
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   for(i = 0; i < pile.length; i++){
@@ -525,11 +906,14 @@ function rendu(tps, dt){
       case 4: dessineFantome(ctx, it.o, tps); break;
       case 5: dessineProjectile(ctx, it.o, tps); break;
       case 6: dessineEffet(ctx, it.o, tps); break;
-      case 7: dessineFumigene(ctx, it.o, tps); break;
+      case 7: dessineBrouillard(ctx, it.o, tps); break;
       case 8: dessineQG(ctx, tps); break;
+      case 9: dessineDecorMonde(ctx, it); break;
+      case 10: dessinePouletMonde(ctx, it.o, tps); break;
+      case 11: dessineNavette(ctx, it.o, tps); break;
     }
   }
-  if(jeu.fusee) dessineFusee(ctx, tps);
+  if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs */
   for(var idj2 in autresJoueurs){
@@ -545,11 +929,12 @@ function rendu(tps, dt){
   }
 
   /* visée */
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(ctx);
   dessineVisee(ctx, tps);
 
-  /* Gégé la belette */
+  /* Gégé la belette, puis Tweety le canari */
   if(jeu.messageGege > 0) dessineGege(ctx, tps);
+  if(jeu.messageTweety > 0) dessineTweetyDeuil(ctx, tps);
 
   /* séquence finale */
   if(jeu.fin) dessineFin(ctx, tps);
@@ -559,11 +944,73 @@ function rendu(tps, dt){
 }
 
 /* ---------------------------------------------------------------
+   « Elle est où Tweety ? Elle nous manque à tous. »
+   Aucune accusation, aucun « vous avez tué » : le deuil est collectif
+   et l'absurde vient de là.
+   --------------------------------------------------------------- */
+function dessineTweetyDeuil(c, tps){
+  var t = 1 - jeu.messageTweety / 3;
+  repereEcran(c);
+  c.fillStyle = "rgba(6,8,16," + (0.50 * Math.min(1, (1 - t) * 2.2)) + ")";
+  c.fillRect(0, 0, W, H);
+
+  var ent = Math.min(1, t / 0.24);
+  var mont = 1 - Math.exp(-ent * 5);            // le texte monte et se pose
+  var sortie = t > 0.86 ? (t - 0.86) / 0.14 : 0;
+  var alpha = 1 - sortie;
+
+  c.save();
+  c.globalAlpha = alpha;
+  c.translate(W / 2, H * 0.44 + (1 - mont) * 70 + sortie * 30);
+  var taille = Math.min(W * 0.072, H * 0.108);
+  c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.lineJoin = "round";
+
+  /* halo froid : ce n'est pas une explosion, c'est un chagrin */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gh = c.createRadialGradient(0, 0, taille * 0.2, 0, 0, taille * 5.5);
+  gh.addColorStop(0, "rgba(255,225,120,.26)");
+  gh.addColorStop(1, "rgba(255,200,60,0)");
+  c.fillStyle = gh;
+  c.beginPath(); c.arc(0, 0, taille * 5.5, 0, 6.2832); c.fill();
+  c.restore();
+
+  var lignes = ["Elle est où Tweety ?", "Elle nous manque à tous."];
+  for(var i = 0; i < 2; i++){
+    var y = (i - 0.5) * taille * 1.2;
+    c.lineWidth = taille * 0.22; c.strokeStyle = "#120e04";
+    c.strokeText(lignes[i], 0, y);
+    var g = c.createLinearGradient(0, y - taille * 0.55, 0, y + taille * 0.55);
+    g.addColorStop(0, "#fff6c8");
+    g.addColorStop(0.5, "#ffd21e");
+    g.addColorStop(1, "#d99a10");
+    c.fillStyle = g;
+    c.fillText(lignes[i], 0, y);
+  }
+
+  /* une plume jaune qui descend en tournoyant */
+  c.save();
+  c.translate(Math.sin(tps * 1.3) * taille * 1.6, -taille * 2.0 + t * taille * 4.4);
+  c.rotate(Math.sin(tps * 2.1) * 0.7);
+  c.globalAlpha = alpha * 0.95;
+  c.fillStyle = "#ffd21e";
+  c.beginPath();
+  c.ellipse(0, 0, taille * 0.09, taille * 0.28, 0, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = "rgba(160,110,10,.6)"; c.lineWidth = Math.max(1, taille * 0.014);
+  c.beginPath(); c.moveTo(0, -taille * 0.26); c.lineTo(0, taille * 0.26); c.stroke();
+  c.restore();
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
    « Oh non, vous avez tué Gégé la belette ! »
    --------------------------------------------------------------- */
 function dessineGege(c, tps){
   var t = 1 - jeu.messageGege / 3;                 // 0 → 1 sur les trois secondes
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(c);
   /* voile sombre qui s'estompe */
   c.fillStyle = "rgba(10,4,14," + (0.45 * Math.min(1, (1 - t) * 2.2)) + ")";
   c.fillRect(0, 0, W, H);
@@ -590,7 +1037,10 @@ function dessineGege(c, tps){
   c.fillStyle = g0;
   c.beginPath(); c.arc(0, 0, taille * 6, 0, 6.2832); c.fill();
   c.restore();
-  var lignes = ["Oh non, vous avez tué", "Gégé la belette !"];
+  /* le coupable est nommé : « vous » si c'est vous, son pseudo sinon */
+  var lignes = (jeu.tueurGege && jeu.tueurGege !== monNom)
+    ? [jeu.tueurGege + " a tué", "Gégé la belette !"]
+    : ["Oh non, vous avez tué", "Gégé la belette !"];
   for(var i = 0; i < 2; i++){
     var y = (i - 0.5) * taille * 1.15;
     c.lineWidth = taille * 0.24; c.strokeStyle = "#160702";
@@ -614,19 +1064,97 @@ function dessineGege(c, tps){
    La séquence finale
    --------------------------------------------------------------- */
 var COULEURS_CONFETTIS = ["#ff5a4a", "#ffd070", "#6ee08a", "#7de6ff", "#c98adf", "#ff8a1e"];
+var TEINTES_DEBRIS = ["#6d5a60", "#463a40", "#3a2f34"];
+
 function dessineFin(c, tps){
   var F = jeu.fin;
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  repereEcran(c);
+  var pq = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
+  var z = cam.z;
+
+  /* ---- ondes de choc : trois anneaux qui balaient l'écran ---- */
+  for(var w = 0; w < F.ondes.length; w++){
+    var on = F.ondes[w];
+    if(on.age <= 0) continue;
+    var av = Math.max(0, 1 - on.age / 1.5);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(255,226,170," + (0.55 * av * av) + ")";
+    c.lineWidth = Math.max(1.5, 26 * av * z);
+    c.beginPath();
+    c.ellipse(pq.x, pq.y - 60 * z, on.r * z, on.r * z * 0.5, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+  }
+
+  /* ---- colonne de fumée : elle s'élève et s'épaissit ---- */
+  for(var f2 = 0; f2 < F.colonne.length; f2++){
+    var fu = F.colonne[f2];
+    var tf = fu.age / fu.duree;
+    var af = Math.min(1, fu.age * 3) * (1 - tf) * 0.55;
+    var teinte = tf < 0.35 ? "#4a3a3a" : "#6a6068";
+    bouffee(c, pq.x + fu.x * z + Math.sin(fu.age * 1.1 + f2) * 14 * z,
+            pq.y + (fu.y - 30) * z,
+            (fu.r + tf * 26) * z, af, teinte);
+  }
+
   /* flash blanc */
   if(F.flash > 0){
     c.fillStyle = "rgba(255,255,255," + Math.min(1, F.flash) + ")";
     c.fillRect(0, 0, W, H);
   }
+
+  /* ---- boule de feu, juste après la déflagration ---- */
+  if(F.tete && F.tete.age < 2.4){
+    var tb = F.tete.age / 2.4;
+    /* la boule monte à 900 unités monde : à la distance de jeu elle
+       remplit l'écran, ce qui est bien le but d'une déflagration */
+    var rb = (110 + Math.sqrt(tb) * 900) * z;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ab = (1 - tb) * (1 - tb) * (1 - tb * 0.35);
+    var gb = c.createRadialGradient(pq.x, pq.y - 130 * z, rb * 0.08,
+                                    pq.x, pq.y - 130 * z, rb);
+    gb.addColorStop(0.00, "rgba(255,252,232," + (0.95 * ab) + ")");
+    gb.addColorStop(0.22, "rgba(255,206,110," + (0.85 * ab) + ")");
+    gb.addColorStop(0.52, "rgba(255,118,28," + (0.60 * ab) + ")");
+    gb.addColorStop(0.80, "rgba(190,44,12," + (0.30 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(90,16,6,0)");
+    c.fillStyle = gb;
+    c.beginPath(); c.arc(pq.x, pq.y - 130 * z, rb, 0, 6.2832); c.fill();
+    c.restore();
+  }
+
+  /* ---- débris : blocs de maçonnerie, certains encore en feu ---- */
+  for(var d2 = 0; d2 < F.debris.length; d2++){
+    var d = F.debris[d2];
+    var ad = Math.min(1, (d.duree - d.age) / 0.8);
+    c.save();
+    c.globalAlpha = ad;
+    c.translate(pq.x + d.x * z, pq.y + d.y * z);
+    c.rotate(d.rot);
+    var lw = d.w * 1.7 * z;
+    c.fillStyle = TEINTES_DEBRIS[d.teinte];
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.66);
+    c.fillStyle = "rgba(255,255,255,.12)";
+    c.fillRect(-lw / 2, -lw / 3, lw, lw * 0.2);
+    c.restore();
+    if(d.feu && d.age < 2.2){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gf2 = c.createRadialGradient(pq.x + d.x * z, pq.y + d.y * z, 0.5,
+                                       pq.x + d.x * z, pq.y + d.y * z, lw * 2.4);
+      gf2.addColorStop(0, "rgba(255,190,90," + (0.55 * ad) + ")");
+      gf2.addColorStop(1, "rgba(255,110,20,0)");
+      c.fillStyle = gf2;
+      c.beginPath(); c.arc(pq.x + d.x * z, pq.y + d.y * z, lw * 2.4, 0, 6.2832); c.fill();
+      c.restore();
+    }
+  }
   /* la tête qui décolle */
   if(F.tete && F.tete.age < 3){
     var p = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
-    var pd = iso(2.0, 0);
-    var x = p.x + pd.x * cam.z, y = p.y + (pd.y - 104) * cam.z + F.tete.y * cam.z;
+    var x = p.x, y = p.y + Y_TETE * cam.z + F.tete.y * cam.z;
     /* traînée de fumée en boules */
     for(var i = 0; i < 14; i++){
       var t = i / 14;
@@ -636,19 +1164,19 @@ function dessineFin(c, tps){
     c.save();
     c.translate(x, y);
     c.rotate(F.tete.rot);
-    c.scale(1.15 * cam.z, 1.15 * cam.z);
+    var eg = ECH_GARD * 0.55 * cam.z;
+    c.scale(eg, eg);
     /* la gardienne, en version qui louche */
-    gardienne3D(c, 0, 0, 1.05, 1);
+    gardienne3D(c, 0, 0, 1, 1, tps);
     /* yeux barrés d'une croix + bouche de travers */
     c.save();
-    c.scale(1.05, 1.05);
     c.strokeStyle = "#150f18"; c.lineWidth = 2.2; c.lineCap = "round";
-    [[-8, -16], [8, -16]].forEach(function(o){
+    [VT_YEUX.g, VT_YEUX.d].forEach(function(o){
       c.beginPath(); c.moveTo(o[0] - 4, o[1] - 4); c.lineTo(o[0] + 4, o[1] + 4); c.stroke();
       c.beginPath(); c.moveTo(o[0] + 4, o[1] - 4); c.lineTo(o[0] - 4, o[1] + 4); c.stroke();
     });
-    c.strokeStyle = "#8a3a34"; c.lineWidth = 2.4;
-    c.beginPath(); c.moveTo(-7, 0); c.quadraticCurveTo(0, 6, 7, -3); c.stroke();
+    c.strokeStyle = "#8a3a34"; c.lineWidth = 2.6;
+    c.beginPath(); c.moveTo(-7, 8); c.quadraticCurveTo(0, 14, 7, 5); c.stroke();
     c.restore();
     c.restore();
   }
@@ -664,14 +1192,16 @@ function dessineFin(c, tps){
       c.restore();
     }
   }
-  /* MILY BOUM ! avec rebond élastique */
-  if(F.age >= 2.4){
-    var tt = Math.min(1, (F.age - 2.4) / 0.75);
+  /* ---- MILY BOUM ! puis le sacre du meilleur contributeur ---- */
+  if(F.age >= FIN_SOUFFLE + 1.3){
+    var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
     var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
     var osc = Math.sin(F.age * 3) * 0.035;
+    /* le titre remonte pour laisser la place au message de victoire */
+    var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
     c.save();
-    c.translate(W / 2, H * 0.42);
-    c.scale(ela, ela);
+    c.translate(W / 2, H * (0.42 - monte * 0.14));
+    c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
     c.rotate(osc);
     var taille = Math.min(W, H) * 0.155;
     c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
@@ -683,11 +1213,74 @@ function dessineFin(c, tps){
     g.addColorStop(0, "#ffe6a8"); g.addColorStop(0.5, "#ff8a1e"); g.addColorStop(1, "#e0431a");
     c.fillStyle = g;
     c.fillText("MILY BOUM !", 0, 0);
-    c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
-    c.lineWidth = taille * 0.07;
-    c.strokeText("la gardienne a décollé", 0, taille * 0.68);
-    c.fillStyle = "#ffd9a8";
-    c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    if(monte < 0.5){
+      c.globalAlpha = 1 - monte * 2;
+      c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
+      c.lineWidth = taille * 0.07;
+      c.strokeText("la gardienne a décollé", 0, taille * 0.68);
+      c.fillStyle = "#ffd9a8";
+      c.fillText("la gardienne a décollé", 0, taille * 0.68);
+    }
+    c.restore();
+  }
+
+  /* ---- le sacre : qui a le plus contribué, et ce que Millie lui offre ---- */
+  if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
+    var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
+    var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
+    var lignes = texteVictoire(jeu.index, F.champion.nom);
+    c.save();
+    c.translate(W / 2, H * 0.56);
+    c.scale(elv, elv);
+    c.rotate(Math.sin(F.age * 2.2) * 0.018);
+    var tv2 = Math.min(W * 0.052, H * 0.078);
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.lineJoin = "round";
+
+    /* écusson doré derrière le texte */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gs = c.createRadialGradient(0, 0, tv2 * 0.4, 0, 0, tv2 * 7);
+    gs.addColorStop(0, "rgba(255,214,120,.30)");
+    gs.addColorStop(1, "rgba(255,150,40,0)");
+    c.fillStyle = gs;
+    c.beginPath(); c.arc(0, 0, tv2 * 7, 0, 6.2832); c.fill();
+    c.restore();
+
+    /* couronne de laurier, deux arcs de feuilles */
+    c.strokeStyle = "rgba(255,206,110,.85)";
+    c.lineWidth = Math.max(2, tv2 * 0.09);
+    [-1, 1].forEach(function(sn){
+      c.beginPath();
+      c.arc(0, tv2 * 0.1, tv2 * 4.6, sn > 0 ? -0.9 : Math.PI + 0.9,
+            sn > 0 ? 0.9 : Math.PI - 0.9, sn < 0);
+      c.stroke();
+      for(var lf = 0; lf < 7; lf++){
+        var al2 = (-0.8 + lf * 0.266) * sn + (sn < 0 ? Math.PI : 0);
+        var lx = Math.cos(al2) * tv2 * 4.6, ly = tv2 * 0.1 + Math.sin(al2) * tv2 * 4.6;
+        c.save();
+        c.translate(lx, ly); c.rotate(al2 + 1.57);
+        c.fillStyle = "rgba(255,196,84,.8)";
+        c.beginPath(); c.ellipse(0, 0, tv2 * 0.34, tv2 * 0.13, 0, 0, 6.2832); c.fill();
+        c.restore();
+      }
+    });
+
+    /* première ligne : le pseudo, en grand */
+    c.font = "900 " + (tv2 * 1.18) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.26; c.strokeStyle = "#1a0e02";
+    c.strokeText(lignes[0], 0, -tv2 * 0.62);
+    var g2 = c.createLinearGradient(0, -tv2 * 1.2, 0, tv2 * 0.1);
+    g2.addColorStop(0, "#fff6d4"); g2.addColorStop(0.5, "#ffcf4e"); g2.addColorStop(1, "#e08a12");
+    c.fillStyle = g2;
+    c.fillText(lignes[0], 0, -tv2 * 0.62);
+
+    /* seconde ligne : la récompense, propre à l'île */
+    c.font = "800 " + (tv2 * 0.74) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.lineWidth = tv2 * 0.20;
+    c.strokeText(lignes[1], 0, tv2 * 0.72);
+    c.fillStyle = "#ffe9b8";
+    c.fillText(lignes[1], 0, tv2 * 0.72);
     c.restore();
   }
 }

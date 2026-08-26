@@ -8,18 +8,24 @@ function demarre(){
   ctx = cv.getContext("2d", { alpha:false });
   miniCv = $("mini");
   miniCtx = miniCv.getContext("2d");
-  monId = idAleatoire(8);
+  monId = idStable();
   ajuste();
+  /* le miroir local du monde est lu AVANT toute connexion : si le
+     courtier a purgé son message retenu, c'est lui qui reprend la
+     main, et sinon la fusion des deux ne perd rien. */
+  chargeMondeLocal();
 
   construitSpritesDefenses();
+  construitSpriteGardienne();
   construitSpriteQG();
   construitVignettesGrises();
 
   construitBriefing();
   installeSaisie();
   installeBoutons();
+  installeRaz();
 
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  monNom = pseudoSaisi();
   connecteRelais($("relais").value);
   majEtatReseau();
 
@@ -42,6 +48,7 @@ function boucle(maintenant){
   lissageFps += ((1 / dt) - lissageFps) * 0.05;
 
   majReseau(dt);
+  majMonde(dt);
   interpoleDistants(dt);
   majFlash(dt);
   majEtatReseauLent(dt);
@@ -58,7 +65,7 @@ function boucle(maintenant){
 var lentT = 0, lentT2 = 0;
 function majBarresLent(dt){
   lentT -= dt;
-  if(lentT <= 0){ lentT = 0.2; majBarres(); }
+  if(lentT <= 0 || barresSales){ lentT = 0.2; majBarres(); }
 }
 function majEtatReseauLent(dt){
   lentT2 -= dt;

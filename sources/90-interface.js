@@ -5,6 +5,7 @@
 var $ = function(id){ return document.getElementById(id); };
 var compoBarges = [];
 var carteSalon = 0;
+var cycleSalon = 0;      // numéro de campagne : +1 à chaque tour complet des îles
 var tempsGlobal = 0;
 var enJeu = false;
 
@@ -45,10 +46,13 @@ function zoomVers(sx, sy, facteur){
    --------------------------------------------------------------- */
 var pointeurs = {}, ordrePt = [];
 var glisse = null, pincee = null;
+var SEUIL_TAP = 9;          // px : au-delà, c'est un glissé, pas un tap
 
+var rectCv = null;
+function invalideRect(){ rectCv = null; }
 function posEv(e){
-  var r = cv.getBoundingClientRect();
-  return { x:e.clientX - r.left, y:e.clientY - r.top };
+  if(!rectCv) rectCv = cv.getBoundingClientRect();
+  return { x:e.clientX - rectCv.left, y:e.clientY - rectCv.top };
 }
 function installeSaisie(){
   cv.addEventListener("pointerdown", function(e){
@@ -81,9 +85,14 @@ function installeSaisie(){
       appliquePince(cam, pincee, a.x, a.y, b.x, b.y, ZMIN, ZMAX);
       borneCamera();
     }else if(glisse){
-      if(jeu.capArmee && viseur.actif){
+      /* Le viseur suit le doigt, MAIS la caméra suit aussi : armer une
+         capacité ne doit jamais confisquer le pan. Tant que le doigt
+         n'a pas franchi le seuil de tap, on ne fait que viser ; au-delà,
+         c'est un glissé de caméra et la visée s'efface. */
+      if(jeu.capArmee && viseur.actif && pt.bouge < SEUIL_TAP){
         viseur.x = p.x; viseur.y = p.y;
       }else{
+        if(viseur.actif) viseur.actif = false;
         cam.px = glisse.px + (p.x - glisse.x);
         cam.py = glisse.py + (p.y - glisse.y);
         borneCamera();
@@ -100,14 +109,19 @@ function installeSaisie(){
     var k = ordrePt.indexOf(e.pointerId);
     if(k >= 0) ordrePt.splice(k, 1);
 
-    if(etaitSeul && pt.bouge < 9){
+    if(etaitSeul && pt.bouge < SEUIL_TAP){
       appuie(pt.x, pt.y);
     }
     if(ordrePt.length === 1){
       /* on repart de la position du doigt restant : pas de saut */
       var r = pointeurs[ordrePt[0]];
+      /* On ré-ancre le PAN sur le doigt restant pour éviter un saut de
+         caméra — mais on NE remet PAS son compteur de mouvement à zéro :
+         il servirait alors de tap au moment où le joueur relève ce
+         doigt, et partirait une Nova (une par vie) ou une navette. */
       glisse = { px:cam.px, py:cam.py, x:r.x, y:r.y };
       pincee = null;
+      viseur.actif = false;
     }else if(ordrePt.length === 0){
       glisse = null; pincee = null; viseur.actif = false;
     }
@@ -122,9 +136,10 @@ function installeSaisie(){
     e.preventDefault();
   }, { passive:false });
 
-  window.addEventListener("resize", function(){ ajuste(); borneCamera(); });
-  window.addEventListener("orientationchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
-  document.addEventListener("fullscreenchange", function(){ setTimeout(function(){ ajuste(); borneCamera(); }, 220); });
+  window.addEventListener("resize", function(){ invalideRect(); ajuste(); borneCamera(); });
+  window.addEventListener("scroll", invalideRect, true);
+  window.addEventListener("orientationchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
+  document.addEventListener("fullscreenchange", function(){ invalideRect(); setTimeout(function(){ invalideRect(); ajuste(); borneCamera(); }, 220); });
 
   /* minicarte cliquable */
   miniCv.addEventListener("pointerdown", function(e){
@@ -188,9 +203,17 @@ function majBandeauFantome(t){
 function nombre(n){
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+/* Le HUD ne se reconstruit JAMAIS depuis la simulation : abimeBatiment
+   appelait majBarres() une fois par bâtiment détruit, donc une Nova qui
+   en démonte dix refaisait dix fois l'innerHTML de la liste des navettes
+   dans la même image. On lève un drapeau, la boucle le consomme. */
+var barresSales = false;
+function demandeMajBarres(){ barresSales = true; }
+
 function majBarres(){
   if(!jeu) return;
-  $("poudreV").textContent = Math.floor(jeu.poudre);
+  barresSales = false;
+  $("energieV").textContent = Math.floor(jeu.energie);
   $("unitesV").textContent = jeu.unites.length;
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
@@ -198,15 +221,22 @@ function majBarres(){
   $("nomCarte").textContent = CARTES[jeu.index % CARTES.length].nom;
   majListeBarges();
   majMenu();
+  majPodium();
 }
+var signatureBarges = null;
 function majListeBarges(){
   var l = $("listeBarges");
+  /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
+     coûte cher, et rien ne change entre deux débarquements */
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
+  if(sig === signatureBarges) return;
+  signatureBarges = sig;
   var html = "";
   for(var i = 0; i < jeu.barges.length; i++){
     var b = jeu.barges[i];
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + '" data-i="' + i + '">'
-          + '<div class="n">' + (b.meuf + b.mec) + '</div>'
-          + '<div class="d">' + b.meuf + "F " + b.mec + "H</div></div>";
+          + '<div class="n">' + b.n + '</div>'
+          + '<div class="d">' + UNI[b.type].nom + '</div></div>';
   }
   if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;padding:6px 10px">aucune</div>';
   l.innerHTML = html;
@@ -222,21 +252,23 @@ function majListeBarges(){
 
 /* --- menu des capacités --- */
 var TUILES = [
-  { m:"obus",      nom:"Obus" },
-  { m:"barrage",   nom:"Barrage" },
-  { m:"fumee",     nom:"Fumigène" },
-  { m:"fusee",     nom:"Éclairante" },
-  { m:"soins",     nom:"Soins" },
-  { m:"debarquer", nom:"Débarquer" }
+  { m:"nova",       nom:"Nova" },
+  { m:"poulets",    nom:"Poulets ×10" },
+  { m:"brouillard", nom:"Brouillard" },
+  { m:"salve",      nom:"Salve" },
+  { m:"cryo",       nom:"Cryo" },
+  { m:"soin",       nom:"Soin" },
+  { m:"balise",     nom:"Balise" },
+  { m:"viper",      nom:"Viper" }
 ];
 function construitMenu(){
   var h = "";
   for(var i = 0; i < TUILES.length; i++){
     var t = TUILES[i];
     h += '<div class="cap" data-m="' + t.m + '">'
-       + '<canvas width="60" height="60" id="ic_' + t.m + '"></canvas>'
+       + '<canvas width="76" height="76" id="ic_' + t.m + '"></canvas>'
        + '<div class="nm">' + t.nom + '</div>'
-       + (t.m === "debarquer" ? '' : '<div class="cx" id="cx_' + t.m + '">0</div>')
+       + '<div class="cx" id="cx_' + t.m + '">0</div>'
        + '</div>';
   }
   $("caps").innerHTML = h;
@@ -255,73 +287,230 @@ function majMenu(){
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
     els[k].classList.toggle("arme", jeu.capArmee === m);
-    if(m !== "debarquer"){
-      var c = coutActuel(m, jeu.usages);
-      $("cx_" + m).textContent = c;
-      els[k].classList.toggle("pauvre", jeu.poudre < c);
-    }else{
-      els[k].classList.toggle("pauvre", jeu.barges.length === 0);
-    }
+    /* la Nova n'a pas de prix : sa pastille compte les charges restantes */
+    $("cx_" + m).textContent = (m === "nova") ? jeu.novaDispo : coutActuel(m, jeu.usages);
+    els[k].classList.toggle("pauvre", !capaciteDisponible(m));
   }
 }
+
+/* ----------------------------------------------------------------
+   Icônes du menu — dessinées en volume, jamais un caractère émoji.
+   Repère : 76×76, origine au centre.
+   ---------------------------------------------------------------- */
 function dessineIcone(m, c){
-  c.clearRect(0, 0, 60, 60);
+  c.clearRect(0, 0, 76, 76);
   c.save();
-  c.translate(30, 30);
-  if(m === "obus"){
-    c.fillStyle = "#ffd070";
-    c.beginPath(); c.moveTo(0, -18); c.lineTo(8, -4); c.lineTo(8, 12); c.lineTo(-8, 12); c.lineTo(-8, -4);
+  c.translate(38, 38);
+  c.lineJoin = "round";
+
+  if(m === "nova"){
+    /* mini missile nucléaire : ogive trapue, bandes de danger, trèfle */
+    c.save(); c.rotate(-0.32);
+    var g = c.createLinearGradient(-11, 0, 11, 0);
+    g.addColorStop(0, "#8d8a82"); g.addColorStop(0.4, "#eae4d6"); g.addColorStop(1, "#7d7a72");
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(0, -25); c.quadraticCurveTo(12, -9, 11, 14);
+    c.lineTo(-11, 14); c.quadraticCurveTo(-12, -9, 0, -25);
     c.closePath(); c.fill();
-    c.fillStyle = "#e8672f"; c.fillRect(-8, 2, 16, 5);
-    c.fillStyle = "rgba(255,255,255,.35)"; c.fillRect(-6, -10, 4, 18);
-  }else if(m === "barrage"){
-    for(var i = -1; i <= 1; i++){
-      c.save(); c.translate(i * 12, i === 0 ? -4 : 3); c.rotate(i * 0.3);
-      c.fillStyle = "#8a9a62";
-      c.beginPath(); c.moveTo(0, -13); c.lineTo(5, -2); c.lineTo(5, 11); c.lineTo(-5, 11); c.lineTo(-5, -2);
-      c.closePath(); c.fill();
-      c.fillStyle = "#e8672f"; c.fillRect(-5, 3, 10, 4);
+    c.fillStyle = "#e8c437"; c.fillRect(-11, -6, 22, 8);
+    c.fillStyle = "#1c1a18";
+    for(var i = -2; i <= 2; i++) c.fillRect(i * 6 - 1.7, -6, 3.4, 8);
+    /* trèfle radioactif */
+    c.fillStyle = "#1c1a18";
+    c.beginPath(); c.arc(0, 6, 2.2, 0, 6.2832); c.fill();
+    for(var k = 0; k < 3; k++){
+      c.save(); c.rotate(k * 2.0944);
+      c.beginPath(); c.moveTo(-3.4, 2.6); c.arc(0, 6, 7, -2.36, -0.78); c.closePath(); c.fill();
       c.restore();
     }
-  }else if(m === "fumee"){
-    c.fillStyle = "#c9c4d2";
-    [[0, -2, 13], [-11, 5, 9], [11, 5, 9], [0, 10, 8]].forEach(function(o){
+    /* ailerons */
+    c.fillStyle = "#c8452f";
+    c.beginPath(); c.moveTo(-11, 14); c.lineTo(-18, 24); c.lineTo(-5, 18); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(11, 14); c.lineTo(18, 24); c.lineTo(5, 18); c.closePath(); c.fill();
+    c.restore();
+    /* petit champignon derrière */
+    c.save(); c.globalAlpha = 0.5; c.fillStyle = "#ff8a1e";
+    c.beginPath(); c.ellipse(16, -18, 11, 6, 0, 0, 6.2832); c.fill();
+    c.fillRect(13, -18, 6, 12);
+    c.restore();
+
+  }else if(m === "poulets"){
+    /* trois poulets, celui de devant bien lisible */
+    function poulet(x, y, e, a){
+      c.save(); c.translate(x, y); c.scale(e, e); c.globalAlpha = a;
+      c.fillStyle = "#f4eee2";
+      c.beginPath(); c.ellipse(0, 0, 11, 9, -0.1, 0, 6.2832); c.fill();
+      c.beginPath(); c.ellipse(9, -9, 6, 6, 0, 0, 6.2832); c.fill();
+      c.fillStyle = "#e0d6c4";
+      c.beginPath(); c.ellipse(-1, 0, 7, 4.5, 0, 0, 6.2832); c.fill();
+      c.fillStyle = "#d8352c";
+      c.beginPath();
+      c.moveTo(6, -14); c.quadraticCurveTo(8, -19, 10, -14.4);
+      c.quadraticCurveTo(12, -18.6, 13.6, -13.6);
+      c.closePath(); c.fill();
+      c.beginPath(); c.ellipse(10, -4.6, 2, 3, 0, 0, 6.2832); c.fill();
+      c.fillStyle = "#e8a72c";
+      c.beginPath(); c.moveTo(14.4, -9.6); c.lineTo(20, -8); c.lineTo(14.4, -6.4); c.closePath(); c.fill();
+      c.fillStyle = "#241c18";
+      c.beginPath(); c.arc(11.4, -10.4, 1.5, 0, 6.2832); c.fill();
+      c.fillStyle = "#f4eee2";
+      c.beginPath();
+      c.moveTo(-8, -2); c.quadraticCurveTo(-19, -10, -15, 0);
+      c.quadraticCurveTo(-13, -1, -8, 1); c.closePath(); c.fill();
+      c.strokeStyle = "#e0a02c"; c.lineWidth = 2; c.lineCap = "round";
+      c.beginPath(); c.moveTo(-2, 8); c.lineTo(-4, 15); c.stroke();
+      c.beginPath(); c.moveTo(3, 8); c.lineTo(5, 15); c.stroke();
+      c.restore();
+    }
+    poulet(-13, -8, 0.52, 0.6);
+    poulet(13, -10, 0.46, 0.5);
+    poulet(-2, 8, 0.95, 1);
+    c.fillStyle = "#ffd070";
+    c.font = "900 15px 'Trebuchet MS', sans-serif";
+    c.textAlign = "right"; c.textBaseline = "bottom";
+    c.strokeStyle = "rgba(10,6,14,.9)"; c.lineWidth = 4;
+    c.strokeText("×10", 34, 34); c.fillText("×10", 34, 34);
+
+  }else if(m === "brouillard"){
+    var gb = c.createLinearGradient(0, -22, 0, 20);
+    gb.addColorStop(0, "#e6e2ee"); gb.addColorStop(1, "#8e8894");
+    c.fillStyle = gb;
+    [[0, -6, 17], [-15, 3, 12], [15, 3, 12], [-7, 11, 10], [8, 11, 10]].forEach(function(o){
       c.beginPath(); c.arc(o[0], o[1], o[2], 0, 6.2832); c.fill();
     });
-    c.fillStyle = "#8e8894";
-    c.beginPath(); c.arc(-5, 2, 7, 0, 6.2832); c.fill();
-  }else if(m === "fusee"){
-    var g = c.createRadialGradient(0, -4, 1, 0, -4, 18);
-    g.addColorStop(0, "#fff8d8"); g.addColorStop(0.4, "#ffd070"); g.addColorStop(1, "rgba(255,138,30,0)");
-    c.fillStyle = g;
-    c.beginPath(); c.arc(0, -4, 18, 0, 6.2832); c.fill();
-    c.strokeStyle = "#f0e6d2"; c.lineWidth = 2;
-    c.beginPath(); c.arc(0, -12, 9, Math.PI, 0); c.stroke();
-    c.beginPath(); c.moveTo(-9, -12); c.lineTo(0, -2); c.lineTo(9, -12); c.stroke();
+    c.fillStyle = "rgba(120,112,128,.55)";
+    c.beginPath(); c.arc(-6, 2, 9, 0, 6.2832); c.fill();
+    /* une silhouette qui disparaît dedans */
+    c.fillStyle = "rgba(40,32,48,.45)";
+    c.beginPath(); c.ellipse(4, 2, 4, 8, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(4, -8, 3.4, 0, 6.2832); c.fill();
+
+  }else if(m === "salve"){
+    /* quatre missiles en éventail */
+    for(var s = -1.5; s <= 1.5; s++){
+      c.save();
+      c.translate(s * 11, Math.abs(s) * 5 - 3);
+      c.rotate(s * 0.3 - 0.1);
+      var gs = c.createLinearGradient(-4, 0, 4, 0);
+      gs.addColorStop(0, "#6e7a84"); gs.addColorStop(0.4, "#cfd6dc"); gs.addColorStop(1, "#68727c");
+      c.fillStyle = gs;
+      c.beginPath();
+      c.moveTo(0, -17); c.quadraticCurveTo(4.4, -6, 4, 9);
+      c.lineTo(-4, 9); c.quadraticCurveTo(-4.4, -6, 0, -17);
+      c.closePath(); c.fill();
+      c.fillStyle = "#e8672f"; c.fillRect(-4, -3, 8, 3.4);
+      c.fillStyle = "#8a949c";
+      c.beginPath(); c.moveTo(-4, 8); c.lineTo(-8, 14); c.lineTo(-1.6, 11); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(4, 8); c.lineTo(8, 14); c.lineTo(1.6, 11); c.closePath(); c.fill();
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gj = c.createRadialGradient(0, 14, 0, 0, 14, 9);
+      gj.addColorStop(0, "rgba(255,230,160,.9)"); gj.addColorStop(1, "rgba(255,90,20,0)");
+      c.fillStyle = gj;
+      c.beginPath(); c.ellipse(0, 14, 4.4, 9, 0, 0, 6.2832); c.fill();
+      c.restore();
+      c.restore();
+    }
+
+  }else if(m === "cryo"){
+    /* flocon massif + tourelle prise dans la glace */
+    c.save();
+    c.strokeStyle = "#bfe9ff"; c.lineWidth = 4.4; c.lineCap = "round";
+    for(var f2 = 0; f2 < 3; f2++){
+      c.save(); c.rotate(f2 * 1.0472);
+      c.beginPath(); c.moveTo(0, -22); c.lineTo(0, 22); c.stroke();
+      c.beginPath(); c.moveTo(0, -14); c.lineTo(-6, -20); c.stroke();
+      c.beginPath(); c.moveTo(0, -14); c.lineTo(6, -20); c.stroke();
+      c.beginPath(); c.moveTo(0, 14); c.lineTo(-6, 20); c.stroke();
+      c.beginPath(); c.moveTo(0, 14); c.lineTo(6, 20); c.stroke();
+      c.restore();
+    }
+    c.strokeStyle = "#ffffff"; c.lineWidth = 1.8;
+    for(var f3 = 0; f3 < 3; f3++){
+      c.save(); c.rotate(f3 * 1.0472);
+      c.beginPath(); c.moveTo(0, -20); c.lineTo(0, 20); c.stroke();
+      c.restore();
+    }
+    c.restore();
+    c.fillStyle = "rgba(150,220,255,.45)";
+    c.beginPath(); c.arc(0, 0, 15, 0, 6.2832); c.fill();
+
+  }else if(m === "soin"){
+    var gh = c.createLinearGradient(0, -22, 0, 22);
+    gh.addColorStop(0, "#9df5b4"); gh.addColorStop(0.5, "#57d97c"); gh.addColorStop(1, "#2f9b52");
+    c.fillStyle = gh;
+    c.beginPath();
+    if(c.roundRect){
+      c.roundRect(-7, -22, 14, 44, 4); c.roundRect(-22, -7, 44, 14, 4);
+    }else{ c.rect(-7, -22, 14, 44); c.rect(-22, -7, 44, 14); }
+    c.fill();
+    c.fillStyle = "rgba(255,255,255,.35)";
+    c.fillRect(-6, -21, 4.5, 42);
+    c.strokeStyle = "rgba(20,60,32,.35)"; c.lineWidth = 2;
+    c.beginPath();
+    if(c.roundRect){ c.roundRect(-7, -22, 14, 44, 4); c.roundRect(-22, -7, 44, 14, 4); }
+    c.stroke();
+
+  }else if(m === "balise"){
+    /* fusée éclairante sous son parachute */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gl = c.createRadialGradient(0, 4, 1, 0, 4, 26);
+    gl.addColorStop(0, "#fff8d8"); gl.addColorStop(0.4, "#ffca5e"); gl.addColorStop(1, "rgba(255,138,30,0)");
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(0, 4, 26, 0, 6.2832); c.fill();
+    c.restore();
+    var gp = c.createLinearGradient(-14, -20, 14, -8);
+    gp.addColorStop(0, "#f6efe0"); gp.addColorStop(1, "#c8bda6");
+    c.fillStyle = gp;
+    c.beginPath(); c.arc(0, -10, 14, Math.PI, 0); c.closePath(); c.fill();
+    c.strokeStyle = "#8d8474"; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(-14, -10); c.lineTo(0, 2); c.lineTo(14, -10); c.stroke();
     c.fillStyle = "#ff8a1e";
-    c.beginPath(); c.arc(0, 0, 3.4, 0, 6.2832); c.fill();
-  }else if(m === "soins"){
-    c.fillStyle = "#6ee08a";
-    c.fillRect(-5, -16, 10, 32);
-    c.fillRect(-16, -5, 32, 10);
-    c.fillStyle = "rgba(255,255,255,.3)";
-    c.fillRect(-5, -16, 4, 32);
-  }else if(m === "debarquer"){
-    c.fillStyle = "#8a9a62";
-    c.beginPath(); c.moveTo(-18, 2); c.lineTo(18, 2); c.lineTo(13, 14); c.lineTo(-13, 14);
+    c.beginPath(); c.arc(0, 6, 5.4, 0, 6.2832); c.fill();
+    c.fillStyle = "#fff3c4";
+    c.beginPath(); c.arc(-1.4, 4.6, 2.2, 0, 6.2832); c.fill();
+
+  }else if(m === "viper"){
+    /* un seul missile, en piqué, avec sa croix de visée */
+    c.save();
+    c.strokeStyle = "rgba(255,138,30,.75)"; c.lineWidth = 2;
+    c.beginPath(); c.arc(4, 14, 13, 0, 6.2832); c.stroke();
+    c.beginPath(); c.moveTo(-13, 14); c.lineTo(-6, 14); c.stroke();
+    c.beginPath(); c.moveTo(21, 14); c.lineTo(14, 14); c.stroke();
+    c.beginPath(); c.moveTo(4, -3); c.lineTo(4, 4); c.stroke();
+    c.restore();
+    c.save();
+    c.translate(-4, -6); c.rotate(0.72);
+    var gv = c.createLinearGradient(-5, 0, 5, 0);
+    gv.addColorStop(0, "#68727c"); gv.addColorStop(0.4, "#e2e8ee"); gv.addColorStop(1, "#68727c");
+    c.fillStyle = gv;
+    c.beginPath();
+    c.moveTo(0, -24); c.quadraticCurveTo(5.6, -8, 5, 12);
+    c.lineTo(-5, 12); c.quadraticCurveTo(-5.6, -8, 0, -24);
     c.closePath(); c.fill();
-    c.fillStyle = "#54e2ce";
-    c.beginPath(); c.arc(-6, -4, 4.5, 0, 6.2832); c.fill();
-    c.beginPath(); c.arc(6, -4, 4.5, 0, 6.2832); c.fill();
-    c.fillStyle = "#2fb9a8";
-    c.fillRect(-9, -2, 6, 6); c.fillRect(3, -2, 6, 6);
-    c.strokeStyle = "rgba(255,255,255,.4)"; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(-18, 4); c.lineTo(18, 4); c.stroke();
+    c.fillStyle = "#2f8ea4"; c.fillRect(-5, -6, 10, 4.4);
+    c.fillStyle = "#c8452f"; c.fillRect(-5, 2, 10, 3);
+    c.fillStyle = "#8a949c";
+    c.beginPath(); c.moveTo(-5, 11); c.lineTo(-11, 19); c.lineTo(-2, 15); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(5, 11); c.lineTo(11, 19); c.lineTo(2, 15); c.closePath(); c.fill();
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gj3 = c.createRadialGradient(0, 18, 0, 0, 18, 12);
+    gj3.addColorStop(0, "rgba(255,240,190,.95)"); gj3.addColorStop(1, "rgba(255,90,20,0)");
+    c.fillStyle = gj3;
+    c.beginPath(); c.ellipse(0, 18, 6, 12, 0, 0, 6.2832); c.fill();
+    c.restore();
+    c.restore();
   }
   c.restore();
 }
 
-/* --- podium --- */
+/* --- podium : le classement des dégâts, en haut à gauche ---
+   Toujours affiché, même seul : c'est le tableau de bord de la
+   partie, pas une décoration qui apparaît quand un ami arrive. */
+var podiumHtml = null;
 function majPodium(){
   if(!jeu) return;
   var l = [{ nom:monNom, g:jeu.degatsMoi, moi:1 }];
@@ -337,8 +526,17 @@ function majPodium(){
        + '<span class="n">' + echappe(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
-  $("podiumL").innerHTML = h;
-  $("podium").style.display = l.length > 1 ? "block" : "none";
+  /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur
+     l'île où le drame a eu lieu */
+  if(jeu.tueurGege){
+    h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
+       + '</b> a tué Gégé la belette</div>';
+  }
+  if(jeu.tueurTweety){
+    h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
+       + '</b> a tué Tweety</div>';
+  }
+  if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
 function echappe(s){
   return String(s).replace(/[&<>"]/g, function(c){
@@ -378,8 +576,9 @@ function majBilan(dt){
     var suiv = Math.max(carteSalon, jeu.index + 1);
     carteSalon = suiv;
     if(suiv >= CARTES.length){
-      /* toutes les îles sont tombées : on recommence à la première */
+      /* toutes les îles sont tombées : nouvelle campagne, monde neuf */
       carteSalon = 0; suiv = 0;
+      cycleSalon++;
     }
     nouvelleCarte(suiv);
     construitFondMini();
@@ -434,23 +633,40 @@ function dessineLogo(){
 function construitBriefing(){
   /* barges par défaut : que des Meufs */
   compoBarges = [];
-  for(var i = 0; i < EQ.NB_BARGES; i++) compoBarges.push({ meuf:EQ.PLACES_PAR_BARGE, mec:0 });
+  for(var i = 0; i < EQ.NB_BARGES; i++)
+    compoBarges.push({ type:"meuf", n:placesNavette("meuf") });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
     if(sauv.nom) $("pseudo").value = sauv.nom;
-    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES) compoBarges = sauv.compo;
+    if(sauv.compo && sauv.compo.length === EQ.NB_BARGES && sauv.compo[0] && sauv.compo[0].type){
+      compoBarges = sauv.compo;
+      /* une composition d'avant le plafond par type peut dépasser */
+      for(var q = 0; q < compoBarges.length; q++){
+        if(!UNI[compoBarges[q].type]) compoBarges[q].type = TYPES_TROUPE[0];
+        compoBarges[q].n = Math.max(0, Math.min(placesNavette(compoBarges[q].type),
+                                                compoBarges[q].n | 0));
+      }
+    }
     if(sauv.relais) $("relais").value = sauv.relais;
   }
-  if(!$("pseudo").value) $("pseudo").value = "Recrue" + ((Math.random() * 900 + 100) | 0);
+  /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
+     rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
+     posé d'office donnait un salon peuplé d'inconnus interchangeables. */
+  /* une seule source de vérité pour la version : la constante du noyau */
+  $("versionJeu").textContent = VERSION;
+  $("versionBrief").textContent = VERSION;
 
   dessineLogo();
   majBargesBrief();
   majMondes();
 
   $("lancer").addEventListener("click", lancePartie);
+  $("pseudo").addEventListener("input", majEtatPseudo);
+  majEtatPseudo();
   $("btReco").addEventListener("click", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+    if(!pseudoSaisi()) return signalePseudoManquant();
+    monNom = pseudoSaisi();
     connecteRelais($("relais").value);
   });
   $("relais").addEventListener("change", function(){
@@ -458,8 +674,11 @@ function construitBriefing(){
     connecteRelais($("relais").value);
   });
   $("pseudo").addEventListener("change", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
-    sauvegarde();
+    if(pseudoSaisi()){
+      monNom = pseudoSaisi();
+      this.value = monNom;
+      sauvegarde();
+    }
   });
   $("btSon").addEventListener("click", function(){
     son.actif = !son.actif;
@@ -467,10 +686,30 @@ function construitBriefing(){
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
+/* Le pseudo, une seule définition pour tout le fichier : trimé, borné
+   à quatorze caractères, et vide s'il ne reste rien. */
+function pseudoSaisi(){
+  var v = ($("pseudo").value || "").trim().substr(0, 14);
+  return v;
+}
+function majEtatPseudo(){
+  var ok = !!pseudoSaisi();
+  $("lancer").disabled = !ok;
+  $("pseudo").classList.toggle("manque", !ok);
+  /* Un bouton grisé sans explication est une impasse : le message dit
+     pourquoi, tant que le champ est vide. */
+  $("avertPseudo").classList.toggle("on", !ok);
+}
+function signalePseudoManquant(){
+  $("avertPseudo").classList.add("on");
+  $("pseudo").classList.add("manque");
+  $("pseudo").focus();
+}
+
 function sauvegarde(){
   try{
     localStorage.setItem("milyboum", JSON.stringify({
-      nom:$("pseudo").value, compo:compoBarges, relais:$("relais").value
+      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value
     }));
   }catch(e){}
 }
@@ -478,34 +717,68 @@ function majBargesBrief(){
   var h = "";
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
-    h += '<div class="barge"><div class="tt"><span>Barge ' + (i + 1) + '</span>'
-       + '<span>' + (b.meuf + b.mec) + '/' + EQ.PLACES_PAR_BARGE + '</span></div>'
-       + rangee(i, "meuf", b.meuf) + rangee(i, "mec", b.mec) + '</div>';
+    h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
+       + '<span>' + b.n + '/' + placesNavette(b.type) + '</span></div>'
+       + '<div class="choixT">';
+    for(var t = 0; t < TYPES_TROUPE.length; t++){
+      var cle = TYPES_TROUPE[t];
+      h += '<div class="pt' + (b.type === cle ? " on" : "") + '" data-i="' + i + '" data-t="' + cle + '">'
+         + '<canvas width="150" height="126" id="pt_' + i + '_' + cle + '"></canvas>'
+         + '<div class="nm">' + UNI[cle].nom + '<span class="role">' + UNI[cle].role + '</span></div>'
+         + '</div>';
+    }
+    h += '</div>' + rangeeNavette(i, b) + '</div>';
   }
   $("barges").innerHTML = h;
-  var els = $("barges").querySelectorAll(".mini");
-  for(var k = 0; k < els.length; k++){
-    els[k].addEventListener("click", function(){
-      var i = +this.getAttribute("data-i"), t = this.getAttribute("data-t"), d = +this.getAttribute("data-d");
-      var b = compoBarges[i];
-      var tot = b.meuf + b.mec;
-      if(d > 0 && tot >= EQ.PLACES_PAR_BARGE) return;
-      b[t] = Math.max(0, b[t] + d);
-      majBargesBrief();
-      sauvegarde();
+
+  /* portraits décalqués */
+  for(var k = 0; k < EQ.NB_BARGES; k++){
+    for(var q = 0; q < TYPES_TROUPE.length; q++){
+      var el = $("pt_" + k + "_" + TYPES_TROUPE[q]);
+      if(!el) continue;
+      var c = el.getContext("2d");
+      var g = c.createLinearGradient(0, 0, 0, 126);
+      g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+      c.fillStyle = g; c.fillRect(0, 0, 150, 126);
+      dessinePortrait(c, TYPES_TROUPE[q], 0, -6, 150);
+    }
+  }
+  /* choix du type : une navette n'embarque qu'un seul type de troupe */
+  var pts = $("barges").querySelectorAll(".pt");
+  for(var m = 0; m < pts.length; m++){
+    pts[m].addEventListener("click", function(){
+      var i2 = +this.getAttribute("data-i");
+      compoBarges[i2].type = this.getAttribute("data-t");
+      /* changer de type reborne l'effectif : douze Meufs, quinze Mecs */
+      var maxi = placesNavette(compoBarges[i2].type);
+      compoBarges[i2].n = compoBarges[i2].n === 0 ? maxi : Math.min(maxi, compoBarges[i2].n);
+      majBargesBrief(); sauvegarde();
     });
   }
-  var tot = 0, tm = 0, th = 0;
-  compoBarges.forEach(function(b){ tot += b.meuf + b.mec; tm += b.meuf; th += b.mec; });
-  $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + tm + " Meufs, " + th + " Mecs";
+  var minis = $("barges").querySelectorAll(".mini");
+  for(var n = 0; n < minis.length; n++){
+    minis[n].addEventListener("click", function(){
+      var i3 = +this.getAttribute("data-i"), d = +this.getAttribute("data-d");
+      var bb = compoBarges[i3];
+      bb.n = Math.max(0, Math.min(placesNavette(bb.type), bb.n + d));
+      majBargesBrief(); sauvegarde();
+    });
+  }
+  /* total */
+  var tot = 0, cpt = {};
+  compoBarges.forEach(function(bb){ tot += bb.n; cpt[bb.type] = (cpt[bb.type] || 0) + bb.n; });
+  var det = TYPES_TROUPE.map(function(t2){ return (cpt[t2] || 0) + " " + UNI[t2].nom + "s"; }).join(", ");
+  $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
-function rangee(i, t, v){
-  return '<div class="rangee"><span class="lab"><span class="pion ' + (t === "meuf" ? "f" : "m") + '"></span>'
-       + (t === "meuf" ? "Meufs" : "Mecs") + '</span>'
-       + '<button class="mini" data-i="' + i + '" data-t="' + t + '" data-d="-1">−</button>'
-       + '<span class="compt">' + v + '</span>'
-       + '<button class="mini" data-i="' + i + '" data-t="' + t + '" data-d="1">+</button></div>';
+function rangeeNavette(i, b){
+  return '<div class="rangee"><span class="lab">'
+       + '<span class="pion ' + (b.type === "meuf" ? "f" : "m") + '"></span>'
+       + UNI[b.type].nom + 's</span>'
+       + '<button class="mini" data-i="' + i + '" data-d="-1">−</button>'
+       + '<span class="compt">' + b.n + '</span>'
+       + '<button class="mini" data-i="' + i + '" data-d="1">+</button></div>';
 }
+
 function majMondes(){
   var h = "";
   for(var i = 0; i < CARTES.length; i++){
@@ -545,9 +818,10 @@ function dessineApercu(i){
     else meule(c, 0, 0, 1);
     c.restore();
   }
-  /* QG stylisé */
-  c.save(); c.translate(w * 0.22, h * 0.74); c.scale(0.30, 0.30);
-  if(spriteQG) c.drawImage(spriteQG, -QG_OX, -QG_OY, QG_W, QG_H);
+  /* le Brasier, en silhouette */
+  c.save(); c.translate(w * 0.24, h * 0.80); c.scale(0.19, 0.19);
+  if(spriteQGArriere) c.drawImage(spriteQGArriere, -QG_OX, -QG_OY, QG_W, QG_H);
+  if(spriteQGAvant)   c.drawImage(spriteQGAvant,   -QG_OX, -QG_OY, QG_W, QG_H);
   c.restore();
   /* voile */
   var v = c.createLinearGradient(0, 0, 0, h);
@@ -594,7 +868,9 @@ function basculePlein(){
    Lancement de la partie
    --------------------------------------------------------------- */
 function lancePartie(){
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  if(!pseudoSaisi()) return signalePseudoManquant();
+  monNom = pseudoSaisi();
+  $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
   son.reveille();
   $("brief").style.display = "none";
@@ -611,6 +887,31 @@ function lancePartie(){
 }
 
 /* Boutons du HUD */
+/* Le bouton n'existe que dans le briefing : impossible de l'effleurer
+   en pleine partie. Double garde-fou — un mot de passe, puis une
+   confirmation qui annonce ce que ça détruit. */
+function installeRaz(){
+  var b = $("btRaz");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var mot = prompt("Mot de passe pour réinitialiser le salon :");
+    if(mot === null) return;
+    if(mot.trim().toLowerCase() !== MOT_RAZ){
+      alert("Mot de passe incorrect. Rien n'a été touché.");
+      return;
+    }
+    if(!confirm("Remettre l'île à neuf POUR TOUT LE SALON ?\n\n"
+              + "• toutes les défenses détruites reviennent\n"
+              + "• le Brasier retrouve toute sa vie\n"
+              + "• Gégé la belette est de nouveau vivante\n\n"
+              + "Les autres joueurs verront le changement immédiatement.")) return;
+    remetSalonAZero();
+    if(enJeu){ nouvelleCarte(0); construitFondMini(); majBarres(); }
+    majMondes();
+    alert("Salon réinitialisé. L'île est repartie à neuf.");
+  });
+}
+
 function installeBoutons(){
   $("btZp").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1.25); });
   $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });

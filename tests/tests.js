@@ -20,7 +20,11 @@ try{
   N = new Function(source + "\nreturn {" + [
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
-    "CARTES","GW","GH","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
+    "rayonFormation","ancreFormation","ANGLE_OR","inverseRadical","RAYON_QG",
+    "placesNavette","flotteMaximum","texteVictoire","TYPES_TROUPE","VERSION",
+    "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
+    "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
+    "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "genereCarte","empreinteCarte","utf8Octets","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
@@ -192,16 +196,23 @@ G("4. Déterminisme de la génération de carte");
   ok("code de salon différent → carte différente", N.empreinteCarte(a) !== N.empreinteCarte(e));
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){
-    ok("carte " + (i + 1) + " : " + m.batiments.length + " bâtiments (200-400)",
-       m.batiments.length >= 200 && m.batiments.length <= 400, "" + m.batiments.length);
+    var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
+    var def = m.batiments.length - cel;
+    ok("carte " + (i + 1) + " : " + def + " défenses (350-700)",
+       def >= 350 && def <= 700, "" + def);
+    ok("carte " + (i + 1) + " : " + cel + " cellules en " + m.champs.length + " champs",
+       m.champs.length >= 5 && m.champs.length <= 14 && cel >= 70 && cel <= 220,
+       cel + " cellules / " + m.champs.length + " champs");
+    ok("carte " + (i + 1) + " : les champs font une quinzaine de cellules chacun",
+       m.champs.every(function(f){ return f.n >= 13 && f.n <= 17; }));
     var cpt = {};
     m.batiments.forEach(function(b2){ cpt[b2.t] = (cpt[b2.t] || 0) + 1; });
-    ok("carte " + (i + 1) + " : " + (cpt.roquettes || 0) + " lance-roquettes (6-22)",
-       (cpt.roquettes || 0) >= 6 && (cpt.roquettes || 0) <= 22);
-    ok("carte " + (i + 1) + " : " + (cpt.electro || 0) + " électrobombes (25-60)",
-       (cpt.electro || 0) >= 25 && (cpt.electro || 0) <= 60);
-    ok("carte " + (i + 1) + " : " + m.creatures.length + " créatures (40-66)",
-       m.creatures.length >= 40 && m.creatures.length <= 66);
+    ok("carte " + (i + 1) + " : " + (cpt.frelon || 0) + " Frelons (10-45)",
+       (cpt.frelon || 0) >= 10 && (cpt.frelon || 0) <= 45);
+    ok("carte " + (i + 1) + " : " + (cpt.bobine || 0) + " Bobines (40-130)",
+       (cpt.bobine || 0) >= 40 && (cpt.bobine || 0) <= 130);
+    ok("carte " + (i + 1) + " : " + m.creatures.length + " créatures (70-110)",
+       m.creatures.length >= 70 && m.creatures.length <= 110);
     var esp = {};
     m.creatures.forEach(function(k){ esp[k.t] = (esp[k.t] || 0) + 1; });
     ok("carte " + (i + 1) + " : les 4 espèces hostiles sont présentes",
@@ -220,8 +231,9 @@ G("4. Déterminisme de la génération de carte");
     ok("carte " + (i + 1) + " : rien dans l'emprise du QG", loinQG);
   });
 
-  ok("traversée plage → QG ≈ 103 cases",
-     Math.abs((N.GW - 4) - N.QG_GX - 103) <= 1, "" + ((N.GW - 4) - N.QG_GX));
+  var traversee = (N.GW - 4) - N.QG_GX;
+  ok("traversée plage → Brasier : " + traversee + " cases (île géante)",
+     traversee >= 120 && traversee <= 180, "" + traversee);
 })();
 
 /* ================================================================
@@ -269,9 +281,9 @@ G("5. Convergence des points de vie du QG");
 })();
 
 /* ================================================================
-   6. Cône du lance-flammes
+   6. Cône du lance-chalumeau
    ================================================================ */
-G("6. Cône du lance-flammes au passage par ±π");
+G("6. Cône du lance-chalumeau au passage par ±π");
 (function(){
   var PI = Math.PI;
   ok("écart(π-0.05, -π+0.05) ≈ -0.1",
@@ -315,9 +327,10 @@ G("7. Budget mémoire");
   ok("canevas de sol " + t.w + "×" + t.h + " = " + t.mpx.toFixed(2) + " Mpx (< 8)",
      t.mpx < 8, t.mpx.toFixed(2) + " Mpx");
   ok("… et suffisamment grand pour couvrir l'île", t.w > 2500 && t.h > 1200);
-  var plein = (t.w / N.SOL_ECH) * (t.h / N.SOL_ECH) / 1e6;
-  ok("pleine résolution refusée à raison (" + plein.toFixed(1) + " Mpx)", plein > 8);
-  ok("la carte fait plus de 11 000 cases (" + (N.GW * N.GH) + ")", N.GW * N.GH >= 11648);
+  ok("échelle du sol adaptée automatiquement (" + t.ech.toFixed(3) + ")",
+     t.ech > 0.2 && t.ech <= 0.5);
+  ok("pleine résolution refusée à raison (" + t.mpxPlein.toFixed(1) + " Mpx)", t.mpxPlein > 8);
+  ok("la carte fait plus de 20 000 cases (" + (N.GW * N.GH) + ")", N.GW * N.GH >= 20000);
 })();
 
 /* ================================================================
@@ -325,16 +338,16 @@ G("7. Budget mémoire");
    ================================================================ */
 G("8. Cohérence des règles de jeu");
 (function(){
-  ok("la mitrailleuse (5,15) dépasse l'arrêt de la Meuf (4,75)",
-     N.DEF.mitrailleuse.portee > N.UNI.meuf.arret);
+  ok("la crible (5,15) dépasse l'arrêt de la Meuf (4,75)",
+     N.DEF.crible.portee > N.UNI.meuf.arret);
   ok("… mais de justesse : moins d'une demi-case",
-     N.DEF.mitrailleuse.portee - N.UNI.meuf.arret < 0.5);
-  ok("le lance-flammes (5,6) dépasse la portée de la Meuf (5,0)",
-     N.DEF.flammes.portee > N.UNI.meuf.portee);
-  ok("le mortier est aveugle de près (portée mini 2,6)", N.DEF.mortier.porteeMin === 2.6);
+     N.DEF.crible.portee - N.UNI.meuf.arret < 0.5);
+  ok("le lance-chalumeau (5,6) dépasse la portée de la Meuf (5,0)",
+     N.DEF.chalumeau.portee > N.UNI.meuf.portee);
+  ok("le pilon est aveugle de près (portée mini 2,6)", N.DEF.pilon.porteeMin === 2.6);
 
   /* précision dégressive */
-  ok("à 4,0 cases la mitrailleuse touche toujours", N.mitraTouche(4.0, 0.99));
+  ok("à 4,0 cases la crible touche toujours", N.mitraTouche(4.0, 0.99));
   ok("à 5,0 cases elle touche une fois sur trois",
      N.mitraTouche(5.0, 0.30) && !N.mitraTouche(5.0, 0.34));
   var n = 0;
@@ -343,8 +356,12 @@ G("8. Cohérence des règles de jeu");
      Math.abs(n / 30000 - 1 / 3) < 0.02);
 
   /* coûts croissants */
-  var u = { fusee:0, fumee:0, soins:0, obus:0, barrage:0 };
-  var attendu = { fusee:[1,5,10,20], fumee:[3,7,12,22], soins:[5,13,23,43], obus:[6,14,24,44], barrage:[10,22,37,67] };
+  var u = { nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 };
+  var attendu = {
+    balise:[1,5,10,20], brouillard:[3,7,12,22], poulets:[4,12,22,42],
+    soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
+    salve:[10,22,37,67], nova:[0,0,0,0]      // la Nova ne se paie pas en Énergie
+  };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
     [0, 4, 9, 19].forEach(function(k, i){
@@ -354,17 +371,327 @@ G("8. Cohérence des règles de jeu");
     });
     u[m] = 0;
   });
-  ok("barème des coûts (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
+  ok("barème des huit capacités (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
+  ok("huit capacités exactement", Object.keys(N.COUT).length === 8);
+  ok("la Nova est gratuite en Énergie : c'est la charge par vie qui la limite",
+     N.COUT.nova.base === 0 && N.COUT.nova.pas === 0 && N.EQ.NOVA_PAR_VIE === 1);
+
+  /* durées des zones */
+  ok("Brouillard : 20 s", N.CAP.brouillard.duree === 20);
+  ok("Balise : 30 s", N.CAP.balise.duree === 30);
+  ok("Brouillard et Cryo ont des diamètres comparables (écart < 15 %)",
+     Math.abs(N.CAP.brouillard.rayon - N.CAP.cryo.rayon) / N.CAP.cryo.rayon < 0.15);
+
+  /* formation : le groupe doit couvrir ≈ 80 % du cercle de Brouillard */
+  var rf = N.rayonFormation();
+  ok("rayon de formation = " + rf.toFixed(2) + " cases (80 % de la surface du Brouillard)",
+     Math.abs(Math.PI * rf * rf / (Math.PI * N.CAP.brouillard.rayon * N.CAP.brouillard.rayon) - 0.80) < 0.001);
+  (function(){
+    /* La spirale doit couvrir le disque sans trou ni empilement. */
+    var pts = [], i, j;
+    for(i = 0; i < 120; i++) pts.push(N.ancreFormation(i));
+    var hors = 0, minD = 1e9, moyR = 0;
+    for(i = 0; i < pts.length; i++){
+      var r = Math.hypot(pts[i].x, pts[i].y);
+      if(r > 1.0001) hors++;
+      moyR += r;
+      for(j = i + 1; j < pts.length; j++){
+        var d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+        if(d < minD) minD = d;
+      }
+    }
+    moyR /= pts.length;
+    ok("les 120 places de formation tiennent dans le disque unité", hors === 0, hors + " hors disque");
+    /* Les places n'ont pas à être espacées de la distance de confort :
+       c'est separeUnites() qui écarte les soldats. Elles doivent
+       simplement être toutes distinctes, pour qu'aucune paire ne vise
+       exactement le même point. */
+    ok("aucune place confondue avec une autre (écart mini " + (minD * rf).toFixed(2) + " case)",
+       minD * rf > 0.05, (minD * rf).toFixed(3));
+    ok("les places couvrent le disque sans se tasser au centre (rayon moyen "
+       + moyR.toFixed(2) + " ≈ 0,67)", moyR > 0.55 && moyR < 0.78, moyR.toFixed(3));
+  })();
+
+  /* Le vrai test : les quinze soldats d'UNE MÊME navette ont des
+     numéros qui se suivent. Avec un rayon en « n modulo effectif », ils
+     recevaient tous une place sur un mince anneau. L'inverse radical
+     donne un disque complet pour n'importe quelle plage contiguë. */
+  (function(){
+    function amplitude(depart, nb){
+      var rmin = 2, rmax = 0;
+      for(var k = 0; k < nb; k++){
+        var a = N.ancreFormation(depart + k), r = Math.hypot(a.x, a.y);
+        if(r < rmin) rmin = r;
+        if(r > rmax) rmax = r;
+      }
+      return rmax - rmin;
+    }
+    var pire = 2;
+    for(var d = 0; d < 400; d += 7) pire = Math.min(pire, amplitude(d, 15));
+    ok("une navette de 15 couvre un disque, pas un anneau (amplitude mini "
+       + pire.toFixed(2) + ")", pire > 0.45, pire.toFixed(3));
+    ok("l'inverse radical est bien réparti sur toute plage contiguë",
+       N.inverseRadical(0) === 0.5 && N.inverseRadical(1) === 0.25 &&
+       N.inverseRadical(2) === 0.75);
+  })();
+
+  /* L'éventail d'approche décale la troupe par rapport au centre de sa
+     cible, mais la portée reste mesurée AU CENTRE : un décalage plus
+     grand que la marge d'arrêt empêcherait purement et simplement
+     d'entrer en portée. Il doit donc rester strictement en dessous,
+     pour TOUTES les combinaisons troupe × cible du jeu. */
+  (function(){
+    var pire = 1e9, detail = "";
+    var cibles = [{ nom:"créature", rc:0.3 }, { nom:"QG", rc:N.RAYON_QG }];
+    Object.keys(N.DEF).forEach(function(t){
+      cibles.push({ nom:N.DEF[t].nom, rc:N.DEF[t].emprise * 0.42 });
+    });
+    Object.keys(N.UNI).forEach(function(u){
+      var arret = N.UNI[u].arret;
+      cibles.forEach(function(c){
+        var marge = arret + c.rc;
+        var etal = Math.min(N.rayonFormation() * 0.55, marge * 0.7);
+        var reste = marge - etal;
+        if(reste < pire){ pire = reste; detail = N.UNI[u].nom + " vs " + c.nom; }
+      });
+    });
+    ok("l'éventail laisse toujours de la marge pour entrer en portée (pire cas "
+       + pire.toFixed(2) + " case : " + detail + ")", pire > 0.3, pire.toFixed(3));
+    ok("et il est bien plafonné, pas seulement pour la plus grosse cible",
+       Math.min(N.rayonFormation() * 0.55, (N.UNI.mec.arret + 0.3) * 0.7) < N.UNI.mec.arret + 0.3);
+  })();
+
+  /* Les messages de victoire : un par île, et le pseudo du meilleur
+     contributeur en tête. */
+  (function(){
+    var bon = true, det = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var l = N.texteVictoire(i, "Thimote");
+      if(l.length !== 2 || l[0].indexOf("Thimote") !== 0 ||
+         l[0].indexOf("n°1") < 0 || !l[1] || l[1].indexOf("Millie") < 0){
+        bon = false; det += "île" + i + " ";
+      }
+    }
+    ok("chaque île a son message de victoire, avec le pseudo en tête", bon, det);
+    ok("les trois messages sont différents",
+       N.texteVictoire(0, "X")[1] !== N.texteVictoire(1, "X")[1] &&
+       N.texteVictoire(1, "X")[1] !== N.texteVictoire(2, "X")[1]);
+    ok("plage : le verre", N.texteVictoire(0, "X")[1].indexOf("boire un verre") > 0);
+    ok("forêt : la cabane", N.texteVictoire(1, "X")[1].indexOf("cabane") > 0);
+    ok("campagne : la paille", N.texteVictoire(2, "X")[1].indexOf("paille") > 0);
+    ok("le message boucle avec les îles", N.texteVictoire(3, "X")[1] === N.texteVictoire(0, "X")[1]);
+  })();
+
+  /* Tweety : un canari par île, inoffensif, et qui vole. */
+  (function(){
+    ok("Tweety s'écrit bien TWEETY", N.CRE.tweety.nom === "Tweety");
+    ok("Tweety est inoffensif", N.CRE.tweety.degats === 0 && N.CRE.tweety.portee === 0);
+    ok("Tweety fuit et vole", N.CRE.tweety.fuit === 1 && N.CRE.tweety.vole === 1);
+    ok("Tweety est plus rapide que les deux types de troupe",
+       N.CRE.tweety.vitesse > N.UNI.meuf.vitesse && N.CRE.tweety.vitesse > N.UNI.mec.vitesse);
+    for(var i = 0; i < 3; i++){
+      var m = N.genereCarte("MILY", i);
+      var n = m.creatures.filter(function(k){ return k.t === "tweety"; }).length;
+      var g = m.creatures.filter(function(k){ return k.t === "belette"; }).length;
+      ok("carte " + (i + 1) + " : un seul Tweety et une seule Gégé", n === 1 && g === 1,
+         "tweety=" + n + " belette=" + g);
+    }
+    var a = { v:1, cy:0, c:0, pv:9, d:"", g:"", w:"" };
+    var b = { v:2, cy:0, c:0, pv:9, d:"", g:"", w:"Thimote" };
+    ok("le nom du tueur de Tweety se propage et ne s'efface pas",
+       N.fusionneMonde(a, b).w === "Thimote" && N.fusionneMonde(b, a).w === "Thimote");
+    ok("une nouvelle campagne rend Tweety à la vie",
+       N.fusionneMonde(b, { v:1, cy:1, c:0, pv:9, d:"", g:"", w:"" }).w === "");
+  })();
+
+  /* économie : plus généreuse qu'avant, mais toujours finie */
+  ok("l'Énergie tactique a remplacé la Poudre",
+     N.EQ.ENERGIE_DEPART === 220 && N.EQ.ENERGIE_PAR_BATIMENT === 5 &&
+     N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
+  (function(){
+    var m = N.genereCarte("MILY", 0);
+    var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
+    var def = m.batiments.length - cel;
+    var total = N.EQ.ENERGIE_DEPART + def * N.EQ.ENERGIE_PAR_BATIMENT
+              + cel * N.EQ.ENERGIE_PAR_CELLULE;
+    ok("une île entière rapporte " + total + " d'Énergie — de quoi jouer, pas de quoi tout se payer",
+       total > 3000 && total < 5000, "" + total);
+    ok("les champs de cellules pèsent un bon tiers du revenu",
+       cel * N.EQ.ENERGIE_PAR_CELLULE / total > 0.22, "" +
+       Math.round(cel * N.EQ.ENERGIE_PAR_CELLULE / total * 100) + " %");
+    ok("une cellule ne se défend pas et ne sert qu'à la récolte",
+       N.DEF.cellule.recolte === 1 && N.DEF.cellule.portee === 0 &&
+       N.DEF.cellule.degats === 0 && N.DEF.cellule.tourelle === 0);
+    ok("une cellule tombe vite : " + N.DEF.cellule.pv + " PV, moins qu'une défense",
+       N.DEF.cellule.pv < N.DEF.cuve.pv);
+    ok("récolter une cellule rapporte plus que démonter une défense",
+       N.EQ.ENERGIE_PAR_CELLULE > N.EQ.ENERGIE_PAR_BATIMENT);
+  })();
 
   /* traversée */
-  var cases = 103;
-  ok("25 s d'Éclairante couvrent " + (25 * N.UNI.meuf.vitesse).toFixed(0) + " cases (≈ 1/3 du trajet)",
-     Math.abs(25 * N.UNI.meuf.vitesse - 33.75) < 0.01);
-  ok("4 Éclairantes suffisent à traverser " + cases + " cases",
-     4 * 25 * N.UNI.meuf.vitesse >= cases);
-  ok("une vie = 120 unités", N.EQ.NB_BARGES * N.EQ.PLACES_PAR_BARGE === 120);
-  ok("récolte totale ≈ 1050 poudres",
-     N.EQ.POUDRE_DEPART + 300 * N.EQ.POUDRE_PAR_BATIMENT === 1050);
+  var cases = (N.GW - 4) - N.QG_GX;
+  var couv = N.CAP.balise.duree * N.UNI.meuf.vitesse;
+  ok(N.CAP.balise.duree + " s de Balise couvrent " + couv.toFixed(0) + " cases",
+     Math.abs(couv - 40.5) < 0.01, couv.toFixed(2));
+  ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
+     Math.ceil(cases / couv) <= 6);
+  ok("la version est au format vX.YY", /^v\d+\.\d{2}$/.test(N.VERSION), N.VERSION);
+  ok("huit navettes par vie", N.EQ.NB_BARGES === 8);
+  ok("douze Meufs par navette au maximum", N.placesNavette("meuf") === 12);
+  ok("quinze Mecs par navette au maximum", N.placesNavette("mec") === 15);
+  ok("une vie plafonne à " + N.flotteMaximum() + " unités (8 × 15 Mecs)",
+     N.flotteMaximum() === 120);
+  ok("une flotte entière de Meufs fait 96 unités",
+     N.EQ.NB_BARGES * N.placesNavette("meuf") === 96);
+  ok("aucun type ne dépasse le plafond absolu d'une navette",
+     Object.keys(N.UNI).every(function(t){
+       return N.placesNavette(t) <= N.EQ.PLACES_PAR_BARGE;
+     }));
+  /* le Brasier : objectif collectif */
+  var dpsSolo = 100 * (N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000));
+  var soloMin = N.CARTES[0].pvQG / dpsSolo / 60;
+  ok("île 1 : " + soloMin.toFixed(0) + " min en solo sans opposition (≈ 60)",
+     soloMin >= 45 && soloMin <= 90, soloMin.toFixed(1));
+  ok("île 1 : " + (soloMin / 15).toFixed(1) + " min à quinze joueurs (< 6)", soloMin / 15 < 6);
+  ok("les défenses restent tendres devant le Brasier",
+     N.DEF.frelon.pv * 400 < N.CARTES[0].pvQG / 10);
+  ok("une quinzaine de tireuses démonte un Crible en moins de 4 s",
+     N.DEF.crible.pv / (8 * N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000)) < 4);
+})();
+
+/* ================================================================
+   9. L'INSTANTANÉ DU MONDE — la persistance du salon
+   ================================================================ */
+(function(){
+  G("9. Instantané du monde — persistance du salon");
+
+  /* --- bitmap --- */
+  (function(){
+    var n = 490, bits = [], i;
+    for(i = 0; i < n; i++) bits.push((i % 7 === 0 || i === 489) ? 1 : 0);
+    var s = N.encodeBits(bits);
+    var r = N.decodeBits(s, n);
+    var pareil = true;
+    for(i = 0; i < n; i++) if(bits[i] !== r[i]) pareil = false;
+    ok("490 bâtiments : aller-retour du bitmap exact", pareil);
+    ok("490 bâtiments tiennent en " + s.length + " caractères", s.length <= 84, s.length);
+    ok("le compte de bits est juste", N.compteBits(s) === bits.filter(function(b){ return b; }).length);
+  })();
+
+  (function(){
+    var a = N.encodeBits([1,0,0,0,0,0, 0,0,0,0,0,0]);
+    var b = N.encodeBits([0,0,0,0,0,0, 0,0,0,0,0,1]);
+    var u = N.decodeBits(N.unionBits(a, b), 12);
+    ok("l'union des bitmaps conserve les deux destructions",
+       u[0] === 1 && u[11] === 1 && u[5] === 0);
+    ok("l'union est commutative", N.unionBits(a, b) === N.unionBits(b, a));
+    ok("l'union est idempotente", N.unionBits(a, a) === a);
+    ok("l'union tolère un bitmap plus court",
+       N.decodeBits(N.unionBits(a, ""), 12)[0] === 1);
+  })();
+
+  /* --- fusion monotone --- */
+  (function(){
+    var A = { v:3, c:0, pv:900, d:N.encodeBits([1,0,0,0,0,0]) };
+    var B = { v:1, c:0, pv:700, d:N.encodeBits([0,0,1,0,0,0]) };
+    var f = N.fusionneMonde(A, B), g = N.fusionneMonde(B, A);
+    ok("la fusion prend les PV les plus bas", f.pv === 700);
+    ok("la fusion garde le numéro de version le plus haut", f.v === 3);
+    var bits = N.decodeBits(f.d, 6);
+    ok("une défense détruite ne se relève jamais", bits[0] === 1 && bits[2] === 1);
+    ok("la fusion ne dépend pas de l'ordre", N.memeMonde(f, g));
+    ok("fusionner deux fois ne change rien", N.memeMonde(f, N.fusionneMonde(f, B)));
+  })();
+
+  (function(){
+    var ile0 = { v:9, c:0, pv:10, d:N.encodeBits([1,1,1,1,1,1]) };
+    var ile1 = { v:1, c:1, pv:2000000, d:"" };
+    var f = N.fusionneMonde(ile0, ile1);
+    ok("passer à l'île suivante repart d'un monde neuf",
+       f.c === 1 && f.pv === 2000000 && N.compteBits(f.d) === 0);
+    ok("et son numéro de version dépasse les deux précédents", f.v > 9);
+    ok("un instantané d'île périmée n'écrase pas l'île en cours",
+       N.fusionneMonde(f, ile0).c === 1);
+  })();
+
+  /* --- le sort de Gégé fait partie du monde --- */
+  (function(){
+    var avant = { v:1, cy:0, c:0, pv:900, d:"", g:"" };
+    var apres = { v:2, cy:0, c:0, pv:900, d:"", g:"Thimote" };
+    ok("le nom du tueur de Gégé se propage",
+       N.fusionneMonde(avant, apres).g === "Thimote");
+    ok("et il ne s'efface jamais",
+       N.fusionneMonde(apres, avant).g === "Thimote" &&
+       N.fusionneMonde(N.fusionneMonde(apres, avant), avant).g === "Thimote");
+    ok("le premier nom inscrit gagne, quel que soit l'ordre",
+       N.fusionneMonde(apres, { v:9, cy:0, c:0, pv:900, d:"", g:"Autre" }).g === "Thimote");
+    ok("Gégé vivante = aucun nom", N.mondeVide(0, 900, 0).g === "");
+    ok("une nouvelle campagne rend Gégé à la vie",
+       N.fusionneMonde(apres, { v:1, cy:1, c:0, pv:900, d:"", g:"" }).g === "");
+    ok("le tueur compte dans la comparaison de deux mondes",
+       !N.memeMonde(avant, apres));
+  })();
+
+  /* --- bouclage de la campagne --- */
+  (function(){
+    var fin = { v:40, cy:0, c:2, pv:0, d:N.encodeBits([1,1,1,1,1,1]) };
+    var neuf = { v:1, cy:1, c:0, pv:15000000, d:"" };
+    var f = N.fusionneMonde(fin, neuf);
+    ok("une nouvelle campagne repart d'un monde intact",
+       f.cy === 1 && f.c === 0 && f.pv === 15000000 && N.compteBits(f.d) === 0);
+    ok("et l'ancienne campagne ne la ressuscite pas",
+       N.fusionneMonde(f, fin).cy === 1 && N.fusionneMonde(f, fin).c === 0);
+    ok("sans compteur de campagne, le salon resterait figé sur la dernière île",
+       N.rangMonde(neuf) > N.rangMonde(fin));
+  })();
+
+  (function(){
+    ok("un instantané malformé est rejeté",
+       !N.mondeValide(null) && !N.mondeValide({}) && !N.mondeValide({ c:-1, pv:0, v:0 }));
+    ok("fusionner avec rien rend l'autre",
+       N.memeMonde(N.fusionneMonde(null, N.mondeVide(0, 500)), N.mondeVide(0, 500)));
+    ok("memeMonde distingue deux mondes différents",
+       !N.memeMonde({ v:1, c:0, pv:500, d:"" }, { v:1, c:0, pv:400, d:"" }));
+  })();
+
+  /* --- le drapeau RETAIN, sans lequel rien ne survit --- */
+  (function(){
+    var normal = N.paquetPublish("a/b", "x", false);
+    var retenu = N.paquetPublish("a/b", "x", true);
+    ok("un publish ordinaire n'est pas retenu", normal[0] === 0x30);
+    ok("l'instantané du monde est publié RETENU", retenu[0] === 0x31);
+    ok("le corps est identique dans les deux cas", normal.length === retenu.length);
+    var lu = N.litPublish(Array.prototype.slice.call(retenu.subarray(2)));
+    ok("un publish retenu se relit normalement", lu.sujet === "a/b" && lu.message === "x");
+  })();
+
+  /* --- le scénario du joueur, bout en bout --- */
+  (function(){
+    var NB = 490, pvMax = 15000000;
+    /* tablette : elle démolit trente défenses et entame le Brasier */
+    var bits = [], i;
+    for(i = 0; i < NB; i++) bits.push(i < 30 ? 1 : 0);
+    var tablette = { v:5, c:0, pv:pvMax - 4000000, d:N.encodeBits(bits) };
+    /* téléphone : dix autres défenses, ailleurs dans la liste */
+    var bits2 = [];
+    for(i = 0; i < NB; i++) bits2.push((i >= 100 && i < 110) ? 1 : 0);
+    var telephone = { v:4, c:0, pv:pvMax - 1000000, d:N.encodeBits(bits2) };
+
+    var salon = N.fusionneMonde(tablette, telephone);
+    ok("les deux appareils réunis totalisent 40 défenses tombées",
+       N.compteBits(salon.d) === 40, N.compteBits(salon.d));
+    ok("et les PV du Brasier retiennent le plus bas des deux",
+       salon.pv === pvMax - 4000000);
+
+    /* tout le monde ferme, quelqu'un revient : il repart de l'instantané */
+    var retour = N.fusionneMonde(N.mondeVide(0, pvMax), salon);
+    ok("au retour, les 40 défenses sont toujours détruites",
+       N.compteBits(retour.d) === 40);
+    ok("au retour, le Brasier a toujours ses dégâts",
+       retour.pv === pvMax - 4000000);
+    ok("un monde neuf n'efface jamais un monde entamé",
+       N.fusionneMonde(salon, N.mondeVide(0, pvMax)).pv === pvMax - 4000000);
+  })();
 })();
 
 /* ---------------- bilan ---------------- */

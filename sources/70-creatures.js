@@ -225,6 +225,99 @@ function dessineCrapaud(c, k, tps){
   c.restore();
 }
 
+/* ---------------- Tweety le canari ----------------
+   Repère local : les pattes en (0,0). L'altitude est passée par k.z,
+   ce qui permet de séparer l'ombre au sol de l'oiseau lui-même. */
+function dessineTweety(c, k, tps){
+  var z = k.z || 0;
+  var vole = z > 0.5;
+  var ph = k.phase;
+  var bat = Math.sin(ph);                     // battement d'ailes
+  var sautille = vole ? 0 : Math.abs(Math.sin(ph)) * 2.2;
+
+  /* ombre au sol : elle rétrécit quand il monte */
+  var fo = Math.max(0, 1 - z / 34);
+  c.fillStyle = "rgba(0,0,0," + (0.26 * fo) + ")";
+  c.beginPath();
+  c.ellipse(0, 0, 5.4 * fo + 1.4, 2.1 * fo + 0.6, 0, 0, 6.2832);
+  c.fill();
+
+  c.save();
+  c.translate(0, -z - sautille);
+
+  /* pattes, seulement au sol */
+  if(!vole){
+    c.strokeStyle = "#e0921c"; c.lineWidth = 1.3; c.lineCap = "round";
+    var ec = Math.sin(ph) * 1.5;
+    c.beginPath(); c.moveTo(-1.4, -3.6); c.lineTo(-1.8 - ec, -0.2); c.stroke();
+    c.beginPath(); c.moveTo(1.4, -3.6);  c.lineTo(1.8 + ec, -0.2);  c.stroke();
+  }
+
+  /* queue */
+  c.fillStyle = "#e8b31c";
+  c.beginPath();
+  c.moveTo(-3.6, -7.2);
+  c.lineTo(-10.5, -6.4 + bat * 1.2);
+  c.lineTo(-10.2, -9.4 + bat * 1.2);
+  c.closePath(); c.fill();
+
+  /* aile arrière, puis corps, puis aile avant : un peu de profondeur */
+  var ouv = vole ? bat * 7.5 : Math.min(0, bat) * 1.4;
+  c.fillStyle = "#d9a415";
+  c.beginPath();
+  c.ellipse(-1.6, -8.6 - ouv * 0.5, 4.6, 2.5, -0.5 - ouv * 0.07, 0, 6.2832);
+  c.fill();
+
+  /* corps : le jaune franc du canari */
+  var g = c.createRadialGradient(-1.6, -12, 0.6, 0, -9.6, 7.4);
+  g.addColorStop(0, "#fff2a0");
+  g.addColorStop(0.55, "#ffd21e");
+  g.addColorStop(1, "#e0a412");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -8.8, 5.4, 5.0, 0, 0, 6.2832); c.fill();
+
+  /* aile avant */
+  c.fillStyle = "#ffdf55";
+  c.beginPath();
+  c.ellipse(0.6, -9.2 + ouv * 0.5, 5.0, 2.7, 0.42 + ouv * 0.09, 0, 6.2832);
+  c.fill();
+  c.strokeStyle = "rgba(190,130,10,.45)"; c.lineWidth = 0.7;
+  c.beginPath();
+  c.ellipse(0.6, -9.2 + ouv * 0.5, 5.0, 2.7, 0.42 + ouv * 0.09, 0, 6.2832);
+  c.stroke();
+
+  /* tête, plus grosse que le corps ne le voudrait : c'est un canari */
+  var gt = c.createRadialGradient(3.4, -17.4, 0.5, 4.4, -15.6, 5.6);
+  gt.addColorStop(0, "#fff6bc");
+  gt.addColorStop(1, "#f0bd16");
+  c.fillStyle = gt;
+  c.beginPath(); c.ellipse(4.2, -15.4, 4.3, 4.1, 0, 0, 6.2832); c.fill();
+  /* houppette */
+  c.fillStyle = "#ffd21e";
+  c.beginPath();
+  c.moveTo(3.0, -19.2);
+  c.quadraticCurveTo(3.6, -22.6, 5.6, -21.0);
+  c.quadraticCurveTo(4.8, -19.6, 5.2, -18.9);
+  c.closePath(); c.fill();
+
+  /* bec */
+  c.fillStyle = "#f57f1b";
+  c.beginPath();
+  c.moveTo(7.6, -15.8); c.lineTo(11.4, -14.8); c.lineTo(7.6, -13.8);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(120,60,8,.5)"; c.lineWidth = 0.6;
+  c.beginPath(); c.moveTo(7.6, -14.8); c.lineTo(11.0, -14.8); c.stroke();
+
+  /* œil : grand, rond, très ouvert */
+  c.fillStyle = "#ffffff";
+  c.beginPath(); c.ellipse(5.6, -16.4, 2.2, 2.3, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#17131c";
+  c.beginPath(); c.arc(6.1, -16.3, 1.35, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.95)";
+  c.beginPath(); c.arc(5.6, -16.9, 0.55, 0, 6.2832); c.fill();
+  c.restore();
+}
+
 /* ---------------- Gégé la belette ---------------- */
 function dessineBelette(c, k, tps){
   var ph = k.phase;
@@ -303,6 +396,7 @@ function dessineBelette(c, k, tps){
 
 var DESSIN_CRE = {
   belette:dessineBelette,
+  tweety:dessineTweety,
   braisard:dessineBraisard, piqueur:dessinePiqueur,
   sanglier:dessineSanglier, crapaud:dessineCrapaud
 };
@@ -319,4 +413,75 @@ function dessineCreature(c, k, tps){
   var f = CRE[k.t];
   var fr = k.pv / f.pv;
   if(fr < 0.999 && z > 0.2) barreVie(c, p.x, p.y - 34 * z, 20 * z, fr, "#c98adf");
+}
+
+/* ================================================================
+   LE POULET LEURRE — il court, il caquette, il encaisse à la place
+   des troupes.
+   ================================================================ */
+function dessinePoulet(c, k, tps){
+  var ph = k.phase;
+  var bond = Math.abs(Math.sin(ph));
+  var saut = bond * 3.2;
+
+  c.fillStyle = "rgba(0,0,0,.24)";
+  c.beginPath(); c.ellipse(0, 0, 5.5 - bond * 1.2, 2.3 - bond * 0.5, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, -saut);
+  /* pattes */
+  c.strokeStyle = "#e0a02c"; c.lineWidth = 1.3; c.lineCap = "round";
+  var ec = Math.sin(ph) * 2.6;
+  c.beginPath(); c.moveTo(-1, -5); c.lineTo(-1 - ec, -0.4); c.stroke();
+  c.beginPath(); c.moveTo(1.4, -5); c.lineTo(1.4 + ec, -0.4); c.stroke();
+  /* queue */
+  c.fillStyle = "#f2ece0";
+  c.beginPath();
+  c.moveTo(-4, -8); c.quadraticCurveTo(-10, -13, -8, -6);
+  c.quadraticCurveTo(-7, -6.5, -4, -6);
+  c.closePath(); c.fill();
+  /* corps */
+  var g = c.createRadialGradient(-1.5, -11, 0.5, 0, -8, 8);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.6, "#f2ece0"); g.addColorStop(1, "#cfc4b2");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -8, 5.6, 4.6, -0.1, 0, 6.2832); c.fill();
+  /* aile qui bat */
+  c.fillStyle = "#e2d8c6";
+  c.save();
+  c.translate(-0.5, -8.5); c.rotate(Math.sin(tps * 18 + k.n) * 0.35);
+  c.beginPath(); c.ellipse(0, 0, 3.6, 2.2, 0, 0, 6.2832); c.fill();
+  c.restore();
+  /* tête */
+  c.fillStyle = "#f7f2e8";
+  c.beginPath(); c.ellipse(5, -13, 2.9, 2.9, 0, 0, 6.2832); c.fill();
+  /* crête et barbillon */
+  c.fillStyle = "#d8352c";
+  c.beginPath();
+  c.moveTo(3.4, -15.6); c.quadraticCurveTo(4.4, -18.4, 5.4, -15.8);
+  c.quadraticCurveTo(6.4, -18, 7, -15.4);
+  c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(5.6, -10.4, 1.1, 1.6, 0, 0, 6.2832); c.fill();
+  /* bec */
+  c.fillStyle = "#e8a72c";
+  c.beginPath();
+  c.moveTo(7.4, -13.4); c.lineTo(10.4, -12.6); c.lineTo(7.4, -11.8);
+  c.closePath(); c.fill();
+  /* œil affolé */
+  c.fillStyle = "#241c18";
+  c.beginPath(); c.arc(6.2, -13.8, 0.85, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.9)";
+  c.beginPath(); c.arc(5.9, -14.1, 0.32, 0, 6.2832); c.fill();
+  c.restore();
+}
+function dessinePouletMonde(c, p, tps){
+  var e = versEcran(cam, p.gx, p.gy);
+  var z = cam.z;
+  c.save();
+  c.translate(e.x, e.y);
+  c.scale(z, z);
+  if(!p.droite) c.scale(-1, 1);
+  dessinePoulet(c, p, tps);
+  c.restore();
+  var fr = p.pv / p.pvMax;
+  if(fr < 0.999 && z > 0.2) barreVie(c, e.x, e.y - 26 * z, 14 * z, fr, "#ffd070");
 }

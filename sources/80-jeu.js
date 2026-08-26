@@ -30,9 +30,12 @@ function nouvelleCarte(index, pvConnu){
                prochainTir:0, but:null, minuteur:0, gonfle:0, ang:0 };
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
-    fumees:[], soins:[], fusee:null,
-    poudre:EQ.POUDRE_DEPART,
-    usages:{ fusee:0, fumee:0, soins:0, obus:0, barrage:0 },
+    brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
+    navettes:[],
+    energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
+    tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
+    messageTweety:0,
+    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
     bargeSel:0,
     capArmee:null,
@@ -47,12 +50,40 @@ function nouvelleCarte(index, pvConnu){
   };
   /* composition des barges depuis le briefing */
   for(var i = 0; i < EQ.NB_BARGES; i++){
-    jeu.barges.push({ meuf:compoBarges[i].meuf, mec:compoBarges[i].mec, n:i + 1 });
+    jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
+  }
+  /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
+     l'instantané du salon déclare détruits, et on abaisse les PV du
+     Brasier — AVANT construitGrilles(), qui fige les emprises. */
+  if(typeof monde !== "undefined" && monde && monde.c === index &&
+     (monde.cy | 0) === (typeof cycleSalon === "number" ? cycleSalon : 0)){
+    var bitsM = decodeBits(monde.d, jeu.batiments.length);
+    for(var q = 0; q < jeu.batiments.length; q++){
+      if(bitsM[q]){ jeu.batiments[q].vivant = 0; jeu.batiments[q].pv = 0; }
+    }
+    jeu.file.adopteMinimum(monde.pv);
+    jeu.qg.pv = jeu.file.pv;
+    if(monde.g){
+      /* quelqu'un l'a déjà tuée dans ce salon : elle reste morte */
+      jeu.tueurGege = String(monde.g).substr(0, 14);
+      for(var w = 0; w < jeu.creatures.length; w++)
+        if(jeu.creatures[w].t === "belette") jeu.creatures[w].pv = 0;
+    }
+    if(monde.w){
+      jeu.tueurTweety = String(monde.w).substr(0, 14);
+      for(var w2 = 0; w2 < jeu.creatures.length; w2++)
+        if(jeu.creatures[w2].t === "tweety") jeu.creatures[w2].pv = 0;
+    }
   }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
     jeu.qg.pv = jeu.file.pv;
   }
+  /* les compteurs réseau appartiennent à la carte, pas à la session :
+     des dégâts restés en attente à la chute d'une île étaient recrachés
+     dans le premier message de la suivante */
+  degatsEnAttente = 0;
+  serieReseau = 0;
   construitGrilles();
   construitContourIle();
   construitSol(carte);
@@ -76,9 +107,12 @@ function construitGrilles(){
   }
   for(j = 0; j < GH; j++){ occ[j * GW] = 1; occ[j * GW + 1] = 1; }
   /* emprises des bâtiments */
-  jeu.batiments.forEach(function(b){ marqueEmprise(b, 1); });
-  /* emprise du QG */
-  for(i = -3; i <= 3; i++) for(j = -3; j <= 3; j++){
+  /* un bâtiment déjà tombé (instantané du salon adopté avant la
+     construction de la grille) ne doit pas continuer à barrer
+     le passage */
+  jeu.batiments.forEach(function(b){ if(b.vivant) marqueEmprise(b, 1); });
+  /* emprise du Brasier */
+  for(i = -6; i <= 6; i++) for(j = -6; j <= 6; j++){
     var x = (jeu.qg.gx + i) | 0, y = (jeu.qg.gy + j) | 0;
     if(x >= 0 && x < GW && y >= 0 && y < GH) occ[y * GW + x] = 2;
   }
@@ -116,13 +150,112 @@ function construitGrilleUnites(){
   }else{
     for(var m = 0; m < grilleUni.length; m++) grilleUni[m].length = 0;
   }
-  for(var i = 0; i < jeu.unites.length; i++){
-    var u = jeu.unites[i];
+  function range(u){
     var cx = Math.min(GUW - 1, Math.max(0, (u.gx / GU) | 0));
     var cy = Math.min(GUH - 1, Math.max(0, (u.gy / GU) | 0));
     grilleUni[cy * GUW + cx].push(u);
   }
+  for(var i = 0; i < jeu.unites.length; i++) range(jeu.unites[i]);
+  /* les poulets entrent dans la grille : les défenses les prennent
+     pour des troupes et gaspillent leurs munitions dessus */
+  for(var k2 = 0; k2 < jeu.poulets.length; k2++) range(jeu.poulets[k2]);
 }
+/* ---------------------------------------------------------------
+   SÉPARATION LOCALE
+   L'ancre de formation étale le groupe à l'approche ; la séparation
+   l'empêche de s'empiler une fois arrivé — à l'arrêt, en train de
+   tirer, ou tassé contre un mur.
+
+   Grille dédiée, de maille égale au diamètre de confort : une unité
+   n'a donc que ses huit cases voisines à consulter. Tri par comptage
+   dans des tableaux typés réutilisés d'une image à l'autre — aucune
+   allocation par image, et le coût suit le nombre de voisines réelles,
+   pas l'effectif total.
+   --------------------------------------------------------------- */
+var sepDebut = null, sepTete = null, sepOrdre = null, sepW = 0, sepH = 0;
+var sepX = null, sepY = null, sepR = null, sepPx = null, sepPy = null;
+
+function reserveSeparation(n){
+  if(sepX && sepX.length >= n) return;
+  var cap = Math.max(256, n * 2);
+  sepX = new Float32Array(cap); sepY = new Float32Array(cap);
+  sepR = new Float32Array(cap);
+  sepPx = new Float32Array(cap); sepPy = new Float32Array(cap);
+  sepOrdre = new Int32Array(cap);
+}
+
+function separeUnites(dt){
+  var lst = jeu.unites, n = lst.length;
+  if(n < 2) return;
+  reserveSeparation(n);
+  var maille = EQ.SEPARATION_MAILLE;
+  var w = Math.ceil(GW / maille) + 1;
+  if(sepW !== w){
+    sepW = w; sepH = Math.ceil(GH / maille) + 1;
+    sepDebut = new Int32Array(sepW * sepH + 1);
+    sepTete = new Int32Array(sepW * sepH);
+  }
+  var nc = sepW * sepH, i, c;
+  sepDebut.fill(0); sepTete.fill(0);
+
+  /* copie plate + comptage par case */
+  for(i = 0; i < n; i++){
+    var u = lst[i];
+    sepX[i] = u.gx; sepY[i] = u.gy; sepR[i] = UNI[u.t].rayon;
+    sepPx[i] = 0; sepPy[i] = 0;
+    var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
+    if(cx < 0) cx = 0; else if(cx >= sepW) cx = sepW - 1;
+    if(cy < 0) cy = 0; else if(cy >= sepH) cy = sepH - 1;
+    u.sepC = cy * sepW + cx;
+    sepDebut[u.sepC + 1]++;
+  }
+  for(c = 0; c < nc; c++) sepDebut[c + 1] += sepDebut[c];
+  for(i = 0; i < n; i++){
+    c = lst[i].sepC;
+    sepOrdre[sepDebut[c] + sepTete[c]] = i;
+    sepTete[c]++;
+  }
+
+  /* répulsion : chaque paire traitée une seule fois (j > i) */
+  for(i = 0; i < n; i++){
+    var cx0 = lst[i].sepC % sepW, cy0 = (lst[i].sepC / sepW) | 0;
+    for(var jy = cy0 - 1; jy <= cy0 + 1; jy++){
+      if(jy < 0 || jy >= sepH) continue;
+      for(var jx = cx0 - 1; jx <= cx0 + 1; jx++){
+        if(jx < 0 || jx >= sepW) continue;
+        var cc = jy * sepW + jx;
+        for(var k = sepDebut[cc]; k < sepDebut[cc + 1]; k++){
+          var j = sepOrdre[k];
+          if(j <= i) continue;
+          var dx = sepX[i] - sepX[j], dy = sepY[i] - sepY[j];
+          var conf = sepR[i] + sepR[j];
+          var d2 = dx * dx + dy * dy;
+          if(d2 >= conf * conf) continue;
+          var d = Math.sqrt(d2);
+          if(d < 1e-4){
+            /* exactement superposées : on les sépare sur un axe stable */
+            var a = (i * ANGLE_OR) % 6.2832;
+            dx = Math.cos(a); dy = Math.sin(a); d = 1;
+          }else{ dx /= d; dy /= d; }
+          var chev = (conf - d) * 0.5;
+          sepPx[i] += dx * chev; sepPy[i] += dy * chev;
+          sepPx[j] -= dx * chev; sepPy[j] -= dy * chev;
+        }
+      }
+    }
+  }
+
+  /* application, plafonnée pour rester stable quel que soit dt */
+  var vmax = EQ.SEPARATION_VITESSE * dt;
+  for(i = 0; i < n; i++){
+    var px = sepPx[i], py = sepPy[i];
+    var l = Math.hypot(px, py);
+    if(l < 1e-5) continue;
+    if(l > vmax) l = vmax;
+    deplace(lst[i], px, py, l);
+  }
+}
+
 function unitesAutour(gx, gy, r, sortie){
   sortie.length = 0;
   var x0 = Math.max(0, ((gx - r) / GU) | 0), x1 = Math.min(GUW - 1, ((gx + r) / GU) | 0);
@@ -163,40 +296,135 @@ function centreSur(gx, gy){
   cam.py = H / 2 - p.y * cam.z;
 }
 
+/* ---------------------------------------------------------------
+   LE DÉBARQUEMENT
+   Les troupes n'apparaissent plus par magie à l'intérieur des terres :
+   une navette arrive du large, ralentit, accoste, ouvre sa rampe, et
+   les soldats en sortent par petits groupes avant de gagner le sable.
+
+   Trois états : "approche" -> "accostage" -> "retrait". Les unités ne
+   sont créées qu'une fois la rampe ouverte, à la sortie de la rampe.
+   --------------------------------------------------------------- */
+/* Le rivage JOUABLE n'est pas PLAGE_X0 (première colonne de sable, à
+   140) mais le bord est de la grille : deplace() borne les unités à
+   GW - 0.5, et le sable mouillé de matiereCase() commence vers GW - 6.
+   La navette accoste donc là où est vraiment l'eau — c'est ce décalage
+   de onze cases qui faisait « apparaître » les troupes en pleine terre. */
+/* Le contour visible de l'île s'arrête à GW + 2.2 (traceIle, dilatation
+   2.2) : la navette flotte donc juste au-delà du sable, et le pied de
+   sa rampe retombe sur la dernière case praticable — deplace() borne
+   les unités à GW - 0.5, une troupe créée plus à l'est serait recalée
+   d'un coup sec. */
+var RIVAGE_GX = GW + 1.6;      // la navette flotte : elle s'arrête DANS l'eau
+var RAMPE_GX  = GW - 0.6;      // pied de rampe : dernière case où l'on marche
+
+var NAV = {
+  DEPART      : 13.0,   // cases au large : elle arrive franchement du large
+  APPROCHE    : 1.0,    // s pour rallier le rivage, quelle que soit la distance
+  RAMPE       : 0.40,   // s pour abaisser la rampe
+  CADENCE     : 0.075,  // s entre deux soldats qui sortent
+  PAUSE       : 0.30,   // s avant de repartir
+  RETRAIT     : 2.4     // s de marche arrière avant disparition
+};
+
 function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
-  if(!b) return message("Plus aucune barge.");
-  gx = borne(gx, PLAGE_X0, GW - 1.2);
+  if(!b) return message("Plus aucune navette.");
+  /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
+     long de la plage. Elle s'arrête toujours au bord de l'eau, et les
+     troupes gagnent le sable à pied. */
   gy = borne(gy, 3, GH - 4);
-  var n = b.meuf + b.mec, pose = 0, k = 0;
-  var liste = [];
-  for(var i = 0; i < b.meuf; i++) liste.push("meuf");
-  for(var j = 0; j < b.mec; j++) liste.push("mec");
-  /* déploiement en spirale autour du drapeau */
-  while(pose < liste.length && k < 400){
-    var a = k * 2.399963, r = 0.42 * Math.sqrt(k);
-    var x = gx + Math.cos(a) * r, y = gy + Math.sin(a) * r;
-    k++;
-    if(bloque(x, y)) continue;
-    creeUnite(liste[pose], x, y);
-    pose++;
-  }
-  jeu.effets.push({ t:"drapeau", gx:gx, gy:gy, age:0, duree:6 });
+  var gxA = RIVAGE_GX;
+  jeu.navettes.push({
+    type:b.type, reste:b.n, sortis:0,
+    gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
+    etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
+    n:jeu.nSuiv++
+  });
   jeu.barges.splice(jeu.bargeSel, 1);
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
-  majBarres();
+  demandeMajBarres();
   son.debarque();
+}
+
+function majNavettes(dt){
+  for(var i = jeu.navettes.length - 1; i >= 0; i--){
+    var v = jeu.navettes[i];
+    v.tangage += dt * 2.4;
+    if(v.etat === "approche"){
+      /* Une seconde du large au rivage, pas une de plus : la course est
+         interpolée dans le TEMPS et non à vitesse constante. La courbe
+         part vite et se pose en douceur — elle ralentit donc bien en
+         approchant du sable, sans jamais allonger l'attente. */
+      v.minuteur += dt;
+      var t = Math.min(1, v.minuteur / NAV.APPROCHE);
+      var e = 1 - (1 - t) * (1 - t) * (1 - t);        // sortie cubique
+      v.gx = v.gx0 + (v.gxA - v.gx0) * e;
+      if(t >= 1){
+        v.gx = v.gxA;
+        v.etat = "accostage";
+        v.minuteur = 0;
+        son.rampe();
+      }
+      continue;
+    }
+    if(v.etat === "accostage"){
+      v.minuteur += dt;
+      v.rampe = Math.min(1, v.minuteur / NAV.RAMPE);
+      if(v.rampe < 1) continue;
+      /* les soldats sortent en file, pas tous d'un bloc */
+      var du = v.minuteur - NAV.RAMPE;
+      var voulus = Math.min(v.reste, Math.floor(du / NAV.CADENCE) + 1);
+      while(v.sortis < voulus){
+        sortDeNavette(v);
+        v.sortis++;
+      }
+      if(v.sortis >= v.reste && du > v.reste * NAV.CADENCE + NAV.PAUSE){
+        v.etat = "retrait";
+        v.minuteur = 0;
+      }
+      continue;
+    }
+    /* retrait : elle repart au large, rampe relevée */
+    v.minuteur += dt;
+    v.rampe = Math.max(0, 1 - v.minuteur / NAV.RAMPE);
+    v.gx += (2.2 + v.minuteur * 4.0) * dt;
+    if(v.minuteur > NAV.RETRAIT) jeu.navettes.splice(i, 1);
+  }
+}
+
+/* Un soldat descend la rampe : il naît au pied de celle-ci, un peu
+   devant la coque, avec une petite dispersion latérale. La séparation
+   locale et l'ancre de formation font le reste dès la frame suivante. */
+function sortDeNavette(v){
+  var k = v.sortis;
+  var lat = ((k % 5) - 2) * 0.34 + (bruitStable(v.n * 31 + k, 0) - 0.5) * 0.30;
+  var av = (k % 3) * 0.30;
+  var x = RAMPE_GX - av, y = v.gy + lat;
+  /* si le pied de rampe est encombré, on décale le long du rivage */
+  for(var essai = 0; essai < 8 && bloque(x, y); essai++){
+    y += (essai % 2 ? 1 : -1) * 0.42 * (essai + 1);
+    x = RAMPE_GX - av;
+  }
+  if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
+  creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
 }
 function creeUnite(type, gx, gy){
   var f = UNI[type];
+  var n = jeu.nSuiv++;
+  var an = ancreFormation(n);
   jeu.unites.push({
-    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:jeu.nSuiv++,
+    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:n,
+    /* place stable dans le disque unité : c'est elle qui donne au
+       groupe sa surface au lieu d'un empilement sur un point */
+    ancX:an.x, ancY:an.y, sepC:0,
     phase:Math.random() * 6.2832, var:(Math.random() * 3) | 0, droite:false,
     cible:null, prochainCiblage:Math.random() * EQ.PERIODE_CIBLAGE,
-    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, fuseeVue:-1,
+    prochainTir:0, tir:0, brulure:0, ralenti:0, ralentiType:"", vitMod:1, baliseVue:-1,
     pousse:{ x:0, y:0 }
   });
+  return jeu.unites[jeu.unites.length - 1];
 }
 
 /* ---------------------------------------------------------------
@@ -210,7 +438,7 @@ function toucheUnite(u, degats, opt){
     if(opt.ralenti){ u.ralenti = Math.max(u.ralenti, opt.ralenti); u.ralentiType = opt.type || "elec"; }
     if(opt.pousse){ u.pousse.x += opt.pousse.x; u.pousse.y += opt.pousse.y; }
   }
-  if(u.pv <= 0){
+  if(u.pv <= 0 && !u.leurre){
     jeu.effets.push({ t:"mort", gx:u.gx, gy:u.gy, age:0, duree:0.55, typ:u.t });
     if(jeu.fantome === null) jeu.dernierePerte = { gx:u.gx, gy:u.gy };
   }
@@ -234,29 +462,42 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
     var c = jeu.creatures[k];
     if(c.pv > 0 && Math.hypot(c.gx - gx, c.gy - gy) <= rayon) abimeCreature(c, degats);
   }
-  if(Math.hypot(jeu.qg.gx - gx, jeu.qg.gy - gy) <= rayon + 3.4) abimeQG(degats);
+  if(Math.hypot(jeu.qg.gx - gx, jeu.qg.gy - gy) <= rayon + RAYON_QG) abimeQG(degats);
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
+  /* Le classement s'appelle TOP DÉGÂTS : il doit compter TOUS les
+     dégâts, pas seulement ceux portés au Brasier. Un joueur qui démonte
+     des centaines de défenses sans jamais atteindre la forteresse
+     restait affiché à zéro. On ne compte que ce qui est réellement
+     retiré, pour qu'un coup fatal surdimensionné ne gonfle pas le score. */
+  jeu.degatsMoi += Math.max(0, Math.min(d, b.pv));
   b.pv -= d;
   if(b.pv <= 0){
     b.vivant = 0;
     marqueEmprise(b, 0);
     /* une fusée posée sur ce bâtiment cesse d'agir dès qu'il tombe */
-    if(jeu.fusee && jeu.fusee.cible === b){
-      jeu.fusee = null;
+    if(jeu.balise && jeu.balise.cible === b){
+      jeu.balise = null;
       for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
     }
-    jeu.poudre += EQ.POUDRE_PAR_BATIMENT;
+    jeu.energie += DEF[b.t].recolte ? EQ.ENERGIE_PAR_CELLULE : EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
-    jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
-    jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
-    if(jeu.crateres.length > 160) jeu.crateres.shift();
-    jeu.secousse = Math.min(9, jeu.secousse + 3);
-    son.boum(0.42);
-    son.poudre();
+    if(DEF[b.t].recolte){
+      /* une cellule se vide, elle n'explose pas : pas de cratère, pas
+         de secousse, juste un éclat et le tintement de la récolte */
+      jeu.effets.push({ t:"recolte", gx:b.gx, gy:b.gy, age:0, duree:0.6 });
+      son.recolte();
+    }else{
+      jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
+      jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
+      if(jeu.crateres.length > 160) jeu.crateres.shift();
+      jeu.secousse = Math.min(9, jeu.secousse + 3);
+      son.boum(0.42);
+    }
+    son.energie();
     envoieDestruction(b.n);
-    majBarres();
+    demandeMajBarres();
   }
 }
 function abimeCreature(c, d){
@@ -264,12 +505,22 @@ function abimeCreature(c, d){
   c.pv -= d;
   if(c.pv <= 0){
     jeu.effets.push({ t:"mortCre", gx:c.gx, gy:c.gy, age:0, duree:0.7, typ:c.t });
-    jeu.poudre += 1;
+    jeu.energie += EQ.ENERGIE_PAR_CREATURE;
     if(c.t === "belette"){
       jeu.messageGege = 3.0;                       // trois secondes de deuil
+      jeu.tueurGege = monNom;
       son.gege();
+      envoieGege();                                // que tout le salon le sache
+      signaleMonde();
     }
-    majBarres();
+    if(c.t === "tweety"){
+      jeu.messageTweety = 3.0;
+      jeu.tueurTweety = monNom;
+      son.tweety();
+      envoieTweety();
+      signaleMonde();
+    }
+    demandeMajBarres();
   }
 }
 function abimeQG(d){
@@ -293,7 +544,15 @@ function deplace(u, dx, dy, pas){
   dx /= l; dy /= l;
   var nx = u.gx + dx * pas, ny = u.gy + dy * pas;
   var okX = !bloque(nx, u.gy), okY = !bloque(u.gx, ny);
-  if(okX && okY && !bloque(nx, ny)){ u.gx = nx; u.gy = ny; return; }
+  if(okX && okY && !bloque(nx, ny)){
+    /* Le bornage vaut AUSSI ici : bloque() considère tout gx >= GW comme
+       libre, et la séparation locale est le premier code à pousser une
+       unité vers l'est. Sans ces deux bornes, les troupes serrées au
+       pied de la rampe finissaient debout sur la mer. */
+    u.gx = borne(nx, 0.4, GW - 0.5);
+    u.gy = borne(ny, 0.4, GH - 0.5);
+    return;
+  }
   if(okX) u.gx = nx;
   if(okY) u.gy = ny;
   if(!okX && !okY){
@@ -312,7 +571,7 @@ function deplace(u, dx, dy, pas){
 var tmpBat = [], tmpUni = [];
 function majUnites(dt){
   var i, u;
-  var fusee = jeu.fusee;
+  var balise = jeu.balise;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
     if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
@@ -345,8 +604,8 @@ function majUnites(dt){
        Deux comportements, selon l'endroit où la fusée est tombée.
        L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
        propre compte, les autres continuent de converger.               */
-    if(fusee && u.fuseeVue !== fusee.id){
-      var bc = fusee.cible;
+    if(balise && u.baliseVue !== balise.id){
+      var bc = balise.cible;
       if(bc && bc.vivant){
         /* 2) fusée posée sur une défense ou un bâtiment :
               on y va et on le démonte en priorité */
@@ -355,7 +614,13 @@ function majUnites(dt){
         u.droite = (dxb - dyb) > 0;
         u.cible = { k:"bat", o:bc };
         if(db > f.arret){
-          deplace(u, dxb, dyb, vit * dt);
+          /* même éventail que pour une cible ordinaire : la troupe
+             encercle le bâtiment désigné au lieu de s'entasser sur la
+             face qu'elle a abordée */
+          /* plafonné par la marge d'arrêt : un décalage plus grand que
+             la portée empêcherait la troupe d'entrer en portée du tout */
+          var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
+          deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
           u.phase += dt * 1.5;
@@ -369,24 +634,34 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* 1) fusée au sol : ralliement sans tirer, jusqu'à ce que la
-              troupe ait atteint (ou traversé) la zone de la fusée */
-        var dxf = fusee.gx - u.gx, dyf = fusee.gy - u.gy;
+        /* 1) balise au sol : ralliement sans tirer. Chaque troupe a SA
+              place autour de la balise — la balise est une zone de
+              rassemblement, pas un pixel — et se libère dès qu'elle y
+              est, pour son propre compte. */
+        var rf = rayonFormation();
+        var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
+        var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        if(df > EQ.FUSEE_RAYON){
+        /* Filet de sécurité — et RIEN QUE ça. Testé sur la seule
+           distance au centre, il se déclenchait pour tout le monde :
+           chaque troupe franchit le bord du disque avant d'atteindre sa
+           place, donc toutes se libéraient à 3,76 cases du point visé.
+           Il ne joue désormais que si la place est vraiment inatteignable. */
+        var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
+        if(df > EQ.BALISE_RAYON && !(dCentre <= rf && bloque(pvx, pvy))){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
           u.cible = null;
           continue;
         }
-        /* zone atteinte : cette fusée ne l'influence plus, jamais */
-        u.fuseeVue = fusee.id;
+        /* place atteinte : cette balise ne l'influence plus, jamais */
+        u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
       }else{
         /* la cible de la fusée est tombée : libération immédiate */
-        u.fuseeVue = fusee.id;
+        u.baliseVue = balise.id;
         u.cible = null;
         u.prochainCiblage = 0;
       }
@@ -404,17 +679,22 @@ function majUnites(dt){
     var but = null, portee = f.arret, rayonCible = 0;
     if(c){
       but = { gx:c.o.gx, gy:c.o.gy };
-      rayonCible = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? 3.3 : 0.3);
+      rayonCible = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? RAYON_QG : 0.3);
     }else{
       but = { gx:jeu.qg.gx, gy:jeu.qg.gy };
-      rayonCible = 3.3;
+      rayonCible = RAYON_QG;
     }
     var dx = but.gx - u.gx, dy = but.gy - u.gy;
     var d = Math.hypot(dx, dy) - rayonCible;
     u.droite = (dx - dy) > 0;
 
     if(d > portee){
-      deplace(u, dx, dy, vit * dt);
+      /* on marche vers SA place autour de la cible, pas vers le centre :
+         la troupe aborde l'objectif en éventail au lieu de s'entasser
+         sur l'arc le plus proche. La portée, elle, reste mesurée au
+         centre — le décalage n'avantage ni ne pénalise personne. */
+      var etal = Math.min(rayonFormation() * 0.55, (portee + rayonCible) * 0.7);
+      deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
       /* à portée : on tire */
@@ -444,7 +724,7 @@ function chercheCibleUnite(u){
     var db = Math.hypot(b.gx - u.gx, b.gy - u.gy) - b.e * 0.42;
     if(db < md){ md = db; meilleur = { k:"bat", o:b }; }
   }
-  var dq = Math.hypot(jeu.qg.gx - u.gx, jeu.qg.gy - u.gy) - 3.3;
+  var dq = Math.hypot(jeu.qg.gx - u.gx, jeu.qg.gy - u.gy) - RAYON_QG;
   if(dq < md && dq < 12) meilleur = { k:"qg", o:jeu.qg };
   return meilleur;
 }
@@ -464,7 +744,7 @@ function tireUnite(u, but, c){
   }
 }
 function appliqueDegatsCible(c, d, but){
-  if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < 4) abimeQG(d); return; }
+  if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
   if(c.k === "bat") abimeBatiment(c.o, d);
   else if(c.k === "cre") abimeCreature(c.o, d);
   else abimeQG(d);
@@ -498,6 +778,7 @@ function majDefenses(dt, tps){
     if(!b.vivant) continue;
     var f = DEF[b.t];
     if(!f.portee) continue;
+    if(geleeParCryo(b)){ b.cible = null; continue; }
     /* élagage par boîte englobante */
     var ddx = Math.max(bx0 - b.gx, 0, b.gx - bx1);
     var ddy = Math.max(by0 - b.gy, 0, b.gy - by1);
@@ -528,8 +809,8 @@ function majDefenses(dt, tps){
   }
 }
 function masquee(u){
-  for(var i = 0; i < jeu.fumees.length; i++){
-    var f = jeu.fumees[i];
+  for(var i = 0; i < jeu.brouillards.length; i++){
+    var f = jeu.brouillards[i];
     if(Math.hypot(u.gx - f.gx, u.gy - f.gy) <= f.r) return true;
   }
   return false;
@@ -550,7 +831,7 @@ function chercheCibleDefense(b, f){
 }
 function tireDefense(b, f, c, d, tps){
   b.flash = 1;
-  if(b.t === "mitrailleuse"){
+  if(b.t === "crible"){
     b.recul = 1;
     var touche = mitraTouche(d, Math.random());
     if(touche){
@@ -564,8 +845,8 @@ function tireDefense(b, f, c, d, tps){
       jeu.effets.push({ t:"traceur", gx:b.gx, gy:b.gy, ex:ex, ey:ey, age:0, duree:0.11, perdue:1 });
       jeu.effets.push({ t:"poussiere", gx:ex, gy:ey, age:0, duree:0.42 });
     }
-  }else if(b.t === "flammes"){
-    /* cône de flammes : tout ce qui est dans le cône prend et brûle */
+  }else if(b.t === "chalumeau"){
+    /* cône de chalumeau : tout ce qui est dans le cône prend et brûle */
     var ang = b.angle;
     unitesAutour(b.gx, b.gy, f.portee, tmpUni);
     for(var i = 0; i < tmpUni.length; i++){
@@ -573,27 +854,28 @@ function tireDefense(b, f, c, d, tps){
       var du = Math.hypot(u.gx - b.gx, u.gy - b.gy);
       if(du > f.portee) continue;
       if(!dansCone(Math.atan2(u.gy - b.gy, u.gx - b.gx), ang, f.cone)) continue;
+      if(masquee(u)) continue;              // la fumée coupe aussi le cône
       toucheUnite(u, f.degats, { brulure:1 });
     }
     jeu.effets.push({ t:"cone", gx:b.gx, gy:b.gy, ang:ang, portee:f.portee,
                       ouv:f.cone, age:0, duree:0.22 });
-  }else if(b.t === "roquettes"){
+  }else if(b.t === "frelon"){
     b.recul = 1;
     jeu.projectiles.push({ t:"roquette", gx:b.gx, gy:b.gy, z:26, cible:c,
-      but:{ gx:c.gx, gy:c.gy }, degats:f.degats, vit:f.vitesseProj, age:0, fumee:0 });
+      but:{ gx:c.gx, gy:c.gy }, degats:f.degats, vit:f.vitesseProj, age:0, brouillard:0 });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.5 });
-    son.tirRoquette();
-  }else if(b.t === "mortier"){
+    son.tirFrelon();
+  }else if(b.t === "pilon"){
     b.recul = 1; b.chargement = 1;
     var vol = d / f.vitesseProj;
-    jeu.projectiles.push({ t:"obus", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
+    jeu.projectiles.push({ t:"bombe", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cx:c.gx, cy:c.gy, duree:vol, age:0, degats:f.degats, zone:f.zone, haut:38 + d * 3.2 });
-    son.tirMortier();
-  }else if(b.t === "electro"){
+    son.tirPilon();
+  }else if(b.t === "bobine"){
     var vol2 = d / f.vitesseProj;
-    jeu.projectiles.push({ t:"electro", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
+    jeu.projectiles.push({ t:"bobine", gx:b.gx, gy:b.gy, x0:b.gx, y0:b.gy,
       cx:c.gx, cy:c.gy, duree:vol2, age:0, degats:f.degats, zone:f.zone, ralenti:f.ralenti });
-    son.tirElectro();
+    son.tirBobine();
   }
 }
 
@@ -608,7 +890,17 @@ function majProjectiles(dt){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
         if(p.cible.k){ if(p.cible.o && (p.cible.o.vivant !== 0)){ bx = p.cible.o.gx; by = p.cible.o.gy; } }
-        else if(p.cible.pv > 0){ bx = p.cible.gx; by = p.cible.gy; }
+        else if(p.cible.pv > 0){
+          /* la cible s'est glissée dans un Brouillard : la roquette
+             perd le contact et tombe là où elle croyait la trouver */
+          if(p.t === "roquette" && masquee(p.cible)){
+            /* contact perdu : elle tombe là où elle croyait la trouver,
+               et non au point de tir initial */
+            p.but = { gx:p.cible.gx, gy:p.cible.gy };
+            bx = p.but.gx; by = p.but.gy;
+            p.cible = null;
+          }else{ bx = p.cible.gx; by = p.cible.gy; }
+        }
       }
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
       var pas = p.vit * dt;
@@ -625,12 +917,37 @@ function majProjectiles(dt){
         continue;
       }
       p.gx += dx / d * pas; p.gy += dy / d * pas;
-    }else if(p.t === "obus" || p.t === "electro"){
+    }else if(p.t === "viper"){
+      var tv = p.age / p.duree;
+      if(tv >= 1){
+        degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
+        degatsZone(p.cx, p.cy, p.zone, p.degats * 0.5);
+        jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.8, r:p.zone * 1.6, force:1.4 });
+        jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.7 });
+        jeu.secousse = Math.min(14, jeu.secousse + 7);
+        son.boum(0.95);
+        jeu.projectiles.splice(i, 1);
+        continue;
+      }
+      p.gx = p.x0 + (p.cx - p.x0) * tv;
+      p.gy = p.y0 + (p.cy - p.y0) * tv;
+      p.z = p.haut * (1 - tv) * (1 - tv);
+    }else if(p.t === "nova"){
+      var tn = p.age / p.duree;
+      if(tn >= 1){
+        explosionNova(p.cx, p.cy);
+        jeu.projectiles.splice(i, 1);
+        continue;
+      }
+      p.gx = p.x0 + (p.cx - p.x0) * tn;
+      p.gy = p.y0 + (p.cy - p.y0) * tn;
+      p.z = p.haut * (1 - tn) * (1 - tn);
+    }else if(p.t === "bombe" || p.t === "bobine"){
       var t = p.age / p.duree;
       if(t >= 1){
-        if(p.t === "obus"){
+        if(p.t === "bombe"){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
-          else degatsZone(p.cx, p.cy, p.zone, p.degats);
+          if(!p.allie || p.tousCamps) degatsZone(p.cx, p.cy, p.zone, p.degats);
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
           jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0, duree:0.62, r:p.zone, force:1 });
           jeu.crateres.push({ gx:p.cx, gy:p.cy, r:p.zone * 0.55 });
@@ -639,7 +956,7 @@ function majProjectiles(dt){
         }else{
           degatsZone(p.cx, p.cy, p.zone, p.degats, { ralenti:p.ralenti, type:"elec" });
           jeu.effets.push({ t:"eclair", gx:p.cx, gy:p.cy, age:0, duree:0.42, r:p.zone });
-          son.electro();
+          son.bobine();
         }
         jeu.projectiles.splice(i, 1);
         continue;
@@ -675,6 +992,7 @@ function majCreatures(dt, tps){
     if(c && c.pv <= 0) c = k.cible = null;
 
     if(k.t === "belette"){ majBelette(k, f, c, dt); continue; }
+    if(k.t === "tweety"){ majTweety(k, f, c, dt); continue; }
     if(k.t === "sanglier"){ majSanglier(k, f, c, dt); continue; }
     if(k.t === "crapaud"){ majCrapaud(k, f, c, dt, tps); continue; }
 
@@ -716,6 +1034,59 @@ function deplaceCreature(k, dx, dy, pas){
   if(!bloque(nx, k.gy)) k.gx = nx;
   if(!bloque(k.gx, ny)) k.gy = ny;
 }
+/* Tweety : il alterne les postures. Posé, il sautille et picore ; on
+   approche, il décolle en flèche ; puis il plane et redescend se poser
+   un peu plus loin. L'altitude (k.z) est ce qui le distingue de tout le
+   reste du bestiaire — elle sert au dessin et à son ombre. */
+function majTweety(k, f, c, dt){
+  k.z = k.z || 0;
+  k.butT = (k.butT || 0) - dt;
+
+  if(c){
+    /* effarouché : décollage immédiat, à l'opposé et bien haut */
+    var dx = k.gx - c.gx, dy = k.gy - c.gy;
+    var d = Math.hypot(dx, dy) || 1;
+    k.etat = "envol";
+    k.z = Math.min(34, k.z + 58 * dt);
+    var a = Math.atan2(dy, dx) + Math.sin(jeu.tps * 1.7 + k.n) * 0.45;
+    deplaceCreature(k, Math.cos(a), Math.sin(a), f.vitesse * dt);
+    k.phase += dt * 26;                       // battement d'ailes rapide
+    k.droite = (Math.cos(a) - Math.sin(a)) > 0;
+    k.butT = 1.6;
+    return;
+  }
+
+  if(k.butT <= 0 || !k.but){
+    /* il choisit un nouveau perchoir, ou décide de picorer sur place */
+    if(k.etat === "vol" || Math.random() < 0.55){
+      k.etat = "pose";
+      k.butT = 2.4 + Math.random() * 4.5;
+      k.but = null;
+    }else{
+      k.etat = "vol";
+      k.butT = 1.8 + Math.random() * 2.6;
+      k.but = { gx:borne(k.ox + (Math.random() - 0.5) * 22, 4, PLAGE_X0 - 3),
+                gy:borne(k.oy + (Math.random() - 0.5) * 22, 4, GH - 5) };
+    }
+  }
+
+  if(k.etat === "vol" && k.but){
+    var vx = k.but.gx - k.gx, vy = k.but.gy - k.gy;
+    var dv = Math.hypot(vx, vy);
+    k.z = Math.min(26, k.z + 42 * dt);
+    if(dv > 0.4){
+      deplaceCreature(k, vx, vy, f.vitesse * 0.62 * dt);
+      k.droite = (vx - vy) > 0;
+    }else{ k.but = null; k.butT = 0; }
+    k.phase += dt * 20;
+    return;
+  }
+
+  /* posé : il redescend, puis sautille et picore */
+  k.z = Math.max(0, k.z - 46 * dt);
+  k.phase += dt * (k.z > 0.5 ? 20 : 5.5);
+}
+
 /* Gégé : elle vaque à ses affaires et détale dès qu'on approche. */
 function majBelette(k, f, c, dt){
   if(c){
@@ -807,7 +1178,7 @@ function majCrapaud(k, f, c, dt, tps){
 }
 
 /* ---------------------------------------------------------------
-   Zones persistantes : glu, flaques enflammées, fumigènes, soins
+   Zones persistantes : glu, flaques enflammées, fumigènes, soin
    --------------------------------------------------------------- */
 function majZones(dt){
   var i;
@@ -827,26 +1198,31 @@ function majZones(dt){
     if(fl.age > fl.duree){ jeu.flaques.splice(i, 1); continue; }
     degatsZone(fl.gx, fl.gy, fl.r, EQ.QG_FLAQUE_DPS * dt);
   }
-  for(i = jeu.fumees.length - 1; i >= 0; i--){
-    jeu.fumees[i].age += dt;
-    if(jeu.fumees[i].age > jeu.fumees[i].duree) jeu.fumees.splice(i, 1);
+  for(i = jeu.brouillards.length - 1; i >= 0; i--){
+    jeu.brouillards[i].age += dt;
+    if(jeu.brouillards[i].age > jeu.brouillards[i].duree) jeu.brouillards.splice(i, 1);
   }
-  for(i = jeu.soins.length - 1; i >= 0; i--){
-    var s = jeu.soins[i]; s.age += dt;
-    if(s.age > s.duree){ jeu.soins.splice(i, 1); continue; }
+  for(i = jeu.soin.length - 1; i >= 0; i--){
+    var s = jeu.soin[i]; s.age += dt;
+    if(s.age > s.duree){ jeu.soin.splice(i, 1); continue; }
     var t2 = [];
     unitesAutour(s.gx, s.gy, s.r, t2);
     for(var m = 0; m < t2.length; m++){
       var u = t2[m];
+      if(u.leurre) continue;
       if(Math.hypot(u.gx - s.gx, u.gy - s.gy) <= s.r){
-        u.pv = Math.min(u.pvMax, u.pv + CAP.soins.pvParSeconde * dt);
+        u.pv = Math.min(u.pvMax, u.pv + CAP.soin.pvParSeconde * dt);
         if(u.brulure > 0) u.brulure = Math.max(0, u.brulure - dt * 2);
       }
     }
   }
-  if(jeu.fusee){
-    jeu.fusee.reste -= dt;
-    if(jeu.fusee.reste <= 0) jeu.fusee = null;
+  for(i = jeu.cryos.length - 1; i >= 0; i--){
+    jeu.cryos[i].age += dt;
+    if(jeu.cryos[i].age > jeu.cryos[i].duree) jeu.cryos.splice(i, 1);
+  }
+  if(jeu.balise){
+    jeu.balise.reste -= dt;
+    if(jeu.balise.reste <= 0) jeu.balise = null;
   }
 }
 
@@ -899,7 +1275,7 @@ function lanceEruption(){
       var a = Math.random() * 6.2832;
       var r = 3 + Math.random() * EQ.QG_PLUIE_RAYON;
       var cx = jeu.qg.gx + Math.cos(a) * r, cy = jeu.qg.gy + Math.sin(a) * r;
-      jeu.projectiles.push({ t:"obus", gx:jeu.qg.gx, gy:jeu.qg.gy, x0:jeu.qg.gx, y0:jeu.qg.gy,
+      jeu.projectiles.push({ t:"bombe", gx:jeu.qg.gx, gy:jeu.qg.gy, x0:jeu.qg.gx, y0:jeu.qg.gy,
         cx:cx, cy:cy, duree:0.9 + Math.random() * 0.9 + i * 0.035, age:0,
         degats:46, zone:1.4, haut:70, braise:1 });
     }
@@ -914,10 +1290,16 @@ function lanceEruption(){
 /* ---------------------------------------------------------------
    Capacités
    --------------------------------------------------------------- */
+/* La Nova ne se paie pas en Énergie : on en a UNE par vie, point.
+   C'est ce qui la garde rare, et ce qui rend son emploi mémorable. */
+function capaciteDisponible(m){
+  if(m === "nova") return jeu.novaDispo > 0;
+  return jeu.energie >= coutActuel(m, jeu.usages);
+}
 function armeCapacite(m){
-  if(m === "debarquer"){ jeu.capArmee = "debarquer"; majMenu(); son.gong(); return; }
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
-    message("Pas assez de Poudre pour " + COUT[m].nom + ".");
+  if(!capaciteDisponible(m)){
+    message(m === "nova" ? "Nova déjà employée : il faut une nouvelle vie."
+                         : "Pas assez d'Énergie pour " + COUT[m].nom + ".");
     return;
   }
   jeu.capArmee = (jeu.capArmee === m) ? null : m;
@@ -925,17 +1307,19 @@ function armeCapacite(m){
   if(jeu.capArmee) son.gong();
 }
 function utiliseCapacite(m, gx, gy){
-  var c = coutActuel(m, jeu.usages);
-  if(jeu.poudre < c){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message("Plus assez de Poudre : " + COUT[m].nom + " désarmée.");
+    message(m === "nova" ? "Nova déjà employée pendant cette vie."
+                         : "Plus assez d'Énergie : " + COUT[m].nom + " désarmée.");
     return;
   }
-  jeu.poudre -= c;
+  if(m === "nova") jeu.novaDispo--;
+  else jeu.energie -= coutActuel(m, jeu.usages);
   jeu.usages[m]++;
-  if(m === "fusee"){
-    /* si la fusée tombe sur un bâtiment, il devient la cible prioritaire */
+
+  if(m === "balise"){
+    /* si la Balise tombe sur un bâtiment, il devient la cible prioritaire */
     var vise = null, mdv = 1e9;
     batimentsAutour(gx, gy, 3, tmpBat);
     for(var v = 0; v < tmpBat.length; v++){
@@ -943,43 +1327,149 @@ function utiliseCapacite(m, gx, gy){
       var dv = Math.hypot(bv.gx - gx, bv.gy - gy);
       if(dv <= bv.e * 0.62 + 0.5 && dv < mdv){ mdv = dv; vise = bv; }
     }
-    jeu.idFusee = (jeu.idFusee || 0) + 1;
-    jeu.fusee = { gx:gx, gy:gy, reste:CAP.fusee.duree, duree:CAP.fusee.duree,
-                  id:jeu.idFusee, cible:vise };
-    jeu.effets.push({ t:"fuseeLancee", gx:gx, gy:gy, age:0, duree:0.6 });
-    son.fusee();
-  }else if(m === "fumee"){
-    jeu.fumees.push({ gx:gx, gy:gy, r:CAP.fumee.rayon, age:0, duree:CAP.fumee.duree });
-    son.fumigene();
-  }else if(m === "soins"){
-    jeu.soins.push({ gx:gx, gy:gy, r:CAP.soins.rayon, age:0, duree:CAP.soins.duree });
-    son.soins();
-  }else if(m === "obus"){
-    jeu.effets.push({ t:"frappe", gx:gx, gy:gy, age:0, duree:0.45 });
-    degatsZoneEnnemis(gx, gy, CAP.obus.rayon, CAP.obus.degats);
-    jeu.effets.push({ t:"boum", gx:gx, gy:gy, age:0, duree:0.7, r:CAP.obus.rayon, force:1.2 });
-    jeu.crateres.push({ gx:gx, gy:gy, r:CAP.obus.rayon * 0.6 });
-    jeu.secousse = Math.min(12, jeu.secousse + 5);
-    son.boum(0.7);
-  }else if(m === "barrage"){
-    for(var i = 0; i < CAP.barrage.nb; i++){
-      var a = Math.random() * 6.2832, r = Math.random() * CAP.barrage.rayon;
-      jeu.projectiles.push({ t:"obus", gx:gx + Math.cos(a) * 14, gy:gy - 14,
-        x0:gx + Math.cos(a) * 8, y0:gy - 10,
-        cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
-        duree:0.5 + i / CAP.barrage.nb * CAP.barrage.duree, age:0,
-        degats:CAP.barrage.degats, zone:1.1, haut:60, allie:1 });
+    jeu.idBalise = (jeu.idBalise || 0) + 1;
+    jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
+                   id:jeu.idBalise, cible:vise };
+    jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });
+    son.balise();
+
+  }else if(m === "brouillard"){
+    jeu.brouillards.push({ gx:gx, gy:gy, r:CAP.brouillard.rayon, age:0, duree:CAP.brouillard.duree });
+    son.brouillard();
+
+  }else if(m === "soin"){
+    jeu.soin.push({ gx:gx, gy:gy, r:CAP.soin.rayon, age:0, duree:CAP.soin.duree });
+    son.soin();
+
+  }else if(m === "cryo"){
+    jeu.cryos.push({ gx:gx, gy:gy, r:CAP.cryo.rayon, age:0, duree:CAP.cryo.duree });
+    /* les tourelles prises dans la glace lâchent leur cible sur-le-champ */
+    var bs = [];
+    batimentsAutour(gx, gy, CAP.cryo.rayon + 2, bs);
+    for(var k = 0; k < bs.length; k++){
+      if(Math.hypot(bs[k].gx - gx, bs[k].gy - gy) <= CAP.cryo.rayon){
+        bs[k].cible = null;
+        bs[k].prochainTir = Math.max(bs[k].prochainTir, 200);
+      }
     }
-    son.barrage();
+    jeu.effets.push({ t:"cryo", gx:gx, gy:gy, age:0, duree:0.8, r:CAP.cryo.rayon });
+    son.cryo();
+
+  }else if(m === "poulets"){
+    /* dix leurres : les défenses les prennent pour des troupes */
+    for(var q = 0; q < CAP.poulets.nb; q++){
+      var ap = q / CAP.poulets.nb * 6.2832 + Math.random();
+      var rp = Math.random() * CAP.poulets.rayon;
+      creePoulet(gx + Math.cos(ap) * rp, gy + Math.sin(ap) * rp);
+    }
+    jeu.effets.push({ t:"caisse", gx:gx, gy:gy, age:0, duree:0.7 });
+    son.poulets();
+
+  }else if(m === "viper"){
+    /* un seul missile, très rapide, arrivée quasi verticale */
+    jeu.projectiles.push({
+      t:"viper", gx:gx - 5.5, gy:gy - 5.5, x0:gx - 5.5, y0:gy - 5.5,
+      cx:gx, cy:gy, age:0, duree:Math.max(0.45, 9 / CAP.viper.vitesse),
+      degats:CAP.viper.degats, zone:CAP.viper.rayon, haut:230, fumee:[]
+    });
+    jeu.effets.push({ t:"frappe", gx:gx, gy:gy, age:0, duree:0.5 });
+    son.viper();
+
+  }else if(m === "salve"){
+    /* plusieurs missiles presque simultanés, impacts dispersés :
+       ils touchent bâtiments, créatures ET troupes, alliées comprises */
+    for(var i = 0; i < CAP.salve.nb; i++){
+      var a = Math.random() * 6.2832, r = Math.sqrt(Math.random()) * CAP.salve.rayon;
+      jeu.projectiles.push({
+        t:"bombe", gx:gx + Math.cos(a) * 16, gy:gy - 16,
+        x0:gx + Math.cos(a) * 9, y0:gy - 12,
+        cx:gx + Math.cos(a) * r, cy:gy + Math.sin(a) * r,
+        duree:0.45 + i / CAP.salve.nb * CAP.salve.duree, age:0,
+        degats:CAP.salve.degats, zone:CAP.salve.zone, haut:70, allie:1, tousCamps:1
+      });
+    }
+    son.salve();
+
+  }else if(m === "nova"){
+    /* gros spectacle, dégâts mesurés */
+    jeu.projectiles.push({
+      t:"nova", gx:gx - 3, gy:gy - 9, x0:gx - 3, y0:gy - 9,
+      cx:gx, cy:gy, age:0, duree:1.15, haut:300
+    });
+    son.nova();
   }
-  majBarres();
+
+  demandeMajBarres();
   majMenu();
-  /* la capacité reste armée si la poudre suffit encore */
-  if(jeu.poudre < coutActuel(m, jeu.usages)){
+  if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message(COUT[m].nom + " désarmée : Poudre insuffisante.");
+    if(m !== "nova") message(COUT[m].nom + " désarmée : Énergie insuffisante.");
   }
+}
+
+/* --------------- Nova : le champignon --------------- */
+function explosionNova(gx, gy){
+  var C = CAP.nova;
+  /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
+  degatsZoneEnnemis(gx, gy, C.rayon, C.degats);
+  degatsZone(gx, gy, C.rayon, C.degats);
+  /* souffle : plus large, beaucoup plus doux */
+  degatsZoneEnnemis(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
+  jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0, duree:3.2, r:C.rayon });
+  jeu.crateres.push({ gx:gx, gy:gy, r:C.rayon * 0.75 });
+  if(jeu.crateres.length > 160) jeu.crateres.shift();
+  jeu.secousse = 22;
+  son.boum(1.9);
+}
+
+/* --------------- Les poulets leurres --------------- */
+function creePoulet(gx, gy){
+  jeu.poulets.push({
+    t:"poulet", leurre:1, gx:borne(gx, 1, GW - 1), gy:borne(gy, 1, GH - 1),
+    pv:CAP.poulets.pv, pvMax:CAP.poulets.pv, reste:CAP.poulets.duree,
+    phase:Math.random() * 6.2832, droite:Math.random() < 0.5,
+    but:null, butT:0, n:jeu.nSuiv++, brulure:0, ralenti:0, ralentiType:"",
+    pousse:{ x:0, y:0 }
+  });
+}
+function majPoulets(dt){
+  for(var i = jeu.poulets.length - 1; i >= 0; i--){
+    var p = jeu.poulets[i];
+    p.reste -= dt;
+    if(p.brulure > 0){ p.brulure -= dt; p.pv -= EQ.BRULURE_DPS * dt; }
+    if(p.ralenti > 0) p.ralenti -= dt;
+    if(p.pv <= 0 || p.reste <= 0){
+      jeu.effets.push({ t:"plumes", gx:p.gx, gy:p.gy, age:0, duree:0.8 });
+      if(p.pv <= 0) son.poulet();
+      jeu.poulets.splice(i, 1);
+      continue;
+    }
+    /* ils détalent au hasard : c'est tout l'intérêt du leurre */
+    p.butT -= dt;
+    if(p.butT <= 0 || !p.but){
+      p.butT = 0.5 + Math.random() * 1.1;
+      var a = Math.random() * 6.2832, r = 1.5 + Math.random() * 3;
+      p.but = { gx:p.gx + Math.cos(a) * r, gy:p.gy + Math.sin(a) * r };
+    }
+    var dx = p.but.gx - p.gx, dy = p.but.gy - p.gy;
+    var d = Math.hypot(dx, dy);
+    if(d > 0.25){
+      deplaceCreature(p, dx, dy, 2.3 * (p.ralenti > 0 ? 0.45 : 1) * dt);
+      p.phase += dt * 16;
+      p.droite = (dx - dy) > 0;
+    }else p.but = null;
+  }
+}
+
+/* Une défense prise dans le Cryo ne tire plus du tout */
+function geleeParCryo(b){
+  for(var i = 0; i < jeu.cryos.length; i++){
+    var z = jeu.cryos[i];
+    if(Math.hypot(b.gx - z.gx, b.gy - z.gy) <= z.r) return true;
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------
@@ -987,7 +1477,8 @@ function utiliseCapacite(m, gx, gy){
    --------------------------------------------------------------- */
 function majMort(dt){
   if(!jeu.mort){
-    if(jeu.unites.length === 0 && jeu.barges.length === 0 && jeu.tps > 3){
+    if(jeu.unites.length === 0 && jeu.barges.length === 0 &&
+       jeu.navettes.length === 0 && jeu.tps > 3){
       jeu.mort = true;
       jeu.tempsRenfort = EQ.ATTENTE_RENFORT;
       var p = jeu.dernierePerte || { gx:PLAGE_X0 + 2, gy:GH / 2 };
@@ -1011,12 +1502,14 @@ function majMort(dt){
     jeu.mort = false;
     jeu.fantome = null;
     jeu.barges = [];
-    for(var i = 0; i < EQ.NB_BARGES; i++) jeu.barges.push({ meuf:compoBarges[i].meuf, mec:compoBarges[i].mec, n:i + 1 });
+    for(var i = 0; i < EQ.NB_BARGES; i++)
+      jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
-    jeu.poudre += EQ.POUDRE_BONUS_RENFORT;
+    jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
+    jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     montreBandeauFantome(false);
     majBarres();
-    message("Flotte neuve ! +" + EQ.POUDRE_BONUS_RENFORT + " Poudre.");
+    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
     son.renfort();
   }
 }
@@ -1024,33 +1517,112 @@ function majMort(dt){
 /* ---------------------------------------------------------------
    Chute du QG : la séquence finale
    --------------------------------------------------------------- */
-function declencheFin(){
-  jeu.fin = { age:0, tete:null, confettis:null, texte:0 };
-  envoieCarte(jeu.index + 1);
-  son.boum(1.9);
+/* Qui a le plus contribué ? Le classement local vaut ce que valent les
+   messages reçus, mais c'est la même information que le TOP DÉGÂTS que
+   tout le monde a sous les yeux depuis le début de la partie. */
+function championDeLaPartie(){
+  var meilleur = { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
+  for(var id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(j.g > meilleur.g) meilleur = { nom:j.nom || "?", g:j.g, moi:0 };
+  }
+  return meilleur;
 }
+
+function declencheFin(){
+  jeu.fin = {
+    age:0, tete:null, confettis:null, texte:0,
+    champion:championDeLaPartie(),
+    effondrement:0,          // 0 → 1 : la forteresse s'enfonce et penche
+    debris:[], ondes:[], colonne:[],
+    prochaineFumee:0
+  };
+  envoieCarte(jeu.index + 1);
+  son.grondement();
+}
+var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
+var FIN_SOUFFLE = 3.2;           // s : instant de la déflagration
+
 function majFin(dt){
   var F = jeu.fin;
   F.age += dt;
   var p = jeu.qg;
-  if(F.age < 2.1){
-    /* pétarade */
+
+  /* ---- 1. l'effondrement : elle s'enfonce, penche, et se déchire ---- */
+  if(F.age < FIN_EFFONDREMENT){
+    var t = F.age / FIN_EFFONDREMENT;
+    /* courbe accélérée : imperceptible d'abord, brutale à la fin */
+    F.effondrement = t * t * t;
     F.prochain = (F.prochain || 0) - dt;
     if(F.prochain <= 0){
-      F.prochain = 0.055 + Math.random() * 0.07;
-      var a = Math.random() * 6.2832, r = Math.random() * 3.4;
+      /* les explosions remontent les terrasses au fur et à mesure */
+      F.prochain = 0.10 - t * 0.062;
+      var a = Math.random() * 6.2832, r = (0.6 + Math.random() * 3.2) * (1 - t * 0.4);
       jeu.effets.push({ t:"boum", gx:p.gx + Math.cos(a) * r, gy:p.gy + Math.sin(a) * r,
-                        age:0, duree:0.5, r:0.8 + Math.random(), force:1 });
-      jeu.secousse = Math.min(20, jeu.secousse + 1.2 + F.age);
-      son.boum(0.35 + Math.random() * 0.3);
+                        age:0, duree:0.5 + Math.random() * 0.3,
+                        r:0.7 + Math.random() * (0.8 + t * 1.6), force:1 });
+      jeu.secousse = Math.min(18, jeu.secousse + 1.0 + t * 4);
+      son.boum(0.28 + Math.random() * 0.28 + t * 0.3);
+      /* des débris partent déjà, arrachés à la maçonnerie */
+      if(Math.random() < 0.5 + t) ajouteDebris(F, 1 + (t * 3 | 0), 0.6 + t);
+    }
+    /* colonne de fumée qui grossit tout au long de la chute */
+    F.prochaineFumee -= dt;
+    if(F.prochaineFumee <= 0){
+      F.prochaineFumee = 0.12;
+      F.colonne.push({ x:(Math.random() - 0.5) * 60, y:0, vy:-38 - Math.random() * 40,
+                       r:14 + Math.random() * 22, age:0, duree:3.2 + Math.random() * 2 });
     }
   }
-  if(F.age >= 2.1 && !F.tete){
-    F.flash = 1;
-    F.tete = { x:0, y:0, vy:-320, rot:0, age:0 };
-    jeu.secousse = 24;
-    son.boum(1.9);
+
+  /* ---- 2. la déflagration ---- */
+  if(F.age >= FIN_SOUFFLE && !F.tete){
+    F.flash = 1.9;
+    F.effondrement = 1;
+    F.tete = { x:0, y:0, vy:-340, rot:0, age:0 };
+    jeu.secousse = 30;
+    son.boum(2.2);
     son.sifflet();
+    /* trois ondes de choc concentriques */
+    for(var o = 0; o < 3; o++) F.ondes.push({ age:-o * 0.16, r:0 });
+    /* et une pluie de débris, dans toutes les directions */
+    ajouteDebris(F, 90, 2.6);
+    /* le champignon de fumée */
+    for(var m = 0; m < 26; m++){
+      F.colonne.push({ x:(Math.random() - 0.5) * 130, y:-Math.random() * 90,
+                       vy:-52 - Math.random() * 70, r:22 + Math.random() * 36,
+                       age:0, duree:4.5 + Math.random() * 3 });
+    }
+  }
+
+  /* ---- 3. la vie des morceaux ---- */
+  for(var i = F.debris.length - 1; i >= 0; i--){
+    var d = F.debris[i];
+    d.age += dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.vy += 340 * dt;                     // gravité
+    d.rot += d.vr * dt;
+    if(d.y > d.sol){                      // rebond amorti, puis il s'immobilise
+      d.y = d.sol;
+      d.vy = -d.vy * 0.34;
+      d.vx *= 0.6; d.vr *= 0.5;
+      if(Math.abs(d.vy) < 24){ d.vy = 0; d.vx = 0; d.vr = 0; }
+    }
+    if(d.age > d.duree) F.debris.splice(i, 1);
+  }
+  for(var q = F.ondes.length - 1; q >= 0; q--){
+    F.ondes[q].age += dt;
+    F.ondes[q].r = Math.max(0, F.ondes[q].age) * 900;
+    if(F.ondes[q].age > 1.5) F.ondes.splice(q, 1);
+  }
+  for(var f2 = F.colonne.length - 1; f2 >= 0; f2--){
+    var fu = F.colonne[f2];
+    fu.age += dt;
+    fu.y += fu.vy * dt;
+    fu.vy *= (1 - dt * 0.5);              // elle ralentit en montant
+    fu.r += dt * 22;
+    if(fu.age > fu.duree) F.colonne.splice(f2, 1);
   }
   if(F.tete){
     F.tete.age += dt;
@@ -1058,7 +1630,7 @@ function majFin(dt){
     F.tete.vy += 60 * dt;
     F.tete.rot += dt * 7;
   }
-  if(F.age >= 2.4 && !F.confettis){
+  if(F.age >= FIN_SOUFFLE + 1.8 && !F.confettis){
     F.confettis = [];
     for(var i = 0; i < 160; i++){
       F.confettis.push({
@@ -1077,9 +1649,29 @@ function majFin(dt){
     }
   }
   if(F.flash > 0) F.flash -= dt * 2.2;
-  if(F.age >= 4.2 && !F.bilanMontre){
+  /* le sacre doit avoir le temps d'être lu avant que le tableau
+     de bilan ne recouvre l'écran */
+  if(F.age >= 10.5 && !F.bilanMontre){
     F.bilanMontre = 1;
     montreBilan();
+  }
+}
+
+/* Éclats de maçonnerie projetés. Ils vivent en coordonnées ÉCRAN
+   relatives au pied du Brasier : le tri de profondeur n'a rien à leur
+   apprendre, ils volent au-dessus de tout. */
+function ajouteDebris(F, n, force){
+  for(var i = 0; i < n; i++){
+    var a = Math.random() * 6.2832;
+    var v = (90 + Math.random() * 320) * force;
+    F.debris.push({
+      x:(Math.random() - 0.5) * 40, y:-40 - Math.random() * 220,
+      vx:Math.cos(a) * v, vy:-Math.abs(Math.sin(a)) * v - 120 * force,
+      rot:Math.random() * 6.2832, vr:(Math.random() - 0.5) * 15,
+      w:4 + Math.random() * 13, sol:20 + Math.random() * 90,
+      teinte:(Math.random() * 3) | 0, feu:Math.random() < 0.34,
+      age:0, duree:3.4 + Math.random() * 2.6
+    });
   }
 }
 
@@ -1089,10 +1681,14 @@ function majFin(dt){
 function majJeu(dt){
   jeu.tps += dt;
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
+  if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
   construitGrilleUnites();
   if(jeu.fin){ majFin(dt); majEffets(dt); return; }
+  majNavettes(dt);
   majUnites(dt);
+  separeUnites(dt);
+  majPoulets(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);

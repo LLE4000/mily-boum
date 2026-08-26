@@ -4,17 +4,42 @@
    l'unité monte vers les y négatifs. Lumière en haut à gauche.
    ================================================================ */
 
+/* Palettes relevées sur les références :
+   la Meuf porte un ensemble blanc et noir sous un plastron sombre,
+   le Mec un gilet tactique olive sur un tee-shirt sombre. */
 var C_MEUF = {
-  cheveux:"#1e1a24", cheveux2:"#39303f", peau:"#f8d4ae", peauO:"#d9ab84",
-  veste:"#2fb9a8", vesteO:"#1d8d80", vesteC:"#54e2ce",
-  ceinture:"#ff8a1e", lance1:"#e8672f", lance2:"#f7f1e2", lueur:"#7de6ff",
-  botte:"#2a2431", ruban:"#e03a3a", pantalon:"#3a4a56"
+  cheveux:"#17131c", cheveux2:"#2e2636", peau:"#f2ddc6", peauO:"#d5b492",
+  tenue:"#efeae2", tenueO:"#c6bfb4",          // manches claires
+  plastron:"#2b2b30", plastronC:"#4a4a52", plastronO:"#17171b",
+  sangle:"#1c1c20", boucle:"#8d8d96",
+  arme:"#33343a", armeC:"#5c5e66", armeO:"#191a1e", lueur:"#7de6ff",
+  botte:"#1e1e24", pantalon:"#26262c", accent:"#c8a24a"
 };
 var C_MEC = {
-  peau:"#d9a878", peauO:"#b1815a", debardeur:"#5b6b3a", debardeurO:"#3f4c27",
-  plaque:"#8a9a62", plaqueO:"#66753f", gantelet:"#2e2a26", bandana:"#b8433a",
-  pantalon:"#4a4436", botte:"#2c2620"
+  peau:"#dfb083", peauO:"#b7845a", barbe:"#7a5a34", cheveux:"#a8834c",
+  tee:"#2a2a2c", teeO:"#18181a",
+  gilet:"#6b6244", giletC:"#8d8360", giletO:"#443f2c",
+  casque:"#7a7154", casqueC:"#9c9270", casqueO:"#4a452f",
+  gantelet:"#2b2b2b", arme:"#35352f", armeC:"#5a5a52",
+  pantalon:"#3a3a32", botte:"#232320", laiton:"#c9a24a"
 };
+
+/* ---------------------------------------------------------------
+   Cache de dégradés.
+   Les couleurs et les coordonnées locales d'un soldat ne changent
+   jamais : à 120 unités, en recréer une demi-douzaine par unité et par
+   image faisait ~600 CanvasGradient et autant de parsages de chaînes
+   hexadécimales à chaque frame. Un CanvasGradient est résolu dans le
+   repère courant AU MOMENT du remplissage : on peut donc le construire
+   une fois en coordonnées locales et le réutiliser partout.
+   --------------------------------------------------------------- */
+var cacheDeg = {};
+function degCache(c, cle, fabrique){
+  var g = cacheDeg[cle];
+  if(!g){ g = fabrique(); cacheDeg[cle] = g; }
+  return g;
+}
+function videCacheDegrades(){ cacheDeg = {}; }
 
 /* Cycle de marche : renvoie les décalages des membres */
 function pose(phase, ampleur){
@@ -27,17 +52,16 @@ function pose(phase, ampleur){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — combattante au lance-roquettes
-   coiffure : 0 queue haute à ruban, 1 doubles macarons, 2 carré court
+   LA MEUF — silhouette fine, longue chevelure noire, gros fusil
+   coiffure : 0 longue lâchée, 1 queue haute, 2 chignon
    --------------------------------------------------------------- */
 function dessineMeuf(c, phase, coiffure, tir){
   var C = C_MEUF;
-  var p = pose(phase, 4.2);
+  var p = pose(phase, 4.0);
   var yb = -p.rebond;
 
-  /* ombre de contact */
   c.fillStyle = "rgba(0,0,0,.26)";
-  c.beginPath(); c.ellipse(0, 0, 7.5, 3.2, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(0, 0, 7.2, 3.1, 0, 0, 6.2832); c.fill();
 
   c.save();
   c.translate(0, yb);
@@ -45,297 +69,371 @@ function dessineMeuf(c, phase, coiffure, tir){
 
   /* --- jambes --- */
   function jambe(dx, coul, coulB){
-    c.strokeStyle = coul; c.lineWidth = 3.4;
+    c.strokeStyle = coul; c.lineWidth = 3.2;
     c.beginPath();
     c.moveTo(0, -13);
-    c.quadraticCurveTo(dx * 0.5, -7.5, dx, -2.5);
+    c.quadraticCurveTo(dx * 0.5, -7.5, dx, -2.6);
     c.stroke();
     c.fillStyle = coulB;
-    c.beginPath(); c.ellipse(dx + (dx > 0 ? 0.8 : -0.8), -1.4, 3.1, 1.9, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(dx + (dx > 0 ? 0.8 : -0.8), -1.4, 3.0, 1.9, 0, 0, 6.2832); c.fill();
   }
-  jambe(p.jambeB * 0.9, ecl(C.pantalon, 0.8), ecl(C.botte, 0.85));
+  jambe(p.jambeB * 0.9, ecl(C.pantalon, 0.78), ecl(C.botte, 0.85));
   jambe(p.jambeA * 0.9, C.pantalon, C.botte);
 
-  /* --- torse : veste turquoise --- */
   c.save();
   c.rotate(p.incl);
-  var gV = c.createLinearGradient(-6, -24, 6, -14);
-  gV.addColorStop(0, C.vesteC); gV.addColorStop(0.45, C.veste); gV.addColorStop(1, C.vesteO);
-  c.fillStyle = gV;
+
+  /* --- chevelure arrière, longue --- */
+  c.fillStyle = C.cheveux;
   c.beginPath();
-  c.moveTo(-5.4, -13.5);
-  c.lineTo(-6.2, -22.5);
-  c.quadraticCurveTo(0, -25.6, 6.2, -22.5);
-  c.lineTo(5.4, -13.5);
-  c.quadraticCurveTo(0, -12.2, -5.4, -13.5);
+  c.moveTo(-4.4, -26);
+  c.quadraticCurveTo(-8.2, -20, -7.6, -11);
+  c.lineTo(-4.6, -12.6);
+  c.lineTo(-3.4, -24);
   c.closePath(); c.fill();
-  /* col */
-  c.fillStyle = ecl(C.veste, 1.25);
   c.beginPath();
-  c.moveTo(-3, -22.6); c.lineTo(0, -19.4); c.lineTo(3, -22.6);
+  c.moveTo(4.4, -26);
+  c.quadraticCurveTo(8.0, -20, 7.2, -12);
+  c.lineTo(4.4, -13.4);
+  c.lineTo(3.4, -24);
   c.closePath(); c.fill();
-  /* ceinture orange */
-  c.fillStyle = C.ceinture;
-  c.fillRect(-5.6, -15.4, 11.2, 2.4);
-  c.fillStyle = ecl(C.ceinture, 1.35);
-  c.fillRect(-5.6, -15.4, 11.2, 0.9);
-  c.fillStyle = "#f7f1e2";
-  c.fillRect(-1.2, -15.6, 2.4, 2.8);
-  /* liseré de lumière en haut à gauche */
-  c.strokeStyle = "rgba(255,255,255,.42)"; c.lineWidth = 1;
+
+  /* --- buste : manches claires puis plastron sombre --- */
+  c.fillStyle = degCache(c, "meufManches", function(){
+    var g = c.createLinearGradient(-6, -24, 6, -14);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, C.tenue); g.addColorStop(1, C.tenueO);
+    return g;
+  });
   c.beginPath();
-  c.moveTo(-5.9, -20.5); c.quadraticCurveTo(-4.4, -24.4, 0, -25.2);
+  c.moveTo(-5.2, -13.6);
+  c.lineTo(-6.0, -22.6);
+  c.quadraticCurveTo(0, -25.4, 6.0, -22.6);
+  c.lineTo(5.2, -13.6);
+  c.quadraticCurveTo(0, -12.4, -5.2, -13.6);
+  c.closePath(); c.fill();
+  /* plastron */
+  c.fillStyle = degCache(c, "meufPlastron", function(){
+    var g = c.createLinearGradient(-5, -22, 5, -15);
+    g.addColorStop(0, C.plastronC); g.addColorStop(0.45, C.plastron); g.addColorStop(1, C.plastronO);
+    return g;
+  });
+  c.beginPath();
+  c.moveTo(-4.2, -14.4);
+  c.lineTo(-4.6, -21.4);
+  c.quadraticCurveTo(0, -23.4, 4.6, -21.4);
+  c.lineTo(4.2, -14.4);
+  c.quadraticCurveTo(0, -13.4, -4.2, -14.4);
+  c.closePath(); c.fill();
+  /* sangles croisées + boucle */
+  c.strokeStyle = C.sangle; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(-4.4, -21.6); c.lineTo(3.4, -15.2); c.stroke();
+  c.beginPath(); c.moveTo(4.4, -21.6); c.lineTo(-3.4, -15.2); c.stroke();
+  c.fillStyle = C.boucle;
+  c.fillRect(-1.2, -18.8, 2.4, 2.0);
+  /* ceinture */
+  c.fillStyle = C.sangle;
+  c.fillRect(-5.4, -14.6, 10.8, 2.0);
+  c.fillStyle = C.accent;
+  c.fillRect(-1.1, -14.7, 2.2, 2.2);
+  /* liseré de lumière */
+  c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 0.9;
+  c.beginPath();
+  c.moveTo(-5.7, -20.4); c.quadraticCurveTo(-4.2, -24.2, 0, -25.0);
   c.stroke();
 
   /* --- bras --- */
-  c.strokeStyle = C.peauO; c.lineWidth = 2.6;
+  c.strokeStyle = C.tenueO; c.lineWidth = 2.4;
   c.beginPath();
-  c.moveTo(-5, -21.5);
-  c.quadraticCurveTo(-7.5 + p.brasB, -17, -6.5 + p.brasB * 1.4, -13);
+  c.moveTo(-4.8, -21.4);
+  c.quadraticCurveTo(-7.2 + p.brasB, -17, -6.2 + p.brasB * 1.4, -13.2);
   c.stroke();
-  c.strokeStyle = C.peau; c.lineWidth = 2.6;
+  c.strokeStyle = C.tenue; c.lineWidth = 2.4;
   c.beginPath();
-  c.moveTo(5, -21.5);
-  c.quadraticCurveTo(7.5 + p.brasA, -17.5, 5.6 + p.brasA * 1.2, -14);
+  c.moveTo(4.8, -21.4);
+  c.quadraticCurveTo(7.2 + p.brasA, -17.4, 5.4 + p.brasA * 1.2, -14);
   c.stroke();
+  c.fillStyle = C.gantelet || "#2b2b2b";
+  c.beginPath(); c.arc(5.4 + p.brasA * 1.2, -13.6, 1.5, 0, 6.2832); c.fill();
 
-  /* --- lance-roquettes sur l'épaule --- */
+  /* --- le gros fusil, porté sur l'épaule --- */
   c.save();
-  c.translate(1.5, -23.5); c.rotate(-0.28);
-  /* tube */
-  var gT = c.createLinearGradient(0, -2.6, 0, 2.6);
-  gT.addColorStop(0, ecl(C.lance1, 1.35)); gT.addColorStop(0.5, C.lance1); gT.addColorStop(1, ecl(C.lance1, 0.65));
-  c.fillStyle = gT;
+  c.translate(1.2, -23.8); c.rotate(-0.30);
+  c.fillStyle = degCache(c, "meufFusil", function(){
+    var g = c.createLinearGradient(0, -3.4, 0, 3.4);
+    g.addColorStop(0, C.armeC); g.addColorStop(0.45, C.arme); g.addColorStop(1, C.armeO);
+    return g;
+  });
   c.beginPath();
-  if(c.roundRect) c.roundRect(-10, -2.6, 20, 5.2, 2.4); else c.rect(-10, -2.6, 20, 5.2);
+  if(c.roundRect) c.roundRect(-11, -3.2, 23, 6.4, 1.6); else c.rect(-11, -3.2, 23, 6.4);
   c.fill();
-  /* bandes crème */
-  c.fillStyle = C.lance2;
-  c.fillRect(-2.4, -2.6, 2.2, 5.2);
-  c.fillRect(4.4, -2.6, 1.4, 5.2);
-  /* bouche noire + lueur cyan */
-  c.fillStyle = "#141118";
-  c.beginPath(); c.ellipse(10, 0, 1.7, 2.7, 0, 0, 6.2832); c.fill();
+  /* carcasse haute + rail */
+  c.fillStyle = C.armeO;
+  c.fillRect(-6, -4.6, 11, 1.6);
+  c.fillStyle = C.armeC;
+  for(var rr = 0; rr < 5; rr++) c.fillRect(-5.4 + rr * 2.1, -4.5, 0.9, 1.3);
+  /* chargeur */
+  c.fillStyle = C.arme;
+  c.beginPath();
+  c.moveTo(-3.4, 3.0); c.lineTo(-1.0, 3.0); c.lineTo(-1.6, 8.4); c.lineTo(-4.2, 8.4);
+  c.closePath(); c.fill();
+  /* poignée */
+  c.fillStyle = C.armeO;
+  c.beginPath();
+  c.moveTo(1.6, 3.0); c.lineTo(3.6, 3.0); c.lineTo(4.4, 7.0); c.lineTo(2.4, 7.0);
+  c.closePath(); c.fill();
+  /* crosse */
+  c.fillStyle = C.arme;
+  c.fillRect(-14.4, -2.4, 3.6, 4.6);
+  /* bouche + lueur */
+  c.fillStyle = "#0f1014";
+  c.beginPath(); c.ellipse(12.4, -0.2, 1.5, 2.4, 0, 0, 6.2832); c.fill();
   c.save();
   c.globalCompositeOperation = "lighter";
-  var gl = c.createRadialGradient(10, 0, 0.4, 10, 0, tir ? 9 : 4.5);
-  gl.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.6));
-  gl.addColorStop(1, rgba(C.lueur, 0));
-  c.fillStyle = gl;
-  c.beginPath(); c.arc(10, 0, tir ? 9 : 4.5, 0, 6.2832); c.fill();
+  c.fillStyle = degCache(c, "meufBouche" + (tir ? 1 : 0), function(){
+    var g = c.createRadialGradient(12.4, -0.2, 0.4, 12.4, -0.2, tir ? 10 : 4);
+    g.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.45));
+    g.addColorStop(1, rgba(C.lueur, 0));
+    return g;
+  });
+  c.beginPath(); c.arc(12.4, -0.2, tir ? 10 : 4, 0, 6.2832); c.fill();
   c.restore();
-  /* viseur */
-  c.strokeStyle = "#3a3440"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(1, -2.8); c.lineTo(1, -4.6); c.lineTo(3.4, -4.6); c.stroke();
+  /* lunette */
+  c.fillStyle = C.armeO;
+  c.fillRect(-1.4, -6.4, 6.4, 2.0);
+  c.fillStyle = "rgba(125,230,255,.5)";
+  c.fillRect(4.2, -6.2, 0.8, 1.6);
   c.restore();
 
   /* --- tête --- */
   c.save();
-  c.translate(0, -27.4);
-  /* nuque / cheveux arrière */
+  c.translate(0, -27.2);
   c.fillStyle = C.cheveux;
-  c.beginPath(); c.ellipse(-0.4, 0.4, 5.1, 5.4, 0, 0, 6.2832); c.fill();
-  /* visage */
-  var gP = c.createRadialGradient(-1.6, -1.8, 0.5, 0, 0, 5);
-  gP.addColorStop(0, ecl(C.peau, 1.08)); gP.addColorStop(1, C.peauO);
-  c.fillStyle = gP;
-  c.beginPath(); c.ellipse(0.3, 0.5, 4.2, 4.6, 0, 0, 6.2832); c.fill();
-  /* yeux */
-  c.fillStyle = "#241d2c";
-  c.beginPath(); c.ellipse(-1.1, 0.2, 0.75, 0.95, 0, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(1.9, 0.2, 0.75, 0.95, 0, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(255,255,255,.75)";
-  c.beginPath(); c.arc(-1.35, -0.1, 0.28, 0, 6.2832); c.fill();
-  c.beginPath(); c.arc(1.65, -0.1, 0.28, 0, 6.2832); c.fill();
-  /* bouche */
-  c.strokeStyle = "rgba(150,70,60,.7)"; c.lineWidth = 0.7;
-  c.beginPath(); c.moveTo(-0.2, 2.4); c.quadraticCurveTo(0.6, 3.0, 1.5, 2.4); c.stroke();
-  /* frange */
+  c.beginPath(); c.ellipse(-0.2, 0.2, 5.0, 5.2, 0, 0, 6.2832); c.fill();
+  c.fillStyle = degCache(c, "meufVisage", function(){
+    var g = c.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, 4.8);
+    g.addColorStop(0, ecl(C.peau, 1.06)); g.addColorStop(1, C.peauO);
+    return g;
+  });
+  c.beginPath(); c.ellipse(0.3, 0.6, 4.0, 4.4, 0, 0, 6.2832); c.fill();
+  /* yeux en amande */
+  c.fillStyle = "#1e1822";
+  c.beginPath(); c.ellipse(-1.2, 0.2, 0.9, 0.65, 0.08, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(1.9, 0.2, 0.9, 0.65, -0.08, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.7)";
+  c.beginPath(); c.arc(-1.45, 0.0, 0.26, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(1.65, 0.0, 0.26, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(160,80,70,.75)"; c.lineWidth = 0.65;
+  c.beginPath(); c.moveTo(-0.2, 2.5); c.quadraticCurveTo(0.6, 3.0, 1.5, 2.5); c.stroke();
+  /* raie au milieu + bandeaux */
   c.fillStyle = C.cheveux;
   c.beginPath();
-  c.moveTo(-4.6, -1.4);
-  c.quadraticCurveTo(-4.0, -6.2, 0.4, -5.6);
-  c.quadraticCurveTo(4.8, -5.2, 4.6, -0.8);
-  c.quadraticCurveTo(3.0, -3.4, 0.2, -3.0);
-  c.quadraticCurveTo(-2.4, -3.2, -4.6, -1.4);
+  c.moveTo(-4.7, -1.0);
+  c.quadraticCurveTo(-4.4, -6.0, 0.4, -5.7);
+  c.quadraticCurveTo(5.0, -5.4, 4.7, -0.6);
+  c.quadraticCurveTo(3.4, -3.6, 0.3, -3.3);
+  c.quadraticCurveTo(-2.6, -3.4, -4.7, -1.0);
   c.closePath(); c.fill();
-  /* coiffures */
-  if(coiffure === 0){
-    /* queue haute avec ruban rouge */
+  if(coiffure === 1){
     c.fillStyle = C.cheveux;
     c.beginPath();
-    c.moveTo(-3.6, -3.8);
-    c.quadraticCurveTo(-9.5, -2.5, -8.2, 5.5);
-    c.quadraticCurveTo(-6.0, 1.4, -3.0, -1.6);
+    c.moveTo(-3.4, -3.6);
+    c.quadraticCurveTo(-9.6, -3.0, -8.4, 5.0);
+    c.quadraticCurveTo(-6.0, 1.0, -3.0, -1.6);
     c.closePath(); c.fill();
-    c.fillStyle = C.ruban;
-    c.beginPath(); c.ellipse(-4.2, -3.4, 1.5, 1.1, -0.5, 0, 6.2832); c.fill();
-    c.fillStyle = ecl(C.ruban, 1.3);
-    c.beginPath(); c.ellipse(-5.2, -4.2, 0.9, 0.7, -0.5, 0, 6.2832); c.fill();
-  }else if(coiffure === 1){
-    /* doubles macarons */
+  }else if(coiffure === 2){
     c.fillStyle = C.cheveux;
-    c.beginPath(); c.arc(-4.8, -3.4, 2.5, 0, 6.2832); c.fill();
-    c.beginPath(); c.arc(5.2, -3.4, 2.5, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(-0.2, -5.6, 2.7, 0, 6.2832); c.fill();
     c.fillStyle = C.cheveux2;
-    c.beginPath(); c.arc(-5.4, -4.0, 1.1, 0, 6.2832); c.fill();
-    c.beginPath(); c.arc(4.6, -4.0, 1.1, 0, 6.2832); c.fill();
-  }else{
-    /* carré court */
-    c.fillStyle = C.cheveux;
-    c.beginPath();
-    c.moveTo(-5.0, -2.0);
-    c.quadraticCurveTo(-6.2, 3.4, -4.2, 4.6);
-    c.lineTo(-3.2, 1.0);
-    c.closePath(); c.fill();
-    c.beginPath();
-    c.moveTo(5.0, -2.0);
-    c.quadraticCurveTo(6.2, 3.4, 4.2, 4.6);
-    c.lineTo(3.2, 1.0);
-    c.closePath(); c.fill();
+    c.beginPath(); c.arc(-1.0, -6.2, 1.1, 0, 6.2832); c.fill();
   }
-  /* reflet sur les cheveux */
-  c.fillStyle = "rgba(255,255,255,.16)";
-  c.beginPath(); c.ellipse(-1.8, -3.6, 2.4, 1.1, -0.4, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.14)";
+  c.beginPath(); c.ellipse(-1.6, -3.4, 2.3, 1.0, -0.4, 0, 6.2832); c.fill();
   c.restore();
 
-  c.restore();  // inclinaison
-  c.restore();  // rebond
+  c.restore();
+  c.restore();
 }
 
 /* ---------------------------------------------------------------
-   LE MEC — masse musclée
+   LE MEC — grand, épais, casqué, gilet tactique et fusil
    --------------------------------------------------------------- */
 function dessineMec(c, phase, variante, tir){
   var C = C_MEC;
-  var p = pose(phase, 5.6);
+  var p = pose(phase, 5.4);
   var yb = -p.rebond * 0.7;
 
   c.fillStyle = "rgba(0,0,0,.30)";
-  c.beginPath(); c.ellipse(0, 0, 9.5, 4.0, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(0, 0, 9.8, 4.1, 0, 0, 6.2832); c.fill();
 
   c.save();
   c.translate(0, yb);
   c.lineCap = "round";
 
-  /* --- jambes lourdes --- */
   function jambe(dx, coul, coulB){
-    c.strokeStyle = coul; c.lineWidth = 5.2;
+    c.strokeStyle = coul; c.lineWidth = 5.4;
     c.beginPath();
-    c.moveTo(dx * 0.2, -15);
-    c.quadraticCurveTo(dx * 0.6, -8.5, dx, -3);
+    c.moveTo(dx * 0.2, -16);
+    c.quadraticCurveTo(dx * 0.6, -9, dx, -3);
     c.stroke();
     c.fillStyle = coulB;
-    c.beginPath(); c.ellipse(dx + (dx > 0 ? 1 : -1), -1.6, 4.0, 2.3, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(dx + (dx > 0 ? 1 : -1), -1.6, 4.1, 2.4, 0, 0, 6.2832); c.fill();
   }
-  jambe(p.jambeB * 0.8, ecl(C.pantalon, 0.78), ecl(C.botte, 0.85));
+  jambe(p.jambeB * 0.8, ecl(C.pantalon, 0.76), ecl(C.botte, 0.85));
   jambe(p.jambeA * 0.8, C.pantalon, C.botte);
 
   c.save();
   c.rotate(p.incl * 0.6);
 
-  /* --- torse en trapèze --- */
-  var gD = c.createLinearGradient(-9, -28, 9, -16);
-  gD.addColorStop(0, ecl(C.debardeur, 1.35)); gD.addColorStop(0.5, C.debardeur); gD.addColorStop(1, C.debardeurO);
-  c.fillStyle = gD;
+  /* --- torse : tee sombre puis gilet tactique --- */
+  c.fillStyle = C.tee;
   c.beginPath();
-  c.moveTo(-6.4, -15.5);
-  c.lineTo(-9.6, -25.5);
-  c.quadraticCurveTo(0, -29.5, 9.6, -25.5);
-  c.lineTo(6.4, -15.5);
-  c.quadraticCurveTo(0, -14, -6.4, -15.5);
+  c.moveTo(-6.8, -16.2);
+  c.lineTo(-10.4, -27.0);
+  c.quadraticCurveTo(0, -31.0, 10.4, -27.0);
+  c.lineTo(6.8, -16.2);
+  c.quadraticCurveTo(0, -14.6, -6.8, -16.2);
   c.closePath(); c.fill();
-  /* pectoraux */
-  c.fillStyle = "rgba(0,0,0,.16)";
-  c.beginPath(); c.moveTo(0, -25); c.lineTo(0, -18); c.stroke();
-  c.strokeStyle = "rgba(0,0,0,.20)"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(0, -25.5); c.lineTo(0, -17.5); c.stroke();
-  /* peau du cou/épaules sous le débardeur */
-  c.fillStyle = C.peau;
-  c.beginPath(); c.ellipse(0, -26.5, 3.4, 2.2, 0, 0, 6.2832); c.fill();
+  c.fillStyle = degCache(c, "mecGilet", function(){
+    var g = c.createLinearGradient(-9, -28, 9, -17);
+    g.addColorStop(0, C.giletC); g.addColorStop(0.5, C.gilet); g.addColorStop(1, C.giletO);
+    return g;
+  });
+  c.beginPath();
+  c.moveTo(-6.0, -16.6);
+  c.lineTo(-8.2, -26.2);
+  c.quadraticCurveTo(0, -29.2, 8.2, -26.2);
+  c.lineTo(6.0, -16.6);
+  c.quadraticCurveTo(0, -15.2, -6.0, -16.6);
+  c.closePath(); c.fill();
+  /* poches et sangles du gilet */
+  c.fillStyle = C.giletO;
+  c.fillRect(-5.4, -22.4, 4.2, 3.4);
+  c.fillRect(1.2, -22.4, 4.2, 3.4);
+  c.fillRect(-3.0, -18.2, 6.0, 2.6);
+  c.strokeStyle = "rgba(30,28,18,.6)"; c.lineWidth = 0.8;
+  c.beginPath(); c.moveTo(-7.4, -24.6); c.lineTo(7.4, -24.6); c.stroke();
+  /* bande de cartouches */
+  c.fillStyle = C.laiton;
+  for(var b2 = 0; b2 < 5; b2++) c.fillRect(-6.4 + b2 * 2.8, -25.6, 1.5, 2.4);
+  /* col et peau du cou */
+  c.fillStyle = C.peauO;
+  c.beginPath(); c.ellipse(0, -27.6, 3.2, 2.2, 0, 0, 6.2832); c.fill();
 
   /* --- bras énormes --- */
   function bras(dx, dec, coul, devant){
-    c.strokeStyle = coul; c.lineWidth = 4.6;
+    c.strokeStyle = coul; c.lineWidth = 4.8;
     c.beginPath();
-    c.moveTo(dx * 0.9, -25);
-    c.quadraticCurveTo(dx * 1.35 + dec * 0.6, -21, dx * 1.15 + dec, -16.5);
+    c.moveTo(dx * 0.9, -26);
+    c.quadraticCurveTo(dx * 1.35 + dec * 0.6, -21.5, dx * 1.15 + dec, -17);
     c.stroke();
-    /* biceps */
     c.fillStyle = coul;
-    c.beginPath(); c.ellipse(dx * 1.15, -22.5, 3.0, 3.8, dx > 0 ? 0.25 : -0.25, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(dx * 1.15, -23.2, 3.2, 4.0, dx > 0 ? 0.25 : -0.25, 0, 6.2832); c.fill();
+    /* veine / relief */
+    c.strokeStyle = "rgba(120,70,40,.28)"; c.lineWidth = 0.6;
+    c.beginPath(); c.moveTo(dx * 1.05, -25); c.lineTo(dx * 1.2, -20.6); c.stroke();
+    c.fillStyle = C.gantelet;
+    c.beginPath(); c.ellipse(dx * 1.15 + dec, -16.2, 2.5, 2.2, 0, 0, 6.2832); c.fill();
     if(devant){
-      c.fillStyle = C_MEC.gantelet;
-      c.beginPath(); c.ellipse(dx * 1.15 + dec, -15.6, 2.5, 2.2, 0, 0, 6.2832); c.fill();
-      c.fillStyle = "rgba(255,255,255,.18)";
-      c.beginPath(); c.ellipse(dx * 1.15 + dec - 0.6, -16.4, 1.2, 0.8, 0, 0, 6.2832); c.fill();
-    }else{
-      c.fillStyle = C_MEC.peauO;
-      c.beginPath(); c.ellipse(dx * 1.15 + dec, -15.6, 2.2, 2.0, 0, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(255,255,255,.16)";
+      c.beginPath(); c.ellipse(dx * 1.15 + dec - 0.6, -17.0, 1.2, 0.8, 0, 0, 6.2832); c.fill();
     }
   }
-  bras(-7, p.brasB, C.peauO, false);
+  bras(-7.4, p.brasB, C.peauO, false);
 
-  /* --- plaque d'épaule blindée (côté droit, vers la lumière) --- */
+  /* --- le fusil en travers --- */
   c.save();
-  var gPl = c.createLinearGradient(4, -30, 12, -22);
-  gPl.addColorStop(0, ecl(C.plaque, 1.4)); gPl.addColorStop(1, C.plaqueO);
-  c.fillStyle = gPl;
+  c.translate(1.0, -19.6); c.rotate(0.34);
+  c.fillStyle = C.arme;
   c.beginPath();
-  c.moveTo(5.5, -27.5);
-  c.quadraticCurveTo(12.5, -28.5, 12.2, -22.5);
-  c.quadraticCurveTo(9, -20.5, 5.5, -22);
+  if(c.roundRect) c.roundRect(-10, -1.9, 21, 3.8, 1.2); else c.rect(-10, -1.9, 21, 3.8);
+  c.fill();
+  c.fillStyle = C.armeC;
+  c.fillRect(-4.6, -3.0, 8.4, 1.2);
+  c.fillStyle = C.arme;
+  c.beginPath();
+  c.moveTo(-2.6, 1.7); c.lineTo(-0.4, 1.7); c.lineTo(-0.9, 6.2); c.lineTo(-3.1, 6.2);
   c.closePath(); c.fill();
-  c.strokeStyle = "rgba(255,255,255,.32)"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(5.8, -26.8); c.quadraticCurveTo(11.6, -27.8, 11.9, -23.4); c.stroke();
-  /* rivets */
-  c.fillStyle = "rgba(0,0,0,.35)";
-  for(var i = 0; i < 3; i++){
-    c.beginPath(); c.arc(7 + i * 2.1, -25.6 + i * 0.5, 0.6, 0, 6.2832); c.fill();
+  c.fillStyle = "#0f1010";
+  c.beginPath(); c.ellipse(11.2, 0, 1.1, 1.6, 0, 0, 6.2832); c.fill();
+  if(tir){
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.fillStyle = degCache(c, "mecBouche", function(){
+      var g = c.createRadialGradient(11.6, 0, 0.4, 11.6, 0, 9);
+      g.addColorStop(0, "rgba(255,232,170,.95)");
+      g.addColorStop(1, "rgba(255,120,30,0)");
+      return g;
+    });
+    c.beginPath(); c.arc(11.6, 0, 9, 0, 6.2832); c.fill();
+    c.restore();
   }
   c.restore();
-  bras(7, p.brasA, C.peau, true);
 
-  /* --- tête + bandana --- */
+  bras(7.4, p.brasA, C.peau, true);
+
+  /* --- tête, barbe et casque --- */
   c.save();
-  c.translate(0.4, -31.5);
-  var gP2 = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
-  gP2.addColorStop(0, ecl(C.peau, 1.1)); gP2.addColorStop(1, C.peauO);
-  c.fillStyle = gP2;
+  c.translate(0.4, -32.2);
+  c.fillStyle = degCache(c, "mecVisage", function(){
+    var g = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.4);
+    g.addColorStop(0, ecl(C.peau, 1.08)); g.addColorStop(1, C.peauO);
+    return g;
+  });
   c.beginPath(); c.ellipse(0, 0, 4.6, 4.8, 0, 0, 6.2832); c.fill();
-  /* mâchoire carrée */
-  c.fillStyle = C.peauO;
-  c.beginPath(); c.ellipse(0, 2.6, 3.6, 2.4, 0, 0, 6.2832); c.fill();
-  /* yeux durs */
-  c.fillStyle = "#2a221c";
-  c.fillRect(-2.6, -0.4, 1.6, 1.0);
-  c.fillRect(1.1, -0.4, 1.6, 1.0);
-  /* sourcils */
-  c.strokeStyle = "#3a2c20"; c.lineWidth = 0.9;
-  c.beginPath(); c.moveTo(-3.0, -1.6); c.lineTo(-0.9, -1.1); c.stroke();
-  c.beginPath(); c.moveTo(3.0, -1.6); c.lineTo(0.9, -1.1); c.stroke();
-  /* bouche */
-  c.strokeStyle = "rgba(90,50,36,.8)"; c.lineWidth = 0.8;
-  c.beginPath(); c.moveTo(-1.4, 2.6); c.lineTo(1.4, 2.6); c.stroke();
-  /* bandana */
-  c.fillStyle = C.bandana;
+  /* barbe courte */
+  c.fillStyle = C.barbe;
   c.beginPath();
-  c.moveTo(-4.7, -1.9);
-  c.quadraticCurveTo(0, -6.6, 4.7, -1.9);
-  c.quadraticCurveTo(0, -3.9, -4.7, -1.9);
+  c.moveTo(-4.2, 0.4);
+  c.quadraticCurveTo(-3.6, 4.6, 0, 5.0);
+  c.quadraticCurveTo(3.6, 4.6, 4.2, 0.4);
+  c.quadraticCurveTo(2.2, 2.2, 0, 2.2);
+  c.quadraticCurveTo(-2.2, 2.2, -4.2, 0.4);
   c.closePath(); c.fill();
-  c.fillStyle = ecl(C.bandana, 1.3);
+  /* yeux clairs */
+  c.fillStyle = "#2a3540";
+  c.fillRect(-2.7, -0.6, 1.7, 1.1);
+  c.fillRect(1.1, -0.6, 1.7, 1.1);
+  c.fillStyle = "rgba(190,220,240,.8)";
+  c.fillRect(-2.5, -0.5, 0.7, 0.8);
+  c.fillRect(1.3, -0.5, 0.7, 0.8);
+  c.strokeStyle = "#4a3a26"; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(-3.1, -1.8); c.lineTo(-0.9, -1.3); c.stroke();
+  c.beginPath(); c.moveTo(3.1, -1.8); c.lineTo(0.9, -1.3); c.stroke();
+  /* mèches qui dépassent */
+  c.fillStyle = C.cheveux;
   c.beginPath();
-  c.moveTo(-4.7, -2.1); c.quadraticCurveTo(-1.5, -5.6, 1.2, -5.0);
-  c.quadraticCurveTo(-1.6, -3.6, -4.4, -2.4);
+  c.moveTo(-4.6, -1.6); c.quadraticCurveTo(-5.6, -3.4, -3.6, -4.0);
+  c.quadraticCurveTo(-4.0, -2.6, -3.0, -2.0);
   c.closePath(); c.fill();
-  /* pans du bandana */
-  c.fillStyle = C.bandana;
   c.beginPath();
-  c.moveTo(-4.4, -2.2);
-  c.quadraticCurveTo(-8.4, -0.4, -7.4, 3.4);
-  c.quadraticCurveTo(-5.6, 0.4, -3.6, -0.8);
+  c.moveTo(4.6, -1.6); c.quadraticCurveTo(5.6, -3.4, 3.6, -4.0);
+  c.quadraticCurveTo(4.0, -2.6, 3.0, -2.0);
   c.closePath(); c.fill();
+  /* casque */
+  c.fillStyle = degCache(c, "mecCasque", function(){
+    var g = c.createLinearGradient(-5, -7, 5, -2);
+    g.addColorStop(0, C.casqueC); g.addColorStop(0.55, C.casque); g.addColorStop(1, C.casqueO);
+    return g;
+  });
+  c.beginPath();
+  c.moveTo(-5.2, -1.6);
+  c.quadraticCurveTo(-5.6, -7.6, 0, -7.8);
+  c.quadraticCurveTo(5.6, -7.6, 5.2, -1.6);
+  c.quadraticCurveTo(2.6, -3.0, 0, -3.0);
+  c.quadraticCurveTo(-2.6, -3.0, -5.2, -1.6);
+  c.closePath(); c.fill();
+  /* rails et cache-oreilles */
+  c.fillStyle = C.casqueO;
+  c.fillRect(-5.4, -3.2, 2.0, 2.6);
+  c.fillRect(3.4, -3.2, 2.0, 2.6);
+  c.fillStyle = C.casqueC;
+  c.fillRect(-1.6, -8.2, 3.2, 1.2);
+  c.strokeStyle = "rgba(255,255,255,.30)"; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(-4.4, -4.4); c.quadraticCurveTo(-2.4, -7.0, 0.6, -7.2); c.stroke();
+  /* jugulaire */
+  c.strokeStyle = "rgba(40,38,28,.8)"; c.lineWidth = 0.8;
+  c.beginPath(); c.moveTo(-4.6, -1.2); c.lineTo(-3.0, 2.6); c.stroke();
+  c.beginPath(); c.moveTo(4.6, -1.2); c.lineTo(3.0, 2.6); c.stroke();
   c.restore();
 
   c.restore();
