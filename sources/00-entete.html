@@ -420,6 +420,10 @@ select.champ{cursor:pointer}
   .cap .nm{font-size:7px}
   .bg1{width:36px;font-size:10px}
   #ress{font-size:12px;gap:8px}
+  /* Sur un téléphone étroit, les huit navettes débordaient sous les
+     capacités : deux panneaux ancrés chacun à son bord finissent par
+     se rejoindre. On borne la largeur des navettes à ce qui reste. */
+  #bg{max-width:calc(100vw - 240px)}
 }
 </style>
 </head>

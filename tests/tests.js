@@ -626,6 +626,54 @@ G("8. Cohérence des règles de jeu");
        Math.min(N.rayonFormation() * 0.55, (N.UNI.mec.arret + 0.3) * 0.7) < N.UNI.mec.arret + 0.3);
   })();
 
+  /* ---- CHAQUE ÎLE DOIT AVOIR SA PALETTE ----
+     En passant de trois à cinq îles, CARTES a nommé deux biomes que
+     BIOMES et MATIERES ne connaissaient pas encore. Le briefing lisait
+     alors « .ciel » sur undefined : construitBriefing() plantait, donc
+     demarre() n'allait pas au bout, donc AUCUN écouteur n'était posé et
+     le jeu ne s'ouvrait plus du tout — pendant que les tests restaient
+     au vert. Un repli existe désormais dans dessineApercu(), mais il ne
+     doit jamais servir : c'est ce que vérifie ce bloc.
+     On relit les deux littéraux dans le fichier livré, tels quels. */
+  (function(){
+    function litObjet(nom){
+      var d = html.indexOf("var " + nom + " = {");
+      if(d < 0) return null;
+      var f = html.indexOf("\n};", d);
+      if(f < 0) return null;
+      try{ return new Function("return " + html.slice(d + ("var " + nom + " = ").length, f + 2))(); }
+      catch(e){ return null; }
+    }
+    var B = litObjet("BIOMES"), M = litObjet("MATIERES");
+    ok("les deux palettes se relisent dans le fichier livré", !!B && !!M);
+    if(!B || !M) return;
+    var CLES_B = ["sol1","sol2","sable","sableO","herbe","allee","roche",
+                  "eauC","eau","eauO","ecume","fond","basFond","ciel"];
+    var CLES_M = ["fond1","fond2","tache1","tache2","herbe1","herbe2",
+                  "sable1","sable2","mouille","roche1","roche2"];
+    var sansB = "", sansM = "", incomplet = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var bio = N.CARTES[i].biome;
+      if(!B[bio]){ sansB += bio + " "; continue; }
+      if(!M[bio]){ sansM += bio + " "; continue; }
+      for(var k = 0; k < CLES_B.length; k++)
+        if(typeof B[bio][CLES_B[k]] !== "string") incomplet += bio + ".BIOMES." + CLES_B[k] + " ";
+      for(var k2 = 0; k2 < CLES_M.length; k2++)
+        if(typeof M[bio][CLES_M[k2]] !== "string") incomplet += bio + ".MATIERES." + CLES_M[k2] + " ";
+    }
+    ok("chaque île a sa palette BIOMES", sansB === "", sansB);
+    ok("chaque île a ses matières MATIERES", sansM === "", sansM);
+    ok("aucune palette n'a de couleur manquante", incomplet === "", incomplet);
+    /* deux îles qui se ressemblent, c'est deux îles qu'on confond */
+    var vus = {}, jumelles = "";
+    for(var j = 0; j < N.CARTES.length; j++){
+      var s = JSON.stringify(B[N.CARTES[j].biome]);
+      if(vus[s]) jumelles += N.CARTES[j].biome + "=" + vus[s] + " ";
+      vus[s] = N.CARTES[j].biome;
+    }
+    ok("les cinq îles ont cinq palettes distinctes", jumelles === "", jumelles);
+  })();
+
   /* Les messages de victoire : un par île, et le pseudo du meilleur
      contributeur en tête. */
   (function(){

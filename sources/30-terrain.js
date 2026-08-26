@@ -264,18 +264,23 @@ function traceFlanc(c, gx, gy, w, d, z0, h0, h1){
 /* Le combi peint. Il est couché le long de gy pour que son grand flanc
    tombe sur la face éclairée à 75 % : c'est là que va la peinture. */
 function combi(c, gx, gy, s){
-  var w = 0.86 * s, d = 1.55 * s, z0 = 4.2 * s, h = 13 * s;
-  ombreRonde(c, gx, gy, 0.95 * s, 0.3);
-  /* les roues d'abord : la caisse leur mange le haut, elles ont l'air posées */
-  var ra = iso(gx + 0.42 * s, gy - 0.52 * s), rb = iso(gx + 0.42 * s, gy + 0.52 * s);
-  c.fillStyle = "#231c2b";
-  c.beginPath(); c.ellipse(ra.x, ra.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(rb.x, rb.y - 2.6 * s, 4 * s, 3 * s, 0, 0, 6.2832); c.fill();
+  var w = 0.86 * s, d = 1.6 * s, z0 = 6 * s, h = 14 * s;
+  ombreRonde(c, gx, gy, 0.95 * s, 0.22);
+  /* les roues d'abord : la caisse leur mange le haut, elles ont l'air
+     posées. La caisse est montée haut exprès, sinon le combi rase le
+     sol et n'a plus l'air d'un véhicule. */
+  var ra = iso(gx + 0.40 * s, gy - 0.50 * s), rb = iso(gx + 0.40 * s, gy + 0.50 * s);
+  c.fillStyle = "#332b3e";
+  c.beginPath(); c.ellipse(ra.x, ra.y - 3.4 * s, 4.8 * s, 3.8 * s, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(rb.x, rb.y - 3.4 * s, 4.8 * s, 3.8 * s, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#9a90a6";
+  c.beginPath(); c.ellipse(ra.x, ra.y - 3.6 * s, 2 * s, 1.6 * s, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(rb.x, rb.y - 3.6 * s, 2 * s, 1.6 * s, 0, 0, 6.2832); c.fill();
   /* la caisse crème, puis le toit relevé en toile orange */
   var cr = faces("#f0e4cc");
   boite(c, gx, gy, w, d, z0, h, cr.t, cr.g, cr.d);
   var to = faces("#e8813a");
-  boite(c, gx - 0.05 * s, gy, w * 0.80, d * 0.80, z0 + h, 5.4 * s, to.t, to.g, to.d);
+  boite(c, gx - 0.04 * s, gy, w * 0.72, d * 0.68, z0 + h, 4.4 * s, to.t, to.g, to.d);
   /* la peinture du flanc */
   c.save();
   traceFlanc(c, gx, gy, w, d, z0, 0, h); c.clip();
@@ -437,13 +442,19 @@ function feuDeCamp(c, gx, gy, s){
   c.fillStyle = g;
   c.beginPath(); c.ellipse(p.x, p.y, 40 * s, 20 * s, 0, 0, 6.2832); c.fill();
   c.restore();
-  for(var i = 0; i < 8; i++){
-    var a = i / 8 * 6.2832 + 0.4;
-    var sx = p.x + Math.cos(a) * 12 * s, sy = p.y + Math.sin(a) * 6 * s;
-    c.fillStyle = "#514a5c";
-    c.beginPath(); c.ellipse(sx, sy, 3.4 * s, 2.3 * s, a, 0, 6.2832); c.fill();
-    c.fillStyle = "rgba(255,166,86,.5)";
-    c.beginPath(); c.ellipse(sx - Math.cos(a) * 1.2 * s, sy - Math.sin(a) * 0.8 * s, 2.1 * s, 1.3 * s, a, 0, 6.2832); c.fill();
+  /* la couronne de pierres. Elles restent rondes et sans rotation :
+     inclinées, elles dessinaient une marguerite autour du foyer. */
+  for(var i = 0; i < 9; i++){
+    var a = i / 9 * 6.2832 + 0.4;
+    var rc = (0.86 + alea2d(i, 7, 3) * 0.28);
+    var sx = p.x + Math.cos(a) * 11 * s * rc, sy = p.y + Math.sin(a) * 5.4 * s * rc;
+    c.fillStyle = "#3f3a46";
+    c.beginPath(); c.ellipse(sx, sy, 3 * s * rc, 2.3 * s * rc, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "#565062";
+    c.beginPath(); c.ellipse(sx, sy - 0.7 * s, 2.6 * s * rc, 1.8 * s * rc, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,166,86,.42)";
+    c.beginPath(); c.ellipse(sx - Math.cos(a) * 1.1 * s, sy - Math.sin(a) * 0.8 * s - 0.5 * s,
+                             1.7 * s * rc, 1.1 * s * rc, 0, 0, 6.2832); c.fill();
   }
   c.strokeStyle = "#4a3524"; c.lineWidth = 3.2 * s; c.lineCap = "round";
   c.beginPath(); c.moveTo(p.x - 7 * s, p.y + 2 * s); c.lineTo(p.x + 6 * s, p.y - 3 * s); c.stroke();
@@ -507,48 +518,51 @@ function olivier(c, gx, gy, s){
   /* deux troncs noueux qui partent en sens contraire : c'est ce
      déséquilibre qui fait l'olivier, pas le feuillage */
   c.lineCap = "round";
-  c.strokeStyle = "#8b7c68"; c.lineWidth = 6 * s;
+  c.strokeStyle = "#7a6c59"; c.lineWidth = 5.6 * s;
   c.beginPath(); c.moveTo(p.x - 1.5 * s, p.y);
-  c.quadraticCurveTo(p.x - 7 * s, p.y - 8 * s, p.x - 7.5 * s, p.y - 16 * s); c.stroke();
+  c.quadraticCurveTo(p.x - 6 * s, p.y - 7 * s, p.x - 7 * s, p.y - 14 * s); c.stroke();
   c.beginPath(); c.moveTo(p.x + 2 * s, p.y);
-  c.quadraticCurveTo(p.x + 6 * s, p.y - 7 * s, p.x + 6.5 * s, p.y - 15 * s); c.stroke();
-  c.strokeStyle = "#c8b99f"; c.lineWidth = 2 * s;
+  c.quadraticCurveTo(p.x + 5.5 * s, p.y - 6 * s, p.x + 6 * s, p.y - 13 * s); c.stroke();
+  c.strokeStyle = "#9d8f79"; c.lineWidth = 1.8 * s;
   c.beginPath(); c.moveTo(p.x - 3 * s, p.y - 1 * s);
-  c.quadraticCurveTo(p.x - 8 * s, p.y - 8 * s, p.x - 8.4 * s, p.y - 15 * s); c.stroke();
-  /* le feuillage se monte en trois couches : masse sombre, corps
-     gris-vert, puis l'argenture du dessous des feuilles côté soleil.
-     C'est ce dernier étage qui fait reconnaître un olivier. */
-  var lobes = [[-8, -20, 10, 7.4], [7, -19, 9, 6.8], [0, -25, 10.5, 7.8],
-               [-2, -16, 8.6, 6], [10.5, -24, 6.4, 5.2], [-11.5, -25, 7, 5.4],
-               [3, -29, 7, 5]];
-  for(var i = 0; i < lobes.length; i++){
-    c.fillStyle = "#5c7049";
+  c.quadraticCurveTo(p.x - 7 * s, p.y - 7 * s, p.x - 7.8 * s, p.y - 13 * s); c.stroke();
+  /* Le feuillage est UNE masse dentelée, pas une grappe de boules :
+     un olivier se lit comme un nuage gris-vert posé sur son tronc.
+     Trois passes : masse sombre, corps, puis l'argenture du dessous
+     des feuilles côté soleil — c'est elle qui le fait reconnaître. */
+  var cxo = p.x, cyo = p.y - 20 * s;
+  function masse(k, dilat){
     c.beginPath();
-    c.ellipse(p.x + lobes[i][0] * s, p.y + (lobes[i][1] + 1.6) * s,
-              lobes[i][2] * s, lobes[i][3] * s, 0, 0, 6.2832);
+    for(var i = 0; i <= 26; i++){
+      var a = i / 26 * 6.2832;
+      var rr = (1 + 0.20 * Math.sin(a * 3 + k) + 0.12 * Math.sin(a * 5 - k * 2)) * dilat;
+      var xx = cxo + Math.cos(a) * rr * 1.32, yy = cyo + Math.sin(a) * rr * 0.86;
+      if(i === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.closePath();
+  }
+  c.fillStyle = "#556848"; masse(0.7, 12.5 * s); c.fill();
+  c.fillStyle = "#778c60"; masse(2.4, 11.2 * s); c.fill();
+  c.save();
+  masse(0.7, 12.5 * s); c.clip();
+  c.fillStyle = "rgba(190,208,162,.5)";
+  c.beginPath(); c.ellipse(cxo - 5 * s, cyo - 4.4 * s, 9 * s, 5.6 * s, -0.28, 0, 6.2832); c.fill();
+  /* quelques creux d'ombre : sans eux la masse redevient un ballon */
+  c.fillStyle = "rgba(48,60,40,.22)";
+  for(var i2 = 0; i2 < 5; i2++){
+    c.beginPath();
+    c.ellipse(cxo + (alea2d(i2, 5, 13) - 0.5) * 26 * s, cyo + (alea2d(i2, 6, 13) - 0.2) * 12 * s,
+              3.4 * s, 2 * s, 0.4, 0, 6.2832);
     c.fill();
   }
-  for(i = 0; i < lobes.length; i++){
-    c.fillStyle = i % 2 ? "#7f9366" : "#8fa576";
+  c.restore();
+  c.fillStyle = "rgba(228,238,208,.3)";
+  for(var k = 0; k < 20; k++){
+    var a2 = k * 2.399963 + alea2d(k, 8, 17);
+    var r = 2 + 2.7 * Math.sqrt(k);
     c.beginPath();
-    c.ellipse(p.x + lobes[i][0] * s, p.y + lobes[i][1] * s,
-              lobes[i][2] * 0.92 * s, lobes[i][3] * 0.92 * s, 0, 0, 6.2832);
-    c.fill();
-  }
-  for(i = 0; i < lobes.length; i++){
-    c.fillStyle = "rgba(186,204,158,.42)";
-    c.beginPath();
-    c.ellipse(p.x + (lobes[i][0] - 2.4) * s, p.y + (lobes[i][1] - 2) * s,
-              lobes[i][2] * 0.5 * s, lobes[i][3] * 0.46 * s, 0, 0, 6.2832);
-    c.fill();
-  }
-  c.fillStyle = "rgba(226,236,206,.42)";
-  for(var k = 0; k < 18; k++){
-    var a = k * 2.399963;
-    var r = 2 + 2.8 * Math.sqrt(k);
-    c.beginPath();
-    c.ellipse(p.x + Math.cos(a) * r * 1.5 * s, p.y - 22 * s + Math.sin(a) * r * s,
-              1.4 * s, 0.8 * s, a, 0, 6.2832);
+    c.ellipse(cxo + Math.cos(a2) * r * 1.4 * s, cyo + Math.sin(a2) * r * 0.9 * s,
+              1.2 * s, 0.7 * s, a2, 0, 6.2832);
     c.fill();
   }
 }
