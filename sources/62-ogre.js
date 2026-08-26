@@ -16,7 +16,7 @@
 var C_OGRE = {
   /* Peau de brute : gris terreux, cuit et sale. Un ogre vert de conte
      jurerait avec le reste du jeu. */
-  peau:"#a3846b", peauC:"#c9aa89", peauO:"#6d5545", peauN:"#3f3129",
+  peau:"#ac8d73", peauC:"#d5b795", peauO:"#755c4a", peauN:"#40322a",
   tache:"#87694f", veine:"#654c3e",
   cuir:"#4c3626", cuirC:"#6d5039", cuirO:"#241812",
   fourrure:"#2a211a", fourrureC:"#453425", fourrureO:"#120c08",
@@ -26,7 +26,7 @@ var C_OGRE = {
   bois:"#6a4e31", boisC:"#8e6c45", boisO:"#372718",
   sang:"#5b201d", dent:"#e6dbb8", dentO:"#a89570",
   oeil:"#f2d466", oeilMort:"#c8c1b3", pupille:"#141010",
-  laiton:"#b98b3c", poussiere:"#a5947e"
+  laiton:"#b98b3c", poussiere:"#c2b298"
 };
 
 /* ---------------------------------------------------------------
@@ -45,10 +45,14 @@ function poseOgre(phase){
   if(ch < 0) ch = 0;
   ch = ch * ch;
   return {
-    jambeA: s * 13.0, jambeB: -s * 13.0,
-    brasA: -s * 9.6,  brasB: s * 9.6,
+    jambeA: s * 17.0, jambeB: -s * 17.0,
+    brasA: -s * 13.0, brasB: s * 13.0,
+    /* Le pied qui avance QUITTE le sol : c'est ce décollement, plus
+       que l'écartement, qui fait lire une marche et pas un balancier. */
+    leveA: (co > 0 ? co : 0) * 7.0,
+    leveB: (co < 0 ? -co : 0) * 7.0,
     haut: Math.abs(co) * 2.2 - ch * 2.8,
-    epaules: Math.sin(phase - 0.42) * 0.06,   /* le buste retarde sur le bassin */
+    epaules: Math.sin(phase - 0.42) * 0.075,  /* le buste retarde sur le bassin */
     choc: ch,
     tp: tp,
     /* Traîne : la cape, le pagne et les haches suivent avec du retard. */
@@ -58,20 +62,6 @@ function poseOgre(phase){
 
 /* Assombrit ce qui est en arrière-plan ou du côté opposé à la lumière. */
 function tOgre(coul, devant){ return devant ? coul : ecl(coul, 0.74); }
-
-/* Bord poilu : relie une suite de points par des arcs qui bombent
-   alternativement, ce qui donne un bord mou et irrégulier. Surtout
-   pas de dents de scie — une fourrure taillée en pointes ressemble à
-   un col de bouffon, pas à une bête. Les creux et les bosses viennent
-   d'une suite figée : le sprite doit être identique à chaque image. */
-function bordPoiluOgre(c, pts, bosse){
-  for(var i = 1; i < pts.length; i++){
-    var a = pts[i - 1], b = pts[i];
-    var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-    var k = (i % 3 === 0) ? bosse * 1.5 : (i % 2 ? bosse : -bosse * 0.45);
-    c.quadraticCurveTo(mx, my + k, b[0], b[1]);
-  }
-}
 
 /* ---------------------------------------------------------------
    UNE HACHE.
@@ -194,8 +184,8 @@ function dessineOgre(c, phase, variante, tir){
   if(tir){
     jA = 18; jB = -19;                     /* appui écarté, genoux pliés */
     yb = 3.6;                              /* il s'écrase pour lancer */
-    incl = -0.16;                          /* le buste part en arrière */
-    hx = 9; hy = -92;
+    incl = -0.20;                          /* le buste part en arrière */
+    hx = 11; hy = -91;
     tra = 1.15;                            /* cape et pagne emportés */
   }else{
     jA = p.jambeA; jB = p.jambeB;
@@ -228,22 +218,28 @@ function dessineOgre(c, phase, variante, tir){
 
   /* Réaction du sol : à chaque poser, une galette de poussière part du
      pied avant, s'étale et s'efface. Brève — la marche reste vive. */
-  if(!tir && p.tp < 0.62){
-    var d = p.tp / 0.62;
-    var af = (1 - d) * (1 - d) * 0.46;
-    var xp = 13 - d * 18;
+  if(!tir && p.tp < 0.72){
+    var d = p.tp / 0.72;
+    var af = (1 - d) * (1 - d) * 0.9;
+    var xp = 15 - d * 20;
+    /* le sol accuse le coup : un cerne sombre s'ouvre sous le talon */
+    if(d < 0.4){
+      c.strokeStyle = "rgba(38,28,22," + ((0.4 - d) * 1.0).toFixed(3) + ")";
+      c.lineWidth = 1.6;
+      c.beginPath(); c.ellipse(15, -1, 10 + d * 26, 3 + d * 8, 0, 0, 6.2832); c.stroke();
+    }
     c.fillStyle = rgba(C.poussiere, af);
-    c.beginPath(); c.ellipse(xp, -2.2 - d * 2.0, 7 + d * 15, 2.4 + d * 4.0, 0, 0, 6.2832); c.fill();
-    c.fillStyle = rgba(C.poussiere, af * 0.7);
-    c.beginPath(); c.ellipse(xp - 6 - d * 5, -4.0 - d * 4.0, 4 + d * 8, 2.0 + d * 3.2, 0, 0, 6.2832); c.fill();
-    c.fillStyle = rgba(C.poussiere, af * 0.55);
-    c.beginPath(); c.ellipse(xp + 8 + d * 6, -3.0 - d * 3.0, 3.4 + d * 7, 1.8 + d * 2.8, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(xp, -3.0 - d * 3.0, 8 + d * 17, 3.0 + d * 5.0, 0, 0, 6.2832); c.fill();
+    c.fillStyle = rgba(C.poussiere, af * 0.72);
+    c.beginPath(); c.ellipse(xp - 7 - d * 6, -5.5 - d * 6.0, 5 + d * 9, 2.6 + d * 4.0, 0, 0, 6.2832); c.fill();
+    c.fillStyle = rgba(C.poussiere, af * 0.58);
+    c.beginPath(); c.ellipse(xp + 9 + d * 7, -4.5 - d * 5.0, 4.2 + d * 8, 2.2 + d * 3.4, 0, 0, 6.2832); c.fill();
     /* mottes de terre projetées */
-    c.fillStyle = rgba(C.poussiere, af * 1.3);
-    for(var e2 = 0; e2 < 3; e2++){
-      var ke = 1 + e2 * 0.7;
+    c.fillStyle = rgba(C.poussiere, af * 1.1);
+    for(var e2 = 0; e2 < 4; e2++){
+      var ke = 0.7 + e2 * 0.6;
       c.beginPath();
-      c.arc(xp + (e2 - 1) * 9 - d * 6 * ke, -3 - d * 11 * ke, 1.3, 0, 6.2832);
+      c.arc(xp + (e2 - 1.5) * 10 - d * 7 * ke, -4 - d * 14 * ke, 1.5, 0, 6.2832);
       c.fill();
     }
   }
@@ -314,7 +310,7 @@ function dessineOgre(c, phase, variante, tir){
   var cBx, cBy, mBx, mBy;
   if(tir){
     /* Le bras libre part loin devant : il vise, et il équilibre. */
-    cBx = 8; cBy = -78; mBx = 44; mBy = -76;
+    cBx = 6; cBy = -66; mBx = 45; mBy = -57;
   }else{
     cBx = -37 + p.brasB * 0.35; cBy = -55;
     mBx = -34 + p.brasB; mBy = -35 - Math.abs(p.brasB) * 0.30;
@@ -323,8 +319,8 @@ function dessineOgre(c, phase, variante, tir){
   c.restore();
 
   /* ================= LES JAMBES ================= */
-  jambeOgre(c, jB, false, v, tir);
-  jambeOgre(c, jA, true, v, tir);
+  jambeOgre(c, jB, false, v, tir, tir ? 0 : p.leveB);
+  jambeOgre(c, jA, true, v, tir, tir ? 0 : p.leveA);
 
   /* ================= LE BUSTE ET L'AVANT ================= */
   c.save();
@@ -386,6 +382,12 @@ function dessineOgre(c, phase, variante, tir){
   c.beginPath();
   c.moveTo(-12, -60); c.quadraticCurveTo(0, -57, 12, -60);
   c.moveTo(-10, -54); c.quadraticCurveTo(0, -51, 10, -54);
+  c.stroke();
+
+  /* liseré de lumière sur le trapèze gauche */
+  c.strokeStyle = "rgba(255,236,208,.30)"; c.lineWidth = 1.8;
+  c.beginPath();
+  c.moveTo(-33, -80); c.quadraticCurveTo(-30, -91, -14, -94);
   c.stroke();
 
   /* --- la peau : taches, crasse, poils --- */
@@ -535,10 +537,10 @@ function dessineOgre(c, phase, variante, tir){
   c.quadraticCurveTo(0, -42, -22, -46);
   c.quadraticCurveTo(-23, -51, -22, -56);
   c.closePath(); c.fill();
-  c.fillStyle = C.ferC;
+  c.fillStyle = ecl(C.ferC, 0.78);
   for(var n = 0; n < 5; n++){
     var nx = -18 + n * 7.6;
-    c.beginPath(); c.arc(nx, -54.4 + Math.abs(nx) * 0.05, 1.0, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(nx, -54.4 + Math.abs(nx) * 0.05, 0.85, 0, 6.2832); c.fill();
   }
   /* boucle de fer brut, décentrée : rien n'est neuf chez lui */
   c.fillStyle = degCache(c, "ogreBoucle", function(){
@@ -611,11 +613,12 @@ function dessineOgre(c, phase, variante, tir){
   var eAx = 26, eAy = -72;
   var cAx, cAy, mAx, mAy, rotH;
   if(tir){
-    /* Armé : le poing part derrière la tête, la hache pointe en arrière.
-       Toute la lecture de la pose tient dans ce coude très haut. */
-    cAx = 4 + trem * 0.8; cAy = -102;
-    mAx = -22 + trem; mAy = -93 + trem * 0.6;
-    rotH = -2.36 + trem * 0.03;
+    /* Armé : l'épaule s'ouvre, le poing recule au maximum et le fer
+       se dresse derrière lui. Tout le corps est un ressort bandé. */
+    eAx = 24; eAy = -71;
+    cAx = 42 + trem * 0.7; cAy = -90;
+    mAx = 31 + trem; mAy = -101 + trem * 0.7;
+    rotH = -1.34 + trem * 0.035;
   }else{
     cAx = 37 + p.brasA * 0.30; cAy = -55;
     mAx = 34 + p.brasA * 0.9; mAy = -35 - Math.abs(p.brasA) * 0.30;
@@ -632,17 +635,11 @@ function dessineOgre(c, phase, variante, tir){
 
   /* Traînée d'armement : l'air que le fer a déjà brassé. */
   if(tir){
-    c.strokeStyle = "rgba(255,255,255,.16)";
-    c.lineWidth = 2.4;
+    c.strokeStyle = "rgba(255,255,255,.13)";
+    c.lineWidth = 2.2;
     c.beginPath();
-    c.moveTo(-40, -74);
-    c.quadraticCurveTo(-50, -96, -32, -114);
-    c.stroke();
-    c.strokeStyle = "rgba(255,255,255,.10)";
-    c.lineWidth = 1.5;
-    c.beginPath();
-    c.moveTo(-31, -69);
-    c.quadraticCurveTo(-43, -93, -25, -111);
+    c.moveTo(-26, -58);
+    c.quadraticCurveTo(-30, -96, -4, -113);
     c.stroke();
   }
 
@@ -665,8 +662,9 @@ function mecheOgre(c, x, y, a, l, w){
   c.translate(x, y); c.rotate(a);
   c.beginPath();
   c.moveTo(-w, -1);
-  c.quadraticCurveTo(-w * 0.7, l * 0.72, 0, l);
-  c.quadraticCurveTo(w * 0.85, l * 0.60, w, -1);
+  c.quadraticCurveTo(-w * 0.8, l * 0.80, -w * 0.30, l);
+  c.quadraticCurveTo(w * 0.15, l * 1.06, w * 0.45, l * 0.86);
+  c.quadraticCurveTo(w * 0.95, l * 0.55, w, -1);
   c.closePath(); c.fill();
   c.restore();
 }
@@ -678,8 +676,8 @@ var MECHES_OGRE = [
   [-29.0, -77.5, -2.55, 10.0, 3.6], [-25.5, -78.5, -2.40, 7.0, 3.2],
   [-22.0, -79.5, -2.25, 9.5, 3.4], [-18.5, -80.5, -2.10, 6.5, 3.0],
   [-15.0, -82.0, -1.95, 9.0, 3.4], [-11.5, -84.0, -1.80, 6.0, 3.0],
-  [-8.0, -86.0, -1.60, 8.5, 3.2], [-5.0, -88.5, -1.35, 6.0, 2.8],
-  [-2.5, -91.0, -1.05, 7.0, 2.8]
+  [-9.5, -85.0, -1.60, 8.5, 3.2], [-7.0, -88.0, -1.35, 6.0, 2.8],
+  [-5.5, -91.0, -1.05, 7.0, 2.8]
 ];
 
 function manteOgre(c){
@@ -700,8 +698,8 @@ function manteOgre(c){
   c.quadraticCurveTo(21, -99, 23, -82);
   c.quadraticCurveTo(0, -88, -23, -82);
   c.closePath(); c.fill();
-  var cri = [[-22, -84, 3.0, 7, 3.2], [-17, -87, 3.2, 5, 3.0], [-11, -89, 3.5, 6.5, 3.0],
-             [11, -89, 2.9, 6.5, 3.0], [17, -87, 3.05, 5, 3.0], [22, -84, 3.25, 7, 3.2]];
+  var cri = [[-21, -87, 0.45, 7, 3.4], [-15, -90, 0.28, 5.5, 3.2],
+             [15, -90, -0.28, 5.5, 3.2], [21, -87, -0.45, 7, 3.4]];
   c.fillStyle = C.fourrure;
   for(i = 0; i < cri.length; i++) mecheOgre(c, cri[i][0], cri[i][1], cri[i][2], cri[i][3], cri[i][4]);
 
@@ -710,8 +708,8 @@ function manteOgre(c){
   c.beginPath();
   c.moveTo(-38, -73);
   c.quadraticCurveTo(-39, -87, -27, -94);      /* le dessus, sur l'épaule */
-  c.quadraticCurveTo(-14, -100, -1, -95);
-  c.quadraticCurveTo(-3, -88, -9, -82);        /* le bord qui redescend */
+  c.quadraticCurveTo(-16, -100, -5, -94);
+  c.quadraticCurveTo(-7, -87, -12, -82);       /* le bord qui redescend */
   c.quadraticCurveTo(-20, -76, -30, -73);
   c.closePath(); c.fill();
   /* les mèches, deux passes : la masse puis les pointes plus claires */
@@ -725,11 +723,6 @@ function manteOgre(c){
     mecheOgre(c, MECHES_OGRE[i][0], MECHES_OGRE[i][1], MECHES_OGRE[i][2] + 0.12,
               MECHES_OGRE[i][3] * 0.55, MECHES_OGRE[i][4] * 0.5);
   }
-  /* quelques touffes qui rebiquent sur le dessus de l'épaule */
-  c.fillStyle = C.fourrureO;
-  var haut = [[-36, -85, -0.5, 6, 3.0], [-30, -91, -0.25, 6, 3.0],
-              [-22, -96, 0.0, 5.5, 3.0], [-13, -99, 0.3, 5, 2.8], [-5, -97, 0.6, 5, 2.8]];
-  for(i = 0; i < haut.length; i++) mecheOgre(c, haut[i][0], haut[i][1], haut[i][2] + 3.1416, haut[i][3], haut[i][4]);
   /* poil : traits courts, jamais de longues courbes lisses */
   c.strokeStyle = rgba(ecl(C.fourrureC, 1.2), 0.45); c.lineWidth = 1.0;
   var po = [[-33, -88, -31, -80], [-29, -92, -27, -84], [-24, -93, -22, -85],
@@ -745,30 +738,31 @@ function manteOgre(c){
   /* ombre portée de la dépouille sur la poitrine */
   c.fillStyle = "rgba(16,11,8,.34)";
   c.beginPath();
-  c.moveTo(-32, -72); c.quadraticCurveTo(-16, -78, -1, -94);
-  c.quadraticCurveTo(-12, -73, -32, -68);
+  c.moveTo(-32, -72); c.quadraticCurveTo(-18, -78, -5, -93);
+  c.quadraticCurveTo(-14, -73, -32, -68);
   c.closePath(); c.fill();
   /* la patte de la bête, nouée sur la poitrine */
   c.fillStyle = C.fourrureO;
   c.beginPath();
-  c.moveTo(-2, -95); c.quadraticCurveTo(5, -92, 4, -85);
-  c.quadraticCurveTo(1, -82, -2, -87);
+  c.moveTo(-6, -94); c.quadraticCurveTo(1, -91, 0, -84);
+  c.quadraticCurveTo(-3, -81, -6, -86);
   c.closePath(); c.fill();
   c.fillStyle = C.ferC;
-  c.beginPath(); c.arc(0.5, -91, 2.2, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(-3.5, -90, 2.2, 0, 6.2832); c.fill();
   c.fillStyle = C.ferO;
-  c.beginPath(); c.arc(0.5, -91, 1.0, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(-3.5, -90, 1.0, 0, 6.2832); c.fill();
 }
 
 /* ---------------------------------------------------------------
    Une jambe. Arquée, épaisse, enveloppée de bandes et de ferraille.
    dx : décalage horizontal du pied — devant : jambe la plus proche.
    --------------------------------------------------------------- */
-function jambeOgre(c, dx, devant, v, tir){
+function jambeOgre(c, dx, devant, v, tir, leve){
   var C = C_OGRE;
   var sg = dx > 0 ? 1 : -1;
-  var hanche = dx * 0.16 + sg * 2, genou = dx * 0.60, chev = dx;
-  var yg = tir ? -28 : -30;
+  var hanche = dx * 0.16 + sg * 2, genou = dx * 0.60 + leve * 0.55, chev = dx;
+  var yg = (tir ? -28 : -30) - leve * 0.45;
+  var ys = -8 - leve;                    /* la cheville monte avec le pas */
 
   /* cuisse : épaisse, bombée vers l'extérieur */
   c.strokeStyle = tOgre(C.peau, devant);
@@ -781,13 +775,13 @@ function jambeOgre(c, dx, devant, v, tir){
   c.lineWidth = 12;
   c.beginPath();
   c.moveTo(genou, yg);
-  c.quadraticCurveTo(chev - sg * 3.0, -18, chev, -8);
+  c.quadraticCurveTo(chev - sg * 3.0, (yg + ys) / 2, chev, ys);
   c.stroke();
   /* relief du mollet du côté éclairé */
   c.strokeStyle = rgba(C.peauN, 0.24); c.lineWidth = 1.5;
   c.beginPath();
   c.moveTo(genou + sg * 4.5, yg - 2);
-  c.quadraticCurveTo(chev + sg * 6.0, -20, chev + sg * 3.5, -12);
+  c.quadraticCurveTo(chev + sg * 6.0, (yg + ys) / 2 - 2, chev + sg * 3.5, ys - 4);
   c.stroke();
   c.strokeStyle = rgba(C.peauC, devant ? 0.32 : 0.10); c.lineWidth = 2.2;
   c.beginPath();
@@ -798,19 +792,22 @@ function jambeOgre(c, dx, devant, v, tir){
      elles avalent le genou et la jambe paraît courte */
   c.save();
   c.lineCap = "butt";
+  var vx = chev - genou, vy = (ys - 2) - yg;
+  var vl = Math.sqrt(vx * vx + vy * vy) || 1;
+  var px = -vy / vl, py = vx / vl;               /* perpendiculaire au tibia */
   c.strokeStyle = tOgre(C.toile, devant);
-  c.lineWidth = 2.8;
+  c.lineWidth = 2.6;
   for(var b = 0; b < 3; b++){
-    var t = 0.42 + b * 0.24;
-    var bx = genou + (chev - genou) * t, by = yg + (-10 - yg) * t;
+    var t = 0.40 + b * 0.24;
+    var bx = genou + vx * t, by = yg + vy * t;
     c.beginPath();
-    c.moveTo(bx - 5.9, by + 1.3); c.lineTo(bx + 5.9, by - 1.3);
+    c.moveTo(bx - px * 5.1, by - py * 5.1); c.lineTo(bx + px * 5.1, by + py * 5.1);
     c.stroke();
   }
-  c.strokeStyle = rgba(C.toileO, 0.8); c.lineWidth = 1.0;
+  c.strokeStyle = rgba(C.toileO, 0.75); c.lineWidth = 1.0;
   c.beginPath();
-  c.moveTo(genou + (chev - genou) * 0.35 - 4, yg * 0.5 - 6);
-  c.lineTo(chev + 5, -13);
+  c.moveTo(genou + vx * 0.32 - px * 3.4, yg + vy * 0.32 - py * 3.4);
+  c.lineTo(genou + vx * 0.94 + px * 3.4, yg + vy * 0.94 + py * 3.4);
   c.stroke();
   c.restore();
 
@@ -842,6 +839,9 @@ function jambeOgre(c, dx, devant, v, tir){
   }
 
   /* pied : plus une masse emmaillotée qu'une botte */
+  c.save();
+  c.translate(0, ys + 8);
+  c.rotate(0);
   c.fillStyle = tOgre(C.cuir, devant);
   c.beginPath();
   c.moveTo(chev - 8, -10);
@@ -867,6 +867,10 @@ function jambeOgre(c, dx, devant, v, tir){
   /* crasse du bas */
   c.fillStyle = "rgba(50,40,32,.38)";
   c.beginPath(); c.ellipse(chev + 2, -1.2, 10, 2.0, 0, 0, 6.2832); c.fill();
+  c.restore();
+  c.fillStyle = "rgba(62,48,36,.30)";
+  c.beginPath(); c.ellipse(chev - 2, ys + 3, 5.0, 3.4, 0.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(chev + 3, ys + 8, 3.4, 2.4, -0.2, 0, 6.2832); c.fill();
 }
 
 /* ---------------------------------------------------------------
@@ -877,15 +881,16 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
   var C = C_OGRE;
   var ang = Math.atan2(my - cy, mx - cx);
   var na = Math.cos(ang), sa = Math.sin(ang);
+  var chair = devant ? ecl(C.peau, 0.93) : ecl(C.peau, 0.72);
 
   /* bras et avant-bras */
-  c.strokeStyle = tOgre(C.peau, devant);
+  c.strokeStyle = chair;
   c.lineWidth = 12.5;
   c.beginPath(); c.moveTo(ex, ey); c.lineTo(cx, cy); c.stroke();
   c.lineWidth = 10.4;
   c.beginPath(); c.moveTo(cx, cy); c.lineTo(mx, my); c.stroke();
   /* deltoïde : une boule de muscle, mais plus petite que la tête */
-  c.fillStyle = tOgre(C.peau, devant);
+  c.fillStyle = chair;
   c.beginPath();
   c.ellipse(ex, ey, 8.0, 9.4, devant ? 0.22 : -0.22, 0, 6.2832);
   c.fill();
@@ -895,7 +900,7 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
   c.ellipse(ex - (devant ? 7.6 : -7.6), ey + 4, 3.4, 8.0, devant ? 0.25 : -0.25, 0, 6.2832);
   c.fill();
   /* biceps gonflé, ombre au pli du coude */
-  c.fillStyle = rgba(C.peauC, devant ? 0.42 : 0.12);
+  c.fillStyle = rgba(C.peauC, devant ? 0.34 : 0.10);
   c.beginPath();
   c.ellipse((ex + cx) / 2 - 1.5, (ey + cy) / 2, 5.4, 3.8, Math.atan2(cy - ey, cx - ex), 0, 6.2832);
   c.fill();
@@ -944,7 +949,7 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
   c.stroke();
 
   /* le poing : une masse fermée, phalanges marquées, pouce par-dessus */
-  c.fillStyle = devant ? C.peau : ecl(C.peau, 0.66);
+  c.fillStyle = devant ? ecl(C.peau, 0.90) : ecl(C.peau, 0.66);
   c.beginPath();
   c.ellipse(mx, my, 6.8, 6.0, ang, 0, 6.2832);
   c.fill();
@@ -954,7 +959,7 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
     var ky = my + sa * (2.2 + k * 0.2) - na * (3.6 - k * 3.6);
     c.beginPath(); c.arc(kx, ky, 1.4, 0, 6.2832); c.fill();
   }
-  c.fillStyle = devant ? ecl(C.peauC, 0.98) : ecl(C.peauC, 0.66);
+  c.fillStyle = devant ? ecl(C.peauC, 0.90) : ecl(C.peauC, 0.66);
   c.beginPath();
   c.ellipse(mx - sa * 3.4 + na * 1.0, my + na * 3.4 + sa * 1.0, 3.6, 2.1, ang, 0, 6.2832);
   c.fill();
@@ -991,8 +996,8 @@ function visageOgre(c, v, ouverte, phase){
 
   /* --- masse du crâne et de la mâchoire, en coin vers l'avant --- */
   c.fillStyle = degCache(c, "ogreTete", function(){
-    var g = c.createRadialGradient(-3, -6, 1.5, 1, 0, 17);
-    g.addColorStop(0, ecl(C.peauC, 1.07)); g.addColorStop(0.55, C.peau); g.addColorStop(1, C.peauO);
+    var g = c.createRadialGradient(-3, -6, 1.5, 1, 0, 18);
+    g.addColorStop(0, ecl(C.peauC, 1.10)); g.addColorStop(0.62, C.peau); g.addColorStop(1, C.peauO);
     return g;
   });
   c.beginPath();
@@ -1010,14 +1015,14 @@ function visageOgre(c, v, ouverte, phase){
   c.beginPath(); c.ellipse(-7.4, 3.6, 3.2, 2.2, -0.35, 0, 6.2832); c.fill();
   c.beginPath(); c.ellipse(10.0, 2.6, 2.8, 2.6, 0.35, 0, 6.2832); c.fill();
   /* dessous de mâchoire dans l'ombre + barbe de trois jours */
-  c.fillStyle = rgba(C.peauN, 0.26);
+  c.fillStyle = rgba(C.peauN, 0.18);
   c.beginPath();
   c.moveTo(-10.6, 6.2);
   c.quadraticCurveTo(-1, 10.4, 10.4, 6.6);
   c.quadraticCurveTo(8.4, 11.2, -2.4, 12.8);
   c.quadraticCurveTo(-9.2, 11.0, -10.6, 6.2);
   c.closePath(); c.fill();
-  c.fillStyle = rgba(C.peauN, 0.16);
+  c.fillStyle = rgba(C.peauN, 0.11);
   c.beginPath();
   c.moveTo(-10.2, 4.0); c.quadraticCurveTo(0, 9.0, 11.4, 3.8);
   c.quadraticCurveTo(9.4, 12.0, -2.4, 12.9);
@@ -1033,7 +1038,7 @@ function visageOgre(c, v, ouverte, phase){
   c.quadraticCurveTo(12.4, 0.4, 11.4, 1.4);
   c.quadraticCurveTo(0, -5.4, -10.6, -0.4);
   c.closePath(); c.fill();
-  c.fillStyle = rgba(C.peauN, 0.46);
+  c.fillStyle = rgba(C.peauN, 0.40);
   c.beginPath();
   c.moveTo(-10.2, -0.6);
   c.quadraticCurveTo(0, -5.2, 11.6, -0.9);
@@ -1052,7 +1057,7 @@ function visageOgre(c, v, ouverte, phase){
      quand l'unité ne fait que trois centimètres à l'écran. --- */
   var yy = 0.5;
   var mort = (v === 1);
-  c.fillStyle = rgba(C.peauN, 0.42);
+  c.fillStyle = rgba(C.peauN, 0.30);
   c.beginPath(); c.ellipse(-4.6, 0.7, 4.0, 2.6, 0.10, 0, 6.2832); c.fill();
   c.beginPath(); c.ellipse(5.8, 0.5, 4.2, 2.7, -0.10, 0, 6.2832); c.fill();
   c.fillStyle = C.oeil;
@@ -1109,29 +1114,31 @@ function visageOgre(c, v, ouverte, phase){
   /* --- bouche : large, tombante aux commissures --- */
   if(ouverte){
     /* il rugit */
-    c.fillStyle = "#2a1512";
+    c.fillStyle = "#26120f";
     c.beginPath();
-    c.moveTo(-6.6, 7.0);
-    c.quadraticCurveTo(1.4, 5.8, 9.8, 6.8);
-    c.quadraticCurveTo(8.8, 12.6, 1.2, 12.4);
-    c.quadraticCurveTo(-5.4, 11.8, -6.6, 7.0);
+    c.moveTo(-5.2, 7.4);
+    c.quadraticCurveTo(1.6, 6.2, 9.2, 7.0);
+    c.quadraticCurveTo(8.2, 12.2, 1.4, 12.0);
+    c.quadraticCurveTo(-4.2, 11.4, -5.2, 7.4);
     c.closePath(); c.fill();
-    c.fillStyle = C.dent;
-    for(var d = 0; d < 5; d++){
+    /* dents du haut, inégales */
+    c.fillStyle = ecl(C.dent, 0.94);
+    var dh = [[-4.0, 2.4], [-0.8, 1.6], [2.4, 2.6], [5.6, 1.8], [8.0, 2.2]];
+    for(var d = 0; d < dh.length; d++){
       c.beginPath();
-      c.moveTo(-5.4 + d * 3.2, 7.0);
-      c.lineTo(-3.6 + d * 3.2, 7.1);
-      c.lineTo(-4.5 + d * 3.2, 9.2);
+      c.moveTo(dh[d][0], 7.2);
+      c.lineTo(dh[d][0] + 1.7, 7.3);
+      c.lineTo(dh[d][0] + 0.8, 7.2 + dh[d][1]);
       c.closePath(); c.fill();
     }
-    c.fillStyle = "rgba(142,60,54,.9)";
-    c.beginPath(); c.ellipse(1.8, 11.4, 3.6, 1.6, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(126,52,48,.9)";
+    c.beginPath(); c.ellipse(2.0, 11.2, 3.0, 1.3, 0, 0, 6.2832); c.fill();
   }else{
     /* fermée : commissures plus BASSES que le milieu, sinon il sourit */
-    c.strokeStyle = rgba(C.peauN, 0.88); c.lineWidth = 1.8;
+    c.strokeStyle = "rgba(38,26,20,.95)"; c.lineWidth = 2.1;
     c.beginPath();
-    c.moveTo(-6.2, 9.0);
-    c.quadraticCurveTo(1.6, 6.4, 9.6, 7.8);
+    c.moveTo(-6.2, 9.2);
+    c.quadraticCurveTo(1.6, 6.2, 9.6, 7.9);
     c.stroke();
     c.fillStyle = rgba(ecl(C.peauC, 1.02), 0.4);
     c.beginPath();
@@ -1242,7 +1249,11 @@ function visageOgre(c, v, ouverte, phase){
     /* nasal tordu qui pend du bandeau */
     c.fillStyle = C.fer;
     c.beginPath();
-    c.moveTo(2.2, -4.6); c.lineTo(4.8, -4.8); c.lineTo(5.4, 0.4); c.lineTo(3.0, 0.2);
+    c.moveTo(2.6, -4.6); c.lineTo(4.4, -4.7); c.lineTo(4.7, 0.6); c.lineTo(3.2, 0.5);
+    c.closePath(); c.fill();
+    c.fillStyle = C.ferO;
+    c.beginPath();
+    c.moveTo(3.9, -4.7); c.lineTo(4.4, -4.7); c.lineTo(4.7, 0.6); c.lineTo(4.2, 0.6);
     c.closePath(); c.fill();
   }
   if(v === 1){
@@ -1278,112 +1289,146 @@ function teteOgre(c, hx, hy, v, tir, phase){
 /* ================================================================
    PORTRAIT — le buste pour la tuile de briefing.
    Cadre commun aux autres portraits : 100 de large, 84 de haut.
-   Lui déborde volontairement — les trapèzes sortent des deux côtés,
-   le crâne touche le haut. On doit voir tout de suite que c'est la
-   grosse unité.
+   Lui déborde volontairement : les trapèzes sortent des deux côtés et
+   le crâne touche le haut. On doit voir tout de suite que c'est LA
+   grosse unité — et c'est le même visage que sur le terrain, pas un
+   dessin séparé qui promettrait autre chose.
    ================================================================ */
 function portraitOgre(c){
-  var C = C_OGRE, H = 84;
+  var C = C_OGRE, H = 84, i;
   fondPortrait(c, H);
   c.save();
   c.lineJoin = "round";
   c.translate(50, 0);
 
-  /* --- la grande hache dressée derrière l'épaule --- */
+  /* --- la grande hache dressée derrière l'épaule gauche --- */
   c.save();
-  c.translate(-40, 82); c.rotate(0.28);
-  dessineHacheOgre(c, 64, 2.9, 0, false);
+  c.translate(-40, 96); c.rotate(0.26);
+  dessineHacheOgre(c, 66, 2.8, 0, false);
   c.restore();
 
-  /* --- épaules et trapèzes : ils sortent du cadre --- */
-  var gp = c.createLinearGradient(-36, 30, 30, 84);
+  /* --- épaules et trapèzes : ils sortent du cadre des deux côtés --- */
+  var gp = c.createLinearGradient(-30, 52, 26, 92);
   gp.addColorStop(0, ecl(C.peauC, 1.05)); gp.addColorStop(0.42, C.peau); gp.addColorStop(1, C.peauO);
   c.fillStyle = gp;
   c.beginPath();
-  c.moveTo(-74, 90);
-  c.bezierCurveTo(-72, 58, -50, 38, -24, 31);   /* trapèze gauche */
-  c.bezierCurveTo(-12, 28, 12, 28, 24, 31);
-  c.bezierCurveTo(50, 38, 72, 58, 74, 90);
+  c.moveTo(-82, 94);
+  c.bezierCurveTo(-78, 72, -52, 59, -24, 55);
+  c.bezierCurveTo(-10, 53, 10, 53, 24, 55);
+  c.bezierCurveTo(52, 59, 78, 72, 82, 94);
   c.closePath(); c.fill();
-  c.fillStyle = rgba(C.peauN, 0.30);
+  /* creux entre les trapèzes */
+  c.fillStyle = rgba(C.peauN, 0.26);
   c.beginPath();
-  c.moveTo(-22, 33); c.bezierCurveTo(-10, 44, 10, 44, 22, 33);
-  c.bezierCurveTo(10, 52, -10, 52, -22, 33);
+  c.moveTo(-22, 57); c.bezierCurveTo(-10, 66, 10, 66, 22, 57);
+  c.bezierCurveTo(10, 74, -10, 74, -22, 57);
   c.closePath(); c.fill();
-  c.fillStyle = rgba(C.tache, 0.28);
-  c.beginPath(); c.ellipse(46, 64, 8, 11, 0, 0, 6.2832); c.fill();
+  c.fillStyle = rgba(C.tache, 0.26);
+  c.beginPath(); c.ellipse(50, 80, 8, 10, 0, 0, 6.2832); c.fill();
   /* griffures sur l'épaule droite */
-  c.strokeStyle = "rgba(206,158,136,.72)"; c.lineWidth = 2.0;
-  for(var k = 0; k < 3; k++){
+  c.strokeStyle = "rgba(188,146,124,.6)"; c.lineWidth = 2.0;
+  for(i = 0; i < 3; i++){
     c.beginPath();
-    c.moveTo(33 + k * 8, 46 + k * 2);
-    c.quadraticCurveTo(43 + k * 8, 60, 36 + k * 7, 78);
+    c.moveTo(30 + i * 9, 66 + i * 2);
+    c.quadraticCurveTo(40 + i * 9, 78, 33 + i * 8, 94);
     c.stroke();
   }
 
-  /* --- fourrure : crinière derrière la nuque et dépouille sur la
-     seule épaule gauche, comme sur le terrain --- */
-  var gf = c.createLinearGradient(-50, 34, 10, 86);
-  gf.addColorStop(0, C.fourrureC); gf.addColorStop(0.4, C.fourrure); gf.addColorStop(1, C.fourrureO);
+  /* --- crinière derrière la nuque --- */
+  var gf = c.createLinearGradient(-52, 34, -6, 92);
+  gf.addColorStop(0, ecl(C.fourrureC, 1.35)); gf.addColorStop(0.42, ecl(C.fourrure, 1.20)); gf.addColorStop(1, C.fourrureO);
   c.fillStyle = gf;
   c.beginPath();
-  c.moveTo(-40, 28);
-  c.bezierCurveTo(-24, 16, 24, 16, 40, 28);
-  bordPoiluOgre(c, [[40, 28], [28, 20], [12, 15], [-4, 14], [-22, 18], [-40, 28]], 5.0);
+  c.moveTo(-46, 78);
+  c.quadraticCurveTo(-42, 42, 0, 38);
+  c.quadraticCurveTo(42, 42, 46, 78);
+  c.quadraticCurveTo(0, 56, -46, 78);
   c.closePath(); c.fill();
+  c.fillStyle = ecl(C.fourrure, 1.15);
+  var cri = [[-44, 72, 0.42, 15, 7], [-34, 60, 0.26, 12, 6.5],
+             [34, 60, -0.26, 12, 6.5], [44, 72, -0.42, 15, 7]];
+  for(i = 0; i < cri.length; i++) mecheOgre(c, cri[i][0], cri[i][1], cri[i][2], cri[i][3], cri[i][4]);
+
+  /* --- dépouille de fourrure sur l'épaule gauche --- */
   c.fillStyle = gf;
   c.beginPath();
-  c.moveTo(-82, 96);
-  c.bezierCurveTo(-78, 56, -54, 34, -26, 27);
-  c.bezierCurveTo(-16, 25, -6, 26, 0, 30);
-  bordPoiluOgre(c, [[0, 30], [-8, 44], [-20, 56], [-34, 68], [-46, 80], [-56, 96]], 7.0);
+  c.moveTo(-86, 96);
+  c.bezierCurveTo(-82, 66, -60, 46, -30, 40);
+  c.quadraticCurveTo(-20, 38, -14, 46);
+  c.quadraticCurveTo(-22, 58, -34, 68);
+  c.quadraticCurveTo(-52, 82, -62, 96);
   c.closePath(); c.fill();
-  c.strokeStyle = rgba(C.fourrureC, 0.5); c.lineWidth = 2.0;
-  var me = [[-66, 60, -62, 92], [-58, 48, -52, 82], [-48, 38, -42, 72],
-            [-38, 32, -32, 62], [-28, 28, -22, 52], [-18, 26, -14, 44],
-            [-8, 26, -6, 38], [10, 20, 12, 30], [24, 22, 26, 32], [-2, 18, 0, 28]];
-  for(var m = 0; m < me.length; m++){
+  var mp = [[-74, 84, -2.70, 17, 7.0], [-66, 76, -2.55, 13, 6.4],
+            [-58, 70, -2.40, 18, 7.2], [-50, 64, -2.25, 13, 6.4],
+            [-42, 58, -2.10, 17, 7.0], [-34, 52, -1.95, 12, 6.2],
+            [-26, 47, -1.75, 16, 6.8], [-18, 43, -1.45, 12, 6.0]];
+  c.fillStyle = ecl(C.fourrure, 1.18);
+  for(i = 0; i < mp.length; i++) mecheOgre(c, mp[i][0], mp[i][1], mp[i][2], mp[i][3], mp[i][4]);
+  c.fillStyle = ecl(C.fourrureC, 1.4);
+  for(i = 0; i < mp.length; i += 2) mecheOgre(c, mp[i][0], mp[i][1], mp[i][2] + 0.12, mp[i][3] * 0.5, mp[i][4] * 0.5);
+  c.strokeStyle = rgba(ecl(C.fourrureC, 1.55), 0.5); c.lineWidth = 2.2;
+  var po = [[-72, 66, -68, 88], [-62, 58, -58, 80], [-52, 50, -49, 72],
+            [-42, 46, -39, 64], [-32, 42, -30, 58], [-22, 40, -21, 52]];
+  for(i = 0; i < po.length; i++){
     c.beginPath();
-    c.moveTo(me[m][0], me[m][1]);
-    c.quadraticCurveTo(me[m][0] + 4, (me[m][1] + me[m][3]) / 2, me[m][2], me[m][3]);
+    c.moveTo(po[i][0], po[i][1]);
+    c.quadraticCurveTo(po[i][0] + 4, (po[i][1] + po[i][3]) / 2, po[i][2], po[i][3]);
     c.stroke();
   }
+  /* la patte de la bête, nouée sur la poitrine */
+  c.fillStyle = C.fourrureO;
+  c.beginPath();
+  c.moveTo(-16, 45); c.quadraticCurveTo(-4, 51, -6, 63);
+  c.quadraticCurveTo(-12, 69, -18, 59);
+  c.closePath(); c.fill();
+  c.fillStyle = C.ferC;
+  c.beginPath(); c.arc(-11, 55, 4.4, 0, 6.2832); c.fill();
+  c.fillStyle = C.ferO;
+  c.beginPath(); c.arc(-11, 55, 2.0, 0, 6.2832); c.fill();
 
-  /* --- épaulière de fer, à gauche du cadre --- */
-  var ge = c.createLinearGradient(-66, 32, -22, 76);
+  /* --- épaulière de fer, à droite : la même asymétrie que sur le
+     terrain, fourrure d'un côté, ferraille de l'autre --- */
+  var ge = c.createLinearGradient(24, 56, 76, 94);
   ge.addColorStop(0, ecl(C.ferC, 1.06)); ge.addColorStop(0.45, C.fer); ge.addColorStop(1, C.ferO);
   c.fillStyle = ge;
-  var lam = [[46, 56], [58, 70], [70, 86]];
-  for(var a = 0; a < 3; a++){
+  var lam = [[64, 76], [76, 88], [88, 100]];
+  for(i = 0; i < 3; i++){
     c.beginPath();
-    c.moveTo(-78, lam[a][0]);
-    c.bezierCurveTo(-60, lam[a][0] - 16, -36, lam[a][0] - 9, -27, lam[a][0] + 4);
-    c.lineTo(-31, lam[a][1]);
-    c.bezierCurveTo(-46, lam[a][1] - 4, -64, lam[a][1] + 2, -78, lam[a][1]);
+    c.moveTo(84, lam[i][0]);
+    c.bezierCurveTo(64, lam[i][0] - 17, 38, lam[i][0] - 10, 28, lam[i][0] + 4);
+    c.lineTo(32, lam[i][1]);
+    c.bezierCurveTo(48, lam[i][1] - 4, 68, lam[i][1] + 2, 84, lam[i][1]);
     c.closePath(); c.fill();
     c.strokeStyle = rgba(C.ferO, 0.85); c.lineWidth = 1.7; c.stroke();
   }
   c.fillStyle = C.ferC;
-  c.beginPath(); c.arc(-60, 49, 2.6, 0, 6.2832); c.fill();
-  c.beginPath(); c.arc(-43, 52, 2.6, 0, 6.2832); c.fill();
-  c.beginPath(); c.arc(-58, 64, 2.6, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(62, 68, 2.6, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(44, 71, 2.6, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(60, 82, 2.6, 0, 6.2832); c.fill();
   c.fillStyle = rgba(C.rouille, 0.35);
   c.beginPath();
-  c.moveTo(-50, 38); c.lineTo(-44, 38); c.lineTo(-46, 82); c.lineTo(-52, 82);
+  c.moveTo(50, 58); c.lineTo(56, 58); c.lineTo(54, 96); c.lineTo(48, 96);
   c.closePath(); c.fill();
   c.strokeStyle = "rgba(255,255,255,.30)"; c.lineWidth = 2.4;
-  c.beginPath(); c.moveTo(-68, 44); c.quadraticCurveTo(-48, 32, -33, 44); c.stroke();
+  c.beginPath(); c.moveTo(70, 62); c.quadraticCurveTo(50, 50, 35, 62); c.stroke();
+  /* pointe de fer tordue */
   c.fillStyle = C.fer;
   c.beginPath();
-  c.moveTo(-58, 42); c.lineTo(-52, 22); c.lineTo(-46, 42); c.closePath(); c.fill();
+  c.moveTo(58, 60); c.lineTo(53, 40); c.lineTo(47, 60); c.closePath(); c.fill();
   c.strokeStyle = C.ferO; c.lineWidth = 1.2; c.stroke();
 
-  /* --- LA TÊTE, très grande dans le cadre : c'est EXACTEMENT le
-     visage du terrain, seulement grossi. Une tuile de briefing qui
-     ne ressemble pas à l'unité qu'on envoie est un mensonge. --- */
+  /* --- baudrier de cuir --- */
+  c.strokeStyle = C.cuir; c.lineWidth = 10;
+  c.beginPath(); c.moveTo(34, 72); c.lineTo(-6, 96); c.stroke();
+  c.strokeStyle = rgba(C.cuirO, 0.75); c.lineWidth = 2;
+  c.beginPath(); c.moveTo(33, 76); c.lineTo(-6, 99); c.stroke();
+  c.fillStyle = C.laiton;
+  c.beginPath(); c.arc(22, 80, 3.4, 0, 6.2832); c.fill();
+
+  /* --- LE VISAGE, exactement celui du terrain, seulement grossi --- */
   c.save();
-  c.translate(0, 30);
-  c.scale(2.28, 2.28);
+  c.translate(-2, 33.6);
+  c.scale(1.97, 1.97);
   visageOgre(c, 2, true, 0);
   c.restore();
 
