@@ -374,7 +374,7 @@ function recoit(txt){
   if(m.t === "bonjour"){
     j.nom = (m.nom || "?").substr(0, 14);
     if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
-    message(j.nom + " a rejoint le salon.");
+    annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
     /* `monde` peut encore être nul : le sujet des joueurs est souscrit
@@ -461,6 +461,9 @@ function recoit(txt){
       if(jeu && !jeu.fin && jeu.index < m.c) montreBilan();
     }
   }else if(m.t === "adieu"){
+    if(autresJoueurs[m.id] && autresJoueurs[m.id].nom !== "?"){
+      annonce("<b>" + echappe(autresJoueurs[m.id].nom) + "</b> a quitté le salon");
+    }
     delete autresJoueurs[m.id];
     majPodium();
   }

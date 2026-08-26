@@ -248,6 +248,21 @@ select.champ{cursor:pointer}
 #hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));
     display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 #hd .bloc{padding:5px}
+/* Entrées et sorties du salon : elles vivent ICI, sous la minicarte —
+   jamais au centre de l'écran, où elles couvriraient le combat. */
+#annonces{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:4px}
+#annonces .an{
+  font-size:11.5px;color:var(--texte);background:rgba(20,11,29,.78);
+  border:1px solid rgba(255,168,72,.25);border-radius:8px;padding:4px 9px;
+  animation:anVie 5s ease forwards;white-space:nowrap;
+}
+#annonces .an b{color:var(--or)}
+@keyframes anVie{
+  0%{opacity:0;transform:translateX(14px)}
+  8%{opacity:1;transform:translateX(0)}
+  82%{opacity:1}
+  100%{opacity:0}
+}
 #versionJeu{font-size:11px;letter-spacing:1.2px;font-weight:700;color:var(--gris);
             text-shadow:0 1px 3px rgba(0,0,0,.7);padding-right:2px}
 #mini{width:132px;height:118px;display:block;border-radius:8px;background:#0c1c28}
@@ -461,6 +476,7 @@ select.champ{cursor:pointer}
   <div id="hd">
     <div class="bloc p"><canvas id="mini" width="264" height="236"></canvas></div>
     <div id="versionJeu">v0.01</div>
+    <div id="annonces"></div>
   </div>
 
   <div class="bloc p" id="bg">

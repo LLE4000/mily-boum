@@ -185,6 +185,20 @@ function majFlash(dt){
     if(flashT <= 0) $("flash").classList.remove("on");
   }
 }
+/* Annonce discrète en haut à droite, sous la minicarte : arrivées et
+   départs du salon. Trois au plus à l'écran, la plus vieille cède sa
+   place ; chacune s'efface d'elle-même (animation anVie). */
+function annonce(html){
+  var z = $("annonces");
+  if(!z) return;
+  while(z.children.length >= 3) z.removeChild(z.firstChild);
+  var d = document.createElement("div");
+  d.className = "an";
+  d.innerHTML = html;
+  z.appendChild(d);
+  setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 5200);
+}
+
 function montreAlerte(s){
   var b = $("bandeauAlerte");
   b.textContent = s;
@@ -552,10 +566,12 @@ function majPodium(){
   if(!reseau.connecte){
     h += '<div class="gg">🔌 hors ligne — relais injoignable</div>';
   }else{
-    var noms = [], idj;
-    for(idj in autresJoueurs) noms.push(echappe(autresJoueurs[idj].nom));
-    h += '<div class="gg">🌐 ' + (noms.length
-       ? "en ligne avec " + noms.slice(0, 4).join(", ")
+    /* le COMPTE, pas les noms : à dix joueurs la liste mangerait
+       l'écran, et les noms sont déjà au classement */
+    var nAutres = 0, idj;
+    for(idj in autresJoueurs) nAutres++;
+    h += '<div class="gg">🌐 ' + (nAutres
+       ? (nAutres + 1) + " joueurs en ligne"
        : "seul dans le salon pour l'instant") + '</div>';
   }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
