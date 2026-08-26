@@ -272,7 +272,9 @@ function tueGegeLocale(){ tueCreatureLocale("belette"); }
    n'importe qui peut lire. C'est un cran d'arrêt : il empêche une
    fausse manœuvre et un joueur de passage d'effacer la partie de tous.
    --------------------------------------------------------------- */
-var MOT_RAZ = "mily";          // à changer dans sources/85-reseau.js
+/* Mot de passe des deux actions réservées : remettre le salon à zéro et
+   changer le plan de défense. Un seul endroit à modifier. */
+var MOT_RAZ = "mily4000";
 
 function remetSalonAZero(){
   cycleSalon = (cycleSalon | 0) + 1;

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.07";
+var VERSION = "v0.08";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -219,7 +219,12 @@ function dansCone(angleCible, angleTourelle, demiAngle){
 var DEF = {
   crible:    { nom:"Crible",    desc:"tourelle automatique jumelée", pv:720, portee:5.15, degats:5,  cadence:110,  emprise:2, tourelle:1 },
   chalumeau: { nom:"Chalumeau", desc:"projeteur incendiaire",        pv:780, portee:5.6,  degats:10, cadence:150,  emprise:2, tourelle:1, cone:0.5 },
-  frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:9.0,  degats:80, cadence:2700, emprise:3, tourelle:1, vitesseProj:8.5 },
+  /* Le Frelon tire de très loin — six fois la portée d'un Crible — mais
+     il est aveugle de près : sous la portée d'une mitrailleuse, il ne
+     peut plus abaisser ses rampes et se tait. Son verrou l'empêche de
+     changer de cible en cours de route : la première qui entre dans son
+     périmètre est suivie jusqu'au bout. */
+  frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:30.9, degats:80, cadence:2700, emprise:3, tourelle:1, vitesseProj:8.5, porteeMin:5.15, verrou:1 },
   pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
   bobine:    { nom:"Bobine",    desc:"pylône à arc",                 pv:700, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
   cuve:      { nom:"Cuve",      desc:"citerne de naphte",            pv:420, portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },

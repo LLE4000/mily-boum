@@ -1182,6 +1182,32 @@ function dessineVisee(c, tps){
       traces++;
     }
     c.stroke();
+
+    /* L'ANGLE MORT. Le Frelon et le Pilon ne peuvent pas tirer sous une
+       certaine distance : sans ce second cercle, le joueur n'a aucun
+       moyen de savoir où se mettre à l'abri, alors que c'est justement
+       la façon de les neutraliser.
+       Cyan et en pointillés, pas vert : sur l'herbe, un trait vert est
+       invisible — mesuré, il ne se détachait pas du sol. Le cyan tient
+       sur l'herbe comme sur le sable, et les pointillés le distinguent
+       au premier coup d'œil du trait plein de la portée. */
+    c.strokeStyle = "rgba(125,230,255,.75)";
+    c.lineWidth = Math.max(1.6 / cam.z, 1.4);
+    if(c.setLineDash) c.setLineDash([Math.max(6 / cam.z, 7), Math.max(5 / cam.z, 6)]);
+    c.beginPath();
+    var mortes = 0;
+    for(var im = 0; im < jeu.batiments.length && mortes < 90; im++){
+      var bm = jeu.batiments[im];
+      var fm = DEF[bm.t];
+      if(!bm.vivant || !fm.porteeMin) continue;
+      if(!visible(vue, bm.gx, bm.gy)) continue;
+      var pm = iso(bm.gx, bm.gy);
+      c.moveTo(pm.x + fm.porteeMin * RX, pm.y);
+      c.ellipse(pm.x, pm.y, fm.porteeMin * RX, fm.porteeMin * RY, 0, 0, 6.2832);
+      mortes++;
+    }
+    c.stroke();
+    if(c.setLineDash) c.setLineDash([]);
   }
   c.restore();
   repereEcran(c);

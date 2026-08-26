@@ -430,13 +430,17 @@ function creeUnite(type, gx, gy){
        ensuite. Une unité qui débarque pendant qu'une balise est active
        reçoit l'ordre elle aussi. */
     baliseOrdre:(jeu && jeu.balise) ? jeu.balise.id : 0,
-    baliseMeilleure:1e9, baliseStagne:0,
+    baliseMeilleure:1e9, baliseStagne:0, cote:0,
     /* Seuil d'enlisement propre à chaque unité. Deux voisines collées
        au même mur cesseraient de progresser à la même image ; avec un
        seuil identique elles se libéreraient ensemble, ce qui ressemble
-       à une libération de groupe. Étalé sur 2,6 à 4,4 s, chacune part
-       pour son propre compte. */
-    baliseSeuil:2.6 + Math.random() * 1.8,
+       à une libération de groupe.
+       Le seuil est LARGE — sept à onze secondes — parce que c'est un
+       dernier recours, pas un mode de fonctionnement. À trois secondes
+       il se déclenchait dès qu'une troupe longeait un bâtiment, et une
+       bonne moitié du groupe abandonnait la Balise en chemin pour
+       tirer sur ce qui passait. */
+    baliseSeuil:7.0 + Math.random() * 4.0,
     pousse:{ x:0, y:0 }
   });
   return jeu.unites[jeu.unites.length - 1];
@@ -581,10 +585,27 @@ function deplace(u, dx, dy, pas){
   if(okX) u.gx = nx;
   if(okY) u.gy = ny;
   if(!okX && !okY){
-    /* contournement : on tente les deux tangentes */
-    var t1x = -dy, t1y = dx;
-    if(!bloque(u.gx + t1x * pas, u.gy + t1y * pas)){ u.gx += t1x * pas; u.gy += t1y * pas; }
-    else if(!bloque(u.gx - t1x * pas, u.gy - t1y * pas)){ u.gx -= t1x * pas; u.gy -= t1y * pas; }
+    /* CONTOURNEMENT AVEC MÉMOIRE.
+       On tentait les deux tangentes et on prenait la première libre,
+       sans rien retenir. Contre le coin d'un bâtiment, la tangente
+       « libre » change d'une image à l'autre : la troupe faisait un pas
+       à gauche, un pas à droite, un pas à gauche, et n'avançait plus
+       jamais. C'est ça qui plantait les troupes en route vers la
+       Balise, pas la Balise elle-même.
+       Chacune retient donc SON côté de contournement et le garde tant
+       qu'elle longe l'obstacle ; elle ne change de bord que si ce
+       côté-là se bouche aussi. */
+    if(!u.cote) u.cote = (bruitStable(u.n, 0) < 0.5) ? 1 : -1;
+    var tx = -dy * u.cote, ty = dx * u.cote;
+    if(!bloque(u.gx + tx * pas, u.gy + ty * pas)){
+      u.gx += tx * pas; u.gy += ty * pas;
+    }else if(!bloque(u.gx - tx * pas, u.gy - ty * pas)){
+      u.cote = -u.cote;                       // ce bord est bouché, on passe de l'autre
+      u.gx -= tx * pas; u.gy -= ty * pas;
+    }
+  }else{
+    /* elle avance de nouveau : le contournement en cours est terminé */
+    u.cote = 0;
   }
   u.gx = borne(u.gx, 0.4, GW - 0.5);
   u.gy = borne(u.gy, 0.4, GH - 0.5);
@@ -847,8 +868,19 @@ function majDefenses(dt, tps){
     var ddy = Math.max(by0 - b.gy, 0, b.gy - by1);
     if(Math.hypot(ddx, ddy) > f.portee + 1) continue;
 
+    /* VERROU. Une batterie à verrou n'abandonne pas la cible qu'elle a
+       accrochée pour la remplacer par une voisine plus proche à chaque
+       balayage : elle la suit tant qu'elle vit, reste visible et reste
+       dans sa fourchette de tir. Sans ce garde-fou, une troupe qui
+       passe à portée volerait la cible d'un missile déjà en route. */
+    var garde = false;
+    if(f.verrou && b.cible && b.cible.pv > 0 && !masquee(b.cible)){
+      var dv = Math.hypot(b.cible.gx - b.gx, b.cible.gy - b.gy);
+      garde = dv <= f.portee && !(f.porteeMin && dv < f.porteeMin);
+    }
+
     b.prochainCiblage -= dt * 1000;
-    if(b.prochainCiblage <= 0){
+    if(!garde && b.prochainCiblage <= 0){
       b.prochainCiblage = EQ.PERIODE_CIBLAGE + Math.random() * 220;
       b.cible = chercheCibleDefense(b, f);
     }
@@ -857,7 +889,14 @@ function majDefenses(dt, tps){
     if(!c) continue;
     var dx = c.gx - b.gx, dy = c.gy - b.gy;
     var d = Math.hypot(dx, dy);
-    if(d > f.portee + 0.4 || (f.porteeMin && d < f.porteeMin)){ b.cible = null; continue; }
+    /* Trop loin, ou trop près : on lâche la cible pour pouvoir en
+       chercher une qu'on peut réellement atteindre. Rester verrouillé
+       sur quelqu'un qu'on ne peut pas toucher ne servirait à rien. */
+    if(d > f.portee + 0.4 || (f.porteeMin && d < f.porteeMin)){
+      b.cible = null;
+      b.prochainCiblage = 0;
+      continue;
+    }
 
     /* la tourelle vise */
     var vise = Math.atan2(dy, dx);
@@ -1468,7 +1507,7 @@ function utiliseCapacite(m, gx, gy){
       jeu.unites[z2].baliseOrdre = jeu.balise.id;
       jeu.unites[z2].baliseMeilleure = 1e9;
       jeu.unites[z2].baliseStagne = 0;
-      jeu.unites[z2].baliseSeuil = 2.6 + Math.random() * 1.8;
+      jeu.unites[z2].baliseSeuil = 7.0 + Math.random() * 4.0;
       jeu.unites[z2].cible = null;
     }
     jeu.effets.push({ t:"baliseLancee", gx:gx, gy:gy, age:0, duree:0.6 });

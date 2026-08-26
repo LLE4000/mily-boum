@@ -244,6 +244,15 @@ function majListeBarges(){
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
       jeu.bargeSel = +this.getAttribute("data-i");
+      /* Choisir une navette DÉSARME la capacité en cours. Sans cela les
+         deux restaient allumées en même temps, et comme appuie() sert
+         d'abord la capacité, le joueur qui voulait débarquer envoyait un
+         Cryo sur sa plage. On ne peut vouloir les deux à la fois. */
+      if(jeu.capArmee){
+        jeu.capArmee = null;
+        viseur.actif = false;
+        majMenu();
+      }
       majListeBarges();
       e.preventDefault();
     });

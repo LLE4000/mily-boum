@@ -291,6 +291,31 @@ function comptePlan(){
   }
   return { par:par, total:n, peintes:zonesPeintes(planZones) };
 }
+/* La fiche d'une défense, telle qu'on la lit avant de la poser :
+   ce qu'elle est, puis les seuls chiffres qui changent une décision —
+   ce qu'elle encaisse, jusqu'où elle tire, ce qu'elle fait mal, et à
+   quel rythme. Les bâtiments inertes n'ont ni portée ni cadence : on
+   dit alors franchement qu'ils ne se défendent pas. */
+function ficheDefense(t){
+  var f = DEF[t], s = f.desc + ".<br>" + f.pv + " PV";
+  if(!f.portee){
+    return s + " — ne tire pas, il n'est là que pour être détruit.";
+  }
+  s += " · portée " + f.portee.toFixed(1).replace(".", ",");
+  if(f.porteeMin){
+    s += " (aveugle sous " + f.porteeMin.toFixed(1).replace(".", ",") + ")";
+  }
+  s += "<br>" + f.degats + " dégâts toutes les "
+     + (f.cadence / 1000).toFixed(2).replace(".", ",") + " s";
+  var t2 = [];
+  if(f.zone)    t2.push("dégâts de zone");
+  if(f.cone)    t2.push("en cône");
+  if(f.ralenti) t2.push("ralentit");
+  if(f.verrou)  t2.push("verrouille sa cible");
+  if(t2.length) s += "<br><i>" + t2.join(", ") + "</i>";
+  return s;
+}
+
 function majPanneauPlan(){
   var c = comptePlan(), s = [], t;
   for(t in c.par) s.push(c.par[t] + " " + DEF[t].nom.toLowerCase());
@@ -299,9 +324,11 @@ function majPanneauPlan(){
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ");
-  $("planInfo").textContent = planOutil
-    ? "Pinceau : " + DEF[TYPES_PLAN[planOutil]].nom + ", " + DENSITES[planDensite].nom + "."
-    : "Gomme : la zone repasse en défenses d'origine.";
+  $("planInfo").innerHTML = planOutil
+    ? "<b>" + DEF[TYPES_PLAN[planOutil]].nom + "</b> — " + DENSITES[planDensite].nom
+      + "<br>" + ficheDefense(TYPES_PLAN[planOutil])
+    : "<b>Gomme</b><br>La zone repasse en défenses d'origine, "
+      + "celles que la génération aurait posées toute seule.";
 
   /* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
      de la rendre infernale. On lui dit seulement ce qu'il fait. */
