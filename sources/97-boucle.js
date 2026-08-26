@@ -25,7 +25,7 @@ function demarre(){
   installeBoutons();
   installeRaz();
 
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  monNom = pseudoSaisi();
   connecteRelais($("relais").value);
   majEtatReseau();
 

@@ -18,7 +18,7 @@ var mondeT = 0;              // étranglement des republications
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
 var monId = "";
-var monNom = "Recrue";
+var monNom = "";
 var autresJoueurs = {};
 var degatsEnAttente = 0;
 var serieReseau = 0;
@@ -87,7 +87,7 @@ function connecteRelais(url){
         reseau.tentatives = 0;
         majEtatReseau();
         envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
-        envoie({ t:"bonjour", nom:monNom });
+        if(monNom) envoie({ t:"bonjour", nom:monNom });
         /* si l'on a du retard à rattraper localement, on le publie :
            notre miroir peut être plus frais que celui du courtier */
         if(monde) mondeSale = true;

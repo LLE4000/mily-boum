@@ -638,15 +638,19 @@ function construitBriefing(){
       compoBarges = sauv.compo;
     if(sauv.relais) $("relais").value = sauv.relais;
   }
-  if(!$("pseudo").value) $("pseudo").value = "Recrue" + ((Math.random() * 900 + 100) | 0);
-
+  /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
+     rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
+     posé d'office donnait un salon peuplé d'inconnus interchangeables. */
   dessineLogo();
   majBargesBrief();
   majMondes();
 
   $("lancer").addEventListener("click", lancePartie);
+  $("pseudo").addEventListener("input", majEtatPseudo);
+  majEtatPseudo();
   $("btReco").addEventListener("click", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+    if(!pseudoSaisi()) return signalePseudoManquant();
+    monNom = pseudoSaisi();
     connecteRelais($("relais").value);
   });
   $("relais").addEventListener("change", function(){
@@ -654,8 +658,11 @@ function construitBriefing(){
     connecteRelais($("relais").value);
   });
   $("pseudo").addEventListener("change", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
-    sauvegarde();
+    if(pseudoSaisi()){
+      monNom = pseudoSaisi();
+      this.value = monNom;
+      sauvegarde();
+    }
   });
   $("btSon").addEventListener("click", function(){
     son.actif = !son.actif;
@@ -663,10 +670,30 @@ function construitBriefing(){
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
+/* Le pseudo, une seule définition pour tout le fichier : trimé, borné
+   à quatorze caractères, et vide s'il ne reste rien. */
+function pseudoSaisi(){
+  var v = ($("pseudo").value || "").trim().substr(0, 14);
+  return v;
+}
+function majEtatPseudo(){
+  var ok = !!pseudoSaisi();
+  $("lancer").disabled = !ok;
+  $("pseudo").classList.toggle("manque", !ok);
+  /* Un bouton grisé sans explication est une impasse : le message dit
+     pourquoi, tant que le champ est vide. */
+  $("avertPseudo").classList.toggle("on", !ok);
+}
+function signalePseudoManquant(){
+  $("avertPseudo").classList.add("on");
+  $("pseudo").classList.add("manque");
+  $("pseudo").focus();
+}
+
 function sauvegarde(){
   try{
     localStorage.setItem("milyboum", JSON.stringify({
-      nom:$("pseudo").value, compo:compoBarges, relais:$("relais").value
+      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value
     }));
   }catch(e){}
 }
@@ -823,7 +850,9 @@ function basculePlein(){
    Lancement de la partie
    --------------------------------------------------------------- */
 function lancePartie(){
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  if(!pseudoSaisi()) return signalePseudoManquant();
+  monNom = pseudoSaisi();
+  $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
   son.reveille();
   $("brief").style.display = "none";

@@ -154,6 +154,10 @@ select.champ{cursor:pointer}
 .aide li{margin:3px 0}
 
 #lancer{width:100%;font-size:19px;padding:16px;margin:4px 0 8px;border-radius:16px;letter-spacing:1px}
+#avertPseudo{display:none;margin-top:8px;text-align:center;font-size:13px;font-weight:700;color:#ffb45c}
+#avertPseudo.on{display:block}
+#pseudo.manque{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.25)}
+.bt.pri:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.5)}
 #pied{text-align:center;color:#6b5c78;font-size:11px;padding:6px 0 2px}
 
 /* ============================================================
@@ -321,7 +325,9 @@ select.champ{cursor:pointer}
     <div class="carteP">
       <h2>Salon</h2>
       <div class="ligne">
-        <input id="pseudo" class="champ" maxlength="14" placeholder="Ton pseudo" autocomplete="off">
+        <input id="pseudo" class="champ" maxlength="14" required
+               placeholder="Indiquez votre pseudo" autocomplete="off"
+               aria-label="Votre pseudo">
         <select id="relais" class="champ" style="flex:0 0 auto;min-width:190px">
           <option value="wss://broker.emqx.io:8084/mqtt">Relais EMQX (défaut)</option>
           <option value="wss://broker.hivemq.com:8884/mqtt">Relais HiveMQ (secours)</option>
@@ -358,6 +364,7 @@ select.champ{cursor:pointer}
     </div>
 
     <button id="lancer" class="bt pri">DÉBARQUER</button>
+    <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>

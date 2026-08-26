@@ -154,6 +154,10 @@ select.champ{cursor:pointer}
 .aide li{margin:3px 0}
 
 #lancer{width:100%;font-size:19px;padding:16px;margin:4px 0 8px;border-radius:16px;letter-spacing:1px}
+#avertPseudo{display:none;margin-top:8px;text-align:center;font-size:13px;font-weight:700;color:#ffb45c}
+#avertPseudo.on{display:block}
+#pseudo.manque{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.25)}
+.bt.pri:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.5)}
 #pied{text-align:center;color:#6b5c78;font-size:11px;padding:6px 0 2px}
 
 /* ============================================================
@@ -321,7 +325,9 @@ select.champ{cursor:pointer}
     <div class="carteP">
       <h2>Salon</h2>
       <div class="ligne">
-        <input id="pseudo" class="champ" maxlength="14" placeholder="Ton pseudo" autocomplete="off">
+        <input id="pseudo" class="champ" maxlength="14" required
+               placeholder="Indiquez votre pseudo" autocomplete="off"
+               aria-label="Votre pseudo">
         <select id="relais" class="champ" style="flex:0 0 auto;min-width:190px">
           <option value="wss://broker.emqx.io:8084/mqtt">Relais EMQX (défaut)</option>
           <option value="wss://broker.hivemq.com:8884/mqtt">Relais HiveMQ (secours)</option>
@@ -358,6 +364,7 @@ select.champ{cursor:pointer}
     </div>
 
     <button id="lancer" class="bt pri">DÉBARQUER</button>
+    <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
@@ -7898,7 +7905,7 @@ var mondeT = 0;              // étranglement des republications
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
 var monId = "";
-var monNom = "Recrue";
+var monNom = "";
 var autresJoueurs = {};
 var degatsEnAttente = 0;
 var serieReseau = 0;
@@ -7967,7 +7974,7 @@ function connecteRelais(url){
         reseau.tentatives = 0;
         majEtatReseau();
         envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
-        envoie({ t:"bonjour", nom:monNom });
+        if(monNom) envoie({ t:"bonjour", nom:monNom });
         /* si l'on a du retard à rattraper localement, on le publie :
            notre miroir peut être plus frais que celui du courtier */
         if(monde) mondeSale = true;
@@ -10109,15 +10116,19 @@ function construitBriefing(){
       compoBarges = sauv.compo;
     if(sauv.relais) $("relais").value = sauv.relais;
   }
-  if(!$("pseudo").value) $("pseudo").value = "Recrue" + ((Math.random() * 900 + 100) | 0);
-
+  /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
+     rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
+     posé d'office donnait un salon peuplé d'inconnus interchangeables. */
   dessineLogo();
   majBargesBrief();
   majMondes();
 
   $("lancer").addEventListener("click", lancePartie);
+  $("pseudo").addEventListener("input", majEtatPseudo);
+  majEtatPseudo();
   $("btReco").addEventListener("click", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+    if(!pseudoSaisi()) return signalePseudoManquant();
+    monNom = pseudoSaisi();
     connecteRelais($("relais").value);
   });
   $("relais").addEventListener("change", function(){
@@ -10125,8 +10136,11 @@ function construitBriefing(){
     connecteRelais($("relais").value);
   });
   $("pseudo").addEventListener("change", function(){
-    monNom = ($("pseudo").value || "Recrue").substr(0, 14);
-    sauvegarde();
+    if(pseudoSaisi()){
+      monNom = pseudoSaisi();
+      this.value = monNom;
+      sauvegarde();
+    }
   });
   $("btSon").addEventListener("click", function(){
     son.actif = !son.actif;
@@ -10134,10 +10148,30 @@ function construitBriefing(){
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
+/* Le pseudo, une seule définition pour tout le fichier : trimé, borné
+   à quatorze caractères, et vide s'il ne reste rien. */
+function pseudoSaisi(){
+  var v = ($("pseudo").value || "").trim().substr(0, 14);
+  return v;
+}
+function majEtatPseudo(){
+  var ok = !!pseudoSaisi();
+  $("lancer").disabled = !ok;
+  $("pseudo").classList.toggle("manque", !ok);
+  /* Un bouton grisé sans explication est une impasse : le message dit
+     pourquoi, tant que le champ est vide. */
+  $("avertPseudo").classList.toggle("on", !ok);
+}
+function signalePseudoManquant(){
+  $("avertPseudo").classList.add("on");
+  $("pseudo").classList.add("manque");
+  $("pseudo").focus();
+}
+
 function sauvegarde(){
   try{
     localStorage.setItem("milyboum", JSON.stringify({
-      nom:$("pseudo").value, compo:compoBarges, relais:$("relais").value
+      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value
     }));
   }catch(e){}
 }
@@ -10294,7 +10328,9 @@ function basculePlein(){
    Lancement de la partie
    --------------------------------------------------------------- */
 function lancePartie(){
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  if(!pseudoSaisi()) return signalePseudoManquant();
+  monNom = pseudoSaisi();
+  $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
   son.reveille();
   $("brief").style.display = "none";
@@ -10522,7 +10558,7 @@ function demarre(){
   installeBoutons();
   installeRaz();
 
-  monNom = ($("pseudo").value || "Recrue").substr(0, 14);
+  monNom = pseudoSaisi();
   connecteRelais($("relais").value);
   majEtatReseau();
 
