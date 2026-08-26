@@ -467,7 +467,17 @@ function degatsZone(gx, gy, rayon, degats, opt){
   unitesAutour(gx, gy, rayon + 1, tmp);
   for(var i = 0; i < tmp.length; i++){
     var u = tmp[i];
-    if(Math.hypot(u.gx - gx, u.gy - gy) <= rayon) toucheUnite(u, degats, opt);
+    if(Math.hypot(u.gx - gx, u.gy - gy) > rayon) continue;
+    /* Souffle d'une arme de DÉFENSE : il épargne ce que le Brouillard
+       cache. Sans cela, une roquette qui perdait le contact retombait
+       en aveugle sur la dernière position connue — c'est-à-dire pile
+       sur la troupe cachée — et le souffle la blessait quand même. La
+       fumée promet l'invisibilité : elle doit aussi tenir cette
+       promesse contre les coups déjà partis. Le QG, la Salve du joueur
+       et la Nova ne posent pas ce drapeau : leurs bombardements de
+       zone restent aveugles et indiscriminés. */
+    if(opt && opt.epargneCachees && masquee(u)) continue;
+    toucheUnite(u, degats, opt);
   }
 }
 function degatsZoneEnnemis(gx, gy, rayon, degats){
@@ -1078,8 +1088,11 @@ function majProjectiles(dt){
       if(d <= pas || p.age > 6){
         if(p.t === "roquetteJ") appliqueDegatsCible(p.cible, p.degats, p.but);
         else{
-          if(p.cible && p.cible.pv > 0) toucheUnite(p.cible, p.degats);
-          else degatsZone(bx, by, 0.8, p.degats);
+          /* ceinture et bretelles : la cible est déjà lâchée dès
+             qu'elle entre dans la fumée, mais si elle s'y glisse à
+             l'image même de l'impact, la roquette ne la touche pas */
+          if(p.cible && p.cible.pv > 0 && !masquee(p.cible)) toucheUnite(p.cible, p.degats);
+          else degatsZone(bx, by, 0.8, p.degats, { epargneCachees:1 });
         }
         if(p.t === "roquette"){
           /* une roquette qui pique du ciel doit marquer le sol : boule
@@ -1139,7 +1152,9 @@ function majProjectiles(dt){
       if(t >= 1){
         if(p.t === "bombe"){
           if(p.allie) degatsZoneEnnemis(p.cx, p.cy, p.zone, p.degats);
-          if(!p.allie || p.tousCamps) degatsZone(p.cx, p.cy, p.zone, p.degats);
+          if(!p.allie || p.tousCamps)
+            degatsZone(p.cx, p.cy, p.zone, p.degats,
+                       (p.allie || p.braise) ? undefined : { epargneCachees:1 });
           if(p.braise) jeu.flaques.push({ gx:p.cx, gy:p.cy, r:1.5, age:0, duree:EQ.QG_FLAQUE_DUREE });
           jeu.effets.push({ t:"boum", gx:p.cx, gy:p.cy, age:0,
                             duree:p.salve ? 0.85 : 0.62,
@@ -1165,7 +1180,8 @@ function majProjectiles(dt){
           }
           son.boum(p.salve ? 0.7 : 0.42);
         }else{
-          degatsZone(p.cx, p.cy, p.zone, p.degats, { ralenti:p.ralenti, type:"elec" });
+          degatsZone(p.cx, p.cy, p.zone, p.degats,
+                     { ralenti:p.ralenti, type:"elec", epargneCachees:1 });
           jeu.effets.push({ t:"eclair", gx:p.cx, gy:p.cy, age:0, duree:0.42, r:p.zone });
           son.bobine();
         }
