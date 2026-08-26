@@ -225,6 +225,68 @@ function construitFoyers(){
     FOYERS.push({ x:pd.x + k * 13, y:yP + 4, h:26 - Math.abs(k) * 5, e:0.7,
                   devant:true, ph:k * 0.9 + 4, gros:0 });
   }
+
+  /* ---- le grand rideau de feu de la couronne ----
+     Il comble le vide entre le sommet du crâne et l'arc, et fait
+     paraître le visage émergeant du brasier. Ces foyers-là sont
+     énormes et respirent lentement (dyn) en plus du vacillement. */
+  var NR = 9;
+  for(k = 0; k < NR; k++){
+    var u = k / (NR - 1) * 2 - 1;             // -1 … +1
+    var au = Math.abs(u);
+    /* le centre part de derrière le crâne, les bords descendent
+       le long des montants */
+    FOYERS.push({ x:u * 166,
+                  y:-zc - 300 + au * au * 150,
+                  h:126 - au * 26 + Math.sin(k * 2.1) * 15,
+                  e:2.1 - au * 0.55,
+                  devant:false, ph:k * 0.71 + 0.4, gros:2, dyn:1, att:0.46 });
+  }
+  /* quelques langues très hautes juste derrière le crâne : elles
+     débordent de part et d'autre du visage et lèchent l'arc */
+  for(k = -2; k <= 2; k++){
+    FOYERS.push({ x:k * 46, y:-zc - 268 - Math.abs(k) * 14,
+                  h:150 - Math.abs(k) * 16, e:1.5,
+                  devant:false, ph:k * 1.27 + 5.3, gros:1, dyn:1, att:0.4 });
+  }
+  /* couronne de flammes plus fines épousant la silhouette du visage :
+     elles remplissent les interstices restants autour des cheveux */
+  var NH = 11;
+  for(k = 0; k < NH; k++){
+    var ah = Math.PI + (k + 0.5) / NH * Math.PI;
+    FOYERS.push({ x:Math.cos(ah) * 126,
+                  y:Y_TETE + Math.sin(ah) * 150 + 32,
+                  h:66 + Math.sin(k * 1.3) * 17,
+                  e:1.3,
+                  devant:false, ph:k * 0.53 + 2.7, gros:1, dyn:0.8, att:0.55 });
+  }
+  /* deux torchères géantes de part et d'autre du visage : elles
+     cadrent la tête et l'éclairent par le bas */
+  [-1, 1].forEach(function(sens){
+    FOYERS.push({ x:sens * 152, y:-zc - 40, h:104, e:1.8,
+                  devant:false, ph:sens * 2.4 + 1.1, gros:2, dyn:0.9, att:0.55 });
+  });
+
+  /* un léger souffle par défaut sur tout le reste : aucun feu du
+     Brasier ne doit paraître figé */
+  for(i = 0; i < FOYERS.length; i++){
+    if(FOYERS[i].dyn === undefined) FOYERS[i].dyn = 0.34;
+    if(FOYERS[i].att === undefined) FOYERS[i].att = 1;
+  }
+}
+
+/* Dessine un foyer : au vacillement rapide de flamme() s'ajoutent une
+   respiration lente de la hauteur et une dérive latérale, pour que les
+   grands feux vivent à l'échelle de la seconde et non de l'image. */
+function dessineFoyer(c, F, tps){
+  var t = tps + F.ph;
+  var souffle = 1 + F.dyn * (0.32 * Math.sin(t * 0.9 + F.ph)
+                           + 0.17 * Math.sin(t * 2.3 + F.ph * 1.7));
+  var dx = F.dyn * (Math.sin(t * 0.7 + F.ph * 2.3) * 5
+                  + Math.sin(t * 1.9 + F.ph) * 2.4);
+  var hh = F.h * souffle;
+  flamme(c, F.x + dx, F.y, hh, t, F.e, false, F.att);
+  if(F.gros) braises(c, F.x + dx, F.y - hh * 0.6, t, F.gros * 5, F.e, 60 + hh);
 }
 
 /* ---------------------------------------------------------------
@@ -324,6 +386,46 @@ function construitSpriteQG(){
 
   /* ---- la couronne : la maçonnerie remonte autour du visage ---- */
   var zc = Z_TERRASSE[4];
+
+  /* L'abside : un fond de niche plein derrière la tête. Sans lui on
+     voyait la mer par les interstices entre la chevelure et les
+     montants — et le visage semblait collé devant le décor au lieu
+     d'être serti dans la pierre. */
+  function contourAbside(cx){
+    cx.beginPath();
+    cx.moveTo(-136, -zc + 74);
+    cx.lineTo(-136, -zc - 296);
+    cx.bezierCurveTo(-136, -zc - 456, 136, -zc - 456, 136, -zc - 296);
+    cx.lineTo(136, -zc + 74);
+    cx.closePath();
+  }
+  var gab = A.createLinearGradient(0, -zc - 456, 0, -zc + 74);
+  gab.addColorStop(0.00, ecl(CQ.pierre, 0.22));
+  gab.addColorStop(0.52, ecl(CQ.pierre, 0.40));
+  gab.addColorStop(1.00, ecl(CQ.pierre, 0.26));
+  A.fillStyle = gab;
+  contourAbside(A); A.fill();
+  A.save();
+  contourAbside(A); A.clip();
+  appareillage(A, -142, 142, -zc + 70, 40, 14);
+  /* les bords de la niche se creusent d'ombre */
+  var gab2 = A.createRadialGradient(0, -zc - 190, 30, 0, -zc - 190, 250);
+  gab2.addColorStop(0, "rgba(0,0,0,0)");
+  gab2.addColorStop(0.62, "rgba(6,3,8,.30)");
+  gab2.addColorStop(1, "rgba(6,3,8,.72)");
+  A.fillStyle = gab2;
+  A.fillRect(-140, -zc - 460, 280, 540);
+  /* nervures verticales : la niche a été taillée dans la masse */
+  A.strokeStyle = "rgba(0,0,0,.34)"; A.lineWidth = 2.4;
+  for(i = -3; i <= 3; i++){
+    if(!i) continue;
+    A.beginPath();
+    A.moveTo(i * 34, -zc + 70);
+    A.lineTo(i * 30, -zc - 330);
+    A.stroke();
+  }
+  A.restore();
+
   [-1, 1].forEach(function(sens){
     var x = sens * 122;
     function contour(cx){
@@ -518,8 +620,7 @@ function dessineQG(c, tps){
     for(var i = 0; i < FOYERS.length; i++){
       var F = FOYERS[i];
       if(F.devant) continue;
-      flamme(c, F.x, F.y, F.h, tps + F.ph, F.e);
-      if(F.gros) braises(c, F.x, F.y - F.h * 0.6, tps + F.ph, 5, F.e, 60);
+      dessineFoyer(c, F, tps);
     }
   }
 
@@ -534,8 +635,7 @@ function dessineQG(c, tps){
     for(var k = 0; k < FOYERS.length; k++){
       var F2 = FOYERS[k];
       if(!F2.devant) continue;
-      flamme(c, F2.x, F2.y, F2.h, tps + F2.ph, F2.e);
-      if(F2.gros) braises(c, F2.x, F2.y - F2.h * 0.6, tps + F2.ph, 5, F2.e, 60);
+      dessineFoyer(c, F2, tps);
     }
     /* braises qui montent de toute la masse */
     braises(c, 0, -120, tps * 0.7, 26, 1.5, 320);

@@ -324,8 +324,11 @@ var COUCHES_FLAMME = [
   { c:"#ffd464", a:0.80, s:0.50, d:3.0, w:2.8 },
   { c:"#fff8dc", a:0.72, s:0.27, d:4.4, w:1.6 }
 ];
-function flamme(c, x, y, h, t, ech, froide){
+/* att : atténuation d'opacité. Les très grands foyers se recouvrent ;
+   sans elle, l'addition des couches sature le rendu en blanc. */
+function flamme(c, x, y, h, t, ech, froide, att){
   ech = ech || 1;
+  att = (att === undefined) ? 1 : att;
   /* battement : trois fréquences + une lente respiration */
   var vac = 0.80 + 0.16 * Math.sin(t * 7.3 + x * 0.05)
                  + 0.10 * Math.sin(t * 13.7 + 1.7)
@@ -340,7 +343,7 @@ function flamme(c, x, y, h, t, ech, froide){
     var ond = derive + Math.sin(t * 11 + k.d * 2.3) * 1.5 * ech;
     var hi = hh * k.s * (0.88 + Math.sin(t * 17 + k.d * 3.1) * 0.12);
     var w = k.w * ech * (froide ? 0.7 : 1);
-    c.fillStyle = rgba(k.c, k.a);
+    c.fillStyle = rgba(k.c, k.a * att);
     c.beginPath();
     c.moveTo(x - w, y);
     c.quadraticCurveTo(x - w * 1.25 + ond * 0.5, y - hi * 0.5, x + ond, y - hi);
@@ -349,13 +352,16 @@ function flamme(c, x, y, h, t, ech, froide){
   }
   /* une langue se détache et monte */
   var ph = (t * 1.9 + x * 0.017) % 1;
-  c.fillStyle = "rgba(255,168,54," + ((1 - ph) * 0.42) + ")";
+  c.fillStyle = "rgba(255,168,54," + ((1 - ph) * 0.42 * att) + ")";
   c.beginPath();
   c.ellipse(x + derive * 1.5, y - hh * (0.95 + ph * 0.75),
             2.6 * ech * (1 - ph * 0.5), 4.4 * ech * (1 - ph * 0.4), 0, 0, 6.2832);
   c.fill();
   c.restore();
-  lueurRapide(c, x, y - hh * 0.35, hh * 1.9, "#ff8a1e", (0.14 + vac * 0.10));
+  /* le halo est plafonné : sur les très grands foyers il coûtait un
+     drawImage de plusieurs centaines de pixels de côté par flamme */
+  lueurRapide(c, x, y - hh * 0.35, Math.min(hh * 1.9, 170), "#ff8a1e",
+              (0.14 + vac * 0.10) * att);
 }
 
 /* Braises qui montent au-dessus d'un foyer */

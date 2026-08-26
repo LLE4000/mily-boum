@@ -320,12 +320,15 @@ function gardienne3D(c, x, y, ech, inten, tps){
   c.fillStyle = halo;
   c.beginPath(); c.arc(0, -6, 132, 0, 6.2832); c.fill();
   c.restore();
-  c.save();
-  c.globalAlpha = 0.42; c.fillStyle = "#000";
-  c.translate(8, 11);
-  cheminCheveux(c); c.fill();
-  cheminTete(c); c.fill();
-  c.restore();
+  /* Occlusion : la tête assombrit le fond de niche autour d'elle.
+     Un dégradé, jamais une silhouette pleine — un contour net posé
+     sur les flammes se verrait comme une tache rectangulaire. */
+  var go = c.createRadialGradient(7, 18, 12, 7, 18, 96);
+  go.addColorStop(0.00, "rgba(9,4,10,.58)");
+  go.addColorStop(0.50, "rgba(9,4,10,.34)");
+  go.addColorStop(1.00, "rgba(9,4,10,0)");
+  c.fillStyle = go;
+  c.beginPath(); c.ellipse(7, 18, 96, 112, 0, 0, 6.2832); c.fill();
   c.restore();
 
   gardienne(c, x, y, ech, inten, tps);
