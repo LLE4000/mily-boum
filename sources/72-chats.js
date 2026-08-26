@@ -8,8 +8,13 @@
    tirer, qu'il les reconnaisse au premier coup d'œil comme « ça, on
    n'y touche pas », et qu'il s'en veuille après coup.
 
+   Tailles, mesurées au balayage d'alphas et non estimées : Gégé la
+   belette culmine à 19 unités, Tweety à 22,5. Gribouille monte à 26,
+   Praline à 24,7 — un peu plus gros que la belette, pas le double — et
+   Croquette s'arrête à 18, plus petit que tout le monde.
+
    D'où quatre partis pris, tous dictés par le zoom de jeu (z ≈ 0,5 à
-   0,9 : un chat de 24 px de haut n'en fait plus que 13 à l'écran).
+   0,9 : un chat de 26 unités n'en fait plus que 13 à l'écran).
 
    1. TROIS VALEURS FRANCHEMENT SÉPARÉES, pas trois nuances de roux.
       Gribouille est sombre — gris ardoise — mais taché de blanc pur ;

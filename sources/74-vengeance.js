@@ -199,27 +199,13 @@ function dessineRayonsVengeance(c, tps){
     var ox = pq.x + yx[k].x * z, oy = pq.y + yx[k].y * z;
     /* le segment aérien œil → impact */
     var bx = ox + (pi.x - ox) * lance, by = oy + (pi.y - oy) * lance;
-    /* IL EN FAUT BIEN DEUX. Les deux yeux sont écartés de soixante
-       unités locales ; à quarante cases de distance, deux droites
-       parties de là se superposent et on ne voit qu'un rayon. On les
-       fait donc BOMBER en sens contraire, d'un vingtième de leur
-       longueur : deux arcs nettement distincts qui se rejoignent sur
-       la même cible, ce qui est exactement ce qu'on veut lire. */
-    var lx = bx - ox, ly = by - oy;
-    var ln = Math.hypot(lx, ly) || 1;
-    var s = k ? 1 : -1;
-    var bomb = ln * 0.055 * s;
-    var mx = (ox + bx) / 2 + (-ly / ln) * bomb + Math.sin(tps * 41 + k * 2) * 4 * z;
-    var my = (oy + by) / 2 + ( lx / ln) * bomb + Math.cos(tps * 37 + k * 2) * 4 * z;
-    /* une courbe, pas trois segments : on échantillonne la quadratique
-       pour que traitRayon la trace d'un seul geste */
-    var arc = [], NP = 18;
-    for(var i = 0; i <= NP; i++){
-      var u = i / NP, w = 1 - u;
-      arc.push({ x:w * w * ox + 2 * w * u * mx + u * u * bx,
-                 y:w * w * oy + 2 * w * u * my + u * u * by });
-    }
-    traitRayon(c, arc, larg, alpha);
+    /* DROIT. Deux traits tendus de l'œil à la cible, sans la moindre
+       courbure : c'est un rayon, pas un jet. Ce qui les distingue l'un
+       de l'autre, ce sont leurs deux départs — les yeux sont écartés —
+       et leurs deux arrivées, puisque les traînées au sol repartent en
+       V. Entre les deux ils se rejoignent, et c'est bien le propos :
+       ils CONVERGENT sur la même troupe. */
+    traitRayon(c, [{ x:ox, y:oy }, { x:bx, y:by }], larg, alpha);
 
     /* la continuation au sol, seulement une fois la cible touchée */
     if(sol > 0.001) traitRayon(c, pointsTrainee(V, k, sol, tps), larg * 0.82, alpha);
