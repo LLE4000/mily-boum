@@ -224,7 +224,11 @@ var DEF = {
      peut plus abaisser ses rampes et se tait. Son verrou l'empêche de
      changer de cible en cours de route : la première qui entre dans son
      périmètre est suivie jusqu'au bout. */
-  frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:30.9, degats:80, cadence:2700, emprise:3, tourelle:1, vitesseProj:8.5, porteeMin:5.15, verrou:1 },
+  /* Cadence doublée, dégâts par roquette divisés par deux : les DPS
+     sont inchangés au point près, mais le ciel se remplit — deux fois
+     plus de départs, de traînées et d'impacts. C'est un choix de
+     spectacle, pas d'équilibrage. */
+  frelon:    { nom:"Frelon",    desc:"batterie de missiles",         pv:840, portee:30.9, degats:40, cadence:1350, emprise:3, tourelle:1, vitesseProj:8.5, porteeMin:5.15, verrou:1 },
   pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
   bobine:    { nom:"Bobine",    desc:"pylône à arc",                 pv:700, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
   cuve:      { nom:"Cuve",      desc:"citerne de naphte",            pv:420, portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },

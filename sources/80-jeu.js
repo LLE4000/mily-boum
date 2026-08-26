@@ -995,8 +995,19 @@ function tireDefense(b, f, c, d, tps){
     son.jetFlamme();
   }else if(b.t === "frelon"){
     b.recul = 1;
-    jeu.projectiles.push({ t:"roquette", gx:b.gx, gy:b.gy, z:26, cible:c,
-      but:{ gx:c.gx, gy:c.gy }, degats:f.degats, vit:f.vitesseProj, age:0, brouillard:0 });
+    /* Les six tubes partent à tour de rôle : chaque départ sort d'une
+       bouche différente, légèrement décalée, et chaque roquette reçoit
+       SON profil de vol — apogée et dérive propres — pour que deux
+       tirs ne dessinent jamais la même courbe dans le ciel. */
+    b.tube = ((b.tube | 0) + 1) % 6;
+    var ecT = (b.tube % 2 ? 1 : -1) * (0.22 + (b.tube % 3) * 0.14);
+    var vol0 = Math.max(0.7, d / f.vitesseProj);
+    jeu.projectiles.push({ t:"roquette",
+      gx:b.gx - Math.sin(b.angle) * ecT, gy:b.gy + Math.cos(b.angle) * ecT,
+      z:34, cible:c, but:{ gx:c.gx, gy:c.gy },
+      degats:f.degats, vit:f.vitesseProj, age:0, brouillard:0,
+      vol:vol0, apogee:26 + Math.min(110, d * 4.5) + (b.tube % 3) * 12,
+      tr:[] });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.5 });
     son.tirFrelon();
   }else if(b.t === "pilon"){
@@ -1044,18 +1055,40 @@ function majProjectiles(dt){
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
       var pas = p.vit * dt;
       p.ang = Math.atan2(dy, dx);
-      if(d <= pas || p.age > 5){
+      if(d <= pas || p.age > 6){
         if(p.t === "roquetteJ") appliqueDegatsCible(p.cible, p.degats, p.but);
         else{
           if(p.cible && p.cible.pv > 0) toucheUnite(p.cible, p.degats);
           else degatsZone(bx, by, 0.8, p.degats);
         }
-        jeu.effets.push({ t:"boum", gx:bx, gy:by, age:0, duree:0.5, r:0.9, force:0.6 });
+        if(p.t === "roquette"){
+          /* une roquette qui pique du ciel doit marquer le sol : boule
+             de feu plus franche, anneau de souffle, gerbe de sable */
+          jeu.effets.push({ t:"boum", gx:bx, gy:by, age:0, duree:0.6, r:1.15, force:0.9 });
+          jeu.effets.push({ t:"onde", gx:bx, gy:by, age:0, duree:0.4, r:1.7 });
+          jeu.effets.push({ t:"impact", gx:bx + (Math.random() - 0.5) * 0.9,
+                            gy:by + (Math.random() - 0.5) * 0.9, age:0, duree:0.35 });
+        }else{
+          jeu.effets.push({ t:"boum", gx:bx, gy:by, age:0, duree:0.5, r:0.9, force:0.6 });
+        }
         son.boum(0.3);
         jeu.projectiles.splice(i, 1);
         continue;
       }
       p.gx += dx / d * pas; p.gy += dy / d * pas;
+      /* Vol en cloche de la roquette de Frelon : elle part de la rampe
+         (34 px), grimpe jusqu'à SON apogée puis pique sur la cible. Le
+         guidage reste au sol — seule la hauteur dessinée suit la
+         cloche, l'équilibrage n'y voit que du feu. Si la cible fuit et
+         rallonge le vol, la roquette reste en descente rasante. */
+      if(p.t === "roquette" && p.vol){
+        var tz = Math.min(1, p.age / p.vol);
+        p.z = (1 - tz) * 34 + Math.sin(tz * Math.PI) * p.apogee;
+        p.tr.push(p.gx, p.gy, p.z);
+        /* une demi-seconde de fumée derrière chaque roquette : c'est la
+           traînée qui rend la trajectoire lisible dans le ciel */
+        if(p.tr.length > 96) p.tr.splice(0, 3);
+      }
     }else if(p.t === "viper"){
       var tv = p.age / p.duree;
       if(tv >= 1){

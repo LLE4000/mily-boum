@@ -239,15 +239,49 @@ function dessineEffet(c, e, tps){
                                e.gy + Math.sin(e.ang) * e.portee * qg2);
       lueur(c, pg2.x, pg2.y, e.portee * (5 + qg2 * 9) * z, "#ff6a14", 0.10 * (1 - t));
     }
-  }else if(e.t === "souffle"){
-    var d = vecteurEcran(e.ang);
+
+    /* escarbilles emportées par le jet : de petites particules vives
+       qui filent dans l'axe, montent, et s'éteignent en bout de course */
     c.save();
-    c.globalAlpha = (1 - t) * 0.5;
-    for(var s = 0; s < 4; s++){
-      bouffee(c, p.x - d.x * (10 + s * 9 + t * 30) * z, p.y - 22 * z - d.y * (10 + s * 9) * z,
-              (4 + s * 2 + t * 10) * z, 0.5, "#6a6068");
+    c.globalCompositeOperation = "lighter";
+    for(var ez = 0; ez < 7; ez++){
+      var qe = ((tps * 1.9 + ez * 0.143) % 1);
+      var lacetE = Math.sin(tps * 7 + ez * 2.2) * e.ouv * 0.4 * qe;
+      var pe2 = versEcran(cam, e.gx + Math.cos(e.ang + lacetE) * e.portee * qe,
+                               e.gy + Math.sin(e.ang + lacetE) * e.portee * qe);
+      c.fillStyle = "rgba(255," + (220 - (qe * 140) | 0) + ",90," + ((1 - qe) * 0.85) + ")";
+      c.beginPath();
+      c.arc(pe2.x, pe2.y - (12 + qe * 26 + Math.sin(ez * 9.1) * 6) * z,
+            (1.6 - qe * 0.9) * z, 0, 6.2832);
+      c.fill();
     }
     c.restore();
+  }else if(e.t === "souffle"){
+    /* Souffle de départ d'une roquette : un éclair vers l'ARRIÈRE de la
+       rampe (les gaz s'échappent à l'opposé du tir), un panache qui
+       s'élève, et de la poussière chassée au sol de part et d'autre. */
+    var d = vecteurEcran(e.ang);
+    if(t < 0.4){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      c.fillStyle = "rgba(255,196,110," + ((1 - t / 0.4) * 0.7) + ")";
+      c.beginPath();
+      c.moveTo(p.x - d.x * 8 * z, p.y - 30 * z - d.y * 8 * z);
+      c.lineTo(p.x - d.x * (30 + t * 40) * z - d.y * 9 * z, p.y - 22 * z - d.y * 26 * z + d.x * 9 * z);
+      c.lineTo(p.x - d.x * (30 + t * 40) * z + d.y * 9 * z, p.y - 22 * z - d.y * 26 * z - d.x * 9 * z);
+      c.closePath(); c.fill();
+      c.restore();
+    }
+    for(var s = 0; s < 5; s++){
+      bouffeeFloue(c, p.x - d.x * (8 + s * 10 + t * 34) * z,
+                   p.y - (24 + s * 5 + t * 26) * z - d.y * (8 + s * 8) * z,
+                   (5 + s * 2.6 + t * 12) * z, (1 - t) * 0.4, "188,182,176", 0.85);
+    }
+    /* poussière chassée au ras du sol, perpendiculairement à la rampe */
+    for(var s2 = -1; s2 <= 1; s2 += 2){
+      bouffeeFloue(c, p.x + d.y * s2 * (14 + t * 30) * z, p.y - 4 * z - d.x * s2 * 4 * z,
+                   (7 + t * 10) * z, (1 - t) * 0.30, "205,192,168", 0.5);
+    }
   }else if(e.t === "eclair"){
     /* ---- ÉLECTROBOMBE, l'impact ----
        Un dôme d'énergie qui se déploie d'un coup et se dissipe, une
@@ -490,9 +524,69 @@ function dessineProjectile(c, p, tps){
   var z = cam.z;
   var zz = (p.z || 0) * z;
   if(p.t === "roquetteJ" || p.t === "roquette"){
+    var hx = e.x, hy = e.y - 18 * z - zz;
+
+    /* --- roquette de Frelon : traînée de fumée + panache moteur --- */
+    if(p.t === "roquette" && p.tr && p.tr.length >= 6){
+      /* ombre au sol : elle rétrécit avec l'altitude et rend la
+         trajectoire lisible même quand la roquette est haut */
+      var fo = Math.max(0.10, 1 - (p.z || 0) / 130);
+      c.save(); c.globalAlpha = 0.22 * fo; c.fillStyle = "#000";
+      c.beginPath(); c.ellipse(e.x, e.y, 4.5 * fo * z, 2.2 * fo * z, 0, 0, 6.2832); c.fill();
+      c.restore();
+      /* la fumée : une bouffée sur deux points d'historique, qui
+         gonfle et pâlit en vieillissant */
+      var nT = p.tr.length / 3;
+      for(var s5 = 0; s5 < nT - 1; s5 += 2){
+        var q5 = versEcran(cam, p.tr[s5 * 3], p.tr[s5 * 3 + 1]);
+        var a5 = s5 / nT;                          // 0 = le plus vieux
+        bouffeeFloue(c, q5.x, q5.y - 18 * z - p.tr[s5 * 3 + 2] * z,
+                     (7.5 - a5 * 4.5) * z, 0.30 * a5 + 0.10, "202,196,206", 0.9);
+      }
+      /* orientation VRAIE : du dernier point d'historique vers la tête,
+         verticale comprise — la roquette pique du nez en descente */
+      var d6 = p.tr.length - 6;
+      var q6 = versEcran(cam, p.tr[d6], p.tr[d6 + 1]);
+      var vx6 = hx - q6.x, vy6 = hy - (q6.y - 18 * z - p.tr[d6 + 2] * z);
+      var angV = Math.atan2(vy6, vx6 || 0.001);
+      c.save();
+      c.translate(hx, hy);
+      c.rotate(angV);
+      c.scale(z, z);
+      /* corps : ogive rouge, fuselage clair, ailettes */
+      c.fillStyle = "#d8d4c8";
+      c.beginPath();
+      c.moveTo(4.5, -1.8); c.lineTo(-5.5, -1.8); c.lineTo(-5.5, 1.8); c.lineTo(4.5, 1.8);
+      c.closePath(); c.fill();
+      c.fillStyle = "#c0392b";
+      c.beginPath(); c.moveTo(8.5, 0); c.lineTo(4.5, -1.9); c.lineTo(4.5, 1.9); c.closePath(); c.fill();
+      c.fillStyle = "#8e8b83";
+      c.beginPath(); c.moveTo(-5.5, -1.8); c.lineTo(-8.5, -3.4); c.lineTo(-5.5, -0.4); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(-5.5, 1.8); c.lineTo(-8.5, 3.4); c.lineTo(-5.5, 0.4); c.closePath(); c.fill();
+      c.fillStyle = "rgba(255,255,255,.4)";
+      c.fillRect(-5.5, -1.6, 10, 1.1);
+      /* panache moteur : flamme effilée + cœur blanc */
+      c.globalCompositeOperation = "lighter";
+      var lf = 9 + Math.sin(tps * 40 + p.age * 60) * 2.5;
+      c.fillStyle = "rgba(255,150,40,.85)";
+      c.beginPath();
+      c.moveTo(-5.5, -1.5); c.lineTo(-5.5 - lf, 0); c.lineTo(-5.5, 1.5);
+      c.closePath(); c.fill();
+      c.fillStyle = "rgba(255,240,190,.9)";
+      c.beginPath();
+      c.moveTo(-5.5, -0.7); c.lineTo(-5.5 - lf * 0.55, 0); c.lineTo(-5.5, 0.7);
+      c.closePath(); c.fill();
+      c.restore();
+      /* lueur du moteur, projetée derrière la roquette */
+      lueurRapide(c, hx - Math.cos(angV) * 7 * z, hy - Math.sin(angV) * 7 * z,
+                  11 * z, "#ffb24a", 0.5);
+      return;
+    }
+
+    /* --- roquette de Meuf (roquetteJ) : rendu court et vif --- */
     var d = vecteurEcran(p.ang || 0);
     c.save();
-    c.translate(e.x, e.y - 18 * z - zz);
+    c.translate(hx, hy);
     c.rotate(Math.atan2(d.y, d.x));
     c.scale(z, z);
     c.fillStyle = p.t === "roquetteJ" ? "#e8672f" : "#8a9a62";
@@ -505,10 +599,10 @@ function dessineProjectile(c, p, tps){
     /* traînée */
     c.save();
     c.globalCompositeOperation = "lighter";
-    var g = c.createRadialGradient(e.x, e.y - 18 * z - zz, 0, e.x, e.y - 18 * z - zz, 9 * z);
+    var g = c.createRadialGradient(hx, hy, 0, hx, hy, 9 * z);
     g.addColorStop(0, "rgba(255,200,120,.7)"); g.addColorStop(1, "rgba(255,120,30,0)");
     c.fillStyle = g;
-    c.beginPath(); c.arc(e.x - (d ? d.x * 6 * z : 0), e.y - 18 * z - zz - (d ? d.y * 6 * z : 0), 9 * z, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(hx - (d ? d.x * 6 * z : 0), hy - (d ? d.y * 6 * z : 0), 9 * z, 0, 6.2832); c.fill();
     c.restore();
   }else if(p.t === "viper"){
     c.save();
