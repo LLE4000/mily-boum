@@ -427,7 +427,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.05";
+var VERSION = "v0.06";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -767,12 +767,20 @@ function tirePondere(al, table){
   return table[table.length - 1][0];
 }
 
-function genereCarte(codeSalon, index){
-  var gr  = graineCarte(codeSalon, index);
+/* plan   : chaîne encodée par encodePlan(), ou "" pour la carte d'origine
+   tirage : numéro de tirage. À 0 et sans plan, la carte est au bit près
+            celle d'avant l'éditeur — c'est ce qui protège les salons
+            déjà en cours, dont le bitmap des destructions désigne les
+            bâtiments par leur indice. */
+function genereCarte(codeSalon, index, plan, tirage){
+  tirage = tirage | 0;
+  var gr  = tirage ? (graineTexte(codeSalon + "#" + index + "@" + tirage) >>> 0)
+                   : graineCarte(codeSalon, index);
   var al  = prng(gr);
   var fic = CARTES[index % CARTES.length];
+  var zones = (plan && typeof plan === "string" && plan.length) ? decodePlan(plan) : null;
   var c = {
-    index:index, graine:gr, nom:fic.nom, biome:fic.biome,
+    index:index, graine:gr, nom:fic.nom, biome:fic.biome, tirage:tirage,
     batiments:[], rochers:[], decors:[], creatures:[],
     qg:{ gx:QG_GX, gy:QG_GY, pvMax:fic.pvQG, pv:fic.pvQG }
   };
@@ -784,13 +792,27 @@ function genereCarte(codeSalon, index){
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
     for(var ly = 3; ly <= GH - 4; ly += 5){
-      if(al() < 0.28) continue;                                   // allées
+      /* La zone du plan sous ce nœud décide de deux choses : combien on
+         en saute ici, et quel type on y pose. Elle ne décide RIEN
+         d'autre — la position, le jitter et l'orientation restent
+         tirés comme avant. */
+      var z  = zones ? zones[zoneDePlan(lx, ly)] : 0;
+      var zt = z & 7, zd = (z >> 3) & 3;
+      var saut = zd ? DENSITES[zd].saut : 0.28;
+
+      if(al() < saut) continue;                                   // allées
       var dx = lx - QG_GX, dy = ly - QG_GY;
       if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;        // emprise du Brasier
       var d = Math.hypot(dx, dy);
-      var t = d < 30 ? tirePondere(al, bandeProche)
-            : d < 62 ? tirePondere(al, bandeMoy)
-                     : tirePondere(al, bandeLoin);
+      /* Le tirage de bande est consommé DANS TOUS LES CAS, même quand
+         la zone impose son type. Sans cela, peindre une seule zone
+         décalerait toute la suite des tirages et rebattrait la carte
+         entière : on veut qu'un coup de pinceau ne change que ce qu'il
+         touche. */
+      var tAuto = d < 30 ? tirePondere(al, bandeProche)
+                : d < 62 ? tirePondere(al, bandeMoy)
+                         : tirePondere(al, bandeLoin);
+      var t = zt ? TYPES_PLAN[zt] : tAuto;
       var gx = lx + (al() - 0.5) * 0.7;
       var gy = ly + (al() - 0.5) * 0.7;
       var f = DEF[t];
@@ -1119,16 +1141,116 @@ function compteBits(s){
   return n;
 }
 
+/* ----------------------------------------------------------------
+   LE PLAN DE DÉFENSE
+   La carte est découpée en zones de huit cases. Pour chacune, le
+   plan retient DEUX choses : le type de défense qu'on veut y voir, et
+   la densité de remplissage. Ce n'est pas un plan au sens d'un calque
+   figé, c'est une RECETTE : « ici des Frelons, et serré ». Le tirage
+   qui la réalise change à chaque remise à zéro, si bien qu'on ne
+   rejoue jamais deux fois la même carte tout en gardant le même esprit.
+
+   Un même type peut occuper autant de zones qu'on veut : rien ne les
+   relie entre elles, chaque zone est décidée dans son coin.
+   ---------------------------------------------------------------- */
+var PAS_ZONE = 8;                            // côté d'une zone, en cases
+var ZONES_L  = Math.ceil(GW / PAS_ZONE);     // 19
+var ZONES_H  = Math.ceil(GH / PAS_ZONE);     // 17
+var NB_ZONES = ZONES_L * ZONES_H;            // 323
+
+/* L'ordre de cette liste est GRAVÉ : il est encodé dans les chaînes de
+   plan qui circulent entre les joueurs et dorment dans leur navigateur.
+   On ajoute à la fin, jamais au milieu. L'indice 0 veut dire « laisse
+   la génération décider », c'est la gomme. La cellule énergétique n'y
+   est pas : c'est la ressource, pas une défense. */
+var TYPES_PLAN = ["auto", "crible", "chalumeau", "frelon", "pilon", "bobine", "cuve", "silo"];
+
+/* Densités. 0 = « comme d'habitude ». Les autres remplacent la
+   proportion de nœuds sautés du quadrillage : plus on saute, plus la
+   zone est clairsemée. Le quadrillage d'origine en saute 28 %. */
+var DENSITES = [
+  { nom:"d'origine", saut:0.28 },
+  { nom:"clairsemé", saut:0.62 },
+  { nom:"fourni",    saut:0.28 },
+  { nom:"saturé",    saut:0.04 }
+];
+
+function zoneDePlan(gx, gy){
+  var zx = (gx / PAS_ZONE) | 0, zy = (gy / PAS_ZONE) | 0;
+  if(zx < 0) zx = 0; if(zx >= ZONES_L) zx = ZONES_L - 1;
+  if(zy < 0) zy = 0; if(zy >= ZONES_H) zy = ZONES_H - 1;
+  return zy * ZONES_L + zx;
+}
+/* Cinq bits par zone : trois pour le type, deux pour la densité.
+   323 zones × 5 = 1615 bits, soit 270 caractères — du même ordre que
+   le bitmap des destructions, sans risque pour la taille du paquet. */
+function encodePlan(zones){
+  var bits = [], i, k, t, d;
+  for(i = 0; i < NB_ZONES; i++){
+    var z = zones[i] || 0;
+    t = z & 7; d = (z >> 3) & 3;
+    if(t >= TYPES_PLAN.length) t = 0;
+    for(k = 0; k < 3; k++) bits.push((t >> k) & 1);
+    for(k = 0; k < 2; k++) bits.push((d >> k) & 1);
+  }
+  var s = encodeBits(bits);
+  return compteBits(s) === 0 ? "" : s;      // tout d'origine == rien à dire
+}
+/* decodeBits rend des zéros pour une entrée absente, inconnue ou
+   tronquée : un plan corrompu dégénère zone par zone en « auto »,
+   c'est-à-dire exactement la carte d'aujourd'hui. Le mode dégradé du
+   plan est le jeu tel qu'il est. */
+function decodePlan(s){
+  var bits = decodeBits(s, NB_ZONES * 5), z = [], i;
+  for(i = 0; i < NB_ZONES; i++){
+    var b = i * 5;
+    var t = bits[b] | (bits[b+1] << 1) | (bits[b+2] << 2);
+    var d = bits[b+3] | (bits[b+4] << 1);
+    if(t >= TYPES_PLAN.length) t = 0;
+    z.push(t | (d << 3));
+  }
+  return z;
+}
+function planVide(){
+  var z = [], i;
+  for(i = 0; i < NB_ZONES; i++) z.push(0);
+  return z;
+}
+/* Combien de zones le joueur a réellement peintes. */
+function zonesPeintes(zones){
+  var n = 0, i;
+  for(i = 0; i < NB_ZONES; i++) if(zones[i]) n++;
+  return n;
+}
+
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"" };
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
+           p:"", pn:0, tg:0 };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
          typeof m.v === "number" && m.c >= 0 && m.pv >= 0;
 }
-/* Position d'un instantané dans la progression : campagne d'abord,
-   île ensuite. C'est cet ordre qui décide qui écrase qui. */
-function rangMonde(m){ return (m.cy | 0) * 1000 + (m.c | 0); }
+/* Position d'un instantané dans la progression. Le TIRAGE domine tout :
+   changer de tirage, c'est rebattre les défenses de l'île, donc les
+   destructions de l'ancien tirage ne désignent plus rien. Vient
+   ensuite la campagne, puis l'île. C'est cet ordre qui décide qui
+   écrase qui. */
+function rangMonde(m){ return (m.tg | 0) * 1000000 + (m.cy | 0) * 1000 + (m.c | 0); }
+
+/* Deux plans concurrents. Le numéro tranche ; à numéro égal, la chaîne
+   tranche. Commutatif, associatif, idempotent : converge quel que soit
+   l'ordre d'arrivée, comme Math.min sur les PV. Un « a.p || b.p »
+   n'aurait PAS cette propriété — adopteMonde passe toujours le local
+   en premier, donc chacun aurait gardé le sien à jamais et les deux
+   clients se seraient réécrit l'instantané en boucle. */
+function meilleurPlan(a, b){
+  var pa = (a && typeof a.p === "string") ? a.p : "", na = a ? (a.pn | 0) : 0;
+  var pb = (b && typeof b.p === "string") ? b.p : "", nb = b ? (b.pn | 0) : 0;
+  if(nb > na) return { p:pb, pn:nb };
+  if(na > nb) return { p:pa, pn:na };
+  return pb > pa ? { p:pb, pn:nb } : { p:pa, pn:na };
+}
 
 /* Fusion monotone. Une île plus avancée écrase tout : ses bâtiments
    n'ont rien à voir avec ceux de la précédente. À rang égal, une
@@ -1138,9 +1260,18 @@ function fusionneMonde(a, b){
   if(!mondeValide(a)) return mondeValide(b) ? b : null;
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
+  var pl = meilleurPlan(a, b);
   if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
-                       d:b.d || "", g:b.g || "", w:b.w || "" };
-  if(ra > rb) return a;
+                       d:b.d || "", g:b.g || "", w:b.w || "",
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0 };
+  if(ra > rb){
+    /* Le raccourci « return a » perdrait un plan plus récent au profit
+       d'une île plus avancée : on ne renvoie a tel quel que si c'est
+       bien son plan qui l'emporte. */
+    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0)) return a;
+    return { v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
+             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0 };
+  }
   return {
     v : Math.max(a.v, b.v),
     cy: a.cy | 0,
@@ -1150,7 +1281,8 @@ function fusionneMonde(a, b){
     /* Gégé et Tweety ne meurent qu'une fois : le premier nom inscrit
        y reste, quel que soit l'ordre d'arrivée des messages. */
     g : a.g || b.g || "",
-    w : a.w || b.w || ""
+    w : a.w || b.w || "",
+    p : pl.p, pn: pl.pn, tg: a.tg | 0
   };
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
@@ -1160,7 +1292,9 @@ function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
          (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
-         (a.w || "") === (b.w || "");
+         (a.w || "") === (b.w || "") &&
+         /* sans ces deux-là, un plan modifié ne serait jamais republié */
+         (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0);
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
@@ -8457,11 +8591,20 @@ function connecteRelais(url){
         reseau.connecte = true;
         reseau.tentatives = 0;
         majEtatReseau();
-        envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
-        if(monNom) envoie({ t:"bonjour", nom:monNom });
-        /* si l'on a du retard à rattraper localement, on le publie :
-           notre miroir peut être plus frais que celui du courtier */
-        if(monde) mondeSale = true;
+        /* Un SUBACK par SUBSCRIBE. Cette branche envoyait le SUBSCRIBE
+           du sujet monde SANS CONDITION : le SUBACK de ce second
+           abonnement rejouait la branche, qui réabonnait, à l'infini —
+           « bonjour » réémis et instantané republié à chaque tour, sur
+           un courtier public. Le drapeau borne l'abonnement à une fois
+           par connexion ; fermeRelais le remet à zéro. */
+        if(!reseau.abonneMonde){
+          reseau.abonneMonde = true;
+          envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
+          if(monNom) envoie({ t:"bonjour", nom:monNom });
+          /* si l'on a du retard à rattraper localement, on le publie :
+             notre miroir peut être plus frais que celui du courtier */
+          if(monde) mondeSale = true;
+        }
       }else if(p.type === 3){                            // PUBLISH
         var m = litPublish(p.corps);
         if(m.sujet === SUJET) recoit(m.message);
@@ -8486,6 +8629,7 @@ function fermeRelais(){
   }
   reseau.ws = null;
   reseau.connecte = false;
+  reseau.abonneMonde = false;
 }
 function envoieTrame(u8){
   if(reseau.ws && reseau.ws.readyState === 1){
@@ -8673,8 +8817,15 @@ function recoit(txt){
     message(j.nom + " a rejoint le salon.");
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
-    if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
-  else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+    /* `monde` peut encore être nul : le sujet des joueurs est souscrit
+       AVANT celui du monde, donc un « sync » arrive parfois avant le
+       moindre instantané. Sans cette garde, l'exception remontait dans
+       ws.onmessage et interrompait la boucle de décodage — les paquets
+       restants du tampon étaient perdus avec elle. */
+    if(monde){
+      if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
+      else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+    }
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
       jeu.file.adopteMinimum(m.pv);
       jeu.qg.pv = jeu.file.pv;

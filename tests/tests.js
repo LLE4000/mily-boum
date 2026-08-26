@@ -25,7 +25,8 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "genereCarte","empreinteCarte","utf8Octets","texteUtf8","encodeLongueur","decodeLongueur",
+    "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
+    "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
   ].join(",") + "};")();
@@ -211,6 +212,56 @@ G("4. Déterminisme de la génération de carte");
   ok("index différent → carte différente", N.empreinteCarte(a) !== N.empreinteCarte(c));
   var e = N.genereCarte("AUTRE", 0);
   ok("code de salon différent → carte différente", N.empreinteCarte(a) !== N.empreinteCarte(e));
+
+  /* ---- LE PLAN DE DÉFENSE ----
+     Le point le plus important est le premier : sans plan et sans
+     tirage, la carte doit rester au bit près celle d'avant l'éditeur.
+     Les salons en cours désignent leurs bâtiments détruits par leur
+     indice ; si la carte bougeait, ils rendraient les mauvais. */
+  ok("sans plan ni tirage, la carte est celle d'origine",
+     N.empreinteCarte(N.genereCarte("MILY", 0, "", 0)) === N.empreinteCarte(a));
+  ok("un plan absent, nul ou pourri est traité comme « d'origine »",
+     N.empreinteCarte(N.genereCarte("MILY", 0, null, 0)) === N.empreinteCarte(a) &&
+     N.empreinteCarte(N.genereCarte("MILY", 0, "@@@!!!", 0)) === N.empreinteCarte(a));
+
+  var zv = N.planVide();
+  ok("un plan vierge tient en " + N.NB_ZONES + " zones et s'encode en rien",
+     zv.length === N.NB_ZONES && N.encodePlan(zv) === "");
+  var zt = N.planVide();
+  zt[0] = 3 | (3 << 3); zt[100] = 5 | (1 << 3); zt[N.NB_ZONES - 1] = 7 | (2 << 3);
+  var ch = N.encodePlan(zt), zr = N.decodePlan(ch);
+  var identique = zr.length === N.NB_ZONES;
+  for(var iz = 0; iz < N.NB_ZONES; iz++) if(zt[iz] !== zr[iz]) identique = false;
+  ok("aller-retour d'encodage fidèle (" + ch.length + " caractères)", identique);
+  ok("3 zones peintes reconnues", N.zonesPeintes(zr) === 3);
+  ok("une chaîne corrompue dégénère en « tout d'origine »",
+     N.decodePlan("!!!???").every(function(x){ return x === 0; }));
+
+  /* le plan agit vraiment : mêmes zones partout → un seul type */
+  var zf = N.planVide();
+  for(var jz = 0; jz < N.NB_ZONES; jz++) zf[jz] = 3 | (3 << 3);   // frelon, saturé
+  var cf = N.genereCarte("MILY", 0, N.encodePlan(zf), 0);
+  var defF = cf.batiments.filter(function(b){ return b.t !== "cellule"; });
+  ok("plan « Frelon partout, saturé » : " + defF.length + " défenses, toutes Frelon",
+     defF.length > 500 && defF.every(function(b){ return b.t === "frelon"; }));
+  var zc = N.planVide();
+  for(var kz = 0; kz < N.NB_ZONES; kz++) zc[kz] = 0 | (1 << 3);   // clairsemé partout
+  var cc = N.genereCarte("MILY", 0, N.encodePlan(zc), 0);
+  var defC = cc.batiments.filter(function(b){ return b.t !== "cellule"; }).length;
+  ok("densité « clairsemé » retire des défenses (" + defC + " < " + (a.batiments.length - 121) + ")",
+     defC < defF.length * 0.75, "" + defC);
+
+  /* le tirage rebat les cartes, mais reste reproductible pour tous */
+  var t1 = N.genereCarte("MILY", 0, "", 1), t2 = N.genereCarte("MILY", 0, "", 2);
+  ok("un nouveau tirage donne une autre carte",
+     N.empreinteCarte(t1) !== N.empreinteCarte(t2) &&
+     N.empreinteCarte(t1) !== N.empreinteCarte(a));
+  ok("un même tirage redonne la même carte chez tout le monde",
+     N.empreinteCarte(t1) === N.empreinteCarte(N.genereCarte("MILY", 0, "", 1)));
+  ok("zoneDePlan reste dans la grille aux quatre coins",
+     N.zoneDePlan(0, 0) === 0 &&
+     N.zoneDePlan(N.GW * 2, N.GH * 2) === N.NB_ZONES - 1 &&
+     N.zoneDePlan(-50, -50) === 0);
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){
     var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;

@@ -86,11 +86,20 @@ function connecteRelais(url){
         reseau.connecte = true;
         reseau.tentatives = 0;
         majEtatReseau();
-        envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
-        if(monNom) envoie({ t:"bonjour", nom:monNom });
-        /* si l'on a du retard à rattraper localement, on le publie :
-           notre miroir peut être plus frais que celui du courtier */
-        if(monde) mondeSale = true;
+        /* Un SUBACK par SUBSCRIBE. Cette branche envoyait le SUBSCRIBE
+           du sujet monde SANS CONDITION : le SUBACK de ce second
+           abonnement rejouait la branche, qui réabonnait, à l'infini —
+           « bonjour » réémis et instantané republié à chaque tour, sur
+           un courtier public. Le drapeau borne l'abonnement à une fois
+           par connexion ; fermeRelais le remet à zéro. */
+        if(!reseau.abonneMonde){
+          reseau.abonneMonde = true;
+          envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
+          if(monNom) envoie({ t:"bonjour", nom:monNom });
+          /* si l'on a du retard à rattraper localement, on le publie :
+             notre miroir peut être plus frais que celui du courtier */
+          if(monde) mondeSale = true;
+        }
       }else if(p.type === 3){                            // PUBLISH
         var m = litPublish(p.corps);
         if(m.sujet === SUJET) recoit(m.message);
@@ -115,6 +124,7 @@ function fermeRelais(){
   }
   reseau.ws = null;
   reseau.connecte = false;
+  reseau.abonneMonde = false;
 }
 function envoieTrame(u8){
   if(reseau.ws && reseau.ws.readyState === 1){
@@ -302,8 +312,15 @@ function recoit(txt){
     message(j.nom + " a rejoint le salon.");
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
-    if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
-  else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+    /* `monde` peut encore être nul : le sujet des joueurs est souscrit
+       AVANT celui du monde, donc un « sync » arrive parfois avant le
+       moindre instantané. Sans cette garde, l'exception remontait dans
+       ws.onmessage et interrompait la boucle de décodage — les paquets
+       restants du tampon étaient perdus avec elle. */
+    if(monde){
+      if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
+      else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+    }
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
       jeu.file.adopteMinimum(m.pv);
       jeu.qg.pv = jeu.file.pv;
