@@ -661,7 +661,7 @@ function dessineNavette(c, v, tps){
   c.save();
   c.translate(A.x, A.y - 7 * z);
   c.fillStyle = "#7d8c78";
-  var lg = 20 * z;
+  var lg = 34 * z;      // assez longue pour retomber sur le sable
   var dx = -Math.cos(ang) * 0, dy = 0;
   c.beginPath();
   c.moveTo(0, 0);

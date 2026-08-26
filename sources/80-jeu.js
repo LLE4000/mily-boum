@@ -277,18 +277,21 @@ function centreSur(gx, gy){
    GW - 0.5, et le sable mouillé de matiereCase() commence vers GW - 6.
    La navette accoste donc là où est vraiment l'eau — c'est ce décalage
    de onze cases qui faisait « apparaître » les troupes en pleine terre. */
-var RIVAGE_GX = GW + 1.0;      // la navette flotte : elle s'arrête DANS l'eau
-var RAMPE_GX  = GW - 1.0;      // pied de rampe : première case où l'on marche
+/* Le contour visible de l'île s'arrête à GW + 2.2 (traceIle, dilatation
+   2.2) : la navette flotte donc juste au-delà du sable, et le pied de
+   sa rampe retombe sur la dernière case praticable — deplace() borne
+   les unités à GW - 0.5, une troupe créée plus à l'est serait recalée
+   d'un coup sec. */
+var RIVAGE_GX = GW + 1.6;      // la navette flotte : elle s'arrête DANS l'eau
+var RAMPE_GX  = GW - 0.6;      // pied de rampe : dernière case où l'on marche
 
 var NAV = {
-  DEPART      : 11.0,   // cases au large du point d'accostage
-  VITESSE     : 13.0,   // cases/s en pleine mer
-  VITESSE_MIN : 2.2,    // cases/s juste avant de toucher le sable
-  FREINAGE    : 5.0,    // distance sur laquelle elle ralentit
-  RAMPE       : 0.45,   // s pour abaisser la rampe
-  CADENCE     : 0.085,  // s entre deux soldats qui sortent
-  PAUSE       : 0.35,   // s avant de repartir
-  RETRAIT     : 2.6     // s de marche arrière avant disparition
+  DEPART      : 13.0,   // cases au large : elle arrive franchement du large
+  APPROCHE    : 1.0,    // s pour rallier le rivage, quelle que soit la distance
+  RAMPE       : 0.40,   // s pour abaisser la rampe
+  CADENCE     : 0.075,  // s entre deux soldats qui sortent
+  PAUSE       : 0.30,   // s avant de repartir
+  RETRAIT     : 2.4     // s de marche arrière avant disparition
 };
 
 function poseBarge(gx, gy){
@@ -302,7 +305,7 @@ function poseBarge(gx, gy){
   var gxA = RIVAGE_GX;
   jeu.navettes.push({
     type:b.type, reste:b.n, sortis:0,
-    gx:gxA + NAV.DEPART, gy:gy, gxA:gxA,
+    gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
     etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
     n:jeu.nSuiv++
   });
@@ -317,12 +320,15 @@ function majNavettes(dt){
     var v = jeu.navettes[i];
     v.tangage += dt * 2.4;
     if(v.etat === "approche"){
-      var d = v.gx - v.gxA;
-      /* elle ralentit franchement en approchant du rivage */
-      var vit = NAV.VITESSE_MIN +
-                (NAV.VITESSE - NAV.VITESSE_MIN) * Math.min(1, d / NAV.FREINAGE);
-      v.gx -= vit * dt;
-      if(v.gx <= v.gxA){
+      /* Une seconde du large au rivage, pas une de plus : la course est
+         interpolée dans le TEMPS et non à vitesse constante. La courbe
+         part vite et se pose en douceur — elle ralentit donc bien en
+         approchant du sable, sans jamais allonger l'attente. */
+      v.minuteur += dt;
+      var t = Math.min(1, v.minuteur / NAV.APPROCHE);
+      var e = 1 - (1 - t) * (1 - t) * (1 - t);        // sortie cubique
+      v.gx = v.gx0 + (v.gxA - v.gx0) * e;
+      if(t >= 1){
         v.gx = v.gxA;
         v.etat = "accostage";
         v.minuteur = 0;
@@ -350,7 +356,7 @@ function majNavettes(dt){
     /* retrait : elle repart au large, rampe relevée */
     v.minuteur += dt;
     v.rampe = Math.max(0, 1 - v.minuteur / NAV.RAMPE);
-    v.gx += (NAV.VITESSE_MIN + v.minuteur * 3.4) * dt;
+    v.gx += (2.2 + v.minuteur * 4.0) * dt;
     if(v.minuteur > NAV.RETRAIT) jeu.navettes.splice(i, 1);
   }
 }
