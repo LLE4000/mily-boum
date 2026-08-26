@@ -115,12 +115,13 @@ function installeSaisie(){
     if(ordrePt.length === 1){
       /* on repart de la position du doigt restant : pas de saut */
       var r = pointeurs[ordrePt[0]];
+      /* On ré-ancre le PAN sur le doigt restant pour éviter un saut de
+         caméra — mais on NE remet PAS son compteur de mouvement à zéro :
+         il servirait alors de tap au moment où le joueur relève ce
+         doigt, et partirait une Nova (une par vie) ou une navette. */
       glisse = { px:cam.px, py:cam.py, x:r.x, y:r.y };
-      r.bouge = 0;
       pincee = null;
-      /* après un pincement, le doigt restant peut de nouveau viser */
-      viseur.actif = !!jeu.capArmee;
-      viseur.x = r.x; viseur.y = r.y;
+      viseur.actif = false;
     }else if(ordrePt.length === 0){
       glisse = null; pincee = null; viseur.actif = false;
     }

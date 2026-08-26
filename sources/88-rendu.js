@@ -66,6 +66,27 @@ function dessineEffet(c, e, tps){
     }
     /* fumée qui reste */
     bouffee(c, p.x, p.y - (10 + t * 26) * z, (8 + t * 18) * z, (1 - t) * 0.34, "#3a3238");
+  }else if(e.t === "recolte"){
+    /* éclat doré qui monte : on vient d'engranger de l'Énergie */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ar = (1 - t) * (1 - t);
+    var yr = p.y - 14 * z - t * 30 * z;
+    var gr2 = c.createRadialGradient(p.x, yr, 0.5, p.x, yr, 24 * z);
+    gr2.addColorStop(0, "rgba(255,232,150," + (0.9 * ar) + ")");
+    gr2.addColorStop(0.45, "rgba(255,184,70," + (0.5 * ar) + ")");
+    gr2.addColorStop(1, "rgba(255,150,40,0)");
+    c.fillStyle = gr2;
+    c.beginPath(); c.arc(p.x, yr, 24 * z, 0, 6.2832); c.fill();
+    for(var er = 0; er < 6; er++){
+      var aer = er * 1.047 + t * 2.2;
+      c.fillStyle = "rgba(255," + (210 + er * 6) + ",120," + ar + ")";
+      c.beginPath();
+      c.arc(p.x + Math.cos(aer) * (6 + t * 20) * z,
+            yr + Math.sin(aer) * (3 + t * 9) * z, 2.1 * z * (1 - t * 0.5), 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
   }else if(e.t === "traceur"){
     var q = versEcran(cam, e.ex, e.ey);
     c.save();
@@ -714,7 +735,7 @@ var viseur = { actif:false, x:0, y:0 };
    prochaine capacité ajoutée ne pourra plus être oubliée en silence.
    Ce qui n'est pas listé prend CAP[m].rayon, ce qui couvre nova, cryo,
    brouillard, soin, salve et viper sans rien écrire de plus. */
-var VISEE_RAYON = { balise:1.2, poulets:0 };   // 0 = rempli au premier appel
+var VISEE_RAYON = { poulets:0 };              // 0 = rempli au premier appel
 var VISEE_COUL = {
   soin:"#6ee08a", brouillard:"#c9c4d2", balise:"#ffd070",
   cryo:"#9ad8ff", poulets:"#f4e2a8", nova:"#ff6a2a",
@@ -724,6 +745,9 @@ function dessineVisee(c, tps){
   var m = jeu.capArmee;
   if(!m) return;
   if(!VISEE_RAYON.poulets) VISEE_RAYON.poulets = CAP.poulets.rayon;
+  /* la Balise rassemble sur tout le disque de formation, pas sur le
+     point cliqué : l'aperçu doit montrer ce disque */
+  VISEE_RAYON.balise = rayonFormation();
   var vue = rectVisible(60);
   /* cercles de portée de toutes les défenses */
   c.save();
@@ -862,8 +886,12 @@ function rendu(tps, dt){
      est large — la forteresse dépasse très haut au-dessus de sa case. */
   {
     var pq = iso(jeu.qg.gx, jeu.qg.gy);
-    if(pq.x > vueL.x0 - 420 && pq.x < vueL.x1 + 420 &&
-       pq.y > vueL.y0 - 700 && pq.y < vueL.y1 + 260)
+    /* La forteresse monte de ~600 unités monde AU-DESSUS de sa case et
+       n'en descend que d'une centaine : les marges verticales doivent
+       donc être dissymétriques dans CE sens-là. Inversées, elles
+       escamotaient le Brasier alors qu'il était encore à l'écran. */
+    if(pq.x > vueL.x0 - 480 && pq.x < vueL.x1 + 480 &&
+       pq.y > vueL.y0 - 120 && pq.y < vueL.y1 + 700)
       pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
   }
 

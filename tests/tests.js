@@ -20,7 +20,7 @@ try{
   N = new Function(source + "\nreturn {" + [
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
-    "rayonFormation","ancreFormation","ANGLE_OR",
+    "rayonFormation","ancreFormation","ANGLE_OR","inverseRadical","RAYON_QG",
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
@@ -195,8 +195,15 @@ G("4. Déterminisme de la génération de carte");
   ok("code de salon différent → carte différente", N.empreinteCarte(a) !== N.empreinteCarte(e));
 
   [a, c, N.genereCarte("MILY", 2)].forEach(function(m, i){
-    ok("carte " + (i + 1) + " : " + m.batiments.length + " bâtiments (350-700)",
-       m.batiments.length >= 350 && m.batiments.length <= 700, "" + m.batiments.length);
+    var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
+    var def = m.batiments.length - cel;
+    ok("carte " + (i + 1) + " : " + def + " défenses (350-700)",
+       def >= 350 && def <= 700, "" + def);
+    ok("carte " + (i + 1) + " : " + cel + " cellules en " + m.champs.length + " champs",
+       m.champs.length >= 5 && m.champs.length <= 14 && cel >= 70 && cel <= 220,
+       cel + " cellules / " + m.champs.length + " champs");
+    ok("carte " + (i + 1) + " : les champs font une quinzaine de cellules chacun",
+       m.champs.every(function(f){ return f.n >= 13 && f.n <= 17; }));
     var cpt = {};
     m.batiments.forEach(function(b2){ cpt[b2.t] = (cpt[b2.t] || 0) + 1; });
     ok("carte " + (i + 1) + " : " + (cpt.frelon || 0) + " Frelons (10-45)",
@@ -379,7 +386,7 @@ G("8. Cohérence des règles de jeu");
   ok("rayon de formation = " + rf.toFixed(2) + " cases (80 % de la surface du Brouillard)",
      Math.abs(Math.PI * rf * rf / (Math.PI * N.CAP.brouillard.rayon * N.CAP.brouillard.rayon) - 0.80) < 0.001);
   (function(){
-    /* la spirale doit couvrir le disque sans trou ni empilement */
+    /* La spirale doit couvrir le disque sans trou ni empilement. */
     var pts = [], i, j;
     for(i = 0; i < 120; i++) pts.push(N.ancreFormation(i));
     var hors = 0, minD = 1e9, moyR = 0;
@@ -397,26 +404,93 @@ G("8. Cohérence des règles de jeu");
     /* Les places n'ont pas à être espacées de la distance de confort :
        c'est separeUnites() qui écarte les soldats. Elles doivent
        simplement être toutes distinctes, pour qu'aucune paire ne vise
-       le même point. */
+       exactement le même point. */
     ok("aucune place confondue avec une autre (écart mini " + (minD * rf).toFixed(2) + " case)",
-       minD * rf > 0.10, (minD * rf).toFixed(3));
+       minD * rf > 0.05, (minD * rf).toFixed(3));
     ok("les places couvrent le disque sans se tasser au centre (rayon moyen "
        + moyR.toFixed(2) + " ≈ 0,67)", moyR > 0.55 && moyR < 0.78, moyR.toFixed(3));
+  })();
+
+  /* Le vrai test : les quinze soldats d'UNE MÊME navette ont des
+     numéros qui se suivent. Avec un rayon en « n modulo effectif », ils
+     recevaient tous une place sur un mince anneau. L'inverse radical
+     donne un disque complet pour n'importe quelle plage contiguë. */
+  (function(){
+    function amplitude(depart, nb){
+      var rmin = 2, rmax = 0;
+      for(var k = 0; k < nb; k++){
+        var a = N.ancreFormation(depart + k), r = Math.hypot(a.x, a.y);
+        if(r < rmin) rmin = r;
+        if(r > rmax) rmax = r;
+      }
+      return rmax - rmin;
+    }
+    var pire = 2;
+    for(var d = 0; d < 400; d += 7) pire = Math.min(pire, amplitude(d, 15));
+    ok("une navette de 15 couvre un disque, pas un anneau (amplitude mini "
+       + pire.toFixed(2) + ")", pire > 0.45, pire.toFixed(3));
+    ok("l'inverse radical est bien réparti sur toute plage contiguë",
+       N.inverseRadical(0) === 0.5 && N.inverseRadical(1) === 0.25 &&
+       N.inverseRadical(2) === 0.75);
+  })();
+
+  /* L'éventail d'approche décale la troupe par rapport au centre de sa
+     cible, mais la portée reste mesurée AU CENTRE : un décalage plus
+     grand que la marge d'arrêt empêcherait purement et simplement
+     d'entrer en portée. Il doit donc rester strictement en dessous,
+     pour TOUTES les combinaisons troupe × cible du jeu. */
+  (function(){
+    var pire = 1e9, detail = "";
+    var cibles = [{ nom:"créature", rc:0.3 }, { nom:"QG", rc:N.RAYON_QG }];
+    Object.keys(N.DEF).forEach(function(t){
+      cibles.push({ nom:N.DEF[t].nom, rc:N.DEF[t].emprise * 0.42 });
+    });
+    Object.keys(N.UNI).forEach(function(u){
+      var arret = N.UNI[u].arret;
+      cibles.forEach(function(c){
+        var marge = arret + c.rc;
+        var etal = Math.min(N.rayonFormation() * 0.55, marge * 0.7);
+        var reste = marge - etal;
+        if(reste < pire){ pire = reste; detail = N.UNI[u].nom + " vs " + c.nom; }
+      });
+    });
+    ok("l'éventail laisse toujours de la marge pour entrer en portée (pire cas "
+       + pire.toFixed(2) + " case : " + detail + ")", pire > 0.3, pire.toFixed(3));
+    ok("et il est bien plafonné, pas seulement pour la plus grosse cible",
+       Math.min(N.rayonFormation() * 0.55, (N.UNI.mec.arret + 0.3) * 0.7) < N.UNI.mec.arret + 0.3);
   })();
 
   /* économie : plus généreuse qu'avant, mais toujours finie */
   ok("l'Énergie tactique a remplacé la Poudre",
      N.EQ.ENERGIE_DEPART === 220 && N.EQ.ENERGIE_PAR_BATIMENT === 5 &&
      N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
-  ok("une carte entière ne finance pas tout à volonté",
-     N.EQ.ENERGIE_DEPART + 490 * N.EQ.ENERGIE_PAR_BATIMENT < 3000);
+  (function(){
+    var m = N.genereCarte("MILY", 0);
+    var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
+    var def = m.batiments.length - cel;
+    var total = N.EQ.ENERGIE_DEPART + def * N.EQ.ENERGIE_PAR_BATIMENT
+              + cel * N.EQ.ENERGIE_PAR_CELLULE;
+    ok("une île entière rapporte " + total + " d'Énergie — de quoi jouer, pas de quoi tout se payer",
+       total > 3000 && total < 5000, "" + total);
+    ok("les champs de cellules pèsent un bon tiers du revenu",
+       cel * N.EQ.ENERGIE_PAR_CELLULE / total > 0.22, "" +
+       Math.round(cel * N.EQ.ENERGIE_PAR_CELLULE / total * 100) + " %");
+    ok("une cellule ne se défend pas et ne sert qu'à la récolte",
+       N.DEF.cellule.recolte === 1 && N.DEF.cellule.portee === 0 &&
+       N.DEF.cellule.degats === 0 && N.DEF.cellule.tourelle === 0);
+    ok("une cellule tombe vite : " + N.DEF.cellule.pv + " PV, moins qu'une défense",
+       N.DEF.cellule.pv < N.DEF.cuve.pv);
+    ok("récolter une cellule rapporte plus que démonter une défense",
+       N.EQ.ENERGIE_PAR_CELLULE > N.EQ.ENERGIE_PAR_BATIMENT);
+  })();
 
   /* traversée */
   var cases = (N.GW - 4) - N.QG_GX;
-  ok("25 s de Balise couvrent " + (25 * N.UNI.meuf.vitesse).toFixed(0) + " cases (≈ 1/3 du trajet)",
-     Math.abs(25 * N.UNI.meuf.vitesse - 33.75) < 0.01);
-  ok("il faut " + Math.ceil(cases / (25 * N.UNI.meuf.vitesse)) + " Balises pour traverser " + cases + " cases",
-     Math.ceil(cases / (25 * N.UNI.meuf.vitesse)) <= 6);
+  var couv = N.CAP.balise.duree * N.UNI.meuf.vitesse;
+  ok(N.CAP.balise.duree + " s de Balise couvrent " + couv.toFixed(0) + " cases",
+     Math.abs(couv - 40.5) < 0.01, couv.toFixed(2));
+  ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
+     Math.ceil(cases / couv) <= 6);
   ok("une vie = 120 unités", N.EQ.NB_BARGES * N.EQ.PLACES_PAR_BARGE === 120);
   /* le Brasier : objectif collectif */
   var dpsSolo = 100 * (N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000));

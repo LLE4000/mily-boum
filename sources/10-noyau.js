@@ -16,6 +16,7 @@ var EQ = {
      Poulets, sans pour autant que ce soit gratuit. */
   ENERGIE_DEPART       : 220,   // énergie au début de chaque carte
   ENERGIE_PAR_BATIMENT : 5,     // gain par bâtiment détruit
+  ENERGIE_PAR_CELLULE  : 9,     // gain par cellule énergétique récoltée
   ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
   ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
 
@@ -93,11 +94,21 @@ function bruitStable(n, sel){
   var v = Math.sin(n * (sel ? 78.233 : 12.9898) + sel * 4.1) * 43758.5453;
   return v - Math.floor(v);
 }
+/* Inverse radical en base 2 (van der Corput) : pour TOUTE plage
+   contiguë de n, la suite couvre [0,1[ régulièrement. Une rampe
+   « n modulo effectif » ne le fait pas : les quinze soldats d'une même
+   navette, dont les n se suivent, recevaient tous un rayon voisin et
+   se retrouvaient sur un mince anneau au lieu d'un disque. */
+function inverseRadical(n){
+  var b = 0, f = 0.5, m = (n | 0) + 1;
+  while(m){ if(m & 1) b += f; f *= 0.5; m >>= 1; }
+  return b;
+}
 function ancreFormation(n){
   /* Le bruit reste modeste : au-delà, deux places voisines finissent
      par se confondre et la spirale perd l'intérêt qu'elle avait. */
   var a = n * ANGLE_OR + (bruitStable(n, 1) - 0.5) * 0.34;
-  var r = Math.sqrt((n % EQ.FORMATION_EFFECTIF + 0.5) / EQ.FORMATION_EFFECTIF);
+  var r = Math.sqrt(inverseRadical(n));
   r = Math.min(1, r * (1 + (bruitStable(n, 0) - 0.5) * 0.13));
   return { x:Math.cos(a) * r, y:Math.sin(a) * r };
 }
@@ -192,7 +203,10 @@ var DEF = {
   pilon:     { nom:"Pilon",     desc:"obusier de siège",             pv:760, portee:8.2,  degats:64, cadence:3200, emprise:3, tourelle:1, porteeMin:2.6, zone:1.5, vitesseProj:6.5 },
   bobine:    { nom:"Bobine",    desc:"pylône à arc",                 pv:700, portee:6.2,  degats:42, cadence:3400, emprise:2, tourelle:1, zone:1.9, ralenti:1.9, vitesseProj:9 },
   cuve:      { nom:"Cuve",      desc:"citerne de naphte",            pv:420, portee:0,    degats:0,  cadence:0,    emprise:2, tourelle:0 },
-  silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 }
+  silo:      { nom:"Silo",      desc:"réserve de matériel",          pv:500, portee:0,    degats:0,  cadence:0,    emprise:3, tourelle:0 },
+  /* La cellule ne se défend pas et ne sert qu'à une chose : se faire
+     récolter. Elles poussent par petits champs d'une quinzaine. */
+  cellule:   { nom:"Cellule",   desc:"cellule énergétique",         pv:150, portee:0,    degats:0,  cadence:0,    emprise:1, tourelle:0, recolte:1 }
 };
 
 /* Types de troupe. Une navette n'en embarque qu'un seul : la liste est
@@ -332,6 +346,33 @@ function genereCarte(codeSalon, index){
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
         ang:(al() * 6.2832), vivant:1, n:c.batiments.length
       });
+    }
+  }
+
+  /* --- Champs de cellules énergétiques ---
+     Des petits bosquets d'une quinzaine de cellules, posés dans les
+     allées laissées libres par le quadrillage militaire. Ils ne se
+     défendent pas : ils ne sont là que pour être récoltés. */
+  c.champs = [];
+  for(var cx = 14; cx <= PLAGE_X0 - 6; cx += 32){
+    for(var cy = 12; cy <= GH - 9; cy += 40){
+      if(al() < 0.22) continue;
+      var fx = cx + (al() - 0.5) * 5, fy = cy + (al() - 0.5) * 6;
+      if(Math.hypot(fx - QG_GX, fy - QG_GY) < 14) continue;   // pas au pied du Brasier
+      var n = 13 + ((al() * 5) | 0);                          // treize à dix-sept
+      c.champs.push({ gx:fx, gy:fy, n:n });
+      var fc = DEF.cellule;
+      for(var k = 0; k < n; k++){
+        /* spirale d'or : le champ est dense mais jamais aligné */
+        var a2 = k * 2.399963 + al() * 0.5;
+        var r2 = 0.62 * Math.sqrt(k) + al() * 0.22;
+        var bx = fx + Math.cos(a2) * r2, by = fy + Math.sin(a2) * r2 * 0.92;
+        if(bx < 4 || bx > PLAGE_X0 - 2 || by < 3 || by > GH - 4) continue;
+        c.batiments.push({
+          t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
+          ang:al() * 6.2832, vivant:1, n:c.batiments.length
+        });
+      }
     }
   }
 

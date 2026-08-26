@@ -525,6 +525,49 @@ SOCLES.silo = function(c){
 /* ================================================================
    Construction des sprites
    ================================================================ */
+/* ---------------------------------------------------------------
+   LA CELLULE ÉNERGÉTIQUE
+   Ni arme ni défense : un petit fût ambré planté dans le sol, cerclé
+   de métal, qu'on vient vider. Volontairement plus petit et plus clair
+   que tout le reste, pour qu'un champ se repère de loin.
+   --------------------------------------------------------------- */
+SOCLES.cellule = function(c){
+  ombreContact(c, 0, 0, 0.9, 0.9, 0.22);
+  /* embase */
+  prisme(c, 0, 0, 0.34, 6, 0.5236, 0, 3, "#5b5750", "#3a3733");
+  /* le fût, en verre ambré */
+  var p = iso(0, 0);
+  var h = 17, rx = 0.24 * RX, ry = 0.24 * RY;
+  var g = c.createLinearGradient(p.x - rx, 0, p.x + rx, 0);
+  g.addColorStop(0.00, "#a8741c");
+  g.addColorStop(0.34, "#ffcc55");
+  g.addColorStop(0.62, "#ffe9a8");
+  g.addColorStop(1.00, "#7d5312");
+  c.fillStyle = g;
+  c.beginPath();
+  c.moveTo(p.x - rx, p.y - 3);
+  c.lineTo(p.x - rx, p.y - 3 - h);
+  c.ellipse(p.x, p.y - 3 - h, rx, ry, 0, Math.PI, 0, false);
+  c.lineTo(p.x + rx, p.y - 3);
+  c.ellipse(p.x, p.y - 3, rx, ry, 0, 0, Math.PI, false);
+  c.closePath(); c.fill();
+  /* cerclages */
+  c.strokeStyle = "#6d6459"; c.lineWidth = 1.6;
+  for(var k = 1; k <= 2; k++){
+    c.beginPath();
+    c.ellipse(p.x, p.y - 3 - h * k / 3, rx, ry, 0, 0, 6.2832);
+    c.stroke();
+  }
+  /* coiffe métallique */
+  c.fillStyle = "#8e857a";
+  c.beginPath(); c.ellipse(p.x, p.y - 3 - h, rx * 1.16, ry * 1.16, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#4a463f";
+  c.beginPath(); c.ellipse(p.x, p.y - 4 - h, rx * 0.5, ry * 0.5, 0, 0, 6.2832); c.fill();
+  /* halo : c'est lui qui fait repérer un champ de loin */
+  lueur(c, p.x, p.y - 3 - h * 0.55, 22, "#ffc247", 0.30);
+  lueur(c, p.x, p.y - 2, 15, "#ffb02a", 0.16);
+};
+
 function construitSpritesDefenses(){
   Object.keys(SOCLES).forEach(function(t){
     var cv = nouveauCanvas(SP_W * ECH_SPRITE, SP_H * ECH_SPRITE);

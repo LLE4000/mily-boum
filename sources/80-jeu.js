@@ -469,13 +469,20 @@ function abimeBatiment(b, d){
       jeu.balise = null;
       for(var z = 0; z < jeu.unites.length; z++){ jeu.unites[z].cible = null; jeu.unites[z].prochainCiblage = 0; }
     }
-    jeu.energie += EQ.ENERGIE_PAR_BATIMENT;
+    jeu.energie += DEF[b.t].recolte ? EQ.ENERGIE_PAR_CELLULE : EQ.ENERGIE_PAR_BATIMENT;
     jeu.detruitsMoi++;
-    jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
-    jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
-    if(jeu.crateres.length > 160) jeu.crateres.shift();
-    jeu.secousse = Math.min(9, jeu.secousse + 3);
-    son.boum(0.42);
+    if(DEF[b.t].recolte){
+      /* une cellule se vide, elle n'explose pas : pas de cratère, pas
+         de secousse, juste un éclat et le tintement de la récolte */
+      jeu.effets.push({ t:"recolte", gx:b.gx, gy:b.gy, age:0, duree:0.6 });
+      son.recolte();
+    }else{
+      jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.75, r:b.e * 0.7, force:1 });
+      jeu.crateres.push({ gx:b.gx, gy:b.gy, r:b.e * 0.45 });
+      if(jeu.crateres.length > 160) jeu.crateres.shift();
+      jeu.secousse = Math.min(9, jeu.secousse + 3);
+      son.boum(0.42);
+    }
     son.energie();
     envoieDestruction(b.n);
     demandeMajBarres();
@@ -518,7 +525,15 @@ function deplace(u, dx, dy, pas){
   dx /= l; dy /= l;
   var nx = u.gx + dx * pas, ny = u.gy + dy * pas;
   var okX = !bloque(nx, u.gy), okY = !bloque(u.gx, ny);
-  if(okX && okY && !bloque(nx, ny)){ u.gx = nx; u.gy = ny; return; }
+  if(okX && okY && !bloque(nx, ny)){
+    /* Le bornage vaut AUSSI ici : bloque() considère tout gx >= GW comme
+       libre, et la séparation locale est le premier code à pousser une
+       unité vers l'est. Sans ces deux bornes, les troupes serrées au
+       pied de la rampe finissaient debout sur la mer. */
+    u.gx = borne(nx, 0.4, GW - 0.5);
+    u.gy = borne(ny, 0.4, GH - 0.5);
+    return;
+  }
   if(okX) u.gx = nx;
   if(okY) u.gy = ny;
   if(!okX && !okY){
@@ -583,7 +598,9 @@ function majUnites(dt){
           /* même éventail que pour une cible ordinaire : la troupe
              encercle le bâtiment désigné au lieu de s'entasser sur la
              face qu'elle a abordée */
-          var eb = rayonFormation() * 0.55;
+          /* plafonné par la marge d'arrêt : un décalage plus grand que
+             la portée empêcherait la troupe d'entrer en portée du tout */
+          var eb = Math.min(rayonFormation() * 0.55, (f.arret + bc.e * 0.42) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
         }else{
@@ -606,10 +623,13 @@ function majUnites(dt){
         var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
         var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
-        /* filet de sécurité : si la place assignée tombe dans l'eau ou
-           dans un mur, être entré dans le cercle suffit */
+        /* Filet de sécurité — et RIEN QUE ça. Testé sur la seule
+           distance au centre, il se déclenchait pour tout le monde :
+           chaque troupe franchit le bord du disque avant d'atteindre sa
+           place, donc toutes se libéraient à 3,76 cases du point visé.
+           Il ne joue désormais que si la place est vraiment inatteignable. */
         var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
-        if(df > EQ.BALISE_RAYON && dCentre > rf){
+        if(df > EQ.BALISE_RAYON && !(dCentre <= rf && bloque(pvx, pvy))){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
           u.droite = (dxf - dyf) > 0;
@@ -654,7 +674,7 @@ function majUnites(dt){
          la troupe aborde l'objectif en éventail au lieu de s'entasser
          sur l'arc le plus proche. La portée, elle, reste mesurée au
          centre — le décalage n'avantage ni ne pénalise personne. */
-      var etal = rayonFormation() * 0.55;
+      var etal = Math.min(rayonFormation() * 0.55, (portee + rayonCible) * 0.7);
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
@@ -854,8 +874,13 @@ function majProjectiles(dt){
         else if(p.cible.pv > 0){
           /* la cible s'est glissée dans un Brouillard : la roquette
              perd le contact et tombe là où elle croyait la trouver */
-          if(p.t === "roquette" && masquee(p.cible)) p.cible = null;
-          else { bx = p.cible.gx; by = p.cible.gy; }
+          if(p.t === "roquette" && masquee(p.cible)){
+            /* contact perdu : elle tombe là où elle croyait la trouver,
+               et non au point de tir initial */
+            p.but = { gx:p.cible.gx, gy:p.cible.gy };
+            bx = p.but.gx; by = p.but.gy;
+            p.cible = null;
+          }else{ bx = p.cible.gx; by = p.cible.gy; }
         }
       }
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
