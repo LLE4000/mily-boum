@@ -310,14 +310,14 @@ function dessineOgre(c, phase, variante, tir){
   c.stroke();
 
   /* --- bras arrière (gauche) --- */
-  var eBx = -27, eBy = -74;
+  var eBx = -25, eBy = -72;
   var cBx, cBy, mBx, mBy;
   if(tir){
     /* Le bras libre part loin devant : il vise, et il équilibre. */
     cBx = 8; cBy = -78; mBx = 44; mBy = -76;
   }else{
-    cBx = -36 + p.brasB * 0.35; cBy = -56;
-    mBx = -33 + p.brasB; mBy = -36 - Math.abs(p.brasB) * 0.30;
+    cBx = -37 + p.brasB * 0.35; cBy = -55;
+    mBx = -34 + p.brasB; mBy = -35 - Math.abs(p.brasB) * 0.30;
   }
   brasOgre(c, eBx, eBy, cBx, cBy, mBx, mBy, false, v);
   c.restore();
@@ -398,7 +398,7 @@ function dessineOgre(c, phase, variante, tir){
     c.ellipse(tac[i][0], tac[i][1], tac[i][2], tac[i][3], i * 0.7, 0, 6.2832);
     c.fill();
   }
-  c.strokeStyle = rgba(C.peauN, 0.36); c.lineWidth = 0.7;
+  c.strokeStyle = rgba(C.peauN, 0.26); c.lineWidth = 0.6;
   for(var h2 = 0; h2 < 7; h2++){
     var hx2 = -8 + h2 * 2.8, hy2 = -72 + (h2 % 2) * 2.4;
     c.beginPath();
@@ -409,7 +409,7 @@ function dessineOgre(c, phase, variante, tir){
   /* --- cicatrices : il revient de loin --- */
   if(v !== 1){
     /* trois griffures parallèles sur les côtes */
-    c.strokeStyle = "rgba(206,158,136,.75)"; c.lineWidth = 1.3;
+    c.strokeStyle = "rgba(188,146,124,.55)"; c.lineWidth = 1.1;
     for(var k = 0; k < 3; k++){
       c.beginPath();
       c.moveTo(11 + k * 4.4, -74);
@@ -419,16 +419,16 @@ function dessineOgre(c, phase, variante, tir){
   }
   if(v !== 0){
     /* balafre recousue en travers du ventre : gros points de suture */
-    c.strokeStyle = "rgba(208,164,142,.88)"; c.lineWidth = 1.6;
+    c.strokeStyle = "rgba(190,148,126,.66)"; c.lineWidth = 1.4;
     c.beginPath(); c.moveTo(-14, -64); c.quadraticCurveTo(-3, -59, 8, -62); c.stroke();
-    c.lineWidth = 1.0;
+    c.lineWidth = 0.9;
     for(var s2 = 0; s2 < 5; s2++){
       var xs = -12 + s2 * 4.6, ys = -63.2 + Math.abs(s2 - 2) * 0.6;
       c.beginPath(); c.moveTo(xs - 1.7, ys - 2.1); c.lineTo(xs + 1.7, ys + 2.1); c.stroke();
     }
   }
   if(v !== 2){
-    c.strokeStyle = "rgba(206,158,136,.7)"; c.lineWidth = 1.2;
+    c.strokeStyle = "rgba(188,146,124,.5)"; c.lineWidth = 1.1;
     c.beginPath();
     c.moveTo(-19, -73); c.quadraticCurveTo(-13, -68, -17, -60); c.stroke();
   }
@@ -500,7 +500,7 @@ function dessineOgre(c, phase, variante, tir){
 
   /* pans de cuir courts : ils ne doivent pas manger les cuisses,
      sinon les jambes disparaissent et il a l'air trapu */
-  var pan = [[-16, 11, 4.6], [-8, 15, 4.8], [0, 12, 4.6], [8, 15, 4.8], [16, 11, 4.4]];
+  var pan = [[-16, 8, 4.6], [-8, 11, 4.8], [0, 8.5, 4.6], [8, 11, 4.8], [16, 8, 4.4]];
   for(var q = 0; q < pan.length; q++){
     var px = pan[q][0], pl = pan[q][1], pw = pan[q][2];
     var dec = tra * (2.0 + q * 0.3);
@@ -518,12 +518,8 @@ function dessineOgre(c, phase, variante, tir){
      ceinture elles pendraient sur les cuisses et couperaient les
      jambes en deux. */
   c.save();
-  c.translate(-22, -50); c.rotate(-0.42 + bal);
-  dessineHacheOgre(c, 13, 0.60, v, false);
-  c.restore();
-  c.save();
-  c.translate(23, -50); c.rotate(0.46 + bal);
-  dessineHacheOgre(c, 13, 0.60, (v + 2) % 3, true);
+  c.translate(-19, -46); c.rotate(-0.30 + bal);
+  dessineHacheOgre(c, 16, 0.78, v, true);
   c.restore();
 
   /* la ceinture : énorme, c'est la pièce maîtresse de sa tenue */
@@ -547,20 +543,20 @@ function dessineOgre(c, phase, variante, tir){
   /* boucle de fer brut, décentrée : rien n'est neuf chez lui */
   c.fillStyle = degCache(c, "ogreBoucle", function(){
     var g = c.createLinearGradient(-4, -58, 9, -46);
-    g.addColorStop(0, C.ferC); g.addColorStop(0.5, C.fer); g.addColorStop(1, C.ferO);
+    g.addColorStop(0, ecl(C.ferC, 0.82)); g.addColorStop(0.5, ecl(C.fer, 0.86)); g.addColorStop(1, C.ferO);
     return g;
   });
   c.beginPath();
-  if(c.roundRect) c.roundRect(-4, -57.6, 12, 11.4, 2.2); else c.rect(-4, -57.6, 12, 11.4);
+  if(c.roundRect) c.roundRect(-4, -56.6, 11, 10.4, 2.2); else c.rect(-4, -56.6, 11, 10.4);
   c.fill();
   c.fillStyle = C.cuirO;
   c.beginPath();
-  if(c.roundRect) c.roundRect(-1.8, -55.4, 7.6, 6.6, 1.4); else c.rect(-1.8, -55.4, 7.6, 6.6);
+  if(c.roundRect) c.roundRect(-1.8, -54.6, 6.8, 6.0, 1.4); else c.rect(-1.8, -54.6, 6.8, 6.0);
   c.fill();
   c.fillStyle = C.ferC;
-  c.fillRect(1.0, -57.6, 2.2, 11.4);
+  c.fillRect(0.8, -56.6, 2.0, 10.4);
   c.fillStyle = rgba(C.rouille, 0.35);
-  c.fillRect(5.0, -56, 2.6, 9.4);
+  c.fillRect(4.6, -55, 2.4, 8.4);
 
   /* ================= LA MANTE DE FOURRURE =================
      Un pelage noir jeté sur les épaules seulement : c'est elle qui
@@ -612,7 +608,7 @@ function dessineOgre(c, phase, variante, tir){
   c.restore();
 
   /* ================= BRAS AVANT + HACHE EN MAIN ================= */
-  var eAx = 29, eAy = -75;
+  var eAx = 26, eAy = -72;
   var cAx, cAy, mAx, mAy, rotH;
   if(tir){
     /* Armé : le poing part derrière la tête, la hache pointe en arrière.
@@ -621,8 +617,8 @@ function dessineOgre(c, phase, variante, tir){
     mAx = -22 + trem; mAy = -93 + trem * 0.6;
     rotH = -2.36 + trem * 0.03;
   }else{
-    cAx = 38 + p.brasA * 0.30; cAy = -56;
-    mAx = 35 + p.brasA * 0.9; mAy = -36 - Math.abs(p.brasA) * 0.30;
+    cAx = 37 + p.brasA * 0.30; cAy = -55;
+    mAx = 34 + p.brasA * 0.9; mAy = -35 - Math.abs(p.brasA) * 0.30;
     rotH = 2.95 + p.brasA * 0.014;
   }
 
@@ -655,66 +651,113 @@ function dessineOgre(c, phase, variante, tir){
 }
 
 /* ---------------------------------------------------------------
-   La fourrure : une crinière derrière la nuque et une dépouille
-   jetée sur la SEULE épaule gauche — la droite est prise par
-   l'épaulière de fer. C'est cette asymétrie qui empêche la
-   silhouette de ressembler à un culturiste symétrique, et c'est la
-   fourrure qui détache la tête du torse.
+   LA FOURRURE.
+   Une crinière derrière la nuque et une dépouille jetée sur la SEULE
+   épaule gauche — la droite est prise par l'épaulière de fer. C'est
+   cette asymétrie qui empêche la silhouette de ressembler à un
+   culturiste, et c'est le noir de la fourrure qui détache la tête du
+   torse. Le bord est fait de mèches individuelles : une masse au bord
+   lisse ressemble à une brioche, et un bord en dents de scie à un col
+   de bouffon.
    --------------------------------------------------------------- */
+function mecheOgre(c, x, y, a, l, w){
+  c.save();
+  c.translate(x, y); c.rotate(a);
+  c.beginPath();
+  c.moveTo(-w, -1);
+  c.quadraticCurveTo(-w * 0.7, l * 0.72, 0, l);
+  c.quadraticCurveTo(w * 0.85, l * 0.60, w, -1);
+  c.closePath(); c.fill();
+  c.restore();
+}
+
+/* Les mèches du bord bas de la dépouille : position, angle, longueur,
+   largeur. Liste figée — le sprite doit être identique à chaque image. */
+var MECHES_OGRE = [
+  [-36.0, -74.0, -2.85, 9.0, 3.4], [-32.5, -76.5, -2.70, 6.5, 3.0],
+  [-29.0, -77.5, -2.55, 10.0, 3.6], [-25.5, -78.5, -2.40, 7.0, 3.2],
+  [-22.0, -79.5, -2.25, 9.5, 3.4], [-18.5, -80.5, -2.10, 6.5, 3.0],
+  [-15.0, -82.0, -1.95, 9.0, 3.4], [-11.5, -84.0, -1.80, 6.0, 3.0],
+  [-8.0, -86.0, -1.60, 8.5, 3.2], [-5.0, -88.5, -1.35, 6.0, 2.8],
+  [-2.5, -91.0, -1.05, 7.0, 2.8]
+];
+
 function manteOgre(c){
   var C = C_OGRE;
   var deg = degCache(c, "ogreMante", function(){
-    var g = c.createLinearGradient(-30, -96, -6, -70);
-    g.addColorStop(0, C.fourrureC); g.addColorStop(0.45, C.fourrure); g.addColorStop(1, C.fourrureO);
+    var g = c.createLinearGradient(-30, -98, -8, -70);
+    g.addColorStop(0, C.fourrureC); g.addColorStop(0.35, C.fourrure); g.addColorStop(1, C.fourrureO);
     return g;
   });
+  var i;
 
-  /* crinière derrière la nuque : elle dépasse de part et d'autre du
-     crâne et pose la tête sur du sombre */
+  /* --- crinière derrière la nuque : elle dépasse de part et d'autre
+     du crâne et pose la tête sur du sombre --- */
   c.fillStyle = deg;
   c.beginPath();
-  c.moveTo(-22, -84);
-  c.quadraticCurveTo(-20, -99, 0, -101);
-  c.quadraticCurveTo(20, -99, 22, -84);
-  bordPoiluOgre(c, [[22, -84], [14, -88], [6, -90], [-4, -90], [-13, -88], [-22, -84]], 2.6);
+  c.moveTo(-23, -82);
+  c.quadraticCurveTo(-21, -99, 0, -101);
+  c.quadraticCurveTo(21, -99, 23, -82);
+  c.quadraticCurveTo(0, -88, -23, -82);
   c.closePath(); c.fill();
+  var cri = [[-22, -84, 3.0, 7, 3.2], [-17, -87, 3.2, 5, 3.0], [-11, -89, 3.5, 6.5, 3.0],
+             [11, -89, 2.9, 6.5, 3.0], [17, -87, 3.05, 5, 3.0], [22, -84, 3.25, 7, 3.2]];
+  c.fillStyle = C.fourrure;
+  for(i = 0; i < cri.length; i++) mecheOgre(c, cri[i][0], cri[i][1], cri[i][2], cri[i][3], cri[i][4]);
 
-  /* dépouille sur l'épaule gauche */
+  /* --- la dépouille sur l'épaule gauche --- */
   c.fillStyle = deg;
   c.beginPath();
-  c.moveTo(-36, -74);
-  c.quadraticCurveTo(-34, -90, -16, -95);
-  c.quadraticCurveTo(-6, -97, 1, -93);
-  bordPoiluOgre(c, [[1, -93], [-2, -86], [-7, -80], [-14, -76],
-                    [-22, -73], [-30, -72], [-36, -74]], 3.2);
+  c.moveTo(-38, -73);
+  c.quadraticCurveTo(-39, -87, -27, -94);      /* le dessus, sur l'épaule */
+  c.quadraticCurveTo(-14, -100, -1, -95);
+  c.quadraticCurveTo(-3, -88, -9, -82);        /* le bord qui redescend */
+  c.quadraticCurveTo(-20, -76, -30, -73);
   c.closePath(); c.fill();
-  /* mèches claires : sans elles la fourrure est une tache noire */
-  c.strokeStyle = rgba(C.fourrureC, 0.55); c.lineWidth = 1.3;
-  var me = [[-31, -88, -29, -74], [-26, -91, -23, -75], [-21, -93, -17, -78],
-            [-15, -94, -12, -80], [-9, -95, -6, -83], [-3, -94, -1, -87],
-            [8, -96, 9, -90], [15, -95, 15, -89], [-16, -99, -15, -92], [4, -100, 5, -92]];
-  for(var k = 0; k < me.length; k++){
+  /* les mèches, deux passes : la masse puis les pointes plus claires */
+  c.fillStyle = C.fourrure;
+  for(i = 0; i < MECHES_OGRE.length; i++){
+    mecheOgre(c, MECHES_OGRE[i][0], MECHES_OGRE[i][1], MECHES_OGRE[i][2],
+              MECHES_OGRE[i][3], MECHES_OGRE[i][4]);
+  }
+  c.fillStyle = ecl(C.fourrureC, 1.12);
+  for(i = 0; i < MECHES_OGRE.length; i += 2){
+    mecheOgre(c, MECHES_OGRE[i][0], MECHES_OGRE[i][1], MECHES_OGRE[i][2] + 0.12,
+              MECHES_OGRE[i][3] * 0.55, MECHES_OGRE[i][4] * 0.5);
+  }
+  /* quelques touffes qui rebiquent sur le dessus de l'épaule */
+  c.fillStyle = C.fourrureO;
+  var haut = [[-36, -85, -0.5, 6, 3.0], [-30, -91, -0.25, 6, 3.0],
+              [-22, -96, 0.0, 5.5, 3.0], [-13, -99, 0.3, 5, 2.8], [-5, -97, 0.6, 5, 2.8]];
+  for(i = 0; i < haut.length; i++) mecheOgre(c, haut[i][0], haut[i][1], haut[i][2] + 3.1416, haut[i][3], haut[i][4]);
+  /* poil : traits courts, jamais de longues courbes lisses */
+  c.strokeStyle = rgba(ecl(C.fourrureC, 1.2), 0.45); c.lineWidth = 1.0;
+  var po = [[-33, -88, -31, -80], [-29, -92, -27, -84], [-24, -93, -22, -85],
+            [-19, -94, -18, -86], [-14, -96, -13, -88], [-9, -95, -8, -88],
+            [-34, -80, -33, -75], [-25, -84, -24, -79], [-16, -89, -15, -84],
+            [-6, -92, -5, -87], [12, -93, 13, -88], [-15, -98, -14, -93]];
+  for(i = 0; i < po.length; i++){
     c.beginPath();
-    c.moveTo(me[k][0], me[k][1]);
-    c.quadraticCurveTo(me[k][0] + 2, (me[k][1] + me[k][3]) / 2, me[k][2], me[k][3]);
+    c.moveTo(po[i][0], po[i][1]);
+    c.quadraticCurveTo(po[i][0] + 1.6, (po[i][1] + po[i][3]) / 2, po[i][2], po[i][3]);
     c.stroke();
   }
   /* ombre portée de la dépouille sur la poitrine */
-  c.fillStyle = "rgba(18,12,9,.30)";
+  c.fillStyle = "rgba(16,11,8,.34)";
   c.beginPath();
-  c.moveTo(-34, -73); c.quadraticCurveTo(-16, -78, 1, -92);
-  c.quadraticCurveTo(-12, -74, -34, -70);
+  c.moveTo(-32, -72); c.quadraticCurveTo(-16, -78, -1, -94);
+  c.quadraticCurveTo(-12, -73, -32, -68);
   c.closePath(); c.fill();
   /* la patte de la bête, nouée sur la poitrine */
   c.fillStyle = C.fourrureO;
   c.beginPath();
-  c.moveTo(0, -93); c.quadraticCurveTo(6, -90, 5, -84);
-  c.quadraticCurveTo(2, -81, -1, -85);
+  c.moveTo(-2, -95); c.quadraticCurveTo(5, -92, 4, -85);
+  c.quadraticCurveTo(1, -82, -2, -87);
   c.closePath(); c.fill();
   c.fillStyle = C.ferC;
-  c.beginPath(); c.arc(1.5, -89, 2.2, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(0.5, -91, 2.2, 0, 6.2832); c.fill();
   c.fillStyle = C.ferO;
-  c.beginPath(); c.arc(1.5, -89, 1.0, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(0.5, -91, 1.0, 0, 6.2832); c.fill();
 }
 
 /* ---------------------------------------------------------------
@@ -729,13 +772,13 @@ function jambeOgre(c, dx, devant, v, tir){
 
   /* cuisse : épaisse, bombée vers l'extérieur */
   c.strokeStyle = tOgre(C.peau, devant);
-  c.lineWidth = 17;
+  c.lineWidth = 15.5;
   c.beginPath();
   c.moveTo(hanche, -49);
   c.quadraticCurveTo(genou + sg * 4.5, -40, genou, yg);
   c.stroke();
   /* mollet */
-  c.lineWidth = 13;
+  c.lineWidth = 12;
   c.beginPath();
   c.moveTo(genou, yg);
   c.quadraticCurveTo(chev - sg * 3.0, -18, chev, -8);
@@ -901,7 +944,7 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
   c.stroke();
 
   /* le poing : une masse fermée, phalanges marquées, pouce par-dessus */
-  c.fillStyle = tOgre(C.peau, devant);
+  c.fillStyle = devant ? C.peau : ecl(C.peau, 0.66);
   c.beginPath();
   c.ellipse(mx, my, 6.8, 6.0, ang, 0, 6.2832);
   c.fill();
@@ -911,7 +954,7 @@ function brasOgre(c, ex, ey, cx, cy, mx, my, devant, v){
     var ky = my + sa * (2.2 + k * 0.2) - na * (3.6 - k * 3.6);
     c.beginPath(); c.arc(kx, ky, 1.4, 0, 6.2832); c.fill();
   }
-  c.fillStyle = tOgre(ecl(C.peauC, 0.98), devant);
+  c.fillStyle = devant ? ecl(C.peauC, 0.98) : ecl(C.peauC, 0.66);
   c.beginPath();
   c.ellipse(mx - sa * 3.4 + na * 1.0, my + na * 3.4 + sa * 1.0, 3.6, 2.1, ang, 0, 6.2832);
   c.fill();
