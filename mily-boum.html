@@ -20720,8 +20720,9 @@ function construitBriefing(){
       /* une composition d'avant le plafond par type peut dépasser */
       for(var q = 0; q < compoBarges.length; q++){
         if(!UNI[compoBarges[q].type]) compoBarges[q].type = TYPES_TROUPE[0];
-        compoBarges[q].n = Math.max(0, Math.min(placesNavette(compoBarges[q].type),
-                                                compoBarges[q].n | 0));
+        /* Les anciennes sauvegardes portaient des effectifs réglés à la
+           main : on les remet au complet, la seule valeur qui existe. */
+        compoBarges[q].n = placesNavette(compoBarges[q].type);
       }
     }
     if(sauv.relais) $("relais").value = sauv.relais;
@@ -20793,12 +20794,11 @@ function majBargesBrief(){
   var h = "";
   for(var i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
-    /* « 1 Ogre » et pas « Ogre — 1 par navette » : l'intitulé partage
-       la ligne avec « Navette n », et une phrase entière l'y écrasait. */
+    /* « 12 Meufs », « 15 Mecs », « 1 Ogre » : l'effectif est FIXE, une
+       navette part toujours pleine. Plus de « n/max » : il n'y a plus
+       de n à régler. */
     h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
-       + '<span>' + (placesNavette(b.type) === 1
-           ? "1 Ogre"
-           : b.n + '/' + placesNavette(b.type)) + '</span></div>'
+       + '<span>' + nommeTroupes(b.type, b.n) + '</span></div>'
        + '<div class="choixT">';
     for(var t = 0; t < TYPES_TROUPE.length; t++){
       var cle = TYPES_TROUPE[t];
@@ -20829,18 +20829,11 @@ function majBargesBrief(){
     pts[m].addEventListener("click", function(){
       var i2 = +this.getAttribute("data-i");
       compoBarges[i2].type = this.getAttribute("data-t");
-      /* changer de type reborne l'effectif : douze Meufs, quinze Mecs */
-      var maxi = placesNavette(compoBarges[i2].type);
-      compoBarges[i2].n = compoBarges[i2].n === 0 ? maxi : Math.min(maxi, compoBarges[i2].n);
-      majBargesBrief(); sauvegarde();
-    });
-  }
-  var minis = $("barges").querySelectorAll(".mini");
-  for(var n = 0; n < minis.length; n++){
-    minis[n].addEventListener("click", function(){
-      var i3 = +this.getAttribute("data-i"), d = +this.getAttribute("data-d");
-      var bb = compoBarges[i3];
-      bb.n = Math.max(0, Math.min(placesNavette(bb.type), bb.n + d));
+      /* L'effectif suit le type, TOUJOURS au complet : douze Meufs,
+         quinze Mecs, un Ogre. L'ancien « min(max, n) » gardait le 1 de
+         l'Ogre quand on revenait aux Meufs — une navette qui partait
+         avec une seule passagère. On n'en choisit pas le nombre. */
+      compoBarges[i2].n = placesNavette(compoBarges[i2].type);
       majBargesBrief(); sauvegarde();
     });
   }
@@ -20862,16 +20855,11 @@ function rangeeNavette(i, b){
   var maxi = placesNavette(b.type);
   var lab = '<span class="lab"><span class="pion ' + (PION_TROUPE[b.type] || "m")
           + '"></span>' + UNI[b.type].nom + (maxi > 1 ? "s" : "") + '</span>';
-  /* Une navette d'Ogre en embarque UN, jamais deux : les boutons +/−
-     n'ont plus rien à régler et prétendre le contraire serait mentir. */
-  if(maxi === 1){
-    return '<div class="rangee">' + lab
-         + '<span class="unSeul">1 par navette</span></div>';
-  }
+  /* Plus de boutons +/− du tout : une navette part TOUJOURS au complet.
+     Douze Meufs, quinze Mecs, un Ogre — on choisit le type, jamais le
+     nombre. Des boutons qui prétendraient le contraire mentiraient. */
   return '<div class="rangee">' + lab
-       + '<button class="mini" data-i="' + i + '" data-d="-1">−</button>'
-       + '<span class="compt">' + b.n + '</span>'
-       + '<button class="mini" data-i="' + i + '" data-d="1">+</button></div>';
+       + '<span class="unSeul">' + maxi + ' par navette</span></div>';
 }
 
 function majMondes(){
