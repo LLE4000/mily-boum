@@ -622,10 +622,19 @@ function majUnites(dt){
 
     var f = UNI[u.t];
 
-    /* --- Éclairante ------------------------------------------------
-       Deux comportements, selon l'endroit où la fusée est tombée.
-       L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
-       propre compte, les autres continuent de converger.               */
+    /* --- SOUS BROUILLARD : postée, muette ---------------------------
+       Tant que l'unité est dans la fumée, elle est cachée. Elle
+       continue d'avancer et de se placer normalement — jusqu'à SA
+       propre portée, celle de son type : 4,75 case pour une Meuf,
+       1,70 pour un Mec, jamais une distance générique — puis elle
+       s'arrête et se tait. Elle ne tire pas, elle n'engage pas, et
+       les défenses ne la voient pas (cf. masquee(), côté défense et
+       côté créature). C'est tout l'intérêt de la fumée : venir se
+       poster au contact sans déclencher le combat.
+       u.cachee sert aussi au rendu, qui estompe la troupe. */
+    var cachee = masquee(u);
+    u.cachee = cachee;
+
     /* --- BALISE : un ordre individuel, prioritaire sur tout ------------
        Tant que u.baliseOrdre vaut l'identifiant de la balise en cours,
        cette unité — et elle seule — est sous les ordres. Rien ne l'en
@@ -648,7 +657,9 @@ function majUnites(dt){
         }else{
           u.phase += dt * 1.5;
           u.prochainTir -= dt * 1000;
-          if(u.prochainTir <= 0){
+          if(cachee){
+            armeSansTirer(u);
+          }else if(u.prochainTir <= 0){
             u.prochainTir = f.cadence;
             u.tir = 1;
             tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
@@ -730,16 +741,32 @@ function majUnites(dt){
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
-      /* à portée : on tire */
+      /* Arrivée à SA portée (f.arret, propre au type). Elle tire —
+         sauf si la fumée la couvre, auquel cas elle se tient prête
+         et ne bouge plus. */
       u.phase += dt * 1.5;
       u.prochainTir -= dt * 1000;
-      if(u.prochainTir <= 0){
+      if(cachee){
+        armeSansTirer(u);
+      }else if(u.prochainTir <= 0){
         u.prochainTir = f.cadence;
         u.tir = 1;
         tireUnite(u, but, c);
       }
     }
   }
+}
+
+/* Sous Brouillard, l'unité retient son tir mais garde le doigt sur la
+   détente : le compte à rebours est ramené à zéro au lieu d'être
+   rechargé. À l'image même où la fumée se dissipe, u.prochainTir
+   repasse sous zéro et la salve part — aucun délai artificiel, comme
+   demandé. Sans ce plafonnement le compteur plongerait dans les
+   négatifs pendant vingt secondes, ce qui reviendrait au même, mais
+   avec un nombre qui dérive sans raison. */
+function armeSansTirer(u){
+  if(u.prochainTir < 0) u.prochainTir = 0;
+  u.tir = 0;
 }
 function chercheCibleUnite(u){
   var meilleur = null, md = 1e9;
@@ -841,6 +868,29 @@ function majDefenses(dt, tps){
     }
   }
 }
+/* La fumée vient de se dissiper : tout ce qui pouvait tirer sur la zone
+   reprend ses droits À L'INSTANT MÊME. Sans ça, défenses et créatures
+   auraient attendu leur prochain balayage de détection — jusqu'à six
+   dixièmes de seconde de sursis offert aux troupes, exactement le délai
+   artificiel qu'on ne veut pas. On remet donc leur minuterie de ciblage
+   à zéro : à l'image suivante, elles rouvrent les yeux.
+   Portée du réveil : le rayon de la zone plus la plus longue portée du
+   jeu, pour n'oublier aucune tourelle capable d'atteindre la zone. */
+var PORTEE_MAX_DEF = 0;
+function porteeMaxDefense(){
+  if(!PORTEE_MAX_DEF) for(var t in DEF) PORTEE_MAX_DEF = Math.max(PORTEE_MAX_DEF, DEF[t].portee || 0);
+  return PORTEE_MAX_DEF;
+}
+function reveleZone(f){
+  var p = f.r + porteeMaxDefense();
+  batimentsAutour(f.gx, f.gy, p, tmpBat);
+  for(var i = 0; i < tmpBat.length; i++) tmpBat[i].prochainCiblage = 0;
+  for(var k = 0; k < jeu.creatures.length; k++){
+    var cr = jeu.creatures[k];
+    if(cr.pv > 0 && Math.hypot(cr.gx - f.gx, cr.gy - f.gy) <= p) cr.minuteur = 0;
+  }
+}
+
 function masquee(u){
   for(var i = 0; i < jeu.brouillards.length; i++){
     var f = jeu.brouillards[i];
@@ -1049,13 +1099,22 @@ function majCreatures(dt, tps){
       unitesAutour(k.gx, k.gy, f.detection, tmpUni);
       var md = 1e9, best = null;
       for(var j = 0; j < tmpUni.length; j++){
+        /* Cachée veut dire cachée de TOUT : les créatures ne voient pas
+           plus dans la fumée que les tourelles. Sans ça un Braisard
+           serait venu cogner une troupe qui, elle, a ordre de ne pas
+           riposter — la fumée l'aurait condamnée au lieu de la
+           protéger. Gégé et Tweety cessent aussi de fuir : elles ne
+           repèrent plus personne. */
+        if(masquee(tmpUni[j])) continue;
         var d2 = Math.hypot(tmpUni[j].gx - k.gx, tmpUni[j].gy - k.gy);
         if(d2 < md){ md = d2; best = tmpUni[j]; }
       }
       k.cible = (best && md <= f.detection) ? best : null;
     }
     var c = k.cible;
-    if(c && c.pv <= 0) c = k.cible = null;
+    /* la proie qui vient d'entrer dans la fumée est perdue de vue tout
+       de suite, sans attendre le prochain balayage de détection */
+    if(c && (c.pv <= 0 || masquee(c))) c = k.cible = null;
 
     if(k.t === "belette"){ majBelette(k, f, c, dt); continue; }
     if(k.t === "tweety"){ majTweety(k, f, c, dt); continue; }
@@ -1266,7 +1325,10 @@ function majZones(dt){
   }
   for(i = jeu.brouillards.length - 1; i >= 0; i--){
     jeu.brouillards[i].age += dt;
-    if(jeu.brouillards[i].age > jeu.brouillards[i].duree) jeu.brouillards.splice(i, 1);
+    if(jeu.brouillards[i].age > jeu.brouillards[i].duree){
+      reveleZone(jeu.brouillards[i]);
+      jeu.brouillards.splice(i, 1);
+    }
   }
   for(i = jeu.soin.length - 1; i >= 0; i--){
     var s = jeu.soin[i]; s.age += dt;

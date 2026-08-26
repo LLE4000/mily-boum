@@ -394,6 +394,35 @@ function bouffee(c, x, y, r, a, coul){
   c.restore();
 }
 
+/* Bouffée à bord fondu. bouffee() empile trois disques pleins : c'est
+   net, rapide, parfait pour une explosion — mais en nappe de fumée les
+   bords durs se voient et le nuage prend un air de dessin animé. Ici le
+   disque s'éteint en dégradé, et trois lobes décalés cassent la
+   rondeur pour que la silhouette ne soit jamais un cercle parfait.
+   « rgb » est un triplet nu, « 170,164,178 » : le dégradé doit
+   s'éteindre dans SA propre teinte, pas vers le noir, sans quoi chaque
+   bouffée se borde d'un halo sombre. */
+function bouffeeFloue(c, x, y, r, a, rgb, ecrase){
+  if(a <= 0.004 || r <= 0.4) return;
+  var e = ecrase || 1;
+  c.save();
+  c.globalAlpha = a;
+  var lobes = [[0, 0, 1], [-0.42, 0.18, 0.72], [0.40, 0.12, 0.66]];
+  for(var i = 0; i < 3; i++){
+    var lx = x + r * lobes[i][0], ly = y + r * lobes[i][1] * e, lr = r * lobes[i][2];
+    var g = c.createRadialGradient(lx, ly, lr * 0.16, lx, ly, lr);
+    g.addColorStop(0.00, "rgba(" + rgb + ",1)");
+    g.addColorStop(0.52, "rgba(" + rgb + ",0.72)");
+    g.addColorStop(1.00, "rgba(" + rgb + ",0)");
+    c.fillStyle = g;
+    c.save();
+    c.translate(lx, ly); c.scale(1, e); c.translate(-lx, -ly);
+    c.beginPath(); c.arc(lx, ly, lr, 0, 6.2832); c.fill();
+    c.restore();
+  }
+  c.restore();
+}
+
 /* Texte à liseré, lisible sur n'importe quel fond */
 function texteCerne(c, s, x, y, taille, coul, alignement, epais){
   c.save();

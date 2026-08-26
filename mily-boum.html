@@ -427,7 +427,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.04";
+var VERSION = "v0.05";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1564,6 +1564,35 @@ function bouffee(c, x, y, r, a, coul){
   c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
   c.beginPath(); c.arc(x - r * 0.55, y + r * 0.25, r * 0.65, 0, 6.2832); c.fill();
   c.beginPath(); c.arc(x + r * 0.5, y + r * 0.2, r * 0.6, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* Bouffée à bord fondu. bouffee() empile trois disques pleins : c'est
+   net, rapide, parfait pour une explosion — mais en nappe de fumée les
+   bords durs se voient et le nuage prend un air de dessin animé. Ici le
+   disque s'éteint en dégradé, et trois lobes décalés cassent la
+   rondeur pour que la silhouette ne soit jamais un cercle parfait.
+   « rgb » est un triplet nu, « 170,164,178 » : le dégradé doit
+   s'éteindre dans SA propre teinte, pas vers le noir, sans quoi chaque
+   bouffée se borde d'un halo sombre. */
+function bouffeeFloue(c, x, y, r, a, rgb, ecrase){
+  if(a <= 0.004 || r <= 0.4) return;
+  var e = ecrase || 1;
+  c.save();
+  c.globalAlpha = a;
+  var lobes = [[0, 0, 1], [-0.42, 0.18, 0.72], [0.40, 0.12, 0.66]];
+  for(var i = 0; i < 3; i++){
+    var lx = x + r * lobes[i][0], ly = y + r * lobes[i][1] * e, lr = r * lobes[i][2];
+    var g = c.createRadialGradient(lx, ly, lr * 0.16, lx, ly, lr);
+    g.addColorStop(0.00, "rgba(" + rgb + ",1)");
+    g.addColorStop(0.52, "rgba(" + rgb + ",0.72)");
+    g.addColorStop(1.00, "rgba(" + rgb + ",0)");
+    c.fillStyle = g;
+    c.save();
+    c.translate(lx, ly); c.scale(1, e); c.translate(-lx, -ly);
+    c.beginPath(); c.arc(lx, ly, lr, 0, 6.2832); c.fill();
+    c.restore();
+  }
   c.restore();
 }
 
@@ -5917,6 +5946,10 @@ function dessineUniteMonde(c, u, tps){
   var p = versEcran(cam, u.gx, u.gy);
   var z = cam.z;
   c.save();
+  /* Postée sous Brouillard : on l'estompe. Le joueur doit deviner où
+     sont ses troupes sans les voir nettement — c'est le pendant visuel
+     du fait que les défenses, elles, ne les voient pas du tout. */
+  if(u.cachee) c.globalAlpha = 0.42;
   c.translate(p.x, p.y);
   c.scale(z, z);
   if(!u.droite) c.scale(-1, 1);
@@ -7107,10 +7140,19 @@ function majUnites(dt){
 
     var f = UNI[u.t];
 
-    /* --- Éclairante ------------------------------------------------
-       Deux comportements, selon l'endroit où la fusée est tombée.
-       L'effet est SUIVI TROUPE PAR TROUPE : chacune se libère pour son
-       propre compte, les autres continuent de converger.               */
+    /* --- SOUS BROUILLARD : postée, muette ---------------------------
+       Tant que l'unité est dans la fumée, elle est cachée. Elle
+       continue d'avancer et de se placer normalement — jusqu'à SA
+       propre portée, celle de son type : 4,75 case pour une Meuf,
+       1,70 pour un Mec, jamais une distance générique — puis elle
+       s'arrête et se tait. Elle ne tire pas, elle n'engage pas, et
+       les défenses ne la voient pas (cf. masquee(), côté défense et
+       côté créature). C'est tout l'intérêt de la fumée : venir se
+       poster au contact sans déclencher le combat.
+       u.cachee sert aussi au rendu, qui estompe la troupe. */
+    var cachee = masquee(u);
+    u.cachee = cachee;
+
     /* --- BALISE : un ordre individuel, prioritaire sur tout ------------
        Tant que u.baliseOrdre vaut l'identifiant de la balise en cours,
        cette unité — et elle seule — est sous les ordres. Rien ne l'en
@@ -7133,7 +7175,9 @@ function majUnites(dt){
         }else{
           u.phase += dt * 1.5;
           u.prochainTir -= dt * 1000;
-          if(u.prochainTir <= 0){
+          if(cachee){
+            armeSansTirer(u);
+          }else if(u.prochainTir <= 0){
             u.prochainTir = f.cadence;
             u.tir = 1;
             tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
@@ -7215,16 +7259,32 @@ function majUnites(dt){
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
     }else{
-      /* à portée : on tire */
+      /* Arrivée à SA portée (f.arret, propre au type). Elle tire —
+         sauf si la fumée la couvre, auquel cas elle se tient prête
+         et ne bouge plus. */
       u.phase += dt * 1.5;
       u.prochainTir -= dt * 1000;
-      if(u.prochainTir <= 0){
+      if(cachee){
+        armeSansTirer(u);
+      }else if(u.prochainTir <= 0){
         u.prochainTir = f.cadence;
         u.tir = 1;
         tireUnite(u, but, c);
       }
     }
   }
+}
+
+/* Sous Brouillard, l'unité retient son tir mais garde le doigt sur la
+   détente : le compte à rebours est ramené à zéro au lieu d'être
+   rechargé. À l'image même où la fumée se dissipe, u.prochainTir
+   repasse sous zéro et la salve part — aucun délai artificiel, comme
+   demandé. Sans ce plafonnement le compteur plongerait dans les
+   négatifs pendant vingt secondes, ce qui reviendrait au même, mais
+   avec un nombre qui dérive sans raison. */
+function armeSansTirer(u){
+  if(u.prochainTir < 0) u.prochainTir = 0;
+  u.tir = 0;
 }
 function chercheCibleUnite(u){
   var meilleur = null, md = 1e9;
@@ -7326,6 +7386,29 @@ function majDefenses(dt, tps){
     }
   }
 }
+/* La fumée vient de se dissiper : tout ce qui pouvait tirer sur la zone
+   reprend ses droits À L'INSTANT MÊME. Sans ça, défenses et créatures
+   auraient attendu leur prochain balayage de détection — jusqu'à six
+   dixièmes de seconde de sursis offert aux troupes, exactement le délai
+   artificiel qu'on ne veut pas. On remet donc leur minuterie de ciblage
+   à zéro : à l'image suivante, elles rouvrent les yeux.
+   Portée du réveil : le rayon de la zone plus la plus longue portée du
+   jeu, pour n'oublier aucune tourelle capable d'atteindre la zone. */
+var PORTEE_MAX_DEF = 0;
+function porteeMaxDefense(){
+  if(!PORTEE_MAX_DEF) for(var t in DEF) PORTEE_MAX_DEF = Math.max(PORTEE_MAX_DEF, DEF[t].portee || 0);
+  return PORTEE_MAX_DEF;
+}
+function reveleZone(f){
+  var p = f.r + porteeMaxDefense();
+  batimentsAutour(f.gx, f.gy, p, tmpBat);
+  for(var i = 0; i < tmpBat.length; i++) tmpBat[i].prochainCiblage = 0;
+  for(var k = 0; k < jeu.creatures.length; k++){
+    var cr = jeu.creatures[k];
+    if(cr.pv > 0 && Math.hypot(cr.gx - f.gx, cr.gy - f.gy) <= p) cr.minuteur = 0;
+  }
+}
+
 function masquee(u){
   for(var i = 0; i < jeu.brouillards.length; i++){
     var f = jeu.brouillards[i];
@@ -7534,13 +7617,22 @@ function majCreatures(dt, tps){
       unitesAutour(k.gx, k.gy, f.detection, tmpUni);
       var md = 1e9, best = null;
       for(var j = 0; j < tmpUni.length; j++){
+        /* Cachée veut dire cachée de TOUT : les créatures ne voient pas
+           plus dans la fumée que les tourelles. Sans ça un Braisard
+           serait venu cogner une troupe qui, elle, a ordre de ne pas
+           riposter — la fumée l'aurait condamnée au lieu de la
+           protéger. Gégé et Tweety cessent aussi de fuir : elles ne
+           repèrent plus personne. */
+        if(masquee(tmpUni[j])) continue;
         var d2 = Math.hypot(tmpUni[j].gx - k.gx, tmpUni[j].gy - k.gy);
         if(d2 < md){ md = d2; best = tmpUni[j]; }
       }
       k.cible = (best && md <= f.detection) ? best : null;
     }
     var c = k.cible;
-    if(c && c.pv <= 0) c = k.cible = null;
+    /* la proie qui vient d'entrer dans la fumée est perdue de vue tout
+       de suite, sans attendre le prochain balayage de détection */
+    if(c && (c.pv <= 0 || masquee(c))) c = k.cible = null;
 
     if(k.t === "belette"){ majBelette(k, f, c, dt); continue; }
     if(k.t === "tweety"){ majTweety(k, f, c, dt); continue; }
@@ -7751,7 +7843,10 @@ function majZones(dt){
   }
   for(i = jeu.brouillards.length - 1; i >= 0; i--){
     jeu.brouillards[i].age += dt;
-    if(jeu.brouillards[i].age > jeu.brouillards[i].duree) jeu.brouillards.splice(i, 1);
+    if(jeu.brouillards[i].age > jeu.brouillards[i].duree){
+      reveleZone(jeu.brouillards[i]);
+      jeu.brouillards.splice(i, 1);
+    }
   }
   for(i = jeu.soin.length - 1; i >= 0; i--){
     var s = jeu.soin[i]; s.age += dt;
@@ -9629,33 +9724,125 @@ function dessineZonesSol(c, tps){
    Attention : bouffee() REMPLACE globalAlpha au lieu de le multiplier.
    Le fondu doit donc passer par l'argument, pas par un globalAlpha
    parent — c'est ce qui rendait l'ancien fondu inopérant. */
+/* Les trois épaisseurs du nuage, de la nappe au sol aux volutes qui
+   s'effilochent en l'air. Chacune a sa densité, sa hauteur, sa vitesse
+   de rotation et sa teinte : c'est leur superposition, et le fait
+   qu'elles ne tournent pas à la même vitesse, qui donne un volume qui
+   remue au lieu d'une galette qui glisse.
+   n      : nombre de bouffées
+   rayon  : position dans le disque, en part du rayon de la zone
+   haut   : élévation à l'écran, en pixels à zoom 1
+   taille : rayon de la bouffée, EN PART DU RAYON DE LA ZONE — surtout
+            pas en pixels : la zone fait quatre cases de rayon, donc
+            environ cent cinquante pixels de large, et des bouffées
+            calibrées en pixels absolus s'y perdaient comme des
+            grains de poussière au lieu de la remplir
+   opa    : opacité de base
+   tour   : vitesse de rotation (signe = sens)
+   rgb    : teinte, en triplet nu pour bouffeeFloue */
+var NAPPES_BROUILLARD = [
+  { n:22, rayon:[0.56, 0.99], haut:[1, 12],  taille:[0.22, 0.34], opa:0.36, tour:-0.21, ecrase:0.56 },
+  { n:19, rayon:[0.10, 0.80], haut:[12, 30], taille:[0.24, 0.38], opa:0.34, tour:0.33,  ecrase:0.72 },
+  { n:13, rayon:[0.00, 0.54], haut:[28, 56], taille:[0.20, 0.33], opa:0.28, tour:-0.48, ecrase:0.90 }
+];
+/* Teinte d'une bouffée. Une fumée d'un gris uniforme reste plate quelle
+   que soit son opacité : ce qui donne le volume, c'est l'écart de
+   VALEUR entre deux volutes voisines. Les hautes prennent la lumière,
+   les basses restent dans l'ombre du nuage, et un peu de bruit évite
+   que la transition ne soit un dégradé trop propre. */
+function tonBrouillard(hauteur, bruit){
+  var lum = 0.72 + 0.30 * Math.min(1, hauteur / 52) + (bruit - 0.5) * 0.30;
+  var r = Math.min(255, (176 * lum) | 0);
+  var v = Math.min(255, (170 * lum) | 0);
+  var b = Math.min(255, (190 * lum) | 0);
+  return r + "," + v + "," + b;
+}
+
 function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
   var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.5);
-  var i, ang, rr, pp;
+  if(a <= 0.01) return;
 
-  /* nappe basse qui court le long du sol, au bord même de la zone */
-  for(i = 0; i < 14; i++){
-    ang = i / 14 * 6.2832 - tps * 0.18;
-    rr = f.r * (0.80 + (i % 3) * 0.07);
-    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
-    bouffee(c, pp.x, pp.y - (4 + (i % 3) * 4) * z + Math.sin(tps * 1.1 + i) * 2 * z,
-            (13 + (i % 4) * 4) * z, 0.40 * a, i % 2 ? "#a29cac" : "#b8b2c2");
+  /* Graine stable tirée de la position : deux Brouillards posés à des
+     endroits différents ne se ressemblent pas, mais le même nuage garde
+     sa forme d'une image à l'autre au lieu de grésiller. */
+  var gr = ((f.gx * 733.1 + f.gy * 419.7) | 0);
+  /* rayon de la zone en pixels d'écran : c'est l'unité dans laquelle
+     les bouffées sont dimensionnées */
+  var RZ = f.r * RX;
+
+  for(var l = 0; l < NAPPES_BROUILLARD.length; l++){
+    var q = NAPPES_BROUILLARD[l];
+    for(var i = 0; i < q.n; i++){
+      /* trois bruits stables par bouffée : sa place, sa taille, son
+         souffle. Le tour de disque est réparti régulièrement puis
+         perturbé, pour ne pas retomber sur une couronne trop nette. */
+      var b0 = bruitStable(gr + l * 97 + i, 0);
+      var b1 = bruitStable(gr + l * 97 + i, 1);
+      var b2 = bruitStable(gr * 3 + l * 31 + i, 0);
+
+      var ang = (i / q.n) * 6.2832 + (b0 - 0.5) * 0.85 + tps * q.tour;
+      /* respiration : le nuage se gonfle et se rétracte doucement,
+         chaque bouffée sur son propre rythme */
+      var souffle = 1 + Math.sin(tps * (0.7 + b1 * 0.7) + b2 * 6.2832) * 0.13;
+      var rr = f.r * (q.rayon[0] + (q.rayon[1] - q.rayon[0]) * b1) * souffle;
+      var pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+
+      /* hauteur : une part fixe propre à la bouffée, une part qui
+         ondule — c'est ce balancement vertical qui empêche la nappe
+         de paraître plate */
+      var h = q.haut[0] + (q.haut[1] - q.haut[0]) * b2
+            + Math.sin(tps * (1.0 + b0 * 0.9) + i * 1.7) * 4.6;
+      var taille = (q.taille[0] + (q.taille[1] - q.taille[0]) * b0) * RZ * souffle;
+      /* opacité : elle varie d'une bouffée à l'autre et respire, et
+         elle s'éteint sur le pourtour pour que le nuage n'ait pas de
+         bord franc */
+      /* Fort écart d'une bouffée à l'autre : c'est ce contraste qui
+         donne du grain au nuage. Une opacité uniforme, même élevée,
+         ne produit qu'une flaque de lait bien plate. */
+      var opa = q.opa * (0.42 + b1 * 0.92)
+              * (1 + Math.sin(tps * 0.9 + b0 * 6.2832) * 0.22) * a;
+
+      bouffeeFloue(c, pp.x, pp.y - h * z, taille * z, opa,
+                   tonBrouillard(h, b2), q.ecrase);
+    }
   }
-  /* volutes qui montent au-dessus */
-  for(i = 0; i < 12; i++){
-    ang = i / 12 * 6.2832 + tps * 0.25;
-    rr = f.r * (0.35 + (i % 3) * 0.25);
-    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
-    bouffee(c, pp.x, pp.y - (16 + (i % 4) * 8) * z + Math.sin(tps * 1.4 + i) * 3 * z,
-            (12 + (i % 3) * 5) * z, 0.5 * a, i % 2 ? "#8e8894" : "#a9a3ae");
+
+  /* Cœur dense : c'est lui qui rend la cachette crédible. Les nappes
+     seules laissaient voir au travers ; celui-ci bouche le milieu.
+     Il respire lui aussi, pour ne pas figer le centre du nuage.
+     Le « * z » n'est pas décoratif : RZ est une longueur MONDE, il
+     faut la ramener à l'écran, sans quoi le cœur enflerait au dézoom
+     jusqu'à couvrir la moitié de la carte. */
+  var resp = 1 + Math.sin(tps * 0.6 + gr) * 0.06;
+  bouffeeFloue(c, p.x, p.y - 15 * z, RZ * 0.62 * resp * z, 0.24 * a, "190,184,200", 0.60);
+
+  /* LE CERCLE AU SOL, REPEINT PAR-DESSUS LA FUMÉE.
+     Il est déjà tracé plus tôt, avec le décor, pour teinter l'herbe —
+     mais le nuage se dessine après et l'enterrait. Or c'est lui, et lui
+     seul, qui dit exactement où s'arrête la protection : il doit rester
+     lisible quoi qu'il arrive. On le repasse donc ici, en dernier.
+     Épaisseurs plafonnées en pixels écran pour tenir au dézoom. */
+  var ex = f.r * RX * z, ey = f.r * RY * z;
+  c.save();
+  c.strokeStyle = "rgba(236,232,246," + (0.72 * a) + ")";
+  c.lineWidth = Math.max(1.7, 2.4 * z);
+  c.beginPath(); c.ellipse(p.x, p.y, ex, ey, 0, 0, 6.2832); c.stroke();
+  if(c.setLineDash){
+    var pasR = Math.max(9, 13 * z);
+    c.setLineDash([pasR, pasR * 0.8]);
+    c.lineDashOffset = -tps * pasR * 0.9;
+    c.strokeStyle = "rgba(255,255,255," + (0.5 * a) + ")";
+    c.lineWidth = Math.max(1.1, 1.6 * z);
+    c.beginPath(); c.ellipse(p.x, p.y, ex * 0.93, ey * 0.93, 0, 0, 6.2832); c.stroke();
+    c.setLineDash([]);
   }
-  bouffee(c, p.x, p.y - 22 * z, 28 * z, 0.55 * a, "#9a94a2");
+  c.restore();
 
   /* décompte : combien de temps la zone tient encore */
   if(z > 0.30){
-    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 48 * z),
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 52 * z),
                Math.max(10, 13 * z), "#e6e2f0");
   }
 }

@@ -495,6 +495,10 @@ function dessineUniteMonde(c, u, tps){
   var p = versEcran(cam, u.gx, u.gy);
   var z = cam.z;
   c.save();
+  /* Postée sous Brouillard : on l'estompe. Le joueur doit deviner où
+     sont ses troupes sans les voir nettement — c'est le pendant visuel
+     du fait que les défenses, elles, ne les voient pas du tout. */
+  if(u.cachee) c.globalAlpha = 0.42;
   c.translate(p.x, p.y);
   c.scale(z, z);
   if(!u.droite) c.scale(-1, 1);

@@ -896,33 +896,125 @@ function dessineZonesSol(c, tps){
    Attention : bouffee() REMPLACE globalAlpha au lieu de le multiplier.
    Le fondu doit donc passer par l'argument, pas par un globalAlpha
    parent — c'est ce qui rendait l'ancien fondu inopérant. */
+/* Les trois épaisseurs du nuage, de la nappe au sol aux volutes qui
+   s'effilochent en l'air. Chacune a sa densité, sa hauteur, sa vitesse
+   de rotation et sa teinte : c'est leur superposition, et le fait
+   qu'elles ne tournent pas à la même vitesse, qui donne un volume qui
+   remue au lieu d'une galette qui glisse.
+   n      : nombre de bouffées
+   rayon  : position dans le disque, en part du rayon de la zone
+   haut   : élévation à l'écran, en pixels à zoom 1
+   taille : rayon de la bouffée, EN PART DU RAYON DE LA ZONE — surtout
+            pas en pixels : la zone fait quatre cases de rayon, donc
+            environ cent cinquante pixels de large, et des bouffées
+            calibrées en pixels absolus s'y perdaient comme des
+            grains de poussière au lieu de la remplir
+   opa    : opacité de base
+   tour   : vitesse de rotation (signe = sens)
+   rgb    : teinte, en triplet nu pour bouffeeFloue */
+var NAPPES_BROUILLARD = [
+  { n:22, rayon:[0.56, 0.99], haut:[1, 12],  taille:[0.22, 0.34], opa:0.36, tour:-0.21, ecrase:0.56 },
+  { n:19, rayon:[0.10, 0.80], haut:[12, 30], taille:[0.24, 0.38], opa:0.34, tour:0.33,  ecrase:0.72 },
+  { n:13, rayon:[0.00, 0.54], haut:[28, 56], taille:[0.20, 0.33], opa:0.28, tour:-0.48, ecrase:0.90 }
+];
+/* Teinte d'une bouffée. Une fumée d'un gris uniforme reste plate quelle
+   que soit son opacité : ce qui donne le volume, c'est l'écart de
+   VALEUR entre deux volutes voisines. Les hautes prennent la lumière,
+   les basses restent dans l'ombre du nuage, et un peu de bruit évite
+   que la transition ne soit un dégradé trop propre. */
+function tonBrouillard(hauteur, bruit){
+  var lum = 0.72 + 0.30 * Math.min(1, hauteur / 52) + (bruit - 0.5) * 0.30;
+  var r = Math.min(255, (176 * lum) | 0);
+  var v = Math.min(255, (170 * lum) | 0);
+  var b = Math.min(255, (190 * lum) | 0);
+  return r + "," + v + "," + b;
+}
+
 function dessineBrouillard(c, f, tps){
   var p = versEcran(cam, f.gx, f.gy);
   var z = cam.z;
   var a = Math.min(1, f.age * 3) * Math.min(1, (f.duree - f.age) / 1.5);
-  var i, ang, rr, pp;
+  if(a <= 0.01) return;
 
-  /* nappe basse qui court le long du sol, au bord même de la zone */
-  for(i = 0; i < 14; i++){
-    ang = i / 14 * 6.2832 - tps * 0.18;
-    rr = f.r * (0.80 + (i % 3) * 0.07);
-    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
-    bouffee(c, pp.x, pp.y - (4 + (i % 3) * 4) * z + Math.sin(tps * 1.1 + i) * 2 * z,
-            (13 + (i % 4) * 4) * z, 0.40 * a, i % 2 ? "#a29cac" : "#b8b2c2");
+  /* Graine stable tirée de la position : deux Brouillards posés à des
+     endroits différents ne se ressemblent pas, mais le même nuage garde
+     sa forme d'une image à l'autre au lieu de grésiller. */
+  var gr = ((f.gx * 733.1 + f.gy * 419.7) | 0);
+  /* rayon de la zone en pixels d'écran : c'est l'unité dans laquelle
+     les bouffées sont dimensionnées */
+  var RZ = f.r * RX;
+
+  for(var l = 0; l < NAPPES_BROUILLARD.length; l++){
+    var q = NAPPES_BROUILLARD[l];
+    for(var i = 0; i < q.n; i++){
+      /* trois bruits stables par bouffée : sa place, sa taille, son
+         souffle. Le tour de disque est réparti régulièrement puis
+         perturbé, pour ne pas retomber sur une couronne trop nette. */
+      var b0 = bruitStable(gr + l * 97 + i, 0);
+      var b1 = bruitStable(gr + l * 97 + i, 1);
+      var b2 = bruitStable(gr * 3 + l * 31 + i, 0);
+
+      var ang = (i / q.n) * 6.2832 + (b0 - 0.5) * 0.85 + tps * q.tour;
+      /* respiration : le nuage se gonfle et se rétracte doucement,
+         chaque bouffée sur son propre rythme */
+      var souffle = 1 + Math.sin(tps * (0.7 + b1 * 0.7) + b2 * 6.2832) * 0.13;
+      var rr = f.r * (q.rayon[0] + (q.rayon[1] - q.rayon[0]) * b1) * souffle;
+      var pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
+
+      /* hauteur : une part fixe propre à la bouffée, une part qui
+         ondule — c'est ce balancement vertical qui empêche la nappe
+         de paraître plate */
+      var h = q.haut[0] + (q.haut[1] - q.haut[0]) * b2
+            + Math.sin(tps * (1.0 + b0 * 0.9) + i * 1.7) * 4.6;
+      var taille = (q.taille[0] + (q.taille[1] - q.taille[0]) * b0) * RZ * souffle;
+      /* opacité : elle varie d'une bouffée à l'autre et respire, et
+         elle s'éteint sur le pourtour pour que le nuage n'ait pas de
+         bord franc */
+      /* Fort écart d'une bouffée à l'autre : c'est ce contraste qui
+         donne du grain au nuage. Une opacité uniforme, même élevée,
+         ne produit qu'une flaque de lait bien plate. */
+      var opa = q.opa * (0.42 + b1 * 0.92)
+              * (1 + Math.sin(tps * 0.9 + b0 * 6.2832) * 0.22) * a;
+
+      bouffeeFloue(c, pp.x, pp.y - h * z, taille * z, opa,
+                   tonBrouillard(h, b2), q.ecrase);
+    }
   }
-  /* volutes qui montent au-dessus */
-  for(i = 0; i < 12; i++){
-    ang = i / 12 * 6.2832 + tps * 0.25;
-    rr = f.r * (0.35 + (i % 3) * 0.25);
-    pp = versEcran(cam, f.gx + Math.cos(ang) * rr, f.gy + Math.sin(ang) * rr);
-    bouffee(c, pp.x, pp.y - (16 + (i % 4) * 8) * z + Math.sin(tps * 1.4 + i) * 3 * z,
-            (12 + (i % 3) * 5) * z, 0.5 * a, i % 2 ? "#8e8894" : "#a9a3ae");
+
+  /* Cœur dense : c'est lui qui rend la cachette crédible. Les nappes
+     seules laissaient voir au travers ; celui-ci bouche le milieu.
+     Il respire lui aussi, pour ne pas figer le centre du nuage.
+     Le « * z » n'est pas décoratif : RZ est une longueur MONDE, il
+     faut la ramener à l'écran, sans quoi le cœur enflerait au dézoom
+     jusqu'à couvrir la moitié de la carte. */
+  var resp = 1 + Math.sin(tps * 0.6 + gr) * 0.06;
+  bouffeeFloue(c, p.x, p.y - 15 * z, RZ * 0.62 * resp * z, 0.24 * a, "190,184,200", 0.60);
+
+  /* LE CERCLE AU SOL, REPEINT PAR-DESSUS LA FUMÉE.
+     Il est déjà tracé plus tôt, avec le décor, pour teinter l'herbe —
+     mais le nuage se dessine après et l'enterrait. Or c'est lui, et lui
+     seul, qui dit exactement où s'arrête la protection : il doit rester
+     lisible quoi qu'il arrive. On le repasse donc ici, en dernier.
+     Épaisseurs plafonnées en pixels écran pour tenir au dézoom. */
+  var ex = f.r * RX * z, ey = f.r * RY * z;
+  c.save();
+  c.strokeStyle = "rgba(236,232,246," + (0.72 * a) + ")";
+  c.lineWidth = Math.max(1.7, 2.4 * z);
+  c.beginPath(); c.ellipse(p.x, p.y, ex, ey, 0, 0, 6.2832); c.stroke();
+  if(c.setLineDash){
+    var pasR = Math.max(9, 13 * z);
+    c.setLineDash([pasR, pasR * 0.8]);
+    c.lineDashOffset = -tps * pasR * 0.9;
+    c.strokeStyle = "rgba(255,255,255," + (0.5 * a) + ")";
+    c.lineWidth = Math.max(1.1, 1.6 * z);
+    c.beginPath(); c.ellipse(p.x, p.y, ex * 0.93, ey * 0.93, 0, 0, 6.2832); c.stroke();
+    c.setLineDash([]);
   }
-  bouffee(c, p.x, p.y - 22 * z, 28 * z, 0.55 * a, "#9a94a2");
+  c.restore();
 
   /* décompte : combien de temps la zone tient encore */
   if(z > 0.30){
-    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 48 * z),
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 52 * z),
                Math.max(10, 13 * z), "#e6e2f0");
   }
 }

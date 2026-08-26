@@ -34,6 +34,23 @@ try{
   process.exit(1);
 }
 
+/* Le bloc NOYAU est du calcul pur, donc testable ici — mais c'est une
+   fraction du fichier livré. Une faute de frappe dans le rendu ou dans
+   le jeu passait donc au travers : les tests restaient au vert pendant
+   que la page ne s'ouvrait plus du tout. On vérifie maintenant que TOUT
+   le JavaScript livré s'analyse, avant même de tester quoi que ce soit. */
+var blocs = html.match(/<script>[\s\S]*?<\/script>/g) || [];
+if(!blocs.length){ console.error("Aucun bloc <script> dans mily-boum.html"); process.exit(1); }
+for(var ib = 0; ib < blocs.length; ib++){
+  var corps = blocs[ib].replace(/^<script>/, "").replace(/<\/script>$/, "");
+  try{ new Function(corps); }
+  catch(eb){
+    console.error("Le bloc <script> n°" + (ib + 1) + " du fichier livré ne s'analyse pas :");
+    console.error("  " + eb.message);
+    process.exit(1);
+  }
+}
+
 /* ---------------- petit harnais ---------------- */
 var total = 0, echecs = 0, groupe = "";
 function G(n){ groupe = n; console.log("\n── " + n); }
