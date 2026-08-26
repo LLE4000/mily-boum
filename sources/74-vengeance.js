@@ -144,22 +144,19 @@ function traitRayon(c, pts, larg, alpha){
   }
 }
 
-/* La traînée au sol : elle SUIT LE SOL, donc chaque point est
-   converti séparément par versEcran() — un simple trait droit en
-   coordonnées écran ne serait pas dans le plan de l'île, et se
-   verrait immédiatement. On l'ondule légèrement, de plus en plus
-   loin de l'impact : un rayon qui rase le sol n'est jamais droit. */
-function pointsTrainee(V, k, fraction, tps){
-  var s = V.dir[k], pts = [], N = 26;
-  var vx = s.x1 - V.cx, vy = s.y1 - V.cy;
-  var nx = -vy, ny = vx, nl = Math.hypot(nx, ny) || 1;
-  nx /= nl; ny /= nl;
-  for(var i = 0; i <= N; i++){
-    var u = (i / N) * fraction;
-    var ond = Math.sin(u * 9.5 + tps * 5.5 + k * 2.4) * 0.46 * u;
-    pts.push(versEcran(cam, V.cx + vx * u + nx * ond, V.cy + vy * u + ny * ond));
-  }
-  return pts;
+/* La traînée au sol : DROITE, elle aussi. Le rayon ne se tord pas
+   parce qu'il rase la terre, il continue tout droit.
+   Deux points suffisent : versEcran() est affine, donc un segment
+   droit dans le monde reste un segment droit à l'écran. On passe
+   quand même par elle et non par des coordonnées d'écran, pour que
+   la traînée soit bien couchée dans le plan de l'île. */
+function pointsTrainee(V, k, fraction){
+  var s = V.dir[k];
+  return [
+    versEcran(cam, V.cx, V.cy),
+    versEcran(cam, V.cx + (s.x1 - V.cx) * fraction,
+                   V.cy + (s.y1 - V.cy) * fraction)
+  ];
 }
 
 function dessineRayonsVengeance(c, tps){
@@ -208,7 +205,7 @@ function dessineRayonsVengeance(c, tps){
     traitRayon(c, [{ x:ox, y:oy }, { x:bx, y:by }], larg, alpha);
 
     /* la continuation au sol, seulement une fois la cible touchée */
-    if(sol > 0.001) traitRayon(c, pointsTrainee(V, k, sol, tps), larg * 0.82, alpha);
+    if(sol > 0.001) traitRayon(c, pointsTrainee(V, k, sol), larg * 0.82, alpha);
   }
 
   /* L'IMPACT. Une étoile blanche, un anneau qui s'ouvre, et la
