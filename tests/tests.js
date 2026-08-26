@@ -21,6 +21,8 @@ try{
     "EQ","prng","graineTexte","graineCarte","iso","deIso","borne","versMonde","versEcran",
     "debutPince","appliquePince","ecartAngulaire","dansCone","DEF","UNI","CRE","COUT","CAP",
     "rayonFormation","ancreFormation","ANGLE_OR",
+    "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
+    "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "genereCarte","empreinteCarte","utf8Octets","texteUtf8","encodeLongueur","decodeLongueur",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
@@ -426,6 +428,123 @@ G("8. Cohérence des règles de jeu");
      N.DEF.frelon.pv * 400 < N.CARTES[0].pvQG / 10);
   ok("une quinzaine de tireuses démonte un Crible en moins de 4 s",
      N.DEF.crible.pv / (8 * N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000)) < 4);
+})();
+
+/* ================================================================
+   9. L'INSTANTANÉ DU MONDE — la persistance du salon
+   ================================================================ */
+(function(){
+  G("9. Instantané du monde — persistance du salon");
+
+  /* --- bitmap --- */
+  (function(){
+    var n = 490, bits = [], i;
+    for(i = 0; i < n; i++) bits.push((i % 7 === 0 || i === 489) ? 1 : 0);
+    var s = N.encodeBits(bits);
+    var r = N.decodeBits(s, n);
+    var pareil = true;
+    for(i = 0; i < n; i++) if(bits[i] !== r[i]) pareil = false;
+    ok("490 bâtiments : aller-retour du bitmap exact", pareil);
+    ok("490 bâtiments tiennent en " + s.length + " caractères", s.length <= 84, s.length);
+    ok("le compte de bits est juste", N.compteBits(s) === bits.filter(function(b){ return b; }).length);
+  })();
+
+  (function(){
+    var a = N.encodeBits([1,0,0,0,0,0, 0,0,0,0,0,0]);
+    var b = N.encodeBits([0,0,0,0,0,0, 0,0,0,0,0,1]);
+    var u = N.decodeBits(N.unionBits(a, b), 12);
+    ok("l'union des bitmaps conserve les deux destructions",
+       u[0] === 1 && u[11] === 1 && u[5] === 0);
+    ok("l'union est commutative", N.unionBits(a, b) === N.unionBits(b, a));
+    ok("l'union est idempotente", N.unionBits(a, a) === a);
+    ok("l'union tolère un bitmap plus court",
+       N.decodeBits(N.unionBits(a, ""), 12)[0] === 1);
+  })();
+
+  /* --- fusion monotone --- */
+  (function(){
+    var A = { v:3, c:0, pv:900, d:N.encodeBits([1,0,0,0,0,0]) };
+    var B = { v:1, c:0, pv:700, d:N.encodeBits([0,0,1,0,0,0]) };
+    var f = N.fusionneMonde(A, B), g = N.fusionneMonde(B, A);
+    ok("la fusion prend les PV les plus bas", f.pv === 700);
+    ok("la fusion garde le numéro de version le plus haut", f.v === 3);
+    var bits = N.decodeBits(f.d, 6);
+    ok("une défense détruite ne se relève jamais", bits[0] === 1 && bits[2] === 1);
+    ok("la fusion ne dépend pas de l'ordre", N.memeMonde(f, g));
+    ok("fusionner deux fois ne change rien", N.memeMonde(f, N.fusionneMonde(f, B)));
+  })();
+
+  (function(){
+    var ile0 = { v:9, c:0, pv:10, d:N.encodeBits([1,1,1,1,1,1]) };
+    var ile1 = { v:1, c:1, pv:2000000, d:"" };
+    var f = N.fusionneMonde(ile0, ile1);
+    ok("passer à l'île suivante repart d'un monde neuf",
+       f.c === 1 && f.pv === 2000000 && N.compteBits(f.d) === 0);
+    ok("et son numéro de version dépasse les deux précédents", f.v > 9);
+    ok("un instantané d'île périmée n'écrase pas l'île en cours",
+       N.fusionneMonde(f, ile0).c === 1);
+  })();
+
+  /* --- bouclage de la campagne --- */
+  (function(){
+    var fin = { v:40, cy:0, c:2, pv:0, d:N.encodeBits([1,1,1,1,1,1]) };
+    var neuf = { v:1, cy:1, c:0, pv:15000000, d:"" };
+    var f = N.fusionneMonde(fin, neuf);
+    ok("une nouvelle campagne repart d'un monde intact",
+       f.cy === 1 && f.c === 0 && f.pv === 15000000 && N.compteBits(f.d) === 0);
+    ok("et l'ancienne campagne ne la ressuscite pas",
+       N.fusionneMonde(f, fin).cy === 1 && N.fusionneMonde(f, fin).c === 0);
+    ok("sans compteur de campagne, le salon resterait figé sur la dernière île",
+       N.rangMonde(neuf) > N.rangMonde(fin));
+  })();
+
+  (function(){
+    ok("un instantané malformé est rejeté",
+       !N.mondeValide(null) && !N.mondeValide({}) && !N.mondeValide({ c:-1, pv:0, v:0 }));
+    ok("fusionner avec rien rend l'autre",
+       N.memeMonde(N.fusionneMonde(null, N.mondeVide(0, 500)), N.mondeVide(0, 500)));
+    ok("memeMonde distingue deux mondes différents",
+       !N.memeMonde({ v:1, c:0, pv:500, d:"" }, { v:1, c:0, pv:400, d:"" }));
+  })();
+
+  /* --- le drapeau RETAIN, sans lequel rien ne survit --- */
+  (function(){
+    var normal = N.paquetPublish("a/b", "x", false);
+    var retenu = N.paquetPublish("a/b", "x", true);
+    ok("un publish ordinaire n'est pas retenu", normal[0] === 0x30);
+    ok("l'instantané du monde est publié RETENU", retenu[0] === 0x31);
+    ok("le corps est identique dans les deux cas", normal.length === retenu.length);
+    var lu = N.litPublish(Array.prototype.slice.call(retenu.subarray(2)));
+    ok("un publish retenu se relit normalement", lu.sujet === "a/b" && lu.message === "x");
+  })();
+
+  /* --- le scénario du joueur, bout en bout --- */
+  (function(){
+    var NB = 490, pvMax = 15000000;
+    /* tablette : elle démolit trente défenses et entame le Brasier */
+    var bits = [], i;
+    for(i = 0; i < NB; i++) bits.push(i < 30 ? 1 : 0);
+    var tablette = { v:5, c:0, pv:pvMax - 4000000, d:N.encodeBits(bits) };
+    /* téléphone : dix autres défenses, ailleurs dans la liste */
+    var bits2 = [];
+    for(i = 0; i < NB; i++) bits2.push((i >= 100 && i < 110) ? 1 : 0);
+    var telephone = { v:4, c:0, pv:pvMax - 1000000, d:N.encodeBits(bits2) };
+
+    var salon = N.fusionneMonde(tablette, telephone);
+    ok("les deux appareils réunis totalisent 40 défenses tombées",
+       N.compteBits(salon.d) === 40, N.compteBits(salon.d));
+    ok("et les PV du Brasier retiennent le plus bas des deux",
+       salon.pv === pvMax - 4000000);
+
+    /* tout le monde ferme, quelqu'un revient : il repart de l'instantané */
+    var retour = N.fusionneMonde(N.mondeVide(0, pvMax), salon);
+    ok("au retour, les 40 défenses sont toujours détruites",
+       N.compteBits(retour.d) === 40);
+    ok("au retour, le Brasier a toujours ses dégâts",
+       retour.pv === pvMax - 4000000);
+    ok("un monde neuf n'efface jamais un monde entamé",
+       N.fusionneMonde(salon, N.mondeVide(0, pvMax)).pv === pvMax - 4000000);
+  })();
 })();
 
 /* ---------------- bilan ---------------- */

@@ -8,8 +8,12 @@ function demarre(){
   ctx = cv.getContext("2d", { alpha:false });
   miniCv = $("mini");
   miniCtx = miniCv.getContext("2d");
-  monId = idAleatoire(8);
+  monId = idStable();
   ajuste();
+  /* le miroir local du monde est lu AVANT toute connexion : si le
+     courtier a purgé son message retenu, c'est lui qui reprend la
+     main, et sinon la fusion des deux ne perd rien. */
+  chargeMondeLocal();
 
   construitSpritesDefenses();
   construitSpriteGardienne();
@@ -43,6 +47,7 @@ function boucle(maintenant){
   lissageFps += ((1 / dt) - lissageFps) * 0.05;
 
   majReseau(dt);
+  majMonde(dt);
   interpoleDistants(dt);
   majFlash(dt);
   majEtatReseauLent(dt);

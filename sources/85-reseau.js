@@ -5,6 +5,18 @@
 
 var CODE_SALON = "MILY";
 var SUJET = "khiao/mily/" + CODE_SALON;
+/* Sujet séparé pour l'instantané du monde. Il est publié RETENU : le
+   courtier en garde le dernier exemplaire et le sert d'office à tout
+   nouvel abonné — c'est ce qui fait qu'on reprend le monde là où il en
+   était, même après que tout le monde a fermé son navigateur. */
+var SUJET_MONDE = SUJET + "/monde";
+var CLE_MONDE = "milyboum:monde:" + CODE_SALON;
+
+var monde = null;            // dernier instantané connu
+var mondeSale = false;       // on a du nouveau à publier
+var mondeT = 0;              // étranglement des republications
+var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
+
 var monId = "";
 var monNom = "Recrue";
 var autresJoueurs = {};
@@ -15,6 +27,20 @@ var reseau = {
   ws:null, dec:null, etat:"vide", url:"", pingT:0, etatT:0,
   connecte:false, idPaquet:1, tentatives:0, rappelT:0
 };
+
+/* Identité stable : monId était régénéré à chaque chargement de page,
+   ce qui remplissait FileDegats.vus d'identités mortes et empêchait de
+   reconnaître un appareil d'une partie à l'autre. */
+function idStable(){
+  var k = "milyboum:id";
+  try{
+    var v = localStorage.getItem(k);
+    if(v) return v;
+    v = idAleatoire(8);
+    localStorage.setItem(k, v);
+    return v;
+  }catch(e){ return idAleatoire(8); }
+}
 
 function idAleatoire(n){
   var s = "", a = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -60,10 +86,15 @@ function connecteRelais(url){
         reseau.connecte = true;
         reseau.tentatives = 0;
         majEtatReseau();
+        envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
         envoie({ t:"bonjour", nom:monNom });
+        /* si l'on a du retard à rattraper localement, on le publie :
+           notre miroir peut être plus frais que celui du courtier */
+        if(monde) mondeSale = true;
       }else if(p.type === 3){                            // PUBLISH
         var m = litPublish(p.corps);
         if(m.sujet === SUJET) recoit(m.message);
+        else if(m.sujet === SUJET_MONDE) recoitMonde(m.message);
       }
     }
   };
@@ -97,6 +128,110 @@ function envoie(obj){
 }
 
 /* ---------------------------------------------------------------
+   L'INSTANTANÉ DU MONDE
+   --------------------------------------------------------------- */
+
+/* Ce que la partie en cours sait du monde, sous forme d'instantané. */
+function mondeCourant(){
+  if(!jeu) return monde;
+  var bits = [], i;
+  for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
+  return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
+           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits) };
+}
+
+/* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
+   le recopie. La fusion étant monotone, l'ordre d'arrivée n'a aucune
+   importance et deux clients qui publient en même temps convergent. */
+function adopteMonde(m, source){
+  if(!mondeValide(m)) return;
+  var avant = monde;
+  monde = fusionneMonde(monde, m);
+  if(!memeMonde(avant, monde)) sauveMondeLocal();
+  /* si notre partie en cours ignore des destructions annoncées, on les
+     applique tout de suite ; si c'est nous qui en savons plus, on le
+     fera savoir à la prochaine publication */
+  if(jeu && monde.c === jeu.index && (monde.cy | 0) === cycleSalon){
+    appliqueMondeAuJeu(monde);
+    if(!memeMonde(monde, mondeCourant())) mondeSale = true;
+  }
+  if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
+  else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+  if(source === "relais" && avant && !memeMonde(avant, monde)) majMondes();
+}
+
+function recoitMonde(txt){
+  var m = null;
+  try{ m = JSON.parse(txt); }catch(e){ return; }
+  adopteMonde(m, "relais");
+}
+
+/* Éteint les bâtiments que l'instantané déclare détruits, et abaisse
+   les PV du Brasier. Monotone : on ne relève jamais rien. */
+function appliqueMondeAuJeu(m){
+  if(!jeu || !mondeValide(m) || m.c !== jeu.index || (m.cy | 0) !== cycleSalon) return;
+  var bits = decodeBits(m.d, jeu.batiments.length), i, b, change = 0;
+  for(i = 0; i < jeu.batiments.length; i++){
+    b = jeu.batiments[i];
+    if(bits[i] && b.vivant){
+      b.vivant = 0; b.pv = 0;
+      marqueEmprise(b, 0);
+      change++;
+    }
+  }
+  jeu.file.adopteMinimum(m.pv);
+  jeu.qg.pv = jeu.file.pv;
+  if(change){
+    if(jeu.balise && jeu.balise.cible && !jeu.balise.cible.vivant) jeu.balise = null;
+    demandeMajBarres();
+  }
+  return change;
+}
+
+/* Miroir local : le courtier public ne garantit pas de conserver ses
+   messages retenus éternellement. On garde donc le même instantané
+   dans le navigateur, et on adopte le plus complet des deux. */
+function sauveMondeLocal(){
+  if(!monde) return;
+  try{ localStorage.setItem(CLE_MONDE, JSON.stringify(monde)); }catch(e){}
+}
+function chargeMondeLocal(){
+  try{
+    var t = localStorage.getItem(CLE_MONDE);
+    if(t) adopteMonde(JSON.parse(t), "local");
+  }catch(e){}
+}
+
+/* Publication étranglée. Le drapeau n'est levé que lorsqu'on apporte
+   réellement du nouveau : sans cela, deux clients se renverraient
+   l'instantané en boucle. */
+function signaleMonde(){ mondeSale = true; }
+
+/* Enregistre l'état courant, et le publie si le relais répond. Le
+   miroir local ne dépend PAS du réseau : en solo, ou pendant une
+   coupure, c'est lui seul qui garde le monde. */
+function publieMonde(force){
+  var m = mondeCourant();
+  if(!mondeValide(m)) return;
+  if(!force && memeMonde(monde, m) && !mondeSale) return;
+  monde = fusionneMonde(monde, m);
+  monde.v = (monde.v || 0) + 1;
+  mondeSale = false;
+  mondeT = 0;
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+}
+
+/* Appelée par la boucle principale, connecté ou non. */
+function majMonde(dt){
+  if(!jeu) return;
+  mondeT += dt;
+  if(mondeT < PERIODE_MONDE) return;
+  if(mondeSale || !memeMonde(monde, mondeCourant())) publieMonde(false);
+  else mondeT = 0;
+}
+
+/* ---------------------------------------------------------------
    Réception
    --------------------------------------------------------------- */
 function recoit(txt){
@@ -120,7 +255,8 @@ function recoit(txt){
     message(j.nom + " a rejoint le salon.");
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
-    if(typeof m.c === "number") carteSalon = Math.max(carteSalon, m.c);
+    if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
+  else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
       jeu.file.adopteMinimum(m.pv);
       jeu.qg.pv = jeu.file.pv;
@@ -138,20 +274,22 @@ function recoit(txt){
     }else j.fantome = null;
     majPodium();
   }else if(m.t === "deg"){
-    if(jeu && typeof m.d === "number" && typeof m.s === "number"){
+    if(jeu && typeof m.d === "number" && typeof m.s === "number" &&
+       (typeof m.c !== "number" || m.c === jeu.index)){
       jeu.file.applique(m.id, m.s, m.d);
       jeu.qg.pv = jeu.file.pv;
       if(jeu.qg.pv <= 0 && !jeu.fin) declencheFin();
       demandeMajBarres();
     }
   }else if(m.t === "det"){
-    if(jeu && typeof m.n === "number"){
+    if(jeu && typeof m.n === "number" && (typeof m.c !== "number" || m.c === jeu.index)){
       var b = jeu.batiments[m.n];
       if(b && b.vivant && b.n === m.n){
         b.vivant = 0; b.pv = 0;
         marqueEmprise(b, 0);
         jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.6, r:b.e * 0.6, force:0.8 });
         if(jeu.balise && jeu.balise.cible === b) jeu.balise = null;
+        signaleMonde();
       }
     }
   }else if(m.t === "carte"){
@@ -227,16 +365,22 @@ function majReseau(dt){
       envoie(msg);
       if(degatsEnAttente > 0){
         serieReseau++;
-        envoie({ t:"deg", d:degatsEnAttente, s:serieReseau });
+        envoie({ t:"deg", d:degatsEnAttente, s:serieReseau, c:jeu.index });
         degatsEnAttente = 0;
       }
     }
   }
 }
-function envoieDestruction(n){ envoie({ t:"det", n:n }); }
+/* L'index d'île accompagne l'événement : sans lui, un joueur passé
+   à l'île suivante détruisait le bâtiment de même rang chez ceux
+   restés sur la précédente. */
+function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }
 
 window.addEventListener("beforeunload", function(){
+  /* dernier instantané avant de partir : sans lui, jusqu'à deux
+     secondes de jeu se perdaient à la fermeture de l'onglet */
+  if(jeu) publieMonde(true);
   if(reseau.connecte) envoie({ t:"adieu" });
   fermeRelais();
 });

@@ -5,6 +5,7 @@
 var $ = function(id){ return document.getElementById(id); };
 var compoBarges = [];
 var carteSalon = 0;
+var cycleSalon = 0;      // numéro de campagne : +1 à chaque tour complet des îles
 var tempsGlobal = 0;
 var enJeu = false;
 
@@ -564,8 +565,9 @@ function majBilan(dt){
     var suiv = Math.max(carteSalon, jeu.index + 1);
     carteSalon = suiv;
     if(suiv >= CARTES.length){
-      /* toutes les îles sont tombées : on recommence à la première */
+      /* toutes les îles sont tombées : nouvelle campagne, monde neuf */
       carteSalon = 0; suiv = 0;
+      cycleSalon++;
     }
     nouvelleCarte(suiv);
     construitFondMini();

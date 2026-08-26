@@ -50,10 +50,27 @@ function nouvelleCarte(index, pvConnu){
   for(var i = 0; i < EQ.NB_BARGES; i++){
     jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
   }
+  /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
+     l'instantané du salon déclare détruits, et on abaisse les PV du
+     Brasier — AVANT construitGrilles(), qui fige les emprises. */
+  if(typeof monde !== "undefined" && monde && monde.c === index &&
+     (monde.cy | 0) === (typeof cycleSalon === "number" ? cycleSalon : 0)){
+    var bitsM = decodeBits(monde.d, jeu.batiments.length);
+    for(var q = 0; q < jeu.batiments.length; q++){
+      if(bitsM[q]){ jeu.batiments[q].vivant = 0; jeu.batiments[q].pv = 0; }
+    }
+    jeu.file.adopteMinimum(monde.pv);
+    jeu.qg.pv = jeu.file.pv;
+  }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
     jeu.qg.pv = jeu.file.pv;
   }
+  /* les compteurs réseau appartiennent à la carte, pas à la session :
+     des dégâts restés en attente à la chute d'une île étaient recrachés
+     dans le premier message de la suivante */
+  degatsEnAttente = 0;
+  serieReseau = 0;
   construitGrilles();
   construitContourIle();
   construitSol(carte);
@@ -77,7 +94,10 @@ function construitGrilles(){
   }
   for(j = 0; j < GH; j++){ occ[j * GW] = 1; occ[j * GW + 1] = 1; }
   /* emprises des bâtiments */
-  jeu.batiments.forEach(function(b){ marqueEmprise(b, 1); });
+  /* un bâtiment déjà tombé (instantané du salon adopté avant la
+     construction de la grille) ne doit pas continuer à barrer
+     le passage */
+  jeu.batiments.forEach(function(b){ if(b.vivant) marqueEmprise(b, 1); });
   /* emprise du Brasier */
   for(i = -6; i <= 6; i++) for(j = -6; j <= 6; j++){
     var x = (jeu.qg.gx + i) | 0, y = (jeu.qg.gy + j) | 0;

@@ -489,9 +489,13 @@ function paquetSubscribe(idPaquet, sujet){
   var corps = [(idPaquet >> 8) & 255, idPaquet & 255].concat(chaineMqtt(sujet), [0]);
   return trame(0x82, corps);
 }
-function paquetPublish(sujet, message){
+/* retenu : le courtier conserve ce message et le sert d'office à tout
+   nouvel abonné. C'est là-dessus que repose la persistance du monde —
+   sans lui, un message n'atteint que les clients connectés à l'instant
+   précis où il passe. */
+function paquetPublish(sujet, message, retenu){
   var corps = chaineMqtt(sujet).concat(utf8Octets(message));
-  return trame(0x30, corps);
+  return trame(retenu ? 0x31 : 0x30, corps);
 }
 function paquetPing(){ return new Uint8Array([0xc0, 0x00]); }
 function paquetDeconnexion(){ return new Uint8Array([0xe0, 0x00]); }
@@ -544,6 +548,115 @@ FileDegats.prototype.applique = function(idEmetteur, serie, degats){
 FileDegats.prototype.adopteMinimum = function(pv){
   if(typeof pv === "number" && pv >= 0 && pv < this.pv) this.pv = pv;
 };
+
+/* ----------------------------------------------------------------
+   INSTANTANÉ DU MONDE — la persistance du salon
+   Le monde ne vit plus seulement dans la mémoire de chaque navigateur :
+   un instantané compact circule, et le courtier en garde le dernier
+   (message MQTT RETENU). Quiconque arrive — en cours de partie ou des
+   heures plus tard — le reçoit et reprend le monde là où il en était.
+
+   L'instantané tient en cinq champs :
+     v  numéro de version, monotone croissant
+     cy numéro de campagne — il s'incrémente quand les trois îles sont
+        tombées et que l'on repart de la première. Sans lui, revenir à
+        l'île 0 serait vu comme un instantané périmé et le salon
+        resterait figé sur la dernière île à jamais.
+     c  index de l'île en cours
+     pv points de vie du Brasier
+     d  bitmap des bâtiments détruits, six bits par caractère
+
+   Sa fusion est MONOTONE : une défense détruite ne se relève jamais,
+   les PV du Brasier ne remontent jamais. C'est ce qui rend l'ordre
+   d'arrivée des messages sans importance, et deux clients qui publient
+   en même temps sans conséquence.
+   ---------------------------------------------------------------- */
+var ALPHA_BITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-";
+
+function encodeBits(bits){
+  var s = "", i, k, v;
+  for(i = 0; i < bits.length; i += 6){
+    v = 0;
+    for(k = 0; k < 6; k++) if(bits[i + k]) v |= (1 << k);
+    s += ALPHA_BITS.charAt(v);
+  }
+  return s;
+}
+function decodeBits(s, n){
+  var bits = [], i, k, v, j;
+  for(i = 0; i < n; i++) bits.push(0);
+  if(typeof s !== "string") return bits;
+  for(i = 0; i < s.length; i++){
+    v = ALPHA_BITS.indexOf(s.charAt(i));
+    if(v < 0) continue;
+    for(k = 0; k < 6; k++){
+      j = i * 6 + k;
+      if(j < n && (v & (1 << k))) bits[j] = 1;
+    }
+  }
+  return bits;
+}
+/* OU bit à bit de deux bitmaps encodés, sans les décoder entièrement */
+function unionBits(a, b){
+  a = typeof a === "string" ? a : "";
+  b = typeof b === "string" ? b : "";
+  var n = Math.max(a.length, b.length), s = "", i, va, vb;
+  for(i = 0; i < n; i++){
+    va = i < a.length ? ALPHA_BITS.indexOf(a.charAt(i)) : 0;
+    vb = i < b.length ? ALPHA_BITS.indexOf(b.charAt(i)) : 0;
+    if(va < 0) va = 0;
+    if(vb < 0) vb = 0;
+    s += ALPHA_BITS.charAt(va | vb);
+  }
+  return s;
+}
+function compteBits(s){
+  var n = 0, i, v, k;
+  if(typeof s !== "string") return 0;
+  for(i = 0; i < s.length; i++){
+    v = ALPHA_BITS.indexOf(s.charAt(i));
+    if(v <= 0) continue;
+    for(k = 0; k < 6; k++) if(v & (1 << k)) n++;
+  }
+  return n;
+}
+
+function mondeVide(index, pvMax, cycle){
+  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"" };
+}
+function mondeValide(m){
+  return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
+         typeof m.v === "number" && m.c >= 0 && m.pv >= 0;
+}
+/* Position d'un instantané dans la progression : campagne d'abord,
+   île ensuite. C'est cet ordre qui décide qui écrase qui. */
+function rangMonde(m){ return (m.cy | 0) * 1000 + (m.c | 0); }
+
+/* Fusion monotone. Une île plus avancée écrase tout : ses bâtiments
+   n'ont rien à voir avec ceux de la précédente. À rang égal, une
+   défense détruite ne se relève jamais et les PV ne remontent jamais —
+   c'est ce qui rend l'ordre d'arrivée des messages sans importance. */
+function fusionneMonde(a, b){
+  if(!mondeValide(a)) return mondeValide(b) ? b : null;
+  if(!mondeValide(b)) return a;
+  var ra = rangMonde(a), rb = rangMonde(b);
+  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv, d:b.d || "" };
+  if(ra > rb) return a;
+  return {
+    v : Math.max(a.v, b.v),
+    cy: a.cy | 0,
+    c : a.c,
+    pv: Math.min(a.pv, b.pv),
+    d : unionBits(a.d, b.d)
+  };
+}
+/* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
+   que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
+   se renverraient l'instantané en boucle. */
+function memeMonde(a, b){
+  if(!mondeValide(a) || !mondeValide(b)) return false;
+  return rangMonde(a) === rangMonde(b) && a.pv === b.pv && (a.d || "") === (b.d || "");
+}
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
 function mitraTouche(distance, tirage){
