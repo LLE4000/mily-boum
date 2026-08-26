@@ -1996,6 +1996,36 @@ SOCLES.reacteur = function(c){
    Conclusion : ne jamais conclure d'un profil ici qu'un sprite est trop
    chargé sans avoir d'abord échangé son contenu contre un canevas vide
    de même taille. Si le coût ne bouge pas, il n'y a rien à optimiser. */
+/* Le cadre réellement peint de chaque sprite. La planche fait 240×220
+   mais une cellule n'en remplit qu'un ruban : blitter la planche
+   entière fait mélanger des dizaines de milliers de pixels transparents
+   par bâtiment — et sur une carte saturée il y a six mille bâtiments à
+   l'écran. On mesure une fois, au démarrage, le rectangle opaque de
+   chaque type, et on ne blitte plus que lui. Tout est précalculé ici :
+   la boucle de dessin ne doit plus faire une seule division. */
+var CADRE_DEF = {};
+
+function cadreOpaque(cv){
+  var d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+  var x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1, x, y;
+  for(y = 0; y < cv.height; y++){
+    var ligne = y * cv.width * 4 + 3, vu = 0;
+    for(x = 0; x < cv.width; x++){
+      if(d[ligne + x * 4] > 4){
+        if(x < x0) x0 = x;
+        if(x > x1) x1 = x;
+        vu = 1;
+      }
+    }
+    if(vu){ if(y < y0) y0 = y; y1 = y; }
+  }
+  if(x1 < 0) return null;
+  /* deux pixels de marge : l'anticrénelage déborde d'un demi-pixel */
+  x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2);
+  x1 = Math.min(cv.width - 1, x1 + 2); y1 = Math.min(cv.height - 1, y1 + 2);
+  return { sx:x0, sy:y0, sw:x1 - x0 + 1, sh:y1 - y0 + 1 };
+}
+
 function construitSpritesDefenses(){
   Object.keys(SOCLES).forEach(function(t){
     var cv = nouveauCanvas(SP_W * ECH_SPRITE, SP_H * ECH_SPRITE);
@@ -2003,6 +2033,16 @@ function construitSpritesDefenses(){
     c.setTransform(ECH_SPRITE, 0, 0, ECH_SPRITE, SP_OX * ECH_SPRITE, SP_OY * ECH_SPRITE);
     SOCLES[t](c);
     SPRITE_DEF[t] = cv;
+    var cd = cadreOpaque(cv);
+    if(cd){
+      /* la position et la taille du cadre, ramenées en unités locales
+         du bâtiment — prêtes à multiplier par z, rien d'autre */
+      cd.lx = cd.sx / ECH_SPRITE - SP_OX;
+      cd.ly = cd.sy / ECH_SPRITE - SP_OY;
+      cd.lw = cd.sw / ECH_SPRITE;
+      cd.lh = cd.sh / ECH_SPRITE;
+      CADRE_DEF[t] = cd;
+    }
   });
 }
 
@@ -3389,8 +3429,87 @@ TOURELLES.reacteur = function(c, b, ang, tps){
   c.restore();
 };
 
-TOURELLES.cuve = function(){};
-TOURELLES.silo = function(){};
+/* La cuve et le silo n'ont pas de couche vivante : PAS d'entrée dans
+   TOURELLES, plutôt qu'une fonction vide — dessineBatiment saute alors
+   tout le bloc, save/restore compris. Une fonction vide, elle, coûtait
+   quand même sa gestion de pile, quatre cents fois par image sur une
+   carte saturée. */
+
+/* ================================================================
+   LES TOURELLES GELÉES — la carte saturée à soixante images seconde
+
+   Une tourelle vivante coûte de vingt à quarante tracés vectoriels
+   par image. C'est un prix honnête pour trente défenses à l'écran ;
+   c'est deux cents millisecondes pour six cents, et l'éditeur de plan
+   permet précisément d'en peindre autant. Mesuré sur une carte toute
+   en « surchargé » : 265 ms d'image, dont 155 rien que pour les
+   tourelles AU REPOS — qui ne bougent pas, ne visent rien, et
+   redessinent pourtant leurs quarante chemins à chaque image.
+
+   Le remède : au-delà d'un budget de tourelles visibles, celles qui
+   ne font rien sont remplacées par un sprite pré-rendu, tiré d'une
+   rose de seize angles par type. Une tourelle au repos ne tourne pas,
+   donc l'arrondi à 11 degrés est invisible ; dès qu'elle acquiert une
+   cible, prend un coup ou tire, elle repasse en dessin vivant, au
+   pixel et à l'angle exacts.
+
+   Sous le budget, RIEN ne change : le jeu de toujours, animations
+   d'attente comprises. Le gel ne s'achète que quand on en a besoin.
+   En prime, sous 0,34 de zoom — où l'on ne dessinait AUCUNE tourelle —
+   le sprite gelé est assez bon marché pour être affiché : les canons
+   ne disparaissent plus quand on prend de la hauteur.
+   ================================================================ */
+var PAS_TOUR = 16;                    // seize caps, comme une rose des vents
+var ECH_TOUR = 1;                     // ne sert qu'au loin : le 1:1 suffit
+var SPRITE_TOUR = {};                 // SPRITE_TOUR[type][pas], bâti à la demande
+/* Le réacteur reste toujours vivant : cinq par île au plus, et sa
+   pulsation EST l'objectif à lire. La cuve et le silo n'ont rien à
+   geler. */
+var SANS_GEL = { reacteur:1, cuve:1, silo:1 };
+
+/* Le budget, avec un cran d'hystérésis pour ne pas battre à la
+   frontière. rendu() compte les tourelles visibles et pousse ce
+   verrou ; dessineBatiment ne fait que le lire. */
+var lodGel = false;
+function majBudgetTourelles(nb){
+  lodGel = nb > (lodGel ? 88 : 128);
+}
+
+function tourelleActive(b){
+  return !!b.cible || b.flash > 0.02 || b.recul > 0.02 ||
+         b.pv < b.pvMax * 0.55;
+}
+
+/* Fabrique le sprite d'un type à un cap donné : la tourelle est
+   dessinée UNE fois, au repos, sur un brouillon large, puis rognée à
+   son rectangle opaque. Fabriqué au premier besoin — un type jamais
+   vu de loin ne coûte rien. */
+var brouillonTour = null;
+function spriteTourelle(t, ang){
+  if(SANS_GEL[t] || !TOURELLES[t]) return null;
+  var pas = Math.round(ang / (6.2832 / PAS_TOUR)) & (PAS_TOUR - 1);
+  var roses = SPRITE_TOUR[t] || (SPRITE_TOUR[t] = []);
+  if(roses[pas] !== undefined) return roses[pas];
+  if(!brouillonTour) brouillonTour = nouveauCanvas(220 * ECH_TOUR, 260 * ECH_TOUR);
+  var c = brouillonTour.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, brouillonTour.width, brouillonTour.height);
+  c.setTransform(ECH_TOUR, 0, 0, ECH_TOUR, 110 * ECH_TOUR, 190 * ECH_TOUR);
+  /* un bâtiment neutre : plein de vie, l'arme froide, rien en cours */
+  TOURELLES[t](c, { n:0, angle:pas * 6.2832 / PAS_TOUR, flash:0, recul:0,
+                    chargement:1, gonfle:0, pv:1, pvMax:1, cible:null,
+                    prochainTir:0, t:t },
+               pas * 6.2832 / PAS_TOUR, 0.37);
+  var cd = cadreOpaque(brouillonTour);
+  if(!cd){ roses[pas] = null; return null; }
+  var cv = nouveauCanvas(cd.sw, cd.sh);
+  cv.getContext("2d").drawImage(brouillonTour,
+    cd.sx, cd.sy, cd.sw, cd.sh, 0, 0, cd.sw, cd.sh);
+  roses[pas] = { cv:cv,
+                 lx:cd.sx / ECH_TOUR - 110, ly:cd.sy / ECH_TOUR - 190,
+                 lw:cd.sw / ECH_TOUR, lh:cd.sh / ECH_TOUR };
+  return roses[pas];
+}
 
 /* ================================================================
    Dessin complet d'un bâtiment
@@ -3398,17 +3517,37 @@ TOURELLES.silo = function(){};
 function dessineBatiment(c, b, tps, z){
   var p = versEcran(cam, b.gx, b.gy);
   var detail = z > 0.34;                    // au loin, le socle suffit
-  c.save();
-  c.translate(p.x, p.y);
-  c.scale(z, z);
-  var sp = SPRITE_DEF[b.t];
-  if(sp) c.drawImage(sp, -SP_OX, -SP_OY, SP_W, SP_H);
-  if(detail && TOURELLES[b.t]) TOURELLES[b.t](c, b, b.angle, tps);
+  /* Le socle : un blit direct, serré sur ses pixels peints. Pas de
+     save/translate/scale — sur six mille bâtiments, la gestion de
+     pile du contexte se payait plus cher que le dessin. */
+  var cd = CADRE_DEF[b.t];
+  if(cd){
+    c.drawImage(SPRITE_DEF[b.t], cd.sx, cd.sy, cd.sw, cd.sh,
+                p.x + cd.lx * z, p.y + cd.ly * z, cd.lw * z, cd.lh * z);
+  }else if(SPRITE_DEF[b.t]){
+    c.drawImage(SPRITE_DEF[b.t], p.x - SP_OX * z, p.y - SP_OY * z, SP_W * z, SP_H * z);
+  }
+
+  var fr = b.pv / b.pvMax;
+  if(TOURELLES[b.t]){
+    if(detail && (!lodGel || tourelleActive(b) || SANS_GEL[b.t])){
+      c.save();
+      c.translate(p.x, p.y);
+      c.scale(z, z);
+      TOURELLES[b.t](c, b, b.angle, tps);
+      c.restore();
+    }else{
+      var st = spriteTourelle(b.t, b.angle);
+      if(st) c.drawImage(st.cv, p.x + st.lx * z, p.y + st.ly * z,
+                         st.lw * z, st.lh * z);
+    }
+  }
 
   /* état d'endommagement : fissures et fumée */
-  var fr = b.pv / b.pvMax;
   if(detail && fr < 0.55){
     c.save();
+    c.translate(p.x, p.y);
+    c.scale(z, z);
     c.globalAlpha = (0.55 - fr) * 1.1;
     c.strokeStyle = "#1a120c"; c.lineWidth = 1.4;
     var al = prng(b.n * 977 + 3);
@@ -3421,7 +3560,6 @@ function dessineBatiment(c, b, tps, z){
     }
     c.restore();
   }
-  c.restore();
 
   if(detail && fr < 0.4){
     /* fumée qui s'échappe */

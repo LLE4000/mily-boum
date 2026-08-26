@@ -12,8 +12,17 @@ var enJeu = false;
 /* ---------------------------------------------------------------
    Dimensionnement du canevas — il mesure sa taille réelle
    --------------------------------------------------------------- */
+/* LA RÉSOLUTION ADAPTATIVE. Sur une carte très chargée, le poste de
+   dépense d'une tablette n'est pas le JavaScript : c'est le nombre de
+   pixels à remplir. Quand les images se mettent à durer, on abaisse
+   la définition du canevas d'un quart de cran — un écran deux fois
+   moins défini se remplit quatre fois plus vite, et en plein
+   mouvement l'œil ne fait pas la différence. Dès que ça respire à
+   nouveau, on remonte. L'interface HTML, elle, reste toujours à la
+   définition native : seul le champ de bataille s'adapte. */
+var dprPlafond = 4;                  // abaissé par le gouverneur de la boucle
 function ajuste(){
-  dpr = Math.min(2, window.devicePixelRatio || 1);
+  dpr = Math.min(2, dprPlafond, window.devicePixelRatio || 1);
   var r = cv.getBoundingClientRect();
   if(r.width > 40 && r.height > 40){ W = Math.round(r.width); H = Math.round(r.height); }
   cv.width = Math.round(W * dpr);

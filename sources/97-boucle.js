@@ -65,6 +65,43 @@ function boucle(maintenant){
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);
   majBarresLent(dt);
+  gouverneResolution(dt);
+}
+
+/* ---------------------------------------------------------------
+   LE GOUVERNEUR DE RÉSOLUTION
+   Il regarde une seule chose : la durée réelle des images, lissée.
+   Au-delà de 34 ms tenues une seconde — deux rafraîchissements
+   manqués sur trois — il abaisse le plafond de définition d'un quart
+   et repart. En dessous de 17 ms tenues six secondes, il remonte d'un
+   cran, jamais plus haut que l'écran. La montée est six fois plus
+   lente que la descente, exprès : mieux vaut rester un peu flou que
+   pomper entre net et flou à chaque virage de caméra.
+   --------------------------------------------------------------- */
+var lissageImg = 16, gouvLent = 0, gouvVite = 0;
+function gouverneResolution(dt){
+  lissageImg += (dt * 1000 - lissageImg) * 0.08;
+  if(lissageImg > 34){
+    gouvVite = 0;
+    gouvLent += dt;
+    if(gouvLent > 1.0 && dpr > 1.0){
+      dprPlafond = Math.max(1.0, dpr - 0.25);
+      ajuste();
+      gouvLent = 0;
+      lissageImg = 20;              // on laisse la mesure repartir de neuf
+    }
+  }else if(lissageImg < 17){
+    gouvLent = 0;
+    if(dprPlafond < Math.min(2, window.devicePixelRatio || 1)){
+      gouvVite += dt;
+      if(gouvVite > 6.0){
+        dprPlafond += 0.25;
+        ajuste();
+        gouvVite = 0;
+        lissageImg = 20;
+      }
+    }
+  }else{ gouvLent = 0; gouvVite = 0; }
 }
 
 /* rafraîchissements peu fréquents : on évite de toucher le DOM à 60 Hz */

@@ -1955,12 +1955,18 @@ function rendu(tps, dt){
   var vueL = rectVisible(0);
   /* décor : rochers, falaises et végétation, dans le tri de profondeur */
   decorVisible(vueL, pile);
+  /* On compte au passage les tourelles visibles : c'est ce compte qui
+     décide si les tourelles au repos passent en sprite gelé. Compter
+     ici, AVANT de dessiner, garantit que toute l'image est cohérente. */
+  var nbTour = 0;
   for(i = 0; i < jeu.batiments.length; i++){
     var b = jeu.batiments[i];
     if(!b.vivant) continue;
     if(!visible(vueL, b.gx, b.gy)) continue;
+    if(DEF[b.t].tourelle && !SANS_GEL[b.t]) nbTour++;
     pile.push({ d:b.gx + b.gy, k:0, o:b });
   }
+  majBudgetTourelles(nbTour);
   for(i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;

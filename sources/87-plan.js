@@ -453,9 +453,13 @@ function majPanneauPlan(){
 
   /* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
      de la rendre infernale. On lui dit seulement ce qu'il fait. */
+  /* Depuis les tourelles gelées et la résolution adaptative, une carte
+     saturée reste jouable : le jeu gèle les tourelles au repos et
+     baisse la définition au besoin. On prévient encore — un petit
+     téléphone n'est pas une tablette — mais on ne condamne plus. */
   var a = "";
-  if(c.total + c.cellules > 2200) a = "Carte énorme : ça ramera sur téléphone.";
-  else if(c.total > 900) a = "Carte très chargée : ça va ramer sur téléphone.";
+  if(c.total + c.cellules > 4500) a = "Carte gigantesque : les petits téléphones baisseront la définition.";
+  else if(c.total > 1600) a = "Carte très chargée : la partie sera longue.";
   else if(c.total < 120) a = "Très peu de défenses : la partie sera courte.";
   $("planAvert").textContent = a;
 }
