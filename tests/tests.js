@@ -34,7 +34,8 @@ try{
     "encodePlans","decodePlans","planCarte","faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
     "encodeChats","decodeChats","fusionneChats","ESPECES_PROTEGEES",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
-    "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
+    "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere",
+    "boiteMonde","zoomAjuste","zoomPlancher","MARGE_MONDE"
   ].join(",") + "};")();
 }catch(e){
   console.error("Le bloc NOYAU n'est pas évaluable : " + e.message);
@@ -129,6 +130,70 @@ G("2. Ancrage du pincement (400 gestes)");
   N.appliquePince(cam2, pin2, 0, 100, 900, 100, N.ZMIN, N.ZMAX);
   ok("le zoom reste borné", cam2.z <= N.ZMAX + 1e-12 && cam2.z >= N.ZMIN - 1e-12, "z=" + cam2.z);
   ok("la caméra reste finie après écrêtage", isFinite(cam2.px) && isFinite(cam2.py));
+})();
+
+/* ================================================================
+   2b. Le dézoom s'arrête au bord de l'île
+
+   On ne recule plus dans le vide : le plancher du zoom est celui où la
+   boîte du monde tient exactement dans le canevas. La preuve directe,
+   c'est qu'au plancher les quatre coins du monde sont dans l'écran, et
+   qu'un cheveu en dessous ils n'y sont plus.
+   ================================================================ */
+G("2b. Le dézoom s'arrête au bord de l'île");
+(function(){
+  var B = N.boiteMonde();
+  ok("la boîte du monde a une largeur et une hauteur", B.l > 0 && B.h > 0,
+     Math.round(B.l) + " × " + Math.round(B.h) + " px de monde");
+  /* le losange isométrique est deux fois plus large que haut */
+  ok("la boîte garde le rapport 2:1 du losange", Math.abs(B.l / B.h - 2) < 1e-9,
+     "rapport " + (B.l / B.h).toFixed(6));
+
+  /* Sur une tablette en paysage, c'est le plancher mesuré qui commande,
+     et il est BIEN AU-DESSUS de l'ancien 0,13 : c'est tout le défaut. */
+  var zT = N.zoomPlancher(1900, 1000);
+  ok("sur tablette, le plancher est mesuré et non plus fixe", zT > N.ZMIN + 1e-6,
+     "plancher " + zT.toFixed(4) + " contre " + N.ZMIN + " avant");
+  ok("à ce plancher, l'île tient tout juste dans l'écran",
+     B.l * zT <= 1900 + 1e-6 && B.h * zT <= 1000 + 1e-6,
+     Math.round(B.l * zT) + " × " + Math.round(B.h * zT) + " px pour 1900 × 1000");
+  ok("et elle en touche un bord : on ne peut pas reculer davantage",
+     Math.abs(B.l * zT - 1900) < 1e-6 || Math.abs(B.h * zT - 1000) < 1e-6);
+  ok("un cheveu plus loin, le monde ne remplirait plus l'écran",
+     B.l * zT * 0.99 < 1900 - 1e-6 && B.h * zT * 0.99 < 1000 - 1e-6);
+
+  /* Le plancher suit l'écran : plus il est grand, plus il faut être
+     près pour que l'île le remplisse. */
+  ok("un écran plus grand relève le plancher",
+     N.zoomPlancher(3800, 2000) > N.zoomPlancher(1900, 1000) - 1e-12);
+  ok("le plancher ne dépend que du plus contraignant des deux côtés",
+     Math.abs(N.zoomPlancher(1900, 100000) - 1900 / B.l) < 1e-9);
+
+  /* ZMIN reste le plancher DUR : sur un téléphone étroit, montrer
+     l'île entière ferait des cases de trois pixels. On préfère la
+     lisibilité — et à ce zoom-là on est de toute façon trop près pour
+     voir le vide. */
+  var zP = N.zoomPlancher(400, 800);
+  ok("sur un téléphone étroit, ZMIN reprend la main", zP === N.ZMIN,
+     "plancher " + zP);
+  ok("et il ne descend jamais sous ZMIN, quel que soit l'écran",
+     N.zoomPlancher(1, 1) >= N.ZMIN - 1e-12 &&
+     N.zoomPlancher(0, 0) >= N.ZMIN - 1e-12);
+  ok("un canevas dégénéré ne renvoie pas NaN",
+     isFinite(N.zoomPlancher(0, 0)) && isFinite(N.zoomPlancher(-5, -5)));
+  ok("le plancher ne dépasse jamais le plafond",
+     N.zoomPlancher(1e6, 1e6) <= N.ZMAX + 1e-12);
+
+  /* Le plancher vaut pour LES SIX CARTES : il ne regarde que la
+     géométrie du monde, jamais l'index de l'île. */
+  ok("le plancher est le même pour les six cartes",
+     typeof N.zoomPlancher(1900, 1000) === "number" && N.CARTES.length === 6);
+
+  /* La marge de mer est partagée avec la butée de déplacement : c'est
+     ce qui garantit que le zoom plancher montre exactement ce que la
+     caméra permet d'atteindre. */
+  var att = N.iso(N.GW + N.MARGE_MONDE, 0).x - N.iso(0, N.GH).x;
+  ok("la boîte du zoom est celle de la butée de caméra", Math.abs(B.l - att) < 1e-9);
 })();
 
 /* ================================================================

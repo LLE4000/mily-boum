@@ -979,10 +979,12 @@ function dessinePanda(c, k, tps){
      reste à un animal dont la robe est sa définition — et c'est le plus
      fort des trois espèces : un panda aux quatre cinquièmes de la
      taille, assis au milieu de trois grands, ne se lit pas comme « le
-     même dessin en plus petit », il se lit comme un petit. L'écart va
-     jusqu'à un cinquième, ce qui, à cent dix pandas semés en groupes,
-     suffit à faire des familles. */
-  var ech = 0.80 + fauneTirage(k.n || 0, 17) * 0.28;
+     même dessin en plus petit », il se lit comme un petit. La
+     fourchette est CENTRÉE sur la taille livrée — un panda moyen fait
+     toujours ses trente unités — et s'étend de moins quatorze à plus
+     quatorze pour cent : à cent dix pandas semés en groupes, ça suffit
+     à faire des familles. */
+  var ech = 0.86 + fauneTirage(k.n || 0, 17) * 0.28;
   c.save();
   c.scale(ech, ech);
   if(k.assis) panda_assis(c, k, tps, sur, alerte, fuit);
@@ -1043,7 +1045,7 @@ function dessineKoala(c, k, tps){
   /* Les koalas sont posés au pied des troncs, souvent deux ou trois
      ensemble : un jeune à côté d'un adulte raconte une scène là où
      deux adultes identiques ne racontent rien. */
-  var ech = 0.86 + fauneTirage(n, 13) * 0.24;
+  var ech = 0.88 + fauneTirage(n, 13) * 0.24;
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var alerte = fuit || sur > 0.15;
@@ -1496,12 +1498,16 @@ function dessineLuciole(c, k, tps){
       et c'est exactement ce qu'on voit d'un vrai.
    3. IL NE MARCHE PAS. Il est immobile, puis il n'est plus là. Sa
       démarche est une suite de ruées de trois dixièmes de seconde
-      séparées par des arrêts NETS — et de temps en temps, sans raison
-      ni prévenance, un saut sur place. C'est là qu'est le comique, et
-      c'est courseCochon() qui le fabrique, sans le moindre hasard.
+      (0,26 à 0,42 s à la sonde) séparées par des arrêts NETS d'une
+      seconde pleine — et de temps en temps, sans raison ni prévenance,
+      un saut sur place. C'est là qu'est le comique, et c'est
+      courseCochon() qui le fabrique, sans le moindre hasard.
 
-   Hauteur mesurée au balayage d'alphas : 13,9 unités pour un individu
-   de taille moyenne (le bourdon fait 9, le koala 23, Gégé 20).
+   Hauteur MESURÉE au balayage d'alphas, pas estimée : 14 unités pour
+   un individu moyen, de 13 à 15 selon la taille tirée (le corps du
+   bourdon fait 9, le koala 23, Gégé la belette 18, le singe 26). Il
+   est donc la plus petite bête à quatre pattes de l'île — et c'est
+   voulu : dans une grappe, le nombre remplace la taille.
 
    ---- POURQUOI TROIS ROBES ----
    Le poseur les sème en GRAPPES SERRÉES, cinq ou six côte à côte. À ce
@@ -1536,7 +1542,7 @@ var PAL_COCHON = [
     taches:["#272230"],
     clair:"#fffdf7", clairO:"#dad2c2",
     oreille:"#332d3a", oreilleI:"#7d6d77",
-    nez:"#8d7f88", patte:"#cdc4b4", cerne:"rgba(246,242,232,.72)" },
+    nez:"#8d7f88", patte:"#b6ac9c", cerne:"rgba(246,242,232,.72)" },
   { /* 2 — TRICOLORE. Deux couleurs de taches au lieu d'une, posées aux
        deux bouts : c'est la seule du lot qui n'est pas symétrique en
        valeur, et de loin ça se lit comme un individu « à part ». */
@@ -1544,7 +1550,7 @@ var PAL_COCHON = [
     taches:["#c9761f", "#241f2a"],
     clair:"#fffdf7", clairO:"#dad2c2",
     oreille:"#a56b3c", oreilleI:"#c78d63",
-    nez:"#c48d84", patte:"#c6bdad", cerne:"rgba(248,242,230,.68)" }
+    nez:"#c48d84", patte:"#b0a696", cerne:"rgba(248,242,230,.68)" }
 ];
 
 /* ---- LA DÉMARCHE -------------------------------------------------
@@ -1562,10 +1568,12 @@ var PAL_COCHON = [
             se téléporterait à chaque changement de segment. Le corps
             part devant ses pieds, puis se rassoit sur sa croupe au
             freinage, ce qui est exactement ce que fait l'animal.
-     saut   la hauteur du bond sur place. Un segment sur six environ,
-            au repos seulement : c'est le « popcorn », le petit saut
-            vertical sans raison. C'est LE gag de l'espèce, et il ne
-            marche que s'il reste rare.
+     saut   la hauteur du bond sur place. Un segment sur six (mesuré à
+            la sonde : deux ruées sur douze), au repos seulement —
+            c'est le « popcorn », le petit saut vertical sans raison.
+            C'est LE gag de l'espèce, et il ne marche que s'il reste
+            RARE : à un segment sur deux, ce n'était plus un cochon
+            d'Inde, c'était un ressort.
      gel    1 pendant les arrêts, pour que le reste du dessin sache
             qu'il ne doit plus rien bouger du tout. */
 function courseCochon(tps, ph, n, fuit){
@@ -1573,6 +1581,9 @@ function courseCochon(tps, ph, n, fuit){
      occupe presque tout : il ne reste qu'un souffle entre deux ruées. */
   var seg = tps * (fuit ? 1.85 : 0.78) + ph * 0.61;
   var i = Math.floor(seg), u = seg - i;
+  /* Ici c'est le SEGMENT qu'on hache, l'individu servant de sel :
+     chaque cochon a donc sa propre suite de ruées, et la même à chaque
+     fois qu'on rejoue la même seconde. */
   var d = fauneTirage(i, n);
   var pop = (!fuit && d > 0.83) ? 1 : 0;
   var dur = pop ? 0.30 : (fuit ? 0.66 + d * 0.22 : 0.17 + d * 0.23);
@@ -1747,14 +1758,18 @@ function dessineCochon(c, k, tps){
      pieds d'un même plan tiennent dans UN tracé — le remplissage prend
      tous les sous-chemins d'un coup, et à trente bêtes à l'écran deux
      beginPath économisés par bête ne sont pas rien.
+     Ils MORDENT sur le ventre d'un demi-point. Posés juste en dessous,
+     il restait un cheveu de fond entre le pied et la bête, et à cette
+     taille ce cheveu suffisait : les quatre pieds se lisaient comme
+     quatre cailloux pâles posés là, surtout sur les robes claires.
      À la ruée ils battent trop vite pour être suivis : on les ÉTALE au
      lieu de les déplacer, parce qu'un pied net qui saute d'une image à
      l'autre scintille, là où un pied étiré donne la vitesse. */
   var bat = Math.sin(tps * 27 + ph * 2.2) * elan;
   c.fillStyle = ecl(P.patte, 0.72);
   c.beginPath();
-  c.ellipse(-4.8 - bat * 1.5, -1.15, 1.60 + elan * 1.5, 1.18, -0.12, 0, 6.2832);
-  c.ellipse(5.6 + bat * 1.5, -1.15, 1.55 + elan * 1.5, 1.14, 0.10, 0, 6.2832);
+  c.ellipse(-4.8 - bat * 1.5, -1.45, 1.60 + elan * 1.5, 1.32, -0.12, 0, 6.2832);
+  c.ellipse(5.2 + bat * 1.5, -1.45, 1.55 + elan * 1.5, 1.28, 0.10, 0, 6.2832);
   c.fill();
 
   /* ---- l'oreille du fond ----
@@ -1852,8 +1867,8 @@ function dessineCochon(c, k, tps){
   /* ---- les deux pieds de devant, même tracé unique ---- */
   c.fillStyle = P.patte;
   c.beginPath();
-  c.ellipse(-3.0 + bat * 1.5, -1.1, 1.70 + elan * 1.6, 1.30, -0.12, 0, 6.2832);
-  c.ellipse(7.2 + e - bat * 1.5, -1.1, 1.62 + elan * 1.6, 1.24, 0.10, 0, 6.2832);
+  c.ellipse(-3.0 + bat * 1.5, -1.50, 1.70 + elan * 1.6, 1.44, -0.12, 0, 6.2832);
+  c.ellipse(6.6 + e - bat * 1.5, -1.50, 1.62 + elan * 1.6, 1.38, 0.10, 0, 6.2832);
   c.fill();
 
   /* ---- l'oreille proche, par-dessus la joue ----

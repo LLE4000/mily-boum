@@ -33,18 +33,22 @@ function ajuste(){
 /* ---------------------------------------------------------------
    Caméra bornée : la carte reste toujours partiellement visible
    --------------------------------------------------------------- */
+/* Le plancher du zoom de CET écran. Il change avec la taille du
+   canevas — rotation de tablette, plein écran, barre du navigateur qui
+   se replie — donc il se recalcule, il ne se retient pas. */
+function zMinEcran(){ return zoomPlancher(W, H); }
+
 function borneCamera(){
-  cam.z = borne(cam.z, ZMIN, ZMAX);
-  var a = iso(0, GH), b = iso(GW + 8, 0);            // extrêmes gauche / droite
-  var c = iso(0, 0), d = iso(GW + 8, GH);            // extrêmes haut / bas
-  var x0 = a.x, x1 = b.x, y0 = c.y, y1 = d.y;
+  cam.z = borne(cam.z, zMinEcran(), ZMAX);
+  var B = boiteMonde();
+  var x0 = B.x0, x1 = B.x1, y0 = B.y0, y1 = B.y1;
   var mx = W * 0.42, my = H * 0.42;
   cam.px = borne(cam.px, mx - x1 * cam.z, W - mx - x0 * cam.z);
   cam.py = borne(cam.py, my - y1 * cam.z, H - my - y0 * cam.z);
 }
 function zoomVers(sx, sy, facteur){
   var av = cam.z;
-  cam.z = borne(cam.z * facteur, ZMIN, ZMAX);
+  cam.z = borne(cam.z * facteur, zMinEcran(), ZMAX);
   cam.px = sx - (sx - cam.px) * (cam.z / av);
   cam.py = sy - (sy - cam.py) * (cam.z / av);
   borneCamera();
@@ -86,7 +90,9 @@ function ajusteEtRecadre(){
   pointeurs = {}; ordrePt = []; glisse = null; pincee = null;
   viseur.actif = false;
   if(vise){
-    cam.z = borne(cam.z, ZMIN, ZMAX);
+    /* Le plancher a changé en même temps que l'écran : on le rectifie
+       AVANT de cadrer, jamais après. */
+    cam.z = borne(cam.z, zMinEcran(), ZMAX);
     centreSur(vise.gx, vise.gy);
   }
   borneCamera();
@@ -156,7 +162,7 @@ function installeSaisie(){
     pt.x = p.x; pt.y = p.y;
     if(ordrePt.length >= 2 && pincee){
       var a = pointeurs[ordrePt[0]], b = pointeurs[ordrePt[1]];
-      appliquePince(cam, pincee, a.x, a.y, b.x, b.y, ZMIN, ZMAX);
+      appliquePince(cam, pincee, a.x, a.y, b.x, b.y, zMinEcran(), ZMAX);
       borneCamera();
     }else if(glisse){
       /* Le viseur suit le doigt, MAIS la caméra suit aussi : armer une

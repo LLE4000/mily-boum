@@ -213,6 +213,45 @@ function borne(v, a, b){ return v < a ? a : (v > b ? b : v); }
 
 /* Caméra : écran = monde × z + p */
 var ZMIN = 0.13, ZMAX = 1.7;
+
+/* ----------------------------------------------------------------
+   LE DÉZOOM MAXIMUM : l'île entière, et RIEN de plus.
+
+   ZMIN était un nombre fixe. Sur une grande tablette, 0,13 laissait
+   reculer bien au-delà de la côte : on gagnait alors du vide, pas de
+   la carte, et l'île flottait au milieu d'un fond mort. Le bon
+   plancher n'est pas une constante — il dépend de l'écran — c'est une
+   MESURE : le zoom auquel la boîte du monde tient exactement dans le
+   canevas. En deçà, on n'ajoute plus d'île, on ajoute du néant.
+
+   MARGE_MONDE est la lisière de mer gardée à l'est du sable ; c'est
+   la même que celle dont borneCamera se sert pour retenir la caméra,
+   et ce n'est pas un hasard : le zoom plancher et la butée de
+   déplacement doivent parler de la même boîte, sinon l'un montre ce
+   que l'autre interdit d'atteindre.
+
+   ZMIN reste, en plancher DUR. Sur un téléphone étroit, la largeur de
+   l'île tiendrait à 0,05 : les cases feraient trois pixels et il n'y
+   aurait plus rien à lire. Là, c'est la lisibilité qui commande et on
+   ne voit pas l'île entière — mais on ne voit pas le vide non plus,
+   puisqu'on est encore trop près pour l'atteindre.
+   ---------------------------------------------------------------- */
+var MARGE_MONDE = 8;
+function boiteMonde(){
+  var a = iso(0, GH), b = iso(GW + MARGE_MONDE, 0);   // extrêmes gauche / droite
+  var c = iso(0, 0),  d = iso(GW + MARGE_MONDE, GH);  // extrêmes haut / bas
+  return { x0:a.x, x1:b.x, y0:c.y, y1:d.y, l:b.x - a.x, h:d.y - c.y };
+}
+function zoomAjuste(w, h){
+  var B = boiteMonde();
+  if(!(w > 0) || !(h > 0) || !(B.l > 0) || !(B.h > 0)) return ZMIN;
+  return Math.min(w / B.l, h / B.h);
+}
+/* Le plancher réel du zoom pour un canevas donné. Un seul endroit le
+   calcule ; tout ce qui borne la caméra passe par lui. */
+function zoomPlancher(w, h){
+  return borne(Math.max(ZMIN, zoomAjuste(w, h)), ZMIN, ZMAX);
+}
 function versMonde(cam, sx, sy){ return deIso((sx - cam.px) / cam.z, (sy - cam.py) / cam.z); }
 function versEcran(cam, gx, gy){
   var p = iso(gx, gy);

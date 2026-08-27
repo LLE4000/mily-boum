@@ -448,7 +448,9 @@ function batimentsAutour(gx, gy, r, sortie){
    --------------------------------------------------------------- */
 function centreSurPlage(){
   var p = iso(PLAGE_X0 + 2, GH / 2);
-  cam.z = 0.62;
+  /* Sur un très grand écran, le plancher peut dépasser 0,62 : mieux vaut
+     débarquer au bon zoom que se faire rectifier à la première image. */
+  cam.z = Math.max(0.62, zoomPlancher(W, H));
   cam.px = W / 2 - p.x * cam.z;
   cam.py = H / 2 - p.y * cam.z;
 }
@@ -2544,7 +2546,7 @@ function majFin(dt){
    c'est la largeur. Le point visé est légèrement AU-DESSUS du pied de la
    forteresse, sinon l'explosion sort par le haut de l'écran. */
 function cadreLaFin(dt){
-  var zBut = borne(Math.min(W / 1000, H / 900), ZMIN, 0.7);
+  var zBut = borne(Math.min(W / 1000, H / 900), zoomPlancher(W, H), 0.7);
   var pBut = iso(jeu.qg.gx, jeu.qg.gy);
   /* approche exponentielle : rapide au début, elle se pose sans à-coup */
   var k = 1 - Math.exp(-dt * 2.6);
