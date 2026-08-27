@@ -2581,9 +2581,30 @@ function decodeScores(s){
   return out;
 }
 /* Un seau de repli pour les entrées qui n'en avaient pas : quatre
-   caractères tirés du pseudo. Deux joueurs différents ne peuvent pas
-   le partager, et il ne peut pas non plus tomber sur le seau d'un
-   appareil réel — celui-ci vient d'un identifiant tiré au hasard. */
+   caractères tirés du pseudo.
+
+   CE COMMENTAIRE AFFIRMAIT DEUX IMPOSSIBILITÉS, et ni l'une ni l'autre
+   n'est vraie. Il disait que deux joueurs ne peuvent pas partager ce
+   seau, et qu'il ne peut pas tomber sur celui d'un appareil réel « —
+   celui-ci vient d'un identifiant tiré au hasard ». Les deux seaux
+   sortent en fait du MÊME espace : quatre caractères en base 36, soit
+   1 679 616 valeurs. Rien n'interdit une collision, ni entre deux
+   pseudos, ni entre un pseudo et un appareil ; c'est simplement rare.
+
+   L'ORDRE DE GRANDEUR, puisqu'il vaut mieux le connaître que
+   l'ignorer : sur 1 679 616 valeurs, la probabilité qu'au moins deux
+   seaux se rencontrent est d'environ 0,3 % à 100 appareils, 1,2 % à
+   200, 7 % à 500. Une collision n'efface rien : les deux appareils
+   partagent alors un compteur, et leurs contributions se prennent au
+   maximum au lieu de s'additionner — le plus petit des deux scores est
+   absorbé par le plus gros.
+
+   On garde quatre caractères quand même, et c'est un choix, pas un
+   oubli : élargir le seau CHANGE TOUTES LES CLÉS, donc remet à zéro le
+   score de tout le monde, et une migration qui recopierait l'ancien
+   seau vers le nouveau ferait compter deux fois — le total d'un joueur
+   étant la somme de ses seaux. Le remède coûterait plus cher que le
+   mal tant qu'un salon compte quelques dizaines d'appareils. */
 function seauHerite(nom){
   var h = graineTexte("hérité:" + (nom || "?")) >>> 0;
   var a = "abcdefghijklmnopqrstuvwxyz0123456789", s = "";

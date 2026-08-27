@@ -32,10 +32,11 @@ var planSalon = "", numeroPlan = 0, tirageSalon = 0;
    durée de la partie, qu'il soit encore branché ou non ; seule une
    remise à zéro du salon l'efface. */
 var scoresSalon = {};
-function noteScore(id, nom, degats){
+function noteScore(id, nom, degats, seau){
   var e = scoresSalon[id];
-  if(!e) e = scoresSalon[id] = { nom:"?", g:0 };
+  if(!e) e = scoresSalon[id] = { nom:"?", g:0, seau:"" };
   if(nom) e.nom = nom;
+  if(seau) e.seau = seau;
   /* Ce registre-ci ne sert qu'à ANIMER le classement entre deux
      instantanés : les messages d'état arrivent toutes les 420 ms, le
      monde partagé toutes les deux secondes. Le nombre reçu est
@@ -129,6 +130,16 @@ function migreVieuxDegats(){
   }catch(e){}
   return repris;
 }
+/* Relit le stockage sans condition. chargeMesDegats se contente de
+   son cache tant que la campagne n'a pas bougé — c'est ce qu'on veut
+   soixante fois par seconde —, mais avant d'AJOUTER quelque chose il
+   faut avoir sous les yeux ce qu'un autre onglet a pu écrire entre
+   deux. Notre mémoire et le disque sont identiques hors du delta
+   qu'on s'apprête à poser : relire ne perd donc rien. */
+function relitMesDegats(){
+  mesDegatsCycle = -1;
+  chargeMesDegats();
+}
 function chargeMesDegats(){
   if(mesDegatsCycle === (cycleSalon | 0) && cleDegatsChargee) return;
   cleDegatsChargee = CLE_DEGATS;
@@ -193,6 +204,14 @@ function repliMesDegats(){
   if(!jeu) return;
   var d = Math.round(jeu.degatsMoi || 0) - degatsReplies;
   if(d > 0){
+    /* DEUX ONGLETS DU MÊME NAVIGATEUR SONT LE MÊME APPAREIL : même
+       identifiant stable, donc même seau et même clé de rangement.
+       Chacun tenait sa propre copie de mesDegats en mémoire et
+       l'écrivait en entier : le second effaçait le premier, et un
+       onglet sur deux jouait pour rien. On relit donc juste avant
+       d'ajouter, et l'on n'ajoute que NOTRE accroissement — la somme
+       est alors juste, quel que soit le nombre d'onglets. */
+    relitMesDegats();
     mesDegats[jeu.index] = (mesDegats[jeu.index] || 0) + d;
     degatsReplies += d;
     gardeMesDegats();
@@ -223,11 +242,27 @@ function scoresAJour(){
   for(k in mesDegats){
     var c = cleScore(monSeau, k | 0);
     var av = t[c];
-    /* On n'écrit QUE notre seau, et l'étiquette qu'on porte en ce
-       moment : changer de pseudo relabellise, ça ne recommence pas un
-       compteur. */
-    if(!av || mesDegats[k] > av.g) t[c] = { n:monNom, g:mesDegats[k] };
-    else t[c] = { n:monNom, g:av.g };
+    /* ON N'ÉCRIT QUE NOTRE SEAU, et l'on écrit CE QUE LA FUSION VA
+       RETENIR — pas ce qu'on aimerait qu'elle retienne.
+
+       C'est la correction. On posait notre pseudo courant dans tous
+       les cas, y compris quand la fusion allait le refuser : elle
+       tranche les égalités de dégâts au nom le plus PETIT (voir
+       fusionneScores). Bob qui se renommait « Zoe » sans frapper
+       publiait donc « Zoe », recevait « Bob » en retour, constatait
+       une différence, republiait « Zoe »… toutes les deux secondes,
+       indéfiniment, sur le sujet RETENU du salon. Renommé « Ana »,
+       en revanche, la boucle se fermait du premier coup — le défaut
+       était asymétrique, ce qui le rendait difficile à voir.
+
+       En appliquant ici la règle exacte de la fusion, ce qu'on publie
+       est déjà un point fixe : memeMonde dit vrai, et la republication
+       s'arrête. Le nouveau pseudo, lui, s'impose au premier coup de
+       hache — nos dégâts dépassent alors ceux du tableau, notre
+       entrée gagne franchement, et l'étiquette suit. */
+    if(!av || mesDegats[k] > av.g)      t[c] = { n:monNom, g:mesDegats[k] };
+    else if(mesDegats[k] === av.g)      t[c] = { n:(monNom < av.n ? monNom : av.n), g:av.g };
+    else                                t[c] = { n:av.n, g:av.g };
   }
   return t;
 }
@@ -1034,7 +1069,8 @@ function recoit(txt){
     j.n = m.n | 0;
     j.g = m.g | 0;
     j.nom = m.nom ? m.nom.substr(0, 14) : j.nom;
-    noteScore(m.id, j.nom, j.g);
+    j.seau = m.sq ? nettoieSeau(m.sq) : (j.seau || "");
+    noteScore(m.id, j.nom, j.g, j.seau);
     majUnitesDistantes(j, m.p || []);
     if(m.m && m.f){
       if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
@@ -1194,7 +1230,16 @@ function majReseau(dt){
          maximum qu'en prend le destinataire est juste. Envoyer les
          dégâts de partie, c'était envoyer un nombre qui repart à zéro
          à chaque île — et c'est ce qui figeait les scores. */
-      var msg = { t:"etat", nom:monNom, n:n, g:Math.round(monTotalLocal()), p:p };
+      /* `sq` : NOTRE SEAU. Il tient en quatre caractères et il vaut
+         cher — c'est lui qui permet au destinataire de rattacher ce
+         total vivant à la bonne ligne du tableau partagé, au lieu de
+         le classer sous un pseudo. Sans lui, un joueur qui se
+         renommait apparaissait DEUX FOIS au classement : son ancien
+         nom, encore dans le tableau, et le nouveau, apporté par ce
+         message-ci. Un champ inconnu est ignoré par les versions
+         précédentes, donc l'ajout ne casse rien. */
+      var msg = { t:"etat", nom:monNom, sq:monSeau, n:n,
+                  g:Math.round(monTotalLocal()), p:p };
       if(jeu.mort && jeu.fantome){
         msg.m = 1;
         msg.f = [Math.round(jeu.fantome.gx * 10) / 10, Math.round(jeu.fantome.gy * 10) / 10];

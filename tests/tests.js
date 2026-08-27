@@ -758,6 +758,44 @@ G("4. Déterminisme de la génération de carte");
       var u = T(t);
       return N.fusionneScores(u, u) === u && T(D(u)) === u;
     })());
+    /* ================================================================
+       LA RÈGLE QUI TRANCHE LES ÉTIQUETTES
+
+       À dégâts égaux, la fusion garde le nom le PLUS PETIT dans
+       l'ordre des chaînes. C'est arbitraire, et c'est le but : il faut
+       que deux clients tranchent pareil, sinon ils se republient l'un
+       l'autre sans fin.
+
+       Ce qui suit grave la règle, parce que le client doit la
+       CONNAÎTRE et non la subir : scoresAJour publie désormais ce que
+       la fusion va retenir. Il posait son pseudo courant dans tous les
+       cas, y compris quand la fusion allait le refuser — Bob renommé
+       « Zoe » publiait « Zoe », recevait « Bob », republiait « Zoe »,
+       toutes les deux secondes et pour toujours. Renommé « Ana », en
+       revanche, la boucle se fermait du premier coup : le défaut était
+       asymétrique, donc difficile à voir.
+       ================================================================ */
+    ok("à dégâts égaux, le plus petit nom l'emporte", (function(){
+      var m = N.fusionneScores(un("i0ex", "Zoe", 0, 1000), un("i0ex", "Bob", 0, 1000));
+      return D(m)["i0ex:0"].n === "Bob";
+    })());
+    ok("et l'ordre des deux camps n'y change rien", (function(){
+      var a = un("i0ex", "Zoe", 0, 1000), b = un("i0ex", "Bob", 0, 1000);
+      return N.fusionneScores(a, b) === N.fusionneScores(b, a);
+    })());
+    ok("mais un dégât de plus suffit à imposer son nom", (function(){
+      var m = N.fusionneScores(un("i0ex", "Bob", 0, 1000), un("i0ex", "Zoe", 0, 1001));
+      return D(m)["i0ex:0"].n === "Zoe" && D(m)["i0ex:0"].g === 1001;
+    })());
+    /* Le point fixe : ce que la fusion a tranché, refusionné, ne bouge
+       plus. C'est cette propriété que le client doit reproduire pour
+       que la republication s'arrête. */
+    ok("un tableau tranché est un point fixe", (function(){
+      var m = N.fusionneScores(un("i0ex", "Zoe", 0, 1000), un("i0ex", "Bob", 0, 1000));
+      return N.fusionneScores(m, m) === m
+          && N.fusionneScores(m, un("i0ex", "Zoe", 0, 1000)) === m;
+    })());
+
     /* Les pseudos ne sont pas de l'ASCII : un plafond compté en
        caractères mentirait de deux octets par « é ». */
     ok("le poids se compte en octets, pas en signes",

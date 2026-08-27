@@ -667,11 +667,25 @@ function classementSalon(){
      l'instantané : ils servent à ANIMER le classement entre deux
      publications, jamais à le contredire. Leur nombre est un total,
      qui ne fait que monter. */
+  /* LE SEAU RATTACHE LE TOTAL VIVANT À LA BONNE LIGNE.
+     On classait ce total sous le PSEUDO de l'expéditeur. Un joueur qui
+     se renommait apparaissait alors deux fois : son ancien nom, encore
+     porté par le tableau partagé, et le nouveau, apporté par son
+     message d'état — deux lignes, deux fois le même score. Le seau,
+     lui, ne bouge pas quand on change de pseudo : on s'en sert pour
+     retrouver sous quelle étiquette le tableau connaît ce joueur, et
+     l'on met à jour CETTE ligne-là. */
+  var noms = (typeof nomsDesSeaux === "function")
+             ? nomsDesSeaux(typeof scoresAJour === "function" ? scoresAJour() : {}) : {};
   var id;
   for(id in scoresSalon){
     var e = scoresSalon[id];
     if(!e.nom || e.nom === "?") continue;
-    if(e.g > (par[e.nom] || 0)) par[e.nom] = e.g;
+    /* le nom sous lequel le tableau partagé connaît ce seau ; à
+       défaut de seau (version précédente, ou pas encore reçu), on
+       retombe sur le pseudo, comme avant */
+    var cible = (e.seau && noms[e.seau]) ? noms[e.seau] : e.nom;
+    if(e.g > (par[cible] || 0)) par[cible] = e.g;
   }
   /* qui est encore là, pour la petite prise ⏻ */
   var present = {};
