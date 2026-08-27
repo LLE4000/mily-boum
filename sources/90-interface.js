@@ -1205,21 +1205,18 @@ function etatJungle(){
   return joueursEnLigne() >= minJoueursJungle() ? "prete" : "attente";
 }
 
-/* UN APPUI LONG EN COURS INTERDIT LA RECONSTRUCTION.
-
-   Le défaut : majMondes() est appelée à chaque instantané reçu qui
-   diffère du précédent, et depuis que le score s'additionne il diffère
-   toutes les deux secondes dès que quelqu'un joue. Elle réécrit tout
-   le innerHTML — donc elle DÉTRUIT la vignette sous le doigt, avec son
-   anneau et ses écouteurs. Un appui long de cinq secondes ne pouvait
-   plus arriver au bout : « le chargement s'arrête avant ».
-
-   On diffère donc la reconstruction jusqu'à la fin du geste. Rien
-   d'urgent ne s'y perd : le menu se rafraîchira une seconde plus tard. */
-var mondesEnAttente = false;
+/* LE MENU SE RECONSTRUIT TOUT LE TEMPS, ET C'EST ASSUMÉ.
+   majMondes est appelée à chaque instantané reçu qui diffère du
+   précédent, et depuis que le score s'additionne il diffère toutes les
+   deux secondes dès que quelqu'un joue. Elle réécrit tout le
+   innerHTML, donc elle DÉTRUIT les vignettes et ce qui pend dessus.
+   C'est ce qui tuait l'appui long de cinq secondes du créateur :
+   « le chargement s'arrête avant ». Il fallait alors différer la
+   reconstruction le temps du geste.
+   Plus besoin : la visite se déclenche au clic, instantané, et son
+   écouteur est posé UNE FOIS sur le conteneur — que les vignettes
+   soient remplacées ne le concerne pas. */
 function majMondes(){
-  if(typeof appuiAdmin !== "undefined" && appuiAdmin){ mondesEnAttente = true; return; }
-  mondesEnAttente = false;
   var h = "";
   for(var i = 0; i < CARTES.length; i++){
     if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
@@ -1230,7 +1227,8 @@ function majMondes(){
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
-       + blocTop3(i) + '</div>';
+       + blocTop3(i)
+       + (i > carteSalon ? boutonVisite(i) : "") + '</div>';
   }
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
@@ -1238,27 +1236,57 @@ function majMondes(){
   installeAppuisCartes();
 }
 
-/* Arme l'appui long du créateur sur toute vignette qui n'est pas
-   librement jouable — les îles verrouillées, et la jungle dans
-   n'importe lequel de ses états. Une carte ouverte garde son
-   comportement d'origine, intact. */
+/* ================================================================
+   LA VISITE — TOUT LE MONDE PEUT VOIR TOUTES LES ÎLES
+
+   Elle était réservée : cinq secondes de doigt posé sur la vignette,
+   puis un mot de passe. C'était le bon réglage tant que la visite
+   POLLUAIT — les dégâts d'essai partaient dans le cumul local, puis
+   dans le classement public, et une île verrouillée visitée gonflait
+   son Top 3 pour tout le salon. Ce robinet-là est fermé depuis
+   (repliMesDegats sort si modeApercu), et rien de ce qui se passe
+   pendant une visite ne quitte l'appareil : ni message d'état, ni
+   instantané, ni dégât rangé.
+
+   Elle peut donc s'ouvrir, et elle s'ouvre avec un BOUTON. Un appui
+   long de cinq secondes est un geste qu'on ne trouve pas ; ce qui est
+   permis à tout le monde doit se voir. Le mot de passe disparaît avec
+   lui : il ne gardait plus rien.
+   ================================================================ */
+function boutonVisite(i){
+  return '<button class="visite" data-visite="' + i + '">👁 Visiter</button>';
+}
+/* Une visite REMPLACE la partie en mémoire : lancePartie rebâtit la
+   carte, et la bataille en cours ne survit pas. Tant qu'elle n'a rien
+   coûté — pas une troupe débarquée, pas un dégât — on n'embête
+   personne ; dès qu'elle a commencé, on demande. */
+function visitePerdraitLaPartie(){
+  if(!jeu || jeu.fin) return false;
+  return (jeu.unites && jeu.unites.length > 0) || (jeu.degatsMoi | 0) > 0;
+}
+function demandeVisite(i){
+  if(visitePerdraitLaPartie()
+     && !confirm("Visiter « " + CARTES[i].nom + " » ?\n\n"
+               + "Ta bataille en cours sur « " + CARTES[jeu.index].nom + " » sera\n"
+               + "abandonnée : les troupes déjà débarquées seront perdues.\n\n"
+               + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
+  ouvreApercuAdmin(i);
+}
+
+/* Un seul écouteur sur le conteneur, jamais un par vignette : le menu
+   se reconstruit toutes les deux secondes dès que quelqu'un joue, et
+   des écouteurs posés sur les vignettes partiraient avec elles. */
 function installeAppuisCartes(){
-  var els = $("mondes").querySelectorAll("[data-carte]");
-  for(var k = 0; k < els.length; k++){
-    var i = +els[k].getAttribute("data-carte");
-    if(!carteSpeciale(i) && i <= carteSalon) continue;   // carte ouverte : rien à cacher
-    armeAppuiLong(els[k], i);
-    if(!carteSpeciale(i)){
-      (function(idx){
-        els[k].addEventListener("click", function(){ clicCarteVerrouillee(idx); });
-      })(i);
-    }
-  }
-  /* La vignette événement porte son propre bouton, donc l'appui long
-     s'arme sur son cadre — mais le bouton, lui, ne doit pas déclencher
-     l'anneau quand on appuie dessus pour entrer. */
-  var evt = $("mondeEvt");
-  if(evt) armeAppuiLong(evt, IDX_JUNGLE);
+  var m = $("mondes");
+  if(!m || m._visiteArmee) return;
+  m._visiteArmee = 1;
+  m.addEventListener("click", function(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-visite]") : null;
+    if(!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    demandeVisite(+b.getAttribute("data-visite"));
+  });
 }
 
 /* La vignette de la carte événement. Elle porte quatre informations
@@ -1310,6 +1338,11 @@ function vignetteEvenement(i){
        +   '<span class="barreJ"><i style="width:' + (frac * 100).toFixed(0) + '%"></i></span>'
        + '</div>'
        + '<button id="btJungle"' + (actif ? "" : " disabled") + '>' + bouton + '</button>'
+       /* La jungle se visite comme les autres, et surtout QUAND ELLE
+          EST FERMÉE : c'est justement le moment où l'on aimerait voir
+          à quoi elle ressemble. Le bouton d'entrée, lui, reste
+          conditionné au nombre de joueurs — visiter n'est pas jouer. */
+       + boutonVisite(i)
        + blocTop3(i) + '</div>';
 }
 
@@ -1495,103 +1528,6 @@ function lancePartie(ou){
 /* Le bouton n'existe que dans le briefing : impossible de l'effleurer
    en pleine partie. Double garde-fou — un mot de passe, puis une
    confirmation qui annonce ce que ça détruit. */
-/* ================================================================
-   L'APPUI LONG DU CRÉATEUR
-
-   Cinq secondes de doigt posé sur une vignette verrouillée, puis le
-   mot de passe, et la carte s'ouvre en prévisualisation. Aucun bouton
-   n'est ajouté à l'écran : un joueur ordinaire ne peut pas tomber
-   dessus par hasard, et un appui long involontaire dure rarement cinq
-   secondes.
-
-   Le geste marche au doigt comme à la souris parce qu'il passe par
-   les événements POINTEUR, qui unifient les deux. Trois précautions
-   pour la tablette :
-     — touch-action:none sur la vignette, sinon le navigateur prend le
-       doigt pour un défilement et annule le pointeur au bout de
-       quelques pixels ;
-     — contextmenu annulé, sinon Android ouvre son menu « copier » au
-       bout d'une demi-seconde et vole le geste ;
-     — pointercancel traité comme un relâchement, pour que l'anneau ne
-       reste pas figé si le système reprend la main.
-   ================================================================ */
-var APPUI_ADMIN = 5.0;                 // secondes de doigt posé
-var appuiAdmin = null;                 // { el, i, t0, minuteur }
-
-function armeAppuiLong(el, i){
-  /* touch-action en JS et non en CSS : la vignette débloquée doit
-     rester défilante, seule la verrouillée capture le doigt. */
-  el.style.touchAction = "none";
-  var anneau = document.createElement("div");
-  anneau.className = "anneauAdmin";
-  el.appendChild(anneau);
-
-  function debut(ev){
-    if(appuiAdmin) return;
-    appuiAdmin = { el:el, i:i, t0:Date.now(), anneau:anneau, deplace:false,
-                   x:ev.clientX, y:ev.clientY };
-    el.classList.add("presse");
-    el.setPointerCapture && el.setPointerCapture(ev.pointerId);
-    appuiAdmin.minuteur = setInterval(tic, 60);
-    ev.preventDefault();
-  }
-  function tic(){
-    if(!appuiAdmin) return;
-    var av = (Date.now() - appuiAdmin.t0) / 1000 / APPUI_ADMIN;
-    appuiAdmin.anneau.style.setProperty("--av", Math.min(1, av));
-    if(av >= 1){
-      var idx = appuiAdmin.i;
-      finAppui();
-      demandeApercuAdmin(idx);
-    }
-  }
-  function bouge(ev){
-    if(!appuiAdmin) return;
-    /* Le doigt qui glisse veut faire défiler la page, pas ouvrir un
-       panneau caché. Douze pixels de tolérance : moins, et le moindre
-       tremblement annulerait le geste sur une tablette tenue à bout
-       de bras. */
-    if(Math.hypot(ev.clientX - appuiAdmin.x, ev.clientY - appuiAdmin.y) > 12) finAppui();
-  }
-  function finAppui(){
-    if(!appuiAdmin) return;
-    clearInterval(appuiAdmin.minuteur);
-    appuiAdmin.el.classList.remove("presse");
-    appuiAdmin.anneau.style.setProperty("--av", 0);
-    appuiAdmin = null;
-    /* le menu avait peut-être quelque chose à dire pendant le geste :
-       on le laisse parler maintenant */
-    if(mondesEnAttente) majMondes();
-  }
-  el.addEventListener("pointerdown", debut);
-  el.addEventListener("pointermove", bouge);
-  el.addEventListener("pointerup", finAppui);
-  el.addEventListener("pointercancel", finAppui);
-  el.addEventListener("pointerleave", finAppui);
-  el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
-}
-
-/* Le clic court sur une carte verrouillée : on dit pourquoi elle
-   l'est, sans jamais laisser deviner qu'un appui long existe. */
-function clicCarteVerrouillee(i){
-  if(appuiAdmin) return;
-  message(carteSpeciale(i)
-    ? "« Mily dans la jungle » est un événement : il faut assez de joueurs connectés."
-    : "Termine la carte précédente pour débloquer celle-ci.");
-}
-
-function demandeApercuAdmin(i){
-  var mot = prompt(
-    "ACCÈS ADMINISTRATEUR\n\n"
-    + "Prévisualiser « " + CARTES[i].nom + " » sans la déverrouiller ?\n\n"
-    + "Rien de ce qui se passera pendant ce test ne sera enregistré :\n"
-    + "ni dégâts, ni champion, ni progression, ni chrono.\n\n"
-    + "Mot de passe :");
-  if(mot === null) return;
-  if(!motAdminValide(mot)) return;      // mot faux : rien ne se passe, comme demandé
-  ouvreApercuAdmin(i);
-}
-
 /* ---------------------------------------------------------------
    ENTRER ET SORTIR DE LA PRÉVISUALISATION
    --------------------------------------------------------------- */
@@ -1603,12 +1539,20 @@ function ouvreApercuAdmin(i){
      messages sorte. */
   modeApercu = true;
   lancePartie(i);
-  $("hud").classList.add("apercu");
-  message("Prévisualisation de « " + CARTES[i].nom + " ». Rien ne sera enregistré.");
+  /* LA VISITE MONTRE L'ÎLE, ELLE NE LA FAIT PAS JOUER. On range donc
+     tout ce qui sert à combattre — les navettes, l'énergie, les
+     capacités : ces boutons ne mèneraient à rien, puisque l'île n'est
+     pas ouverte et que rien de ce qu'on y ferait ne serait retenu. Ce
+     qui reste est ce pour quoi on est venu : la carte, la caméra, et
+     de quoi ressortir. */
+  $("hud").classList.add("apercu", "visite");
+  message("Visite de « " + CARTES[i].nom + " » — regarde l'île, "
+        + "déplace la caméra. Rien n'est enregistré, et on n'y débarque pas.");
 }
 function quitteApercuAdmin(){
   modeApercu = false;
   $("hud").classList.remove("apercu");
+  $("hud").classList.remove("visite");
   /* Les dégâts du test ne doivent pas hanter le classement local :
      on efface la mémoire de la partie d'essai. Le marqueur du cumul
      part avec elle — la prochaine vraie partie repart d'un compteur

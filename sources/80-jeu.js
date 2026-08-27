@@ -497,6 +497,13 @@ var NAV = {
 };
 
 function poseBarge(gx, gy){
+  /* EN VISITE, ON REGARDE — ON NE DÉBARQUE PAS. L'île n'est pas encore
+     ouverte : y poser des troupes donnerait une bataille dont rien ne
+     serait retenu, ni les dégâts, ni le champion, ni la progression.
+     Mieux vaut le dire tout de suite que le laisser découvrir après
+     coup. */
+  if(typeof modeApercu !== "undefined" && modeApercu)
+    return message("Visite : tu peux tout regarder, mais pas débarquer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");

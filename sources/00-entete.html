@@ -304,26 +304,26 @@ select.champ{cursor:pointer}
 #objBouclier b{color:#a9e8ff}
 #objBouclier i{color:var(--or);font-style:normal;font-weight:700}
 
-/* ---- APPUI LONG SUR UNE CARTE VERROUILLÉE ----
-   Un anneau qui se remplit sur cinq secondes, posé PAR-DESSUS la
-   vignette sans rien déplacer. Il ne s'affiche qu'une fois le doigt
-   posé : un joueur ordinaire ne le verra jamais.
-   La bordure est peinte au dégradé conique, dont l'angle est piloté
-   par une variable CSS — un seul style à toucher par image, aucune
-   remise en page. */
-.monde .anneauAdmin{
-  position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;
-  transition:opacity .18s;
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;mask-composite:exclude;
-  padding:3px;
-  background:conic-gradient(var(--braise) calc(var(--av,0) * 1turn),transparent 0);
-}
-.monde.presse .anneauAdmin{opacity:1}
-/* Pendant l'appui, on interdit au navigateur de s'en mêler : pas de
-   sélection de texte, pas de menu contextuel, pas de loupe iOS. */
+/* Sur une vignette, le doigt sert à appuyer, pas à sélectionner du
+   texte ni à ouvrir le menu contextuel du navigateur. */
 .monde{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-.monde.presse{transform:scale(.985)}
+
+/* LE BOUTON « VISITER ». Il est sur toutes les îles qu'on ne peut pas
+   encore jouer — et c'est justement là qu'on veut regarder. Discret
+   mais franc : posé en bas de la vignette, il ne recouvre ni le nom ni
+   le podium. */
+.monde .visite{
+  display:block;width:calc(100% - 20px);margin:0 10px 10px;
+  appearance:none;cursor:pointer;
+  border:1px solid rgba(255,255,255,.18);border-radius:10px;
+  background:rgba(255,255,255,.07);color:#dccfe6;
+  font-weight:700;font-size:12.5px;line-height:1;font-family:inherit;
+  padding:8px 10px;letter-spacing:.3px;
+  transition:background .12s, border-color .12s;
+}
+.monde .visite:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.30)}
+.monde .visite:active{transform:translateY(1px)}
+.monde.evt .visite{width:calc(100% - 28px);margin:8px 14px 14px}
 
 /* Le bandeau du mode prévisualisation : discret, en haut à gauche,
    là où il ne recouvre rien de jouable. */
@@ -335,6 +335,13 @@ select.champ{cursor:pointer}
   background:rgba(46,20,6,.82);border:1px solid rgba(255,160,60,.45);
 }
 #hud.apercu #bandeauApercu{display:block}
+/* EN VISITE, ON RANGE TOUT CE QUI SERT À COMBATTRE. L'île n'est pas
+   ouverte : ces boutons ne mèneraient nulle part, et les laisser
+   promettrait une bataille qu'on ne peut pas livrer. Restent la
+   carte, la caméra, le retour à l'accueil et le chat. */
+#hud.visite #bg,
+#hud.visite #bd,
+#hud.visite #bc{display:none}
 
 /* ---- LES ONGLETS DE CARTES DE L'ÉDITEUR ----
    Six onglets qui défilent horizontalement : sur une tablette tenue en
@@ -1052,7 +1059,7 @@ select.champ{cursor:pointer}
     <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">0:15</span>
   </div>
 
-  <div id="bandeauApercu">⚙ Mode prévisualisation</div>
+  <div id="bandeauApercu">👁 Visite — on regarde, on ne joue pas</div>
   <div id="flash"></div>
 </div>
 

@@ -889,6 +889,47 @@ G("4. Déterminisme de la génération de carte");
       var a = N.fusionneMonde(m1, m2);
       return N.memeMonde(a, N.fusionneMonde(a, a));
     })());
+
+    /* ================================================================
+       LE PIÈGE DE LA REMISE À ZÉRO
+
+       Le rang d'un instantané est tg × 1 000 000 + cy × 1 000 + c :
+       à campagne ET tirage égaux, c'est l'ÎLE LA PLUS AVANCÉE qui
+       gagne. C'est ce qu'on veut pendant une campagne — personne ne
+       doit ramener le salon en arrière.
+
+       Mais « Réinitialiser le salon » publie l'île 0 avec un cycle et
+       un tirage NEUFS, et un joueur resté en jeu sur l'île 1 adoptait
+       ce cycle neuf tout en gardant sa partie : il republiait alors
+       « c : 1 » avec le même tg et le même cy, et son île l'emportait.
+       La remise à zéro ne tenait pas deux secondes.
+
+       La fusion n'y peut rien et ne doit rien y changer : c'est au
+       client d'abandonner une partie qui appartient à la campagne
+       précédente (adopteMonde le fait maintenant). Ce groupe grave la
+       règle pour qu'on n'aille pas « corriger » la fusion un jour en
+       croyant bien faire.
+       ================================================================ */
+    (function(){
+      function M(tg, cy, c){
+        var m = N.mondeVide(c, 1000, cy); m.tg = tg; return m;
+      }
+      ok("à campagne égale, l'île la plus avancée gagne",
+         N.fusionneMonde(M(1, 1, 0), M(1, 1, 3)).c === 3 &&
+         N.fusionneMonde(M(1, 1, 3), M(1, 1, 0)).c === 3);
+      ok("une campagne plus récente gagne, même sur l'île 0",
+         N.fusionneMonde(M(1, 1, 4), M(1, 2, 0)).c === 0 &&
+         N.fusionneMonde(M(1, 2, 0), M(1, 1, 4)).c === 0);
+      ok("un tirage plus récent gagne aussi",
+         N.fusionneMonde(M(1, 5, 4), M(2, 1, 0)).c === 0);
+      /* ET VOICI LE PIÈGE, gravé tel quel : une fois la campagne neuve
+         ADOPTÉE, republier une vieille île la remet en tête. C'est
+         exactement ce qui défaisait la remise à zéro, et c'est
+         pourquoi le client doit lâcher sa partie. */
+      ok("mais republier une vieille île SOUS la campagne neuve la ramène",
+         N.fusionneMonde(M(2, 2, 0), M(2, 2, 1)).c === 1,
+         "d'où la règle : une campagne neuve annule la partie en cours");
+    })();
   })();
 
   /* ================================================================

@@ -525,8 +525,37 @@ function adopteMonde(m, source){
     appliqueMondeAuJeu(monde);
     if(!memeMonde(monde, mondeCourant())) mondeSale = true;
   }
-  if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
+  /* ================================================================
+     UNE CAMPAGNE NEUVE ANNULE LA PARTIE EN COURS
+
+     Sans ça, « Réinitialiser le salon » ne tenait pas deux secondes.
+     Le joueur qui appuie remet bien tout à zéro chez lui — île 0,
+     Brasier plein, dégâts effacés — mais UN AUTRE JOUEUR resté en
+     jeu sur l'île 1 adoptait la campagne neuve tout en gardant sa
+     partie, puis republiait « c : 1 » avec le nouveau cycle. Or le
+     rang d'un instantané est tg × 1 000 000 + cy × 1 000 + c : à
+     campagne et tirage égaux, l'île la plus avancée gagne. Sa partie
+     d'avant écrasait donc la remise à zéro, et le salon revenait à
+     l'île 1 comme si rien ne s'était passé. Mesuré : remise à zéro
+     publiée à c 0, republication à c 1, fusion → c 1.
+
+     Une campagne neuve rend la partie en cours caduque : elle
+     appartient à la précédente. On rebâtit donc sur l'île où le salon
+     recommence — même geste que pour un plan de défense qui change,
+     juste au-dessus.
+     ================================================================ */
+  var campagneNeuve = (monde.cy | 0) > (cycleSalon | 0);
+  if(campagneNeuve){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
   else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+  if(campagneNeuve && jeu && jeu.index !== carteSalon && !carteSpeciale(jeu.index)){
+    nouvelleCarte(carteSalon);
+    if(typeof construitFondMini === "function") construitFondMini();
+    if(typeof majBarres === "function") majBarres();
+    if(typeof majBoutonReprendre === "function") majBoutonReprendre();
+    if(typeof message === "function")
+      message("Le salon a été réinitialisé : la campagne repart de « "
+              + CARTES[carteSalon].nom + " ».");
+  }
   /* ON SAIT MAINTENANT DANS QUELLE CAMPAGNE ON JOUE. Tant que ce
      drapeau est bas, tout cumul rangé l'est « à titre provisoire » :
      c'est ce qui permet de l'adopter plutôt que de le jeter quand la
