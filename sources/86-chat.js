@@ -197,44 +197,24 @@ function dessineFilChat(){
   e.scrollTop = e.scrollHeight;
   majQuiEstLa();
 }
-/* Qui est en ligne, en tête du panneau. La liste vient de celle que le
-   réseau tient déjà pour l'affichage des autres joueurs.
+/* Qui est en ligne, en tête du panneau — LE COMPTE, PAS LES NOMS.
 
-   ELLE NOMME LES GENS, MAINTENANT. Elle annonçait « 5 joueurs en
-   ligne » — un compte, et rien d'autre. C'est le seul endroit du jeu
-   où l'on écrit aux autres : savoir COMBIEN ils sont sans savoir QUI
-   ils sont n'aide personne à commencer une phrase. L'accueil, lui,
-   sait déjà les nommer depuis qu'on peut y déplier la liste ; la
-   fonctionnalité existait deux fois et n'avait été portée que d'un
-   côté.
-   On déplie ici d'un appui sur le compte, exactement comme là-bas, et
-   le choix tient jusqu'à ce qu'on en décide autrement. */
-var chatQuiDeplie = false;
+   Il a porté la liste dépliable un moment, et c'était un doublon : en
+   jeu, le panneau du haut-gauche la donne déjà, avec le nombre
+   d'unités de chacun en plus. Restait le cas du MENU, où ce panneau
+   n'existe pas — le HUD y est caché. C'est la carte du Salon qui s'en
+   charge désormais, à côté de l'état de la connexion : un endroit par
+   contexte, jamais deux.
+
+   Le compte reste ici, et il a sa raison d'être propre : avant
+   d'écrire, on veut savoir à combien de personnes on parle. */
 function majQuiEstLa(){
   var e = $("chatQui");
   if(!e) return;
-  /* nomsEnLigne n'en rend que huit, et dit combien il en reste : à
-     cinquante joueurs, cinquante lignes reconstruites à chaque message
-     coûteraient cher pour un ascenseur qui, lui, ne dirait rien du
-     nombre. */
-  var q = nomsEnLigne();
-  var n = q.total + 1;                       // soi-même compte
+  var n = nomsEnLigne().total + 1;           // soi-même compte
   var s = nbSourds();
-  var tete = '<b data-qui title="Voir qui est là">'
-           + (n > 1 ? (chatQuiDeplie ? "▾ " : "▸ ") + n + " joueurs en ligne"
-                    : "toi seul pour l'instant")
-           + "</b>"
-           + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
-  if(!chatQuiDeplie || n < 2){ e.innerHTML = tete; return; }
-  var h = '<div class="ql moi"><span class="p">🔸</span><span class="n">'
-        + echappe(monNom || "toi") + " (toi)</span></div>", k;
-  for(k = 0; k < q.montres.length; k++){
-    h += '<div class="ql"><span class="p">🔹</span><span class="n">'
-       + echappe(q.montres[k].nom) + "</span></div>";
-  }
-  if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
-                 + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
-  e.innerHTML = tete + '<div class="qlListe">' + h + "</div>";
+  e.innerHTML = (n > 1 ? n + " joueurs en ligne" : "toi seul pour l'instant")
+    + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
 }
 
 /* ---------------------------------------------------------------
@@ -358,10 +338,6 @@ function installeChat(){
   if(q) q.addEventListener("click", function(ev){
     if(ev.target && ev.target.id === "chatSourds"){ rendLOreille(); return; }
     /* l attribut est en minuscules : le navigateur les abaisse */
-    if(ev.target.closest && ev.target.closest("[data-qui]")){
-      chatQuiDeplie = !chatQuiDeplie;
-      majQuiEstLa();
-    }
   });
   if(c){
     c.checked = chatActif;

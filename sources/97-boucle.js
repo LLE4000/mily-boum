@@ -33,6 +33,7 @@ function demarre(){
   installePlan();
   installeChat();
   installeListeEnLigne();
+  installeQuiSalon();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

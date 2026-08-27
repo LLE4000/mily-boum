@@ -236,22 +236,36 @@ select.champ{cursor:pointer}
   border-bottom:1px solid rgba(255,168,72,.18);
 }
 #chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
-/* Le bandeau se DÉPLIE : replié il tient sur sa ligne et se coupe
-   proprement, déplié il occupe la place qu'il faut pour nommer tout le
-   monde. Le nowrap ne vaut donc que replié. */
+/* Le bandeau du chat porte LE COMPTE, pas les noms : en jeu ils sont
+   dans le panneau du haut-gauche, au menu sur la carte du Salon. */
 #chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#chatQui:has(.qlListe){white-space:normal;overflow:visible;text-overflow:clip}
 #chatQui b{color:var(--or);cursor:pointer;font-weight:700}
-#chatQui .qlListe{
-  margin-top:4px;display:flex;flex-direction:column;gap:2px;
-  max-height:96px;overflow-y:auto;overscroll-behavior:contain;
+
+/* QUI EST LÀ, SUR LA CARTE DU SALON. C'est le seul endroit qui nomme
+   les joueurs tant qu'on n'est pas entré dans une bataille : le
+   panneau du haut-gauche vit dans le HUD, et le HUD est caché au menu. */
+#quiSalon{margin-top:6px}
+#quiSalon .quiBt{
+  appearance:none;border:1px solid rgba(255,255,255,.14);border-radius:9px;
+  background:rgba(255,255,255,.05);color:var(--gris);cursor:pointer;
+  font-weight:700;font-size:11.5px;line-height:1;font-family:inherit;
+  padding:6px 10px;letter-spacing:.3px;
 }
-#chatQui .ql{display:flex;align-items:baseline;gap:6px;font-size:11.5px;line-height:1.3}
-#chatQui .ql .p{flex:none;font-size:9px}
-#chatQui .ql .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+#quiSalon .quiBt:hover{background:rgba(255,255,255,.10);color:var(--texte)}
+/* Pas d ascenseur : la liste est plafonnée à huit noms plus le mien
+   plus la ligne du reste, soit dix au plus. Un ascenseur n y couperait
+   qu une dernière ligne en deux, sans rien cacher de vrai. */
+#quiSalon .quiLa{
+  margin-top:6px;padding:6px 8px;border-radius:9px;background:rgba(0,0,0,.28);
+  display:flex;flex-direction:column;gap:2px;
+}
+#quiSalon .ql{display:flex;align-items:baseline;gap:6px;font-size:12px;line-height:1.35}
+#quiSalon .ql .p{flex:none;font-size:9px}
+#quiSalon .ql .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;color:#cdbfd6}
-#chatQui .ql.moi .n{color:var(--or);font-weight:700}
-#chatQui .ql.autres .n,
+#quiSalon .ql .u{flex:none;color:#8f86a0;font-size:10px;font-variant-numeric:tabular-nums}
+#quiSalon .ql.moi .n{color:var(--or);font-weight:700}
+#quiSalon .ql.autres .n,
 #podium .ql.autres .n{color:#8f86a0;font-style:italic}
 /* Un pseudo se touche : c'est par lui qu'on choisit de ne plus lire
    quelqu'un. Le pointillé le dit sans crier. */
@@ -881,7 +895,14 @@ select.champ{cursor:pointer}
         </select>
         <button id="btReco" class="bt ptt">Reconnecter</button>
       </div>
+      <!-- LE NOMBRE, PUIS LES NOMS. La ligne comptait les autres joueurs
+           sans jamais les nommer ; c'était le chat qui s'en chargeait, à
+           un endroit où l'on écrit plutôt qu'on ne consulte. Les noms
+           vivent ici désormais, à côté de l'état de la connexion — et
+           en jeu, c'est le panneau du haut-gauche qui les porte. Un
+           endroit par contexte, jamais deux. -->
       <div id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></div>
+      <div id="quiSalon"></div>
       <!-- L'INTERRUPTEUR DU CHAT. Il ne coupe pas seulement l'affichage :
            quand il est éteint, rien n'est ni envoyé ni retenu. C'est le
            réglage de quelqu'un qui ne veut pas de chat, pas celui de

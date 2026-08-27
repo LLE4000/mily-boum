@@ -1480,6 +1480,37 @@ function dessineApercu(i){
   v.addColorStop(0, "rgba(20,10,28,.35)"); v.addColorStop(1, "rgba(20,10,28,0)");
   c.fillStyle = v; c.fillRect(0, 0, w, h);
 }
+/* Déplié ou non, sur la carte du Salon. Le choix tient jusqu'à ce que
+   le joueur en décide autrement. */
+var quiSalonDeplie = false;
+function majQuiSalon(){
+  var e = $("quiSalon");
+  if(!e) return;
+  var q = nomsEnLigne();
+  if(reseau.etat !== "ok" || !q.total){ e.innerHTML = ""; return; }
+  var h = '<button class="quiBt" data-quisalon>'
+        + (quiSalonDeplie ? "▾" : "▸") + " qui est là ?</button>";
+  if(quiSalonDeplie){
+    h += '<div class="quiLa">' + ligneEnLigne(monNom || "toi", 0, 1);
+    for(var i = 0; i < q.montres.length; i++)
+      h += ligneEnLigne(q.montres[i].nom, q.montres[i].n, 0);
+    if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
+                   + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
+    h += "</div>";
+  }
+  e.innerHTML = h;
+}
+function installeQuiSalon(){
+  var e = $("quiSalon");
+  if(!e) return;
+  /* l'écouteur va sur le conteneur : le bouton est réécrit à chaque
+     rafraîchissement de l'état du réseau */
+  e.addEventListener("click", function(ev){
+    if(!ev.target.closest || !ev.target.closest("[data-quisalon]")) return;
+    quiSalonDeplie = !quiSalonDeplie;
+    majQuiSalon();
+  });
+}
 function majEtatReseau(){
   var p = $("pRes"), t = $("txRes");
   if(!p) return;
@@ -1489,12 +1520,15 @@ function majEtatReseau(){
   if(reseau.etat === "ok"){
     p.classList.add("ok");
     t.textContent = "Salon MILY — connecté" + (n ? " · " + n + " autre" + (n > 1 ? "s" : "") + " joueur" + (n > 1 ? "s" : "") : " · seul pour l'instant");
+    majQuiSalon();
   }else if(reseau.etat === "coupe" || reseau.etat === "erreur" || reseau.etat === "refus"){
     p.classList.add("ko");
     t.textContent = "Relais injoignable — le jeu marche quand même en solo. Essaie l'autre relais.";
+    majQuiSalon();
   }else{
     p.classList.add("att");
     t.textContent = "Connexion au salon MILY…";
+    majQuiSalon();
   }
 }
 
