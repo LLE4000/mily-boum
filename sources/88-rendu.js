@@ -1941,11 +1941,26 @@ function dessineVisee(c, tps){
 /* ---------------------------------------------------------------
    Boucle de rendu
    --------------------------------------------------------------- */
+/* LA FORCE DES SECOUSSES, À UN SEUL ENDROIT.
+
+   Une dizaine de coups en ajoutent — obus, effondrement d'une tour,
+   Nova, geyser, chute du Brasier — chacun avec son propre plafond, de
+   6 à 30. Régler ça en touchant les dix sites reviendrait à refaire
+   l'équilibre entre eux ; ce qu'on veut n'est pas de changer QUI
+   secoue le plus, c'est de baisser le tout d'un même geste. Le seul
+   endroit où la valeur devient des pixels est ici : un facteur y
+   suffit, et l'équilibre entre les sources reste intact.
+
+   À moitié, parce qu'un salon plein secoue sans arrêt : chaque joueur
+   ajoute ses propres impacts au même écran, et ce qui est juste à un
+   joueur devient un tremblement continu à huit. Le geste garde tout
+   son punch — il est simplement deux fois moins ample. */
+var FORCE_SECOUSSE = 0.5;
 function rendu(tps, dt){
   secX = 0; secY = 0;
   if(jeu.secousse > 0){
-    secX = (Math.random() - 0.5) * jeu.secousse;
-    secY = (Math.random() - 0.5) * jeu.secousse;
+    secX = (Math.random() - 0.5) * jeu.secousse * FORCE_SECOUSSE;
+    secY = (Math.random() - 0.5) * jeu.secousse * FORCE_SECOUSSE;
   }
   repereEcran(ctx);
   ctx.clearRect(-40, -40, W + 80, H + 80);

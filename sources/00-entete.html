@@ -7,6 +7,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Mily Boum — jeu de stratégie d'assaut isométrique multijoueur.">
+<!-- LE NAVIGATEUR NE DOIT PAS SERVIR UNE VIEILLE PARTIE. Le jeu tient
+     dans ce fichier, donc le mettre en cache, c'est mettre en cache la
+     version : le pied de page a annoncé v0.15 alors que v0.16 était
+     publié depuis un moment. On demande donc une revalidation à chaque
+     ouverture. index.html porte en plus le numéro de version dans son
+     adresse, ce qui garantit le téléchargement quand elle change. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Mily Boum</title>
 <style>
 /* ============================================================

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.16";
+var VERSION = "v0.17";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1138,7 +1138,7 @@ function peupleLaJungle(c, al){
      raison d'être de l'exercice. */
   var ESSAIS_HAUTE = 120;
 
-  var occHaut = {}, occBas = {}, i, b;
+  var occHaut = {}, occBas = {}, occArbre = {}, i, b;
   function marque(grille, gx, gy, r){
     var x0 = Math.floor(gx - r), x1 = Math.ceil(gx + r);
     var y0 = Math.floor(gy - r), y1 = Math.ceil(gy + r);
@@ -1147,13 +1147,15 @@ function peupleLaJungle(c, al){
   }
   for(i = 0; i < c.batiments.length; i++){
     b = c.batiments[i];
-    marque(occHaut, b.gx, b.gy, b.e * 0.5 + 1.2);
-    marque(occBas,  b.gx, b.gy, b.e * 0.28);
+    marque(occHaut,  b.gx, b.gy, b.e * 0.5 + 1.2);
+    marque(occArbre, b.gx, b.gy, b.e * 0.35 + 0.5);
+    marque(occBas,   b.gx, b.gy, b.e * 0.28);
   }
-  /* Le Brasier reste dégagé sur les deux grilles : c'est l'objectif,
+  /* Le Brasier reste dégagé sur les trois grilles : c'est l'objectif,
      rien ne doit le voiler. */
-  marque(occHaut, QG_GX, QG_GY, 14);
-  marque(occBas,  QG_GX, QG_GY, 13);
+  marque(occHaut,  QG_GX, QG_GY, 14);
+  marque(occArbre, QG_GX, QG_GY, 14);
+  marque(occBas,   QG_GX, QG_GY, 13);
   function dansLIle(gx, gy){
     return gx >= 3 && gx <= PLAGE_X0 - 2 && gy >= 3 && gy <= GH - 4;
   }
@@ -1221,10 +1223,23 @@ function peupleLaJungle(c, al){
          même chance, donc les clairières restent des clairières
          pleines d'arbres. Une pousse ne change de place que si SA
          première case libre a changé d'état — c'est local. */
+      /* L'ARBRE A SA PROPRE GRILLE, PLUS SERRÉE QUE LES AUTRES.
+         Avec occHaut — rayon × 0,5 + 1,2 — il ne restait que 777 cases
+         libres sur 17 680, toutes dans les clairières : mesuré, QUATRE
+         grands arbres sur 377 se trouvaient dans la zone dense, et ce
+         qui poussait entre les tourelles n'était plus que de l'herbe,
+         des fougères et des racines, toutes à l'échelle 1. La zone des
+         défenses ne ressemblait plus à une jungle.
+         occArbre — rayon × 0,35 + 0,5 — laisse le tronc hors du socle
+         mais autorise l'arbre à se glisser ENTRE les tourelles. Les
+         lianes, plantes et buissons gardent occHaut : eux sont
+         nombreux et touffus, et les laisser entrer rendrait vraiment
+         la carte illisible. */
+      var grille = (fam === "arbre") ? occArbre : occHaut;
       var e = -1, cand;
       for(var t = 0; t < ESSAIS_HAUTE; t++){
         cand = casesHautes[(al() * casesHautes.length) | 0];
-        if(e < 0 && !occHaut[(cand % 1000) + "," + ((cand / 1000) | 0)]) e = cand;
+        if(e < 0 && !grille[(cand % 1000) + "," + ((cand / 1000) | 0)]) e = cand;
       }
       /* la gigue est bornée à la demi-case : une pousse ne doit pas
          sortir de la case libre qu'on lui a trouvée */

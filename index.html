@@ -2,9 +2,23 @@
 <meta charset="utf-8">
 <title>Mily Boum</title>
 <!-- Page d'entrée : elle n'existe que pour que l'adresse courte du site
-     mène directement au jeu. Le jeu lui-même reste mily-boum.html, un
-     fichier autonome que l'on peut aussi ouvrir hors ligne. -->
-<meta http-equiv="refresh" content="0; url=mily-boum.html">
+     mène directement au jeu. Le jeu lui-même est un fichier autonome
+     que l'on peut aussi ouvrir hors ligne.
+
+     LE NUMÉRO DE VERSION EST DANS L'ADRESSE, et c'est l'assembleur qui
+     l'y grave — voir outils/assembler.js. Le jeu pèse un mégaoctet et
+     demi : le navigateur le garde, et sur tablette il le garde
+     longtemps. Le pied de page a annoncé v0.15 alors que v0.16 était
+     publié depuis un moment ; le push n'était pas en cause, le cache
+     l'était. Une version neuve est désormais une ADRESSE neuve, donc un
+     téléchargement neuf, garanti — et une version inchangée garde son
+     cache et ne coûte rien.
+
+     Cette page-ci ne pèse que huit cents octets : la revalider à chaque
+     ouverture ne coûte rien non plus. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="refresh" content="0; url=mily-boum.html?v=0.17">
 <link rel="canonical" href="mily-boum.html">
 <style>
   html,body{height:100%;margin:0;background:#120a18;color:#e8e0ee;
@@ -16,5 +30,5 @@
 <main>
   <h1>Mily Boum</h1>
   <p>Chargement du jeu…</p>
-  <p><a href="mily-boum.html">Entrer dans la partie</a></p>
+  <p><a href="mily-boum.html?v=0.17">Entrer dans la partie</a></p>
 </main>
