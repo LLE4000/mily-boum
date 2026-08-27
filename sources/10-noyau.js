@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.24";
+var VERSION = "v0.25";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1409,20 +1409,83 @@ function peupleLaJungle(c, al){
     }
   }
 
-  /* --- LA FAUNE ---
+  /* ================================================================
+     LA FAUNE, ET SON HABITAT
+
      « Beaucoup de pandas », dit le cahier des charges, et il a raison :
      c'est le nombre qui rend une jungle habitée, pas la variété. Les
      pandas sont donc les plus nombreux, et la moitié d'entre eux est
      assise à manger — une jungle où tout le monde marche est une
-     jungle en fuite. */
+     jungle en fuite.
+
+     CE QUI MANQUAIT : L'INTENTION. Le semis était habitat-AVEUGLE. Les
+     sept espèces tiraient dans la même urne uniforme, et si les bêtes
+     finissaient tout de même sous les arbres — 63 % à moins de deux
+     cases d'un grand arbre, contre 33 % pour des points tirés au
+     hasard —, ce n'était pas un choix : c'était le rejet des pieds de
+     tourelles qui les y poussait, puisque là où il y a une tourelle il
+     n'y a pas d'arbre. Mesuré espèce par espèce, le résultat était même
+     à l'envers du bon sens : le SINGE, la plus arboricole des sept,
+     était la moins souvent près d'un arbre (60 %) et sous le plus
+     maigre couvert (12,6 pousses hautes autour, contre 26,7 pour le
+     koala, qui n'y était arrivé que par hasard).
+
+     ON DONNE DONC À CHACUNE SON COIN, et `aime` dit lequel :
+       singe, koala  au pied des grands arbres — ils y vivent ;
+       luciole       sous le couvert, là où il fait sombre : une
+                     luciole en plein soleil n'éclaire rien ;
+       papillon      À L'INVERSE, dans les trouées de lumière — c'est
+                     la seule espèce qu'on veut voir dans le vide ;
+       bourdon       sur les fleurs, c'est-à-dire la famille « plante » ;
+       panda         dans le fourré : buissons et plantes, de quoi
+                     mâcher assis ;
+       cochon        dans les herbes hautes des clairières, loin des
+                     grands arbres — une famille qui détale à
+                     découvert, c'est ce qui la rend visible.
+
+     LE BUDGET DE TIRAGES RESTE CONSTANT, comme partout dans ce
+     fichier : on tire TOUJOURS ESSAIS_FAUNE centres de groupe, et l'on
+     garde le premier qui plaît à l'espèce — ou le premier tout court
+     si aucun ne convient, pour que l'effectif soit tenu. Rien derrière
+     ne se décale, et la carte reste reproductible au millième de case.
+     ================================================================ */
+  /* Les grilles d'habitat, recensées UNE fois sur la flore déjà posée.
+     Un compte par case, pas un booléen : « sous le couvert » et « dans
+     une trouée » sont deux bouts de la même mesure, et il faut pouvoir
+     dire combien. */
+  var grArbre = {}, grFleur = {}, grFourre = {};
+  for(i = 0; i < c.flore.length; i++){
+    var fo = c.flore[i];
+    if(fo.fond) continue;                    // la ceinture ne compte pas
+    var cle = Math.round(fo.gx) + "," + Math.round(fo.gy);
+    if(fo.fam === "arbre")        grArbre[cle]  = (grArbre[cle]  || 0) + 1;
+    else if(fo.fam === "plante")  grFleur[cle]  = (grFleur[cle]  || 0) + 1;
+    else if(fo.fam === "buisson") grFourre[cle] = (grFourre[cle] || 0) + 1;
+  }
+  /* Combien de pousses de cette famille dans un carré de rayon r. */
+  function autour(g, gx, gy, r){
+    var n = 0, ax = Math.round(gx), ay = Math.round(gy);
+    for(var dx = -r; dx <= r; dx++)
+      for(var dy = -r; dy <= r; dy++)
+        n += g[(ax + dx) + "," + (ay + dy)] || 0;
+    return n;
+  }
+  var ESSAIS_FAUNE = 4;
   var BESTIOLES = [
-    { t:"panda",    n:110, gr:3 },
-    { t:"singe",    n:80,  gr:4 },
-    { t:"koala",    n:55,  gr:2 },
-    { t:"cochon",   n:130, gr:6 },
-    { t:"bourdon",  n:80,  gr:3 },
-    { t:"papillon", n:95,  gr:4 },
-    { t:"luciole",  n:150, gr:7 }
+    { t:"panda",    n:110, gr:3,
+      aime:function(x, y){ return autour(grFourre, x, y, 2) + autour(grFleur, x, y, 2) >= 2; } },
+    { t:"singe",    n:80,  gr:4,
+      aime:function(x, y){ return autour(grArbre, x, y, 2) >= 1; } },
+    { t:"koala",    n:55,  gr:2,
+      aime:function(x, y){ return autour(grArbre, x, y, 1) >= 1; } },
+    { t:"cochon",   n:130, gr:6,
+      aime:function(x, y){ return autour(grArbre, x, y, 3) === 0; } },
+    { t:"bourdon",  n:80,  gr:3,
+      aime:function(x, y){ return autour(grFleur, x, y, 2) >= 1; } },
+    { t:"papillon", n:95,  gr:4,
+      aime:function(x, y){ return autour(grArbre, x, y, 2) === 0; } },
+    { t:"luciole",  n:150, gr:7,
+      aime:function(x, y){ return autour(grArbre, x, y, 2) >= 3; } }
   ];
   for(i = 0; i < BESTIOLES.length; i++){
     var B = BESTIOLES[i];
@@ -1448,7 +1511,19 @@ function peupleLaJungle(c, al){
          la même flaque. Le semis uniforme donnait des bêtes solitaires
          qu'on ne remarquait jamais ; le groupe, lui, fait une SCÈNE. */
       var nb = 1 + ((al() * B.gr) | 0);
-      var cx2 = 6 + al() * (PLAGE_X0 - 12), cy2 = 4 + al() * (GH - 8);
+      /* LE CENTRE DU GROUPE SE CHOISIT, il ne se subit plus. Quatre
+         candidats tirés, TOUJOURS les quatre — c'est ce qui garde la
+         séquence stable —, et l'on garde le premier qui plaît à
+         l'espèce. Si aucun ne convient, on garde le premier : mieux
+         vaut un singe mal placé qu'une jungle à moitié vide, et de
+         toute façon un habitat qui couvre un tiers de l'île est trouvé
+         trois fois sur quatre. */
+      var cx2 = 0, cy2 = 0, choisi = 0;
+      for(var ec = 0; ec < ESSAIS_FAUNE; ec++){
+        var ex2 = 6 + al() * (PLAGE_X0 - 12), ey2 = 4 + al() * (GH - 8);
+        if(!ec){ cx2 = ex2; cy2 = ey2; }
+        if(!choisi && B.aime(ex2, ey2)){ cx2 = ex2; cy2 = ey2; choisi = 1; }
+      }
       /* le test du Brasier vient APRÈS, comme partout : on consomme
          les tirages du groupe même si on le jette */
       var auPied = Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15;

@@ -714,7 +714,16 @@ function dessinePluieJungle(c, tps){
         if(ph > 0.42 * pl) continue;
         var u = ph / (0.42 * pl);
         if((((1 - u) * 4) | 0) !== pal) continue;
-        var rr = (2.5 + u * 9) * z * (0.72 + pl * 0.34);
+        /* LE RAYON PLAFONNE À z = 1. La POSITION, elle, suit le zoom
+           sans réserve — c'est ce qui colle l'anneau au sol. Mais sa
+           TAILLE n'a pas à suivre : au zoom maximum, un anneau qui
+           grandissait avec la caméra faisait trente pixels de large,
+           et la carte se couvrait de gros ovales pâles, vus en
+           capture. Une éclaboussure est petite ; passé un certain
+           rapprochement, on ne la grossit plus, on en voit simplement
+           davantage. Bénéfice au passage : c'est aussi ce qui fait
+           repasser la couche sous son plafond de temps à z = 1,2. */
+        var rr = (2.5 + u * 9) * Math.min(z, 1) * (0.72 + pl * 0.34);
         c.moveTo(x + rr, y);
         c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
       }
