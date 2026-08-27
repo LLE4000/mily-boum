@@ -159,6 +159,15 @@ var planApercu = null;       // carte générée pour l'aperçu
    nombre : les zones, les densités et les proportions restent les
    mêmes, seule la réalisation change. C'est exactement la distinction
    entre le modèle enregistré et la partie qu'on en tire. */
+/* LE TIRAGE DE L'APERÇU. Il vaut par défaut CELUI DU SALON, et c'est
+   un correctif : il valait 0, alors que la partie joue `tirageSalon`.
+   Même plan, même intention, mais deux réalisations sans rapport —
+   mesuré : sur 629 défenses, UNE SEULE tombait au même endroit dans
+   l'aperçu et dans la partie. On dessinait donc une carte et on en
+   jouait une autre, ce qui se voyait surtout là où l'on avait pris
+   soin de masser ses défenses.
+   « Régénérer » explore toujours d'autres variantes, mais le panneau
+   dit désormais laquelle est jouée pour de vrai. */
 var planGraine = 0;
 var planApercuSale = true;
 var planDoigt = null;        // identifiant du doigt qui peint
@@ -170,6 +179,9 @@ var planDoigt = null;        // identifiant du doigt qui peint
    joue en ce moment — c'est celle qu'on vient de regarder. */
 function ouvrePlan(ou){
   planCarteIdx = (typeof ou === "number") ? ou : carteSalon;
+  /* on ouvre TOUJOURS sur le tirage que le salon joue : c'est la carte
+     que les joueurs ont sous les yeux */
+  planGraine = tirageSalon | 0;
   chargeCarteDansEditeur();
   $("plan").classList.add("on");
   construitPalettePlan();
@@ -1418,7 +1430,10 @@ function installePlan(){
     planGraine = (planGraine + 1) % 1000;
     planApercuSale = true;
     dessinePlan(); majPanneauPlan();
-    message2("Variante n°" + planGraine + " du même plan. Les zones n'ont pas bougé.");
+    message2(planGraine === (tirageSalon | 0)
+      ? "Te revoilà sur le tirage du salon — c'est la carte réellement jouée."
+      : "Variante n°" + planGraine + " — ce n'est PAS la carte jouée. "
+        + "Le salon joue le tirage n°" + (tirageSalon | 0) + ".");
   });
   /* LE TIRAGE NEUF, DEMANDÉ EXPRÈS. Il ne l'était pas : enregistrer
      n'importe quel plan le faisait tout seul, et refaisait au passage
@@ -1434,7 +1449,7 @@ function installePlan(){
     if(mot === null) return;
     if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a bougé."); return; }
     var n = nouveauTirageSalon();
-    planGraine = 0;
+    planGraine = n | 0;            // l'aperçu suit le tirage qu'on vient de poser
     planApercuSale = true;
     if(enJeu){
       nouvelleCarte(carteSalon);
@@ -1518,7 +1533,14 @@ function majPanneauPlan(){
     + '<span style="color:#8f86a0">' + c.decors + " "
     + echappe(decorDeLIle(planCarteIdx).slice(0, 3).join(", "))
     + " · " + c.bestioles + " bestioles · " + c.rochers + " rochers<br>"
-    + "l'ambiance de l'île — le plan ne la remplace jamais</span>";
+    + "l'ambiance de l'île — le plan ne la remplace jamais<br>"
+    /* CE QU'ON REGARDE : la carte jouée, ou une variante ? Sans ça on
+       dessine sur une réalisation et on en joue une autre. */
+    + (planGraine === (tirageSalon | 0)
+        ? "tirage n°" + (tirageSalon | 0) + " — <b style=\"color:#8ff0b4\">la carte réellement jouée</b>"
+        : "variante n°" + planGraine + " — <b style=\"color:#ffd070\">le salon joue le n°"
+          + (tirageSalon | 0) + "</b>")
+    + "</span>";
 
   /* En mode compas, l'aide parle de ce qu'on est en train de faire :
      l'outil choisi, ou la forme qu'on règle. */
