@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.40";
+var VERSION = "v0.41";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -107,7 +107,18 @@ var EQ = {
      Le reste est du rythme. */
   TORNADE_PERIODE      : 34,    // s entre deux tornades
   TORNADE_DESCENTE     : 2.6,   // s : l'entonnoir descend — rien n'est mortel
-  TORNADE_VIE          : 13,    // s : sa marche au sol
+  TORNADE_VIE          : 13,    // s : la marche au sol de référence
+  /* LA LONGUEUR DU TRAJET, en multiples de TORNADE_VIE. « Elle devrait
+     faire cinquante pour cent du trajet en plus, à parfois cent pour
+     cent en plus, pour avoir différentes intensités. » C'est donc une
+     PLAGE et non un nombre : chaque tornade tire la sienne, et deux
+     tornades de la même partie ne se ressemblent pas. */
+  TORNADE_TRAJET_MIN   : 1.5,   // × TORNADE_VIE  (+50 %)
+  TORNADE_TRAJET_MAX   : 2.0,   // × TORNADE_VIE  (+100 %)
+  /* À quelle distance du bord elle commence à virer pour rester dans
+     la zone de jeu. Assez large pour que le virage soit une courbe et
+     non un rebond. */
+  TORNADE_MARGE_BORD   : 14,    // cases
   TORNADE_VITESSE      : 2.9,   // cases/s
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle

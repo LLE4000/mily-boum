@@ -2425,21 +2425,38 @@ G("4. Déterminisme de la génération de carte");
          (N.EQ.TORNADE_DESCENTE * lente).toFixed(1) + " cases parcourues > "
          + N.EQ.TORNADE_RAYON + " à franchir");
     })();
-    /* LA DURÉE. Elle traverse « certaines longueurs », pas toute
-       l'île : une tornade qui balaie la carte entière ne se contourne
-       plus, on la subit. */
+    /* LA DURÉE, ET SES INTENSITÉS. Chaque tornade tire son trajet
+       entre +50 % et +100 % de la référence : deux tornades de la même
+       partie ne se ressemblent pas, et c'est cet écart qui les rend
+       intéressantes à regarder. */
     (function(){
-      var course = N.EQ.TORNADE_VITESSE * N.EQ.TORNADE_VIE;
-      ok("sa course (" + course.toFixed(0) + " cases) traverse une bonne part de l'île sans la balayer",
-         course > 20 && course < N.PLAGE_X0 * 0.55, course.toFixed(1));
+      var court = N.EQ.TORNADE_VITESSE * N.EQ.TORNADE_VIE * N.EQ.TORNADE_TRAJET_MIN;
+      var long  = N.EQ.TORNADE_VITESSE * N.EQ.TORNADE_VIE * N.EQ.TORNADE_TRAJET_MAX;
+      ok("sa course va de " + court.toFixed(0) + " à " + long.toFixed(0) + " cases",
+         court > 45 && long < 90, court.toFixed(0) + "–" + long.toFixed(0));
+      ok("la plus longue fait bien le double de la référence",
+         Math.abs(N.EQ.TORNADE_TRAJET_MAX - 2) < 1e-9 &&
+         Math.abs(N.EQ.TORNADE_TRAJET_MIN - 1.5) < 1e-9);
+      ok("aucune n'est plus courte que la référence",
+         N.EQ.TORNADE_TRAJET_MIN >= 1);
+      ok("l'écart entre la plus courte et la plus longue se voit",
+         long / court >= 1.3, "×" + (long / court).toFixed(2));
     })();
+    /* ELLE RESTE DANS LA ZONE DE JEU. La marge de virage doit être
+       assez large pour que le virage soit une courbe et non un rebond,
+       et assez étroite pour lui laisser de la place au milieu. */
+    ok("la marge de virage (" + N.EQ.TORNADE_MARGE_BORD
+       + " cases) laisse de la place au centre",
+       N.EQ.TORNADE_MARGE_BORD > 6 &&
+       N.EQ.TORNADE_MARGE_BORD * 2 < (N.PLAGE_X0 - N.LARGEUR_ROCHE) * 0.5 &&
+       N.EQ.TORNADE_MARGE_BORD * 2 < N.GH * 0.5);
     ok("elle ne revient pas sans arrêt : " + N.EQ.TORNADE_PERIODE + " s entre deux",
-       N.EQ.TORNADE_PERIODE > N.EQ.TORNADE_VIE * 2,
-       N.EQ.TORNADE_PERIODE + " > " + (N.EQ.TORNADE_VIE * 2));
+       N.EQ.TORNADE_PERIODE > N.EQ.TORNADE_VIE, "" + N.EQ.TORNADE_PERIODE);
     /* LE SOL REFROIDIT. Sans cela, une île traversée deux fois
        deviendrait un labyrinthe de couloirs interdits. */
-    ok("la traînée s'éteint (" + N.EQ.TORNADE_TRAINEE + " s) avant que la suivante n'arrive",
-       N.EQ.TORNADE_TRAINEE < N.EQ.TORNADE_PERIODE * 0.5);
+    ok("la traînée s'éteint (" + N.EQ.TORNADE_TRAINEE
+       + " s) bien avant que la tornade n'ait fini sa course",
+       N.EQ.TORNADE_TRAINEE < N.EQ.TORNADE_VIE * N.EQ.TORNADE_TRAJET_MIN * 0.5);
 
     /* LES CIELS. Une seule île est orageuse ; les autres se partagent
        trois teintes de nuages, et aucune ne doit retomber par défaut

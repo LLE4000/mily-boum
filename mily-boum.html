@@ -1332,7 +1332,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.40";
+var VERSION = "v0.41";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1430,7 +1430,18 @@ var EQ = {
      Le reste est du rythme. */
   TORNADE_PERIODE      : 34,    // s entre deux tornades
   TORNADE_DESCENTE     : 2.6,   // s : l'entonnoir descend — rien n'est mortel
-  TORNADE_VIE          : 13,    // s : sa marche au sol
+  TORNADE_VIE          : 13,    // s : la marche au sol de référence
+  /* LA LONGUEUR DU TRAJET, en multiples de TORNADE_VIE. « Elle devrait
+     faire cinquante pour cent du trajet en plus, à parfois cent pour
+     cent en plus, pour avoir différentes intensités. » C'est donc une
+     PLAGE et non un nombre : chaque tornade tire la sienne, et deux
+     tornades de la même partie ne se ressemblent pas. */
+  TORNADE_TRAJET_MIN   : 1.5,   // × TORNADE_VIE  (+50 %)
+  TORNADE_TRAJET_MAX   : 2.0,   // × TORNADE_VIE  (+100 %)
+  /* À quelle distance du bord elle commence à virer pour rester dans
+     la zone de jeu. Assez large pour que le virage soit une courbe et
+     non un rebond. */
+  TORNADE_MARGE_BORD   : 14,    // cases
   TORNADE_VITESSE      : 2.9,   // cases/s
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
@@ -9977,10 +9988,13 @@ function creeTornade(){
     cx:gx, cy:gy,                 // d'où elle est sortie, dans le nuage
     dx:dx / d, dy:dy / d,
     age:0,
-    /* la longueur de SA course : « certaines longueurs », pas toutes
-       la même — une tornade qui traverse toujours la même distance
-       devient un métronome */
-    vie:EQ.TORNADE_VIE * (0.7 + Math.random() * 0.6),
+    /* LA LONGUEUR DE SA COURSE. Chacune tire la sienne entre +50 % et
+       +100 % du trajet de référence : une tornade qui traverse
+       toujours la même distance devient un métronome, et c'est
+       justement l'écart entre une petite et une grosse qui fait qu'on
+       les regarde. */
+    vie:EQ.TORNADE_VIE * (EQ.TORNADE_TRAJET_MIN
+        + Math.random() * (EQ.TORNADE_TRAJET_MAX - EQ.TORNADE_TRAJET_MIN)),
     tour:Math.random() * 6.2832,  // sa phase de rotation propre
     posee:0,                      // a-t-elle touché terre ?
     dernier:0                     // distance depuis le dernier point de traînée
@@ -10029,10 +10043,40 @@ function majTornades(dt){
       jeu.secousse = Math.min(8, jeu.secousse + 3.0);
     }
 
-    /* elle avance, tout droit */
+    /* ELLE RESTE DANS LA ZONE DE JEU.
+       Avant, elle sortait de l'île et disparaissait : la moitié des
+       tornades mouraient hors du terrain sans avoir servi à rien, et
+       plus on rallongeait leur course, plus elles s'échappaient tôt.
+       Elle VIRE maintenant quand elle approche d'un bord — pas un
+       rebond, une courbe : on infléchit peu à peu son cap vers
+       l'intérieur, d'autant plus fort qu'elle est près du bord. Une
+       tornade qui rebondit à angle droit se lirait comme une bille ;
+       celle-ci décrit de grandes boucles molles, ce qui est
+       exactement ce que fait une vraie. */
+    var m = EQ.TORNADE_MARGE_BORD;
+    var rx = 0, ry = 0;
+    if(t.gx < LARGEUR_ROCHE + m)  rx =  (LARGEUR_ROCHE + m - t.gx) / m;
+    if(t.gx > PLAGE_X0 - m)       rx = -(t.gx - (PLAGE_X0 - m)) / m;
+    if(t.gy < m)                  ry =  (m - t.gy) / m;
+    if(t.gy > GH - m)             ry = -(t.gy - (GH - m)) / m;
+    if(rx || ry){
+      /* on ajoute la poussée vers l'intérieur au cap, puis on
+         renormalise : la vitesse ne change pas, seule la direction */
+      var vir = 2.6 * dt;
+      t.dx += rx * vir; t.dy += ry * vir;
+      var n = Math.hypot(t.dx, t.dy) || 1;
+      t.dx /= n; t.dy /= n;
+    }
+
+    /* elle avance */
     var av = EQ.TORNADE_VITESSE * dt;
     t.gx += t.dx * av;
     t.gy += t.dy * av;
+    /* et par sécurité, elle ne franchit jamais la bordure : un cap
+       tiré exactement le long d'un bord pourrait glisser dehors sans
+       que le virage ait prise dessus */
+    t.gx = borne(t.gx, LARGEUR_ROCHE + 2, PLAGE_X0 - 2);
+    t.gy = borne(t.gy, 2, GH - 2);
 
     /* elle sème sa traînée */
     t.dernier += av;
@@ -10046,12 +10090,17 @@ function majTornades(dt){
        pas, on tue. Une tornade de feu qui laisserait des survivants
        à demi cuits ne se lirait pas. */
     tueDansLeFeu(t.gx, t.gy, EQ.TORNADE_RAYON);
-
-    /* elle s'éteint : par le temps, ou en sortant de l'île */
-    if(t.age > EQ.TORNADE_DESCENTE + t.vie ||
-       t.gx < 2 || t.gx > PLAGE_X0 + 2 || t.gy < 1 || t.gy > GH - 1){
-      jeu.tornades.splice(i, 1);
+    /* les bêtes ne meurent pas dedans, mais elles la fuient : sans
+       cela, un sanglier resterait planté au milieu des flammes */
+    t.effroi = (t.effroi || 0) - dt;
+    if(t.effroi <= 0){
+      t.effroi = 0.5;
+      if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 12, jeu.tps);
     }
+
+    /* elle ne s'éteint plus QUE par le temps : elle ne peut plus
+       sortir de l'île, elle y tourne jusqu'au bout de sa course */
+    if(t.age > EQ.TORNADE_DESCENTE + t.vie) jeu.tornades.splice(i, 1);
   }
 
   /* --- la terre qui brûle derrière --- */
@@ -10068,21 +10117,28 @@ function majTornades(dt){
   }
 }
 
-/* Ce qui est dedans meurt. Les troupes ET les bêtes — mais aucun
-   bâtiment : voir l'en-tête du fichier. */
+/* ELLE NE TUE QUE NOS TROUPES. Rien d'autre — ni les bâtiments, ni
+   les bêtes. Le joueur l'a tranché en un mot : « c'est uniquement
+   notre troupe à nous que les tornades peuvent détruire ».
+
+   Les deux exclusions n'ont pas la même raison, et les deux comptent.
+   LES BÂTIMENTS : abimeBatiment() crédite jeu.degatsMoi, donc le
+   score, donc le palier de puissance — une tornade qui démolit des
+   défenses offrirait des points à un joueur qui a posé sa tablette.
+   LES BÊTES : elles ne rapportent presque rien, mais Gégé la belette
+   et Tweety le canari sont UNIQUES par île, leur tueur est gravé dans
+   l'instantané partagé et s'affiche à tout le salon. Un phénomène
+   automatique ne doit pas pouvoir écrire un nom là-dedans, ni faire
+   disparaître un animal que quelqu'un cherchait.
+   Elles fuient quand même — effraieFaune() les disperse à
+   l'apparition : elles ont peur du feu sans mourir dedans. */
 function tueDansLeFeu(gx, gy, r){
   unitesAutour(gx, gy, r, tornadeAutour);
   for(var i = 0; i < tornadeAutour.length; i++){
     var u = tornadeAutour[i];
-    if(u.pv <= 0) continue;
+    if(u.pv <= 0 || u.leurre) continue;
     if(Math.hypot(u.gx - gx, u.gy - gy) > r) continue;
     toucheUnite(u, u.pv + 1);
-  }
-  for(var k = 0; k < jeu.creatures.length; k++){
-    var c = jeu.creatures[k];
-    if(c.pv <= 0) continue;
-    if(Math.hypot(c.gx - gx, c.gy - gy) > r) continue;
-    abimeCreature(c, c.pv + 1);
   }
 }
 
