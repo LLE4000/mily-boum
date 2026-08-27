@@ -729,6 +729,12 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
+  /* MÊME GARDE QUE LE BRASIER, et pour la même raison. Le
+     « Math.min(d, b.pv) » ci-dessous borne le haut, mais il ne dit
+     rien d'un NaN : Math.min(NaN, pv) vaut NaN, Math.max(0, NaN) vaut
+     NaN, et jeu.degatsMoi devient NaN POUR LE RESTE DE LA PARTIE — un
+     score qui ne se répare pas et qui part sur le réseau. */
+  if(!(d > 0)) return;
   /* Le classement s'appelle TOP DÉGÂTS : il doit compter TOUS les
      dégâts, pas seulement ceux portés au Brasier. Un joueur qui démonte
      des centaines de défenses sans jamais atteindre la forteresse
@@ -1047,12 +1053,35 @@ function abimeQG(d){
     return;
   }
   d = Math.round(d);
-  if(d <= 0) return;
+  /* « !(d > 0) » et NON « d <= 0 » : NaN passe le second test sans se
+     faire voir. Un NaN glissé dans la file empoisonne les points de vie
+     du Brasier pour TOUT LE SALON — jeu.file.pv devient NaN, et NaN ne
+     redescend jamais à zéro : la carte ne peut plus être finie. La
+     comparaison inversée le rejette, comme toute valeur non finie. */
+  if(!(d > 0)) return;
   jeu.serieDeg++;
+  /* ON NE COMPTE QUE CE QUI EST RÉELLEMENT RETIRÉ.
+     abimeBatiment le fait depuis toujours — « Math.min(d, b.pv) », et
+     son commentaire dit pourquoi : « pour qu'un coup fatal
+     surdimensionné ne gonfle pas le score ». Le Brasier, lui, n'avait
+     pas cette borne : il créditait `d` en entier. Une salve de 400 000
+     sur un Brasier auquel il reste 12 000 points de vie inscrivait
+     400 000 au classement, dont 388 000 qui n'ont jamais existé — et
+     c'est le DERNIER coup de chaque île, donc celui que tout le monde
+     regarde.
+     La borne ne peut pas s'écrire à l'avance comme celle des
+     bâtiments : la file est PARTAGÉE, et les coups des autres joueurs
+     peuvent l'avoir vidée entre deux images. On mesure donc de part et
+     d'autre de l'application, ce qui donne aussi zéro sur un doublon
+     rejeté par la fenêtre glissante — exactement ce qu'il faut. */
+  var avantCoup = jeu.file.pv;
   jeu.file.applique(monId, jeu.serieDeg, d);
   jeu.qg.pv = jeu.file.pv;
-  jeu.degatsMoi += d;
-  degatsEnAttente += d;
+  var retire = Math.max(0, avantCoup - jeu.file.pv);
+  jeu.degatsMoi += retire;
+  /* on diffuse ce qu'on a compté, pas ce qu'on a tiré : les autres
+     clients rejouent la même séquence, ils doivent voir le même chiffre */
+  degatsEnAttente += retire;
   if(jeu.qg.pv <= 0 && !jeu.fin) declencheFin();
 }
 

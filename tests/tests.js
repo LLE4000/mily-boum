@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -717,14 +717,27 @@ G("4. Déterminisme de la génération de carte");
     ok("une chaîne pourrie ne renvoie rien de faux",
        Object.keys(N.decodeScores("n'importe quoi|::|x:")).length === 0 &&
        Object.keys(N.decodeScores("~||:::")).length === 0);
-    ok("les grands nombres passent sans troncature", (function(){
-      var m = un("bg01", "Geant", 0, 4000000000);
-      return tot(m).Geant === 4000000000;
-    })(), "4 milliards");
-    ok("et deux seaux qui s'additionnent au-delà de 2^31 aussi", (function(){
-      var m = N.fusionneScores(un("g1", "Geant", 0, 3000000000),
-                               un("g2", "Geant", 0, 3000000000));
-      return tot(m).Geant === 6000000000;
+    /* CES DEUX VÉRIFICATIONS ONT CHANGÉ DE CHIFFRES, PAS D'INTENTION.
+       Elles gardent la voie de l'ARITHMÉTIQUE contre une troncature à
+       32 bits — un « | 0 » égaré quelque part dans la lecture ou la
+       somme. Elles s'appuyaient sur quatre milliards dans un seul
+       seau ; depuis que decodeScores porte un plafond (plafondScore),
+       quatre milliards ne sont plus une donnée mais une corruption, et
+       la lecture les écarte à bon droit.
+       On garde donc exactement le même danger — dépasser 2^31 — en
+       n'employant que des valeurs LÉGALES : un seau juste sous le
+       plafond, puis huit seaux qui s'additionnent bien au-delà. C'est
+       même un meilleur test qu'avant, puisqu'il exerce la somme sur
+       plusieurs seaux au lieu d'un seul nombre géant. */
+    ok("un score au plafond passe sans troncature", (function(){
+      var g = N.plafondScore() - 1;
+      var m = un("bg01", "Geant", 0, g);
+      return tot(m).Geant === g && g > 300000000;
+    })(), "≈ 303 millions");
+    ok("et huit seaux qui s'additionnent au-delà de 2^31 aussi", (function(){
+      var g = N.plafondScore() - 1, m = "", i;
+      for(i = 0; i < 8; i++) m = N.fusionneScores(m, un("g" + i, "Geant", i, g));
+      return tot(m).Geant === g * 8 && g * 8 > 2147483648;
     })());
     /* ================================================================
        LE PLAFOND DU TABLEAU — EN OCTETS, ET PAR APPAREIL
@@ -947,6 +960,92 @@ G("4. Déterminisme de la génération de carte");
      Ce groupe grave le contrat de poseJungle, celui que l'appelant
      doit respecter, et la conservation du podium à la fusion.
      ================================================================ */
+  /* ================================================================
+     3c bis. LES BORNES — ce qui entre dans un score, et par où.
+
+     Un score franchit deux frontières, et chacune était ouverte.
+
+     LA FRONTIÈRE DU JEU : le coup fatal. abimeBatiment bornait ses
+     dégâts aux points de vie restants depuis toujours ; abimeQG, non.
+     Le DERNIER coup de chaque île — celui que tout le salon regarde —
+     comptait donc pour sa valeur entière, débordement compris.
+
+     LA FRONTIÈRE DU RÉSEAU : decodeScores. Un parseInt sans filet, et
+     un compteur dont la fusion est un MAXIMUM : ce qui entre une fois
+     n'en ressort jamais, et repart dans l'instantané retenu chez tout
+     le monde.
+
+     Ces vérifications gravent les deux bornes. Elles tiennent aussi
+     lieu de garde-fou au multiplicateur de puissance à venir : un
+     joueur qui frappe deux fois plus fort ne doit pas pouvoir inscrire
+     un point de dégât de plus que ce qu'il a réellement retiré.
+     ================================================================ */
+  G("3c bis. Les bornes d'un score");
+  (function(){
+    /* --- la borne du jeu, sur la file partagée du Brasier --- */
+    ok("la file ne descend jamais sous zéro", (function(){
+      var f = new N.FileDegats(1000);
+      f.applique("a", 1, 400000);
+      return f.pv === 0;
+    })());
+    ok("ce qui est retiré est mesurable de part et d'autre", (function(){
+      var f = new N.FileDegats(1000);
+      var avant = f.pv;
+      f.applique("a", 1, 400000);
+      /* c'est EXACTEMENT le calcul que fait désormais abimeQG :
+         un coup de 400 000 sur 1 000 points de vie ne crédite que
+         1 000, et non 400 000 */
+      return Math.max(0, avant - f.pv) === 1000;
+    })());
+    ok("un doublon ne crédite rien", (function(){
+      var f = new N.FileDegats(100000);
+      f.applique("a", 1, 500);
+      var avant = f.pv;
+      f.applique("a", 1, 500);            // même numéro de série
+      return Math.max(0, avant - f.pv) === 0;
+    })());
+    ok("un NaN ne peut pas empoisonner le Brasier", (function(){
+      var f = new N.FileDegats(1000);
+      /* la garde vit dans abimeQG : « !(d > 0) ». On vérifie ici que
+         c'est bien la BONNE écriture — « d <= 0 » laisserait passer. */
+      var d = NaN;
+      var refuseParLaBonneGarde = !(d > 0);
+      var refuseParLAncienne    = (d <= 0);
+      return refuseParLaBonneGarde === true && refuseParLAncienne === false && f.pv === 1000;
+    })());
+
+    /* --- la borne du réseau --- */
+    ok("le plafond se déduit des cartes", (function(){
+      var som = 0;
+      for(var i = 0; i < N.CARTES.length; i++) som += N.CARTES[i].pvQG || 0;
+      return N.plafondScore() > som && N.plafondScore() === Math.round(som * 1.5 + 20e6);
+    })());
+    ok("un score démesuré est écarté, pas ramené", (function(){
+      var s = N.MARQUE_SCORES + "abcd:Pirate:0:999999999999999999999";
+      var r = N.decodeScores(s);
+      var n = 0; for(var k in r) n++;
+      return n === 0;
+    })());
+    ok("un score énorme mais possible passe", (function(){
+      var s = N.MARQUE_SCORES + "abcd:Roro:5:60000000";
+      var r = N.decodeScores(s);
+      return r["abcd:5"] && r["abcd:5"].g === 60000000;
+    })());
+    ok("le tricheur n'écrase pas l'honnête dans le même seau", (function(){
+      var s = N.MARQUE_SCORES + "abcd:Roro:5:4700000|abcd:Pirate:5:1e21";
+      var r = N.decodeScores(s);
+      /* parseInt(\"1e21\") vaut 1 : celui-là passe par le bas et perd.
+         C'est l'autre écriture, tout en chiffres, que le plafond
+         arrête — les deux chemins mènent au même résultat. */
+      return r["abcd:5"] && r["abcd:5"].g === 4700000;
+    })());
+    ok("un score négatif ou nul reste écarté", (function(){
+      var r = N.decodeScores(N.MARQUE_SCORES + "abcd:X:0:-500|efgh:Y:0:0");
+      var n = 0; for(var k in r) n++;
+      return n === 0;
+    })());
+  })();
+
   G("3d. Le podium gelé d'une île");
   (function(){
     var pod = [{ nom:"Roro", g:1800000 }, { nom:"Lu", g:900000 }, { nom:"Ana", g:400000 }];

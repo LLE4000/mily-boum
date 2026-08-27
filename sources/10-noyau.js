@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.25";
+var VERSION = "v0.26";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2731,6 +2731,39 @@ function encodeScores(tab){
   if(!l.length) return "";
   return MARQUE_SCORES + l.map(morceau).join("|");
 }
+/* ----------------------------------------------------------------
+   LE PLAFOND D'UN SCORE — la seule borne du côté RÉSEAU.
+
+   Un score arrive sous forme de texte et devient un nombre par un
+   parseInt sans filet. Ce nombre entre ensuite dans un compteur dont
+   la fusion est un MAXIMUM : ce qui est entré une fois n'en ressort
+   jamais. Une chaîne de vingt-et-un chiffres — une main maladroite,
+   un octet retourné en route, ou quelqu'un qui s'amuse — s'installait
+   donc en tête du classement DÉFINITIVEMENT, et repartait dans
+   l'instantané retenu, chez tout le monde.
+
+   Le plafond se DÉDUIT des cartes plutôt que d'être écrit en dur : une
+   île plus grosse ajoutée demain ne doit pas se faire tronquer ses
+   scores. On additionne les Brasiers des six îles — ils font 96 % des
+   dégâts d'une carte —, on multiplie par une marge large, et l'on
+   ajoute de quoi couvrir toutes les défenses. Un seau ne peut pas
+   contenir davantage, quel que soit le multiplicateur de puissance
+   d'un joueur : les dégâts sont bornés aux points de vie retirés.
+
+   On REJETTE plutôt que d'on ne borne : une valeur au-dessus de ce
+   plafond n'est pas un score un peu trop grand, c'est une valeur qui
+   n'a pas pu être produite en jouant. La ramener à 300 millions
+   laisserait le tricheur en tête ; l'écarter le renvoie à ce qu'il a
+   vraiment fait. */
+var scorePlafond = 0;
+function plafondScore(){
+  if(scorePlafond) return scorePlafond;
+  var m = 0;
+  for(var i = 0; i < CARTES.length; i++) m += CARTES[i].pvQG || 0;
+  scorePlafond = Math.round(m * 1.5 + 20e6);
+  return scorePlafond;
+}
+
 function decodeScores(s){
   var out = {};
   if(!s || typeof s !== "string") return out;
@@ -2754,7 +2787,10 @@ function decodeScores(s){
       nom = nettoieNomScore(ch[0]); ca = -1; g = parseInt(ch[1], 10);
       seau = seauHerite(nom);
     }else continue;
-    if(!(g > 0)) continue;
+    /* « !(g > 0) » écarte déjà NaN et le négatif ; le plafond écarte
+       l'impossible par le haut. Les deux bornes encadrent la seule
+       valeur du protocole qui entre dans un maximum irréversible. */
+    if(!(g > 0) || g > plafondScore()) continue;
     if(!seau) seau = seauHerite(nom);
     var k = seau + ":" + ca;
     var av = out[k];

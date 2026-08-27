@@ -1137,7 +1137,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.25";
+var VERSION = "v0.26";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3859,6 +3859,39 @@ function encodeScores(tab){
   if(!l.length) return "";
   return MARQUE_SCORES + l.map(morceau).join("|");
 }
+/* ----------------------------------------------------------------
+   LE PLAFOND D'UN SCORE — la seule borne du côté RÉSEAU.
+
+   Un score arrive sous forme de texte et devient un nombre par un
+   parseInt sans filet. Ce nombre entre ensuite dans un compteur dont
+   la fusion est un MAXIMUM : ce qui est entré une fois n'en ressort
+   jamais. Une chaîne de vingt-et-un chiffres — une main maladroite,
+   un octet retourné en route, ou quelqu'un qui s'amuse — s'installait
+   donc en tête du classement DÉFINITIVEMENT, et repartait dans
+   l'instantané retenu, chez tout le monde.
+
+   Le plafond se DÉDUIT des cartes plutôt que d'être écrit en dur : une
+   île plus grosse ajoutée demain ne doit pas se faire tronquer ses
+   scores. On additionne les Brasiers des six îles — ils font 96 % des
+   dégâts d'une carte —, on multiplie par une marge large, et l'on
+   ajoute de quoi couvrir toutes les défenses. Un seau ne peut pas
+   contenir davantage, quel que soit le multiplicateur de puissance
+   d'un joueur : les dégâts sont bornés aux points de vie retirés.
+
+   On REJETTE plutôt que d'on ne borne : une valeur au-dessus de ce
+   plafond n'est pas un score un peu trop grand, c'est une valeur qui
+   n'a pas pu être produite en jouant. La ramener à 300 millions
+   laisserait le tricheur en tête ; l'écarter le renvoie à ce qu'il a
+   vraiment fait. */
+var scorePlafond = 0;
+function plafondScore(){
+  if(scorePlafond) return scorePlafond;
+  var m = 0;
+  for(var i = 0; i < CARTES.length; i++) m += CARTES[i].pvQG || 0;
+  scorePlafond = Math.round(m * 1.5 + 20e6);
+  return scorePlafond;
+}
+
 function decodeScores(s){
   var out = {};
   if(!s || typeof s !== "string") return out;
@@ -3882,7 +3915,10 @@ function decodeScores(s){
       nom = nettoieNomScore(ch[0]); ca = -1; g = parseInt(ch[1], 10);
       seau = seauHerite(nom);
     }else continue;
-    if(!(g > 0)) continue;
+    /* « !(g > 0) » écarte déjà NaN et le négatif ; le plafond écarte
+       l'impossible par le haut. Les deux bornes encadrent la seule
+       valeur du protocole qui entre dans un maximum irréversible. */
+    if(!(g > 0) || g > plafondScore()) continue;
     if(!seau) seau = seauHerite(nom);
     var k = seau + ":" + ca;
     var av = out[k];
@@ -23939,6 +23975,12 @@ function degatsZoneEnnemis(gx, gy, rayon, degats){
 }
 function abimeBatiment(b, d){
   if(!b.vivant) return;
+  /* MÊME GARDE QUE LE BRASIER, et pour la même raison. Le
+     « Math.min(d, b.pv) » ci-dessous borne le haut, mais il ne dit
+     rien d'un NaN : Math.min(NaN, pv) vaut NaN, Math.max(0, NaN) vaut
+     NaN, et jeu.degatsMoi devient NaN POUR LE RESTE DE LA PARTIE — un
+     score qui ne se répare pas et qui part sur le réseau. */
+  if(!(d > 0)) return;
   /* Le classement s'appelle TOP DÉGÂTS : il doit compter TOUS les
      dégâts, pas seulement ceux portés au Brasier. Un joueur qui démonte
      des centaines de défenses sans jamais atteindre la forteresse
@@ -24257,12 +24299,35 @@ function abimeQG(d){
     return;
   }
   d = Math.round(d);
-  if(d <= 0) return;
+  /* « !(d > 0) » et NON « d <= 0 » : NaN passe le second test sans se
+     faire voir. Un NaN glissé dans la file empoisonne les points de vie
+     du Brasier pour TOUT LE SALON — jeu.file.pv devient NaN, et NaN ne
+     redescend jamais à zéro : la carte ne peut plus être finie. La
+     comparaison inversée le rejette, comme toute valeur non finie. */
+  if(!(d > 0)) return;
   jeu.serieDeg++;
+  /* ON NE COMPTE QUE CE QUI EST RÉELLEMENT RETIRÉ.
+     abimeBatiment le fait depuis toujours — « Math.min(d, b.pv) », et
+     son commentaire dit pourquoi : « pour qu'un coup fatal
+     surdimensionné ne gonfle pas le score ». Le Brasier, lui, n'avait
+     pas cette borne : il créditait `d` en entier. Une salve de 400 000
+     sur un Brasier auquel il reste 12 000 points de vie inscrivait
+     400 000 au classement, dont 388 000 qui n'ont jamais existé — et
+     c'est le DERNIER coup de chaque île, donc celui que tout le monde
+     regarde.
+     La borne ne peut pas s'écrire à l'avance comme celle des
+     bâtiments : la file est PARTAGÉE, et les coups des autres joueurs
+     peuvent l'avoir vidée entre deux images. On mesure donc de part et
+     d'autre de l'application, ce qui donne aussi zéro sur un doublon
+     rejeté par la fenêtre glissante — exactement ce qu'il faut. */
+  var avantCoup = jeu.file.pv;
   jeu.file.applique(monId, jeu.serieDeg, d);
   jeu.qg.pv = jeu.file.pv;
-  jeu.degatsMoi += d;
-  degatsEnAttente += d;
+  var retire = Math.max(0, avantCoup - jeu.file.pv);
+  jeu.degatsMoi += retire;
+  /* on diffuse ce qu'on a compté, pas ce qu'on a tiré : les autres
+     clients rejouent la même séquence, ils doivent voir le même chiffre */
+  degatsEnAttente += retire;
   if(jeu.qg.pv <= 0 && !jeu.fin) declencheFin();
 }
 
