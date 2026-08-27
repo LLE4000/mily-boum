@@ -3328,151 +3328,187 @@ function mondeValide(m){
    retirés des pseudos à l'encodage, ce qui suffit : un pseudo fait au
    plus quatorze caractères et n'a pas d'autre structure à préserver.
    ---------------------------------------------------------------- */
-var SCORES_GARDES = 48;         // entrées gardées dans l'instantané
+var SCORES_GARDES = 60;         // entrées gardées dans l'instantané
+var MARQUE_SCORES = "~";        // en tête : format « seau », par opposition à l'ancien
 
 /* ----------------------------------------------------------------
-   POURQUOI CE N'EST PLUS UN MAXIMUM — LE DÉFAUT, ET SA CAUSE
+   LE SCORE — L'IDENTITÉ EST L'APPAREIL, LE PSEUDO N'EST QU'UNE
+   ÉTIQUETTE
 
-   Le score était le PLUS GRAND nombre de dégâts jamais vu pour un
-   pseudo, et le nombre publié était `jeu.degatsMoi`, remis à zéro à
-   chaque nouvelle île et à chaque rechargement de page. Toute la
-   chaîne prenait ensuite le maximum : noteScore, decodeScores,
-   fusionneScores, classementSalon.
+   DEUX DÉFAUTS SUCCESSIFS, ET CELUI-CI EST LE PLUS PROFOND.
 
-   Conséquence, constatée en jeu : un joueur qui avait fait 302 475
-   dégâts sur une île voyait son score FIGÉ à 302 475. Sur l'île
-   suivante il repartait de zéro, et tant qu'il ne battait pas ce
-   record DANS UNE SEULE PARTIE, plus rien ne bougeait. Plus il jouait,
-   plus son propre record devenait un mur : à 1 820 693, il fallait
-   refaire 1 820 693 d'un coup pour gagner un point.
+   Le premier : le score était le PLUS GRAND nombre de dégâts jamais vu
+   pour un pseudo, et le nombre publié repartait de zéro à chaque île.
+   Un joueur à 302 475 restait donc figé à 302 475.
 
-   Le maximum n'était pas un caprice : il rendait la fusion monotone,
-   donc commutative et sûre entre clients qui publient en même temps.
-   On garde cette propriété, mais on la met au bon endroit.
+   Le second, constaté juste après : trois lignes au classement pour
+   UNE seule personne — « Roro », « Roro-1 », « Roro-1-1 », toutes au
+   même score. Le jeu ne renomme personne, c'est la saisie qui varie
+   (le navigateur propose une variante, on tape une majuscule, on
+   ajoute un espace). Mais le score était rangé SOUS LE PSEUDO : un
+   caractère de différence, et c'était un autre joueur, avec son propre
+   compteur reparti de zéro.
 
-   LE COMPTEUR RÉPARTI. Chaque contribution est rangée sous une clé à
-   trois parts :
+   L'IDENTITÉ EST DONC L'APPAREIL. La clé est « seau · carte », le
+   seau étant l'appareil — quatre caractères tirés de son identifiant
+   stable, gardé dans le navigateur. Le pseudo voyage À CÔTÉ, comme
+   une étiquette : on peut le changer autant qu'on veut, le compteur
+   ne bouge pas, il change juste de nom à l'affichage.
 
-       pseudo · seau · carte
+   D'où, sans rien de plus :
+     — trois façons d'écrire son pseudo sur le même appareil : UNE
+       ligne, un seul compteur, celui qui continue ;
+     — le même pseudo sur deux appareils : deux seaux, additionnés
+       sous une seule ligne au classement ;
+     — deux appareils qui jouent en même temps : chacun son seau,
+       aucune écriture concurrente, rien d'écrasé ;
+     — et la CARTE sépare le total d'un joueur des dégâts d'une
+       bataille précise. Une seule clé sert aux deux.
 
-   Le SEAU est l'appareil : quatre caractères tirés de son identifiant
-   stable. Un appareil n'écrit QUE son propre seau, et sa valeur ne
-   fait que monter — la fusion garde donc le maximum PAR SEAU, ce qui
-   reste monotone, commutatif, associatif et idempotent.
+   LA FUSION reste monotone, commutative, associative et idempotente :
+   pour chaque clé on garde le plus grand nombre de dégâts, et
+   l'étiquette qui vient avec — à égalité de dégâts, la plus petite
+   dans l'ordre des chaînes, pour que deux clients tranchent pareil.
 
-   Le total d'un joueur est la SOMME de ses seaux. D'où :
-     — même pseudo, même appareil, après une déconnexion : le seau
-       reprend là où il en était, et continue de monter ;
-     — même pseudo, autre appareil : un second seau s'ajoute, et la
-       somme grandit. Rien n'est écrasé, rien n'est perdu ;
-     — deux appareils qui jouent en même temps sous le même pseudo :
-       chacun son seau, aucune écriture concurrente. C'est exactement
-       le cas que le maximum perdait.
-
-   La CARTE sépare enfin les deux classements que le jeu doit
-   distinguer : le total d'un joueur (somme de tout) et les dégâts
-   d'une bataille précise (somme sur cette carte). Une même clé sert
-   aux deux, il n'y a rien à tenir en double.
-
-   Format : « pseudo:seau:carte:dégâts », séparés par « | ». Une entrée
-   à deux champs est un score de l'ANCIEN format : on la garde, sous
-   un seau vide et la carte -1, pour qu'elle compte encore dans le
-   total sans se réclamer d'aucune bataille.
+   Format : « ~seau:nom:carte:dégâts|seau:nom:carte:dégâts ». Le « ~ »
+   de tête distingue ce format des deux précédents, qui se relisent
+   encore : « nom:dégâts » (le tout premier) et « nom:seau:carte:
+   dégâts » (celui d'il y a une heure). Des dégâts gagnés ne se jettent
+   pas.
    ---------------------------------------------------------------- */
 function nettoieNomScore(n){
-  return String(n == null ? "" : n).replace(/[|:]/g, "").substr(0, 14);
+  return String(n == null ? "" : n).replace(/[|:~]/g, "").trim().substr(0, 14);
 }
 function nettoieSeau(s){
   return String(s == null ? "" : s).replace(/[^A-Za-z0-9]/g, "").substr(0, 4);
 }
-function cleScore(nom, seau, carte){
-  return nettoieNomScore(nom) + ":" + nettoieSeau(seau) + ":" + (carte | 0);
+/* La clé d'une contribution : un appareil, une île. Le pseudo n'y est
+   pas — c'est tout l'intérêt. */
+function cleScore(seau, carte){
+  return nettoieSeau(seau) + ":" + (carte | 0);
 }
-/* tab : { "nom:seau:carte" -> dégâts } */
+/* tab : { "seau:carte" -> { n:pseudo, g:dégâts } } */
 function encodeScores(tab){
   var l = [], k;
   for(k in tab){
+    var e = tab[k];
+    if(!e) continue;
+    var g = Math.max(0, Math.round(e.g || 0));
+    if(!g) continue;
     var p = String(k).split(":");
-    var n = nettoieNomScore(p[0]);
-    var g = Math.max(0, Math.round(tab[k] || 0));
-    if(!n || !g) continue;
-    var seau = nettoieSeau(p.length > 1 ? p[1] : "");
-    var ca = p.length > 2 ? (parseInt(p[2], 10) | 0) : -1;
-    l.push({ n:n, s:seau, c:ca, g:g });
+    var seau = nettoieSeau(p[0]);
+    var ca = p.length > 1 ? (parseInt(p[1], 10) | 0) : -1;
+    l.push({ s:seau, n:nettoieNomScore(e.n), c:ca, g:g });
   }
-  /* L'ORDRE EST GRAVÉ. Deux clients au même état doivent produire
-     exactement la même chaîne, sinon ils se republieraient l'un
-     l'autre sans fin. On trie donc par CLÉ, pas par score : trier par
-     score ferait changer l'ordre — donc la chaîne — au moindre coup
-     de hache, alors que rien d'autre n'a bougé. */
+  /* L'ORDRE EST GRAVÉ, et il suit les CLÉS, jamais les scores : deux
+     clients au même état doivent produire exactement la même chaîne,
+     sinon ils se republient l'un l'autre sans fin. Trier par score
+     ferait changer la chaîne au moindre coup de hache. */
   l.sort(function(a, b){
-    return (a.n < b.n ? -1 : a.n > b.n ? 1 : 0)
-        || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0)
-        || (a.c - b.c);
+    return (a.s < b.s ? -1 : a.s > b.s ? 1 : 0) || (a.c - b.c);
   });
-  /* Le plafond retient les plus GROSSES contributions : si l'on doit
-     couper, on coupe ce qui pèse le moins. */
   if(l.length > SCORES_GARDES){
-    var tri = l.slice().sort(function(a, b){ return b.g - a.g; }).slice(0, SCORES_GARDES);
+    var gros = l.slice().sort(function(a, b){ return b.g - a.g; }).slice(0, SCORES_GARDES);
     var garde = {};
-    tri.forEach(function(e){ garde[e.n + ":" + e.s + ":" + e.c] = 1; });
-    l = l.filter(function(e){ return garde[e.n + ":" + e.s + ":" + e.c]; });
+    gros.forEach(function(e){ garde[e.s + ":" + e.c] = 1; });
+    l = l.filter(function(e){ return garde[e.s + ":" + e.c]; });
   }
-  return l.map(function(e){ return e.n + ":" + e.s + ":" + e.c + ":" + e.g; }).join("|");
+  if(!l.length) return "";
+  return MARQUE_SCORES + l.map(function(e){
+    return e.s + ":" + e.n + ":" + e.c + ":" + e.g;
+  }).join("|");
 }
 function decodeScores(s){
   var out = {};
   if(!s || typeof s !== "string") return out;
-  var p = s.split("|");
+  var neuf = s.charAt(0) === MARQUE_SCORES;
+  var p = (neuf ? s.substr(1) : s).split("|");
   for(var i = 0; i < p.length; i++){
     if(!p[i]) continue;
-    var ch = p[i].split(":");
-    var n, seau, ca, g;
-    if(ch.length >= 4){
-      n = nettoieNomScore(ch[0]); seau = nettoieSeau(ch[1]);
+    var ch = p[i].split(":"), seau, nom, ca, g;
+    if(neuf && ch.length >= 4){
+      seau = nettoieSeau(ch[0]); nom = nettoieNomScore(ch[1]);
+      ca = parseInt(ch[2], 10) | 0; g = parseInt(ch[3], 10);
+    }else if(ch.length >= 4){
+      /* FORMAT INTERMÉDIAIRE « nom:seau:carte:dégâts ». */
+      nom = nettoieNomScore(ch[0]); seau = nettoieSeau(ch[1]);
       ca = parseInt(ch[2], 10) | 0; g = parseInt(ch[3], 10);
     }else if(ch.length === 2){
-      /* ANCIEN FORMAT « nom:dégâts ». On ne le jette pas : les salons
-         en cours en sont pleins, et ces dégâts ont été gagnés. */
-      n = nettoieNomScore(ch[0]); seau = ""; ca = -1; g = parseInt(ch[1], 10);
+      /* TOUT PREMIER FORMAT « nom:dégâts ». Il n'a pas de seau : on
+         lui en fabrique un à partir du pseudo, stable et distinct de
+         tout seau d'appareil, pour qu'il garde sa place sans jamais
+         écraser personne. */
+      nom = nettoieNomScore(ch[0]); ca = -1; g = parseInt(ch[1], 10);
+      seau = seauHerite(nom);
     }else continue;
-    if(!n || !(g > 0)) continue;
-    var k = n + ":" + seau + ":" + ca;
-    if(!out[k] || g > out[k]) out[k] = g;
+    if(!(g > 0)) continue;
+    if(!seau) seau = seauHerite(nom);
+    var k = seau + ":" + ca;
+    var av = out[k];
+    if(!av || g > av.g || (g === av.g && nom < av.n)) out[k] = { n:nom, g:g };
   }
   return out;
 }
-/* Union clé par clé, en gardant le PLUS GRAND de chaque seau. Comme
-   unionBits : commutative, associative, idempotente, monotone — une
-   contribution ne redescend jamais, quel que soit l'ordre d'arrivée.
-   La SOMME se fait à la lecture, jamais à la fusion : additionner en
-   fusionnant compterait deux fois le même seau au premier doublon. */
+/* Un seau de repli pour les entrées qui n'en avaient pas : quatre
+   caractères tirés du pseudo. Deux joueurs différents ne peuvent pas
+   le partager, et il ne peut pas non plus tomber sur le seau d'un
+   appareil réel — celui-ci vient d'un identifiant tiré au hasard. */
+function seauHerite(nom){
+  var h = graineTexte("hérité:" + (nom || "?")) >>> 0;
+  var a = "abcdefghijklmnopqrstuvwxyz0123456789", s = "";
+  for(var i = 0; i < 4; i++){ s += a.charAt(h % 36); h = (h / 36) | 0; }
+  return s;
+}
+/* Union clé par clé : le plus grand nombre de dégâts, et l'étiquette
+   qui vient avec. À égalité, la plus petite étiquette dans l'ordre des
+   chaînes — il faut que deux clients tranchent PAREIL. */
 function fusionneScores(a, b){
   var x = decodeScores(a), y = decodeScores(b), k;
-  for(k in y) if(!x[k] || y[k] > x[k]) x[k] = y[k];
+  for(k in y){
+    var e = y[k], v = x[k];
+    if(!v || e.g > v.g || (e.g === v.g && e.n < v.n)) x[k] = { n:e.n, g:e.g };
+  }
   return encodeScores(x);
 }
-/* Le total de chaque joueur : la somme de tous ses seaux, toutes
-   cartes confondues. C'est le classement PERSISTANT. */
-function totalParJoueur(tab){
-  var out = {}, k;
+/* Le nom courant de chaque seau : celui de sa plus grosse
+   contribution. Un appareil qui a changé de pseudo garde donc une
+   étiquette stable, et non celle de sa dernière escarmouche. */
+function nomsDesSeaux(tab){
+  var meilleur = {}, k;
   for(k in tab){
-    var n = String(k).split(":")[0];
+    var seau = String(k).split(":")[0], e = tab[k];
+    if(!e || !e.n) continue;
+    var m = meilleur[seau];
+    if(!m || e.g > m.g || (e.g === m.g && e.n < m.n)) meilleur[seau] = e;
+  }
+  var out = {};
+  for(k in meilleur) out[k] = meilleur[k].n;
+  return out;
+}
+/* Le total de chaque joueur : la somme de tous les seaux qui portent
+   son étiquette, toutes cartes confondues. C'est le classement
+   PERSISTANT. */
+function totalParJoueur(tab){
+  var noms = nomsDesSeaux(tab), out = {}, k;
+  for(k in tab){
+    var seau = String(k).split(":")[0];
+    var n = noms[seau];
     if(!n) continue;
-    out[n] = (out[n] || 0) + tab[k];
+    out[n] = (out[n] || 0) + tab[k].g;
   }
   return out;
 }
-/* Les dégâts d'une BATAILLE : la somme des seaux sur cette carte-là.
-   Les entrées de l'ancien format (carte -1) n'y figurent pas — elles
-   ne savent pas de quelle île elles viennent, et les inventer serait
-   mentir. */
+/* Les dégâts d'une BATAILLE. Les entrées du tout premier format
+   (carte -1) n'y figurent pas : elles ne savent pas de quelle île
+   elles viennent, et l'inventer serait mentir. */
 function totalParJoueurCarte(tab, carte){
-  var out = {}, k;
+  var noms = nomsDesSeaux(tab), out = {}, k;
   for(k in tab){
     var p = String(k).split(":");
-    if(!p[0] || (p[2] | 0) !== (carte | 0)) continue;
-    out[p[0]] = (out[p[0]] || 0) + tab[k];
+    if((p[1] | 0) !== (carte | 0)) continue;
+    var n = noms[p[0]];
+    if(!n) continue;
+    out[n] = (out[n] || 0) + tab[k].g;
   }
   return out;
 }
@@ -25185,7 +25221,7 @@ function noteScore(id, nom, degats){
    ================================================================ */
 var monSeau = "";
 var mesDegats = {};            // { index de carte -> dégâts cumulés }
-var degatsAvantCarte = 0;      // ce que la carte en cours portait déjà
+var degatsReplies = 0;         // ce de jeu.degatsMoi qu'on a déjà rangé
 var cleDegatsChargee = "";
 
 function faitMonSeau(){
@@ -25197,8 +25233,12 @@ function faitMonSeau(){
   for(var i = 0; i < 4; i++){ s += alpha.charAt(h % 36); h = (h / 36) | 0; }
   return s;
 }
+/* LA CLÉ DU CUMUL LOCAL NE PORTE PLUS LE PSEUDO. Elle le portait, et
+   c'était le même défaut que dans l'instantané : taper son nom
+   autrement repartait de zéro. Le cumul appartient à l'APPAREIL et à
+   la campagne — le pseudo n'est qu'une étiquette. */
 function cleMesDegats(){
-  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0) + ":" + (monNom || "");
+  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0);
 }
 function chargeMesDegats(){
   var c = cleMesDegats();
@@ -25211,38 +25251,47 @@ function chargeMesDegats(){
       for(var k in o) if(o[k] > 0) mesDegats[k | 0] = Math.round(o[k]);
     }
   }catch(e){}
-  degatsAvantCarte = (jeu && mesDegats[jeu.index]) || 0;
 }
 function gardeMesDegats(){
   try{ localStorage.setItem(cleMesDegats(), JSON.stringify(mesDegats)); }catch(e){}
 }
-/* Replie les dégâts de la partie en cours dans le cumul. Appelée avant
-   chaque publication et à chaque changement de carte : entre deux
-   appels, `jeu.degatsMoi` continue de monter tout seul. */
+/* ON RANGE LE DELTA, JAMAIS LE TOTAL.
+
+   Le premier jet écrivait « ce que portait la carte au départ, plus
+   jeu.degatsMoi ». Ça marche tant que le pseudo ne bouge pas — mais
+   changer de pseudo en cours de partie recréditait au NOUVEAU pseudo
+   des dégâts déjà rangés sous l'ancien, et les mêmes coups comptaient
+   deux fois. Ranger l'ACCROISSEMENT depuis le dernier rangement
+   supprime la question : un changement de pseudo, de carte ou de
+   campagne ne peut plus faire remonter du passé.
+
+   Appelée avant chaque publication et à chaque changement de carte :
+   entre deux appels, jeu.degatsMoi continue de monter tout seul. */
 function repliMesDegats(){
   if(!monNom) return;
   chargeMesDegats();
   if(!jeu) return;
-  var v = degatsAvantCarte + Math.round(jeu.degatsMoi || 0);
-  if(v > (mesDegats[jeu.index] || 0)){
-    mesDegats[jeu.index] = v;
+  var d = Math.round(jeu.degatsMoi || 0) - degatsReplies;
+  if(d > 0){
+    mesDegats[jeu.index] = (mesDegats[jeu.index] || 0) + d;
+    degatsReplies += d;
     gardeMesDegats();
   }
 }
-/* Une nouvelle île commence : ce qu'on avait fait sur la précédente est
-   déjà rangé, et le compteur de partie repart de zéro par-dessus ce
-   que cette île-ci portait déjà. */
+/* Une nouvelle île commence : on range ce qui reste de la précédente,
+   puis le compteur de partie repart de zéro — et notre marqueur avec
+   lui, sinon le premier coup de la nouvelle île passerait pour un
+   retour en arrière. */
 function ouvreCarteScore(index){
   repliMesDegats();
   chargeMesDegats();
-  degatsAvantCarte = mesDegats[index | 0] || 0;
+  degatsReplies = 0;
 }
 /* Mon total, toutes îles confondues, sur cet appareil. */
 function monTotalLocal(){
+  repliMesDegats();
   var s = 0, k;
   for(k in mesDegats) s += mesDegats[k];
-  if(jeu) s += Math.max(0, degatsAvantCarte + Math.round(jeu.degatsMoi || 0)
-                           - (mesDegats[jeu.index] || 0));
   return s;
 }
 /* Le tableau partagé, MES seaux remplacés par leur valeur locale —
@@ -25252,8 +25301,13 @@ function scoresAJour(){
   if(!monNom) return t;
   repliMesDegats();
   for(k in mesDegats){
-    var c = cleScore(monNom, monSeau, k | 0);
-    if(!t[c] || mesDegats[k] > t[c]) t[c] = mesDegats[k];
+    var c = cleScore(monSeau, k | 0);
+    var av = t[c];
+    /* On n'écrit QUE notre seau, et l'étiquette qu'on porte en ce
+       moment : changer de pseudo relabellise, ça ne recommence pas un
+       compteur. */
+    if(!av || mesDegats[k] > av.g) t[c] = { n:monNom, g:mesDegats[k] };
+    else t[c] = { n:monNom, g:av.g };
   }
   return t;
 }

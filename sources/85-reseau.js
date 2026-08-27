@@ -69,7 +69,7 @@ function noteScore(id, nom, degats){
    ================================================================ */
 var monSeau = "";
 var mesDegats = {};            // { index de carte -> dégâts cumulés }
-var degatsAvantCarte = 0;      // ce que la carte en cours portait déjà
+var degatsReplies = 0;         // ce de jeu.degatsMoi qu'on a déjà rangé
 var cleDegatsChargee = "";
 
 function faitMonSeau(){
@@ -81,8 +81,12 @@ function faitMonSeau(){
   for(var i = 0; i < 4; i++){ s += alpha.charAt(h % 36); h = (h / 36) | 0; }
   return s;
 }
+/* LA CLÉ DU CUMUL LOCAL NE PORTE PLUS LE PSEUDO. Elle le portait, et
+   c'était le même défaut que dans l'instantané : taper son nom
+   autrement repartait de zéro. Le cumul appartient à l'APPAREIL et à
+   la campagne — le pseudo n'est qu'une étiquette. */
 function cleMesDegats(){
-  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0) + ":" + (monNom || "");
+  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0);
 }
 function chargeMesDegats(){
   var c = cleMesDegats();
@@ -95,38 +99,47 @@ function chargeMesDegats(){
       for(var k in o) if(o[k] > 0) mesDegats[k | 0] = Math.round(o[k]);
     }
   }catch(e){}
-  degatsAvantCarte = (jeu && mesDegats[jeu.index]) || 0;
 }
 function gardeMesDegats(){
   try{ localStorage.setItem(cleMesDegats(), JSON.stringify(mesDegats)); }catch(e){}
 }
-/* Replie les dégâts de la partie en cours dans le cumul. Appelée avant
-   chaque publication et à chaque changement de carte : entre deux
-   appels, `jeu.degatsMoi` continue de monter tout seul. */
+/* ON RANGE LE DELTA, JAMAIS LE TOTAL.
+
+   Le premier jet écrivait « ce que portait la carte au départ, plus
+   jeu.degatsMoi ». Ça marche tant que le pseudo ne bouge pas — mais
+   changer de pseudo en cours de partie recréditait au NOUVEAU pseudo
+   des dégâts déjà rangés sous l'ancien, et les mêmes coups comptaient
+   deux fois. Ranger l'ACCROISSEMENT depuis le dernier rangement
+   supprime la question : un changement de pseudo, de carte ou de
+   campagne ne peut plus faire remonter du passé.
+
+   Appelée avant chaque publication et à chaque changement de carte :
+   entre deux appels, jeu.degatsMoi continue de monter tout seul. */
 function repliMesDegats(){
   if(!monNom) return;
   chargeMesDegats();
   if(!jeu) return;
-  var v = degatsAvantCarte + Math.round(jeu.degatsMoi || 0);
-  if(v > (mesDegats[jeu.index] || 0)){
-    mesDegats[jeu.index] = v;
+  var d = Math.round(jeu.degatsMoi || 0) - degatsReplies;
+  if(d > 0){
+    mesDegats[jeu.index] = (mesDegats[jeu.index] || 0) + d;
+    degatsReplies += d;
     gardeMesDegats();
   }
 }
-/* Une nouvelle île commence : ce qu'on avait fait sur la précédente est
-   déjà rangé, et le compteur de partie repart de zéro par-dessus ce
-   que cette île-ci portait déjà. */
+/* Une nouvelle île commence : on range ce qui reste de la précédente,
+   puis le compteur de partie repart de zéro — et notre marqueur avec
+   lui, sinon le premier coup de la nouvelle île passerait pour un
+   retour en arrière. */
 function ouvreCarteScore(index){
   repliMesDegats();
   chargeMesDegats();
-  degatsAvantCarte = mesDegats[index | 0] || 0;
+  degatsReplies = 0;
 }
 /* Mon total, toutes îles confondues, sur cet appareil. */
 function monTotalLocal(){
+  repliMesDegats();
   var s = 0, k;
   for(k in mesDegats) s += mesDegats[k];
-  if(jeu) s += Math.max(0, degatsAvantCarte + Math.round(jeu.degatsMoi || 0)
-                           - (mesDegats[jeu.index] || 0));
   return s;
 }
 /* Le tableau partagé, MES seaux remplacés par leur valeur locale —
@@ -136,8 +149,13 @@ function scoresAJour(){
   if(!monNom) return t;
   repliMesDegats();
   for(k in mesDegats){
-    var c = cleScore(monNom, monSeau, k | 0);
-    if(!t[c] || mesDegats[k] > t[c]) t[c] = mesDegats[k];
+    var c = cleScore(monSeau, k | 0);
+    var av = t[c];
+    /* On n'écrit QUE notre seau, et l'étiquette qu'on porte en ce
+       moment : changer de pseudo relabellise, ça ne recommence pas un
+       compteur. */
+    if(!av || mesDegats[k] > av.g) t[c] = { n:monNom, g:mesDegats[k] };
+    else t[c] = { n:monNom, g:av.g };
   }
   return t;
 }
