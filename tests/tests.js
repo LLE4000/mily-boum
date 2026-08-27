@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -2366,6 +2366,80 @@ G("4. Déterminisme de la génération de carte");
        N.ORDRE_CAMPAGNE.map(function(i){ return N.CARTES[i].pvQG / 1e6; }).join(" < "));
     ok("et la jungle reste au-dessus de toutes",
        N.CARTES.every(function(cc, i){ return i === N.IDX_JUNGLE || cc.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG; }));
+
+    /* ================================================================
+       LES TORNADES DE FLAMMES
+
+       Ce qu'on épingle ici, ce n'est pas qu'elles soient belles — ça,
+       on le regarde — c'est qu'elles ne soient pas un PIÈGE. Trois
+       nombres portent cette promesse, et un quatrième la trahirait.
+       ================================================================ */
+    ok("les tornades ne tombent que dans les ténèbres",
+       N.carteTornades(7) && !N.carteTornades(0) && !N.carteTornades(N.IDX_JUNGLE) &&
+       N.CARTES.filter(function(c, i){ return N.carteTornades(i); }).length === 1);
+    ok("une île inexistante n'a pas de tornades",
+       !N.carteTornades(999) && !N.carteTornades(-1));
+    /* LA PHASE D'AVERTISSEMENT est ce qui sépare un danger d'un piège :
+       l'entonnoir descend pendant ce temps SANS rien tuer, et son
+       point de contact est marqué au sol. Elle doit laisser le temps
+       de s'écarter — donc valoir plus que le temps de traverser la
+       zone mortelle à la vitesse d'une troupe. */
+    (function(){
+      var lente = N.UNI.doc.vitesse, i, mini = 1e9;
+      for(i in N.UNI) if(N.UNI[i].vitesse < mini) mini = N.UNI[i].vitesse;
+      var aTraverser = N.EQ.TORNADE_RAYON * 2;      // la largeur de ce qui tue
+      var tempsPourSortir = aTraverser / mini;
+      ok("l'avertissement (" + N.EQ.TORNADE_DESCENTE + " s) laisse le temps de sortir de la zone ("
+         + tempsPourSortir.toFixed(1) + " s à la troupe la plus lente)",
+         N.EQ.TORNADE_DESCENTE > tempsPourSortir, lente + " cases/s");
+    })();
+    /* LA LARGEUR. Une tornade large ne se contourne pas, elle se
+       subit. Le couloir mortel doit rester très en dessous du rayon de
+       formation d'un groupe : sinon un débarquement entier tient
+       dedans et il n'y a plus de manœuvre possible. */
+    ok("le couloir mortel (" + (N.EQ.TORNADE_RAYON * 2) + " cases) est bien plus étroit qu'un groupe ("
+       + (N.rayonFormation() * 2).toFixed(1) + " cases)",
+       N.EQ.TORNADE_RAYON * 2 < N.rayonFormation(), "" + (N.EQ.TORNADE_RAYON * 2));
+    ok("la traînée n'est jamais plus large que le pied qui l'a faite",
+       N.EQ.TORNADE_TRAINEE_R <= N.EQ.TORNADE_RAYON,
+       N.EQ.TORNADE_TRAINEE_R + " ≤ " + N.EQ.TORNADE_RAYON);
+    /* LA FUITE PAR LE CÔTÉ. Elle va TOUT DROIT, et c'est ce qui rend
+       la parade possible : on ne court pas devant elle, on s'écarte —
+       et en s'écartant on sort d'un couloir qui, lui, ne s'élargit
+       pas. La question juste n'est donc pas « avance-t-elle plus vite
+       que je ne marche » (elle avance le long de son axe, pas vers
+       moi), c'est « À QUELLE DISTANCE dois-je la voir venir ». On
+       mesure ce préavis pour la troupe la plus lente. */
+    (function(){
+      var lente = 1e9, nom = "", i;
+      for(i in N.UNI) if(N.UNI[i].vitesse < lente){ lente = N.UNI[i].vitesse; nom = N.UNI[i].nom; }
+      var pourSortir = N.EQ.TORNADE_RAYON / lente;               // s, de côté
+      var preavis = N.EQ.TORNADE_VITESSE * pourSortir;           // cases de préavis nécessaires
+      ok("le " + nom + ", la plus lente, doit la voir venir " + preavis.toFixed(1)
+         + " cases à l'avance — une colonne de trois cents pixels se voit de bien plus loin",
+         preavis < 6, preavis.toFixed(2) + " cases");
+      /* Et l'avertissement seul, pendant lequel elle NE BOUGE PAS,
+         suffit déjà à dégager le couloir : c'est la vraie garantie. */
+      ok("l'avertissement seul suffit à sortir du couloir, sans même l'avoir vue arriver",
+         N.EQ.TORNADE_DESCENTE * lente > N.EQ.TORNADE_RAYON,
+         (N.EQ.TORNADE_DESCENTE * lente).toFixed(1) + " cases parcourues > "
+         + N.EQ.TORNADE_RAYON + " à franchir");
+    })();
+    /* LA DURÉE. Elle traverse « certaines longueurs », pas toute
+       l'île : une tornade qui balaie la carte entière ne se contourne
+       plus, on la subit. */
+    (function(){
+      var course = N.EQ.TORNADE_VITESSE * N.EQ.TORNADE_VIE;
+      ok("sa course (" + course.toFixed(0) + " cases) traverse une bonne part de l'île sans la balayer",
+         course > 20 && course < N.PLAGE_X0 * 0.55, course.toFixed(1));
+    })();
+    ok("elle ne revient pas sans arrêt : " + N.EQ.TORNADE_PERIODE + " s entre deux",
+       N.EQ.TORNADE_PERIODE > N.EQ.TORNADE_VIE * 2,
+       N.EQ.TORNADE_PERIODE + " > " + (N.EQ.TORNADE_VIE * 2));
+    /* LE SOL REFROIDIT. Sans cela, une île traversée deux fois
+       deviendrait un labyrinthe de couloirs interdits. */
+    ok("la traînée s'éteint (" + N.EQ.TORNADE_TRAINEE + " s) avant que la suivante n'arrive",
+       N.EQ.TORNADE_TRAINEE < N.EQ.TORNADE_PERIODE * 0.5);
 
     /* LES CIELS. Une seule île est orageuse ; les autres se partagent
        trois teintes de nuages, et aucune ne doit retomber par défaut

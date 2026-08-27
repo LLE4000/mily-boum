@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.38";
+var VERSION = "v0.39";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -89,6 +89,29 @@ var EQ = {
      vie : c'est une carte plus défendue, pas une carte plus longue.
      Le bonus de PV vit dans l'instantané partagé et se règle depuis
      le panneau administrateur ; celui-ci n'est que son défaut. */
+  /* ---- LES TORNADES DE FLAMMES, dans les ténèbres ----
+     Elles descendent des nuages, marchent au sol sur une certaine
+     longueur et laissent derrière elles une traînée de feu. Toute
+     troupe prise dedans MEURT — elle n'est pas blessée.
+
+     Trois de ces sept nombres existent uniquement pour que ce ne soit
+     pas un piège :
+       DESCENTE, le temps que met l'entonnoir à toucher terre. Rien
+         n'est mortel pendant ce temps, et le point de contact est
+         marqué au sol : on la voit venir et l'on a de quoi s'écarter.
+       VITESSE, volontairement plus lente qu'une Furie (1,62) n'est
+         rapide… non : plus RAPIDE, exprès — mais elle va TOUT DROIT,
+         et l'on s'écarte de côté, pas en courant devant.
+       RAYON et TRAINEE_R, étroits. Une tornade large ne se contourne
+         pas, elle se subit.
+     Le reste est du rythme. */
+  TORNADE_PERIODE      : 34,    // s entre deux tornades
+  TORNADE_DESCENTE     : 2.6,   // s : l'entonnoir descend — rien n'est mortel
+  TORNADE_VIE          : 13,    // s : sa marche au sol
+  TORNADE_VITESSE      : 2.9,   // cases/s
+  TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
+  TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
+  TORNADE_TRAINEE_R    : 1.10,  // cases : demi-largeur de la traînée
   JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
   JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
   /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
@@ -830,6 +853,12 @@ function premiereCarte(){ return ORDRE_CAMPAGNE.length ? ORDRE_CAMPAGNE[0] : 0; 
    elle a son orage sans qu'on ait à y penser.
    ================================================================ */
 function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle"); }
+
+/* Où tombent les tornades de flammes. Même raisonnement que
+   carteOrageuse, et pour la même raison : c'est une propriété de
+   l'ÎLE, jamais d'un tirage ni d'un tableau qui pourrait revenir
+   vide. */
+function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"); }
 
 /* ================================================================
    LE CIEL D'UNE ÎLE

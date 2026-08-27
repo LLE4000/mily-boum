@@ -114,6 +114,13 @@ function nouvelleCarte(index, pvConnu){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
     eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
+    /* Les tornades de flammes des ténèbres, et la terre qu'elles
+       laissent en feu derrière elles. Vides ailleurs : c'est
+       carteTornades(index) qui décide, et lui seul. La première ne
+       tombe pas tout de suite — on doit avoir eu le temps de débarquer
+       avant de voir arriver la première. */
+    tornades:[], brulures:[],
+    prochaineTornade:EQ.TORNADE_PERIODE * (0.55 + 0.5 * Math.random()),
     /* QUATRE NUAGES D'ORAGE, et ils vont vite.
        Peu, parce qu'un ciel couvert n'est plus une menace : c'est un
        décor. Des masses qu'on peut suivre du regard, c'est une
@@ -2907,6 +2914,10 @@ function majJeu(dt){
   majUnites(dt);
   separeUnites(dt);
   majPoulets(dt);
+  /* LES TORNADES DES TÉNÈBRES. Posé ici, avec les autres dangers du
+     décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
+     doit pas tirer une dernière fois dans la même image. */
+  if(carteTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);

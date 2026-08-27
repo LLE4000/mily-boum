@@ -421,11 +421,36 @@ function bornesGrille(pasEcran, marge){
    Ce qu'on NE touche pas, c'est EQ.JUNGLE_ECLAIR : la foudre TUE des
    troupes. Le tonnerre, lui, ne fait que du bruit et de la lumière —
    c'est exactement pour ça qu'on peut en donner plus. */
-var MET_ROULEMENT = 6.8;
+/* TROISIÈME RÉGLAGE, ET LE PLUS FRANC. « On entend des fois des
+   éclairs gronder au fond, ce serait bien un peu plus fréquent et des
+   fois un peu plus fort. » Deux demandes distinctes, et deux leviers
+   distincts :
+     — LA FRÉQUENCE : le cycle descend de 6,8 à 5,2 s et le seuil de
+       tirage de 0,42 à 0,30. Sept cycles sur dix grondent au lieu de
+       six : un roulement toutes les sept secondes et demie environ,
+       contre douze auparavant.
+     — LA FORCE : c'est là qu'était le vrai manque. Tous les roulements
+       se ressemblaient, entre 0,62 et 1,00 d'intensité — un bruit de
+       fond régulier, jamais un orage. Un tirage sur cinq est
+       maintenant un GROS roulement : deux fois plus lumineux, deux
+       fois plus sonore, et plus proche (son retard est raccourci,
+       c'est ce qui donne la distance). Ce qui fait qu'on entend un
+       ciel, ce n'est pas le volume moyen, c'est l'ÉCART entre les
+       coups.
+   Ce qu'on NE touche toujours pas, c'est EQ.JUNGLE_ECLAIR : la foudre
+   TUE des troupes. Le tonnerre ne fait que du bruit et de la lumière —
+   c'est exactement pour ça qu'on peut en donner davantage. */
+var MET_ROULEMENT = 5.2;
+/* Au-dessus de ce tirage, le roulement est un gros. Un sur cinq. */
+var MET_GROS_ROULEMENT = 0.80;
+/* Le roulement du cycle n est-il un gros ? La question se pose au son
+   comme à l'image, et les deux doivent répondre pareil — sans quoi on
+   verrait un éclair blanc suivi d'un murmure. */
+function grosRoulement(n){ return bruitStable(n, 2) > MET_GROS_ROULEMENT; }
 function roulementJungle(tps){
   var n = Math.floor(tps / MET_ROULEMENT);
   var f = bruitStable(n, 1);
-  if(f < 0.42) return 0;                      // près de trois cycles sur cinq
+  if(f < 0.30) return 0;                      // sept cycles sur dix
   /* Le retard dans le cycle est tiré SUR LE CYCLE, pas sur une durée
      écrite en dur. La version à 9,5 s tirait jusqu'à 7,8 s ; en
      raccourcissant le cycle sans y toucher, tout roulement tiré au-delà
@@ -433,9 +458,14 @@ function roulementJungle(tps){
      Un tiers des grondements aurait disparu au moment précis où l'on
      en demandait davantage. */
   var d = tps - n * MET_ROULEMENT - (0.4 + bruitStable(n, 0) * (MET_ROULEMENT - 1.4));
-  if(d < 0 || d > 0.7) return 0;
+  /* un gros roulement DURE plus longtemps à l'écran : sa lueur ne
+     claque pas, elle s'installe */
+  var gros = grosRoulement(n);
+  if(d < 0 || d > (gros ? 1.15 : 0.7)) return 0;
   /* deux claquements : un vrai éclair lointain se réamorce */
-  return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
+  var r = Math.exp(-d * (gros ? 4.2 : 6.5)) * (0.62 + 0.38 * Math.sin(d * 44))
+        * (0.35 + f * 0.65);
+  return gros ? r * 1.95 : r;
 }
 
 /* TOUT CE QUI SE PASSE AU SOL : la nappe d'ombres et de trouées de
@@ -494,7 +524,9 @@ function dessineVoileOrage(c, tps){
   var r = roulementJungle(tps);
   if(r > 0.015){
     c.globalCompositeOperation = "lighter";
-    c.globalAlpha = r * 0.26;
+    /* borné : un gros roulement rend jusqu'à 1,95, et l'on ne veut pas
+       d'un écran blanc — on veut qu'on le REMARQUE */
+    c.globalAlpha = Math.min(0.46, r * 0.26);
     c.drawImage(v.ciel, 0, 0);
   }
   c.restore();
@@ -1642,8 +1674,13 @@ function tonnerreJungle(force, retard){
 
 /* Le grondement lointain, entre deux impacts. Plus sourd, plus long,
    sans claquement : on ne l'écoute pas, on le remarque. */
-function grondementJungle(){
-  tonnerreJungle(0.30, 0.2 + Math.random() * 1.4);
+/* Le grondement suit exactement ce que l'œil voit. Un gros roulement
+   sonne deux fois plus fort ET arrive plus vite — le retard est ce qui
+   dit la distance, et un coup qu'on voit bien est un coup qui n'est
+   pas si loin. */
+function grondementJungle(gros){
+  if(gros) tonnerreJungle(0.62, 0.05 + Math.random() * 0.5);
+  else     tonnerreJungle(0.30, 0.2 + Math.random() * 1.4);
 }
 
 /* LA GREFFE. 80-jeu.js appelle `son.foudre()` au moment de l'impact,
@@ -1754,7 +1791,7 @@ function majMeteoJungle(dt, tps){
   var n = Math.floor(tps / MET_ROULEMENT);
   if(n !== metDernierRoulement && roulementJungle(tps) > 0.05){
     metDernierRoulement = n;
-    grondementJungle();
+    grondementJungle(grosRoulement(n));
   }
   metProchainFroisse -= dt;
   if(metProchainFroisse <= 0){

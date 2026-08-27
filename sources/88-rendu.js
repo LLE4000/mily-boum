@@ -1540,6 +1540,10 @@ function dessineZonesSol(c, tps){
     c.beginPath(); c.ellipse(p.x, p.y - 1, k.r * RX * 0.7, k.r * RY * 0.7, 0, 0, 6.2832); c.fill();
   }
   c.restore();
+  /* LA TRAÎNÉE DES TORNADES. Elle passe ici, avec les cratères et les
+     flaques : c'est de la TERRE en feu, pas un effet posé sur la
+     scène — une troupe qui la traverse doit passer PAR-DESSUS. */
+  if(typeof dessineBrulures === "function") dessineBrulures(c, tps);
   /* flaques enflammées */
   for(i = 0; i < jeu.flaques.length; i++){
     var f = jeu.flaques[i], q = iso(f.gx, f.gy);
@@ -2128,6 +2132,14 @@ function rendu(tps, dt){
     if(!visible(vueL, gy2.gx, gy2.gy)) continue;
     pile.push({ d:gy2.gx + gy2.gy, k:12, o:gy2 });
   }
+  /* Les tornades entrent dans le MÊME tri, et pour la même raison
+     qu'un geyser : une colonne de feu doit passer devant ce qui est au
+     nord d'elle et derrière ce qui est au sud, sinon elle flotte. */
+  for(i = 0; i < jeu.tornades.length; i++){
+    var to2 = jeu.tornades[i];
+    if(!visible(vueL, to2.gx, to2.gy)) continue;
+    pile.push({ d:to2.gx + to2.gy, k:13, o:to2 });
+  }
   for(i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;
@@ -2223,6 +2235,7 @@ function rendu(tps, dt){
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
       case 12: dessineGeyserMonde(ctx, it.o, tps); break;
+      case 13: dessineTornadeMonde(ctx, it.o, tps); break;
     }
   }
   if(jeu.balise) dessineFusee(ctx, tps);
