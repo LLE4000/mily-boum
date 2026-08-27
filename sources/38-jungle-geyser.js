@@ -43,23 +43,31 @@
 var GEY_DUREE = { monte:0.80, feu:1.75, fume:2.20 };
 
 var GEY_H    = 120;   // hauteur de régime de la colonne : 3 cases = 3 m
-var GEY_SLUG = 150;   // le bouchon de gaz dépasse la colonne — le coup de bélier
+var GEY_SLUG = 142;   // le bouchon de gaz dépasse la colonne — le coup de bélier
 var GEY_TSLUG = 0.22; // instant (en part de la phase « feu ») du sommet du bouchon
-var GEY_LARG = 17;    // demi-largeur de la colonne au ras du sol
+var GEY_LARG = 18;    // demi-largeur de la colonne au ras du sol
 var GEY_G    = 560;   // pesanteur des braises, en unités locales par seconde²
 
 /* ----------------------------------------------------------------
    Machine à phases — le jeu peut s'en servir ou faire la sienne
    ---------------------------------------------------------------- */
 
-/* Un geyser neuf. `sommeil` est la durée de la phase « dort », en
-   secondes : c'est elle qui règle la fréquence. On la tire de la
-   position pour que deux geysers voisins ne partent jamais ensemble
-   — vingt bouches synchronisées, ce serait un mur de feu, pas une
-   jungle. */
+/* Repos minimal entre deux éruptions. C'est le garde-fou du « pas un
+   terrain entièrement rempli de flammes » : le cycle actif dure 4,75 s,
+   donc à vingt-deux bouches et vingt-deux secondes de repos minimum,
+   trois crachent en moyenne au même instant — spectaculaire, jamais
+   un mur de feu. Un repos de sept secondes en aurait allumé neuf. */
+var GEY_REPOS_MIN = 22;
+
+/* Un geyser neuf. `sommeil` est l'ÉCART ajouté au repos minimal, en
+   secondes : c'est lui qui règle la dispersion des horloges. Deux
+   bouches voisines ne doivent jamais souffler ensemble, sans quoi la
+   carte battrait comme un métronome ; l'instant de départ est donc
+   tiré au hasard dans le cycle, à partir de la position, et jamais
+   remis à zéro. */
 function nouveauGeyser(gx, gy, sommeil){
   var al = prng(geyGraine({ gx:gx, gy:gy }));
-  var s = sommeil || (7 + al() * 9);
+  var s = GEY_REPOS_MIN + (sommeil > 0 ? sommeil : al() * 26);
   return { gx:gx, gy:gy, phase:"dort", t:al() * s, sommeil:s };
 }
 
@@ -401,7 +409,7 @@ var GEY_COUCHES = [
    qui fait la colonne — et ne se déchire qu'en haut, là où le jet
    perd sa cohésion. */
 function geyProfil(v){
-  return (0.80 + 0.55 * Math.sin(v * 2.2)) * (1 - v * v * v * 0.92);
+  return (0.86 + 0.36 * Math.sin(v * 2.3)) * (1 - v * v * v * 0.90);
 }
 
 /* Le signe MOINS devant v est tout le secret de l'effet : la crête de
@@ -440,43 +448,70 @@ function geyColonne(c, h, t, ech, att){
   }
 }
 
-/* Les langues du sommet. Une colonne qui se termine en pointe unique a
-   l'air d'un pinceau ; un vrai jet se déchire en trois ou quatre
-   langues qui partent chacune de leur côté. Trois quadrilatères, pas
-   plus : c'est le haut de la silhouette, la partie qu'on regarde. */
+/* Les langues qui débordent de la colonne. Une colonne qui se termine
+   en pointe unique a l'air d'un pinceau ; un vrai jet se déchire.
+
+   Deux langues, DEUX COUCHES chacune — et c'est la deuxième couche qui
+   compte. En mode « lighter » sur un fond sombre, un aplat orange à
+   demi-opacité ne donne pas du feu pâle, il donne du KAKI : les langues
+   du premier essai ressemblaient à des pétales d'artichaut posés à côté
+   de la flamme. Empilées comme le sont les quatre couches de la
+   colonne, elles retrouvent un cœur clair sur un bord rouge, c'est-à-
+   dire du feu. Leur pied est en outre PLAQUÉ sur l'ondulation de la
+   colonne à la même hauteur : elles en sortent au lieu de flotter à
+   côté. */
 function geyLangues(c, h, t, ech, att){
   if(h <= 30) return;
-  var i, lx, ly, lh, lw, dev;
-  for(i = 0; i < 3; i++){
+  var i, k, lx, ly, lh, lw, dev, e;
+  for(i = 0; i < 2; i++){
     dev = Math.sin(t * (4.3 + i * 1.7) + i * 2.1);
-    lx = (geyOnde(0.92, t, i) + dev * 7) * ech;
-    ly = -h * (0.80 + 0.06 * i);
-    lh = h * (0.16 + 0.10 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
-    lw = (4.2 - i * 0.8) * ech;
-    c.fillStyle = rgba(i ? "#ff8a1e" : "#ff3208", (0.34 - i * 0.05) * att);
-    c.beginPath();
-    c.moveTo(lx - lw, ly);
-    c.quadraticCurveTo(lx - lw * 1.4 + dev * 4 * ech, ly - lh * 0.55,
-                       lx + dev * 9 * ech, ly - lh);
-    c.quadraticCurveTo(lx + lw * 1.4 + dev * 4 * ech, ly - lh * 0.55,
-                       lx + lw, ly);
-    c.closePath(); c.fill();
+    /* les deux langues partent de hauteurs franchement différentes :
+       à la même, elles finissaient régulièrement par se répondre en
+       symétrie et faire deux oreilles */
+    lx = (geyOnde(0.50 + i * 0.20, t, i) + dev * 3.4 + (i ? 4 : -4)) * ech;
+    ly = -h * (0.50 + 0.20 * i);
+    lh = h * (0.34 + 0.15 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
+    lw = (6.4 - i * 1.3) * ech;
+    for(k = 0; k < 2; k++){
+      e = k ? 0.52 : 1;                       // la couche chaude est plus fine
+      c.fillStyle = rgba(k ? "#ffc14e" : "#ff3208", (k ? 0.56 : 0.64) * att);
+      c.beginPath();
+      c.moveTo(lx - lw * e, ly);
+      c.quadraticCurveTo(lx - lw * 1.4 * e + dev * 3 * ech, ly - lh * e * 0.55,
+                         lx + dev * 6 * ech * e, ly - lh * e);
+      c.quadraticCurveTo(lx + lw * 1.4 * e + dev * 3 * ech, ly - lh * e * 0.55,
+                         lx + lw * e, ly);
+      c.closePath(); c.fill();
+    }
   }
 }
 
-/* Une masse de feu DÉCHIRÉE : un polygone dont chaque sommet respire à
-   son rythme. Une ellipse, à cette taille, se lit comme une bulle de
-   savon ; c'est l'irrégularité du contour qui fait le feu. */
-function geyMasse(c, x, y, r, t, coul, a, dep){
-  var i, ang, rr;
+/* LA TÊTE DU JET : une calotte cabossée prolongée vers le bas par une
+   traîne qui redescend jusqu'au sommet de la colonne.
+
+   Deux formes ont été essayées avant celle-ci et toutes deux ratent
+   pour la même raison. Trois ellipses concentriques donnent un œuf au
+   plat. Un polygone fermé, même irrégulier, donne un ballon qui flotte
+   à côté du feu — l'œil ne voit plus de la matière EXPULSÉE, il voit
+   un objet posé en l'air. Ce qui manquait n'était ni la couleur ni
+   l'irrégularité : c'était le LIEN. Ici la tête et la colonne ne font
+   qu'une seule silhouette, et l'étranglement s'étire tout seul à
+   mesure que la tête prend de l'avance. */
+function geyTeteJet(c, x, yt, ybas, r, t, coul, a, dep){
+  var i, ang, rr, N = 11;
   c.fillStyle = rgba(coul, a);
   c.beginPath();
-  for(i = 0; i < 10; i++){
-    ang = i / 10 * 6.2832;
-    rr = r * (0.74 + 0.40 * Math.abs(Math.sin(i * 2.31 + t * 3.1 + dep)));
-    if(i === 0) c.moveTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr * 1.16);
-    else c.lineTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr * 1.16);
+  c.moveTo(x - r * 0.46, ybas);                       // pied gauche, dans la colonne
+  c.quadraticCurveTo(x - r * 0.84, (yt + ybas) / 2, x - r, yt + r * 0.20);
+  for(i = 0; i <= N; i++){                            // la calotte, cabossée
+    ang = Math.PI + i / N * Math.PI;
+    /* deux fréquences : une seule donnait des dents régulières, donc
+       une couronne, donc un objet — pas du feu */
+    rr = r * (0.93 + 0.09 * Math.sin(i * 2.7 + t * 3.1 + dep)
+                   + 0.07 * Math.sin(i * 1.1 + t * 1.7 + dep * 2));
+    c.lineTo(x + Math.cos(ang) * rr, yt + Math.sin(ang) * rr * 1.32 + r * 0.22);
   }
+  c.quadraticCurveTo(x + r * 0.84, (yt + ybas) / 2, x + r * 0.46, ybas);
   c.closePath(); c.fill();
 }
 
@@ -714,12 +749,15 @@ function dessineGeyser(c, g, tps){
       for(i = 0; i < 3; i++){
         e = GEY_FUMEES[i];
         var pf = ((u * 1.25 + e.ph) % 1);
-        a = (1 - pf) * pf * 3.0 * 0.36 * Math.min(1, u * 4) * a0;
+        /* discrète : pendant l'éruption la fumée n'est qu'un voile
+           au-dessus de la flamme. Trop dense, elle salissait le feu et
+           lui donnait une couleur de boue. */
+        a = (1 - pf) * pf * 3.0 * 0.20 * Math.min(1, u * 4) * a0;
         if(a < 0.012) continue;
         geyBouffee(c, e.dx * (0.3 + pf) + Math.sin(tt * 0.8 + e.ph * 6) * 5 * pf,
-                   -haut * (0.55 + e.ph * 0.35) - pf * e.v,
+                   -haut * (0.86 + e.ph * 0.2) - pf * e.v,
                    Math.min(26, e.r * (0.6 + pf * 1.5)), a,
-                   e.ton > 0.6 ? "#4a3d38" : "#2e2724", 0.9);
+                   e.ton > 0.6 ? "#4e3f33" : "#332a22", 0.9);
       }
     }
 
@@ -752,27 +790,27 @@ function dessineGeyser(c, g, tps){
       var vieil = Math.max(0, 1 - Math.max(0, u - 0.20) / 0.26);
       var ab = av * vieil * a0;
       var rb = 11 + u * 30;
-      /* le col : il relie la colonne à la masse et s'affine à mesure
-         que l'écart grandit */
-      var col = Math.max(0, 1 - (hs - haut) / 52);
-      if(col > 0.02){
-        c.fillStyle = rgba("#ff5c0e", 0.30 * ab * col);
-        c.beginPath();
-        c.moveTo(-GEY_LARG * 0.5, -haut + 4);
-        c.quadraticCurveTo(-rb * 0.5, -(haut + hs) / 2, -rb * 0.42, -hs + rb * 0.4);
-        c.lineTo(rb * 0.42, -hs + rb * 0.4);
-        c.quadraticCurveTo(rb * 0.5, -(haut + hs) / 2, GEY_LARG * 0.5, -haut + 4);
-        c.closePath(); c.fill();
+      /* La fumée du bouchon passe D'ABORD : posée après, elle
+         recouvrait la masse de feu d'un disque gris et transformait
+         la boule incandescente en pompon marron. */
+      if(det && vieil < 0.55){
+        c.globalCompositeOperation = "source-over";
+        geyBouffee(c, Math.sin(tt) * 4, -hs - rb * 0.75,
+                   rb * (0.7 + u * 1.1), 0.30 * (0.55 - vieil) * 1.8 * a0,
+                   "#443830", 0.92);
+        c.globalCompositeOperation = "lighter";
       }
-      geyMasse(c, 0, -hs, rb, tt, "#ff5c0e", 0.32 * ab, 0);
-      geyMasse(c, 1, -hs - rb * 0.16, rb * 0.66, tt, "#ffab2e", 0.32 * ab, 1.7);
-      geyMasse(c, 0, -hs - rb * 0.26, rb * 0.31, tt, "#fff0c0", 0.30 * ab, 3.4);
+      /* Trois épaisseurs emboîtées, toutes rattachées au sommet de la
+         colonne : le rouge dehors, l'orange dedans, le blanc au cœur —
+         et le cœur remonte moins haut que l'enveloppe, parce que dans
+         un ballon de gaz qui monte le neuf arrive par le dessous et le
+         dessus a déjà commencé à refroidir. */
+      var ycol = -haut + 6;
+      geyTeteJet(c, 0, -hs, ycol, rb, tt, "#ff3808", 0.60 * ab, 0);
+      geyTeteJet(c, 1, -hs + rb * 0.20, ycol, rb * 0.68, tt, "#ff9418", 0.58 * ab, 1.7);
+      geyTeteJet(c, 0, -hs + rb * 0.42, ycol, rb * 0.34, tt, "#fff0c0", 0.50 * ab, 3.4);
       r = Math.min(rb * 1.7, 44);
       geyLueur(c, 0, -hs, r, r, "#ff9024", 0.30 * ab);
-      c.globalCompositeOperation = "source-over";
-      /* la fumée naît DANS le bouchon : c'est là que le gaz refroidit */
-      if(det) geyBouffee(c, Math.sin(tt) * 4, -hs - rb * 0.5,
-                         rb * (0.7 + u * 1.4), 0.24 * vieil * a0, "#3a3129", 0.92);
     }
     c.globalCompositeOperation = "source-over";
 
@@ -820,11 +858,11 @@ function dessineGeyser(c, g, tps){
         e = GEY_FUMEES[i];
         var pu = u * (0.55 + e.ph * 0.5) + e.ph * 0.35;
         if(pu > 1) continue;
-        a = Math.min(1, pu * 5) * (1 - pu) * (1 - pu) * 0.46 * a0;
-        geyBouffee(c, e.dx * pu * 1.5 + Math.sin(tps * 0.5 + e.ph * 6.28) * 9 * pu,
-                   -6 - pu * (26 + e.v * 1.5),
-                   e.r * (0.45 + pu * 1.9), a,
-                   e.ton > 0.5 ? "#4c4238" : "#332c28", 0.95);
+        a = Math.min(1, pu * 5) * (1 - pu) * (1 - pu) * 0.90 * a0;
+        geyBouffee(c, e.dx * pu * 1.7 + Math.sin(tps * 0.5 + e.ph * 6.28) * 11 * pu,
+                   -8 - pu * (34 + e.v * 1.9),
+                   e.r * (0.55 + pu * 2.3), a,
+                   e.ton > 0.5 ? "#5c5147" : "#3a322c", 0.95);
       }
     }
   }
@@ -922,10 +960,10 @@ function geyBraises(c, age, suite, z, a0){
 /* Ce que l'état change. `lum` éclaire ou éteint tout le tableau,
    `eclair` est la période entre deux coups de foudre (0 = aucun). */
 var VJ_ETATS = {
-  cooldown: { lum:0.40, pluie:0.55, eclair:0,    feu:0.16, brume:0.55, cadre:0,    pouls:0,    luciole:2, froid:0.62 },
-  attente : { lum:0.86, pluie:1.00, eclair:10.5, feu:0.78, brume:1.00, cadre:0.28, pouls:0,    luciole:5, froid:0.10 },
-  prete   : { lum:1.06, pluie:1.30, eclair:4.3,  feu:1.00, brume:1.10, cadre:1,    pouls:1,    luciole:8, froid:0 },
-  encours : { lum:0.98, pluie:1.15, eclair:6.6,  feu:0.94, brume:1.00, cadre:0.55, pouls:0.22, luciole:6, froid:0 }
+  cooldown: { lum:0.34, pluie:0.50, eclair:0,    feu:0.09, brume:0.50, cadre:0,    pouls:0,    luciole:2, froid:0.80 },
+  attente : { lum:0.80, pluie:0.95, eclair:12.0, feu:0.60, brume:1.00, cadre:0.25, pouls:0,    luciole:5, froid:0.12 },
+  prete   : { lum:1.08, pluie:1.30, eclair:4.0,  feu:1.05, brume:1.10, cadre:1,    pouls:1,    luciole:8, froid:0 },
+  encours : { lum:1.00, pluie:1.20, eclair:6.0,  feu:1.00, brume:1.00, cadre:0.55, pouls:0.20, luciole:6, froid:0 }
 };
 
 var vjFondCv = null, vjFondCle = "";
@@ -961,21 +999,27 @@ function dessineVignetteJungle(c, w, h, tps, etat){
   /* densité calée sur l'AIRE : c'est le nombre de segments qui coûte,
      pas leur longueur, et à 620×288 on passait de trois cent soixante
      traits à deux cents sans que l'œil y voie la moindre différence */
-  var np = Math.round(w * h / 1050 * E.pluie);
+  var np = Math.round(w * h / 760 * E.pluie);
   c.save();
-  c.strokeStyle = "rgba(196,232,226," + (0.20 + flash * 0.30) * E.lum + ")";
-  c.lineWidth = Math.max(0.8, w / 460);
   c.lineCap = "butt";
-  c.beginPath();
-  for(i = 0; i < np; i++){
-    b0 = bruitStable(i, 0); b1 = bruitStable(i, 1);
-    var vit = (0.9 + b1 * 0.9) * h * 1.9;
-    y = ((b0 * h * 2 + tps * vit) % (h + 44)) - 22;
-    x = ((b1 * (w + 90) - y * 0.34 - tps * vit * 0.30) % (w + 90) + w + 90) % (w + 90) - 45;
-    var lg = h * (0.05 + b1 * 0.075);
-    c.moveTo(x, y); c.lineTo(x - lg * 0.34, y + lg);
+  /* Deux passes : un rideau fin et discret, puis une poignée de
+     gouttes proches, plus longues et plus claires. Une pluie d'une
+     seule épaisseur n'a pas de profondeur — elle raye l'image. */
+  for(k = 0; k < 2; k++){
+    c.strokeStyle = "rgba(198,236,228," +
+      ((k ? 0.30 : 0.13) + flash * 0.26) * E.lum + ")";
+    c.lineWidth = Math.max(0.6, w / (k ? 420 : 900));
+    c.beginPath();
+    for(i = k; i < np; i += (k ? 5 : 1)){
+      b0 = bruitStable(i, 0); b1 = bruitStable(i, 1);
+      var vit = (0.9 + b1 * 0.9) * h * (k ? 2.6 : 1.9);
+      y = ((b0 * h * 2 + tps * vit) % (h + 44)) - 22;
+      x = ((b1 * (w + 90) - y * 0.34 - tps * vit * 0.30) % (w + 90) + w + 90) % (w + 90) - 45;
+      var lg = h * (k ? 0.10 + b1 * 0.10 : 0.045 + b1 * 0.06);
+      c.moveTo(x, y); c.lineTo(x - lg * 0.30, y + lg);
+    }
+    c.stroke();
   }
-  c.stroke();
   c.restore();
 
   /* ---- brume qui dérive au ras du sol ----
@@ -994,21 +1038,41 @@ function dessineVignetteJungle(c, w, h, tps, etat){
   /* ---- LE FEU : deux geysers, sur des cycles différents ----
      C'est l'élément exclusif de la carte : il doit être dans
      l'affiche, et il doit être le même code que dans le jeu. */
-  var ech = h / 148 * 0.46;
+  /* Plus gros que dans le jeu : sur une affiche de 288 pixels de haut,
+     une colonne à l'échelle 1 ferait un trait. Elle occupe ici près de
+     la moitié de la hauteur, et c'est elle le sujet. */
+  var ech = h / 148 * 0.58;
   /* cam.z sert de niveau de détail à dessineGeyser : on le force à 1
      le temps de l'affiche, sinon un menu ouvert pendant que la caméra
      du jeu est dézoomée montrerait des geysers dégradés. */
   var camSauve = (typeof cam !== "undefined" && cam) ? cam.z : null;
   if(camSauve !== null) cam.z = 1;
-  var VENTS = [ [0.285, 0.905, 9.5, 0.0, 1.00],
-                [0.665, 0.845, 13.5, 4.6, 0.82],
-                [0.505, 0.795, 21.0, 8.9, 0.62] ];
+  /* Sur la CARTE, les bouches dorment vingt-deux secondes sur vingt-sept
+     — c'est la règle qui empêche le terrain d'être un mur de flammes.
+     Sur l'AFFICHE, c'est exactement l'inverse qu'il faut : une vignette
+     qui ne montre que des cicatrices éteintes ne donne envie de rien.
+     Les cycles sont donc courts et décalés d'un tiers de période, si
+     bien qu'il y a toujours au moins une colonne debout. */
+  /* CINQ bouches, toutes sur la MÊME période de sept secondes et
+     décalées d'exactement un cinquième : la fenêtre « feu » dure 1,75 s
+     et le décalage 1,40 s, donc les fenêtres se recouvrent et pavent la
+     période entière. Traduction : il y a TOUJOURS au moins une colonne
+     debout sur l'affiche. Avec trois bouches sur des périodes
+     quelconques, une vignette sur trois ne montrait que des cicatrices
+     éteintes — ce qui est honnête pour la carte, désastreux pour une
+     affiche. */
+  var VENTS = [ [0.235, 0.930, 0.0, 1.00],
+                [0.715, 0.880, 1.4, 0.84],
+                [0.505, 0.822, 2.8, 0.60],
+                [0.865, 0.965, 4.2, 1.05],
+                [0.385, 0.985, 5.6, 0.92] ];
+  var perV = etat === "cooldown" ? 22 : 7;
   for(i = 0; i < VENTS.length; i++){
     var V = VENTS[i];
-    var et = geyCycle(tps, V[2] * (etat === "prete" ? 0.66 : 1), V[3]);
+    var et = geyCycle(tps, perV, V[2] * (perV / 7));
     c.save();
     c.translate(w * V[0], h * V[1]);
-    c.scale(ech * V[4], ech * V[4]);
+    c.scale(ech * V[3], ech * V[3]);
     c.globalAlpha = E.feu;
     dessineGeyser(c, { gx:i * 17 + 3, gy:i * 11 + 5, phase:et.phase, t:et.t }, tps);
     c.restore();
@@ -1023,8 +1087,8 @@ function dessineVignetteJungle(c, w, h, tps, etat){
   var puls = 0.5 + 0.5 * Math.sin(tps * 2.1);
   c.save();
   c.globalCompositeOperation = "lighter";
-  geyLueur(c, w * 0.44, h * 0.99, w * 0.46, h * 0.30, "#ff6a14",
-           0.24 * E.feu + (0.06 + puls * 0.16) * E.pouls);
+  geyLueur(c, w * 0.44, h * 0.99, w * 0.40, h * 0.26, "#ff6a14",
+           0.28 * E.feu + (0.07 + puls * 0.18) * E.pouls);
   c.restore();
 
   /* ---- les lucioles : le petit mystère ---- */
@@ -1075,21 +1139,23 @@ function dessineVignetteJungle(c, w, h, tps, etat){
      du sol, c'est le seul moment où la vignette DEMANDE le clic ;
      partout ailleurs elle se contente d'exister. */
   if(E.cadre > 0){
-    var m = Math.max(2, w * 0.008);
+    var m = Math.max(1.5, w * 0.0045);
     c.save();
-    c.lineJoin = "round";
+    c.lineJoin = "miter";
     /* trait de fond, discret : il donne un bord à la vignette même
        quand rien ne court dessus */
-    c.strokeStyle = "rgba(255,150,60," + (0.20 * E.cadre).toFixed(3) + ")";
-    c.lineWidth = m * 0.9;
+    c.strokeStyle = "rgba(255,132,44," + (0.30 * E.cadre).toFixed(3) + ")";
+    c.lineWidth = m;
     c.strokeRect(m * 0.5, m * 0.5, w - m, h - m);
     if(E.cadre > 0.6 && c.setLineDash){
-      var pas = w * 0.13;
-      c.setLineDash([pas * 0.42, pas * 0.58]);
-      c.lineDashOffset = -tps * pas * 1.5;
-      c.strokeStyle = "rgba(255,214,140," + (0.55 + 0.35 * Math.sin(tps * 3.1)).toFixed(3) + ")";
-      c.lineWidth = m * 0.75;
-      c.strokeRect(m * 0.5, m * 0.5, w - m, h - m);
+      /* le liseré qui COURT. Un cadre fixe dit « voici une image » ;
+         un cadre qui tourne dit « appuie ». */
+      var pas = w * 0.22;
+      c.setLineDash([pas * 0.30, pas * 0.70]);
+      c.lineDashOffset = -tps * pas * 0.9;
+      c.strokeStyle = "rgba(255,158,48," + (0.62 + 0.32 * Math.sin(tps * 3.1)).toFixed(3) + ")";
+      c.lineWidth = m * 1.15;
+      c.strokeRect(m * 0.75, m * 0.75, w - m * 1.5, h - m * 1.5);
       c.setLineDash([]);
     }
     c.restore();
@@ -1112,7 +1178,9 @@ function vjEnveloppe(t, mont, desc){
 function vjEclair(c, w, h, n, a){
   var al = prng(0x3c0 + n * 9176);
   var x = w * (0.14 + al() * 0.72), y = -h * 0.05;
-  var bas = h * (0.42 + al() * 0.16);
+  /* il plonge DANS la canopée, jamais en l'air : un éclair qui
+     s'arrête à mi-ciel n'a frappé nulle part */
+  var bas = h * (0.62 + al() * 0.14);
   var pts = [[x, y]], k;
   while(y < bas){
     y += h * (0.06 + al() * 0.09);
@@ -1137,8 +1205,12 @@ function vjEclair(c, w, h, n, a){
     c.stroke();
   }
   c.restore();
-  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1], w * 0.14,
-              "#a8d4ff", a * 0.45);
+  /* la lueur d'impact, au point de contact : elle rattache le trait à
+     la forêt au lieu de le laisser flotter */
+  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1], w * 0.12,
+              "#a8d4ff", a * 0.50);
+  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1] + h * 0.06,
+              w * 0.09, "#cfe8ff", a * 0.30);
 }
 
 /* ----------------------------------------------------------------
@@ -1156,127 +1228,185 @@ function vjConstruitFond(w, h){
   /* ---- le ciel d'orage. Il descend du noir-vert au vert d'eau
      malade : c'est la couleur d'un ciel tropical avant la pluie, et
      elle n'existe nulle part ailleurs dans le jeu. ---- */
-  g = c.createLinearGradient(0, 0, 0, h * 0.72);
-  g.addColorStop(0, "#050d0c");
-  g.addColorStop(0.45, "#0a1c18");
-  g.addColorStop(0.80, "#153126");
-  g.addColorStop(1, "#25452c");
+  g = c.createLinearGradient(0, 0, 0, h * 0.76);
+  g.addColorStop(0, "#04100c");
+  g.addColorStop(0.42, "#092019");
+  g.addColorStop(0.78, "#153a28");
+  g.addColorStop(1, "#2a5232");
   c.fillStyle = g; c.fillRect(0, 0, w, h);
 
   /* nuages bas : des masses écrasées, plus claires vers l'horizon */
-  for(i = 0; i < 16; i++){
-    x = al() * w; y = h * (0.05 + al() * 0.34);
-    var lum = 0.35 + (y / h) * 1.2;
-    c.fillStyle = "rgba(" + ((22 * lum) | 0) + "," + ((44 * lum) | 0) + "," + ((40 * lum) | 0) + ",.75)";
+  for(i = 0; i < 18; i++){
+    x = al() * w; y = h * (0.03 + al() * 0.36);
+    var lum = 0.35 + (y / h) * 1.3;
+    c.fillStyle = "rgba(" + ((22 * lum) | 0) + "," + ((48 * lum) | 0) + "," + ((42 * lum) | 0) + ",.72)";
     c.beginPath();
-    c.ellipse(x, y, w * (0.10 + al() * 0.16), h * (0.03 + al() * 0.05), 0, 0, 6.2832);
+    c.ellipse(x, y, w * (0.11 + al() * 0.17), h * (0.028 + al() * 0.05), 0, 0, 6.2832);
     c.fill();
   }
 
-  /* ---- trouée de lumière derrière le temple : c'est elle qui
-     détache toutes les silhouettes. Sans contre-jour, une jungle
-     noire sur un ciel noir n'est qu'une tache. ---- */
-  var sv = c.createRadialGradient(w * 0.5, h * 0.60, w * 0.02, w * 0.5, h * 0.60, w * 0.40);
-  sv.addColorStop(0, "rgba(126,196,138,.42)");
-  sv.addColorStop(0.5, "rgba(56,120,86,.20)");
+  /* ---- trouée de lumière derrière le temple : c'est elle qui détache
+     toutes les silhouettes. Sans contre-jour, une jungle noire sur un
+     ciel noir n'est qu'une tache. ---- */
+  var sv = c.createRadialGradient(w * 0.5, h * 0.66, w * 0.02, w * 0.5, h * 0.66, w * 0.44);
+  sv.addColorStop(0, "rgba(140,214,146,.46)");
+  sv.addColorStop(0.45, "rgba(60,132,92,.22)");
   sv.addColorStop(1, "rgba(20,50,40,0)");
   c.fillStyle = sv; c.fillRect(0, 0, w, h);
 
-  /* ---- canopée LOINTAINE : une ligne de crête bosselée ---- */
-  vjCanopee(c, w, h, h * 0.60, h * 0.10, "#12291f", 0.9, 22, al);
+  /* ---- montagnes très lointaines, à peine plus sombres que le ciel ---- */
+  c.fillStyle = "rgba(10,32,26,.66)";
+  c.beginPath();
+  c.moveTo(-10, h * 0.72);
+  for(i = 0; i <= 9; i++){
+    c.lineTo(w * i / 9, h * (0.60 - 0.09 * Math.abs(Math.sin(i * 1.9 + 0.4))));
+  }
+  c.lineTo(w + 10, h * 0.72); c.closePath(); c.fill();
 
-  /* ---- LE TEMPLE. La forteresse-visage de la carte, en silhouette
-     et de face : masse étagée, portail incandescent, deux fentes
-     d'yeux. Deux points chauds sur une masse noire, c'est ce que
-     l'œil accroche en premier — et c'est ce qui rend l'affiche
-     inquiétante au lieu d'être seulement verte. ---- */
+  /* ---- LE TEMPLE, planté au milieu ---- */
   vjTemple(c, w, h);
 
-  /* ---- canopée MOYENNE, devant le temple ---- */
-  vjCanopee(c, w, h, h * 0.70, h * 0.12, "#0c1f16", 1, 17, al);
+  /* ---- canopée LOINTAINE, devant le temple : elle lui donne son
+     assise et empêche qu'il ait l'air posé sur le vide ---- */
+  vjCanopee(c, w, h, h * 0.755, h * 0.115, "#0d2418", 1, 15, al);
 
-  /* ---- le sol : terre noire détrempée, flaques qui renvoient le
-     ciel. La jungle du jeu a une terre presque noire ; la vignette
-     doit la promettre. ---- */
-  g = c.createLinearGradient(0, h * 0.72, 0, h);
-  g.addColorStop(0, "#16240f");
-  g.addColorStop(1, "#080d06");
+  /* ---- le sol : terre noire détrempée. La jungle du jeu a une terre
+     presque noire ; la vignette doit la promettre. ---- */
+  g = c.createLinearGradient(0, h * 0.76, 0, h);
+  g.addColorStop(0, "#14240e");
+  g.addColorStop(1, "#060c05");
   c.fillStyle = g;
   c.beginPath();
-  c.moveTo(0, h * 0.80);
+  c.moveTo(0, h * 0.84);
   for(i = 0; i <= 10; i++){
-    c.lineTo(w * i / 10, h * (0.76 + 0.055 * Math.sin(i * 1.7 + 0.6)));
+    c.lineTo(w * i / 10, h * (0.805 + 0.045 * Math.sin(i * 1.7 + 0.6)));
   }
   c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
-  for(i = 0; i < 9; i++){
-    x = al() * w; y = h * (0.80 + al() * 0.18);
-    c.fillStyle = "rgba(96,150,132,.16)";
+  /* flaques : elles renvoient le vert du ciel, c'est ce qui dit
+     « détrempé » sans qu'on ait à dessiner une goutte */
+  for(i = 0; i < 11; i++){
+    x = al() * w; y = h * (0.83 + al() * 0.15);
+    c.fillStyle = "rgba(104,166,142,.15)";
     c.beginPath();
-    c.ellipse(x, y, w * (0.03 + al() * 0.07), h * (0.008 + al() * 0.016), 0, 0, 6.2832);
+    c.ellipse(x, y, w * (0.035 + al() * 0.075), h * (0.007 + al() * 0.014), 0, 0, 6.2832);
+    c.fill();
+    c.fillStyle = "rgba(150,210,182,.10)";
+    c.beginPath();
+    c.ellipse(x - w * 0.01, y - h * 0.003, w * (0.016 + al() * 0.03), h * 0.004, 0, 0, 6.2832);
+    c.fill();
+  }
+
+  /* ---- pierres ruinées et racines au sol : le mystère tient à ce
+     qu'on devine une civilisation avalée par la forêt ---- */
+  var RUINES = [[0.20, 0.855, 0.052], [0.735, 0.885, 0.062], [0.435, 0.925, 0.044],
+                [0.885, 0.845, 0.040]];
+  for(i = 0; i < RUINES.length; i++){
+    x = w * RUINES[i][0]; y = h * RUINES[i][1];
+    var lp = w * RUINES[i][2], hp = lp * 0.52;
+    c.fillStyle = "#141e16";
+    c.beginPath();
+    c.moveTo(x - lp, y); c.lineTo(x + lp, y);
+    c.lineTo(x + lp * 0.86, y - hp); c.lineTo(x - lp * 0.92, y - hp * 0.86);
+    c.closePath(); c.fill();
+    c.fillStyle = "#25352450".slice(0, 7);
+    c.fillStyle = "rgba(56,84,54,.55)";        // mousse sur le dessus
+    c.beginPath();
+    c.ellipse(x - lp * 0.05, y - hp * 0.9, lp * 0.88, hp * 0.20, 0, 0, 6.2832);
     c.fill();
   }
 
   /* ---- troncs : trois grands fûts qui traversent toute la hauteur.
      Ils donnent l'échelle et cadrent le temple. ---- */
-  vjTronc(c, w, h, 0.085, 0.030, al);
-  vjTronc(c, w, h, 0.905, 0.026, al);
-  vjTronc(c, w, h, 0.395, 0.017, al);
+  vjTronc(c, w, h, 0.075, 0.031, al);
+  vjTronc(c, w, h, 0.915, 0.027, al);
+  vjTronc(c, w, h, 0.375, 0.016, al);
 
   /* ---- lianes ---- */
-  c.strokeStyle = "rgba(8,20,14,.92)";
+  c.strokeStyle = "rgba(6,18,12,.92)";
   c.lineCap = "round";
-  for(i = 0; i < 7; i++){
+  for(i = 0; i < 9; i++){
     x = w * (0.05 + al() * 0.9);
-    var lo = h * (0.22 + al() * 0.42);
-    c.lineWidth = Math.max(1, w * (0.002 + al() * 0.004));
+    var lo = h * (0.20 + al() * 0.46);
+    c.lineWidth = Math.max(1, w * (0.0018 + al() * 0.0038));
     c.beginPath();
     c.moveTo(x, 0);
-    c.quadraticCurveTo(x + (al() - 0.5) * w * 0.08, lo * 0.6, x + (al() - 0.5) * w * 0.05, lo);
+    c.quadraticCurveTo(x + (al() - 0.5) * w * 0.07, lo * 0.6, x + (al() - 0.5) * w * 0.05, lo);
     c.stroke();
+    /* quelques feuilles accrochées : une liane nue n'est qu'un fil */
+    for(k = 0; k < 3; k++){
+      var yy = lo * (0.45 + k * 0.2);
+      vjFeuilleDecoupee(c, x + (al() - 0.5) * w * 0.03, yy, w * (0.018 + al() * 0.016),
+                        1.3 + al() * 1.4, "#0a1a11", al);
+    }
+  }
+
+  /* ---- BUISSONS DE MI-PLAN : la densité, c'est eux. Une jungle qui
+     laisse voir le sol sur toute sa largeur n'est pas dense. ---- */
+  var BUIS = [[0.02, 0.90, 0.13], [0.155, 0.955, 0.10], [0.30, 0.88, 0.085],
+              [0.60, 0.905, 0.095], [0.79, 0.955, 0.125], [0.965, 0.89, 0.115],
+              [0.47, 0.985, 0.09]];
+  for(i = 0; i < BUIS.length; i++){
+    vjMassif(c, w * BUIS[i][0], h * BUIS[i][1], w * BUIS[i][2], "#0a1a10", al);
   }
 
   /* ---- PREMIER PLAN : les grandes feuilles, presque noires.
-     C'est le cadre végétal — les quatre coins mangés par des feuilles
-     — qui dit « jungle dense » en un dixième de seconde. ---- */
-  vjFeuilleDecoupee(c, w * 0.03, h * 0.02, w * 0.30, -0.45, "#050f0a", al);
-  vjFeuilleDecoupee(c, w * 0.20, -h * 0.06, w * 0.24, 0.35, "#071409", al);
-  vjFeuilleDecoupee(c, w * 0.98, h * 0.05, w * 0.30, 3.6, "#050f0a", al);
-  vjFeuilleDecoupee(c, w * 0.80, -h * 0.05, w * 0.22, 2.7, "#071409", al);
-  vjFougere(c, w * 0.02, h * 1.02, w * 0.30, -0.5, "#040c07", al);
-  vjFougere(c, w * 1.00, h * 1.03, w * 0.28, 3.7, "#040c07", al);
-  vjFeuilleDecoupee(c, w * 0.62, h * 1.06, w * 0.26, 2.3, "#050f0a", al);
+     C'est le cadre végétal — les quatre coins mangés par des feuilles —
+     qui dit « jungle dense » en un dixième de seconde. ---- */
+  vjFeuilleDecoupee(c, w * 0.015, -h * 0.02, w * 0.34, -0.32, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.185, -h * 0.10, w * 0.28, 0.42, "#061309", al);
+  vjFeuilleDecoupee(c, w * 0.99, h * 0.02, w * 0.34, 3.52, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.815, -h * 0.09, w * 0.26, 2.62, "#061309", al);
+  vjFougere(c, -w * 0.01, h * 1.04, w * 0.36, -0.62, "#030b06", al);
+  vjFougere(c, w * 1.01, h * 1.05, w * 0.34, 3.78, "#030b06", al);
+  vjFeuilleDecoupee(c, w * 0.635, h * 1.10, w * 0.30, 2.15, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.355, h * 1.12, w * 0.26, 1.05, "#04100a", al);
 
   /* ---- une touche de couleur : quelques fleurs rouges. Sans elles,
-     tout se noie dans le vert. Trois suffisent. ---- */
-  var FL = [[0.155, 0.905], [0.845, 0.945], [0.335, 0.985]];
+     tout se noie dans le vert. Cinq suffisent, et elles ne servent
+     qu'à ça — donner à l'œil un point où se poser. ---- */
+  var FL = [[0.115, 0.885], [0.865, 0.925], [0.305, 0.965], [0.665, 0.855], [0.505, 0.995]];
   for(i = 0; i < FL.length; i++){
     x = w * FL[i][0]; y = h * FL[i][1];
     for(k = 0; k < 5; k++){
       var af = k / 5 * 6.2832 + 0.4;
-      c.fillStyle = k % 2 ? "#b8241c" : "#d8442a";
+      c.fillStyle = k % 2 ? "#a81c16" : "#d8442a";
       c.beginPath();
-      c.ellipse(x + Math.cos(af) * w * 0.008, y + Math.sin(af) * w * 0.008,
-                w * 0.009, w * 0.006, af, 0, 6.2832);
+      c.ellipse(x + Math.cos(af) * w * 0.0075, y + Math.sin(af) * w * 0.0075,
+                w * 0.0085, w * 0.0055, af, 0, 6.2832);
       c.fill();
     }
     c.fillStyle = "#f0c040";
-    c.beginPath(); c.arc(x, y, w * 0.004, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(x, y, w * 0.0035, 0, 6.2832); c.fill();
   }
 
   /* ---- coins sombres ---- */
-  var vg = c.createRadialGradient(w * 0.5, h * 0.5, h * 0.22, w * 0.5, h * 0.5, w * 0.72);
-  vg.addColorStop(0, "rgba(4,10,10,0)");
-  vg.addColorStop(1, "rgba(2,7,8,.78)");
+  var vg = c.createRadialGradient(w * 0.5, h * 0.52, h * 0.20, w * 0.5, h * 0.52, w * 0.70);
+  vg.addColorStop(0, "rgba(3,9,9,0)");
+  vg.addColorStop(1, "rgba(1,5,6,.80)");
   c.fillStyle = vg; c.fillRect(0, 0, w, h);
 }
 
-/* Une ligne de crête de canopée : des bosses de feuillage collées les
-   unes aux autres, remplies d'un seul aplat. Le relief vient des
-   grappes plus claires posées dessus, pas d'un dégradé. */
+/* Un massif de feuillage : des feuilles empilées en éventail autour
+   d'un point. Un buisson dessiné comme une bosse ne trompe personne ;
+   ce sont les BORDS dentelés qui font la végétation. */
+function vjMassif(c, x, y, r, coul, al){
+  var i, n = 9 + ((al() * 5) | 0);
+  for(i = 0; i < n; i++){
+    var a = -Math.PI + (i + 0.5) / n * Math.PI + (al() - 0.5) * 0.25;
+    var lr = r * (0.55 + al() * 0.60);
+    vjFeuilleDecoupee(c, x + Math.cos(a) * r * 0.28, y + Math.sin(a) * r * 0.12,
+                      lr, a * 0.85, coul, al);
+  }
+}
+
+/* Une ligne de crête de canopée : des touffes de feuilles collées les
+   unes aux autres. Le relief vient des grappes plus claires posées
+   dessus, pas d'un dégradé. */
 function vjCanopee(c, w, h, base, amp, coul, opa, n, al){
   var i, x, y;
   c.save();
   c.globalAlpha = opa;
+  /* la masse pleine, pour boucher le fond */
   c.fillStyle = coul;
   c.beginPath();
   c.moveTo(-w * 0.05, h + 2);
@@ -1288,76 +1418,116 @@ function vjCanopee(c, w, h, base, amp, coul, opa, n, al){
   }
   c.lineTo(w * 1.05, h + 2);
   c.closePath(); c.fill();
-  /* grappes de feuilles claires sur la crête : elles attrapent la
-     trouée de lumière du fond */
-  c.fillStyle = ecl(coul, 1.85);
-  c.globalAlpha = opa * 0.55;
+  /* et par-dessus, des touffes qui dentellent la crête */
+  for(i = 0; i <= n; i++){
+    x = -w * 0.05 + (w * 1.1) * i / n;
+    y = base - amp * (0.35 + 0.65 * Math.abs(Math.sin(i * 1.31 + 0.7)));
+    vjMassif(c, x, y + amp * 0.30, w * (0.035 + al() * 0.028), coul, al);
+  }
+  /* grappes claires sur la crête : elles attrapent la trouée du fond */
+  c.fillStyle = ecl(coul, 2.0);
+  c.globalAlpha = opa * 0.42;
   for(i = 0; i < n; i++){
     x = -w * 0.05 + (w * 1.1) * (i + 0.5) / n;
     y = base - amp * (0.35 + 0.65 * Math.abs(Math.sin(i * 1.31 + 0.7)));
     c.beginPath();
-    c.ellipse(x, y + amp * 0.16, w * 0.016, amp * 0.16, al() * 3, 0, 6.2832);
+    c.ellipse(x, y + amp * 0.10, w * 0.019, amp * 0.14, al() * 3, 0, 6.2832);
     c.fill();
   }
   c.restore();
 }
 
-/* Le temple-forteresse, en silhouette de face. */
+/* LE TEMPLE DU BRASIER, en silhouette et de face.
+   Le premier essai n'était qu'un trapèze à deux ailerons percé de deux
+   yeux : ça ne lisait pas « forteresse », ça lisait « masque ». Il
+   fallait de l'ARCHITECTURE — des gradins qui se réduisent, un
+   escalier axial, un portail à hauteur d'homme — pour que les deux
+   fentes incandescentes redeviennent des fenêtres et que l'échelle
+   soit lisible. Le Brasier reste un visage, mais un visage bâti. */
 function vjTemple(c, w, h){
-  var cx = w * 0.5, bas = h * 0.80;
-  var lg = w * 0.15, ht = h * 0.34;
-  var i;
-  /* corps étagé */
-  c.fillStyle = "#08120f";
-  c.beginPath();
-  c.moveTo(cx - lg, bas);
-  c.lineTo(cx - lg * 0.74, bas - ht * 0.42);
-  c.lineTo(cx - lg * 0.60, bas - ht * 0.44);
-  c.lineTo(cx - lg * 0.44, bas - ht * 0.82);
-  c.lineTo(cx - lg * 0.26, bas - ht * 0.86);
-  c.lineTo(cx - lg * 0.20, bas - ht);
-  c.lineTo(cx + lg * 0.20, bas - ht);
-  c.lineTo(cx + lg * 0.26, bas - ht * 0.86);
-  c.lineTo(cx + lg * 0.44, bas - ht * 0.82);
-  c.lineTo(cx + lg * 0.60, bas - ht * 0.44);
-  c.lineTo(cx + lg * 0.74, bas - ht * 0.42);
-  c.lineTo(cx + lg, bas);
-  c.closePath(); c.fill();
-  /* deux flèches latérales */
-  for(i = -1; i <= 1; i += 2){
+  var cx = w * 0.50, bas = h * 0.79;
+  var lg = w * 0.185, ht = h * 0.42;
+  var N = 5, i, u0, u1, l0, l1, y0, y1;
+
+  /* les gradins */
+  for(i = 0; i < N; i++){
+    u0 = i / N; u1 = (i + 1) / N;
+    l0 = lg * (1 - u0 * 0.66); l1 = lg * (1 - u1 * 0.66);
+    y0 = bas - ht * u0; y1 = bas - ht * u1;
+    c.fillStyle = "#071410";
     c.beginPath();
-    c.moveTo(cx + i * lg * 0.86, bas - ht * 0.30);
-    c.lineTo(cx + i * lg * 0.98, bas - ht * 0.72);
-    c.lineTo(cx + i * lg * 1.10, bas - ht * 0.30);
+    c.moveTo(cx - l0, y0); c.lineTo(cx + l0, y0);
+    c.lineTo(cx + l1, y1); c.lineTo(cx - l1, y1);
+    c.closePath(); c.fill();
+    /* la marge du gradin prend la lumière du fond : sans elle, la
+       masse est un aplat et les étages disparaissent */
+    c.fillStyle = "rgba(58,96,72,.34)";
+    c.fillRect(cx - l1 * 1.06, y1, l1 * 2.12, Math.max(1, ht * 0.016));
+  }
+  /* les deux tours d'angle */
+  for(i = -1; i <= 1; i += 2){
+    c.fillStyle = "#050f0c";
+    c.beginPath();
+    c.moveTo(cx + i * lg * 0.94, bas);
+    c.lineTo(cx + i * lg * 1.16, bas);
+    c.lineTo(cx + i * lg * 1.06, bas - ht * 0.62);
+    c.lineTo(cx + i * lg * 0.86, bas - ht * 0.62);
+    c.closePath(); c.fill();
+    /* la flèche */
+    c.beginPath();
+    c.moveTo(cx + i * lg * 0.86, bas - ht * 0.62);
+    c.lineTo(cx + i * lg * 0.96, bas - ht * 0.84);
+    c.lineTo(cx + i * lg * 1.06, bas - ht * 0.62);
     c.closePath(); c.fill();
   }
+  /* l'escalier axial : des marches à peine plus claires */
+  c.fillStyle = "rgba(46,78,58,.30)";
+  for(i = 0; i < 9; i++){
+    var ue = i / 9;
+    var le = lg * 0.20 * (1 - ue * 0.5);
+    c.fillRect(cx - le, bas - ht * 0.60 * ue, le * 2, Math.max(1, ht * 0.014));
+  }
   /* le portail : la seule vraie source de lumière du fond */
-  var g = c.createRadialGradient(cx, bas - ht * 0.10, 1, cx, bas - ht * 0.10, lg * 0.55);
-  g.addColorStop(0, "rgba(255,196,96,.85)");
-  g.addColorStop(0.4, "rgba(255,104,26,.45)");
+  var g = c.createRadialGradient(cx, bas - ht * 0.06, 1, cx, bas - ht * 0.06, lg * 0.62);
+  g.addColorStop(0, "rgba(255,196,96,.80)");
+  g.addColorStop(0.38, "rgba(255,104,26,.40)");
   g.addColorStop(1, "rgba(200,40,8,0)");
   c.fillStyle = g;
-  c.beginPath(); c.arc(cx, bas - ht * 0.10, lg * 0.55, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(cx, bas - ht * 0.06, lg * 0.62, 0, 6.2832); c.fill();
   c.fillStyle = "#ffb64a";
   c.beginPath();
-  c.moveTo(cx - lg * 0.14, bas);
-  c.lineTo(cx - lg * 0.14, bas - ht * 0.14);
-  c.quadraticCurveTo(cx, bas - ht * 0.26, cx + lg * 0.14, bas - ht * 0.14);
-  c.lineTo(cx + lg * 0.14, bas);
+  c.moveTo(cx - lg * 0.115, bas);
+  c.lineTo(cx - lg * 0.115, bas - ht * 0.10);
+  c.quadraticCurveTo(cx, bas - ht * 0.20, cx + lg * 0.115, bas - ht * 0.10);
+  c.lineTo(cx + lg * 0.115, bas);
   c.closePath(); c.fill();
-  /* les yeux */
+  /* les deux fenêtres hautes : deux fentes verticales, pas deux yeux
+     ronds — c'est la forme qui décide si l'œil lit un bâtiment ou une
+     bête */
   for(i = -1; i <= 1; i += 2){
-    var ex = cx + i * lg * 0.30, ey = bas - ht * 0.70;
-    var ge = c.createRadialGradient(ex, ey, 0.5, ex, ey, lg * 0.22);
-    ge.addColorStop(0, "rgba(255,168,60,.9)");
+    var ex = cx + i * lg * 0.20, ey = bas - ht * 0.74;
+    var ge = c.createRadialGradient(ex, ey, 0.5, ex, ey, lg * 0.26);
+    ge.addColorStop(0, "rgba(255,170,62,.85)");
     ge.addColorStop(1, "rgba(255,80,10,0)");
     c.fillStyle = ge;
-    c.beginPath(); c.arc(ex, ey, lg * 0.22, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(ex, ey, lg * 0.26, 0, 6.2832); c.fill();
     c.fillStyle = "#ffd27a";
     c.beginPath();
-    c.ellipse(ex, ey, lg * 0.075, lg * 0.028, i * 0.22, 0, 6.2832);
-    c.fill();
+    c.moveTo(ex - lg * 0.028, ey + ht * 0.045);
+    c.lineTo(ex - lg * 0.028, ey - ht * 0.02);
+    c.quadraticCurveTo(ex, ey - ht * 0.055, ex + lg * 0.028, ey - ht * 0.02);
+    c.lineTo(ex + lg * 0.028, ey + ht * 0.045);
+    c.closePath(); c.fill();
   }
+  /* la vasque du sommet, allumée */
+  c.fillStyle = "#050f0c";
+  c.fillRect(cx - lg * 0.20, bas - ht * 1.06, lg * 0.40, ht * 0.07);
+  var gs = c.createRadialGradient(cx, bas - ht * 1.10, 1, cx, bas - ht * 1.10, lg * 0.40);
+  gs.addColorStop(0, "rgba(255,214,130,.80)");
+  gs.addColorStop(0.4, "rgba(255,120,30,.34)");
+  gs.addColorStop(1, "rgba(220,60,10,0)");
+  c.fillStyle = gs;
+  c.beginPath(); c.arc(cx, bas - ht * 1.10, lg * 0.40, 0, 6.2832); c.fill();
 }
 
 /* Un tronc de grand arbre, du haut du cadre jusqu'au sol. */

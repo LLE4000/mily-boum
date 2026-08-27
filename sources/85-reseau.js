@@ -156,8 +156,35 @@ function envoieTrame(u8){
     try{ reseau.ws.send(u8); }catch(e){}
   }
 }
+/* ================================================================
+   LE MODE PRÉVISUALISATION
+
+   Une carte ouverte en prévisualisation ne doit RIEN laisser derrière
+   elle : ni dégâts publiés, ni champion, ni verrou entamé, ni
+   progression avancée. La tentation serait de tout défaire à la
+   sortie — restaurer les bâtiments, remonter les PV, effacer les
+   scores. Ce serait fragile : il suffirait d'oublier une chose pour
+   la voir fuir dans la vraie partie.
+
+   On prend donc l'autre chemin, et c'est le seul qui se démontre :
+   ON N'ÉCRIT JAMAIS RIEN. Deux robinets, fermés à la source —
+   envoie() et publieMonde() — et plus aucun octet ne sort de cet
+   appareil. `monde` n'est pas touché, `jeu` est reconstruit de zéro
+   au prochain lancement depuis `carte`. Il n'y a donc rien à
+   restaurer : la carte officielle n'a jamais bougé.
+
+   Ce qui reste local et assumé : le classement affiché à l'écran
+   pendant le test compte les dégâts du test. Il repart à zéro en
+   quittant, et personne d'autre ne l'a jamais vu.
+   ================================================================ */
+var modeApercu = false;
+
 function envoie(obj){
   obj.id = monId;
+  /* PREMIER ROBINET. En prévisualisation, aucun message ne part —
+     ni « bonjour », ni dégâts, ni destruction, ni capacité. Les
+     autres joueurs ne savent même pas qu'on teste. */
+  if(modeApercu) return;
   if(!reseau.connecte) return;
   envoieTrame(paquetPublish(SUJET, JSON.stringify(obj)));
 }
@@ -287,6 +314,10 @@ function recoitMonde(txt){
    les PV du Brasier. Monotone : on ne relève jamais rien. */
 function appliqueMondeAuJeu(m){
   if(!jeu || !mondeValide(m)) return;
+  /* En prévisualisation, on ne LIT pas non plus : la carte doit être
+     montrée intacte, telle qu'elle sortira du générateur, et non
+     amputée des défenses que le salon a déjà détruites ailleurs. */
+  if(modeApercu) return;
   /* EN EXPÉDITION, c'est la voie de la jungle qui commande, pas la
      campagne : les destructions viennent de jd et les PV de jq. Le
      reste de l'instantané décrit une île à laquelle on ne touche pas
@@ -489,7 +520,44 @@ function tueGegeLocale(){ tueCreatureLocale("belette"); }
    --------------------------------------------------------------- */
 /* Mot de passe des deux actions réservées : remettre le salon à zéro et
    changer le plan de défense. Un seul endroit à modifier. */
-var MOT_RAZ = "mily4000";
+/* ----------------------------------------------------------------
+   LE MOT DE PASSE — ce qu'il protège, et ce qu'il ne protège pas
+
+   Soyons francs : le jeu est UN FICHIER HTML que n'importe qui peut
+   ouvrir dans un éditeur de texte. Il n'y a pas de serveur, donc il
+   n'y a rien à faire vérifier par un serveur. Un mot de passe écrit
+   ici, en clair ou non, ne peut pas être un secret.
+
+   Ce qu'on gagne à le hacher : il ne se lit plus en parcourant le
+   fichier, et il ne s'échappe pas d'une capture d'écran du code. Ce
+   qu'on ne gagne pas : quelqu'un qui ouvre la console du navigateur
+   appelle directement remetSalonAZero() ou ouvreApercuAdmin() sans
+   jamais voir la fenêtre. C'est donc une PROTECTION D'INTERFACE — un
+   cran d'arrêt contre la fausse manœuvre et le joueur de passage —
+   et jamais une sécurité.
+
+   Le jour où le jeu aura un serveur, c'est lui qui devra refuser une
+   remise à zéro non autorisée, et cette fonction ne servira plus qu'à
+   éviter d'afficher un bouton pour rien.
+   ---------------------------------------------------------------- */
+/* FNV-1a 32 bits : trois lignes, pas de dépendance, et le mot ne se
+   lit plus dans le fichier. */
+function empreinteMot(s){
+  var h = 0x811c9dc5;
+  s = String(s).trim().toLowerCase();
+  for(var i = 0; i < s.length; i++){
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h >>> 0;
+}
+var EMPREINTE_RAZ = 3344921544;
+function motAdminValide(mot){
+  return mot !== null && empreinteMot(mot) === EMPREINTE_RAZ;
+}
+/* Conservé pour les messages qui le citent ; plus aucun test ne
+   compare directement à lui. */
+var MOT_RAZ = null;
 
 function remetSalonAZero(){
   scoresSalon = {};            // l'île repart à neuf, le tableau aussi
@@ -549,6 +617,10 @@ function signaleMonde(){ mondeSale = true; }
    miroir local ne dépend PAS du réseau : en solo, ou pendant une
    coupure, c'est lui seul qui garde le monde. */
 function publieMonde(force){
+  /* SECOND ROBINET. L'instantané retenu est le seul état durable du
+     salon : ne pas l'écrire, c'est garantir qu'une prévisualisation
+     ne laisse aucune trace, où que ce soit. */
+  if(modeApercu) return;
   var m = mondeCourant();
   if(!mondeValide(m)) return;
   if(!force && memeMonde(monde, m) && !mondeSale) return;

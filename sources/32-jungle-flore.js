@@ -7,8 +7,9 @@
    aucune n'est une couleur :
 
    1. L'ÉCHELLE. Un arbre de jungle ne fait pas la taille d'un sapin
-      de la carte forêt (46 unités) : il écrase le Mirador (125) et
-      monte à 250-370. On lève les yeux, et c'est ça qui dit
+      de la carte forêt (46 unités) : il écrase le Mirador (126,
+      mesuré sur son sprite) et monte, selon la variante et la
+      taille, de 261 à 372. On lève les yeux, et c'est ça qui dit
       « je ne suis plus au même endroit ». Une seule famille de
       décor change donc radicalement de gabarit, et tout le reste
       s'organise sous elle.
@@ -35,20 +36,28 @@
        redevenir opaques ; en un seul blit, 0,72 reste 0,72 et on
        devine toujours ce qu'il y a dessous.
      — entre 0 et −40 en local — la bande où vivent les troupes
-       (Meuf ≈ 36) et les tourelles (Crible 57, mais son socle est
-       là) — rien d'opaque que le tronc, et le tronc y reste étroit.
-       Les contreforts s'évasent, mais ils s'évasent BAS : à −18 ils
-       sont déjà revenus à ±12, et ils n'atteignent leur largeur
-       maximale qu'à ras de terre, là où ils ne masquent que des
-       pieds. Les lianes s'arrêtent à −55.
+       (Meuf ≈ 36) et les socles de tourelles (Crible 57) — rien
+       d'opaque que le tronc, et le tronc y reste étroit. Les
+       contreforts s'évasent, mais ils s'évasent BAS, et les racines
+       traçantes rampent sur une ellipse écrasée au lieu de suivre
+       l'isométrie franche. Balayage d'alphas sur les douze sprites
+       d'arbre, demi-largeur OPAQUE maximale par palier :
+         au sol 48, à −6 46, à −12 29, à −18 25, et 26 au plus
+         jusqu'à −60.
+       Autrement dit : au-dessus des chevilles, le plus gros arbre de
+       la carte n'occupe jamais plus de cinquante unités de large,
+       soit moins d'une case. Les lianes, elles, s'arrêtent à −70 —
+       au-dessus du Crible.
 
    RENDU. Comme le reste du décor (30-terrain.js), tout est
    PRÉ-RENDU une fois au démarrage : le coût par image est un blit,
    pas un tracé. Ce qui compte donc n'est pas le nombre de courbes
-   mais le NOMBRE DE SPRITES. La banque est plafonnée à 56 sprites,
-   et chaque sprite est détouré à sa boîte d'alphas avant d'être
-   gardé — un grand arbre occupe la moitié de son cadre, garder le
-   cadre entier doublerait la mémoire pour du vide.
+   mais le NOMBRE DE SPRITES. La banque en compte 56 et pèse
+   5,5 Mo mesurés ; chaque sprite est détouré à sa boîte d'alphas
+   avant d'être gardé — un grand arbre n'occupe que la moitié de son
+   cadre, et garder le cadre entier coûterait le double pour du vide.
+   Au banc, mille sprites de flore posés à l'écran coûtent une
+   milliseconde par image : c'est un blit, pas un dessin.
 
    Repère local : (0,0) au sol, Y négatifs vers le haut, une unité
    locale ≈ un pixel à zoom 1. Comme pour les SOCLES, iso(gx,gy) est
@@ -303,14 +312,24 @@ function jEcorce(c, pts, base, style, graine, mousse){
   c.fillStyle = base;
   c.fill();
   c.clip();
-  /* modelé cylindrique : clair à gauche, sombre à droite */
-  for(i = 0; i <= n; i++){
-    p = pts[i];
-    c.fillStyle = rgba(VJ.ecorceO, 0.55);
-    c.fillRect(p.x + p.w * 0.16, p.y - haut / n - 1, p.w * 0.9, haut / n + 2);
-    c.fillStyle = "rgba(255,246,225,.14)";
-    c.fillRect(p.x - p.w, p.y - haut / n - 1, p.w * 0.30, haut / n + 2);
+  /* Modelé cylindrique : clair à gauche, sombre à droite, comme
+     cylindre() et sphere() dans 20-outils.js.
+     Les deux joues sont des POLYGONES qui suivent le fût, et non des
+     rectangles empilés. Empilés, leurs bords formaient un escalier —
+     le tronc du fromager portait alors, vu de loin, des barreaux
+     d'échelle bien réguliers, et il ressemblait à un poteau de
+     béton avec ses échelons. Un seul tracé continu, et le galbe
+     redevient lisse. */
+  function joue(a, b, coul){
+    c.fillStyle = coul;
+    c.beginPath();
+    for(i = 0; i <= n; i++){ p = pts[i]; if(i === 0) c.moveTo(p.x + p.w * a, p.y); else c.lineTo(p.x + p.w * a, p.y); }
+    for(i = n; i >= 0; i--){ p = pts[i]; c.lineTo(p.x + p.w * b, p.y); }
+    c.closePath(); c.fill();
   }
+  joue(0.16, 1.10, rgba(VJ.ecorceO, 0.42));
+  joue(0.52, 1.10, rgba(VJ.ecorceO, 0.30));
+  joue(-1.10, -0.70, "rgba(255,246,225,.14)");
   /* cannelures : leur nombre suit la largeur, sinon un gros tronc a
      l'air d'un petit tronc agrandi. Elles sont peu nombreuses et
      très discrètes — la première version en traçait deux fois plus
@@ -337,8 +356,8 @@ function jEcorce(c, pts, base, style, graine, mousse){
        demi-largeur, donc toutes groupées au MILIEU du fût — de loin,
        on voyait une colonne de béton avec des barreaux d'échelle.
        Elles sont maintenant réparties sur toute la largeur, plus
-       petites et plus discrètes, et deux longues nervures verticales
-       très douces suffisent à donner le galbe. */
+       petites et plus discrètes, et quatre longues nervures
+       verticales très douces suffisent à donner le galbe. */
     for(k = 0; k < 34; k++){
       t = al(); p = pts[Math.floor(t * n)];
       var sx = p.x + (al() * 2 - 1) * p.w * 1.02;
@@ -399,9 +418,9 @@ function jEcorce(c, pts, base, style, graine, mousse){
    doit dire « ce tronc pèse quarante tonnes » sans encombrer la
    bande des troupes. D'où une arête extérieure très cambrée — point
    de contrôle à 0,24 de la largeur, hauteur plafonnée à 32 — qui
-   n'est encore qu'à un cinquième de son écart à −24 et n'atteint sa
-   largeur maximale qu'à ras de terre, là où elle ne cache que des
-   pieds. Mesuré : moins de 20 de demi-largeur dès −18.
+   n'atteint sa largeur maximale qu'à ras de terre, là où elle ne
+   cache que des pieds : elle est déjà revenue sous vingt unités
+   d'écart à −18, et sous dix à −24.
    `cote` vaut −1 (gauche) ou +1 (droite). */
 function jContrefort(c, cote, larg, haut, base, ombre){
   var x = cote * larg;
@@ -627,7 +646,10 @@ function jCouronne(c, o){
    l'effilement et la fourche qui font la branche. */
 function jBranche(c, x0, y0, x1, y1, e0, coul, coulC){
   var mx = (x0 + x1) * 0.5, my = Math.min(y0, y1) - Math.abs(x1 - x0) * 0.12;
-  var n = 7, i, t, u, px, py, py2;
+  /* dix-huit disques et non sept : sur une charpentière de gros
+     arbre, e0 dépasse la douzaine d'unités et sept disques donnaient
+     une chenille au raccord avec le tronc */
+  var n = 18, i, t, u, px, py, py2;
   for(i = 0; i <= n; i++){
     t = i / n; u = 1 - t;
     px = u * u * x0 + 2 * u * t * mx + t * t * x1;
@@ -800,15 +822,23 @@ function dessineArbreJungle(c, v, s){
   if(v === 5){
     for(i = 0; i < 11; i++){
       p = pts[Math.round((0.10 + al() * 0.60) * (pts.length - 1))];
-      var mx = p.x + (al() < 0.5 ? -p.w : p.w);
-      c.fillStyle = i % 2 ? VJ.fruit : ecl(VJ.fruit, 0.78);
+      /* Une console de polypore, vue de trois quarts : un demi-disque
+         posé à plat, sa tranche sombre dessous et un liseré clair sur
+         l'arête. Inclinées, les premières versions faisaient des
+         balafres orange sur le tronc ; posées bien à l'horizontale,
+         elles se lisent tout de suite comme des champignons. */
+      var cote = al() < 0.5 ? -1 : 1;
+      var mx = p.x + cote * p.w * 0.75;
+      var mr = (5.5 + al() * 3.5) * s;
+      c.fillStyle = rgba("#1a1008", 0.55);
       c.beginPath();
-      c.ellipse(mx, p.y, 5.5 * s + al() * 3 * s, 2.2 * s, al() * 0.5 - 0.25, 3.1416, 6.2832);
-      c.fill();
-      c.fillStyle = rgba("#000", 0.3);
+      c.ellipse(mx + cote * mr * 0.35, p.y + 1.2 * s, mr, 1.7 * s, 0, 0, 3.1416); c.fill();
+      c.fillStyle = i % 2 ? VJ.fruit : ecl(VJ.fruit, 0.74);
       c.beginPath();
-      c.ellipse(mx, p.y + 0.6, 5 * s + al() * 3 * s, 1.2 * s, 0, 0, 3.1416);
-      c.fill();
+      c.ellipse(mx + cote * mr * 0.35, p.y, mr, 2.4 * s, 0, 3.1416, 6.2832); c.fill();
+      c.fillStyle = "rgba(255,226,160,.45)";
+      c.beginPath();
+      c.ellipse(mx + cote * mr * 0.35, p.y - 0.5 * s, mr * 0.72, 1.2 * s, 0, 3.1416, 6.2832); c.fill();
     }
     /* le grimpant colle au tronc : il ne déborde jamais de ±14 */
     for(i = 0; i < 26; i++){
@@ -868,19 +898,29 @@ function dessineLianeJungle(c, v, s){
   s = s || 1;
   var gr = 3301 + v * 641;
   var al = prng(gr), i, k;
-  var haut = -SJ_OY + 6;
+  /* Le point d'accroche n'est PAS le même pour tous les brins : au
+     ras du cadre pour tous, les quatre variantes alignaient leurs
+     départs sur une même ligne horizontale parfaitement droite, et
+     un semis de lianes dessinait une frise. */
+  var haut = -SJ_OY + 6 + v * 9;
 
   if(v === 0){
     /* rideau : cinq brins parallèles, longueurs très inégales.
        Égales, elles feraient un peigne. */
     for(i = 0; i < 5; i++){
       var x = (i - 2) * 13 * s + (al() - 0.5) * 8 * s;
+      var h0 = haut + al() * 46 * s;
       var bas = -70 * s - al() * 130 * s;
-      jCorde(c, x, haut, bas, (al() - 0.5) * 22 * s, 1.6 + al() * 1.4,
+      /* un moignon de branche au départ : sans lui la liane pend
+         du vide, et un semis de lianes ressemble à des fils
+         électriques tombés du ciel */
+      c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 3.4 * s; c.lineCap = "round";
+      c.beginPath(); c.moveTo(x - 9 * s, h0 - 2 * s); c.lineTo(x + 9 * s, h0); c.stroke();
+      jCorde(c, x, h0, bas, (al() - 0.5) * 22 * s, 1.6 + al() * 1.4,
              rgba(VJ.ecorceO, 0.85), vertJ(0.16 + al() * 0.12), al() < 0.5 ? 5 : 0);
       for(k = 0; k < 7; k++){
         var t = 0.15 + k * 0.12;
-        jFeuille(c, x + (al() - 0.5) * 18 * s, haut + (bas - haut) * t,
+        jFeuille(c, x + (al() - 0.5) * 18 * s, h0 + (bas - h0) * t,
                  8 * s, 3 * s, 0.2 + al() * 2.6, vertJ(0.26 + al() * 0.34));
       }
     }
@@ -889,6 +929,8 @@ function dessineLianeJungle(c, v, s){
        avec des feuilles cordiformes. C'est la plus « solide » —
        celle à laquelle on croirait pouvoir se pendre. */
     var bas1 = -62 * s;
+    c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 5 * s; c.lineCap = "round";
+    c.beginPath(); c.moveTo(-10 * s, haut - 3 * s); c.lineTo(16 * s, haut + 1 * s); c.stroke();
     var p = jCorde(c, 6 * s, haut, bas1, -34 * s, 4.2 * s,
                    rgba(VJ.ecorceO, 0.9), "#5a4630", 9 * s);
     for(i = 0; i < 12; i++){
@@ -913,13 +955,14 @@ function dessineLianeJungle(c, v, s){
        hachurage, presque une texture. */
     for(i = 0; i < 16; i++){
       var rx = (al() - 0.5) * 66 * s;
+      var rh = haut + al() * 60 * s;
       var rb = -78 * s - al() * 150 * s;
       c.strokeStyle = rgba(VJ.ecorceO, 0.55 + al() * 0.4);
       c.lineWidth = 0.8 + al() * 1.5 * s;
       c.lineCap = "round";
       c.beginPath();
-      c.moveTo(rx, haut);
-      c.quadraticCurveTo(rx + (al() - 0.5) * 10 * s, (haut + rb) * 0.5, rx + (al() - 0.5) * 14 * s, rb);
+      c.moveTo(rx, rh);
+      c.quadraticCurveTo(rx + (al() - 0.5) * 10 * s, (rh + rb) * 0.5, rx + (al() - 0.5) * 14 * s, rb);
       c.stroke();
     }
     for(i = 0; i < 5; i++){
@@ -931,6 +974,8 @@ function dessineLianeJungle(c, v, s){
     /* liane fleurie : la seule tache rouge qui tombe du ciel. Sur
        une carte entièrement verte, c'est un repère. */
     var bas3 = -66 * s;
+    c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 3.6 * s; c.lineCap = "round";
+    c.beginPath(); c.moveTo(-14 * s, haut - 2 * s); c.lineTo(8 * s, haut + 1 * s); c.stroke();
     jCorde(c, -4 * s, haut, bas3, 26 * s, 2.4 * s, rgba(VJ.ecorceO, 0.85), vertJ(0.2), 6 * s);
     for(i = 0; i < 15; i++){
       var t3 = 0.1 + i * 0.06;
@@ -1035,8 +1080,8 @@ function dessineBuissonJungle(c, v, s){
   s = s || 1;
   var gr = 7717 + v * 419;
   var al = prng(gr), i, k;
-  var HB = [58, 52, 44, 66][v] * s;
-  var LB = [30, 34, 40, 24][v] * s;
+  var HB = [58, 52, 44, 62][v] * s;
+  var LB = [30, 34, 40, 28][v] * s;
 
   c.save(); c.globalAlpha = 0.28; c.fillStyle = "#000";
   c.beginPath(); c.ellipse(0, 0, LB * 0.9, LB * 0.32, 0, 0, 6.2832); c.fill();
@@ -1055,7 +1100,7 @@ function dessineBuissonJungle(c, v, s){
 
   /* masse sombre en trois lobes, puis les feuilles par-dessus */
   var lobes = [];
-  var nl = [4, 5, 6, 3][v];
+  var nl = [4, 5, 6, 5][v];
   for(i = 0; i < nl; i++){
     var an = -3.1416 + i / (nl - 1) * 3.1416;
     lobes.push({
@@ -1311,6 +1356,15 @@ function dessineHauteHerbe(c, v, s){
   c.save(); c.globalAlpha = 0.24; c.fillStyle = "#000";
   c.beginPath(); c.ellipse(0, 0, 13 * s, 4.4 * s, 0, 0, 6.2832); c.fill();
   c.restore();
+  /* le cœur de la touffe : une masse basse et sombre. Sans elle, une
+     touffe n'est qu'un éventail de traits qui semblent plantés dans
+     le vide, et à trente touffes par écran ça se voit. */
+  for(i = 0; i < 7; i++){
+    c.fillStyle = vertJ(0.08 + i * 0.02);
+    c.beginPath();
+    c.ellipse((i - 3) * 3.4 * s, -2 * s - i % 3 * 2 * s, 5 * s, 4 * s, 0, 0, 6.2832);
+    c.fill();
+  }
 
   if(v === 0 || v === 1){
     /* touffes classiques : v0 serrée et dressée, v1 large et
@@ -1326,7 +1380,7 @@ function dessineHauteHerbe(c, v, s){
       var dx = (t - 0.5) * 2 * etal * s * (0.6 + al() * 0.8);
       var h = ((v ? 40 : 44) + al() * (v ? 18 : 16)) * s * (arriere ? 0.76 : 1);
       jBrin(c, (al() - 0.5) * 5 * s, 0, h, dx, 1.5 * s + al() * 1.1 * s,
-            vertJ(arriere ? 0.06 + al() * 0.10 : 0.30 + al() * 0.48),
+            vertJ(arriere ? 0.16 + al() * 0.14 : 0.34 + al() * 0.46),
             dx * (v ? 0.6 : 0.25));
     }
   }else if(v === 2){
@@ -1349,7 +1403,7 @@ function dessineHauteHerbe(c, v, s){
     }
     for(i = 0; i < 18; i++)
       jBrin(c, (al() - 0.5) * 14 * s, 0, (18 + al() * 14) * s, (al() - 0.5) * 16 * s,
-            1.4 * s, vertJ(0.10 + al() * 0.44), 0);
+            1.4 * s, vertJ(0.18 + al() * 0.40), 0);
 
   }else if(v === 3){
     /* bambou nain : chaumes segmentés, feuilles par bouquets aux
@@ -1379,7 +1433,7 @@ function dessineHauteHerbe(c, v, s){
     for(i = 0; i < 40; i++){
       var dx2 = (al() - 0.5) * 30 * s;
       jBrin(c, dx2 * 0.3, 0, (26 + al() * 18) * s, dx2, 1.3 * s + al() * 0.9 * s,
-            vertJ((i % 4 < 2 ? 0.05 : 0.32) + al() * 0.42), dx2 * 0.4);
+            vertJ((i % 4 < 2 ? 0.15 : 0.34) + al() * 0.40), dx2 * 0.4);
     }
     for(i = 0; i < 9; i++){
       var ex = (al() - 0.5) * 22 * s;
@@ -1631,20 +1685,39 @@ function nouveauSpriteFlore(dessin, W, H, OX, OY, ECH){
   var c = cv.getContext("2d");
   c.setTransform(ECH, 0, 0, ECH, OX * ECH, OY * ECH);
   dessin(c);
-  /* détourage : on ne garde que ce qui a de l'alpha */
-  var d = c.getImageData(0, 0, cv.width, cv.height).data;
-  var x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1, x, y;
-  for(y = 0; y < cv.height; y++){
-    for(x = 0; x < cv.width; x++){
-      if(d[(y * cv.width + x) * 4 + 3] > 3){
-        if(x < x0) x0 = x;
-        if(x > x1) x1 = x;
-        if(y < y0) y0 = y;
-        if(y > y1) y1 = y;
-      }
+  /* Détourage : on ne garde que ce qui a de l'alpha.
+     On cherche les QUATRE BORDS SÉPARÉMENT, en s'arrêtant à la
+     première trace rencontrée sur chaque ligne ou chaque colonne, au
+     lieu de balayer les cinquante-six cadres entiers. La version
+     exhaustive lisait cinq millions et demi de pixels et pesait plus
+     lourd que tous les tracés réunis ; celle-ci n'en lit qu'une
+     frange. La banque n'est construite qu'une fois, mais elle l'est
+     pendant le chargement de la carte, à côté d'un construitSol qui
+     coûte déjà quatre dixièmes de seconde : c'est exactement le
+     moment où un dixième de plus se voit. */
+  var w = cv.width, h = cv.height;
+  var d = c.getImageData(0, 0, w, h).data;
+  var x0 = -1, y0 = -1, x1 = -1, y1 = -1, x, y, o, vu;
+  for(y = 0; y < h && y0 < 0; y++){
+    for(x = 0, o = y * w * 4 + 3; x < w; x++, o += 4) if(d[o] > 3){ y0 = y; break; }
+  }
+  if(y0 < 0){                                   // sprite vide : cadre minimal
+    x0 = 0; y0 = 0; x1 = 1; y1 = 1;
+  }else{
+    for(y = h - 1; y >= y0; y--){
+      vu = 0;
+      for(x = 0, o = y * w * 4 + 3; x < w; x++, o += 4) if(d[o] > 3){ vu = 1; break; }
+      if(vu){ y1 = y; break; }
+    }
+    for(x = 0; x < w && x0 < 0; x++){
+      for(y = y0, o = (y0 * w + x) * 4 + 3; y <= y1; y++, o += w * 4) if(d[o] > 3){ x0 = x; break; }
+    }
+    for(x = w - 1; x >= x0; x--){
+      vu = 0;
+      for(y = y0, o = (y0 * w + x) * 4 + 3; y <= y1; y++, o += w * 4) if(d[o] > 3){ vu = 1; break; }
+      if(vu){ x1 = x; break; }
     }
   }
-  if(x1 < x0){ x0 = 0; y0 = 0; x1 = 1; y1 = 1; }
   var cw = x1 - x0 + 1, ch = y1 - y0 + 1;
   var cv2 = nouveauCanvas(cw, ch);
   cv2.getContext("2d").drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);

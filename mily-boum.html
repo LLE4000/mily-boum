@@ -153,6 +153,38 @@ select.champ{cursor:pointer}
 #objBouclier b{color:#a9e8ff}
 #objBouclier i{color:var(--or);font-style:normal;font-weight:700}
 
+/* ---- APPUI LONG SUR UNE CARTE VERROUILLÉE ----
+   Un anneau qui se remplit sur cinq secondes, posé PAR-DESSUS la
+   vignette sans rien déplacer. Il ne s'affiche qu'une fois le doigt
+   posé : un joueur ordinaire ne le verra jamais.
+   La bordure est peinte au dégradé conique, dont l'angle est piloté
+   par une variable CSS — un seul style à toucher par image, aucune
+   remise en page. */
+.monde .anneauAdmin{
+  position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;
+  transition:opacity .18s;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  padding:3px;
+  background:conic-gradient(var(--braise) calc(var(--av,0) * 1turn),transparent 0);
+}
+.monde.presse .anneauAdmin{opacity:1}
+/* Pendant l'appui, on interdit au navigateur de s'en mêler : pas de
+   sélection de texte, pas de menu contextuel, pas de loupe iOS. */
+.monde{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.monde.presse{transform:scale(.985)}
+
+/* Le bandeau du mode prévisualisation : discret, en haut à gauche,
+   là où il ne recouvre rien de jouable. */
+#bandeauApercu{
+  position:absolute;top:calc(6px + var(--sat));left:50%;transform:translateX(-50%);
+  z-index:12;display:none;pointer-events:none;
+  font:700 10px/1 'Trebuchet MS','Segoe UI',sans-serif;letter-spacing:1.6px;
+  text-transform:uppercase;color:#ffd08a;padding:5px 12px;border-radius:20px;
+  background:rgba(46,20,6,.82);border:1px solid rgba(255,160,60,.45);
+}
+#hud.apercu #bandeauApercu{display:block}
+
 /* cartes du monde */
 .mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .monde{
@@ -376,19 +408,39 @@ select.champ{cursor:pointer}
 #bg{position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));max-width:min(56vw,420px)}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
 #listeBarges{display:flex;gap:5px;flex-wrap:wrap}
+/* LES NAVETTES EN PORTRAITS.
+   Le visage dit le type de troupe mieux qu'un mot : « Mec » et « Meuf »
+   écrits en neuf pixels sur une tablette étaient à peu près
+   indéchiffrables, et les trois lettres mangeaient la moitié de la
+   tuile. On garde donc EXACTEMENT la même emprise — 46 px de large —
+   mais tout l'espace passe au portrait, et le nombre s'inscrit en
+   pastille par-dessus. */
 .bg1{
-  width:46px;padding:4px 2px;border-radius:10px;border:1px solid rgba(255,255,255,.14);
-  background:#1d1229;text-align:center;cursor:pointer;font-size:11px;line-height:1.15;
+  width:46px;height:52px;padding:0;border-radius:10px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.14);position:relative;
+  background:#1d1229;cursor:pointer;line-height:0;
+  transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
 }
-.bg1.sel{border-color:var(--braise);background:linear-gradient(180deg,#4a2a12,#2a1608);box-shadow:0 0 0 2px rgba(255,138,30,.3)}
-/* La navette d'Ogre : un seul passager, mais on doit la reconnaître au
-   premier coup d'œil parmi les sept autres. */
-.bg1.ogre{width:56px;border-color:rgba(220,120,70,.55);background:linear-gradient(180deg,#3a1a14,#22100c)}
-.bg1.ogre .n{color:#ff9a5c;font-size:15px}
-.bg1.ogre .d{color:#e8b48c;font-weight:700;letter-spacing:.5px}
-.bg1.ogre.sel{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.45)}
-.bg1 .n{font-weight:800;color:var(--cyan);font-size:13px}
-.bg1 .d{color:var(--gris);font-size:9px}
+.bg1 canvas{width:100%;height:100%;display:block}
+.bg1:active{transform:scale(.94)}
+.bg1.sel{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 12px rgba(255,138,30,.35)}
+/* La pastille du nombre : en haut à droite, adossée à un fond sombre
+   pour rester lisible quel que soit le portrait dessous. */
+.bg1 .n{
+  position:absolute;top:2px;right:2px;min-width:15px;padding:0 3px;
+  font:800 11px/15px 'Trebuchet MS','Segoe UI',sans-serif;text-align:center;
+  color:#eaf6ff;background:rgba(8,4,12,.82);border-radius:7px;
+  border:1px solid rgba(255,255,255,.18);
+}
+.bg1.sel .n{color:#ffd7a8;border-color:rgba(255,138,30,.55)}
+/* La navette d'Ogre : un seul passager, mais c'est celui qui vaut les
+   douze autres — elle doit se repérer AVANT qu'on appuie. */
+.bg1.ogre{border-color:rgba(220,120,70,.55)}
+.bg1.ogre .n{color:#ff9a5c;border-color:rgba(220,120,70,.5)}
+.bg1.ogre.sel{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.5),0 0 14px rgba(255,138,30,.4)}
+/* Une navette vidée de ses passagers : le portrait s'éteint. */
+.bg1.vide{opacity:.38}
+.bg1.vide .n{color:#9a8fa6}
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
@@ -472,7 +524,8 @@ select.champ{cursor:pointer}
   /* 104 × 93 et non 104 × 92 : le canevas fait 264 × 236, et une boîte
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
-  .bg1{width:40px}
+  /* le portrait garde son rapport : on rétrécit les deux côtés */
+  .bg1{width:40px;height:46px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -563,6 +616,7 @@ select.champ{cursor:pointer}
       </div>
     </div>
 
+    <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
     <button id="lancer" class="bt pri">DÉBARQUER</button>
     <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
@@ -616,6 +670,7 @@ select.champ{cursor:pointer}
       <button class="bt" id="btZm" title="Zoom arrière">−</button>
       <button class="bt" id="btCentre" title="Centrer sur le Brasier">◎</button>
       <button class="bt" id="btPlein2" title="Plein écran">⛶</button>
+      <button class="bt" id="btAccueil" title="Retour à l'accueil — la bataille continue sans toi">⌂</button>
     </div>
   </div>
 
@@ -648,6 +703,7 @@ select.champ{cursor:pointer}
     <span id="bcTx">👻 Ta flotte est perdue. Renfort dans</span><span id="bcTps">0:15</span>
   </div>
 
+  <div id="bandeauApercu">⚙ Mode prévisualisation</div>
   <div id="flash"></div>
 </div>
 
@@ -4671,8 +4727,9 @@ function dessineSol(c, vue){
    aucune n'est une couleur :
 
    1. L'ÉCHELLE. Un arbre de jungle ne fait pas la taille d'un sapin
-      de la carte forêt (46 unités) : il écrase le Mirador (125) et
-      monte à 250-370. On lève les yeux, et c'est ça qui dit
+      de la carte forêt (46 unités) : il écrase le Mirador (126,
+      mesuré sur son sprite) et monte, selon la variante et la
+      taille, de 261 à 372. On lève les yeux, et c'est ça qui dit
       « je ne suis plus au même endroit ». Une seule famille de
       décor change donc radicalement de gabarit, et tout le reste
       s'organise sous elle.
@@ -4699,20 +4756,28 @@ function dessineSol(c, vue){
        redevenir opaques ; en un seul blit, 0,72 reste 0,72 et on
        devine toujours ce qu'il y a dessous.
      — entre 0 et −40 en local — la bande où vivent les troupes
-       (Meuf ≈ 36) et les tourelles (Crible 57, mais son socle est
-       là) — rien d'opaque que le tronc, et le tronc y reste étroit.
-       Les contreforts s'évasent, mais ils s'évasent BAS : à −18 ils
-       sont déjà revenus à ±12, et ils n'atteignent leur largeur
-       maximale qu'à ras de terre, là où ils ne masquent que des
-       pieds. Les lianes s'arrêtent à −55.
+       (Meuf ≈ 36) et les socles de tourelles (Crible 57) — rien
+       d'opaque que le tronc, et le tronc y reste étroit. Les
+       contreforts s'évasent, mais ils s'évasent BAS, et les racines
+       traçantes rampent sur une ellipse écrasée au lieu de suivre
+       l'isométrie franche. Balayage d'alphas sur les douze sprites
+       d'arbre, demi-largeur OPAQUE maximale par palier :
+         au sol 48, à −6 46, à −12 29, à −18 25, et 26 au plus
+         jusqu'à −60.
+       Autrement dit : au-dessus des chevilles, le plus gros arbre de
+       la carte n'occupe jamais plus de cinquante unités de large,
+       soit moins d'une case. Les lianes, elles, s'arrêtent à −70 —
+       au-dessus du Crible.
 
    RENDU. Comme le reste du décor (30-terrain.js), tout est
    PRÉ-RENDU une fois au démarrage : le coût par image est un blit,
    pas un tracé. Ce qui compte donc n'est pas le nombre de courbes
-   mais le NOMBRE DE SPRITES. La banque est plafonnée à 56 sprites,
-   et chaque sprite est détouré à sa boîte d'alphas avant d'être
-   gardé — un grand arbre occupe la moitié de son cadre, garder le
-   cadre entier doublerait la mémoire pour du vide.
+   mais le NOMBRE DE SPRITES. La banque en compte 56 et pèse
+   5,5 Mo mesurés ; chaque sprite est détouré à sa boîte d'alphas
+   avant d'être gardé — un grand arbre n'occupe que la moitié de son
+   cadre, et garder le cadre entier coûterait le double pour du vide.
+   Au banc, mille sprites de flore posés à l'écran coûtent une
+   milliseconde par image : c'est un blit, pas un dessin.
 
    Repère local : (0,0) au sol, Y négatifs vers le haut, une unité
    locale ≈ un pixel à zoom 1. Comme pour les SOCLES, iso(gx,gy) est
@@ -4967,14 +5032,24 @@ function jEcorce(c, pts, base, style, graine, mousse){
   c.fillStyle = base;
   c.fill();
   c.clip();
-  /* modelé cylindrique : clair à gauche, sombre à droite */
-  for(i = 0; i <= n; i++){
-    p = pts[i];
-    c.fillStyle = rgba(VJ.ecorceO, 0.55);
-    c.fillRect(p.x + p.w * 0.16, p.y - haut / n - 1, p.w * 0.9, haut / n + 2);
-    c.fillStyle = "rgba(255,246,225,.14)";
-    c.fillRect(p.x - p.w, p.y - haut / n - 1, p.w * 0.30, haut / n + 2);
+  /* Modelé cylindrique : clair à gauche, sombre à droite, comme
+     cylindre() et sphere() dans 20-outils.js.
+     Les deux joues sont des POLYGONES qui suivent le fût, et non des
+     rectangles empilés. Empilés, leurs bords formaient un escalier —
+     le tronc du fromager portait alors, vu de loin, des barreaux
+     d'échelle bien réguliers, et il ressemblait à un poteau de
+     béton avec ses échelons. Un seul tracé continu, et le galbe
+     redevient lisse. */
+  function joue(a, b, coul){
+    c.fillStyle = coul;
+    c.beginPath();
+    for(i = 0; i <= n; i++){ p = pts[i]; if(i === 0) c.moveTo(p.x + p.w * a, p.y); else c.lineTo(p.x + p.w * a, p.y); }
+    for(i = n; i >= 0; i--){ p = pts[i]; c.lineTo(p.x + p.w * b, p.y); }
+    c.closePath(); c.fill();
   }
+  joue(0.16, 1.10, rgba(VJ.ecorceO, 0.42));
+  joue(0.52, 1.10, rgba(VJ.ecorceO, 0.30));
+  joue(-1.10, -0.70, "rgba(255,246,225,.14)");
   /* cannelures : leur nombre suit la largeur, sinon un gros tronc a
      l'air d'un petit tronc agrandi. Elles sont peu nombreuses et
      très discrètes — la première version en traçait deux fois plus
@@ -4996,14 +5071,31 @@ function jEcorce(c, pts, base, style, graine, mousse){
     }
   }
   if(style === 1){
-    /* fromager : écorce lisse, mais hérissée d'épines coniques */
-    c.fillStyle = rgba(VJ.paleO, 0.75);
-    for(k = 0; k < 26; k++){
+    /* Fromager : écorce lisse et pâle, hérissée d'épines coniques.
+       Première version : vingt-six épines tirées à ±0,82 de la
+       demi-largeur, donc toutes groupées au MILIEU du fût — de loin,
+       on voyait une colonne de béton avec des barreaux d'échelle.
+       Elles sont maintenant réparties sur toute la largeur, plus
+       petites et plus discrètes, et quatre longues nervures
+       verticales très douces suffisent à donner le galbe. */
+    for(k = 0; k < 34; k++){
       t = al(); p = pts[Math.floor(t * n)];
-      var sx = p.x + (al() * 2 - 1) * p.w * 0.82;
+      var sx = p.x + (al() * 2 - 1) * p.w * 1.02;
+      c.fillStyle = rgba(VJ.paleO, 0.32 + al() * 0.3);
       c.beginPath();
-      c.moveTo(sx - 1.4, p.y); c.lineTo(sx, p.y - 3.4); c.lineTo(sx + 1.4, p.y);
+      c.moveTo(sx - 1.1, p.y); c.lineTo(sx + (al() - 0.5), p.y - 2.6); c.lineTo(sx + 1.1, p.y);
       c.closePath(); c.fill();
+    }
+    for(k = 0; k < 4; k++){
+      var fx2 = (al() * 2 - 1) * 0.8;
+      c.strokeStyle = k % 2 ? "rgba(255,248,228,.07)" : rgba(VJ.paleO, 0.16);
+      c.lineWidth = 2 + al() * 4;
+      c.beginPath();
+      for(i = 0; i <= n; i += 3){
+        p = pts[i];
+        if(i === 0) c.moveTo(p.x + fx2 * p.w, p.y); else c.lineTo(p.x + fx2 * p.w, p.y);
+      }
+      c.stroke();
     }
   }
   if(style === 3){
@@ -5046,9 +5138,9 @@ function jEcorce(c, pts, base, style, graine, mousse){
    doit dire « ce tronc pèse quarante tonnes » sans encombrer la
    bande des troupes. D'où une arête extérieure très cambrée — point
    de contrôle à 0,24 de la largeur, hauteur plafonnée à 32 — qui
-   n'est encore qu'à un cinquième de son écart à −24 et n'atteint sa
-   largeur maximale qu'à ras de terre, là où elle ne cache que des
-   pieds. Mesuré : moins de 20 de demi-largeur dès −18.
+   n'atteint sa largeur maximale qu'à ras de terre, là où elle ne
+   cache que des pieds : elle est déjà revenue sous vingt unités
+   d'écart à −18, et sous dix à −24.
    `cote` vaut −1 (gauche) ou +1 (droite). */
 function jContrefort(c, cote, larg, haut, base, ombre){
   var x = cote * larg;
@@ -5121,7 +5213,7 @@ var ARBRES_J = [
      au-dessus d'eux. Contreforts énormes. */
   { h:330, wPied:21, wHaut:9.0, pen:-4, arc:5, ec:VJ.pale, style:1,
     tBr:0.70, nBr:6, larg:120, ep:58, cy:-26, nLobes:12, dens:54,
-    tv:0.08, contre:5, cLarg:36, cHaut:32, lianes:3, mousse:0, accent:0 },
+    tv:0.08, contre:5, cLarg:36, cHaut:32, lianes:3, mousse:1, accent:0 },
   /* 1 — LE FIGUIER ÉTRANGLEUR. Trapu, très sombre, tronc tressé de
      racines soudées, couronne dense et ronde qui descend bas, et
      un rideau de racines aériennes. La masse noire de la carte. */
@@ -5274,7 +5366,10 @@ function jCouronne(c, o){
    l'effilement et la fourche qui font la branche. */
 function jBranche(c, x0, y0, x1, y1, e0, coul, coulC){
   var mx = (x0 + x1) * 0.5, my = Math.min(y0, y1) - Math.abs(x1 - x0) * 0.12;
-  var n = 7, i, t, u, px, py, py2;
+  /* dix-huit disques et non sept : sur une charpentière de gros
+     arbre, e0 dépasse la douzaine d'unités et sept disques donnaient
+     une chenille au raccord avec le tronc */
+  var n = 18, i, t, u, px, py, py2;
   for(i = 0; i <= n; i++){
     t = i / n; u = 1 - t;
     px = u * u * x0 + 2 * u * t * mx + t * t * x1;
@@ -5447,15 +5542,23 @@ function dessineArbreJungle(c, v, s){
   if(v === 5){
     for(i = 0; i < 11; i++){
       p = pts[Math.round((0.10 + al() * 0.60) * (pts.length - 1))];
-      var mx = p.x + (al() < 0.5 ? -p.w : p.w);
-      c.fillStyle = i % 2 ? VJ.fruit : ecl(VJ.fruit, 0.78);
+      /* Une console de polypore, vue de trois quarts : un demi-disque
+         posé à plat, sa tranche sombre dessous et un liseré clair sur
+         l'arête. Inclinées, les premières versions faisaient des
+         balafres orange sur le tronc ; posées bien à l'horizontale,
+         elles se lisent tout de suite comme des champignons. */
+      var cote = al() < 0.5 ? -1 : 1;
+      var mx = p.x + cote * p.w * 0.75;
+      var mr = (5.5 + al() * 3.5) * s;
+      c.fillStyle = rgba("#1a1008", 0.55);
       c.beginPath();
-      c.ellipse(mx, p.y, 5.5 * s + al() * 3 * s, 2.2 * s, al() * 0.5 - 0.25, 3.1416, 6.2832);
-      c.fill();
-      c.fillStyle = rgba("#000", 0.3);
+      c.ellipse(mx + cote * mr * 0.35, p.y + 1.2 * s, mr, 1.7 * s, 0, 0, 3.1416); c.fill();
+      c.fillStyle = i % 2 ? VJ.fruit : ecl(VJ.fruit, 0.74);
       c.beginPath();
-      c.ellipse(mx, p.y + 0.6, 5 * s + al() * 3 * s, 1.2 * s, 0, 0, 3.1416);
-      c.fill();
+      c.ellipse(mx + cote * mr * 0.35, p.y, mr, 2.4 * s, 0, 3.1416, 6.2832); c.fill();
+      c.fillStyle = "rgba(255,226,160,.45)";
+      c.beginPath();
+      c.ellipse(mx + cote * mr * 0.35, p.y - 0.5 * s, mr * 0.72, 1.2 * s, 0, 3.1416, 6.2832); c.fill();
     }
     /* le grimpant colle au tronc : il ne déborde jamais de ±14 */
     for(i = 0; i < 26; i++){
@@ -5515,19 +5618,29 @@ function dessineLianeJungle(c, v, s){
   s = s || 1;
   var gr = 3301 + v * 641;
   var al = prng(gr), i, k;
-  var haut = -SJ_OY + 6;
+  /* Le point d'accroche n'est PAS le même pour tous les brins : au
+     ras du cadre pour tous, les quatre variantes alignaient leurs
+     départs sur une même ligne horizontale parfaitement droite, et
+     un semis de lianes dessinait une frise. */
+  var haut = -SJ_OY + 6 + v * 9;
 
   if(v === 0){
     /* rideau : cinq brins parallèles, longueurs très inégales.
        Égales, elles feraient un peigne. */
     for(i = 0; i < 5; i++){
       var x = (i - 2) * 13 * s + (al() - 0.5) * 8 * s;
+      var h0 = haut + al() * 46 * s;
       var bas = -70 * s - al() * 130 * s;
-      jCorde(c, x, haut, bas, (al() - 0.5) * 22 * s, 1.6 + al() * 1.4,
+      /* un moignon de branche au départ : sans lui la liane pend
+         du vide, et un semis de lianes ressemble à des fils
+         électriques tombés du ciel */
+      c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 3.4 * s; c.lineCap = "round";
+      c.beginPath(); c.moveTo(x - 9 * s, h0 - 2 * s); c.lineTo(x + 9 * s, h0); c.stroke();
+      jCorde(c, x, h0, bas, (al() - 0.5) * 22 * s, 1.6 + al() * 1.4,
              rgba(VJ.ecorceO, 0.85), vertJ(0.16 + al() * 0.12), al() < 0.5 ? 5 : 0);
       for(k = 0; k < 7; k++){
         var t = 0.15 + k * 0.12;
-        jFeuille(c, x + (al() - 0.5) * 18 * s, haut + (bas - haut) * t,
+        jFeuille(c, x + (al() - 0.5) * 18 * s, h0 + (bas - h0) * t,
                  8 * s, 3 * s, 0.2 + al() * 2.6, vertJ(0.26 + al() * 0.34));
       }
     }
@@ -5536,6 +5649,8 @@ function dessineLianeJungle(c, v, s){
        avec des feuilles cordiformes. C'est la plus « solide » —
        celle à laquelle on croirait pouvoir se pendre. */
     var bas1 = -62 * s;
+    c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 5 * s; c.lineCap = "round";
+    c.beginPath(); c.moveTo(-10 * s, haut - 3 * s); c.lineTo(16 * s, haut + 1 * s); c.stroke();
     var p = jCorde(c, 6 * s, haut, bas1, -34 * s, 4.2 * s,
                    rgba(VJ.ecorceO, 0.9), "#5a4630", 9 * s);
     for(i = 0; i < 12; i++){
@@ -5560,13 +5675,14 @@ function dessineLianeJungle(c, v, s){
        hachurage, presque une texture. */
     for(i = 0; i < 16; i++){
       var rx = (al() - 0.5) * 66 * s;
+      var rh = haut + al() * 60 * s;
       var rb = -78 * s - al() * 150 * s;
       c.strokeStyle = rgba(VJ.ecorceO, 0.55 + al() * 0.4);
       c.lineWidth = 0.8 + al() * 1.5 * s;
       c.lineCap = "round";
       c.beginPath();
-      c.moveTo(rx, haut);
-      c.quadraticCurveTo(rx + (al() - 0.5) * 10 * s, (haut + rb) * 0.5, rx + (al() - 0.5) * 14 * s, rb);
+      c.moveTo(rx, rh);
+      c.quadraticCurveTo(rx + (al() - 0.5) * 10 * s, (rh + rb) * 0.5, rx + (al() - 0.5) * 14 * s, rb);
       c.stroke();
     }
     for(i = 0; i < 5; i++){
@@ -5578,6 +5694,8 @@ function dessineLianeJungle(c, v, s){
     /* liane fleurie : la seule tache rouge qui tombe du ciel. Sur
        une carte entièrement verte, c'est un repère. */
     var bas3 = -66 * s;
+    c.strokeStyle = rgba(VJ.ecorceO, 0.9); c.lineWidth = 3.6 * s; c.lineCap = "round";
+    c.beginPath(); c.moveTo(-14 * s, haut - 2 * s); c.lineTo(8 * s, haut + 1 * s); c.stroke();
     jCorde(c, -4 * s, haut, bas3, 26 * s, 2.4 * s, rgba(VJ.ecorceO, 0.85), vertJ(0.2), 6 * s);
     for(i = 0; i < 15; i++){
       var t3 = 0.1 + i * 0.06;
@@ -5682,8 +5800,8 @@ function dessineBuissonJungle(c, v, s){
   s = s || 1;
   var gr = 7717 + v * 419;
   var al = prng(gr), i, k;
-  var HB = [58, 52, 44, 66][v] * s;
-  var LB = [30, 34, 40, 24][v] * s;
+  var HB = [58, 52, 44, 62][v] * s;
+  var LB = [30, 34, 40, 28][v] * s;
 
   c.save(); c.globalAlpha = 0.28; c.fillStyle = "#000";
   c.beginPath(); c.ellipse(0, 0, LB * 0.9, LB * 0.32, 0, 0, 6.2832); c.fill();
@@ -5702,7 +5820,7 @@ function dessineBuissonJungle(c, v, s){
 
   /* masse sombre en trois lobes, puis les feuilles par-dessus */
   var lobes = [];
-  var nl = [4, 5, 6, 3][v];
+  var nl = [4, 5, 6, 5][v];
   for(i = 0; i < nl; i++){
     var an = -3.1416 + i / (nl - 1) * 3.1416;
     lobes.push({
@@ -5958,6 +6076,15 @@ function dessineHauteHerbe(c, v, s){
   c.save(); c.globalAlpha = 0.24; c.fillStyle = "#000";
   c.beginPath(); c.ellipse(0, 0, 13 * s, 4.4 * s, 0, 0, 6.2832); c.fill();
   c.restore();
+  /* le cœur de la touffe : une masse basse et sombre. Sans elle, une
+     touffe n'est qu'un éventail de traits qui semblent plantés dans
+     le vide, et à trente touffes par écran ça se voit. */
+  for(i = 0; i < 7; i++){
+    c.fillStyle = vertJ(0.08 + i * 0.02);
+    c.beginPath();
+    c.ellipse((i - 3) * 3.4 * s, -2 * s - i % 3 * 2 * s, 5 * s, 4 * s, 0, 0, 6.2832);
+    c.fill();
+  }
 
   if(v === 0 || v === 1){
     /* touffes classiques : v0 serrée et dressée, v1 large et
@@ -5966,14 +6093,14 @@ function dessineHauteHerbe(c, v, s){
        éventail plat, et il en faut BEAUCOUP de brins : à vingt, on
        voit vingt brins ; à quarante, on voit de l'herbe. */
     var n = v ? 46 : 38;
-    var etal = v ? 22 : 11;
+    var etal = v ? 22 : 15;
     for(i = 0; i < n; i++){
       var t = i / (n - 1);
       var arriere = (i % 5) < 2;
       var dx = (t - 0.5) * 2 * etal * s * (0.6 + al() * 0.8);
       var h = ((v ? 40 : 44) + al() * (v ? 18 : 16)) * s * (arriere ? 0.76 : 1);
       jBrin(c, (al() - 0.5) * 5 * s, 0, h, dx, 1.5 * s + al() * 1.1 * s,
-            vertJ(arriere ? 0.06 + al() * 0.10 : 0.30 + al() * 0.48),
+            vertJ(arriere ? 0.16 + al() * 0.14 : 0.34 + al() * 0.46),
             dx * (v ? 0.6 : 0.25));
     }
   }else if(v === 2){
@@ -5996,7 +6123,7 @@ function dessineHauteHerbe(c, v, s){
     }
     for(i = 0; i < 18; i++)
       jBrin(c, (al() - 0.5) * 14 * s, 0, (18 + al() * 14) * s, (al() - 0.5) * 16 * s,
-            1.4 * s, vertJ(0.10 + al() * 0.44), 0);
+            1.4 * s, vertJ(0.18 + al() * 0.40), 0);
 
   }else if(v === 3){
     /* bambou nain : chaumes segmentés, feuilles par bouquets aux
@@ -6026,7 +6153,7 @@ function dessineHauteHerbe(c, v, s){
     for(i = 0; i < 40; i++){
       var dx2 = (al() - 0.5) * 30 * s;
       jBrin(c, dx2 * 0.3, 0, (26 + al() * 18) * s, dx2, 1.3 * s + al() * 0.9 * s,
-            vertJ((i % 4 < 2 ? 0.05 : 0.32) + al() * 0.42), dx2 * 0.4);
+            vertJ((i % 4 < 2 ? 0.15 : 0.34) + al() * 0.40), dx2 * 0.4);
     }
     for(i = 0; i < 9; i++){
       var ex = (al() - 0.5) * 22 * s;
@@ -6278,20 +6405,39 @@ function nouveauSpriteFlore(dessin, W, H, OX, OY, ECH){
   var c = cv.getContext("2d");
   c.setTransform(ECH, 0, 0, ECH, OX * ECH, OY * ECH);
   dessin(c);
-  /* détourage : on ne garde que ce qui a de l'alpha */
-  var d = c.getImageData(0, 0, cv.width, cv.height).data;
-  var x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1, x, y;
-  for(y = 0; y < cv.height; y++){
-    for(x = 0; x < cv.width; x++){
-      if(d[(y * cv.width + x) * 4 + 3] > 3){
-        if(x < x0) x0 = x;
-        if(x > x1) x1 = x;
-        if(y < y0) y0 = y;
-        if(y > y1) y1 = y;
-      }
+  /* Détourage : on ne garde que ce qui a de l'alpha.
+     On cherche les QUATRE BORDS SÉPARÉMENT, en s'arrêtant à la
+     première trace rencontrée sur chaque ligne ou chaque colonne, au
+     lieu de balayer les cinquante-six cadres entiers. La version
+     exhaustive lisait cinq millions et demi de pixels et pesait plus
+     lourd que tous les tracés réunis ; celle-ci n'en lit qu'une
+     frange. La banque n'est construite qu'une fois, mais elle l'est
+     pendant le chargement de la carte, à côté d'un construitSol qui
+     coûte déjà quatre dixièmes de seconde : c'est exactement le
+     moment où un dixième de plus se voit. */
+  var w = cv.width, h = cv.height;
+  var d = c.getImageData(0, 0, w, h).data;
+  var x0 = -1, y0 = -1, x1 = -1, y1 = -1, x, y, o, vu;
+  for(y = 0; y < h && y0 < 0; y++){
+    for(x = 0, o = y * w * 4 + 3; x < w; x++, o += 4) if(d[o] > 3){ y0 = y; break; }
+  }
+  if(y0 < 0){                                   // sprite vide : cadre minimal
+    x0 = 0; y0 = 0; x1 = 1; y1 = 1;
+  }else{
+    for(y = h - 1; y >= y0; y--){
+      vu = 0;
+      for(x = 0, o = y * w * 4 + 3; x < w; x++, o += 4) if(d[o] > 3){ vu = 1; break; }
+      if(vu){ y1 = y; break; }
+    }
+    for(x = 0; x < w && x0 < 0; x++){
+      for(y = y0, o = (y0 * w + x) * 4 + 3; y <= y1; y++, o += w * 4) if(d[o] > 3){ x0 = x; break; }
+    }
+    for(x = w - 1; x >= x0; x--){
+      vu = 0;
+      for(y = y0, o = (y0 * w + x) * 4 + 3; y <= y1; y++, o += w * 4) if(d[o] > 3){ vu = 1; break; }
+      if(vu){ x1 = x; break; }
     }
   }
-  if(x1 < x0){ x0 = 0; y0 = 0; x1 = 1; y1 = 1; }
   var cw = x1 - x0 + 1, ch = y1 - y0 + 1;
   var cv2 = nouveauCanvas(cw, ch);
   cv2.getContext("2d").drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);
@@ -6582,16 +6728,31 @@ function oeilFaune(c, x, y, r, ouv, blanc, reg){
    c'est deux fois le même défaut à corriger. (chatBoudin est une
    déclaration de fonction : elle est hissée au niveau du script
    assemblé, donc disponible ici bien que 72- vienne après 34-.) */
+/* Combien de disques pour un boudin long de « l » dont le rayon le plus
+   fin vaut « e » ?
+   Deux corrections, l'une de dessin, l'autre de charge.
+   — De dessin : un compte FIXE ne marche pas. Réglé à sept comme les
+     pattes de chat, un bras de singe de treize unités sortait en
+     chapelet de perles, les disques ne se recouvrant plus. Il faut
+     donc partir de la longueur.
+   — De charge : au banc, sur la carte jungle, soixante-douze bêtes à
+     l'écran coûtaient 4,4 ms par image, et l'essentiel partait dans
+     ces disques. Or à z = 0,55 un singe ne fait plus quatorze pixels
+     de haut : l'espacement qu'il faut pour que le boudin paraisse
+     plein n'est plus le même. On desserre donc quand la caméra
+     recule — le trou entre deux disques reste alors sous le pixel,
+     et la moitié des tracés disparaît. */
+function fauneDisques(l, e){
+  var z = (typeof cam !== "undefined" && cam && cam.z) ? cam.z : 1;
+  var d = 1.1 + Math.max(0, 0.85 - z) * 2.2;
+  if(d > 2.0) d = 2.0;
+  var n = Math.round(l / Math.max(0.35, e * d));
+  return Math.max(4, Math.min(22, n));
+}
 function membreFaune(c, x0, y0, cx, cy, x1, y1, e0, e1, coul, main, rm){
-  /* Le nombre de disques se déduit de la LONGUEUR. Fixé à sept comme
-     pour les pattes de chat, un bras de singe de treize unités sortait
-     en chapelet de perles : les disques ne se recouvraient plus. On
-     espace donc d'un peu moins d'un rayon, et on plafonne à vingt-deux
-     pour qu'un membre très long ne coûte pas un tir de mitraillette. */
   var l = Math.hypot(x1 - x0, y1 - y0) + Math.hypot(cx - x0, cy - y0) * 0.35;
-  var n = Math.round(l / Math.max(0.35, Math.min(e0, e1) * 0.8));
   chatBoudin(c, [[x0, y0, cx, cy, x1, y1]],
-             { n:Math.max(5, Math.min(22, n)), e0:e0, e1:e1, coul:coul });
+             { n:fauneDisques(l, Math.min(e0, e1)), e0:e0, e1:e1, coul:coul });
   if(main){
     c.fillStyle = main;
     c.beginPath(); c.ellipse(x1, y1 + 0.15, rm, rm * 0.74, 0, 0, 6.2832); c.fill();
@@ -6658,9 +6819,6 @@ function dessineSinge(c, k, tps){
   var saut = fuit ? bond * 3.2 : bond * 0.7;
   var d = fuit ? -1.7 : Math.sin(pas) * 0.5;
   var ec = Math.sin(pas) * (fuit ? 5.2 : 3.0);
-  /* Le sursaut écrase la bête vers le sol. C'est un réflexe, pas une
-     décision : il vient avant même que le singe décide de partir. */
-  var tapi = sur * 2.6;
   var alerte = fuit || sur > 0.15;
   var ouv = alerte ? 1 : fauneClin(tps, ph, 3.6);
   var lacet = fuit ? -0.30 : (sur > 0.15 ? 0.24 : Math.sin(tps * 0.63 + ph * 1.7) * 0.34);
@@ -6672,8 +6830,13 @@ function dessineSinge(c, k, tps){
   ombreFaune(c, 0.8, 9.2, 3.2, bond, 0.26);
 
   c.save();
-  c.translate(0, -saut + tapi);
+  c.translate(0, -saut);
   c.rotate(fuit ? 0.06 : Math.sin(tps * 1.1 + ph) * 0.026);
+  /* Le sursaut ÉCRASE la bête : c'est un réflexe, il arrive avant même
+     que le singe décide de partir. Écraser, et non descendre — la
+     première version translatait tout le dessin vers le bas et les
+     quatre pieds passaient sous le sol. */
+  if(sur > 0) c.scale(1 + sur * 0.07, 1 - sur * 0.16);
 
   /* ---- la queue, derrière tout le reste ----
      Au repos elle s'enroule très haut : c'est le signal de silhouette.
@@ -6687,9 +6850,11 @@ function dessineSinge(c, k, tps){
     : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4],
        [-13.2 + onde * 0.6, -18.4, -13.8 + onde * 1.0, -23.4, -8.2 + onde * 1.3, -24.2],
        [-8.2 + onde * 1.3, -24.2, -4.6 + onde * 1.5, -24.6, -5.4 + onde * 1.6, -21.2]];
-  /* Vingt-six disques et pas quatorze : à quatorze, sur un tracé de
-     trente-cinq unités, la queue sortait en collier de perles. */
-  chatBoudin(c, q, { n:26, e0:1.7, e1:0.8, coul:P.flanc, bout:P.cape, tBout:0.84 });
+  /* Le compte de disques est calculé, pas écrit : posé à quatorze sur
+     un tracé de trente-cinq unités, la queue sortait en collier de
+     perles. */
+  chatBoudin(c, q, { n:fauneDisques(34, 0.8), e0:1.7, e1:0.8,
+                     coul:P.flanc, bout:P.cape, tBout:0.84 });
 
   /* ---- membres du fond : plus sombres, ils reculent ---- */
   membreFaune(c, -4.6, -9.8, -6.4, -5.2, -5.4 - ec, -1.0, 1.85, 1.15, P.ventreO, P.main, 1.6);
@@ -6751,7 +6916,7 @@ function dessineSinge(c, k, tps){
 
   /* le cou : sans lui, la tête flottait au-dessus du garrot */
   chatBoudin(c, [[6.6, -13.4, 8.6, -15.0, 10.2, -16.2]],
-             { n:7, e0:1.9, e1:1.7, coul:P.flanc });
+             { n:fauneDisques(4.6, 1.7), e0:1.9, e1:1.7, coul:P.flanc });
 
   /* ---- LA TÊTE. Relevée, tournée aux trois quarts, et volontairement
      trop grosse : c'est le rapport tête/corps qui fait le singe. ---- */
@@ -7000,6 +7165,23 @@ function panda_bambou(c, x, y, rot, lon, bal){
   c.restore();
 }
 
+/* Le corps assis : une poire posée sur ses fesses, le ventre en avant.
+   Sorti en fonction parce qu'il sert DEUX fois — au remplissage, puis
+   à l'écrêtage du baudrier noir. Recopié à la main aux deux endroits,
+   il aurait suffi de corriger une seule des deux copies pour que le
+   noir des épaules déborde du dos. */
+function pandaAssisCorps(c, resp){
+  c.beginPath();
+  c.moveTo(-9.4, -1.4);
+  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);   /* dos */
+  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);    /* épaules */
+  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp); /* poitrail qui respire */
+  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);       /* ventre */
+  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
+  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
+  c.closePath();
+}
+
 /* ---- PANDA ASSIS : la scène qui mange -------------------------- */
 function panda_assis(c, k, tps, sur, alerte, fuit){
   var P = PAL_PANDA;
@@ -7018,20 +7200,19 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
      lui et rentre la tête. Un panda assis qu'on effraie reste assis :
      c'est précisément ce qui le rend drôle. */
   var serre = alerte ? 1 : 0;
-  var tapi = sur * 1.8 + (fuit ? 1.2 : 0);
+  var tasse = sur * 0.15 + (fuit ? 0.06 : 0);
 
   ombreFaune(c, 1.4, 13.0, 4.4, 0, 0.3);
 
   c.save();
-  c.translate(0, tapi);
+  if(tasse > 0) c.scale(1 + tasse * 0.4, 1 - tasse);
 
   /* ---- patte arrière du fond, allongée vers l'avant ---- */
   c.fillStyle = P.noirO;
   c.beginPath(); c.ellipse(4.0, -3.4, 6.4, 3.1, -0.10, 0, 6.2832); c.fill();
 
-  /* ---- le corps : une poire posée sur ses fesses, le ventre en
-     avant. Il respire — le poitrail se soulève, et c'est à peu près la
-     seule chose qui bouge chez un panda qui ne mâche pas. ---- */
+  /* ---- le corps. Il respire — le poitrail se soulève, et c'est à peu
+     près la seule chose qui bouge chez un panda qui ne mâche pas. ---- */
   c.fillStyle = degCache(c, "pandaAssis", function(){
     var g = c.createLinearGradient(0, -21, 0, -1);
     g.addColorStop(0, PAL_PANDA.blancC);
@@ -7039,37 +7220,26 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
     g.addColorStop(1, PAL_PANDA.blancO);
     return g;
   });
-  c.beginPath();
-  c.moveTo(-9.4, -1.4);
-  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);
-  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);
-  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp);
-  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);
-  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
-  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
-  c.closePath(); c.fill();
+  pandaAssisCorps(c, resp); c.fill();
 
-  /* ---- patte arrière proche, plante de pied tournée vers nous. La
-     plante claire est un détail gratuit qui rapporte beaucoup : c'est
-     ce qu'on voit d'un panda assis sur toutes les photos. ---- */
-  c.fillStyle = P.noir;
-  c.beginPath(); c.ellipse(6.8, -2.9, 7.0, 3.5, -0.14, 0, 6.2832); c.fill();
+  /* ---- patte arrière proche, plante de pied tournée vers nous : c'est
+     ce qu'on voit d'un panda assis sur toutes les photos, et ça ne
+     coûte rien. Elle est à peine plus claire que la patte, avec trois
+     coussinets. Peinte en gris franc, elle faisait une boule de
+     billard collée au bout de la jambe. ---- */
   c.fillStyle = P.noirC;
-  c.beginPath(); c.ellipse(12.0, -3.8, 2.5, 3.0, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(255,255,255,.10)";
-  c.beginPath(); c.ellipse(12.2, -4.2, 1.5, 1.9, -0.18, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(12.0, -3.8, 2.3, 2.8, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(206,198,214,.30)";
+  c.beginPath(); c.ellipse(12.2, -4.4, 1.1, 1.3, -0.18, 0, 6.2832); c.fill();
+  for(var o = 0; o < 3; o++){
+    c.beginPath();
+    c.ellipse(11.6 + o * 0.55, -2.0 - o * 1.15, 0.52, 0.42, -0.18, 0, 6.2832);
+    c.fill();
+  }
 
   /* ---- le baudrier noir des épaules, écrêté par le corps ---- */
   c.save();
-  c.beginPath();
-  c.moveTo(-9.4, -1.4);
-  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);
-  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);
-  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp);
-  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);
-  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
-  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
-  c.closePath(); c.clip();
+  pandaAssisCorps(c, resp); c.clip();
   c.fillStyle = P.noir;
   c.beginPath();
   c.moveTo(-11.0, -15.0);
@@ -7105,7 +7275,10 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
 
   /* ---- la tête, penchée sur la canne ---- */
   c.save();
-  c.translate(4.4 + serre * 0.4, -22.4 + mach * 0.5 + serre * 1.2);
+  /* Un demi-point plus bas que ce que la géométrie voulait : assis, il
+     dépassait le panda debout, et deux pandas côte à côte n'avaient
+     plus l'air de la même espèce. */
+  c.translate(4.4 + serre * 0.4, -21.8 + mach * 0.5 + serre * 1.2);
   c.rotate(0.14 + mach * 0.05 + serre * 0.12);
   panda_tete(c, lacet, ouv, mach, serre, 0);
   c.restore();
@@ -7123,7 +7296,6 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   var ec = Math.sin(pas) * (fuit ? 6.4 : 3.4);
   var ouv = alerte ? 1 : fauneClin(tps, ph, 4.4);
   var lacet = fuit ? -0.26 : Math.sin(tps * 0.44 + ph * 1.5) * 0.26;
-  var tapi = sur * 2.4;
   /* Le dandinement : un panda ne marche pas droit, il roule d'une
      épaule sur l'autre. C'est cette bascule, plus que le pas, qui donne
      le poids de la bête. */
@@ -7132,8 +7304,9 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   ombreFaune(c, 0.4, 13.6, 4.6, bond, 0.3);
 
   c.save();
-  c.translate(0, -saut + tapi);
+  c.translate(0, -saut);
   c.rotate(roule);
+  if(sur > 0) c.scale(1 + sur * 0.06, 1 - sur * 0.15);
 
   /* pattes du fond */
   membreFaune(c, -7.6, -11.0, -9.4, -6.0, -8.2 - ec, -1.2, 2.8, 1.9, P.noirO, P.noirO, 2.4);
@@ -7264,13 +7437,12 @@ function dessineKoala(c, k, tps){
   if(!alerte && fauneClin(tps, ph + 1.7, 5.2) < 0.5) ouv = 0.2;
   var lacet = alerte ? -0.2 : Math.sin(tps * 0.36 + ph * 1.1) * 0.3;
   var tremble = fuit ? Math.sin(tps * 13 + ph) * 0.5 : 0;
-  var tapi = sur * 1.4;
 
   ombreFaune(c, 0.4, 8.0, 3.0, 0, 0.28);
 
   c.save();
-  c.translate(0, tapi);
   c.rotate((fuit ? -0.1 : 0) + Math.sin(tps * 0.95 + ph) * 0.014);
+  if(sur > 0) c.scale(1 + sur * 0.07, 1 - sur * 0.14);
 
   /* patte arrière du fond, puis la proche par-dessus le ventre */
   membreFaune(c, -3.2, -8.0 - dresse * 3.4, -5.4, -4.6, -4.0, -0.8, 2.0, 1.6, P.ombre, P.griffe, 1.8);
@@ -7299,8 +7471,11 @@ function dessineKoala(c, k, tps){
   /* les deux bras. Assis, ils se croisent sur le ventre ; dressé, ils
      partent chercher une branche au-dessus de la tête. */
   if(dresse){
-    membreFaune(c, -2.0, -16.0, -4.6, -22.0, -5.6 + tremble, -27.4, 1.9, 1.4, P.ombre, P.griffe, 1.6);
-    membreFaune(c, 4.4, -16.6, 7.0, -22.6, 6.4 + tremble, -28.2, 2.0, 1.5, P.flanc, P.griffe, 1.7);
+    /* Ils montent PLUS HAUT que les oreilles. Arrêtés à hauteur de
+       crâne, les deux bras disparaissaient derrière la tête et le
+       koala paniqué avait simplement l'air assis un peu plus droit. */
+    membreFaune(c, -2.2, -16.0, -6.4, -23.0, -8.2 + tremble, -30.4, 2.1, 1.6, P.ombre, P.griffe, 1.8);
+    membreFaune(c, 4.6, -16.6, 9.2, -23.6, 10.4 + tremble, -31.2, 2.2, 1.7, P.flanc, P.griffe, 1.9);
   }else{
     membreFaune(c, -1.6, -10.0, -1.0, -5.6, 3.0, -4.4, 1.9, 1.5, P.ombre, P.griffe, 1.6);
     membreFaune(c, 5.4, -10.6, 5.4, -5.8, 1.2, -4.0, 2.0, 1.6, P.flanc, P.griffe, 1.7);
@@ -7316,7 +7491,9 @@ function dessineKoala(c, k, tps){
   c.translate(2.6, -15.8 - dresse * 6.2);
   c.rotate((alerte ? -0.14 : Math.sin(tps * 0.36 + ph * 1.1) * 0.07) + tremble * 0.03);
 
-  /* les deux oreilles, plus larges que le crâne n'est haut */
+  /* Les deux oreilles, presque aussi larges à elles seules que le crâne
+     est haut. C'est le premier des deux signaux du koala — le second
+     est le nez — et le seul des deux qui tienne en ombre chinoise. */
   koala_oreille(c, -3.8 + (alerte ? 0.9 : 0), -2.2 + (alerte ? 1.0 : 0),
                 3.5, P.flanc, P.touffeO, -0.5);
   koala_oreille(c, 7.0 - (alerte ? 0.8 : 0), -1.6 + (alerte ? 1.0 : 0),
@@ -7443,31 +7620,33 @@ function corpsBourdon(c, tps, ph, pique){
     c.stroke();
   }
 
-  /* Abdomen : trois bandes, dont deux jaunes bien larges, et un bout
-     blanc. C'est le rythme noir-jaune-noir-jaune-blanc qui dit
-     « bourdon » plutôt que « grosse mouche ». */
-  c.fillStyle = P.noir;
-  c.beginPath(); c.ellipse(-3.4, 0.2, 4.9, 3.6, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = P.poil;
-  c.beginPath(); c.ellipse(-2.4, -0.2, 2.0, 3.3, -0.18, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(-5.6, 0.5, 1.4, 2.7, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = P.bout;
-  c.beginPath(); c.ellipse(-7.6, 1.0, 1.2, 1.9, -0.18, 0, 6.2832); c.fill();
-
   /* Thorax : la grosse boule de poil. Le halo pâle autour est le poil
      lui-même — sans lui, le bourdon est lisse, donc ce n'est plus un
-     bourdon. */
+     bourdon. Il est dessiné AVANT l'abdomen, contre l'anatomie, et
+     c'est voulu : l'abdomen noir vient alors mordre dessus et découpe
+     la TAILLE. Dans l'autre sens, le halo jaune du thorax touchait la
+     bande jaune de l'abdomen et il ne restait qu'une grosse tache
+     jaune — soit une abeille, soit rien du tout. */
   c.fillStyle = "rgba(246,201,46,.34)";
-  c.beginPath(); c.arc(1.4, -0.9, 4.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(1.6, -0.9, 4.2, 0, 6.2832); c.fill();
   c.fillStyle = P.poil;
-  c.beginPath(); c.arc(1.4, -0.9, 3.4, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(1.6, -0.9, 3.4, 0, 6.2832); c.fill();
   c.fillStyle = P.poilO;
-  c.beginPath(); c.ellipse(1.0, 0.9, 3.0, 1.5, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(1.2, 0.9, 3.0, 1.5, 0, 0, 6.2832); c.fill();
+
+  /* Abdomen : noir, une bande jaune large, un bout blanc. C'est le
+     rythme blanc-noir-jaune-noir-jaune qui dit « bourdon ». */
+  c.fillStyle = P.noir;
+  c.beginPath(); c.ellipse(-4.3, 0.3, 4.9, 3.5, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = P.poil;
+  c.beginPath(); c.ellipse(-4.1, -0.1, 1.9, 3.1, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = P.bout;
+  c.beginPath(); c.ellipse(-8.0, 1.1, 1.3, 1.9, -0.18, 0, 6.2832); c.fill();
 
   /* Tête et DEUX yeux — oui, même sur un insecte : c'est ce qui fait la
      différence entre une bestiole et une tache qui passe. */
   c.fillStyle = P.noirC;
-  c.beginPath(); c.ellipse(5.4, -1.4, 2.5, 2.3, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(5.6, -1.4, 2.5, 2.3, 0, 0, 6.2832); c.fill();
   c.fillStyle = P.oeil;
   c.beginPath(); c.ellipse(6.4, -2.0, 1.15, 1.35, 0.2, 0, 6.2832); c.fill();
   c.beginPath(); c.ellipse(4.4, -2.4, 0.85, 1.05, 0.2, 0, 6.2832); c.fill();
@@ -7477,6 +7656,7 @@ function corpsBourdon(c, tps, ph, pique){
   /* antennes coudées */
   c.strokeStyle = P.noir; c.lineWidth = 0.6;
   c.beginPath(); c.moveTo(6.0, -3.4); c.quadraticCurveTo(8.0, -5.0, 9.4, -4.2); c.stroke();
+  c.beginPath(); c.moveTo(-9.0, 1.8); c.lineTo(-10.8, 2.6); c.stroke();
   c.beginPath(); c.moveTo(4.6, -3.7); c.quadraticCurveTo(6.4, -5.8, 8.0, -5.6); c.stroke();
 }
 function dessineBourdon(c, k, tps){
@@ -7546,7 +7726,7 @@ function corpsPapillon(c, tps, ph, n){
   c.translate(0, -lev * 0.6);
   c.scale(-o * 0.82, 1);
   c.fillStyle = P.bas;
-  papillon_aile(c, 7.4, 4.6, 0);
+  papillon_aile(c, 7.6, 5.0, 0);
   /* même liseré sombre que devant : sans lui l'aile du fond n'était
      qu'une flaque bleue sans forme derrière le corps */
   c.strokeStyle = P.bord; c.lineWidth = 0.7 / Math.max(0.3, o * 0.82);
@@ -7572,7 +7752,7 @@ function corpsPapillon(c, tps, ph, n){
   c.translate(0, -lev);
   c.scale(o, 1);
   c.fillStyle = P.haut;
-  papillon_aile(c, 7.8, 4.9, P.tache);
+  papillon_aile(c, 8.0, 5.3, P.tache);
   /* le liseré sombre du bord d'aile, repassé au trait : c'est lui qui
      tient la forme quand les ailes se referment et qu'il ne reste
      qu'une ligne */
@@ -7627,20 +7807,20 @@ function corpsLuciole(c, feu){
      Personne ne verra ce détail au zoom de jeu, et c'est très bien —
      il est là pour le moment où le joueur monte à z = 1,7. */
   c.fillStyle = P.elytre;
-  c.beginPath(); c.ellipse(-0.5, 0, 3.1, 1.65, -0.05, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(-0.5, 0, 3.4, 1.9, -0.05, 0, 6.2832); c.fill();
   c.strokeStyle = "rgba(18,14,10,.6)"; c.lineWidth = 0.3;
   c.beginPath(); c.moveTo(-3.3, -0.15); c.lineTo(1.4, 0.15); c.stroke();
   c.fillStyle = P.corselet;
-  c.beginPath(); c.ellipse(1.9, -0.35, 1.45, 1.25, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(2.0, -0.45, 1.55, 1.4, 0, 0, 6.2832); c.fill();
   c.fillStyle = P.corps;
   c.beginPath(); c.ellipse(2.9, -0.5, 0.75, 0.65, 0, 0, 6.2832); c.fill();
   c.beginPath(); c.arc(1.7, -0.55, 0.36, 0, 6.2832); c.fill();
   /* La lanterne, au bout de l'abdomen. Elle est OPAQUE : posée en
      translucide sur le corps sombre, elle virait au gris verdâtre et la
      luciole avait l'air éteinte au moment même où elle s'allume. */
-  c.fillStyle = feu > 0.5 ? "#f6ffe0" : "#cfe89a";
-  c.globalAlpha = 0.45 + feu * 0.55;
-  c.beginPath(); c.ellipse(-3.0, 0.4, 1.35 + feu * 0.45, 1.05 + feu * 0.35, 0, 0, 6.2832); c.fill();
+  c.fillStyle = feu > 0.5 ? "#fbffee" : "#dcf0ab";
+  c.globalAlpha = 0.55 + feu * 0.45;
+  c.beginPath(); c.ellipse(-3.2, 0.5, 1.5 + feu * 0.5, 1.2 + feu * 0.4, 0, 0, 6.2832); c.fill();
   c.globalAlpha = 1;
 }
 function dessineLuciole(c, k, tps){
@@ -7670,7 +7850,7 @@ function dessineLuciole(c, k, tps){
   /* Le point dur PAR-DESSUS le corps : c'est lui qui fait le grain de
      lumière. Dessiné avant, il passait sous l'abdomen et la luciole
      n'était qu'une tache verte molle. */
-  lueurRapide(c, x - 2.9, y + 0.4, 3.8 + feu * 2.4, PAL_LUCIOLE.coeur, 0.26 + feu * 0.62);
+  lueurRapide(c, x - 2.9, y + 0.4, 4.2 + feu * 2.6, PAL_LUCIOLE.coeur, 0.32 + feu * 0.68);
 }
 
 /* ===== 36-jungle-meteo.js ===== */
@@ -7680,7 +7860,7 @@ function dessineLuciole(c, k, tps){
    trente secondes. Quarante éclairs dans une partie de vingt minutes :
    c'est ce chiffre-là qui commande tout le fichier. Un effet qu'on
    subit quarante fois n'a pas le droit d'agresser, si spectaculaire
-   soit-il. D'où les trois règles que rien ne peut renégocier ici :
+   soit-il. D'où trois règles que rien ne renégocie ici :
 
      1. le voile plein écran de l'éclair plafonne à 0,32 d'alpha et
         il est retombé sous 0,02 en 140 ms ;
@@ -7694,8 +7874,8 @@ function dessineLuciole(c, k, tps){
 
      dessineCielOrage    la LUMIÈRE de la carte : teinte verte
                          d'orage, flaques de clarté et d'ombre qui
-                         dérivent avec les nuages, vignette, et les
-                         lueurs de roulement derrière les nuages.
+                         dérivent avec les nuages, vignette, lueurs
+                         des roulements derrière la couche de nuages.
                          C'est elle qui rend l'île belle au dézoom,
                          quand plus aucun détail ne porte.
      dessineBrumeSol     une haleine pâle collée au sol, ancrée au
@@ -7707,10 +7887,26 @@ function dessineLuciole(c, k, tps){
                          blanchit, l'éclair descend, il frappe,
                          il fume.
 
-   TOUT EST PRÉ-RENDU. Aucun createRadialGradient, aucun
-   createPattern dans une fonction appelée par image : les tuiles,
-   les disques et les voiles sont construits à la première image et
-   ne le sont plus jamais.
+   ----------------------------------------------------------------
+   CE QUI DICTE TOUTE L'ARCHITECTURE DU FICHIER : LE FILTRAGE.
+   Trois nappes plein écran à chaque image, c'est le poste le plus
+   dangereux de la carte. Mesuré au banc, canevas de 1500×900 :
+
+     motif tuilé, décalage ENTIER, sans mise à l'échelle   0,34 ms
+     fillRect plein écran en rgba                          0,39 ms
+     drawImage 1:1 d'un canevas plein écran                0,47 ms
+     drawImage 1:1 + globalAlpha                           0,96 ms
+     12 sprites doux de 380 px, lissage COUPÉ              0,99 ms
+     drawImage ÉTIRÉ plein écran (lissage actif)           4,25 ms
+     motif tuilé AVEC un scale                             4,86 ms
+     12 sprites doux de 380 px, lissage ACTIF              5,16 ms
+
+   Autrement dit : dès qu'un pixel source ne tombe pas exactement sur
+   un pixel de destination, le prix est multiplié par DIX. Toutes les
+   nappes de ce fichier sont donc peintes en pixels d'écran RÉELS,
+   avec un décalage ARRONDI À L'ENTIER et jamais de scale ; la
+   variation d'échelle avec le zoom passe par des TUILES pré-rendues
+   à plusieurs tailles, pas par un scale au moment de peindre.
    ================================================================ */
 
 /* ---------------------------------------------------------------
@@ -7721,25 +7917,26 @@ function dessineLuciole(c, k, tps){
    bleu de la carte — c'est ce qui le rend étranger et violent sans
    avoir besoin d'être fort.
    --------------------------------------------------------------- */
-var MET_PLUIE  = "186,216,208";     // pluie : pâle, verte, jamais blanche
-var MET_BRUME  = "172,200,188";
+var MET_PLUIE  = "206,234,226";     // pluie : pâle, verte, jamais blanche
+var MET_BRUME  = "158,186,172";     // la brume d'orage est GRISE-verte, pas laiteuse
 var MET_OMBRE  = "4,16,13";         // l'ombre des nuages
-var MET_CLARTE = "152,208,150";     // la trouée de lumière tropicale
+var MET_CLARTE = "168,220,148";     // la trouée de lumière tropicale
 var MET_FLASH  = "204,224,255";     // le voile d'écran de l'éclair
 var MET_E_HALO = "58,110,214";
 var MET_E_BLEU = "146,188,255";
 var MET_E_PALE = "216,234,255";
 var MET_E_VIF  = "255,255,255";
 var MET_ETINC  = "255,208,146";     // les étincelles refroidissent en orange
-var MET_FUMEE  = "126,134,124";
+var MET_BRAISE = "255,150,64";      // la terre reste chaude sous la fumée
+var MET_FUMEE  = "196,206,198";     // pâle : une fumée sombre disparaît sur la jungle
 
 /* ---------------------------------------------------------------
    LE VENT
    Une seule fonction, et tout ce qui bouge s'y accroche : la pluie,
    la brume, les nuages. C'est ce partage qui fait que la carte
-   respire ENSEMBLE au lieu d'empiler trois animations étrangères
-   les unes aux autres. Deux rafales de périodes premières entre
-   elles : le motif ne se répète jamais à l'œil.
+   respire ENSEMBLE au lieu d'empiler trois animations étrangères les
+   unes aux autres. Deux rafales de périodes premières entre elles :
+   le motif ne se répète jamais à l'œil.
    --------------------------------------------------------------- */
 function ventJungle(tps){
   return 0.27 + 0.15 * Math.sin(tps * 0.21) + 0.09 * Math.sin(tps * 0.53 + 1.7);
@@ -7749,9 +7946,9 @@ function ventJungle(tps){
    LES PRÉ-RENDUS
    ================================================================ */
 
-/* Disque à bord fondu, une copie par teinte. lueurRapide fait déjà
-   ça pour l'additif ; ici on a besoin du même outil en source-over,
-   pour ASSOMBRIR — une ombre de nuage n'est pas une lumière. */
+/* Disque à bord fondu, une copie par teinte. lueurRapide fait déjà ça
+   pour l'additif ; ici on a besoin du même outil en source-over, pour
+   ASSOMBRIR — une ombre de nuage n'est pas une lumière. */
 var metDisques = {};
 function disqueMeteo(coul){
   var s = metDisques[coul];
@@ -7773,8 +7970,9 @@ function disqueMeteo(coul){
    que ce qui déborde d'un bord rentre par l'autre. C'est ce qui
    permet de couvrir tout l'écran d'UN SEUL fillRect au lieu de
    cinquante drawImage.
-   « clair » mélange des taches pâles aux taches sombres : la même
-   passe donne alors les zones éclairées ET les zones d'ombre. */
+   « coulClaire » mélange des taches pâles aux taches sombres : la
+   même passe donne alors les zones ÉCLAIRÉES et les zones d'ombre.
+   Une seconde passe additive aurait doublé le prix pour rien. */
 function tuileTaches(T, n, coulSombre, coulClaire, opaS, opaC, fond, graine){
   var cv = nouveauCanvas(T, T);
   var g = cv.getContext("2d");
@@ -7793,84 +7991,139 @@ function tuileTaches(T, n, coulSombre, coulClaire, opaS, opaC, fond, graine){
   return cv;
 }
 
-/* La tuile des nuages porte AUSSI la teinte de fond de l'orage. Une
-   passe de moins à l'écran : le voile vert et les taches de lumière
-   arrivent ensemble. */
-var metMotifNuages = null;
-function motifNuages(c){
-  if(metMotifNuages) return metMotifNuages;
-  metMotifNuages = c.createPattern(
-    tuileTaches(256, 26, MET_OMBRE, MET_CLARTE, 0.20, 0.085,
-                "rgba(9,32,27,0.17)", 0x51A9E1), "repeat");
-  return metMotifNuages;
-}
-/* La brume, elle, n'a pas de fond : elle doit rester une respiration,
-   pas un voile. Des taches très pâles et très transparentes. */
-var metMotifBrume = null;
-function motifBrume(c){
-  if(metMotifBrume) return metMotifBrume;
-  metMotifBrume = c.createPattern(
-    tuileTaches(256, 20, MET_BRUME, null, 0.085, 0, null, 0x2C77B3), "repeat");
-  return metMotifBrume;
+/* Les nuages portent AUSSI la teinte de fond de l'orage : une passe
+   de moins à l'écran, le voile vert et les taches arrivent ensemble.
+   La brume, elle, n'a pas de fond — elle doit rester une respiration,
+   pas un voile de plus. */
+var MET_TEXTURES = {
+  /* Les ombres pèsent trois fois les trouées de lumière. C'est
+     volontaire : ce qu'on cherche n'est pas d'éclairer la carte —
+     elle l'est déjà — mais de creuser des zones SOMBRES entre
+     lesquelles le reste passe pour de la lumière. Le premier réglage
+     mettait les deux à égalité et rendait une jungle laiteuse et
+     plate, sans un seul noir. */
+  nuages:{ n:26, sombre:MET_OMBRE, claire:MET_CLARTE, opaS:0.30, opaC:0.075,
+           fond:"rgba(7,26,22,0.21)", graine:0x51A9E1 },
+  brume: { n:20, sombre:MET_BRUME, claire:null,       opaS:0.055, opaC:0,
+           fond:null,                graine:0x2C77B3 }
+};
+
+/* Les tuiles sont pré-rendues en PUISSANCES DE DEUX, et une seule
+   maîtresse par texture est peinte à la main : les autres tailles en
+   sont tirées par un unique agrandissement, une fois pour toutes. Le
+   zoom choisit sa taille — on ne met jamais de scale à l'écran. */
+var metTuiles = {};
+function motifMeteo(c, nom, T){
+  var cle = nom + T;
+  var m = metTuiles[cle];
+  if(m) return m;
+  var d = MET_TEXTURES[nom];
+  var maitresse = metTuiles[nom + "@"];
+  if(!maitresse){
+    maitresse = tuileTaches(256, d.n, d.sombre, d.claire, d.opaS, d.opaC, d.fond, d.graine);
+    metTuiles[nom + "@"] = maitresse;
+  }
+  var src = maitresse;
+  if(T !== 256){
+    src = nouveauCanvas(T, T);
+    src.getContext("2d").drawImage(maitresse, 0, 0, T, T);
+  }
+  m = c.createPattern(src, "repeat");
+  metTuiles[cle] = m;
+  return m;
 }
 
-/* La vignette de l'orage : les bords de l'écran s'enfoncent. Peinte
-   sur 128×80 puis étirée — c'est un dégradé, l'agrandissement ne se
-   voit pas, et on économise 99 % de la surface au moment de la
-   construire. */
-var metVignette = null;
-function vignetteOrage(){
-  if(metVignette) return metVignette;
-  var w = 128, h = 80;
-  metVignette = nouveauCanvas(w, h);
-  var g = metVignette.getContext("2d");
-  var gr = g.createRadialGradient(w / 2, h * 0.54, h * 0.16, w / 2, h * 0.54, h * 0.92);
+/* La taille de tuile qui convient au zoom courant, arrondie à la
+   puissance de deux la plus proche. L'arrondi n'est pas une
+   coquetterie : il borne à quatre le nombre de tuiles construites
+   dans une partie, et il évite qu'un pincement continu n'en
+   fabrique une nouvelle à chaque image. */
+function tailleTuile(cible){
+  return borne(128 << Math.round(Math.log(cible / 128) / Math.LN2), 128, 1024);
+}
+
+/* PEINDRE UNE NAPPE PLEIN ÉCRAN — le cœur de la performance de ce
+   fichier. On sort du repère du rendu pour travailler en pixels
+   d'écran RÉELS : c'est le seul moyen de garantir que le décalage
+   reste entier quelle que soit la définition choisie par le
+   gouverneur (dpr 1, 1,25, 1,5, 2…). Un décalage fractionnaire fait
+   basculer le rasteriseur en échantillonnage filtré, et 0,34 ms
+   deviennent 12 ms — mesuré. */
+function nappeMeteo(c, motif, dx, dy){
+  var lw = c.canvas.width, lh = c.canvas.height;
+  var ox = Math.round(dx), oy = Math.round(dy);
+  c.save();
+  c.setTransform(1, 0, 0, 1, ox, oy);
+  c.fillStyle = motif;
+  c.fillRect(-ox, -oy, lw, lh);
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   LES VOILES PLEIN ÉCRAN
+   Un dégradé étiré coûte dix fois un blit à l'échelle un. On peint
+   donc la vignette et le voile de ciel À LA TAILLE EXACTE de
+   l'écran, une fois, et on les repose sans jamais les
+   redimensionner. Ils sont refaits quand le canevas change de
+   taille — rotation de la tablette, ou un cran du gouverneur de
+   définition, et rien d'autre.
+   --------------------------------------------------------------- */
+var metVoiles = { w:0, h:0, vignette:null, ciel:null };
+function voilesOrage(c){
+  var lw = c.canvas.width, lh = c.canvas.height;
+  if(metVoiles.w === lw && metVoiles.h === lh) return metVoiles;
+  metVoiles.w = lw; metVoiles.h = lh;
+
+  /* la vignette : les bords de l'écran s'enfoncent sous l'orage */
+  var v = nouveauCanvas(lw, lh);
+  var g = v.getContext("2d");
+  var gr = g.createRadialGradient(lw / 2, lh * 0.54, lh * 0.16,
+                                  lw / 2, lh * 0.54, lh * 0.95);
   gr.addColorStop(0, "rgba(3,12,12,0)");
-  gr.addColorStop(0.58, "rgba(3,12,12,0.09)");
-  gr.addColorStop(1, "rgba(2,9,10,0.40)");
+  gr.addColorStop(0.50, "rgba(3,12,12,0.10)");
+  gr.addColorStop(1, "rgba(2,9,10,0.52)");
   g.fillStyle = gr;
-  g.fillRect(0, 0, w, h);
-  return metVignette;
+  g.fillRect(0, 0, lw, lh);
+  metVoiles.vignette = v;
+
+  /* le ciel qui s'allume par le haut : sert aux roulements lointains
+     comme à l'annonce de l'éclair */
+  var hc = Math.max(2, Math.round(lh * 0.46));
+  var s = nouveauCanvas(lw, hc);
+  var g2 = s.getContext("2d");
+  var gr2 = g2.createLinearGradient(0, 0, 0, hc);
+  gr2.addColorStop(0, "rgba(" + MET_FLASH + ",1)");
+  gr2.addColorStop(0.34, "rgba(" + MET_FLASH + ",0.34)");
+  gr2.addColorStop(1, "rgba(" + MET_FLASH + ",0)");
+  g2.fillStyle = gr2;
+  g2.fillRect(0, 0, lw, hc);
+  metVoiles.ciel = s;
+
+  return metVoiles;
 }
 
-/* Le ciel qui s'allume par le haut : dégradé vertical, 8 px de large,
-   étiré sur toute la largeur. Sert deux fois — pour les roulements
-   lointains et pour l'annonce de l'éclair. */
-var metCiel = null;
-function voileCiel(){
-  if(metCiel) return metCiel;
-  metCiel = nouveauCanvas(8, 64);
-  var g = metCiel.getContext("2d");
-  var gr = g.createLinearGradient(0, 0, 0, 64);
-  gr.addColorStop(0, "rgba(" + MET_FLASH + ",1)");
-  gr.addColorStop(0.35, "rgba(" + MET_FLASH + ",0.36)");
+/* Le halo du flash, posé à L'ÉCHELLE UN autour du point d'impact.
+   Il tombe bien à zéro sur son bord : c'est le fond uniforme, et lui
+   seul, qui éclaire le reste de l'écran. Un halo qui s'arrêterait à
+   0,2 dessinerait un cercle net en travers de la carte. */
+var metHalo = null;
+function haloFlash(c){
+  if(metHalo) return metHalo;
+  var R = tailleTuile(Math.max(c.canvas.width, c.canvas.height) * 0.85);
+  metHalo = nouveauCanvas(R, R);
+  var g = metHalo.getContext("2d");
+  var gr = g.createRadialGradient(R / 2, R / 2, 1, R / 2, R / 2, R / 2);
+  gr.addColorStop(0, "rgba(255,255,255,1)");
+  gr.addColorStop(0.13, "rgba(" + MET_FLASH + ",0.72)");
+  gr.addColorStop(0.44, "rgba(" + MET_FLASH + ",0.30)");
   gr.addColorStop(1, "rgba(" + MET_FLASH + ",0)");
   g.fillStyle = gr;
-  g.fillRect(0, 0, 8, 64);
-  return metCiel;
-}
-
-/* Le halo du flash. Son bord ne tombe pas à zéro mais à 0,20 : le
-   coin le plus éloigné de l'impact reçoit quand même un peu de
-   lumière, sinon la moitié de l'écran reste dans la nuit pendant que
-   l'autre explose, et ça se voit comme un projecteur. */
-var metHalo = null;
-function haloFlash(){
-  if(metHalo) return metHalo;
-  metHalo = nouveauCanvas(256, 256);
-  var g = metHalo.getContext("2d");
-  var gr = g.createRadialGradient(128, 128, 2, 128, 128, 128);
-  gr.addColorStop(0, "rgba(255,255,255,1)");
-  gr.addColorStop(0.16, "rgba(" + MET_FLASH + ",0.78)");
-  gr.addColorStop(0.52, "rgba(" + MET_FLASH + ",0.40)");
-  gr.addColorStop(1, "rgba(" + MET_FLASH + ",0.20)");
-  g.fillStyle = gr;
-  g.fillRect(0, 0, 256, 256);
+  g.fillRect(0, 0, R, R);
   return metHalo;
 }
 
 /* Bouffée de fumée pré-rendue. bouffeeFloue crée trois dégradés par
-   appel : parfait pour un Brouillard, ruineux pour six volutes
+   appel : parfait pour un Brouillard, ruineux pour cinq volutes
    redessinées à chaque image pendant deux secondes. */
 var metFumee = null;
 function spriteFumee(){
@@ -7881,8 +8134,8 @@ function spriteFumee(){
   for(var i = 0; i < 4; i++){
     var gr = g.createRadialGradient(lobes[i][0], lobes[i][1], 1,
                                     lobes[i][0], lobes[i][1], lobes[i][2]);
-    gr.addColorStop(0, "rgba(" + MET_FUMEE + ",0.55)");
-    gr.addColorStop(0.5, "rgba(" + MET_FUMEE + ",0.28)");
+    gr.addColorStop(0, "rgba(" + MET_FUMEE + ",0.46)");
+    gr.addColorStop(0.5, "rgba(" + MET_FUMEE + ",0.22)");
     gr.addColorStop(1, "rgba(" + MET_FUMEE + ",0)");
     g.fillStyle = gr;
     g.fillRect(0, 0, 96, 96);
@@ -7892,15 +8145,15 @@ function spriteFumee(){
 
 /* ---------------------------------------------------------------
    LA GRILLE ANCRÉE AU MONDE
-   Tout ce qui doit COLLER AU SOL — éclaboussures, volutes de brume,
-   petites lumières — est posé sur une grille exprimée dans l'espace
-   iso, pas à l'écran. Le pas de la grille suit le zoom, donc le
-   nombre de cases visibles reste constant quel que soit le
-   dézoom : on paie toujours le même prix.
+   Tout ce qui doit COLLER AU SOL — éclaboussures, petites lumières —
+   est posé sur une grille exprimée dans l'espace iso, pas à l'écran.
+   Le pas de la grille suit le zoom, donc le nombre de cases visibles
+   reste constant quel que soit le dézoom : on paie toujours le même
+   prix.
    Le zoom employé est ARRONDI par demi-octave. Sans cet arrondi, le
    moindre pincement redistribuait toutes les éclaboussures ; avec
    lui, elles ne bougent qu'aux paliers, et jamais pendant qu'on se
-   déplace — ce qui est le geste courant.
+   déplace — qui est le geste courant.
    --------------------------------------------------------------- */
 var metGrille = { pas:0, i0:0, i1:0, j0:0, j1:0 };
 function bornesGrille(pasEcran, marge){
@@ -7908,11 +8161,10 @@ function bornesGrille(pasEcran, marge){
   var zq = Math.pow(2, Math.round(Math.log(z) / Math.LN2 * 2) * 0.5);
   var pas = pasEcran / zq;
   var ax = (-cam.px - marge) / z, ay = (-cam.py - marge) / z;
-  var bx = ax + (W + marge * 2) / z, by = ay + (H + marge * 2) / z;
   var g = metGrille;
   g.pas = pas;
-  g.i0 = Math.floor(ax / pas); g.i1 = Math.floor(bx / pas);
-  g.j0 = Math.floor(ay / pas); g.j1 = Math.floor(by / pas);
+  g.i0 = Math.floor(ax / pas); g.i1 = Math.floor((ax + (W + marge * 2) / z) / pas);
+  g.j0 = Math.floor(ay / pas); g.j1 = Math.floor((ay + (H + marge * 2) / z) / pas);
   return g;
 }
 
@@ -7922,95 +8174,62 @@ function bornesGrille(pasEcran, marge){
 
 /* Les roulements : au loin, derrière les nuages, un éclair qu'on ne
    voit pas frapper. C'est ce qui fait qu'on est DANS l'orage entre
-   deux impacts, et non devant une carte verte qui attend son
-   effet. Rare, faible, et toujours en haut de l'écran — jamais un
-   voile plein cadre, ça ne servirait qu'à fatiguer. */
+   deux impacts, et non devant une carte verte qui attend son effet.
+   Rare, faible, et toujours en haut de l'écran — un voile plein cadre
+   toutes les sept secondes ne servirait qu'à fatiguer. */
 function roulementJungle(tps){
   var n = Math.floor(tps / 6.7);
   var f = bruitStable(n, 1);
   if(f < 0.42) return 0;                      // un cycle sur deux, rien
   var d = tps - n * 6.7 - (0.4 + bruitStable(n, 0) * 5.2);
   if(d < 0 || d > 0.7) return 0;
-  /* deux claquements, comme un vrai éclair lointain qui se réamorce */
+  /* deux claquements : un vrai éclair lointain se réamorce */
   return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
 }
 
 function dessineCielOrage(c, tps){
-  var z = cam.z;
+  var v = voilesOrage(c);
+  var e = dpr;
 
-  /* LES NUAGES. Une seule passe plein écran : la teinte de l'orage,
-     les ombres et les trouées de lumière sont dans la même tuile.
-     Elle est ancrée au monde à 85 % — pas 100 : ce léger glissement
-     par rapport au sol est tout ce qu'il faut pour lire les taches
-     comme des nuages qui passent AU-DESSUS, et non comme une texture
-     peinte sur la terre. */
-  var k = borne(z * 2.3, 0.72, 2.6);
-  var dx = cam.px * 0.85 + tps * 6.5, dy = cam.py * 0.85 + tps * 2.2;
+  /* LES NUAGES. Une seule nappe : la teinte de l'orage, les ombres et
+     les trouées de lumière sont dans la même tuile. Elle est ancrée
+     au monde à 85 % — pas 100 : ce léger glissement par rapport au
+     sol suffit à lire les taches comme des nuages qui passent
+     AU-DESSUS, et non comme une salissure peinte sur la terre. */
+  var T = tailleTuile(250 * e * borne(cam.z * 1.7, 0.6, 2.3));
+  nappeMeteo(c, motifMeteo(c, "nuages", T),
+             (cam.px * 0.85 + secX + tps * 6.5) * e,
+             (cam.py * 0.85 + secY + tps * 2.2) * e);
+
+  /* LA VIGNETTE, posée à l'échelle un. */
   c.save();
-  c.translate(dx, dy);
-  c.scale(k, k);
-  c.fillStyle = motifNuages(c);
-  c.fillRect(-dx / k, -dy / k, W / k, H / k);
-  c.restore();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(v.vignette, 0, 0);
 
-  /* LA VIGNETTE. Un dégradé de 128×80 étiré : le coût, c'est la
-     surface peinte, pas la taille de la source. */
-  c.drawImage(vignetteOrage(), 0, 0, W, H);
-
-  /* LES ROULEMENTS, tout en haut. */
+  /* LES ROULEMENTS, tout en haut de l'écran. */
   var r = roulementJungle(tps);
-  if(r > 0.01){
-    c.save();
+  if(r > 0.015){
     c.globalCompositeOperation = "lighter";
     c.globalAlpha = r * 0.13;
-    c.drawImage(voileCiel(), 0, 0, W, H * 0.46);
-    c.restore();
+    c.drawImage(v.ciel, 0, 0);
   }
+  c.restore();
 }
 
 /* ================================================================
    2. LA BRUME AU SOL
    ================================================================ */
 function dessineBrumeSol(c, tps){
-  var z = cam.z;
-  var vent = ventJungle(tps);
-
-  /* Une passe plein écran, ancrée au monde à 100 % : la brume est
-     POSÉE sur le sol, elle ne flotte pas devant l'objectif. Elle
-     dérive lentement dans le sens du vent — c'est la seule chose qui
-     la distingue d'une salissure sur la tuile de terrain. */
-  var k = borne(z * 2.6, 0.80, 3.0);
-  var dx = cam.px + tps * vent * 13, dy = cam.py + tps * 3.4;
-  c.save();
-  c.translate(dx, dy);
-  c.scale(k, k * 0.62);          // écrasée : de la brume, pas des nuages
-  c.fillStyle = motifBrume(c);
-  c.fillRect(-dx / k, -dy / (k * 0.62), W / k, H / (k * 0.62));
-  c.restore();
-
-  /* Quelques volutes basses qui traînent entre les troncs. Elles ne
-     se paient qu'au zoom où on les verrait : en dessous, la tuile
-     seule fait tout le travail. */
-  if(z < 0.55) return;
-  var g = bornesGrille(340, 200);
-  var d = disqueMeteo(MET_BRUME);
-  c.save();
-  for(var i = g.i0; i <= g.i1; i++){
-    for(var j = g.j0; j <= g.j1; j++){
-      var b0 = bruitStable(i * 131.7 + j * 37.3, 0);
-      var b1 = bruitStable(i * 131.7 + j * 37.3, 1);
-      var b2 = bruitStable(i * 57.1 - j * 91.9, 0);
-      if(b2 < 0.45) continue;
-      var wx = (i + b0) * g.pas + Math.sin(tps * 0.19 + b1 * 6.28) * 46;
-      var wy = (j + b1) * g.pas + Math.cos(tps * 0.14 + b0 * 6.28) * 22;
-      var x = wx * z + cam.px, y = wy * z + cam.py;
-      if(x < -260 || x > W + 260 || y < -160 || y > H + 160) continue;
-      var rr = (74 + b0 * 62) * z * (1 + Math.sin(tps * 0.5 + b1 * 6.28) * 0.12);
-      c.globalAlpha = (0.05 + b1 * 0.055) * borne((z - 0.55) * 3, 0, 1);
-      c.drawImage(d, x - rr, y - rr * 0.42, rr * 2, rr * 0.84);
-    }
-  }
-  c.restore();
+  var e = dpr;
+  /* Ancrée au monde à 100 % : la brume est POSÉE sur le sol, elle ne
+     flotte pas devant l'objectif. Elle dérive dans le sens du vent —
+     c'est la seule chose qui la distingue d'une tache sur la tuile de
+     terrain. Sa tuile est plus grande que celle des nuages : au sol
+     on voit de longues traînes, pas des moutons. */
+  var T = tailleTuile(420 * e * borne(cam.z * 1.9, 0.7, 2.6));
+  nappeMeteo(c, motifMeteo(c, "brume", T),
+             (cam.px + secX + tps * ventJungle(tps) * 13) * e,
+             (cam.py + secY + tps * 3.4) * e);
 }
 
 /* ================================================================
@@ -8018,15 +8237,25 @@ function dessineBrumeSol(c, tps){
    ================================================================ */
 
 /* Trois couches de profondeur. Le rideau se lit par le CONTRASTE
-   entre les gouttes lentes et fines du fond et les rapides du
-   premier plan ; une seule couche uniforme ne donne qu'un grillage.
+   entre les gouttes lentes et fines du fond et les rapides du premier
+   plan ; une seule couche uniforme ne donne qu'un grillage.
    270 traits au total, et surtout : chaque couche est UN SEUL
    beginPath/stroke. Ce sont les appels à stroke() qui coûtent, pas
-   les pixels — trois traits de 14 px ne remplissent rien. */
+   les pixels — 270 traits de quinze pixels ne remplissent rien du
+   tout. Mesuré : 0,09 ms les trois couches, contre 0,31 ms les mêmes
+   gouttes tracées une par une, et contre 0,34 ms la moindre nappe
+   plein écran. La pluie est de loin la couche la moins chère. */
+/* Les longueurs et les opacités du premier essai — 9 à 21 px, 0,07 à
+   0,135 — donnaient une pluie littéralement INVISIBLE en capture. Une
+   goutte se lit comme une TRAÎNÉE : c'est sa longueur, pas son
+   opacité, qui la fait exister. On a donc allongé et éclairci, tout
+   en gardant une surface couverte dérisoire — 270 traits d'un pixel
+   et demi de large, c'est deux millièmes de l'écran. Il n'y a rien à
+   cacher là-dedans. */
 var MET_COUCHES_PLUIE = [
-  { n:98, v:560,  len:9,  ep:0.75, a:0.075, sway:14 },
-  { n:104, v:800, len:14, ep:1.00, a:0.105, sway:22 },
-  { n:68, v:1090, len:21, ep:1.35, a:0.140, sway:30 }
+  { n:98,  v:560,  len:14, ep:0.75, a:0.11, sway:14 },
+  { n:104, v:800,  len:21, ep:1.00, a:0.15, sway:22 },
+  { n:68,  v:1090, len:31, ep:1.40, a:0.20, sway:30 }
 ];
 
 function dessinePluieJungle(c, tps){
@@ -8044,8 +8273,9 @@ function dessinePluieJungle(c, tps){
   for(l = 0; l < 3; l++){
     var q = MET_COUCHES_PLUIE[l];
     var lg = q.len * ech;
-    /* la rafale pousse tout le rideau de côté, sans toucher aux
-       gouttes une à une : c'est gratuit et ça suffit à faire un vent */
+    /* la rafale pousse tout le rideau de côté sans toucher aux
+       gouttes une à une : c'est gratuit, et ça suffit à faire un
+       vent */
     var derive = Math.sin(tps * 0.37 + l * 1.9) * q.sway
                + Math.sin(tps * 0.13 + l) * q.sway * 0.6;
     c.strokeStyle = "rgba(" + MET_PLUIE + "," + q.a + ")";
@@ -8065,9 +8295,10 @@ function dessinePluieJungle(c, tps){
   c.restore();
 
   /* LES ÉCLABOUSSURES. Ancrées au MONDE : elles marquent le sol, pas
-     l'écran — sans ça elles glissent quand on déplace la caméra et
+     l'écran — sans ça elles glissent dès qu'on déplace la caméra et
      tout l'effet s'effondre. On ne les paie qu'au-dessus du zoom où
-     on les distingue ; en dessous ce ne serait qu'un pointillé. */
+     on les distingue ; en dessous ce ne serait qu'un pointillé gris
+     de plus par-dessus la carte. */
   if(z < 0.44) return;
   var g = bornesGrille(128, 70);
   var vis = borne((z - 0.44) * 4, 0, 1);
@@ -8084,8 +8315,8 @@ function dessinePluieJungle(c, tps){
       var x = ((i + b0) * g.pas) * z + cam.px;
       var y = ((j + b1) * g.pas) * z + cam.py;
       if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
-      var rr = (2 + u * 7.5) * z;
-      c.strokeStyle = "rgba(" + MET_PLUIE + "," + ((1 - u) * 0.26 * vis) + ")";
+      var rr = (2.5 + u * 9) * z;
+      c.strokeStyle = "rgba(" + MET_PLUIE + "," + ((1 - u) * 0.34 * vis) + ")";
       c.beginPath();
       c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
       c.stroke();
@@ -8099,7 +8330,8 @@ function dessinePluieJungle(c, tps){
    Hors contrat, mais c'est la même couche de lumière : des points
    chauds accrochés au sol, qui respirent. Au dézoom, quand plus
    aucune feuille n'est lisible, ce sont eux qui disent qu'il y a de
-   la vie sous la canopée. Coût dérisoire : des blits de 14 px.
+   la vie sous la canopée. Coût dérisoire : des blits de quinze
+   pixels de côté, mesurés à 0,05 ms les quarante.
    ================================================================ */
 function dessineLueursVegetation(c, tps){
   var z = cam.z;
@@ -8113,14 +8345,14 @@ function dessineLueursVegetation(c, tps){
       var x = ((i + b1) * g.pas) * z + cam.px;
       var y = ((j + b0) * g.pas) * z + cam.py;
       if(x < 0 || x > W || y < 0 || y > H) continue;
-      /* trois rythmes : la respiration lente, un battement, et un
-         clignement rare — c'est le clignement qui fait vivant */
+      /* deux rythmes : la respiration lente et un battement rapide.
+         C'est le battement qui donne l'illusion du vivant ; une lueur
+         d'intensité fixe passe pour un pixel mort. */
       var p = 0.45 + 0.35 * Math.sin(tps * (0.8 + b1) + b0 * 6.28)
                    + 0.20 * Math.sin(tps * (3.1 + b0 * 2) + b1 * 6.28);
       if(p < 0.12) continue;
-      var chaud = b1 > 0.55;
       lueurRapide(c, x, y - 9 * z, (5 + b1 * 5) * Math.max(0.55, z),
-                  chaud ? "#ffe08a" : "#a8ffbe", p * 0.22);
+                  b1 > 0.55 ? "#ffe08a" : "#a8ffbe", p * 0.22);
     }
   }
 }
@@ -8129,44 +8361,43 @@ function dessineLueursVegetation(c, tps){
    5. L'ÉCLAIR
    ================================================================ */
 
-/* La chronologie, en secondes depuis e.age = 0. Elle NE dépend PAS
-   de e.duree : c'est la durée du coup de foudre lui-même, et elle
-   est la même qu'on laisse la trace fumante deux secondes ou six.
-   e.duree ne pilote que la queue — fumée et brûlure au sol. */
+/* La chronologie, en secondes depuis e.age = 0. Elle NE dépend PAS de
+   e.duree : c'est la durée du coup de foudre lui-même, et elle est la
+   même qu'on laisse la trace fumante deux secondes ou six. e.duree ne
+   pilote que la queue — fumée et brûlure au sol. */
 var EC_DESC = 0.13;      // le temps que l'éclair met à descendre
 var EC_VIE  = 0.30;      // ce qu'il vit encore après avoir touché
 
 /* L'intensité du canal. Un éclair ne s'éteint pas d'un coup : il se
-   réamorce deux fois. Ces deux bosses sont ce qui distingue un
-   éclair d'un trait blanc qu'on efface. */
+   réamorce deux fois. Ces deux bosses sont ce qui distingue un éclair
+   d'un trait blanc qu'on efface. */
 function eclatEclair(t){
   if(t < 0) return 0;
   if(t < EC_DESC) return 0.20 + 0.42 * (t / EC_DESC);
   var u = t - EC_DESC;
   if(u > EC_VIE) return 0;
-  var e = Math.exp(-u * 10.5);
-  var r1 = Math.exp(-Math.abs(u - 0.082) * 48) * 0.52;
-  var r2 = Math.exp(-Math.abs(u - 0.163) * 58) * 0.30;
-  return Math.min(1, e + r1 + r2);
+  return Math.min(1, Math.exp(-u * 10.5)
+                   + Math.exp(-Math.abs(u - 0.082) * 48) * 0.52
+                   + Math.exp(-Math.abs(u - 0.163) * 58) * 0.30);
 }
 
-/* Le voile plein écran. LA valeur la plus surveillée du fichier :
-   quarante fois par partie. Deux composantes — un halo centré sur
-   l'impact (0,22 au cœur) et un fond uniforme (0,10) — soit 0,32 au
-   maximum, et seulement au point d'impact. La décroissance est une
-   exponentielle de constante 42 ms : à 140 ms il reste 3,5 % du
-   pic, c'est-à-dire rien. */
+/* LE VOILE PLEIN ÉCRAN — la valeur la plus surveillée du fichier,
+   puisqu'on la subit quarante fois par partie. Deux composantes : un
+   halo centré sur l'impact (0,22 à son cœur) et un fond uniforme
+   (0,10). Soit 0,32 au maximum, et seulement au point de chute.
+   La décroissance est une exponentielle de constante 42 ms : à 140 ms
+   il reste 3,5 % du pic, c'est-à-dire rien. */
 function voileEclair(t){
   if(t < 0) return 0;
-  if(t < EC_DESC) return 0.05 * (t / EC_DESC);   // le ciel blanchit avant
+  if(t < EC_DESC) return 0.05 * (t / EC_DESC);   // le ciel blanchit AVANT
   return Math.exp(-(t - EC_DESC) / 0.042);
 }
 
 /* Le TRAJET, en coordonnées normalisées : x est un écart latéral en
    fraction de la hauteur de chute, y va de 0 (le ciel) à 1 (le sol).
-   Construit UNE fois par impact et rangé sur l'objet : la caméra
-   peut bouger, tourner, dézoomer, l'éclair garde exactement la même
-   forme. C'est indispensable — un éclair qui se retire à chaque
+   Construit UNE fois par impact et rangé sur l'objet : la caméra peut
+   se déplacer, zoomer, dézoomer, l'éclair garde exactement la même
+   forme. C'est indispensable — un éclair retiré au hasard à chaque
    image grésille, et le grésillement est précisément ce qui rend un
    effet fatigant. */
 function trajetFoudre(graine){
@@ -8184,11 +8415,12 @@ function trajetFoudre(graine){
   }
   p[p.length - 2] = 0; p[p.length - 1] = 1;
   /* Les ramifications partent vers le bas et vers l'extérieur, et
-     meurent en l'air. Une branche qui touche le sol ferait deux
-     impacts : il n'y en a qu'un. */
+     meurent en l'air. Une branche qui toucherait le sol ferait deux
+     impacts : il n'y en a qu'un, et c'est celui que le joueur doit
+     regarder. */
   var br = [];
   for(var b = 0; b < 3; b++){
-    var d0 = 2 + ((al() * 9) | 0);            // sur quel sommet elle part
+    var d0 = 2 + ((al() * 9) | 0);
     if(d0 * 2 + 1 >= p.length) continue;
     var bx = p[d0 * 2], by = p[d0 * 2 + 1];
     var sens = al() < 0.5 ? -1 : 1;
@@ -8207,13 +8439,13 @@ function trajetFoudre(graine){
 /* Quatre passes, de la plus large à la plus fine — le procédé des
    rayons de Mily (74-vengeance.js). En additif, c'est la PROPORTION
    qui fait tout : un noyau blanc trop épais et l'éclair devient une
-   barre fluo. Le blanc ne fait donc qu'un quart de la largeur, et
-   les trois quarts de l'énergie sont bleus. */
+   barre fluo. Le blanc ne fait donc qu'un quart de la largeur, et les
+   trois quarts de l'énergie sont bleus. */
 var PASSES_FOUDRE = [
-  { l:3.4,  col:MET_E_HALO, a:0.12 },
-  { l:1.70, col:MET_E_BLEU, a:0.23 },
-  { l:0.78, col:MET_E_PALE, a:0.50 },
-  { l:0.26, col:MET_E_VIF,  a:0.92 }
+  { l:4.6,  col:MET_E_HALO, a:0.20 },
+  { l:2.10, col:MET_E_BLEU, a:0.34 },
+  { l:0.82, col:MET_E_PALE, a:0.56 },
+  { l:0.26, col:MET_E_VIF,  a:0.95 }
 ];
 function traitFoudre(c, xs, ys, n, larg, I){
   c.lineCap = "round";
@@ -8235,7 +8467,7 @@ var metXs = [], metYs = [];
 function dessineEclairJungle(c, e, tps){
   var t = e.age;
   var z = cam.z;
-  /* Fondu de queue : la fumée et la brûlure s'éteignent avec e.duree,
+  /* Fondu de queue : la fumée et la brûlure s'éteignent AVEC e.duree,
      jamais d'un coup. */
   var queue = borne((e.duree - t) / 0.7, 0, 1);
   if(queue <= 0) return;
@@ -8243,37 +8475,39 @@ function dessineEclairJungle(c, e, tps){
   var p = versEcran(cam, e.gx, e.gy);
   if(!e.trace) e.trace = trajetFoudre(((e.gx * 9377 + e.gy * 613) | 0) ^ 0x5b3);
   var tr = e.trace;
-
   var I = eclatEclair(t);
   var vo = voileEclair(t);
+  var k;
 
   /* ---- 1 & 2. LE CIEL BLANCHIT, PUIS L'ÉCLAIR DESCEND ---- */
   /* Le sommet est TOUJOURS au-dessus du bord haut de l'écran : quel
-     que soit le zoom, l'éclair traverse tout le cadre. C'est ce qui
-     le rend spectaculaire sans coûter un pixel de plus. */
+     que soit le zoom, l'éclair traverse tout le cadre. C'est ce qui le
+     rend spectaculaire sans coûter un pixel de plus. */
   var yCiel = -Math.max(70, H * 0.12);
   var haut = p.y - yCiel;
 
   if(I > 0.004 && haut > 60){
-    /* annonce : la couche de nuages s'allume au-dessus de l'impact */
+    /* l'annonce : la couche de nuages s'allume au-dessus de l'impact,
+       une fraction de seconde avant que quoi que ce soit ne tombe */
     if(t < EC_DESC + 0.06){
+      var vl = voilesOrage(c);
       c.save();
+      c.setTransform(1, 0, 0, 1, 0, 0);
       c.globalCompositeOperation = "lighter";
-      c.globalAlpha = borne(t / EC_DESC, 0, 1) * 0.16;
-      c.drawImage(voileCiel(), 0, 0, W, H * 0.42);
+      c.globalAlpha = borne(t / EC_DESC, 0, 1) * 0.15;
+      c.drawImage(vl.ciel, 0, 0);
       c.restore();
     }
 
-    /* La largeur ne suit pas le zoom : un éclair est de la lumière
+    /* La largeur ne suit PAS le zoom : un éclair est de la lumière
        dans l'air, il est aussi gros de près que de loin. */
-    var larg = 1.9 + 5.4 * I;
-    /* révélation progressive pendant la descente */
+    var larg = 2.4 + 6.6 * I;
     var f = t < EC_DESC ? t / EC_DESC : 1;
     var nb = Math.max(2, Math.min(tr.n, Math.ceil(f * tr.n)));
 
     c.save();
     c.globalCompositeOperation = "lighter";
-    for(var k = 0; k < nb; k++){
+    for(k = 0; k < nb; k++){
       metXs[k] = p.x + tr.p[k * 2] * haut;
       metYs[k] = yCiel + tr.p[k * 2 + 1] * haut;
     }
@@ -8289,8 +8523,8 @@ function dessineEclairJungle(c, e, tps){
     }
     traitFoudre(c, metXs, metYs, nb, larg, I);
 
-    /* les ramifications, plus fines et plus sourdes, et seulement
-       une fois que le canal les a dépassées */
+    /* les ramifications : plus fines, plus sourdes, et seulement une
+       fois que le canal principal les a dépassées */
     for(var b = 0; b < tr.br.length; b++){
       var q = tr.br[b];
       if(q[1] > f) continue;
@@ -8299,112 +8533,129 @@ function dessineEclairJungle(c, e, tps){
         metXs[s] = p.x + q[s * 2] * haut;
         metYs[s] = yCiel + q[s * 2 + 1] * haut;
       }
-      traitFoudre(c, metXs, metYs, m, larg * 0.44, I * 0.62);
+      traitFoudre(c, metXs, metYs, m, larg * 0.55, I * 0.72);
     }
     c.restore();
   }
 
   /* ---- LE VOILE D'ÉCRAN ---- */
   if(vo > 0.006){
+    var ha = haloFlash(c);
     c.save();
     c.globalCompositeOperation = "lighter";
-    /* le halo, centré sur l'impact : c'est lui qui allume les arbres
-       autour du point de chute plutôt que l'écran entier */
-    var R = Math.max(W, H) * 0.62;
+    /* le halo, centré sur l'impact et posé À L'ÉCHELLE UN : c'est lui
+       qui allume les arbres AUTOUR du point de chute, plutôt que
+       d'aplatir l'écran entier d'un coup de blanc */
+    c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalAlpha = vo * 0.22;
-    c.drawImage(haloFlash(), p.x - R, p.y - R, R * 2, R * 2);
-    /* le fond uniforme, faible : il évite que le halo se lise comme
-       un projecteur braqué */
+    c.drawImage(ha, Math.round((p.x + secX) * dpr - ha.width / 2),
+                    Math.round((p.y + secY) * dpr - ha.height / 2));
+    /* le fond uniforme, faible : sans lui, le halo se lirait comme un
+       projecteur braqué sur un coin de la carte */
+    c.globalAlpha = 1;
     c.fillStyle = "rgba(" + MET_FLASH + "," + (vo * 0.10) + ")";
-    c.fillRect(0, 0, W, H);
+    c.fillRect(0, 0, c.canvas.width, c.canvas.height);
     c.restore();
   }
 
   /* ---- 3. L'IMPACT AU SOL ---- */
   var ti = t - EC_DESC;
-  if(ti >= 0){
+  if(ti < 0) return;
+
+  c.save();
+  /* Le cœur blanc. C'est LUI qui donne la violence du coup, et il ne
+     coûte rien au confort : il est local, il n'aplatit pas l'écran
+     comme le ferait un voile. Quand on veut qu'un éclair frappe plus
+     fort, c'est ce chiffre-là qu'on monte, jamais celui du voile. */
+  var ec = Math.exp(-ti * 10);
+  if(ec > 0.01)
+    lueurRapide(c, p.x, p.y - 8 * z, (46 + 104 * z) * (0.55 + ec * 1.0),
+                "#e6f0ff", 0.86 * ec);
+  /* l'anneau de souffle, en ellipse isométrique : c'est lui qui dit
+     que le coup a touché LE SOL et pas l'air */
+  if(ti < 0.62){
+    var ao = ti / 0.62;
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = "rgba(" + MET_E_PALE + "," + ((1 - ao) * (1 - ao) * 0.72) + ")";
+    c.lineWidth = Math.max(1.2, 5.5 * z * (1 - ao));
+    c.beginPath();
+    c.ellipse(p.x, p.y, RX * z * (0.5 + ao * 3.9), RY * z * (0.5 + ao * 3.9),
+              0, 0, 6.2832);
+    c.stroke();
+    c.globalCompositeOperation = "source-over";
+  }
+  /* LA BRÛLURE. Premier essai : un disque noir. Sur une terre de
+     jungle déjà presque noire, il ne se voyait tout simplement pas.
+     Ce qui se voit, c'est la BRAISE — la terre est restée chaude, et
+     ce point orange sous la fumée est tout ce qu'il faut pour lire
+     « quelque chose vient de brûler ici ». */
+  if(z > 0.22){
+    c.globalAlpha = 0.34 * queue * borne(ti * 6, 0, 1);
+    c.fillStyle = "#0e0a06";
+    c.beginPath();
+    c.ellipse(p.x, p.y, RX * z * 0.80, RY * z * 0.80, 0, 0, 6.2832);
+    c.fill();
+    c.globalAlpha = 1;
+    var br = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
+    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * br);
+  }
+  c.restore();
+
+  /* ---- 4. LES ÉTINCELLES ---- */
+  if(ti < 0.85 && z > 0.2){
     c.save();
-    /* le cœur, très bref */
-    var ec = Math.exp(-ti * 11);
-    if(ec > 0.01){
-      lueurRapide(c, p.x, p.y - 6 * z, (34 + 78 * z) * (0.55 + ec * 0.9),
-                  "#dfeaff", 0.62 * ec);
-    }
-    /* l'anneau de souffle, en ellipse isométrique : c'est lui qui dit
-       que le coup a touché LE SOL et pas l'air */
-    if(ti < 0.62){
-      var ao = ti / 0.62;
-      c.globalCompositeOperation = "lighter";
-      c.strokeStyle = "rgba(" + MET_E_PALE + "," + ((1 - ao) * (1 - ao) * 0.55) + ")";
-      c.lineWidth = Math.max(1, 4.5 * z * (1 - ao));
+    c.globalCompositeOperation = "lighter";
+    c.lineCap = "round";
+    var al = prng(((e.gx * 313 + e.gy * 887) | 0) ^ 0x9e3);
+    for(var s2 = 0; s2 < 16; s2++){
+      var ang = al() * 6.2832;
+      var vit = 55 + al() * 145;
+      var vy = -(40 + al() * 110);
+      var du = 0.35 + al() * 0.5;
+      if(ti > du) continue;
+      var u = ti / du;
+      var ex = p.x + Math.cos(ang) * vit * ti * z;
+      var ey = p.y + Math.sin(ang) * vit * 0.5 * ti * z + (vy * ti + 340 * ti * ti) * z;
+      /* elles refroidissent : blanches au départ, orange à la fin */
+      c.strokeStyle = "rgba(" + (u < 0.35 ? MET_E_PALE : MET_ETINC) + ","
+                    + ((1 - u) * (1 - u) * 0.95) + ")";
+      /* plancher d'un pixel et demi : au dézoom, une étincelle plus
+         fine qu'un pixel s'efface complètement au lieu de pâlir */
+      c.lineWidth = Math.max(1.5, 2.4 * z * (1 - u));
       c.beginPath();
-      c.ellipse(p.x, p.y, RX * z * (0.5 + ao * 3.4), RY * z * (0.5 + ao * 3.4),
-                0, 0, 6.2832);
+      c.moveTo(ex, ey);
+      c.lineTo(ex - Math.cos(ang) * 11 * z, ey - Math.sin(ang) * 5.5 * z);
       c.stroke();
-      c.globalCompositeOperation = "source-over";
-    }
-    /* la brûlure : petite, sombre, et elle part avec la fumée */
-    if(z > 0.22){
-      c.globalAlpha = 0.30 * queue * borne(ti * 6, 0, 1);
-      c.fillStyle = "#100c08";
-      c.beginPath();
-      c.ellipse(p.x, p.y, RX * z * 0.72, RY * z * 0.72, 0, 0, 6.2832);
-      c.fill();
-      c.globalAlpha = 1;
     }
     c.restore();
+  }
 
-    /* ---- 4. LES ÉTINCELLES ---- */
-    if(ti < 0.85 && z > 0.2){
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      c.lineCap = "round";
-      var al = prng(((e.gx * 313 + e.gy * 887) | 0) ^ 0x9e3);
-      for(var s2 = 0; s2 < 16; s2++){
-        var ang = al() * 6.2832;
-        var vit = (55 + al() * 145);
-        var vy = -(40 + al() * 110);
-        var du = 0.35 + al() * 0.5;
-        if(ti > du) continue;
-        var u = ti / du;
-        var ex = p.x + Math.cos(ang) * vit * ti * z;
-        var ey = p.y + Math.sin(ang) * vit * 0.5 * ti * z
-                     + (vy * ti + 340 * ti * ti) * z;
-        /* elles refroidissent : blanches au départ, orange à la fin */
-        var col = u < 0.35 ? MET_E_PALE : MET_ETINC;
-        c.strokeStyle = "rgba(" + col + "," + ((1 - u) * (1 - u) * 0.85) + ")";
-        c.lineWidth = Math.max(0.8, 1.8 * z * (1 - u));
-        c.beginPath();
-        c.moveTo(ex, ey);
-        c.lineTo(ex - Math.cos(ang) * 7 * z, ey - Math.sin(ang) * 3.5 * z);
-        c.stroke();
-      }
-      c.restore();
+  /* ---- 5. LA TRACE FUMANTE ---- */
+  if(ti > 0.10){
+    var sp = spriteFumee();
+    c.save();
+    /* lissage COUPÉ : ces cinq bouffées sont agrandies de 96 à
+       plusieurs centaines de pixels, et un agrandissement filtré coûte
+       cinq fois le prix. Sur un dégradé aussi doux, l'escalier ne se
+       voit pas — vérifié à l'écran. */
+    c.imageSmoothingEnabled = false;
+    for(var v = 0; v < 6; v++){
+      var age = ti - (0.08 + v * 0.16);
+      if(age < 0) continue;
+      var uu = age / (1.7 + (v % 3) * 0.5);
+      if(uu >= 1) continue;
+      /* la bouffée GROSSIT en montant : c'est ce gonflement, plus que
+         l'opacité, qui distingue une fumée d'une tache posée */
+      var rr = (13 + uu * 44 + v * 2.5) * Math.max(0.42, z);
+      var mx = p.x + Math.sin(tps * 0.7 + v * 2.1) * 9 * z * uu
+                   + ventJungle(tps) * 46 * uu * z;
+      var my = p.y - (8 + uu * 92) * z;
+      c.globalAlpha = (1 - uu) * (1 - uu) * 0.80 * queue * borne(age * 4, 0, 1);
+      c.drawImage(sp, mx - rr, my - rr, rr * 2, rr * 2);
     }
-
-    /* ---- 5. LA TRACE FUMANTE ---- */
-    if(ti > 0.10){
-      var sp = spriteFumee();
-      c.save();
-      for(var v = 0; v < 5; v++){
-        var dep = 0.10 + v * 0.13;
-        var age = ti - dep;
-        if(age < 0) continue;
-        var vie = 1.5 + (v % 3) * 0.5;
-        var uu = age / vie;
-        if(uu >= 1) continue;
-        var rr = (9 + uu * 30 + v * 2) * z;
-        var mx = p.x + Math.sin(tps * 0.7 + v * 2.1) * 9 * z * uu
-                     + ventJungle(tps) * 34 * uu * z;
-        var my = p.y - (6 + uu * 74) * z;
-        c.globalAlpha = (1 - uu) * (1 - uu) * 0.52 * queue * borne(age * 4, 0, 1);
-        c.drawImage(sp, mx - rr, my - rr, rr * 2, rr * 2);
-      }
-      c.restore();
-    }
+    c.restore();
   }
 }
-
 
 /* ================================================================
    6. LE SON DE L'ORAGE
@@ -8420,7 +8671,7 @@ function dessineEclairJungle(c, e, tps){
 
 /* LE TONNERRE. Un vrai coup de tonnerre n'est pas une explosion :
    c'est un CLAQUEMENT sec suivi d'un grondement qui roule et met
-   plusieurs secondes à mourir. Et il arrive APRÈS l'éclair — le
+   plusieurs secondes à mourir. Et il arrive APRÈS l'éclair — ce
    retard est ce qui donne la distance. On le passe donc en argument :
    0 pour un impact sur la carte, une à trois secondes pour un
    roulement au loin. */
@@ -8440,9 +8691,9 @@ function tonnerreJungle(force, retard){
   var g = ac.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.linearRampToValueAtTime(0.30 * force, t + 0.010);
-  /* le palier à 0,30 s, puis la longue traîne : c'est CE roulement
-     qui fait l'orage. Sans lui on n'a qu'un « boum » de plus, et le
-     jeu en a déjà treize. */
+  /* le palier à 0,30 s, puis la longue traîne : c'est CE roulement qui
+     fait l'orage. Sans lui on n'a qu'un « boum » de plus, et le jeu en
+     a déjà treize. */
   g.gain.exponentialRampToValueAtTime(0.10 * force, t + 0.30);
   g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
   s.connect(f); f.connect(g); g.connect(son.maitre);
@@ -8468,8 +8719,8 @@ function grondementJungle(){
 }
 
 /* Le froissement de la végétation sous une rafale. Une bouffée de
-   bruit passe-bande, courte : c'est le seul son qui dit qu'il y a
-   des feuilles autour, et non de la pluie sur du béton. */
+   bruit passe-bande, courte : c'est le seul son qui dit qu'il y a des
+   feuilles autour, et non de la pluie sur du béton. */
 function froissementJungle(force){
   if(typeof son === "undefined" || !son.ok()) return;
   son.souffle(2600 + Math.random() * 2400, 900, 0.5 + Math.random() * 0.7,
@@ -8478,9 +8729,9 @@ function froissementJungle(force){
 
 /* ---------------------------------------------------------------
    L'AMBIANCE CONTINUE — pluie et vent, en boucle.
-   Deux sources de bruit filtré, montées UNE fois et laissées
-   tourner. Relancer une bouffée toutes les cent millisecondes
-   coûterait cent fois plus cher et s'entendrait pomper.
+   Deux sources de bruit filtré, montées UNE fois et laissées tourner.
+   Relancer une bouffée toutes les cent millisecondes coûterait cent
+   fois plus cher et s'entendrait pomper.
    Le vent respire tout seul, sur un LFO branché sur son filtre :
    c'est l'ondulation qui fait le vent, un bruit constant ne fait
    qu'un ventilateur.
@@ -8531,7 +8782,7 @@ var ambianceJungle = {
     if(!n || typeof son === "undefined" || !son.ok()) return;
     var t = son.ac.currentTime;
     /* on descend en une seconde : une ambiance qu'on coupe net
-       s'entend comme une panne */
+       s'entend comme une panne de courant */
     n.gp.gain.cancelScheduledValues(t);
     n.gv.gain.cancelScheduledValues(t);
     n.gp.gain.setValueAtTime(n.gp.gain.value, t);
@@ -8611,23 +8862,31 @@ function majMeteoJungle(dt, tps){
 var GEY_DUREE = { monte:0.80, feu:1.75, fume:2.20 };
 
 var GEY_H    = 120;   // hauteur de régime de la colonne : 3 cases = 3 m
-var GEY_SLUG = 150;   // le bouchon de gaz dépasse la colonne — le coup de bélier
+var GEY_SLUG = 142;   // le bouchon de gaz dépasse la colonne — le coup de bélier
 var GEY_TSLUG = 0.22; // instant (en part de la phase « feu ») du sommet du bouchon
-var GEY_LARG = 17;    // demi-largeur de la colonne au ras du sol
+var GEY_LARG = 18;    // demi-largeur de la colonne au ras du sol
 var GEY_G    = 560;   // pesanteur des braises, en unités locales par seconde²
 
 /* ----------------------------------------------------------------
    Machine à phases — le jeu peut s'en servir ou faire la sienne
    ---------------------------------------------------------------- */
 
-/* Un geyser neuf. `sommeil` est la durée de la phase « dort », en
-   secondes : c'est elle qui règle la fréquence. On la tire de la
-   position pour que deux geysers voisins ne partent jamais ensemble
-   — vingt bouches synchronisées, ce serait un mur de feu, pas une
-   jungle. */
+/* Repos minimal entre deux éruptions. C'est le garde-fou du « pas un
+   terrain entièrement rempli de flammes » : le cycle actif dure 4,75 s,
+   donc à vingt-deux bouches et vingt-deux secondes de repos minimum,
+   trois crachent en moyenne au même instant — spectaculaire, jamais
+   un mur de feu. Un repos de sept secondes en aurait allumé neuf. */
+var GEY_REPOS_MIN = 22;
+
+/* Un geyser neuf. `sommeil` est l'ÉCART ajouté au repos minimal, en
+   secondes : c'est lui qui règle la dispersion des horloges. Deux
+   bouches voisines ne doivent jamais souffler ensemble, sans quoi la
+   carte battrait comme un métronome ; l'instant de départ est donc
+   tiré au hasard dans le cycle, à partir de la position, et jamais
+   remis à zéro. */
 function nouveauGeyser(gx, gy, sommeil){
   var al = prng(geyGraine({ gx:gx, gy:gy }));
-  var s = sommeil || (7 + al() * 9);
+  var s = GEY_REPOS_MIN + (sommeil > 0 ? sommeil : al() * 26);
   return { gx:gx, gy:gy, phase:"dort", t:al() * s, sommeil:s };
 }
 
@@ -8969,7 +9228,7 @@ var GEY_COUCHES = [
    qui fait la colonne — et ne se déchire qu'en haut, là où le jet
    perd sa cohésion. */
 function geyProfil(v){
-  return (0.80 + 0.55 * Math.sin(v * 2.2)) * (1 - v * v * v * 0.92);
+  return (0.86 + 0.36 * Math.sin(v * 2.3)) * (1 - v * v * v * 0.90);
 }
 
 /* Le signe MOINS devant v est tout le secret de l'effet : la crête de
@@ -9008,43 +9267,70 @@ function geyColonne(c, h, t, ech, att){
   }
 }
 
-/* Les langues du sommet. Une colonne qui se termine en pointe unique a
-   l'air d'un pinceau ; un vrai jet se déchire en trois ou quatre
-   langues qui partent chacune de leur côté. Trois quadrilatères, pas
-   plus : c'est le haut de la silhouette, la partie qu'on regarde. */
+/* Les langues qui débordent de la colonne. Une colonne qui se termine
+   en pointe unique a l'air d'un pinceau ; un vrai jet se déchire.
+
+   Deux langues, DEUX COUCHES chacune — et c'est la deuxième couche qui
+   compte. En mode « lighter » sur un fond sombre, un aplat orange à
+   demi-opacité ne donne pas du feu pâle, il donne du KAKI : les langues
+   du premier essai ressemblaient à des pétales d'artichaut posés à côté
+   de la flamme. Empilées comme le sont les quatre couches de la
+   colonne, elles retrouvent un cœur clair sur un bord rouge, c'est-à-
+   dire du feu. Leur pied est en outre PLAQUÉ sur l'ondulation de la
+   colonne à la même hauteur : elles en sortent au lieu de flotter à
+   côté. */
 function geyLangues(c, h, t, ech, att){
   if(h <= 30) return;
-  var i, lx, ly, lh, lw, dev;
-  for(i = 0; i < 3; i++){
+  var i, k, lx, ly, lh, lw, dev, e;
+  for(i = 0; i < 2; i++){
     dev = Math.sin(t * (4.3 + i * 1.7) + i * 2.1);
-    lx = (geyOnde(0.92, t, i) + dev * 7) * ech;
-    ly = -h * (0.80 + 0.06 * i);
-    lh = h * (0.16 + 0.10 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
-    lw = (4.2 - i * 0.8) * ech;
-    c.fillStyle = rgba(i ? "#ff8a1e" : "#ff3208", (0.34 - i * 0.05) * att);
-    c.beginPath();
-    c.moveTo(lx - lw, ly);
-    c.quadraticCurveTo(lx - lw * 1.4 + dev * 4 * ech, ly - lh * 0.55,
-                       lx + dev * 9 * ech, ly - lh);
-    c.quadraticCurveTo(lx + lw * 1.4 + dev * 4 * ech, ly - lh * 0.55,
-                       lx + lw, ly);
-    c.closePath(); c.fill();
+    /* les deux langues partent de hauteurs franchement différentes :
+       à la même, elles finissaient régulièrement par se répondre en
+       symétrie et faire deux oreilles */
+    lx = (geyOnde(0.50 + i * 0.20, t, i) + dev * 3.4 + (i ? 4 : -4)) * ech;
+    ly = -h * (0.50 + 0.20 * i);
+    lh = h * (0.34 + 0.15 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
+    lw = (6.4 - i * 1.3) * ech;
+    for(k = 0; k < 2; k++){
+      e = k ? 0.52 : 1;                       // la couche chaude est plus fine
+      c.fillStyle = rgba(k ? "#ffc14e" : "#ff3208", (k ? 0.56 : 0.64) * att);
+      c.beginPath();
+      c.moveTo(lx - lw * e, ly);
+      c.quadraticCurveTo(lx - lw * 1.4 * e + dev * 3 * ech, ly - lh * e * 0.55,
+                         lx + dev * 6 * ech * e, ly - lh * e);
+      c.quadraticCurveTo(lx + lw * 1.4 * e + dev * 3 * ech, ly - lh * e * 0.55,
+                         lx + lw * e, ly);
+      c.closePath(); c.fill();
+    }
   }
 }
 
-/* Une masse de feu DÉCHIRÉE : un polygone dont chaque sommet respire à
-   son rythme. Une ellipse, à cette taille, se lit comme une bulle de
-   savon ; c'est l'irrégularité du contour qui fait le feu. */
-function geyMasse(c, x, y, r, t, coul, a, dep){
-  var i, ang, rr;
+/* LA TÊTE DU JET : une calotte cabossée prolongée vers le bas par une
+   traîne qui redescend jusqu'au sommet de la colonne.
+
+   Deux formes ont été essayées avant celle-ci et toutes deux ratent
+   pour la même raison. Trois ellipses concentriques donnent un œuf au
+   plat. Un polygone fermé, même irrégulier, donne un ballon qui flotte
+   à côté du feu — l'œil ne voit plus de la matière EXPULSÉE, il voit
+   un objet posé en l'air. Ce qui manquait n'était ni la couleur ni
+   l'irrégularité : c'était le LIEN. Ici la tête et la colonne ne font
+   qu'une seule silhouette, et l'étranglement s'étire tout seul à
+   mesure que la tête prend de l'avance. */
+function geyTeteJet(c, x, yt, ybas, r, t, coul, a, dep){
+  var i, ang, rr, N = 11;
   c.fillStyle = rgba(coul, a);
   c.beginPath();
-  for(i = 0; i < 10; i++){
-    ang = i / 10 * 6.2832;
-    rr = r * (0.74 + 0.40 * Math.abs(Math.sin(i * 2.31 + t * 3.1 + dep)));
-    if(i === 0) c.moveTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr * 1.16);
-    else c.lineTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr * 1.16);
+  c.moveTo(x - r * 0.46, ybas);                       // pied gauche, dans la colonne
+  c.quadraticCurveTo(x - r * 0.84, (yt + ybas) / 2, x - r, yt + r * 0.20);
+  for(i = 0; i <= N; i++){                            // la calotte, cabossée
+    ang = Math.PI + i / N * Math.PI;
+    /* deux fréquences : une seule donnait des dents régulières, donc
+       une couronne, donc un objet — pas du feu */
+    rr = r * (0.93 + 0.09 * Math.sin(i * 2.7 + t * 3.1 + dep)
+                   + 0.07 * Math.sin(i * 1.1 + t * 1.7 + dep * 2));
+    c.lineTo(x + Math.cos(ang) * rr, yt + Math.sin(ang) * rr * 1.32 + r * 0.22);
   }
+  c.quadraticCurveTo(x + r * 0.84, (yt + ybas) / 2, x + r * 0.46, ybas);
   c.closePath(); c.fill();
 }
 
@@ -9282,12 +9568,15 @@ function dessineGeyser(c, g, tps){
       for(i = 0; i < 3; i++){
         e = GEY_FUMEES[i];
         var pf = ((u * 1.25 + e.ph) % 1);
-        a = (1 - pf) * pf * 3.0 * 0.36 * Math.min(1, u * 4) * a0;
+        /* discrète : pendant l'éruption la fumée n'est qu'un voile
+           au-dessus de la flamme. Trop dense, elle salissait le feu et
+           lui donnait une couleur de boue. */
+        a = (1 - pf) * pf * 3.0 * 0.20 * Math.min(1, u * 4) * a0;
         if(a < 0.012) continue;
         geyBouffee(c, e.dx * (0.3 + pf) + Math.sin(tt * 0.8 + e.ph * 6) * 5 * pf,
-                   -haut * (0.55 + e.ph * 0.35) - pf * e.v,
+                   -haut * (0.86 + e.ph * 0.2) - pf * e.v,
                    Math.min(26, e.r * (0.6 + pf * 1.5)), a,
-                   e.ton > 0.6 ? "#4a3d38" : "#2e2724", 0.9);
+                   e.ton > 0.6 ? "#4e3f33" : "#332a22", 0.9);
       }
     }
 
@@ -9320,27 +9609,27 @@ function dessineGeyser(c, g, tps){
       var vieil = Math.max(0, 1 - Math.max(0, u - 0.20) / 0.26);
       var ab = av * vieil * a0;
       var rb = 11 + u * 30;
-      /* le col : il relie la colonne à la masse et s'affine à mesure
-         que l'écart grandit */
-      var col = Math.max(0, 1 - (hs - haut) / 52);
-      if(col > 0.02){
-        c.fillStyle = rgba("#ff5c0e", 0.30 * ab * col);
-        c.beginPath();
-        c.moveTo(-GEY_LARG * 0.5, -haut + 4);
-        c.quadraticCurveTo(-rb * 0.5, -(haut + hs) / 2, -rb * 0.42, -hs + rb * 0.4);
-        c.lineTo(rb * 0.42, -hs + rb * 0.4);
-        c.quadraticCurveTo(rb * 0.5, -(haut + hs) / 2, GEY_LARG * 0.5, -haut + 4);
-        c.closePath(); c.fill();
+      /* La fumée du bouchon passe D'ABORD : posée après, elle
+         recouvrait la masse de feu d'un disque gris et transformait
+         la boule incandescente en pompon marron. */
+      if(det && vieil < 0.55){
+        c.globalCompositeOperation = "source-over";
+        geyBouffee(c, Math.sin(tt) * 4, -hs - rb * 0.75,
+                   rb * (0.7 + u * 1.1), 0.30 * (0.55 - vieil) * 1.8 * a0,
+                   "#443830", 0.92);
+        c.globalCompositeOperation = "lighter";
       }
-      geyMasse(c, 0, -hs, rb, tt, "#ff5c0e", 0.32 * ab, 0);
-      geyMasse(c, 1, -hs - rb * 0.16, rb * 0.66, tt, "#ffab2e", 0.32 * ab, 1.7);
-      geyMasse(c, 0, -hs - rb * 0.26, rb * 0.31, tt, "#fff0c0", 0.30 * ab, 3.4);
+      /* Trois épaisseurs emboîtées, toutes rattachées au sommet de la
+         colonne : le rouge dehors, l'orange dedans, le blanc au cœur —
+         et le cœur remonte moins haut que l'enveloppe, parce que dans
+         un ballon de gaz qui monte le neuf arrive par le dessous et le
+         dessus a déjà commencé à refroidir. */
+      var ycol = -haut + 6;
+      geyTeteJet(c, 0, -hs, ycol, rb, tt, "#ff3808", 0.60 * ab, 0);
+      geyTeteJet(c, 1, -hs + rb * 0.20, ycol, rb * 0.68, tt, "#ff9418", 0.58 * ab, 1.7);
+      geyTeteJet(c, 0, -hs + rb * 0.42, ycol, rb * 0.34, tt, "#fff0c0", 0.50 * ab, 3.4);
       r = Math.min(rb * 1.7, 44);
       geyLueur(c, 0, -hs, r, r, "#ff9024", 0.30 * ab);
-      c.globalCompositeOperation = "source-over";
-      /* la fumée naît DANS le bouchon : c'est là que le gaz refroidit */
-      if(det) geyBouffee(c, Math.sin(tt) * 4, -hs - rb * 0.5,
-                         rb * (0.7 + u * 1.4), 0.24 * vieil * a0, "#3a3129", 0.92);
     }
     c.globalCompositeOperation = "source-over";
 
@@ -9388,11 +9677,11 @@ function dessineGeyser(c, g, tps){
         e = GEY_FUMEES[i];
         var pu = u * (0.55 + e.ph * 0.5) + e.ph * 0.35;
         if(pu > 1) continue;
-        a = Math.min(1, pu * 5) * (1 - pu) * (1 - pu) * 0.46 * a0;
-        geyBouffee(c, e.dx * pu * 1.5 + Math.sin(tps * 0.5 + e.ph * 6.28) * 9 * pu,
-                   -6 - pu * (26 + e.v * 1.5),
-                   e.r * (0.45 + pu * 1.9), a,
-                   e.ton > 0.5 ? "#4c4238" : "#332c28", 0.95);
+        a = Math.min(1, pu * 5) * (1 - pu) * (1 - pu) * 0.90 * a0;
+        geyBouffee(c, e.dx * pu * 1.7 + Math.sin(tps * 0.5 + e.ph * 6.28) * 11 * pu,
+                   -8 - pu * (34 + e.v * 1.9),
+                   e.r * (0.55 + pu * 2.3), a,
+                   e.ton > 0.5 ? "#5c5147" : "#3a322c", 0.95);
       }
     }
   }
@@ -9452,11 +9741,11 @@ function geyBraises(c, age, suite, z, a0){
     if(!lots[b]) lots[b] = [];
     lots[b].push(x, -y, r);
   }
-  c.save();
   c.globalCompositeOperation = "lighter";
+  c.globalAlpha = 1;
   for(b = 0; b < 4; b++){
     if(!lots[b]) continue;
-    c.fillStyle = GEY_TONS[b] + (0.18 + b * 0.26) + ")";
+    c.fillStyle = GEY_TONS[b] + ((0.18 + b * 0.26) * a0).toFixed(3) + ")";
     c.beginPath();
     for(i = 0; i < lots[b].length; i += 3){
       c.moveTo(lots[b][i] + lots[b][i + 2], lots[b][i + 1]);
@@ -9464,7 +9753,7 @@ function geyBraises(c, age, suite, z, a0){
     }
     c.fill();
   }
-  c.restore();
+  c.globalCompositeOperation = "source-over";
 }
 
 
@@ -9490,10 +9779,10 @@ function geyBraises(c, age, suite, z, a0){
 /* Ce que l'état change. `lum` éclaire ou éteint tout le tableau,
    `eclair` est la période entre deux coups de foudre (0 = aucun). */
 var VJ_ETATS = {
-  cooldown: { lum:0.40, pluie:0.55, eclair:0,    feu:0.16, brume:0.55, cadre:0,    pouls:0,    luciole:2, froid:0.62 },
-  attente : { lum:0.86, pluie:1.00, eclair:10.5, feu:0.78, brume:1.00, cadre:0.28, pouls:0,    luciole:5, froid:0.10 },
-  prete   : { lum:1.06, pluie:1.30, eclair:4.3,  feu:1.00, brume:1.10, cadre:1,    pouls:1,    luciole:8, froid:0 },
-  encours : { lum:0.98, pluie:1.15, eclair:6.6,  feu:0.94, brume:1.00, cadre:0.55, pouls:0.22, luciole:6, froid:0 }
+  cooldown: { lum:0.34, pluie:0.50, eclair:0,    feu:0.09, brume:0.50, cadre:0,    pouls:0,    luciole:2, froid:0.80 },
+  attente : { lum:0.80, pluie:0.95, eclair:12.0, feu:0.60, brume:1.00, cadre:0.25, pouls:0,    luciole:5, froid:0.12 },
+  prete   : { lum:1.08, pluie:1.30, eclair:4.0,  feu:1.05, brume:1.10, cadre:1,    pouls:1,    luciole:8, froid:0 },
+  encours : { lum:1.00, pluie:1.20, eclair:6.0,  feu:1.00, brume:1.00, cadre:0.55, pouls:0.20, luciole:6, froid:0 }
 };
 
 var vjFondCv = null, vjFondCle = "";
@@ -9526,63 +9815,99 @@ function dessineVignetteJungle(c, w, h, tps, etat){
      Un seul chemin pour toutes les gouttes : c'est un rideau, pas des
      objets. La dérive est constante — un orage tropical tombe de
      travers. */
-  var np = Math.round(w * h / 640 * E.pluie);
+  /* densité calée sur l'AIRE : c'est le nombre de segments qui coûte,
+     pas leur longueur, et à 620×288 on passait de trois cent soixante
+     traits à deux cents sans que l'œil y voie la moindre différence */
+  var np = Math.round(w * h / 760 * E.pluie);
   c.save();
-  c.strokeStyle = "rgba(196,232,226," + (0.20 + flash * 0.30) * E.lum + ")";
-  c.lineWidth = Math.max(0.7, w / 520);
   c.lineCap = "butt";
-  c.beginPath();
-  for(i = 0; i < np; i++){
-    b0 = bruitStable(i, 0); b1 = bruitStable(i, 1);
-    var vit = (0.9 + b1 * 0.9) * h * 1.9;
-    y = ((b0 * h * 2 + tps * vit) % (h + 44)) - 22;
-    x = ((b1 * (w + 90) - y * 0.34 - tps * vit * 0.30) % (w + 90) + w + 90) % (w + 90) - 45;
-    var lg = h * (0.05 + b1 * 0.075);
-    c.moveTo(x, y); c.lineTo(x - lg * 0.34, y + lg);
+  /* Deux passes : un rideau fin et discret, puis une poignée de
+     gouttes proches, plus longues et plus claires. Une pluie d'une
+     seule épaisseur n'a pas de profondeur — elle raye l'image. */
+  for(k = 0; k < 2; k++){
+    c.strokeStyle = "rgba(198,236,228," +
+      ((k ? 0.30 : 0.13) + flash * 0.26) * E.lum + ")";
+    c.lineWidth = Math.max(0.6, w / (k ? 420 : 900));
+    c.beginPath();
+    for(i = k; i < np; i += (k ? 5 : 1)){
+      b0 = bruitStable(i, 0); b1 = bruitStable(i, 1);
+      var vit = (0.9 + b1 * 0.9) * h * (k ? 2.6 : 1.9);
+      y = ((b0 * h * 2 + tps * vit) % (h + 44)) - 22;
+      x = ((b1 * (w + 90) - y * 0.34 - tps * vit * 0.30) % (w + 90) + w + 90) % (w + 90) - 45;
+      var lg = h * (k ? 0.10 + b1 * 0.10 : 0.045 + b1 * 0.06);
+      c.moveTo(x, y); c.lineTo(x - lg * 0.30, y + lg);
+    }
+    c.stroke();
   }
-  c.stroke();
   c.restore();
 
   /* ---- brume qui dérive au ras du sol ----
      Deux nappes lentes, en sens contraires : c'est le décalage entre
      les deux qui fait respirer l'image. */
   c.save();
-  c.globalAlpha = 0.20 * E.brume * E.lum;
-  for(i = 0; i < 5; i++){
+  for(i = 0; i < 4; i++){
     b0 = bruitStable(i + 40, 0); b1 = bruitStable(i + 40, 1);
     var sens = i % 2 ? 1 : -1;
     x = ((b0 * (w + 200) + tps * (5 + b1 * 8) * sens) % (w + 200) + w + 200) % (w + 200) - 100;
-    geyBouffee(c, x, h * (0.66 + b1 * 0.26), w * (0.10 + b0 * 0.09), 0.55,
-               "#9fc4b4", 0.36);
+    geyBouffee(c, x, h * (0.68 + b1 * 0.24), w * (0.085 + b0 * 0.055),
+               0.13 * E.brume * E.lum, "#9fc4b4", 0.34);
   }
   c.restore();
 
   /* ---- LE FEU : deux geysers, sur des cycles différents ----
      C'est l'élément exclusif de la carte : il doit être dans
      l'affiche, et il doit être le même code que dans le jeu. */
-  var ech = h / 148 * 0.46;
+  /* Plus gros que dans le jeu : sur une affiche de 288 pixels de haut,
+     une colonne à l'échelle 1 ferait un trait. Elle occupe ici près de
+     la moitié de la hauteur, et c'est elle le sujet. */
+  var ech = h / 148 * 0.58;
+  /* cam.z sert de niveau de détail à dessineGeyser : on le force à 1
+     le temps de l'affiche, sinon un menu ouvert pendant que la caméra
+     du jeu est dézoomée montrerait des geysers dégradés. */
   var camSauve = (typeof cam !== "undefined" && cam) ? cam.z : null;
-  if(typeof cam !== "undefined" && cam) cam.z = 1;   // pas de LOD ici : plein détail
-  var VENTS = [ [0.285, 0.905, 9.5, 0.0, 1.00],
-                [0.665, 0.845, 13.5, 4.6, 0.82],
-                [0.505, 0.795, 21.0, 8.9, 0.62] ];
+  if(camSauve !== null) cam.z = 1;
+  /* Sur la CARTE, les bouches dorment vingt-deux secondes sur vingt-sept
+     — c'est la règle qui empêche le terrain d'être un mur de flammes.
+     Sur l'AFFICHE, c'est exactement l'inverse qu'il faut : une vignette
+     qui ne montre que des cicatrices éteintes ne donne envie de rien.
+     Les cycles sont donc courts et décalés d'un tiers de période, si
+     bien qu'il y a toujours au moins une colonne debout. */
+  /* CINQ bouches, toutes sur la MÊME période de sept secondes et
+     décalées d'exactement un cinquième : la fenêtre « feu » dure 1,75 s
+     et le décalage 1,40 s, donc les fenêtres se recouvrent et pavent la
+     période entière. Traduction : il y a TOUJOURS au moins une colonne
+     debout sur l'affiche. Avec trois bouches sur des périodes
+     quelconques, une vignette sur trois ne montrait que des cicatrices
+     éteintes — ce qui est honnête pour la carte, désastreux pour une
+     affiche. */
+  var VENTS = [ [0.235, 0.930, 0.0, 1.00],
+                [0.715, 0.880, 1.4, 0.84],
+                [0.505, 0.822, 2.8, 0.60],
+                [0.865, 0.965, 4.2, 1.05],
+                [0.385, 0.985, 5.6, 0.92] ];
+  var perV = etat === "cooldown" ? 22 : 7;
   for(i = 0; i < VENTS.length; i++){
     var V = VENTS[i];
-    var et = geyCycle(tps, V[2] * (etat === "prete" ? 0.66 : 1), V[3]);
+    var et = geyCycle(tps, perV, V[2] * (perV / 7));
     c.save();
     c.translate(w * V[0], h * V[1]);
-    c.scale(ech * V[4], ech * V[4]);
+    c.scale(ech * V[3], ech * V[3]);
     c.globalAlpha = E.feu;
     dessineGeyser(c, { gx:i * 17 + 3, gy:i * 11 + 5, phase:et.phase, t:et.t }, tps);
     c.restore();
   }
   if(camSauve !== null) cam.z = camSauve;
 
-  /* lueur chaude générale montant du sol : elle unifie les trois
-     foyers en un seul incendie et réchauffe le bas de l'affiche */
+  /* Lueur chaude montant du sol : elle unifie les trois foyers en un
+     seul incendie et réchauffe le bas de l'affiche. C'est AUSSI la
+     pulsation de l'état « prete » — un second grand aplat pour
+     respirer aurait doublé le poste le plus cher de la vignette pour
+     rien : une seule nappe, dont la force respire. */
+  var puls = 0.5 + 0.5 * Math.sin(tps * 2.1);
   c.save();
-  c.scale(1, 0.42);
-  lueurRapide(c, w * 0.42, h / 0.42 * 0.93, w * 0.62, "#ff6a14", 0.20 * E.feu);
+  c.globalCompositeOperation = "lighter";
+  geyLueur(c, w * 0.44, h * 0.99, w * 0.40, h * 0.26, "#ff6a14",
+           0.28 * E.feu + (0.07 + puls * 0.18) * E.pouls);
   c.restore();
 
   /* ---- les lucioles : le petit mystère ---- */
@@ -9628,35 +9953,28 @@ function dessineVignetteJungle(c, w, h, tps, etat){
     c.fillRect(0, 0, w, h);
   }
 
-  /* ---- pulsation « ça va partir » ----
-     Une respiration chaude par le bas, plus un liseré qui court le
-     long du cadre. C'est le seul moment où la vignette DEMANDE le
-     clic ; partout ailleurs elle se contente d'exister. */
-  if(E.pouls > 0){
-    var puls = 0.5 + 0.5 * Math.sin(tps * 2.1);
-    c.save();
-    c.globalCompositeOperation = "lighter";
-    c.scale(1, 0.5);
-    lueurRapide(c, w * 0.5, h / 0.5 * 1.02, w * 0.75,
-                "#ff8c22", (0.10 + puls * 0.16) * E.pouls);
-    c.restore();
-  }
+  /* ---- le cadre ----
+     Un liseré qui court le long du bord. Avec la respiration chaude
+     du sol, c'est le seul moment où la vignette DEMANDE le clic ;
+     partout ailleurs elle se contente d'exister. */
   if(E.cadre > 0){
-    var m = Math.max(2, w * 0.008);
+    var m = Math.max(1.5, w * 0.0045);
     c.save();
-    c.lineJoin = "round";
+    c.lineJoin = "miter";
     /* trait de fond, discret : il donne un bord à la vignette même
        quand rien ne court dessus */
-    c.strokeStyle = "rgba(255,150,60," + (0.20 * E.cadre).toFixed(3) + ")";
-    c.lineWidth = m * 0.9;
+    c.strokeStyle = "rgba(255,132,44," + (0.30 * E.cadre).toFixed(3) + ")";
+    c.lineWidth = m;
     c.strokeRect(m * 0.5, m * 0.5, w - m, h - m);
     if(E.cadre > 0.6 && c.setLineDash){
-      var pas = w * 0.13;
-      c.setLineDash([pas * 0.42, pas * 0.58]);
-      c.lineDashOffset = -tps * pas * 1.5;
-      c.strokeStyle = "rgba(255,214,140," + (0.55 + 0.35 * Math.sin(tps * 3.1)).toFixed(3) + ")";
-      c.lineWidth = m * 0.75;
-      c.strokeRect(m * 0.5, m * 0.5, w - m, h - m);
+      /* le liseré qui COURT. Un cadre fixe dit « voici une image » ;
+         un cadre qui tourne dit « appuie ». */
+      var pas = w * 0.22;
+      c.setLineDash([pas * 0.30, pas * 0.70]);
+      c.lineDashOffset = -tps * pas * 0.9;
+      c.strokeStyle = "rgba(255,158,48," + (0.62 + 0.32 * Math.sin(tps * 3.1)).toFixed(3) + ")";
+      c.lineWidth = m * 1.15;
+      c.strokeRect(m * 0.75, m * 0.75, w - m * 1.5, h - m * 1.5);
       c.setLineDash([]);
     }
     c.restore();
@@ -9679,7 +9997,9 @@ function vjEnveloppe(t, mont, desc){
 function vjEclair(c, w, h, n, a){
   var al = prng(0x3c0 + n * 9176);
   var x = w * (0.14 + al() * 0.72), y = -h * 0.05;
-  var bas = h * (0.42 + al() * 0.16);
+  /* il plonge DANS la canopée, jamais en l'air : un éclair qui
+     s'arrête à mi-ciel n'a frappé nulle part */
+  var bas = h * (0.62 + al() * 0.14);
   var pts = [[x, y]], k;
   while(y < bas){
     y += h * (0.06 + al() * 0.09);
@@ -9704,8 +10024,12 @@ function vjEclair(c, w, h, n, a){
     c.stroke();
   }
   c.restore();
-  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1], w * 0.14,
-              "#a8d4ff", a * 0.45);
+  /* la lueur d'impact, au point de contact : elle rattache le trait à
+     la forêt au lieu de le laisser flotter */
+  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1], w * 0.12,
+              "#a8d4ff", a * 0.50);
+  lueurRapide(c, pts[pts.length - 1][0], pts[pts.length - 1][1] + h * 0.06,
+              w * 0.09, "#cfe8ff", a * 0.30);
 }
 
 /* ----------------------------------------------------------------
@@ -9723,127 +10047,185 @@ function vjConstruitFond(w, h){
   /* ---- le ciel d'orage. Il descend du noir-vert au vert d'eau
      malade : c'est la couleur d'un ciel tropical avant la pluie, et
      elle n'existe nulle part ailleurs dans le jeu. ---- */
-  g = c.createLinearGradient(0, 0, 0, h * 0.72);
-  g.addColorStop(0, "#050d0c");
-  g.addColorStop(0.45, "#0a1c18");
-  g.addColorStop(0.80, "#153126");
-  g.addColorStop(1, "#25452c");
+  g = c.createLinearGradient(0, 0, 0, h * 0.76);
+  g.addColorStop(0, "#04100c");
+  g.addColorStop(0.42, "#092019");
+  g.addColorStop(0.78, "#153a28");
+  g.addColorStop(1, "#2a5232");
   c.fillStyle = g; c.fillRect(0, 0, w, h);
 
   /* nuages bas : des masses écrasées, plus claires vers l'horizon */
-  for(i = 0; i < 16; i++){
-    x = al() * w; y = h * (0.05 + al() * 0.34);
-    var lum = 0.35 + (y / h) * 1.2;
-    c.fillStyle = "rgba(" + ((22 * lum) | 0) + "," + ((44 * lum) | 0) + "," + ((40 * lum) | 0) + ",.75)";
+  for(i = 0; i < 18; i++){
+    x = al() * w; y = h * (0.03 + al() * 0.36);
+    var lum = 0.35 + (y / h) * 1.3;
+    c.fillStyle = "rgba(" + ((22 * lum) | 0) + "," + ((48 * lum) | 0) + "," + ((42 * lum) | 0) + ",.72)";
     c.beginPath();
-    c.ellipse(x, y, w * (0.10 + al() * 0.16), h * (0.03 + al() * 0.05), 0, 0, 6.2832);
+    c.ellipse(x, y, w * (0.11 + al() * 0.17), h * (0.028 + al() * 0.05), 0, 0, 6.2832);
     c.fill();
   }
 
-  /* ---- trouée de lumière derrière le temple : c'est elle qui
-     détache toutes les silhouettes. Sans contre-jour, une jungle
-     noire sur un ciel noir n'est qu'une tache. ---- */
-  var sv = c.createRadialGradient(w * 0.5, h * 0.60, w * 0.02, w * 0.5, h * 0.60, w * 0.40);
-  sv.addColorStop(0, "rgba(126,196,138,.42)");
-  sv.addColorStop(0.5, "rgba(56,120,86,.20)");
+  /* ---- trouée de lumière derrière le temple : c'est elle qui détache
+     toutes les silhouettes. Sans contre-jour, une jungle noire sur un
+     ciel noir n'est qu'une tache. ---- */
+  var sv = c.createRadialGradient(w * 0.5, h * 0.66, w * 0.02, w * 0.5, h * 0.66, w * 0.44);
+  sv.addColorStop(0, "rgba(140,214,146,.46)");
+  sv.addColorStop(0.45, "rgba(60,132,92,.22)");
   sv.addColorStop(1, "rgba(20,50,40,0)");
   c.fillStyle = sv; c.fillRect(0, 0, w, h);
 
-  /* ---- canopée LOINTAINE : une ligne de crête bosselée ---- */
-  vjCanopee(c, w, h, h * 0.60, h * 0.10, "#12291f", 0.9, 22, al);
+  /* ---- montagnes très lointaines, à peine plus sombres que le ciel ---- */
+  c.fillStyle = "rgba(10,32,26,.66)";
+  c.beginPath();
+  c.moveTo(-10, h * 0.72);
+  for(i = 0; i <= 9; i++){
+    c.lineTo(w * i / 9, h * (0.60 - 0.09 * Math.abs(Math.sin(i * 1.9 + 0.4))));
+  }
+  c.lineTo(w + 10, h * 0.72); c.closePath(); c.fill();
 
-  /* ---- LE TEMPLE. La forteresse-visage de la carte, en silhouette
-     et de face : masse étagée, portail incandescent, deux fentes
-     d'yeux. Deux points chauds sur une masse noire, c'est ce que
-     l'œil accroche en premier — et c'est ce qui rend l'affiche
-     inquiétante au lieu d'être seulement verte. ---- */
+  /* ---- LE TEMPLE, planté au milieu ---- */
   vjTemple(c, w, h);
 
-  /* ---- canopée MOYENNE, devant le temple ---- */
-  vjCanopee(c, w, h, h * 0.70, h * 0.12, "#0c1f16", 1, 17, al);
+  /* ---- canopée LOINTAINE, devant le temple : elle lui donne son
+     assise et empêche qu'il ait l'air posé sur le vide ---- */
+  vjCanopee(c, w, h, h * 0.755, h * 0.115, "#0d2418", 1, 15, al);
 
-  /* ---- le sol : terre noire détrempée, flaques qui renvoient le
-     ciel. La jungle du jeu a une terre presque noire ; la vignette
-     doit la promettre. ---- */
-  g = c.createLinearGradient(0, h * 0.72, 0, h);
-  g.addColorStop(0, "#16240f");
-  g.addColorStop(1, "#080d06");
+  /* ---- le sol : terre noire détrempée. La jungle du jeu a une terre
+     presque noire ; la vignette doit la promettre. ---- */
+  g = c.createLinearGradient(0, h * 0.76, 0, h);
+  g.addColorStop(0, "#14240e");
+  g.addColorStop(1, "#060c05");
   c.fillStyle = g;
   c.beginPath();
-  c.moveTo(0, h * 0.80);
+  c.moveTo(0, h * 0.84);
   for(i = 0; i <= 10; i++){
-    c.lineTo(w * i / 10, h * (0.76 + 0.055 * Math.sin(i * 1.7 + 0.6)));
+    c.lineTo(w * i / 10, h * (0.805 + 0.045 * Math.sin(i * 1.7 + 0.6)));
   }
   c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
-  for(i = 0; i < 9; i++){
-    x = al() * w; y = h * (0.80 + al() * 0.18);
-    c.fillStyle = "rgba(96,150,132,.16)";
+  /* flaques : elles renvoient le vert du ciel, c'est ce qui dit
+     « détrempé » sans qu'on ait à dessiner une goutte */
+  for(i = 0; i < 11; i++){
+    x = al() * w; y = h * (0.83 + al() * 0.15);
+    c.fillStyle = "rgba(104,166,142,.15)";
     c.beginPath();
-    c.ellipse(x, y, w * (0.03 + al() * 0.07), h * (0.008 + al() * 0.016), 0, 0, 6.2832);
+    c.ellipse(x, y, w * (0.035 + al() * 0.075), h * (0.007 + al() * 0.014), 0, 0, 6.2832);
+    c.fill();
+    c.fillStyle = "rgba(150,210,182,.10)";
+    c.beginPath();
+    c.ellipse(x - w * 0.01, y - h * 0.003, w * (0.016 + al() * 0.03), h * 0.004, 0, 0, 6.2832);
+    c.fill();
+  }
+
+  /* ---- pierres ruinées et racines au sol : le mystère tient à ce
+     qu'on devine une civilisation avalée par la forêt ---- */
+  var RUINES = [[0.20, 0.855, 0.052], [0.735, 0.885, 0.062], [0.435, 0.925, 0.044],
+                [0.885, 0.845, 0.040]];
+  for(i = 0; i < RUINES.length; i++){
+    x = w * RUINES[i][0]; y = h * RUINES[i][1];
+    var lp = w * RUINES[i][2], hp = lp * 0.52;
+    c.fillStyle = "#141e16";
+    c.beginPath();
+    c.moveTo(x - lp, y); c.lineTo(x + lp, y);
+    c.lineTo(x + lp * 0.86, y - hp); c.lineTo(x - lp * 0.92, y - hp * 0.86);
+    c.closePath(); c.fill();
+    c.fillStyle = "#25352450".slice(0, 7);
+    c.fillStyle = "rgba(56,84,54,.55)";        // mousse sur le dessus
+    c.beginPath();
+    c.ellipse(x - lp * 0.05, y - hp * 0.9, lp * 0.88, hp * 0.20, 0, 0, 6.2832);
     c.fill();
   }
 
   /* ---- troncs : trois grands fûts qui traversent toute la hauteur.
      Ils donnent l'échelle et cadrent le temple. ---- */
-  vjTronc(c, w, h, 0.085, 0.030, al);
-  vjTronc(c, w, h, 0.905, 0.026, al);
-  vjTronc(c, w, h, 0.395, 0.017, al);
+  vjTronc(c, w, h, 0.075, 0.031, al);
+  vjTronc(c, w, h, 0.915, 0.027, al);
+  vjTronc(c, w, h, 0.375, 0.016, al);
 
   /* ---- lianes ---- */
-  c.strokeStyle = "rgba(8,20,14,.92)";
+  c.strokeStyle = "rgba(6,18,12,.92)";
   c.lineCap = "round";
-  for(i = 0; i < 7; i++){
+  for(i = 0; i < 9; i++){
     x = w * (0.05 + al() * 0.9);
-    var lo = h * (0.22 + al() * 0.42);
-    c.lineWidth = Math.max(1, w * (0.002 + al() * 0.004));
+    var lo = h * (0.20 + al() * 0.46);
+    c.lineWidth = Math.max(1, w * (0.0018 + al() * 0.0038));
     c.beginPath();
     c.moveTo(x, 0);
-    c.quadraticCurveTo(x + (al() - 0.5) * w * 0.08, lo * 0.6, x + (al() - 0.5) * w * 0.05, lo);
+    c.quadraticCurveTo(x + (al() - 0.5) * w * 0.07, lo * 0.6, x + (al() - 0.5) * w * 0.05, lo);
     c.stroke();
+    /* quelques feuilles accrochées : une liane nue n'est qu'un fil */
+    for(k = 0; k < 3; k++){
+      var yy = lo * (0.45 + k * 0.2);
+      vjFeuilleDecoupee(c, x + (al() - 0.5) * w * 0.03, yy, w * (0.018 + al() * 0.016),
+                        1.3 + al() * 1.4, "#0a1a11", al);
+    }
+  }
+
+  /* ---- BUISSONS DE MI-PLAN : la densité, c'est eux. Une jungle qui
+     laisse voir le sol sur toute sa largeur n'est pas dense. ---- */
+  var BUIS = [[0.02, 0.90, 0.13], [0.155, 0.955, 0.10], [0.30, 0.88, 0.085],
+              [0.60, 0.905, 0.095], [0.79, 0.955, 0.125], [0.965, 0.89, 0.115],
+              [0.47, 0.985, 0.09]];
+  for(i = 0; i < BUIS.length; i++){
+    vjMassif(c, w * BUIS[i][0], h * BUIS[i][1], w * BUIS[i][2], "#0a1a10", al);
   }
 
   /* ---- PREMIER PLAN : les grandes feuilles, presque noires.
-     C'est le cadre végétal — les quatre coins mangés par des feuilles
-     — qui dit « jungle dense » en un dixième de seconde. ---- */
-  vjFeuilleDecoupee(c, w * 0.03, h * 0.02, w * 0.30, -0.45, "#050f0a", al);
-  vjFeuilleDecoupee(c, w * 0.20, -h * 0.06, w * 0.24, 0.35, "#071409", al);
-  vjFeuilleDecoupee(c, w * 0.98, h * 0.05, w * 0.30, 3.6, "#050f0a", al);
-  vjFeuilleDecoupee(c, w * 0.80, -h * 0.05, w * 0.22, 2.7, "#071409", al);
-  vjFougere(c, w * 0.02, h * 1.02, w * 0.30, -0.5, "#040c07", al);
-  vjFougere(c, w * 1.00, h * 1.03, w * 0.28, 3.7, "#040c07", al);
-  vjFeuilleDecoupee(c, w * 0.62, h * 1.06, w * 0.26, 2.3, "#050f0a", al);
+     C'est le cadre végétal — les quatre coins mangés par des feuilles —
+     qui dit « jungle dense » en un dixième de seconde. ---- */
+  vjFeuilleDecoupee(c, w * 0.015, -h * 0.02, w * 0.34, -0.32, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.185, -h * 0.10, w * 0.28, 0.42, "#061309", al);
+  vjFeuilleDecoupee(c, w * 0.99, h * 0.02, w * 0.34, 3.52, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.815, -h * 0.09, w * 0.26, 2.62, "#061309", al);
+  vjFougere(c, -w * 0.01, h * 1.04, w * 0.36, -0.62, "#030b06", al);
+  vjFougere(c, w * 1.01, h * 1.05, w * 0.34, 3.78, "#030b06", al);
+  vjFeuilleDecoupee(c, w * 0.635, h * 1.10, w * 0.30, 2.15, "#04100a", al);
+  vjFeuilleDecoupee(c, w * 0.355, h * 1.12, w * 0.26, 1.05, "#04100a", al);
 
   /* ---- une touche de couleur : quelques fleurs rouges. Sans elles,
-     tout se noie dans le vert. Trois suffisent. ---- */
-  var FL = [[0.155, 0.905], [0.845, 0.945], [0.335, 0.985]];
+     tout se noie dans le vert. Cinq suffisent, et elles ne servent
+     qu'à ça — donner à l'œil un point où se poser. ---- */
+  var FL = [[0.115, 0.885], [0.865, 0.925], [0.305, 0.965], [0.665, 0.855], [0.505, 0.995]];
   for(i = 0; i < FL.length; i++){
     x = w * FL[i][0]; y = h * FL[i][1];
     for(k = 0; k < 5; k++){
       var af = k / 5 * 6.2832 + 0.4;
-      c.fillStyle = k % 2 ? "#b8241c" : "#d8442a";
+      c.fillStyle = k % 2 ? "#a81c16" : "#d8442a";
       c.beginPath();
-      c.ellipse(x + Math.cos(af) * w * 0.008, y + Math.sin(af) * w * 0.008,
-                w * 0.009, w * 0.006, af, 0, 6.2832);
+      c.ellipse(x + Math.cos(af) * w * 0.0075, y + Math.sin(af) * w * 0.0075,
+                w * 0.0085, w * 0.0055, af, 0, 6.2832);
       c.fill();
     }
     c.fillStyle = "#f0c040";
-    c.beginPath(); c.arc(x, y, w * 0.004, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(x, y, w * 0.0035, 0, 6.2832); c.fill();
   }
 
   /* ---- coins sombres ---- */
-  var vg = c.createRadialGradient(w * 0.5, h * 0.5, h * 0.22, w * 0.5, h * 0.5, w * 0.72);
-  vg.addColorStop(0, "rgba(4,10,10,0)");
-  vg.addColorStop(1, "rgba(2,7,8,.78)");
+  var vg = c.createRadialGradient(w * 0.5, h * 0.52, h * 0.20, w * 0.5, h * 0.52, w * 0.70);
+  vg.addColorStop(0, "rgba(3,9,9,0)");
+  vg.addColorStop(1, "rgba(1,5,6,.80)");
   c.fillStyle = vg; c.fillRect(0, 0, w, h);
 }
 
-/* Une ligne de crête de canopée : des bosses de feuillage collées les
-   unes aux autres, remplies d'un seul aplat. Le relief vient des
-   grappes plus claires posées dessus, pas d'un dégradé. */
+/* Un massif de feuillage : des feuilles empilées en éventail autour
+   d'un point. Un buisson dessiné comme une bosse ne trompe personne ;
+   ce sont les BORDS dentelés qui font la végétation. */
+function vjMassif(c, x, y, r, coul, al){
+  var i, n = 9 + ((al() * 5) | 0);
+  for(i = 0; i < n; i++){
+    var a = -Math.PI + (i + 0.5) / n * Math.PI + (al() - 0.5) * 0.25;
+    var lr = r * (0.55 + al() * 0.60);
+    vjFeuilleDecoupee(c, x + Math.cos(a) * r * 0.28, y + Math.sin(a) * r * 0.12,
+                      lr, a * 0.85, coul, al);
+  }
+}
+
+/* Une ligne de crête de canopée : des touffes de feuilles collées les
+   unes aux autres. Le relief vient des grappes plus claires posées
+   dessus, pas d'un dégradé. */
 function vjCanopee(c, w, h, base, amp, coul, opa, n, al){
   var i, x, y;
   c.save();
   c.globalAlpha = opa;
+  /* la masse pleine, pour boucher le fond */
   c.fillStyle = coul;
   c.beginPath();
   c.moveTo(-w * 0.05, h + 2);
@@ -9855,76 +10237,116 @@ function vjCanopee(c, w, h, base, amp, coul, opa, n, al){
   }
   c.lineTo(w * 1.05, h + 2);
   c.closePath(); c.fill();
-  /* grappes de feuilles claires sur la crête : elles attrapent la
-     trouée de lumière du fond */
-  c.fillStyle = ecl(coul, 1.85);
-  c.globalAlpha = opa * 0.55;
+  /* et par-dessus, des touffes qui dentellent la crête */
+  for(i = 0; i <= n; i++){
+    x = -w * 0.05 + (w * 1.1) * i / n;
+    y = base - amp * (0.35 + 0.65 * Math.abs(Math.sin(i * 1.31 + 0.7)));
+    vjMassif(c, x, y + amp * 0.30, w * (0.035 + al() * 0.028), coul, al);
+  }
+  /* grappes claires sur la crête : elles attrapent la trouée du fond */
+  c.fillStyle = ecl(coul, 2.0);
+  c.globalAlpha = opa * 0.42;
   for(i = 0; i < n; i++){
     x = -w * 0.05 + (w * 1.1) * (i + 0.5) / n;
     y = base - amp * (0.35 + 0.65 * Math.abs(Math.sin(i * 1.31 + 0.7)));
     c.beginPath();
-    c.ellipse(x, y + amp * 0.16, w * 0.016, amp * 0.16, al() * 3, 0, 6.2832);
+    c.ellipse(x, y + amp * 0.10, w * 0.019, amp * 0.14, al() * 3, 0, 6.2832);
     c.fill();
   }
   c.restore();
 }
 
-/* Le temple-forteresse, en silhouette de face. */
+/* LE TEMPLE DU BRASIER, en silhouette et de face.
+   Le premier essai n'était qu'un trapèze à deux ailerons percé de deux
+   yeux : ça ne lisait pas « forteresse », ça lisait « masque ». Il
+   fallait de l'ARCHITECTURE — des gradins qui se réduisent, un
+   escalier axial, un portail à hauteur d'homme — pour que les deux
+   fentes incandescentes redeviennent des fenêtres et que l'échelle
+   soit lisible. Le Brasier reste un visage, mais un visage bâti. */
 function vjTemple(c, w, h){
-  var cx = w * 0.5, bas = h * 0.80;
-  var lg = w * 0.15, ht = h * 0.34;
-  var i;
-  /* corps étagé */
-  c.fillStyle = "#08120f";
-  c.beginPath();
-  c.moveTo(cx - lg, bas);
-  c.lineTo(cx - lg * 0.74, bas - ht * 0.42);
-  c.lineTo(cx - lg * 0.60, bas - ht * 0.44);
-  c.lineTo(cx - lg * 0.44, bas - ht * 0.82);
-  c.lineTo(cx - lg * 0.26, bas - ht * 0.86);
-  c.lineTo(cx - lg * 0.20, bas - ht);
-  c.lineTo(cx + lg * 0.20, bas - ht);
-  c.lineTo(cx + lg * 0.26, bas - ht * 0.86);
-  c.lineTo(cx + lg * 0.44, bas - ht * 0.82);
-  c.lineTo(cx + lg * 0.60, bas - ht * 0.44);
-  c.lineTo(cx + lg * 0.74, bas - ht * 0.42);
-  c.lineTo(cx + lg, bas);
-  c.closePath(); c.fill();
-  /* deux flèches latérales */
-  for(i = -1; i <= 1; i += 2){
+  var cx = w * 0.50, bas = h * 0.79;
+  var lg = w * 0.185, ht = h * 0.42;
+  var N = 5, i, u0, u1, l0, l1, y0, y1;
+
+  /* les gradins */
+  for(i = 0; i < N; i++){
+    u0 = i / N; u1 = (i + 1) / N;
+    l0 = lg * (1 - u0 * 0.66); l1 = lg * (1 - u1 * 0.66);
+    y0 = bas - ht * u0; y1 = bas - ht * u1;
+    c.fillStyle = "#071410";
     c.beginPath();
-    c.moveTo(cx + i * lg * 0.86, bas - ht * 0.30);
-    c.lineTo(cx + i * lg * 0.98, bas - ht * 0.72);
-    c.lineTo(cx + i * lg * 1.10, bas - ht * 0.30);
+    c.moveTo(cx - l0, y0); c.lineTo(cx + l0, y0);
+    c.lineTo(cx + l1, y1); c.lineTo(cx - l1, y1);
+    c.closePath(); c.fill();
+    /* la marge du gradin prend la lumière du fond : sans elle, la
+       masse est un aplat et les étages disparaissent */
+    c.fillStyle = "rgba(58,96,72,.34)";
+    c.fillRect(cx - l1 * 1.06, y1, l1 * 2.12, Math.max(1, ht * 0.016));
+  }
+  /* les deux tours d'angle */
+  for(i = -1; i <= 1; i += 2){
+    c.fillStyle = "#050f0c";
+    c.beginPath();
+    c.moveTo(cx + i * lg * 0.94, bas);
+    c.lineTo(cx + i * lg * 1.16, bas);
+    c.lineTo(cx + i * lg * 1.06, bas - ht * 0.62);
+    c.lineTo(cx + i * lg * 0.86, bas - ht * 0.62);
+    c.closePath(); c.fill();
+    /* la flèche */
+    c.beginPath();
+    c.moveTo(cx + i * lg * 0.86, bas - ht * 0.62);
+    c.lineTo(cx + i * lg * 0.96, bas - ht * 0.84);
+    c.lineTo(cx + i * lg * 1.06, bas - ht * 0.62);
     c.closePath(); c.fill();
   }
+  /* l'escalier axial : des marches à peine plus claires */
+  c.fillStyle = "rgba(46,78,58,.30)";
+  for(i = 0; i < 9; i++){
+    var ue = i / 9;
+    var le = lg * 0.20 * (1 - ue * 0.5);
+    c.fillRect(cx - le, bas - ht * 0.60 * ue, le * 2, Math.max(1, ht * 0.014));
+  }
   /* le portail : la seule vraie source de lumière du fond */
-  var g = c.createRadialGradient(cx, bas - ht * 0.10, 1, cx, bas - ht * 0.10, lg * 0.55);
-  g.addColorStop(0, "rgba(255,196,96,.85)");
-  g.addColorStop(0.4, "rgba(255,104,26,.45)");
+  var g = c.createRadialGradient(cx, bas - ht * 0.06, 1, cx, bas - ht * 0.06, lg * 0.62);
+  g.addColorStop(0, "rgba(255,196,96,.80)");
+  g.addColorStop(0.38, "rgba(255,104,26,.40)");
   g.addColorStop(1, "rgba(200,40,8,0)");
   c.fillStyle = g;
-  c.beginPath(); c.arc(cx, bas - ht * 0.10, lg * 0.55, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(cx, bas - ht * 0.06, lg * 0.62, 0, 6.2832); c.fill();
   c.fillStyle = "#ffb64a";
   c.beginPath();
-  c.moveTo(cx - lg * 0.14, bas);
-  c.lineTo(cx - lg * 0.14, bas - ht * 0.14);
-  c.quadraticCurveTo(cx, bas - ht * 0.26, cx + lg * 0.14, bas - ht * 0.14);
-  c.lineTo(cx + lg * 0.14, bas);
+  c.moveTo(cx - lg * 0.115, bas);
+  c.lineTo(cx - lg * 0.115, bas - ht * 0.10);
+  c.quadraticCurveTo(cx, bas - ht * 0.20, cx + lg * 0.115, bas - ht * 0.10);
+  c.lineTo(cx + lg * 0.115, bas);
   c.closePath(); c.fill();
-  /* les yeux */
+  /* les deux fenêtres hautes : deux fentes verticales, pas deux yeux
+     ronds — c'est la forme qui décide si l'œil lit un bâtiment ou une
+     bête */
   for(i = -1; i <= 1; i += 2){
-    var ex = cx + i * lg * 0.30, ey = bas - ht * 0.70;
-    var ge = c.createRadialGradient(ex, ey, 0.5, ex, ey, lg * 0.22);
-    ge.addColorStop(0, "rgba(255,168,60,.9)");
+    var ex = cx + i * lg * 0.20, ey = bas - ht * 0.74;
+    var ge = c.createRadialGradient(ex, ey, 0.5, ex, ey, lg * 0.26);
+    ge.addColorStop(0, "rgba(255,170,62,.85)");
     ge.addColorStop(1, "rgba(255,80,10,0)");
     c.fillStyle = ge;
-    c.beginPath(); c.arc(ex, ey, lg * 0.22, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(ex, ey, lg * 0.26, 0, 6.2832); c.fill();
     c.fillStyle = "#ffd27a";
     c.beginPath();
-    c.ellipse(ex, ey, lg * 0.075, lg * 0.028, i * 0.22, 0, 6.2832);
-    c.fill();
+    c.moveTo(ex - lg * 0.028, ey + ht * 0.045);
+    c.lineTo(ex - lg * 0.028, ey - ht * 0.02);
+    c.quadraticCurveTo(ex, ey - ht * 0.055, ex + lg * 0.028, ey - ht * 0.02);
+    c.lineTo(ex + lg * 0.028, ey + ht * 0.045);
+    c.closePath(); c.fill();
   }
+  /* la vasque du sommet, allumée */
+  c.fillStyle = "#050f0c";
+  c.fillRect(cx - lg * 0.20, bas - ht * 1.06, lg * 0.40, ht * 0.07);
+  var gs = c.createRadialGradient(cx, bas - ht * 1.10, 1, cx, bas - ht * 1.10, lg * 0.40);
+  gs.addColorStop(0, "rgba(255,214,130,.80)");
+  gs.addColorStop(0.4, "rgba(255,120,30,.34)");
+  gs.addColorStop(1, "rgba(220,60,10,0)");
+  c.fillStyle = gs;
+  c.beginPath(); c.arc(cx, bas - ht * 1.10, lg * 0.40, 0, 6.2832); c.fill();
 }
 
 /* Un tronc de grand arbre, du haut du cadre jusqu'au sol. */
@@ -22270,8 +22692,35 @@ function envoieTrame(u8){
     try{ reseau.ws.send(u8); }catch(e){}
   }
 }
+/* ================================================================
+   LE MODE PRÉVISUALISATION
+
+   Une carte ouverte en prévisualisation ne doit RIEN laisser derrière
+   elle : ni dégâts publiés, ni champion, ni verrou entamé, ni
+   progression avancée. La tentation serait de tout défaire à la
+   sortie — restaurer les bâtiments, remonter les PV, effacer les
+   scores. Ce serait fragile : il suffirait d'oublier une chose pour
+   la voir fuir dans la vraie partie.
+
+   On prend donc l'autre chemin, et c'est le seul qui se démontre :
+   ON N'ÉCRIT JAMAIS RIEN. Deux robinets, fermés à la source —
+   envoie() et publieMonde() — et plus aucun octet ne sort de cet
+   appareil. `monde` n'est pas touché, `jeu` est reconstruit de zéro
+   au prochain lancement depuis `carte`. Il n'y a donc rien à
+   restaurer : la carte officielle n'a jamais bougé.
+
+   Ce qui reste local et assumé : le classement affiché à l'écran
+   pendant le test compte les dégâts du test. Il repart à zéro en
+   quittant, et personne d'autre ne l'a jamais vu.
+   ================================================================ */
+var modeApercu = false;
+
 function envoie(obj){
   obj.id = monId;
+  /* PREMIER ROBINET. En prévisualisation, aucun message ne part —
+     ni « bonjour », ni dégâts, ni destruction, ni capacité. Les
+     autres joueurs ne savent même pas qu'on teste. */
+  if(modeApercu) return;
   if(!reseau.connecte) return;
   envoieTrame(paquetPublish(SUJET, JSON.stringify(obj)));
 }
@@ -22401,6 +22850,10 @@ function recoitMonde(txt){
    les PV du Brasier. Monotone : on ne relève jamais rien. */
 function appliqueMondeAuJeu(m){
   if(!jeu || !mondeValide(m)) return;
+  /* En prévisualisation, on ne LIT pas non plus : la carte doit être
+     montrée intacte, telle qu'elle sortira du générateur, et non
+     amputée des défenses que le salon a déjà détruites ailleurs. */
+  if(modeApercu) return;
   /* EN EXPÉDITION, c'est la voie de la jungle qui commande, pas la
      campagne : les destructions viennent de jd et les PV de jq. Le
      reste de l'instantané décrit une île à laquelle on ne touche pas
@@ -22603,7 +23056,44 @@ function tueGegeLocale(){ tueCreatureLocale("belette"); }
    --------------------------------------------------------------- */
 /* Mot de passe des deux actions réservées : remettre le salon à zéro et
    changer le plan de défense. Un seul endroit à modifier. */
-var MOT_RAZ = "mily4000";
+/* ----------------------------------------------------------------
+   LE MOT DE PASSE — ce qu'il protège, et ce qu'il ne protège pas
+
+   Soyons francs : le jeu est UN FICHIER HTML que n'importe qui peut
+   ouvrir dans un éditeur de texte. Il n'y a pas de serveur, donc il
+   n'y a rien à faire vérifier par un serveur. Un mot de passe écrit
+   ici, en clair ou non, ne peut pas être un secret.
+
+   Ce qu'on gagne à le hacher : il ne se lit plus en parcourant le
+   fichier, et il ne s'échappe pas d'une capture d'écran du code. Ce
+   qu'on ne gagne pas : quelqu'un qui ouvre la console du navigateur
+   appelle directement remetSalonAZero() ou ouvreApercuAdmin() sans
+   jamais voir la fenêtre. C'est donc une PROTECTION D'INTERFACE — un
+   cran d'arrêt contre la fausse manœuvre et le joueur de passage —
+   et jamais une sécurité.
+
+   Le jour où le jeu aura un serveur, c'est lui qui devra refuser une
+   remise à zéro non autorisée, et cette fonction ne servira plus qu'à
+   éviter d'afficher un bouton pour rien.
+   ---------------------------------------------------------------- */
+/* FNV-1a 32 bits : trois lignes, pas de dépendance, et le mot ne se
+   lit plus dans le fichier. */
+function empreinteMot(s){
+  var h = 0x811c9dc5;
+  s = String(s).trim().toLowerCase();
+  for(var i = 0; i < s.length; i++){
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h >>> 0;
+}
+var EMPREINTE_RAZ = 3344921544;
+function motAdminValide(mot){
+  return mot !== null && empreinteMot(mot) === EMPREINTE_RAZ;
+}
+/* Conservé pour les messages qui le citent ; plus aucun test ne
+   compare directement à lui. */
+var MOT_RAZ = null;
 
 function remetSalonAZero(){
   scoresSalon = {};            // l'île repart à neuf, le tableau aussi
@@ -22663,6 +23153,10 @@ function signaleMonde(){ mondeSale = true; }
    miroir local ne dépend PAS du réseau : en solo, ou pendant une
    coupure, c'est lui seul qui garde le monde. */
 function publieMonde(force){
+  /* SECOND ROBINET. L'instantané retenu est le seul état durable du
+     salon : ne pas l'écrire, c'est garantir qu'une prévisualisation
+     ne laisse aucune trace, où que ce soit. */
+  if(modeApercu) return;
   var m = mondeCourant();
   if(!mondeValide(m)) return;
   if(!force && memeMonde(monde, m) && !mondeSale) return;
@@ -23393,7 +23887,7 @@ function validePlan(){
   }
   var mot = prompt("Mot de passe pour changer le plan du salon :");
   if(mot === null) return;
-  if(mot.trim().toLowerCase() !== MOT_RAZ){
+  if(!motAdminValide(mot)){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
@@ -26450,12 +26944,29 @@ function majListeBarges(){
        mais c'est celui qui vaut les douze autres. */
     var seul = placesNavette(b.type) === 1;
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
-          + '" data-i="' + i + '">'
-          + '<div class="n">' + (seul ? "☠" : b.n) + '</div>'
-          + '<div class="d">' + UNI[b.type].nom + '</div></div>';
+          + (b.n ? "" : " vide") + '" data-i="' + i + '"'
+          + ' title="' + echappe(nommeTroupes(b.type, b.n)) + '">'
+          + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
+          + '<div class="n">' + b.n + '</div></div>';
   }
-  if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;padding:6px 10px">aucune</div>';
+  if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;height:auto;padding:6px 10px;line-height:1.2">aucune</div>';
   l.innerHTML = html;
+  /* Les portraits sont peints APRÈS l'innerHTML — les canevas n'existent
+     pas avant. Ils viennent de dessinePortrait, exactement le même que
+     l'accueil, qui résout « portraitXxx » à la demande : une troupe
+     ajoutée demain apparaîtra ici sans qu'on touche à cette fonction. */
+  for(var q = 0; q < jeu.barges.length; q++){
+    var el = $("bgp_" + q);
+    if(!el) continue;
+    var c = el.getContext("2d");
+    var g = c.createLinearGradient(0, 0, 0, 104);
+    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+    c.fillStyle = g; c.fillRect(0, 0, 92, 104);
+    /* Le portrait est peint PLUS LARGE que la tuile et déborde par les
+       côtés : à 46 px de large, un visage cadré au propre devient un
+       point. Ce qu'on veut lire ici, c'est le visage, pas le buste. */
+    dessinePortrait(c, jeu.barges[q].type, 0, 2, 116);
+  }
   var els = l.querySelectorAll(".bg1[data-i]");
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
@@ -26864,6 +27375,10 @@ function majBilan(dt){
        elle se termine, le salon la referme pour 48 heures, et tout le
        monde revient au campement. La campagne, elle, n'a pas bougé
        d'un cran pendant ce temps. */
+    /* EN PRÉVISUALISATION, la victoire n'est pas une victoire : ni
+       champion, ni chrono de 48 h entamé, ni île suivante. On sort du
+       test, c'est tout. */
+    if(modeApercu){ quitteApercuAdmin(); return; }
     if(jeu.index === IDX_JUNGLE){
       termineExpedition(championDeLaPartie().nom);
       quitteVersBriefing();
@@ -27140,7 +27655,8 @@ function majMondes(){
     if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
     var etat = i < carteSalon ? "tombée" : (i === carteSalon ? "en cours" : "verrouillée");
     var cl = i < carteSalon ? "faite" : (i === carteSalon ? "actif" : "verrou");
-    h += '<div class="monde ' + cl + '"><canvas width="360" height="148" id="mn' + i + '"></canvas>'
+    h += '<div class="monde ' + cl + '" data-carte="' + i + '">'
+       + '<canvas width="360" height="148" id="mn' + i + '"></canvas>'
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
@@ -27149,6 +27665,30 @@ function majMondes(){
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
   installeBoutonJungle();
+  installeAppuisCartes();
+}
+
+/* Arme l'appui long du créateur sur toute vignette qui n'est pas
+   librement jouable — les îles verrouillées, et la jungle dans
+   n'importe lequel de ses états. Une carte ouverte garde son
+   comportement d'origine, intact. */
+function installeAppuisCartes(){
+  var els = $("mondes").querySelectorAll("[data-carte]");
+  for(var k = 0; k < els.length; k++){
+    var i = +els[k].getAttribute("data-carte");
+    if(!carteSpeciale(i) && i <= carteSalon) continue;   // carte ouverte : rien à cacher
+    armeAppuiLong(els[k], i);
+    if(!carteSpeciale(i)){
+      (function(idx){
+        els[k].addEventListener("click", function(){ clicCarteVerrouillee(idx); });
+      })(i);
+    }
+  }
+  /* La vignette événement porte son propre bouton, donc l'appui long
+     s'arme sur son cadre — mais le bouton, lui, ne doit pas déclencher
+     l'anneau quand on appuie dessus pour entrer. */
+  var evt = $("mondeEvt");
+  if(evt) armeAppuiLong(evt, IDX_JUNGLE);
 }
 
 /* La vignette de la carte événement. Elle porte quatre informations
@@ -27364,6 +27904,178 @@ function lancePartie(ou){
 /* Le bouton n'existe que dans le briefing : impossible de l'effleurer
    en pleine partie. Double garde-fou — un mot de passe, puis une
    confirmation qui annonce ce que ça détruit. */
+/* ================================================================
+   L'APPUI LONG DU CRÉATEUR
+
+   Cinq secondes de doigt posé sur une vignette verrouillée, puis le
+   mot de passe, et la carte s'ouvre en prévisualisation. Aucun bouton
+   n'est ajouté à l'écran : un joueur ordinaire ne peut pas tomber
+   dessus par hasard, et un appui long involontaire dure rarement cinq
+   secondes.
+
+   Le geste marche au doigt comme à la souris parce qu'il passe par
+   les événements POINTEUR, qui unifient les deux. Trois précautions
+   pour la tablette :
+     — touch-action:none sur la vignette, sinon le navigateur prend le
+       doigt pour un défilement et annule le pointeur au bout de
+       quelques pixels ;
+     — contextmenu annulé, sinon Android ouvre son menu « copier » au
+       bout d'une demi-seconde et vole le geste ;
+     — pointercancel traité comme un relâchement, pour que l'anneau ne
+       reste pas figé si le système reprend la main.
+   ================================================================ */
+var APPUI_ADMIN = 5.0;                 // secondes de doigt posé
+var appuiAdmin = null;                 // { el, i, t0, minuteur }
+
+function armeAppuiLong(el, i){
+  /* touch-action en JS et non en CSS : la vignette débloquée doit
+     rester défilante, seule la verrouillée capture le doigt. */
+  el.style.touchAction = "none";
+  var anneau = document.createElement("div");
+  anneau.className = "anneauAdmin";
+  el.appendChild(anneau);
+
+  function debut(ev){
+    if(appuiAdmin) return;
+    appuiAdmin = { el:el, i:i, t0:Date.now(), anneau:anneau, deplace:false,
+                   x:ev.clientX, y:ev.clientY };
+    el.classList.add("presse");
+    el.setPointerCapture && el.setPointerCapture(ev.pointerId);
+    appuiAdmin.minuteur = setInterval(tic, 60);
+    ev.preventDefault();
+  }
+  function tic(){
+    if(!appuiAdmin) return;
+    var av = (Date.now() - appuiAdmin.t0) / 1000 / APPUI_ADMIN;
+    appuiAdmin.anneau.style.setProperty("--av", Math.min(1, av));
+    if(av >= 1){
+      var idx = appuiAdmin.i;
+      finAppui();
+      demandeApercuAdmin(idx);
+    }
+  }
+  function bouge(ev){
+    if(!appuiAdmin) return;
+    /* Le doigt qui glisse veut faire défiler la page, pas ouvrir un
+       panneau caché. Douze pixels de tolérance : moins, et le moindre
+       tremblement annulerait le geste sur une tablette tenue à bout
+       de bras. */
+    if(Math.hypot(ev.clientX - appuiAdmin.x, ev.clientY - appuiAdmin.y) > 12) finAppui();
+  }
+  function finAppui(){
+    if(!appuiAdmin) return;
+    clearInterval(appuiAdmin.minuteur);
+    appuiAdmin.el.classList.remove("presse");
+    appuiAdmin.anneau.style.setProperty("--av", 0);
+    appuiAdmin = null;
+  }
+  el.addEventListener("pointerdown", debut);
+  el.addEventListener("pointermove", bouge);
+  el.addEventListener("pointerup", finAppui);
+  el.addEventListener("pointercancel", finAppui);
+  el.addEventListener("pointerleave", finAppui);
+  el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
+}
+
+/* Le clic court sur une carte verrouillée : on dit pourquoi elle
+   l'est, sans jamais laisser deviner qu'un appui long existe. */
+function clicCarteVerrouillee(i){
+  if(appuiAdmin) return;
+  message(carteSpeciale(i)
+    ? "« Mily dans la jungle » est un événement : il faut assez de joueurs connectés."
+    : "Termine la carte précédente pour débloquer celle-ci.");
+}
+
+function demandeApercuAdmin(i){
+  var mot = prompt(
+    "ACCÈS ADMINISTRATEUR\n\n"
+    + "Prévisualiser « " + CARTES[i].nom + " » sans la déverrouiller ?\n\n"
+    + "Rien de ce qui se passera pendant ce test ne sera enregistré :\n"
+    + "ni dégâts, ni champion, ni progression, ni chrono.\n\n"
+    + "Mot de passe :");
+  if(mot === null) return;
+  if(!motAdminValide(mot)) return;      // mot faux : rien ne se passe, comme demandé
+  ouvreApercuAdmin(i);
+}
+
+/* ---------------------------------------------------------------
+   ENTRER ET SORTIR DE LA PRÉVISUALISATION
+   --------------------------------------------------------------- */
+function ouvreApercuAdmin(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Créateur";
+  monNom = pseudoSaisi();
+  /* Le drapeau est levé AVANT lancePartie : nouvelleCarte publie et
+     salue le salon en passant, et il ne faut pas qu'un seul de ces
+     messages sorte. */
+  modeApercu = true;
+  lancePartie(i);
+  $("hud").classList.add("apercu");
+  message("Prévisualisation de « " + CARTES[i].nom + " ». Rien ne sera enregistré.");
+}
+function quitteApercuAdmin(){
+  modeApercu = false;
+  $("hud").classList.remove("apercu");
+  /* Les dégâts du test ne doivent pas hanter le classement local :
+     on efface la mémoire de la partie d'essai. */
+  scoresSalon = {};
+  jeu = null;
+  signatureBarges = null;
+  quitteVersBriefing();
+  message("");
+}
+
+/* ---------------------------------------------------------------
+   RETOUR À L'ACCUEIL, ET REPRISE
+
+   Quitter la bataille ne la détruit pas : `jeu` reste en mémoire, la
+   boucle cesse simplement de l'animer. Et de toute façon l'essentiel
+   — défenses détruites, PV du Brasier — vit dans l'instantané partagé
+   et sera réappliqué au retour. On peut donc revenir au menu, changer
+   la composition de ses navettes, regarder les cartes, puis reprendre
+   là où l'on était.
+
+   Une réserve, et elle est réelle : les troupes déjà débarquées ne
+   sont pas simulées pendant qu'on est au menu. Elles attendent,
+   figées, plutôt que de mourir sans témoin — c'est le comportement le
+   moins surprenant des deux.
+   --------------------------------------------------------------- */
+function retourAccueil(){
+  if(modeApercu) return quitteApercuAdmin();
+  quitteVersBriefing();
+  majBoutonReprendre();
+}
+/* Peut-on encore reprendre la partie laissée en plan ? Seulement si
+   le salon n'est pas passé à autre chose entre-temps. */
+function reprisePossible(){
+  if(!jeu || jeu.fin) return false;
+  if(jeu.index === IDX_JUNGLE) return jungleEnCours(monde);
+  return jeu.index === carteSalon;
+}
+function majBoutonReprendre(){
+  var b = $("btReprendre");
+  if(!b) return;
+  var ok = reprisePossible();
+  b.style.display = ok ? "" : "none";
+  if(ok) b.textContent = "↩ REPRENDRE — " + CARTES[jeu.index].nom;
+  /* Un seul bouton principal à la fois : « DÉBARQUER » recommence la
+     carte à zéro, et proposer les deux au même endroit sans les
+     distinguer ferait perdre sa partie à quelqu'un. */
+  var l = $("lancer");
+  if(l) l.textContent = ok ? "RECOMMENCER" : "DÉBARQUER";
+}
+function reprendCombat(){
+  if(!reprisePossible()) return;
+  $("brief").style.display = "none";
+  $("hud").classList.add("on");
+  enJeu = true;
+  dprPlafond = 4; lissageImg = 16; gouvLent = 0; gouvVite = 0;
+  ajuste();
+  signatureBarges = null;
+  majBarres();
+  majPodium();
+  message("De retour au combat.");
+}
+
 /* ---------------------------------------------------------------
    ENTRER DANS LA JUNGLE
    Assombrissement, coup de tonnerre, éclair, le titre — puis la carte.
@@ -27408,6 +28120,7 @@ function quitteVersBriefing(){
   evtEtat = "";
   majMondes();
   rafraichitPlan();
+  majBoutonReprendre();
 }
 
 /* ---------------------------------------------------------------
@@ -27423,7 +28136,7 @@ function installeAdmin(){
   b.addEventListener("click", function(){
     var mot = prompt("Mot de passe administrateur :");
     if(mot === null) return;
-    if(mot.trim().toLowerCase() !== MOT_RAZ){
+    if(!motAdminValide(mot)){
       alert("Mot de passe incorrect. Rien n'a été touché.");
       return;
     }
@@ -27458,7 +28171,7 @@ function installeRaz(){
   b.addEventListener("click", function(){
     var mot = prompt("Mot de passe pour réinitialiser le salon :");
     if(mot === null) return;
-    if(mot.trim().toLowerCase() !== MOT_RAZ){
+    if(!motAdminValide(mot)){
       alert("Mot de passe incorrect. Rien n'a été touché.");
       return;
     }
@@ -27479,6 +28192,8 @@ function installeBoutons(){
   $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });
   $("btCentre").addEventListener("click", function(){ centreSur(jeu.qg.gx, jeu.qg.gy); borneCamera(); });
   $("btPlein2").addEventListener("click", basculePlein);
+  $("btAccueil").addEventListener("click", retourAccueil);
+  $("btReprendre").addEventListener("click", reprendCombat);
 }
 
 /* ===== 95-son.js ===== */

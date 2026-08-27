@@ -334,12 +334,29 @@ function majListeBarges(){
        mais c'est celui qui vaut les douze autres. */
     var seul = placesNavette(b.type) === 1;
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
-          + '" data-i="' + i + '">'
-          + '<div class="n">' + (seul ? "☠" : b.n) + '</div>'
-          + '<div class="d">' + UNI[b.type].nom + '</div></div>';
+          + (b.n ? "" : " vide") + '" data-i="' + i + '"'
+          + ' title="' + echappe(nommeTroupes(b.type, b.n)) + '">'
+          + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
+          + '<div class="n">' + b.n + '</div></div>';
   }
-  if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;padding:6px 10px">aucune</div>';
+  if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;height:auto;padding:6px 10px;line-height:1.2">aucune</div>';
   l.innerHTML = html;
+  /* Les portraits sont peints APRÈS l'innerHTML — les canevas n'existent
+     pas avant. Ils viennent de dessinePortrait, exactement le même que
+     l'accueil, qui résout « portraitXxx » à la demande : une troupe
+     ajoutée demain apparaîtra ici sans qu'on touche à cette fonction. */
+  for(var q = 0; q < jeu.barges.length; q++){
+    var el = $("bgp_" + q);
+    if(!el) continue;
+    var c = el.getContext("2d");
+    var g = c.createLinearGradient(0, 0, 0, 104);
+    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+    c.fillStyle = g; c.fillRect(0, 0, 92, 104);
+    /* Le portrait est peint PLUS LARGE que la tuile et déborde par les
+       côtés : à 46 px de large, un visage cadré au propre devient un
+       point. Ce qu'on veut lire ici, c'est le visage, pas le buste. */
+    dessinePortrait(c, jeu.barges[q].type, 0, 2, 116);
+  }
   var els = l.querySelectorAll(".bg1[data-i]");
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
@@ -748,6 +765,10 @@ function majBilan(dt){
        elle se termine, le salon la referme pour 48 heures, et tout le
        monde revient au campement. La campagne, elle, n'a pas bougé
        d'un cran pendant ce temps. */
+    /* EN PRÉVISUALISATION, la victoire n'est pas une victoire : ni
+       champion, ni chrono de 48 h entamé, ni île suivante. On sort du
+       test, c'est tout. */
+    if(modeApercu){ quitteApercuAdmin(); return; }
     if(jeu.index === IDX_JUNGLE){
       termineExpedition(championDeLaPartie().nom);
       quitteVersBriefing();
@@ -1024,7 +1045,8 @@ function majMondes(){
     if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
     var etat = i < carteSalon ? "tombée" : (i === carteSalon ? "en cours" : "verrouillée");
     var cl = i < carteSalon ? "faite" : (i === carteSalon ? "actif" : "verrou");
-    h += '<div class="monde ' + cl + '"><canvas width="360" height="148" id="mn' + i + '"></canvas>'
+    h += '<div class="monde ' + cl + '" data-carte="' + i + '">'
+       + '<canvas width="360" height="148" id="mn' + i + '"></canvas>'
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
@@ -1033,6 +1055,30 @@ function majMondes(){
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
   installeBoutonJungle();
+  installeAppuisCartes();
+}
+
+/* Arme l'appui long du créateur sur toute vignette qui n'est pas
+   librement jouable — les îles verrouillées, et la jungle dans
+   n'importe lequel de ses états. Une carte ouverte garde son
+   comportement d'origine, intact. */
+function installeAppuisCartes(){
+  var els = $("mondes").querySelectorAll("[data-carte]");
+  for(var k = 0; k < els.length; k++){
+    var i = +els[k].getAttribute("data-carte");
+    if(!carteSpeciale(i) && i <= carteSalon) continue;   // carte ouverte : rien à cacher
+    armeAppuiLong(els[k], i);
+    if(!carteSpeciale(i)){
+      (function(idx){
+        els[k].addEventListener("click", function(){ clicCarteVerrouillee(idx); });
+      })(i);
+    }
+  }
+  /* La vignette événement porte son propre bouton, donc l'appui long
+     s'arme sur son cadre — mais le bouton, lui, ne doit pas déclencher
+     l'anneau quand on appuie dessus pour entrer. */
+  var evt = $("mondeEvt");
+  if(evt) armeAppuiLong(evt, IDX_JUNGLE);
 }
 
 /* La vignette de la carte événement. Elle porte quatre informations
@@ -1248,6 +1294,178 @@ function lancePartie(ou){
 /* Le bouton n'existe que dans le briefing : impossible de l'effleurer
    en pleine partie. Double garde-fou — un mot de passe, puis une
    confirmation qui annonce ce que ça détruit. */
+/* ================================================================
+   L'APPUI LONG DU CRÉATEUR
+
+   Cinq secondes de doigt posé sur une vignette verrouillée, puis le
+   mot de passe, et la carte s'ouvre en prévisualisation. Aucun bouton
+   n'est ajouté à l'écran : un joueur ordinaire ne peut pas tomber
+   dessus par hasard, et un appui long involontaire dure rarement cinq
+   secondes.
+
+   Le geste marche au doigt comme à la souris parce qu'il passe par
+   les événements POINTEUR, qui unifient les deux. Trois précautions
+   pour la tablette :
+     — touch-action:none sur la vignette, sinon le navigateur prend le
+       doigt pour un défilement et annule le pointeur au bout de
+       quelques pixels ;
+     — contextmenu annulé, sinon Android ouvre son menu « copier » au
+       bout d'une demi-seconde et vole le geste ;
+     — pointercancel traité comme un relâchement, pour que l'anneau ne
+       reste pas figé si le système reprend la main.
+   ================================================================ */
+var APPUI_ADMIN = 5.0;                 // secondes de doigt posé
+var appuiAdmin = null;                 // { el, i, t0, minuteur }
+
+function armeAppuiLong(el, i){
+  /* touch-action en JS et non en CSS : la vignette débloquée doit
+     rester défilante, seule la verrouillée capture le doigt. */
+  el.style.touchAction = "none";
+  var anneau = document.createElement("div");
+  anneau.className = "anneauAdmin";
+  el.appendChild(anneau);
+
+  function debut(ev){
+    if(appuiAdmin) return;
+    appuiAdmin = { el:el, i:i, t0:Date.now(), anneau:anneau, deplace:false,
+                   x:ev.clientX, y:ev.clientY };
+    el.classList.add("presse");
+    el.setPointerCapture && el.setPointerCapture(ev.pointerId);
+    appuiAdmin.minuteur = setInterval(tic, 60);
+    ev.preventDefault();
+  }
+  function tic(){
+    if(!appuiAdmin) return;
+    var av = (Date.now() - appuiAdmin.t0) / 1000 / APPUI_ADMIN;
+    appuiAdmin.anneau.style.setProperty("--av", Math.min(1, av));
+    if(av >= 1){
+      var idx = appuiAdmin.i;
+      finAppui();
+      demandeApercuAdmin(idx);
+    }
+  }
+  function bouge(ev){
+    if(!appuiAdmin) return;
+    /* Le doigt qui glisse veut faire défiler la page, pas ouvrir un
+       panneau caché. Douze pixels de tolérance : moins, et le moindre
+       tremblement annulerait le geste sur une tablette tenue à bout
+       de bras. */
+    if(Math.hypot(ev.clientX - appuiAdmin.x, ev.clientY - appuiAdmin.y) > 12) finAppui();
+  }
+  function finAppui(){
+    if(!appuiAdmin) return;
+    clearInterval(appuiAdmin.minuteur);
+    appuiAdmin.el.classList.remove("presse");
+    appuiAdmin.anneau.style.setProperty("--av", 0);
+    appuiAdmin = null;
+  }
+  el.addEventListener("pointerdown", debut);
+  el.addEventListener("pointermove", bouge);
+  el.addEventListener("pointerup", finAppui);
+  el.addEventListener("pointercancel", finAppui);
+  el.addEventListener("pointerleave", finAppui);
+  el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
+}
+
+/* Le clic court sur une carte verrouillée : on dit pourquoi elle
+   l'est, sans jamais laisser deviner qu'un appui long existe. */
+function clicCarteVerrouillee(i){
+  if(appuiAdmin) return;
+  message(carteSpeciale(i)
+    ? "« Mily dans la jungle » est un événement : il faut assez de joueurs connectés."
+    : "Termine la carte précédente pour débloquer celle-ci.");
+}
+
+function demandeApercuAdmin(i){
+  var mot = prompt(
+    "ACCÈS ADMINISTRATEUR\n\n"
+    + "Prévisualiser « " + CARTES[i].nom + " » sans la déverrouiller ?\n\n"
+    + "Rien de ce qui se passera pendant ce test ne sera enregistré :\n"
+    + "ni dégâts, ni champion, ni progression, ni chrono.\n\n"
+    + "Mot de passe :");
+  if(mot === null) return;
+  if(!motAdminValide(mot)) return;      // mot faux : rien ne se passe, comme demandé
+  ouvreApercuAdmin(i);
+}
+
+/* ---------------------------------------------------------------
+   ENTRER ET SORTIR DE LA PRÉVISUALISATION
+   --------------------------------------------------------------- */
+function ouvreApercuAdmin(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Créateur";
+  monNom = pseudoSaisi();
+  /* Le drapeau est levé AVANT lancePartie : nouvelleCarte publie et
+     salue le salon en passant, et il ne faut pas qu'un seul de ces
+     messages sorte. */
+  modeApercu = true;
+  lancePartie(i);
+  $("hud").classList.add("apercu");
+  message("Prévisualisation de « " + CARTES[i].nom + " ». Rien ne sera enregistré.");
+}
+function quitteApercuAdmin(){
+  modeApercu = false;
+  $("hud").classList.remove("apercu");
+  /* Les dégâts du test ne doivent pas hanter le classement local :
+     on efface la mémoire de la partie d'essai. */
+  scoresSalon = {};
+  jeu = null;
+  signatureBarges = null;
+  quitteVersBriefing();
+  message("");
+}
+
+/* ---------------------------------------------------------------
+   RETOUR À L'ACCUEIL, ET REPRISE
+
+   Quitter la bataille ne la détruit pas : `jeu` reste en mémoire, la
+   boucle cesse simplement de l'animer. Et de toute façon l'essentiel
+   — défenses détruites, PV du Brasier — vit dans l'instantané partagé
+   et sera réappliqué au retour. On peut donc revenir au menu, changer
+   la composition de ses navettes, regarder les cartes, puis reprendre
+   là où l'on était.
+
+   Une réserve, et elle est réelle : les troupes déjà débarquées ne
+   sont pas simulées pendant qu'on est au menu. Elles attendent,
+   figées, plutôt que de mourir sans témoin — c'est le comportement le
+   moins surprenant des deux.
+   --------------------------------------------------------------- */
+function retourAccueil(){
+  if(modeApercu) return quitteApercuAdmin();
+  quitteVersBriefing();
+  majBoutonReprendre();
+}
+/* Peut-on encore reprendre la partie laissée en plan ? Seulement si
+   le salon n'est pas passé à autre chose entre-temps. */
+function reprisePossible(){
+  if(!jeu || jeu.fin) return false;
+  if(jeu.index === IDX_JUNGLE) return jungleEnCours(monde);
+  return jeu.index === carteSalon;
+}
+function majBoutonReprendre(){
+  var b = $("btReprendre");
+  if(!b) return;
+  var ok = reprisePossible();
+  b.style.display = ok ? "" : "none";
+  if(ok) b.textContent = "↩ REPRENDRE — " + CARTES[jeu.index].nom;
+  /* Un seul bouton principal à la fois : « DÉBARQUER » recommence la
+     carte à zéro, et proposer les deux au même endroit sans les
+     distinguer ferait perdre sa partie à quelqu'un. */
+  var l = $("lancer");
+  if(l) l.textContent = ok ? "RECOMMENCER" : "DÉBARQUER";
+}
+function reprendCombat(){
+  if(!reprisePossible()) return;
+  $("brief").style.display = "none";
+  $("hud").classList.add("on");
+  enJeu = true;
+  dprPlafond = 4; lissageImg = 16; gouvLent = 0; gouvVite = 0;
+  ajuste();
+  signatureBarges = null;
+  majBarres();
+  majPodium();
+  message("De retour au combat.");
+}
+
 /* ---------------------------------------------------------------
    ENTRER DANS LA JUNGLE
    Assombrissement, coup de tonnerre, éclair, le titre — puis la carte.
@@ -1292,6 +1510,7 @@ function quitteVersBriefing(){
   evtEtat = "";
   majMondes();
   rafraichitPlan();
+  majBoutonReprendre();
 }
 
 /* ---------------------------------------------------------------
@@ -1307,7 +1526,7 @@ function installeAdmin(){
   b.addEventListener("click", function(){
     var mot = prompt("Mot de passe administrateur :");
     if(mot === null) return;
-    if(mot.trim().toLowerCase() !== MOT_RAZ){
+    if(!motAdminValide(mot)){
       alert("Mot de passe incorrect. Rien n'a été touché.");
       return;
     }
@@ -1342,7 +1561,7 @@ function installeRaz(){
   b.addEventListener("click", function(){
     var mot = prompt("Mot de passe pour réinitialiser le salon :");
     if(mot === null) return;
-    if(mot.trim().toLowerCase() !== MOT_RAZ){
+    if(!motAdminValide(mot)){
       alert("Mot de passe incorrect. Rien n'a été touché.");
       return;
     }
@@ -1363,4 +1582,6 @@ function installeBoutons(){
   $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });
   $("btCentre").addEventListener("click", function(){ centreSur(jeu.qg.gx, jeu.qg.gy); borneCamera(); });
   $("btPlein2").addEventListener("click", basculePlein);
+  $("btAccueil").addEventListener("click", retourAccueil);
+  $("btReprendre").addEventListener("click", reprendCombat);
 }

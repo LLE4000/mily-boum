@@ -217,16 +217,31 @@ function oeilFaune(c, x, y, r, ouv, blanc, reg){
    c'est deux fois le même défaut à corriger. (chatBoudin est une
    déclaration de fonction : elle est hissée au niveau du script
    assemblé, donc disponible ici bien que 72- vienne après 34-.) */
+/* Combien de disques pour un boudin long de « l » dont le rayon le plus
+   fin vaut « e » ?
+   Deux corrections, l'une de dessin, l'autre de charge.
+   — De dessin : un compte FIXE ne marche pas. Réglé à sept comme les
+     pattes de chat, un bras de singe de treize unités sortait en
+     chapelet de perles, les disques ne se recouvrant plus. Il faut
+     donc partir de la longueur.
+   — De charge : au banc, sur la carte jungle, soixante-douze bêtes à
+     l'écran coûtaient 4,4 ms par image, et l'essentiel partait dans
+     ces disques. Or à z = 0,55 un singe ne fait plus quatorze pixels
+     de haut : l'espacement qu'il faut pour que le boudin paraisse
+     plein n'est plus le même. On desserre donc quand la caméra
+     recule — le trou entre deux disques reste alors sous le pixel,
+     et la moitié des tracés disparaît. */
+function fauneDisques(l, e){
+  var z = (typeof cam !== "undefined" && cam && cam.z) ? cam.z : 1;
+  var d = 1.1 + Math.max(0, 0.85 - z) * 2.2;
+  if(d > 2.0) d = 2.0;
+  var n = Math.round(l / Math.max(0.35, e * d));
+  return Math.max(4, Math.min(22, n));
+}
 function membreFaune(c, x0, y0, cx, cy, x1, y1, e0, e1, coul, main, rm){
-  /* Le nombre de disques se déduit de la LONGUEUR. Fixé à sept comme
-     pour les pattes de chat, un bras de singe de treize unités sortait
-     en chapelet de perles : les disques ne se recouvraient plus. On
-     espace donc d'un peu moins d'un rayon, et on plafonne à vingt-deux
-     pour qu'un membre très long ne coûte pas un tir de mitraillette. */
   var l = Math.hypot(x1 - x0, y1 - y0) + Math.hypot(cx - x0, cy - y0) * 0.35;
-  var n = Math.round(l / Math.max(0.35, Math.min(e0, e1) * 1.1));
   chatBoudin(c, [[x0, y0, cx, cy, x1, y1]],
-             { n:Math.max(5, Math.min(22, n)), e0:e0, e1:e1, coul:coul });
+             { n:fauneDisques(l, Math.min(e0, e1)), e0:e0, e1:e1, coul:coul });
   if(main){
     c.fillStyle = main;
     c.beginPath(); c.ellipse(x1, y1 + 0.15, rm, rm * 0.74, 0, 0, 6.2832); c.fill();
@@ -293,9 +308,6 @@ function dessineSinge(c, k, tps){
   var saut = fuit ? bond * 3.2 : bond * 0.7;
   var d = fuit ? -1.7 : Math.sin(pas) * 0.5;
   var ec = Math.sin(pas) * (fuit ? 5.2 : 3.0);
-  /* Le sursaut écrase la bête vers le sol. C'est un réflexe, pas une
-     décision : il vient avant même que le singe décide de partir. */
-  var tapi = sur * 2.6;
   var alerte = fuit || sur > 0.15;
   var ouv = alerte ? 1 : fauneClin(tps, ph, 3.6);
   var lacet = fuit ? -0.30 : (sur > 0.15 ? 0.24 : Math.sin(tps * 0.63 + ph * 1.7) * 0.34);
@@ -307,8 +319,13 @@ function dessineSinge(c, k, tps){
   ombreFaune(c, 0.8, 9.2, 3.2, bond, 0.26);
 
   c.save();
-  c.translate(0, -saut + tapi);
+  c.translate(0, -saut);
   c.rotate(fuit ? 0.06 : Math.sin(tps * 1.1 + ph) * 0.026);
+  /* Le sursaut ÉCRASE la bête : c'est un réflexe, il arrive avant même
+     que le singe décide de partir. Écraser, et non descendre — la
+     première version translatait tout le dessin vers le bas et les
+     quatre pieds passaient sous le sol. */
+  if(sur > 0) c.scale(1 + sur * 0.07, 1 - sur * 0.16);
 
   /* ---- la queue, derrière tout le reste ----
      Au repos elle s'enroule très haut : c'est le signal de silhouette.
@@ -322,9 +339,11 @@ function dessineSinge(c, k, tps){
     : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4],
        [-13.2 + onde * 0.6, -18.4, -13.8 + onde * 1.0, -23.4, -8.2 + onde * 1.3, -24.2],
        [-8.2 + onde * 1.3, -24.2, -4.6 + onde * 1.5, -24.6, -5.4 + onde * 1.6, -21.2]];
-  /* Vingt-six disques et pas quatorze : à quatorze, sur un tracé de
-     trente-cinq unités, la queue sortait en collier de perles. */
-  chatBoudin(c, q, { n:21, e0:1.7, e1:0.8, coul:P.flanc, bout:P.cape, tBout:0.84 });
+  /* Le compte de disques est calculé, pas écrit : posé à quatorze sur
+     un tracé de trente-cinq unités, la queue sortait en collier de
+     perles. */
+  chatBoudin(c, q, { n:fauneDisques(34, 0.8), e0:1.7, e1:0.8,
+                     coul:P.flanc, bout:P.cape, tBout:0.84 });
 
   /* ---- membres du fond : plus sombres, ils reculent ---- */
   membreFaune(c, -4.6, -9.8, -6.4, -5.2, -5.4 - ec, -1.0, 1.85, 1.15, P.ventreO, P.main, 1.6);
@@ -386,7 +405,7 @@ function dessineSinge(c, k, tps){
 
   /* le cou : sans lui, la tête flottait au-dessus du garrot */
   chatBoudin(c, [[6.6, -13.4, 8.6, -15.0, 10.2, -16.2]],
-             { n:7, e0:1.9, e1:1.7, coul:P.flanc });
+             { n:fauneDisques(4.6, 1.7), e0:1.9, e1:1.7, coul:P.flanc });
 
   /* ---- LA TÊTE. Relevée, tournée aux trois quarts, et volontairement
      trop grosse : c'est le rapport tête/corps qui fait le singe. ---- */
@@ -635,6 +654,23 @@ function panda_bambou(c, x, y, rot, lon, bal){
   c.restore();
 }
 
+/* Le corps assis : une poire posée sur ses fesses, le ventre en avant.
+   Sorti en fonction parce qu'il sert DEUX fois — au remplissage, puis
+   à l'écrêtage du baudrier noir. Recopié à la main aux deux endroits,
+   il aurait suffi de corriger une seule des deux copies pour que le
+   noir des épaules déborde du dos. */
+function pandaAssisCorps(c, resp){
+  c.beginPath();
+  c.moveTo(-9.4, -1.4);
+  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);   /* dos */
+  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);    /* épaules */
+  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp); /* poitrail qui respire */
+  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);       /* ventre */
+  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
+  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
+  c.closePath();
+}
+
 /* ---- PANDA ASSIS : la scène qui mange -------------------------- */
 function panda_assis(c, k, tps, sur, alerte, fuit){
   var P = PAL_PANDA;
@@ -653,20 +689,19 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
      lui et rentre la tête. Un panda assis qu'on effraie reste assis :
      c'est précisément ce qui le rend drôle. */
   var serre = alerte ? 1 : 0;
-  var tapi = sur * 1.8 + (fuit ? 1.2 : 0);
+  var tasse = sur * 0.15 + (fuit ? 0.06 : 0);
 
   ombreFaune(c, 1.4, 13.0, 4.4, 0, 0.3);
 
   c.save();
-  c.translate(0, tapi);
+  if(tasse > 0) c.scale(1 + tasse * 0.4, 1 - tasse);
 
   /* ---- patte arrière du fond, allongée vers l'avant ---- */
   c.fillStyle = P.noirO;
   c.beginPath(); c.ellipse(4.0, -3.4, 6.4, 3.1, -0.10, 0, 6.2832); c.fill();
 
-  /* ---- le corps : une poire posée sur ses fesses, le ventre en
-     avant. Il respire — le poitrail se soulève, et c'est à peu près la
-     seule chose qui bouge chez un panda qui ne mâche pas. ---- */
+  /* ---- le corps. Il respire — le poitrail se soulève, et c'est à peu
+     près la seule chose qui bouge chez un panda qui ne mâche pas. ---- */
   c.fillStyle = degCache(c, "pandaAssis", function(){
     var g = c.createLinearGradient(0, -21, 0, -1);
     g.addColorStop(0, PAL_PANDA.blancC);
@@ -674,37 +709,26 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
     g.addColorStop(1, PAL_PANDA.blancO);
     return g;
   });
-  c.beginPath();
-  c.moveTo(-9.4, -1.4);
-  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);
-  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);
-  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp);
-  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);
-  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
-  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
-  c.closePath(); c.fill();
+  pandaAssisCorps(c, resp); c.fill();
 
-  /* ---- patte arrière proche, plante de pied tournée vers nous. La
-     plante claire est un détail gratuit qui rapporte beaucoup : c'est
-     ce qu'on voit d'un panda assis sur toutes les photos. ---- */
-  c.fillStyle = P.noir;
-  c.beginPath(); c.ellipse(6.8, -2.9, 7.0, 3.5, -0.14, 0, 6.2832); c.fill();
+  /* ---- patte arrière proche, plante de pied tournée vers nous : c'est
+     ce qu'on voit d'un panda assis sur toutes les photos, et ça ne
+     coûte rien. Elle est à peine plus claire que la patte, avec trois
+     coussinets. Peinte en gris franc, elle faisait une boule de
+     billard collée au bout de la jambe. ---- */
   c.fillStyle = P.noirC;
-  c.beginPath(); c.ellipse(12.0, -3.8, 2.5, 3.0, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(255,255,255,.10)";
-  c.beginPath(); c.ellipse(12.2, -4.2, 1.5, 1.9, -0.18, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(12.0, -3.8, 2.3, 2.8, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(206,198,214,.30)";
+  c.beginPath(); c.ellipse(12.2, -4.4, 1.1, 1.3, -0.18, 0, 6.2832); c.fill();
+  for(var o = 0; o < 3; o++){
+    c.beginPath();
+    c.ellipse(11.6 + o * 0.55, -2.0 - o * 1.15, 0.52, 0.42, -0.18, 0, 6.2832);
+    c.fill();
+  }
 
   /* ---- le baudrier noir des épaules, écrêté par le corps ---- */
   c.save();
-  c.beginPath();
-  c.moveTo(-9.4, -1.4);
-  c.quadraticCurveTo(-12.4, -8.6, -10.2, -14.8);
-  c.quadraticCurveTo(-7.8, -20.2, -0.8, -20.4);
-  c.quadraticCurveTo(6.6, -20.6, 9.2, -14.2 - resp);
-  c.quadraticCurveTo(11.8, -7.4, 8.0, -2.6);
-  c.quadraticCurveTo(3.0, -0.2, -3.2, -0.5);
-  c.quadraticCurveTo(-7.2, -0.8, -9.4, -1.4);
-  c.closePath(); c.clip();
+  pandaAssisCorps(c, resp); c.clip();
   c.fillStyle = P.noir;
   c.beginPath();
   c.moveTo(-11.0, -15.0);
@@ -740,7 +764,10 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
 
   /* ---- la tête, penchée sur la canne ---- */
   c.save();
-  c.translate(4.4 + serre * 0.4, -22.4 + mach * 0.5 + serre * 1.2);
+  /* Un demi-point plus bas que ce que la géométrie voulait : assis, il
+     dépassait le panda debout, et deux pandas côte à côte n'avaient
+     plus l'air de la même espèce. */
+  c.translate(4.4 + serre * 0.4, -21.8 + mach * 0.5 + serre * 1.2);
   c.rotate(0.14 + mach * 0.05 + serre * 0.12);
   panda_tete(c, lacet, ouv, mach, serre, 0);
   c.restore();
@@ -758,7 +785,6 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   var ec = Math.sin(pas) * (fuit ? 6.4 : 3.4);
   var ouv = alerte ? 1 : fauneClin(tps, ph, 4.4);
   var lacet = fuit ? -0.26 : Math.sin(tps * 0.44 + ph * 1.5) * 0.26;
-  var tapi = sur * 2.4;
   /* Le dandinement : un panda ne marche pas droit, il roule d'une
      épaule sur l'autre. C'est cette bascule, plus que le pas, qui donne
      le poids de la bête. */
@@ -767,8 +793,9 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   ombreFaune(c, 0.4, 13.6, 4.6, bond, 0.3);
 
   c.save();
-  c.translate(0, -saut + tapi);
+  c.translate(0, -saut);
   c.rotate(roule);
+  if(sur > 0) c.scale(1 + sur * 0.06, 1 - sur * 0.15);
 
   /* pattes du fond */
   membreFaune(c, -7.6, -11.0, -9.4, -6.0, -8.2 - ec, -1.2, 2.8, 1.9, P.noirO, P.noirO, 2.4);
@@ -899,13 +926,12 @@ function dessineKoala(c, k, tps){
   if(!alerte && fauneClin(tps, ph + 1.7, 5.2) < 0.5) ouv = 0.2;
   var lacet = alerte ? -0.2 : Math.sin(tps * 0.36 + ph * 1.1) * 0.3;
   var tremble = fuit ? Math.sin(tps * 13 + ph) * 0.5 : 0;
-  var tapi = sur * 1.4;
 
   ombreFaune(c, 0.4, 8.0, 3.0, 0, 0.28);
 
   c.save();
-  c.translate(0, tapi);
   c.rotate((fuit ? -0.1 : 0) + Math.sin(tps * 0.95 + ph) * 0.014);
+  if(sur > 0) c.scale(1 + sur * 0.07, 1 - sur * 0.14);
 
   /* patte arrière du fond, puis la proche par-dessus le ventre */
   membreFaune(c, -3.2, -8.0 - dresse * 3.4, -5.4, -4.6, -4.0, -0.8, 2.0, 1.6, P.ombre, P.griffe, 1.8);
@@ -934,8 +960,11 @@ function dessineKoala(c, k, tps){
   /* les deux bras. Assis, ils se croisent sur le ventre ; dressé, ils
      partent chercher une branche au-dessus de la tête. */
   if(dresse){
-    membreFaune(c, -2.0, -16.0, -4.6, -22.0, -5.6 + tremble, -27.4, 1.9, 1.4, P.ombre, P.griffe, 1.6);
-    membreFaune(c, 4.4, -16.6, 7.0, -22.6, 6.4 + tremble, -28.2, 2.0, 1.5, P.flanc, P.griffe, 1.7);
+    /* Ils montent PLUS HAUT que les oreilles. Arrêtés à hauteur de
+       crâne, les deux bras disparaissaient derrière la tête et le
+       koala paniqué avait simplement l'air assis un peu plus droit. */
+    membreFaune(c, -2.2, -16.0, -6.4, -23.0, -8.2 + tremble, -30.4, 2.1, 1.6, P.ombre, P.griffe, 1.8);
+    membreFaune(c, 4.6, -16.6, 9.2, -23.6, 10.4 + tremble, -31.2, 2.2, 1.7, P.flanc, P.griffe, 1.9);
   }else{
     membreFaune(c, -1.6, -10.0, -1.0, -5.6, 3.0, -4.4, 1.9, 1.5, P.ombre, P.griffe, 1.6);
     membreFaune(c, 5.4, -10.6, 5.4, -5.8, 1.2, -4.0, 2.0, 1.6, P.flanc, P.griffe, 1.7);
@@ -951,7 +980,9 @@ function dessineKoala(c, k, tps){
   c.translate(2.6, -15.8 - dresse * 6.2);
   c.rotate((alerte ? -0.14 : Math.sin(tps * 0.36 + ph * 1.1) * 0.07) + tremble * 0.03);
 
-  /* les deux oreilles, plus larges que le crâne n'est haut */
+  /* Les deux oreilles, presque aussi larges à elles seules que le crâne
+     est haut. C'est le premier des deux signaux du koala — le second
+     est le nez — et le seul des deux qui tienne en ombre chinoise. */
   koala_oreille(c, -3.8 + (alerte ? 0.9 : 0), -2.2 + (alerte ? 1.0 : 0),
                 3.5, P.flanc, P.touffeO, -0.5);
   koala_oreille(c, 7.0 - (alerte ? 0.8 : 0), -1.6 + (alerte ? 1.0 : 0),
@@ -1078,31 +1109,33 @@ function corpsBourdon(c, tps, ph, pique){
     c.stroke();
   }
 
-  /* Abdomen : trois bandes, dont deux jaunes bien larges, et un bout
-     blanc. C'est le rythme noir-jaune-noir-jaune-blanc qui dit
-     « bourdon » plutôt que « grosse mouche ». */
-  c.fillStyle = P.noir;
-  c.beginPath(); c.ellipse(-3.4, 0.2, 4.9, 3.6, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = P.poil;
-  c.beginPath(); c.ellipse(-2.4, -0.2, 2.0, 3.3, -0.18, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(-5.6, 0.5, 1.4, 2.7, -0.18, 0, 6.2832); c.fill();
-  c.fillStyle = P.bout;
-  c.beginPath(); c.ellipse(-7.6, 1.0, 1.2, 1.9, -0.18, 0, 6.2832); c.fill();
-
   /* Thorax : la grosse boule de poil. Le halo pâle autour est le poil
      lui-même — sans lui, le bourdon est lisse, donc ce n'est plus un
-     bourdon. */
+     bourdon. Il est dessiné AVANT l'abdomen, contre l'anatomie, et
+     c'est voulu : l'abdomen noir vient alors mordre dessus et découpe
+     la TAILLE. Dans l'autre sens, le halo jaune du thorax touchait la
+     bande jaune de l'abdomen et il ne restait qu'une grosse tache
+     jaune — soit une abeille, soit rien du tout. */
   c.fillStyle = "rgba(246,201,46,.34)";
-  c.beginPath(); c.arc(1.4, -0.9, 4.3, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(1.6, -0.9, 4.2, 0, 6.2832); c.fill();
   c.fillStyle = P.poil;
-  c.beginPath(); c.arc(1.4, -0.9, 3.4, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(1.6, -0.9, 3.4, 0, 6.2832); c.fill();
   c.fillStyle = P.poilO;
-  c.beginPath(); c.ellipse(1.0, 0.9, 3.0, 1.5, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(1.2, 0.9, 3.0, 1.5, 0, 0, 6.2832); c.fill();
+
+  /* Abdomen : noir, une bande jaune large, un bout blanc. C'est le
+     rythme blanc-noir-jaune-noir-jaune qui dit « bourdon ». */
+  c.fillStyle = P.noir;
+  c.beginPath(); c.ellipse(-4.3, 0.3, 4.9, 3.5, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = P.poil;
+  c.beginPath(); c.ellipse(-4.1, -0.1, 1.9, 3.1, -0.18, 0, 6.2832); c.fill();
+  c.fillStyle = P.bout;
+  c.beginPath(); c.ellipse(-8.0, 1.1, 1.3, 1.9, -0.18, 0, 6.2832); c.fill();
 
   /* Tête et DEUX yeux — oui, même sur un insecte : c'est ce qui fait la
      différence entre une bestiole et une tache qui passe. */
   c.fillStyle = P.noirC;
-  c.beginPath(); c.ellipse(5.4, -1.4, 2.5, 2.3, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(5.6, -1.4, 2.5, 2.3, 0, 0, 6.2832); c.fill();
   c.fillStyle = P.oeil;
   c.beginPath(); c.ellipse(6.4, -2.0, 1.15, 1.35, 0.2, 0, 6.2832); c.fill();
   c.beginPath(); c.ellipse(4.4, -2.4, 0.85, 1.05, 0.2, 0, 6.2832); c.fill();
@@ -1112,6 +1145,7 @@ function corpsBourdon(c, tps, ph, pique){
   /* antennes coudées */
   c.strokeStyle = P.noir; c.lineWidth = 0.6;
   c.beginPath(); c.moveTo(6.0, -3.4); c.quadraticCurveTo(8.0, -5.0, 9.4, -4.2); c.stroke();
+  c.beginPath(); c.moveTo(-9.0, 1.8); c.lineTo(-10.8, 2.6); c.stroke();
   c.beginPath(); c.moveTo(4.6, -3.7); c.quadraticCurveTo(6.4, -5.8, 8.0, -5.6); c.stroke();
 }
 function dessineBourdon(c, k, tps){
@@ -1273,8 +1307,8 @@ function corpsLuciole(c, feu){
   /* La lanterne, au bout de l'abdomen. Elle est OPAQUE : posée en
      translucide sur le corps sombre, elle virait au gris verdâtre et la
      luciole avait l'air éteinte au moment même où elle s'allume. */
-  c.fillStyle = feu > 0.5 ? "#f6ffe0" : "#cfe89a";
-  c.globalAlpha = 0.45 + feu * 0.55;
+  c.fillStyle = feu > 0.5 ? "#fbffee" : "#dcf0ab";
+  c.globalAlpha = 0.55 + feu * 0.45;
   c.beginPath(); c.ellipse(-3.2, 0.5, 1.5 + feu * 0.5, 1.2 + feu * 0.4, 0, 0, 6.2832); c.fill();
   c.globalAlpha = 1;
 }
@@ -1305,5 +1339,5 @@ function dessineLuciole(c, k, tps){
   /* Le point dur PAR-DESSUS le corps : c'est lui qui fait le grain de
      lumière. Dessiné avant, il passait sous l'abdomen et la luciole
      n'était qu'une tache verte molle. */
-  lueurRapide(c, x - 2.9, y + 0.4, 3.8 + feu * 2.4, PAL_LUCIOLE.coeur, 0.26 + feu * 0.62);
+  lueurRapide(c, x - 2.9, y + 0.4, 4.2 + feu * 2.6, PAL_LUCIOLE.coeur, 0.32 + feu * 0.68);
 }

@@ -472,7 +472,7 @@ function validePlan(){
   }
   var mot = prompt("Mot de passe pour changer le plan du salon :");
   if(mot === null) return;
-  if(mot.trim().toLowerCase() !== MOT_RAZ){
+  if(!motAdminValide(mot)){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
