@@ -924,14 +924,19 @@ function remetSalonAZero(){
    ---------------------------------------------------------------- */
 function nouvelleCampagneSalon(){
   cycleSalon = (cycleSalon | 0) + 1;
-  carteSalon = 0;
+  /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de
+     campagne qui dit où l'on repart. Aujourd'hui les deux valent la
+     même chose ; le jour où l'île d'ouverture change, ce code n'aura
+     rien à apprendre. */
+  var depart = premiereCarte();
+  carteSalon = depart;
   scoresSalon = {};
   var av = monde || {};
   var jg = jungleCourante();
   jg.ch = av.ch || "";
   jg.t3 = av.t3 || "";
-  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
+  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
+            pv:CARTES[depart].pvQG, d:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;

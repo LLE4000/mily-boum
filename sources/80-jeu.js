@@ -2677,7 +2677,13 @@ function declencheFin(){
     debris:[], ondes:[], colonne:[],
     prochaineFumee:0
   };
-  envoieCarte(jeu.index + 1);
+  /* On annonce l'île d'APRÈS au sens de la campagne, pas l'index
+     suivant : depuis que trois îles vivent après la jungle dans le
+     tableau, « + 1 » désignait la carte événement en sortant de la
+     cinquième. Quand il n'y a plus d'île après, on n'annonce rien —
+     c'est nouvelleCampagneSalon() qui publiera le monde neuf. */
+  var apresMoi = carteSuivante(jeu.index);
+  if(apresMoi >= 0) envoieCarte(apresMoi);
   /* les panneaux de commande s'effacent : plus rien à commander, et
      ils masqueraient la chute de la forteresse */
   var h = document.getElementById("hud");

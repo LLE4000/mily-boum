@@ -25,7 +25,7 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","planJungle","planDeCarte",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
@@ -2908,6 +2908,85 @@ G("8. Cohérence des règles de jeu");
        N.CARTES.length === 6 && N.CARTES.filter(function(c){ return c.special; }).length === 1);
     ok("aucune carte ordinaire n'est marquée spéciale",
        N.CARTES.slice(0, 5).every(function(c){ return !c.special; }));
+    /* ================================================================
+       L'ORDRE DE LA CAMPAGNE, ET L'INDEX QUI NE BOUGE JAMAIS
+
+       C'est le contrat qui protège tout ce qui a été joué. L'index
+       d'une carte est une CLÉ — les scores sont rangés sous
+       « seau:carte », le cumul local sous mesDegats[index], les
+       champions et le bitmap des destructions sous cet index. Un index
+       qui bouge, ce sont des scores qui changent de carte.
+       On épingle donc les index ACQUIS un par un, en dur, et l'ordre
+       d'enchaînement qui les saute proprement.
+       ================================================================ */
+    (function(){
+      var acquis = [
+        [0, "plage"], [1, "foret"], [2, "campagne"],
+        [3, "hippie"], [4, "sud"], [5, "jungle"]
+      ];
+      var bouge = "";
+      for(var i = 0; i < acquis.length; i++)
+        if(!N.CARTES[acquis[i][0]] || N.CARTES[acquis[i][0]].biome !== acquis[i][1])
+          bouge += acquis[i][0] + "≠" + acquis[i][1] + " ";
+      ok("les six index déjà joués n'ont pas bougé d'un cran", bouge === "", bouge);
+      ok("la jungle reste à l'index 5, quoi qu'on ajoute après",
+         N.IDX_JUNGLE === 5, "" + N.IDX_JUNGLE);
+
+      /* L'ordre saute les cartes événement et reste croissant — c'est
+         cette croissance qui laisse valides les « i < carteSalon » de
+         l'interface et le « Math.max » du réseau. */
+      ok("l'ordre de campagne ne contient aucune carte événement",
+         N.ORDRE_CAMPAGNE.every(function(i){ return !N.carteSpeciale(i); }),
+         N.ORDRE_CAMPAGNE.join(","));
+      ok("il contient TOUTES les cartes ordinaires",
+         N.ORDRE_CAMPAGNE.length === N.NB_CARTES_NORMALES,
+         N.ORDRE_CAMPAGNE.length + " / " + N.NB_CARTES_NORMALES);
+      ok("il est strictement croissant — sans quoi « île déjà tombée » ment",
+         (function(){
+           for(var i = 1; i < N.ORDRE_CAMPAGNE.length; i++)
+             if(N.ORDRE_CAMPAGNE[i] <= N.ORDRE_CAMPAGNE[i - 1]) return false;
+           return true;
+         })(), N.ORDRE_CAMPAGNE.join(","));
+      ok("on repart de la première île de l'ordre",
+         N.premiereCarte() === N.ORDRE_CAMPAGNE[0]);
+
+      /* L'enchaînement, maillon par maillon : chaque île mène à la
+         suivante, la dernière ne mène nulle part (-1 = campagne
+         neuve), et la carte événement n'est jamais une étape. */
+      var chaine = true, det = "";
+      for(var k = 0; k + 1 < N.ORDRE_CAMPAGNE.length; k++){
+        var a = N.ORDRE_CAMPAGNE[k], b = N.ORDRE_CAMPAGNE[k + 1];
+        if(N.carteSuivante(a) !== b){ chaine = false; det += a + "→" + N.carteSuivante(a) + " "; }
+      }
+      ok("chaque île mène à la suivante de l'ordre", chaine, det);
+      ok("la dernière île ne mène nulle part : c'est la campagne neuve",
+         N.carteSuivante(N.ORDRE_CAMPAGNE[N.ORDRE_CAMPAGNE.length - 1]) === -1);
+      ok("la carte événement n'est l'étape de personne",
+         N.ORDRE_CAMPAGNE.indexOf(N.IDX_JUNGLE) < 0 &&
+         N.carteSuivante(N.IDX_JUNGLE) === -1 &&
+         N.rangCampagne(N.IDX_JUNGLE) === -1);
+      /* Le piège exact que « index + 1 » posait : sortir de l'île juste
+         avant la jungle ne doit JAMAIS y mener. */
+      var avantJungle = -1;
+      for(var j = 0; j < N.ORDRE_CAMPAGNE.length; j++)
+        if(N.ORDRE_CAMPAGNE[j] < N.IDX_JUNGLE) avantJungle = N.ORDRE_CAMPAGNE[j];
+      ok("l'île juste avant la jungle ne mène pas à la jungle",
+         N.carteSuivante(avantJungle) !== N.IDX_JUNGLE,
+         avantJungle + " → " + N.carteSuivante(avantJungle));
+      ok("un index absurde ne mène nulle part",
+         N.carteSuivante(-4) === -1 && N.carteSuivante(999) === -1 &&
+         N.rangCampagne(999) === -1);
+      /* En parcourant toute la chaîne depuis le départ, on doit visiter
+         chaque île ordinaire une fois et une seule. */
+      (function(){
+        var vus = {}, cur = N.premiereCarte(), n = 0;
+        while(cur >= 0 && n <= N.CARTES.length + 2){ vus[cur] = 1; cur = N.carteSuivante(cur); n++; }
+        ok("la chaîne visite les " + N.NB_CARTES_NORMALES + " îles ordinaires, une fois chacune",
+           Object.keys(vus).length === N.NB_CARTES_NORMALES && n === N.NB_CARTES_NORMALES,
+           n + " étapes, " + Object.keys(vus).length + " îles");
+      })();
+    })();
+
     ok("la jungle est bien la carte spéciale",
        N.IDX_JUNGLE === 5 && N.carteSpeciale(5) && !N.carteSpeciale(0) &&
        N.CARTES[N.IDX_JUNGLE].nom === "Mily dans la jungle");

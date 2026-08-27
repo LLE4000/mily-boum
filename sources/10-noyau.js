@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.33";
+var VERSION = "v0.34";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -729,6 +729,54 @@ var IDX_JUNGLE = (function(){
   return -1;
 })();
 function carteSpeciale(i){ return !!(CARTES[i] && CARTES[i].special); }
+
+/* ================================================================
+   L'ORDRE DE LA CAMPAGNE
+
+   L'enchaînement était « index + 1 », et cela marchait tant que les
+   cartes ordinaires occupaient le début du tableau. Ce n'est plus
+   vrai : la jungle porte l'index 5, et les trois îles ajoutées après
+   elle portent les index 6, 7 et 8.
+
+   POURQUOI ON NE LES A PAS GLISSÉES AVANT LA JUNGLE, ce qui aurait
+   gardé la formule. Parce que l'index d'une carte est une CLÉ, pas un
+   rang d'affichage : les scores sont rangés sous « seau:carte », le
+   cumul local sous mesDegats[index], les champions sous cet index, et
+   le bitmap des destructions appartient à la carte de cet index.
+   Décaler la jungle de 5 à 8 aurait effacé tout ce que le salon a fait
+   dessus. UN INDEX ATTRIBUÉ NE BOUGE JAMAIS — même règle que pour les
+   bâtiments, et pour exactement la même raison.
+
+   On NOMME donc l'enchaînement au lieu de le déduire. Il se trouve
+   qu'il reste croissant (0, 1, 2, 3, 4, 6, 7, 8), et c'est heureux :
+   toutes les comparaisons « i < carteSalon » qui disent l'île déjà
+   tombée, et le « Math.max » qui retient le salon le plus avancé,
+   restent justes sans y toucher. Le jour où une carte événement
+   s'intercalerait autrement, c'est rangCampagne() qu'il faudrait leur
+   faire lire — et c'est pour ça qu'elle existe.
+   ================================================================ */
+var ORDRE_CAMPAGNE = (function(){
+  var o = [];
+  for(var i = 0; i < CARTES.length; i++) if(!CARTES[i].special) o.push(i);
+  return o;
+})();
+/* Le rang d'une île dans la campagne, ou -1 si elle n'en fait pas
+   partie (les cartes événement n'ont pas de rang). */
+function rangCampagne(index){
+  for(var i = 0; i < ORDRE_CAMPAGNE.length; i++)
+    if(ORDRE_CAMPAGNE[i] === (index | 0)) return i;
+  return -1;
+}
+/* L'île d'après. Rend -1 quand il n'y en a plus : c'est à l'appelant
+   de décider ce que « plus d'île » veut dire — pour la campagne, une
+   campagne neuve. */
+function carteSuivante(index){
+  var r = rangCampagne(index);
+  if(r < 0 || r + 1 >= ORDRE_CAMPAGNE.length) return -1;
+  return ORDRE_CAMPAGNE[r + 1];
+}
+/* La première île de la campagne — celle où l'on repart. */
+function premiereCarte(){ return ORDRE_CAMPAGNE.length ? ORDRE_CAMPAGNE[0] : 0; }
 
 /* ================================================================
    UNE ÎLE EST-ELLE ORAGEUSE ?

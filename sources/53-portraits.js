@@ -431,7 +431,187 @@ function portraitCommando(c){
   vignettePortrait(c, H);
 }
 
-var PORTRAITS = { furie:{ f:portraitFurie, h:84 }, commando:{ f:portraitCommando, h:84 } };
+/* ---------------------------------------------------------------
+   LE DOC — buste trois quarts, blouse blanche, chapeau bas
+
+   Sa case du briefing était VIDE : PORTRAITS n'avait que la Furie et
+   le Commando, et le repli « window.portraitOgre » ne pouvait pas
+   deviner un portrait que personne n'avait dessiné. Une troupe qu'on
+   peut embarquer sans jamais voir son visage n'existe qu'à moitié.
+
+   Le cahier des charges tient en deux mots : BLOUSE BLANCHE, et un
+   air louche. Le premier se règle par la surface — la blouse occupe
+   presque tout le buste, c'est la plus grande tache claire du menu,
+   on ne peut pas la manquer à côté du noir de la Furie et du kaki du
+   Commando. Le second se règle par ce qu'on NE voit pas : le chapeau
+   descend jusqu'aux verres, les verres sont opaques, et le regard
+   part de côté. On lui laisse la mâchoire, le nez et la bouche —
+   assez pour que ce soit un visage, pas assez pour savoir à qui on a
+   affaire.
+   --------------------------------------------------------------- */
+var C_DOCP = {
+  blouse:"#f2ede0", blouseC:"#fffdf6", blouseO:"#bfb8a6",
+  dessous:"#2b2732", dessousC:"#403a4c",
+  chapeau:"#241f19", chapeauC:"#3b332a", ruban:"#15120e",
+  peau:"#e6c49f", peauO:"#b8916c",
+  verre:"#191920", verreC:"#3a3b46", monture:"#0d0d10",
+  croix:"#c23a30", croixC:"#e86152", fiole:"#8ce6a8", laiton:"#c9a24a"
+};
+function portraitDoc(c){
+  var H = 84, D = C_DOCP, i;
+  fondPortrait(c, H);
+  c.save();
+  c.translate(50, 6);
+  c.lineJoin = "round";
+
+  /* --- LA BLOUSE. Elle part large des épaules et descend hors cadre :
+     c'est la masse claire du portrait, et tout le reste se pose
+     dessus. --- */
+  var gb = c.createLinearGradient(-30, 44, 30, 80);
+  gb.addColorStop(0, D.blouseC); gb.addColorStop(0.55, D.blouse);
+  gb.addColorStop(1, D.blouseO);
+  c.fillStyle = gb;
+  c.beginPath();
+  c.moveTo(-33, 80);
+  c.bezierCurveTo(-32, 55, -18, 46, 0, 45);
+  c.bezierCurveTo(18, 46, 32, 55, 33, 80);
+  c.closePath(); c.fill();
+
+  /* le col ouvert en V, et ce qu'il porte dessous : sombre, fermé,
+     cravate étroite — le contraste qui empêche la blouse de virer au
+     tablier de boucher */
+  c.fillStyle = D.dessous;
+  c.beginPath();
+  c.moveTo(-9, 47); c.lineTo(0, 66); c.lineTo(9, 47);
+  c.lineTo(6, 45.4); c.lineTo(0, 57); c.lineTo(-6, 45.4);
+  c.closePath(); c.fill();
+  c.fillStyle = D.dessousC;
+  c.beginPath();
+  c.moveTo(-2.4, 58); c.lineTo(2.4, 58); c.lineTo(1.6, 80); c.lineTo(-1.6, 80);
+  c.closePath(); c.fill();
+  /* les deux revers de la blouse, posés par-dessus */
+  c.fillStyle = D.blouseC;
+  c.beginPath();
+  c.moveTo(-10.4, 46); c.lineTo(-1.2, 67); c.lineTo(-15.4, 52);
+  c.closePath(); c.fill();
+  c.beginPath();
+  c.moveTo(10.4, 46); c.lineTo(1.2, 67); c.lineTo(15.4, 52);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(140,132,116,.55)"; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(-10.4, 46); c.lineTo(-1.2, 67); c.stroke();
+  c.beginPath(); c.moveTo(10.4, 46); c.lineTo(1.2, 67); c.stroke();
+  /* poche poitrine, boutons, et la croix rouge — le seul accent franc */
+  c.strokeStyle = D.blouseO; c.lineWidth = 1.1;
+  c.strokeRect(-29, 58, 13, 11);
+  c.fillStyle = D.croix;
+  c.fillRect(-23.8, 60.4, 2.6, 7.4);
+  c.fillRect(-27.2, 63, 7.4, 2.6);
+  c.fillStyle = D.croixC;
+  c.fillRect(-23.8, 60.4, 2.6, 3.2);
+  c.fillStyle = D.blouseO;
+  for(i = 0; i < 3; i++){ c.beginPath(); c.arc(6.4, 60 + i * 8, 1.5, 0, 6.2832); c.fill(); }
+  /* la fiole qui dépasse de la poche : on est bien chez un soignant */
+  c.fillStyle = D.fiole;
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-25.6, 52.6, 4.4, 7.4, 1.4);
+  else c.rect(-25.6, 52.6, 4.4, 7.4);
+  c.fill();
+  c.fillStyle = "rgba(255,255,255,.6)";
+  c.fillRect(-25.0, 53.4, 1.3, 4.4);
+  c.fillStyle = D.laiton;
+  c.fillRect(-25.8, 51.4, 4.8, 1.8);
+
+  /* --- cou, dans l'ombre du col --- */
+  c.fillStyle = D.peauO;
+  c.fillRect(-6.4, 36, 12.8, 12);
+
+  /* --- LE VISAGE, tourné de trois quarts. Il est plus étroit que
+     celui du Commando : le Doc n'est pas un gabarit, c'est un
+     civil. --- */
+  var gv = c.createLinearGradient(-11, 10, 11, 44);
+  gv.addColorStop(0, "#f0d3ae"); gv.addColorStop(0.55, D.peau);
+  gv.addColorStop(1, D.peauO);
+  c.fillStyle = gv;
+  c.beginPath();
+  c.moveTo(1.5, 9);
+  c.bezierCurveTo(11, 9.4, 15.4, 15, 15.4, 23);
+  c.bezierCurveTo(15.4, 31, 12, 38.4, 6.6, 41.6);
+  c.bezierCurveTo(3.6, 43.4, 0, 43.6, -2.2, 42.4);
+  c.bezierCurveTo(-8, 39.4, -12.4, 32, -12.6, 23);
+  c.bezierCurveTo(-12.8, 15, -8, 9.4, 1.5, 9);
+  c.closePath(); c.fill();
+  /* la mâchoire mal rasée : trois jours, pas une barbe */
+  c.fillStyle = "rgba(44,34,26,.30)";
+  c.beginPath();
+  c.moveTo(-11.6, 28);
+  c.bezierCurveTo(-10.6, 37, -5, 43, 1.4, 43.2);
+  c.bezierCurveTo(8, 42.6, 13.4, 36, 14.4, 28);
+  c.bezierCurveTo(11.4, 33.4, 6.6, 35, 1.4, 35);
+  c.bezierCurveTo(-4.6, 35, -8.6, 33.4, -11.6, 28);
+  c.closePath(); c.fill();
+  /* nez et bouche : le peu de visage qu'on lui laisse */
+  c.strokeStyle = "rgba(150,105,66,.55)"; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(2.6, 26); c.lineTo(3.6, 31.6); c.stroke();
+  c.fillStyle = "rgba(150,105,66,.42)";
+  c.beginPath(); c.ellipse(2.6, 32.6, 2.7, 1.2, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(112,62,42,.75)"; c.lineWidth = 1.5; c.lineCap = "round";
+  c.beginPath(); c.moveTo(-2.4, 37.4); c.quadraticCurveTo(2, 38, 6.4, 36.8); c.stroke();
+
+  /* --- LES LUNETTES NOIRES, RONDES. Deux disques opaques : aucun
+     regard ne sort de là, et c'est exactement ce qu'on cherche. --- */
+  c.strokeStyle = D.monture; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(-3.2, 23.4); c.lineTo(3.2, 23.4); c.stroke();
+  c.beginPath(); c.moveTo(-12.4, 22.4); c.lineTo(-9.6, 23.2); c.stroke();
+  [[-6.4, 23.6], [6.6, 23.4]].forEach(function(v){
+    c.fillStyle = D.verre;
+    c.beginPath(); c.arc(v[0], v[1], 5.2, 0, 6.2832); c.fill();
+    /* un seul reflet oblique, court : deux verres bien noirs valent
+       mieux qu'un reflet bavard */
+    c.fillStyle = D.verreC;
+    c.save(); c.translate(v[0], v[1]); c.rotate(-0.7);
+    c.beginPath(); c.ellipse(-1.4, -1.2, 2.6, 0.9, 0, 0, 6.2832); c.fill();
+    c.restore();
+    c.strokeStyle = D.monture; c.lineWidth = 1.6;
+    c.beginPath(); c.arc(v[0], v[1], 5.2, 0, 6.2832); c.stroke();
+  });
+
+  /* --- LE CHAPEAU, RABATTU. Le bord passe juste au-dessus des verres
+     et coupe le front entier : c'est la silhouette du personnage, et
+     c'est ce qui le distingue de loin de la Furie et du Commando. --- */
+  c.fillStyle = D.chapeau;
+  c.beginPath();
+  c.ellipse(1, 16.6, 26, 6.2, -0.045, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(0,0,0,.30)";
+  c.beginPath();
+  c.ellipse(1, 18.4, 24, 4.4, -0.045, 0, 6.2832); c.fill();
+  /* la calotte, avec son pli */
+  var gc = c.createLinearGradient(-14, -6, 16, 16);
+  gc.addColorStop(0, D.chapeauC); gc.addColorStop(1, D.chapeau);
+  c.fillStyle = gc;
+  c.beginPath();
+  c.moveTo(-13.6, 16.4);
+  c.bezierCurveTo(-14.4, 1.6, -8, -5.4, 1.4, -5.6);
+  c.bezierCurveTo(10.8, -5.4, 16.6, 1.6, 15.8, 16.4);
+  c.closePath(); c.fill();
+  c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(-3.4, -4.6); c.quadraticCurveTo(1.2, 2.4, 5.6, -4.4); c.stroke();
+  /* le ruban */
+  c.fillStyle = D.ruban;
+  c.beginPath();
+  c.moveTo(-13.9, 14.4);
+  c.bezierCurveTo(-9, 11.4, 11, 11.4, 16, 14.4);
+  c.lineTo(15.9, 17.2);
+  c.bezierCurveTo(11, 14.2, -9, 14.2, -13.8, 17.2);
+  c.closePath(); c.fill();
+  c.fillStyle = D.laiton;
+  c.fillRect(9.4, 12.4, 3, 3);
+
+  c.restore();
+  vignettePortrait(c, H);
+}
+
+var PORTRAITS = { furie:{ f:portraitFurie, h:84 }, commando:{ f:portraitCommando, h:84 },
+                  doc:{ f:portraitDoc, h:84 } };
 
 /* Dessine le portrait dans un rectangle de largeur donnée. */
 function dessinePortrait(c, cle, x, y, larg){

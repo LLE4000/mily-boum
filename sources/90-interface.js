@@ -944,12 +944,19 @@ function majBilan(dt){
        l'instantané partagé : il restera affiché sur sa vignette
        jusqu'à la prochaine fois que cette même île sera détruite. */
     sacreChampion(jeu.index, championDeLaPartie().nom);
-    var suiv = Math.max(carteSalon, jeu.index + 1);
-    carteSalon = suiv;
-    /* NB_CARTES_NORMALES, jamais CARTES.length : la carte événement
-       vit dans le même tableau mais hors de l'enchaînement, et la
-       campagne doit boucler sur cinq îles comme avant. */
-    if(suiv >= NB_CARTES_NORMALES){
+    /* L'ÎLE D'APRÈS SE DEMANDE, ELLE NE SE CALCULE PLUS.
+       « jeu.index + 1 » tombait sur la jungle en sortant de la
+       cinquième île, depuis que trois nouvelles îles vivent après elle
+       dans le tableau. carteSuivante() lit l'ordre de campagne, qui
+       saute les cartes événement.
+       Le salon peut déjà être plus loin que nous — quelqu'un d'autre a
+       fait tomber une île pendant qu'on jouait celle-ci : on garde le
+       plus avancé des deux, comparé AU RANG et non à l'index. */
+    var apres = carteSuivante(jeu.index);
+    var suiv = (apres < 0) ? -1
+             : (rangCampagne(carteSalon) > rangCampagne(apres)) ? carteSalon : apres;
+    /* Plus d'île après celle-ci : la campagne est bouclée. */
+    if(suiv < 0){
       /* Toutes les îles sont tombées : nouvelle campagne, monde neuf.
          « cycleSalon++ » tout seul ne suffisait pas — il changeait de
          campagne sans publier le monde neuf, si bien que le tableau
@@ -957,9 +964,10 @@ function majBilan(dt){
          pendant que le cumul local repartait de zéro. Le joueur
          repassait alors contre son propre mur. nouvelleCampagneSalon
          fait les deux, et grave les podiums au passage. */
-      suiv = 0;
+      suiv = premiereCarte();
       nouvelleCampagneSalon();
     }
+    carteSalon = suiv;
     nouvelleCarte(suiv);
     construitFondMini();
     majBarres();

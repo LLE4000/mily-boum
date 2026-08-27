@@ -26,22 +26,25 @@ var C_COMMANDO = {
   pantalon:"#3a3a32", botte:"#22221f", laiton:"#d3a94e"
 };
 
-/* LE DOC. Palette d'arrière-boutique : une blouse qui a été blanche,
-   un manteau long et sombre par-dessus, du laiton fatigué. Le rouge de
-   la croix est le seul accent franc — c'est le seul endroit du
-   personnage qui prétende encore au métier. */
+/* LE DOC. Le vêtement, c'est LA BLOUSE BLANCHE — pas un manteau
+   sombre avec un peu de blanc dessous. C'est elle qu'on doit voir de
+   loin, et c'est elle qui dit le métier en un dixième de seconde au
+   milieu de cent vingt soldats.
+   Tout le sombre du personnage est reporté sur ce qui ENTOURE la
+   blouse : le chapeau, les verres, le pantalon, les chaussures, la
+   mallette. Le louche ne tient pas à la couleur du costume, il tient
+   à la posture et au regard — et ceux-là n'ont pas bougé. */
 var C_DOC = {
-  /* Le manteau tire vers le brun-olive et non vers le noir : à côté de
-     la Furie, entièrement noire, un Doc noir devenait une deuxième
-     Furie floue dans la foule. */
-  manteau:"#3b3428", manteauC:"#5c5138", manteauO:"#221d16",
-  blouse:"#e6dfcd", blouseO:"#b3ab96",
-  chapeau:"#2b251c", chapeauC:"#48402f", ruban:"#181410",
+  /* la blouse longue, ouverte : la grande tache claire */
+  manteau:"#e9e3d2", manteauC:"#fbf7ec", manteauO:"#b0a993",
+  /* ce qu'il porte dessous, sombre, visible dans l'ouverture */
+  blouse:"#2b2732", blouseO:"#1b1822",
+  chapeau:"#241f19", chapeauC:"#3b332a", ruban:"#15120e",
   peau:"#e8c9a6", peauO:"#bd9a75",
   cheveux:"#241c16",
-  lunettes:"#111013", verre:"#2b2b33", refletV:"#8fb8c8",
-  mallette:"#6b4a2f", malletteC:"#8f6a44", malletteO:"#3f2a19",
-  croix:"#b8342c", croixC:"#e05a4a",
+  lunettes:"#111013", verre:"#191920", refletV:"#8fb8c8",
+  mallette:"#5e4029", malletteC:"#7d5c3a", malletteO:"#361f11",
+  croix:"#c23a30", croixC:"#e86152",
   laiton:"#c09a52", pantalon:"#232028", botte:"#171418",
   fiole:"#8ce6a8"
 };
@@ -690,17 +693,29 @@ function dessineCommando(c, phase, variante, tir){
    s'allume. C'est le même drapeau que pour les autres, réemployé —
    un Doc ne tire jamais.
    ================================================================ */
+/* IL EST PLUS PETIT QUE LES COMBATTANTS, et c'est une information de
+   jeu autant qu'un choix de dessin : au milieu d'un débarquement, la
+   taille dit tout de suite qui se bat et qui suit. À hauteur égale, le
+   Doc se lisait comme un soldat de plus en blouse. */
+var DOC_ECH = 0.80;
 function dessineDoc(c, phase, variante, tir){
   var C = C_DOC;
   var p = pose(phase, 3.4);
   var yb = -p.rebond;
-  /* le manteau bat derrière lui, décalé d'un quart de cycle */
+  /* la blouse bat derrière lui, décalée d'un quart de cycle */
   var pan = Math.sin(phase + 0.9) * 1.5;
 
+  /* L'ombre suit la taille, mais PAS entièrement : elle reste un peu
+     plus large que le corps, sinon un personnage plus petit paraît
+     aussi flotter au-dessus du sol. */
   c.fillStyle = "rgba(0,0,0,.26)";
-  c.beginPath(); c.ellipse(0, 0, 7.2, 3.1, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(0, 0, 7.2 * 0.88, 3.1 * 0.88, 0, 0, 6.2832); c.fill();
 
   c.save();
+  /* la réduction s'applique AU CORPS SEUL, après l'ombre : elle est
+     posée avant la translation du rebond pour que le rebond lui-même
+     se réduise dans la même proportion */
+  c.scale(DOC_ECH, DOC_ECH);
   c.translate(0, yb);
   c.lineCap = "round";
 
@@ -739,54 +754,63 @@ function dessineDoc(c, phase, variante, tir){
   c.lineTo(-1.8, -18.4);
   c.closePath(); c.fill();
 
-  /* --- LA BLOUSE. Elle monte jusqu'au col et descend sous le manteau :
-     c'est la bande claire au milieu d'une silhouette sombre qui dit
-     « soignant » en un dixième de seconde, à cent vingt unités à
-     l'écran. Cachée sous le manteau, comme au premier jet, le Doc
-     n'était plus qu'une ombre de plus. --- */
+  /* --- CE QU'IL PORTE SOUS LA BLOUSE : un col sombre, et rien d'autre.
+     Une bande étroite au milieu du buste, qui sert de contraste au
+     blanc. Elle est posée AVANT la blouse et la blouse la recouvre
+     presque entièrement — il n'en reste que le V du col. --- */
   c.fillStyle = C.blouse;
   c.beginPath();
   c.moveTo(-2.4, -23.6); c.lineTo(2.4, -23.6);
-  c.lineTo(2.9, -8.2); c.lineTo(-2.9, -8.2);
+  c.lineTo(2.0, -8.2); c.lineTo(-2.0, -8.2);
   c.closePath(); c.fill();
-  c.fillStyle = C.blouseO;
-  c.fillRect(-2.9, -9.4, 5.8, 1.2);
-  /* le rang de boutons, et la petite croix rouge sur la poitrine */
-  c.fillStyle = C.manteauO;
-  c.fillRect(-0.4, -21.8, 0.8, 0.8);
-  c.fillRect(-0.4, -18.6, 0.8, 0.8);
-  c.fillRect(-0.4, -15.4, 0.8, 0.8);
-  c.fillStyle = C.croix;
-  c.fillRect(1.1, -21.4, 0.7, 2.1);
-  c.fillRect(0.4, -20.7, 2.1, 0.7);
 
-  /* --- le manteau long, ouvert --- */
-  c.fillStyle = degCache(c, "docManteau", function(){
-    var g = c.createLinearGradient(-4.4, -24, 4.4, -9);
+  /* --- LA BLOUSE BLANCHE. C'est LE vêtement : elle couvre tout le
+     buste, des épaules au bas de la silhouette, et c'est la plus
+     grande surface claire du personnage. Le premier jet en faisait une
+     mince bande sous un manteau sombre, et le Doc restait une ombre de
+     plus dans le débarquement — on ne voyait pas le soignant, on
+     voyait un civil en noir. --- */
+  c.fillStyle = degCache(c, "docBlouse", function(){
+    var g = c.createLinearGradient(-4.8, -24, 4.8, -9);
     g.addColorStop(0, C.manteauC); g.addColorStop(0.45, C.manteau);
     g.addColorStop(1, C.manteauO);
     return g;
   });
   c.beginPath();
   c.moveTo(-4.8, -23.6);
-  c.quadraticCurveTo(-5.9, -16.0, -5.1, -8.6);
-  c.lineTo(-2.6, -8.8);
-  c.lineTo(-2.9, -22.6);
-  c.lineTo(2.9, -22.6);
-  c.lineTo(2.6, -8.8);
-  c.lineTo(5.1, -8.6);
+  c.quadraticCurveTo(-5.9, -16.0, -5.1, -8.4);
+  c.lineTo(5.1, -8.4);
   c.quadraticCurveTo(5.9, -16.0, 4.8, -23.6);
   c.closePath(); c.fill();
-  /* col relevé — on se cache aussi le cou */
+  /* LE V DU COL, découpé dans la blouse : c'est lui qui laisse voir le
+     sombre du dessous et qui empêche la blouse de devenir un bloc. */
+  c.fillStyle = C.blouse;
+  c.beginPath();
+  c.moveTo(-2.3, -23.8); c.lineTo(0, -18.6); c.lineTo(2.3, -23.8);
+  c.closePath(); c.fill();
+  /* les deux revers, par-dessus */
   c.fillStyle = C.manteauC;
   c.beginPath();
-  c.moveTo(-4.6, -23.4); c.lineTo(-2.0, -25.4); c.lineTo(-1.6, -21.6);
-  c.lineTo(1.6, -21.6); c.lineTo(2.0, -25.4); c.lineTo(4.6, -23.4);
+  c.moveTo(-2.6, -23.8); c.lineTo(-0.3, -18.4); c.lineTo(-4.0, -22.2);
   c.closePath(); c.fill();
-  /* liseré de lumière sur l'épaule */
-  c.strokeStyle = "rgba(255,255,255,.30)"; c.lineWidth = 0.8;
   c.beginPath();
-  c.moveTo(-4.3, -22.6); c.quadraticCurveTo(-2.6, -25.0, 0.2, -25.4);
+  c.moveTo(2.6, -23.8); c.lineTo(0.3, -18.4); c.lineTo(4.0, -22.2);
+  c.closePath(); c.fill();
+  /* l'ourlet du bas, et le rang de boutons */
+  c.fillStyle = C.manteauO;
+  c.fillRect(-5.0, -9.2, 10.0, 0.9);
+  c.fillRect(-0.35, -17.4, 0.7, 0.7);
+  c.fillRect(-0.35, -14.4, 0.7, 0.7);
+  c.fillRect(-0.35, -11.4, 0.7, 0.7);
+  /* la croix rouge sur la poitrine, à gauche. Posée sur du blanc, elle
+     se voit ; sur le vêtement sombre d'avant, elle disparaissait. */
+  c.fillStyle = C.croix;
+  c.fillRect(-3.6, -20.4, 0.7, 2.1);
+  c.fillRect(-4.3, -19.7, 2.1, 0.7);
+  /* liseré de lumière sur l'épaule */
+  c.strokeStyle = "rgba(255,255,255,.42)"; c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-4.5, -22.8); c.quadraticCurveTo(-2.8, -24.8, -0.2, -24.4);
   c.stroke();
 
   /* --- LA MAIN DANS LA POCHE, bras arrière. Le geste du personnage. --- */
@@ -795,8 +819,10 @@ function dessineDoc(c, phase, variante, tir){
   c.moveTo(-4.0, -21.6);
   c.quadraticCurveTo(-5.8, -17.4, -3.6, -14.2);
   c.stroke();
-  c.fillStyle = C.manteauO;
-  c.beginPath(); c.ellipse(-3.6, -13.8, 1.5, 1.2, 0, 0, 6.2832); c.fill();
+  /* la main, elle, est de chair : une manche blanche qui se termine en
+     blanc n'a plus de main du tout */
+  c.fillStyle = C.peauO;
+  c.beginPath(); c.ellipse(-3.6, -13.8, 1.4, 1.1, 0, 0, 6.2832); c.fill();
 
   /* --- LA MALLETTE, bras avant. Ouverte quand il travaille. --- */
   var mx = tir ? 5.4 : 4.4, my = tir ? -15.4 : -11.6;
