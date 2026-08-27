@@ -198,17 +198,44 @@ function dessineFilChat(){
   majQuiEstLa();
 }
 /* Qui est en ligne, en tête du panneau. La liste vient de celle que le
-   réseau tient déjà pour l'affichage des autres joueurs. */
+   réseau tient déjà pour l'affichage des autres joueurs.
+
+   ELLE NOMME LES GENS, MAINTENANT. Elle annonçait « 5 joueurs en
+   ligne » — un compte, et rien d'autre. C'est le seul endroit du jeu
+   où l'on écrit aux autres : savoir COMBIEN ils sont sans savoir QUI
+   ils sont n'aide personne à commencer une phrase. L'accueil, lui,
+   sait déjà les nommer depuis qu'on peut y déplier la liste ; la
+   fonctionnalité existait deux fois et n'avait été portée que d'un
+   côté.
+   On déplie ici d'un appui sur le compte, exactement comme là-bas, et
+   le choix tient jusqu'à ce qu'on en décide autrement. */
+var chatQuiDeplie = false;
 function majQuiEstLa(){
   var e = $("chatQui");
   if(!e) return;
-  var n = 1, k;                              // soi-même compte
+  var noms = [], k;
   if(typeof autresJoueurs === "object" && autresJoueurs){
-    for(k in autresJoueurs) if(autresJoueurs[k]) n++;
+    for(k in autresJoueurs){
+      var j = autresJoueurs[k];
+      if(j && j.nom && j.nom !== "?") noms.push(j.nom);
+    }
   }
+  noms.sort(function(a, b){ return a.localeCompare(b); });
+  var n = noms.length + 1;                   // soi-même compte
   var s = nbSourds();
-  e.innerHTML = (n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant")
-    + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
+  var tete = '<b data-qui title="Voir qui est là">'
+           + (n > 1 ? (chatQuiDeplie ? "▾ " : "▸ ") + n + " joueurs en ligne"
+                    : "toi seul pour l'instant")
+           + "</b>"
+           + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
+  if(!chatQuiDeplie || n < 2){ e.innerHTML = tete; return; }
+  var h = '<div class="ql moi"><span class="p">🔸</span><span class="n">'
+        + echappe(monNom || "toi") + " (toi)</span></div>";
+  for(k = 0; k < noms.length; k++){
+    h += '<div class="ql"><span class="p">🔹</span><span class="n">'
+       + echappe(noms[k]) + "</span></div>";
+  }
+  e.innerHTML = tete + '<div class="qlListe">' + h + "</div>";
 }
 
 /* ---------------------------------------------------------------
@@ -325,9 +352,17 @@ function installeChat(){
     var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
     if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
   });
+  /* Le bandeau est réécrit en entier à chaque message : l'écouteur est
+     posé sur le CONTENEUR une fois pour toutes, jamais sur le bouton
+     — qui, lui, disparaît à chaque rafraîchissement. */
   var q = $("chatQui");
   if(q) q.addEventListener("click", function(ev){
-    if(ev.target && ev.target.id === "chatSourds") rendLOreille();
+    if(ev.target && ev.target.id === "chatSourds"){ rendLOreille(); return; }
+    /* l attribut est en minuscules : le navigateur les abaisse */
+    if(ev.target.closest && ev.target.closest("[data-qui]")){
+      chatQuiDeplie = !chatQuiDeplie;
+      majQuiEstLa();
+    }
   });
   if(c){
     c.checked = chatActif;

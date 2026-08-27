@@ -236,8 +236,21 @@ select.champ{cursor:pointer}
   border-bottom:1px solid rgba(255,168,72,.18);
 }
 #chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
+/* Le bandeau se DÉPLIE : replié il tient sur sa ligne et se coupe
+   proprement, déplié il occupe la place qu'il faut pour nommer tout le
+   monde. Le nowrap ne vaut donc que replié. */
 #chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatQui:has(.qlListe){white-space:normal;overflow:visible;text-overflow:clip}
 #chatQui b{color:var(--or);cursor:pointer;font-weight:700}
+#chatQui .qlListe{
+  margin-top:4px;display:flex;flex-direction:column;gap:2px;
+  max-height:96px;overflow-y:auto;overscroll-behavior:contain;
+}
+#chatQui .ql{display:flex;align-items:baseline;gap:6px;font-size:11.5px;line-height:1.3}
+#chatQui .ql .p{flex:none;font-size:9px}
+#chatQui .ql .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;color:#cdbfd6}
+#chatQui .ql.moi .n{color:var(--or);font-weight:700}
 /* Un pseudo se touche : c'est par lui qu'on choisit de ne plus lire
    quelqu'un. Le pointillé le dit sans crier. */
 #chatL .cm b[data-sourd]{cursor:pointer;border-bottom:1px dotted rgba(125,230,255,.45)}
@@ -289,8 +302,16 @@ select.champ{cursor:pointer}
     padding-top:var(--sat);
   }
   #chatL{
-    /* exactement trois lignes, et ça défile au-delà */
-    height:calc(3 * 1.42 * 13px + 6px);flex:none;
+    /* EXACTEMENT TROIS LIGNES, et ça défile au-delà.
+       Le compte doit inclure le REMPLISSAGE : la règle globale
+       « box-sizing:border-box » fait que cette hauteur enferme les
+       7 px de padding en haut et en bas. Sans eux, les 61,38 px
+       calculés pour trois lignes n'en laissaient que 47 au contenu —
+       deux lignes et un tiers, mesuré. On promettait trois lignes et
+       on en montrait deux et demie.
+       Les deux interlignes de 3 px comptent aussi : trois lignes,
+       c'est deux espaces entre elles, pas trois. */
+    height:calc(3 * 1.42 * 13px + 2 * 3px + 14px);flex:none;
   }
   #chatBt{bottom:calc(8px + var(--sab));width:46px;height:34px;font-size:15px}
 }
@@ -1093,7 +1114,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.19";
+var VERSION = "v0.20";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -27188,17 +27209,44 @@ function dessineFilChat(){
   majQuiEstLa();
 }
 /* Qui est en ligne, en tête du panneau. La liste vient de celle que le
-   réseau tient déjà pour l'affichage des autres joueurs. */
+   réseau tient déjà pour l'affichage des autres joueurs.
+
+   ELLE NOMME LES GENS, MAINTENANT. Elle annonçait « 5 joueurs en
+   ligne » — un compte, et rien d'autre. C'est le seul endroit du jeu
+   où l'on écrit aux autres : savoir COMBIEN ils sont sans savoir QUI
+   ils sont n'aide personne à commencer une phrase. L'accueil, lui,
+   sait déjà les nommer depuis qu'on peut y déplier la liste ; la
+   fonctionnalité existait deux fois et n'avait été portée que d'un
+   côté.
+   On déplie ici d'un appui sur le compte, exactement comme là-bas, et
+   le choix tient jusqu'à ce qu'on en décide autrement. */
+var chatQuiDeplie = false;
 function majQuiEstLa(){
   var e = $("chatQui");
   if(!e) return;
-  var n = 1, k;                              // soi-même compte
+  var noms = [], k;
   if(typeof autresJoueurs === "object" && autresJoueurs){
-    for(k in autresJoueurs) if(autresJoueurs[k]) n++;
+    for(k in autresJoueurs){
+      var j = autresJoueurs[k];
+      if(j && j.nom && j.nom !== "?") noms.push(j.nom);
+    }
   }
+  noms.sort(function(a, b){ return a.localeCompare(b); });
+  var n = noms.length + 1;                   // soi-même compte
   var s = nbSourds();
-  e.innerHTML = (n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant")
-    + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
+  var tete = '<b data-qui title="Voir qui est là">'
+           + (n > 1 ? (chatQuiDeplie ? "▾ " : "▸ ") + n + " joueurs en ligne"
+                    : "toi seul pour l'instant")
+           + "</b>"
+           + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
+  if(!chatQuiDeplie || n < 2){ e.innerHTML = tete; return; }
+  var h = '<div class="ql moi"><span class="p">🔸</span><span class="n">'
+        + echappe(monNom || "toi") + " (toi)</span></div>";
+  for(k = 0; k < noms.length; k++){
+    h += '<div class="ql"><span class="p">🔹</span><span class="n">'
+       + echappe(noms[k]) + "</span></div>";
+  }
+  e.innerHTML = tete + '<div class="qlListe">' + h + "</div>";
 }
 
 /* ---------------------------------------------------------------
@@ -27315,9 +27363,17 @@ function installeChat(){
     var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
     if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
   });
+  /* Le bandeau est réécrit en entier à chaque message : l'écouteur est
+     posé sur le CONTENEUR une fois pour toutes, jamais sur le bouton
+     — qui, lui, disparaît à chaque rafraîchissement. */
   var q = $("chatQui");
   if(q) q.addEventListener("click", function(ev){
-    if(ev.target && ev.target.id === "chatSourds") rendLOreille();
+    if(ev.target && ev.target.id === "chatSourds"){ rendLOreille(); return; }
+    /* l attribut est en minuscules : le navigateur les abaisse */
+    if(ev.target.closest && ev.target.closest("[data-qui]")){
+      chatQuiDeplie = !chatQuiDeplie;
+      majQuiEstLa();
+    }
   });
   if(c){
     c.checked = chatActif;
