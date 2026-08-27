@@ -243,9 +243,9 @@ function voilesOrage(c){
   var g = v.getContext("2d");
   var gr = g.createRadialGradient(lw / 2, lh * 0.54, lh * 0.10,
                                   lw / 2, lh * 0.54, lh * 0.95);
-  gr.addColorStop(0, "rgba(8,30,26,0.17)");
-  gr.addColorStop(0.50, "rgba(6,24,22,0.24)");
-  gr.addColorStop(1, "rgba(2,10,11,0.50)");
+  gr.addColorStop(0, "rgba(8,30,26,0.21)");
+  gr.addColorStop(0.50, "rgba(6,24,22,0.28)");
+  gr.addColorStop(1, "rgba(2,10,11,0.54)");
   g.fillStyle = gr;
   g.fillRect(0, 0, lw, lh);
   metVoiles.vignette = v;
@@ -298,8 +298,8 @@ function spriteFumee(){
   for(var i = 0; i < 4; i++){
     var gr = g.createRadialGradient(lobes[i][0], lobes[i][1], 1,
                                     lobes[i][0], lobes[i][1], lobes[i][2]);
-    gr.addColorStop(0, "rgba(" + MET_FUMEE + ",0.46)");
-    gr.addColorStop(0.5, "rgba(" + MET_FUMEE + ",0.22)");
+    gr.addColorStop(0, "rgba(" + MET_FUMEE + ",0.58)");
+    gr.addColorStop(0.5, "rgba(" + MET_FUMEE + ",0.28)");
     gr.addColorStop(1, "rgba(" + MET_FUMEE + ",0)");
     g.fillStyle = gr;
     g.fillRect(0, 0, 96, 96);
@@ -458,8 +458,8 @@ var MET_COUCHES_PLUIE = [
 function dessinePluieJungle(c, tps){
   /* filets de sécurité : voir dessineVoileOrage. La pluie tombe DANS
      l'air voilé et SOUS les nuages, donc les deux passent avant elle. */
-  dessineNuagesJungle(c, tps);
   dessineVoileOrage(c, tps);
+  dessineNuagesJungle(c, tps);
   var z = cam.z;
   var pente = ventJungle(tps);
   /* Les gouttes rétrécissent au dézoom. Sinon, quand on prend toute
@@ -541,8 +541,8 @@ function dessineLueursVegetation(c, tps){
      il part d'un nuage déjà peint. Voir dessineVoileOrage et
      dessineNuagesJungle — les deux ont un garde-fou sur `tps`, donc
      un appel explicite du rendu les rend ici inopérants. */
-  dessineNuagesJungle(c, tps);
   dessineVoileOrage(c, tps);
+  dessineNuagesJungle(c, tps);
   var z = cam.z;
   if(z < 0.18) return;
   var g = bornesGrille(170, 60);
@@ -576,9 +576,13 @@ function dessineLueursVegetation(c, tps){
    Ils restent DISCRETS : une ombre portée au sol, une masse sombre
    au-dessus. Jamais un plafond, jamais quelque chose qui cache le jeu.
    ================================================================ */
-var MET_NUAGE  = "22,36,38";        // le ventre du nuage, presque noir
-var MET_NUAGE_H = "104,130,124";    // sa crête, qui prend ce qui reste de jour
-var JUNGLE_NUAGES = 9;              // combien dérivent au-dessus de l'île
+var MET_NUAGE  = "18,32,34";        // le ventre du nuage, presque noir
+var MET_NUAGE_H = "150,174,166";    // sa crête, qui prend ce qui reste de jour
+/* DOUZE PETITS plutôt que neuf gros : le joueur a demandé des
+   « petits nuages qui se baladent ». Un gros nuage mou se confond avec
+   la nappe d'ombres du sol et ne se lit plus comme un objet ; un petit
+   nuage bien découpé se lit tout de suite, et on peut le suivre. */
+var JUNGLE_NUAGES = 12;
 
 /* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
    une dizaine de dégradés par image et par nuage ; celui-ci coûte un
@@ -597,18 +601,20 @@ function spritesNuage(){
     /* le ventre : des lobes bas, larges, franchement écrasés */
     for(i = 0; i < n; i++){
       var x = 34 + al() * 188, r = 30 + al() * 54;
-      var y = 78 + (al() - 0.5) * 20;
-      g.globalAlpha = 0.30 + al() * 0.36;
+      var y = 80 + (al() - 0.5) * 18;
+      g.globalAlpha = 0.42 + al() * 0.44;
       g.drawImage(db, x - r, y - r * 0.60, r * 2, r * 1.20);
     }
     /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
        et rien d'autre qui donne le volume : sans lui, un nuage n'est
-       qu'une tache grise, et une tache grise sur une jungle verte se
-       lit comme une salissure d'écran. */
-    for(i = 0; i < n - 3; i++){
-      var x2 = 52 + al() * 152, r2 = 20 + al() * 32;
-      g.globalAlpha = 0.11 + al() * 0.15;
-      g.drawImage(dh, x2 - r2, 46 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.1);
+       qu'une tache sombre, et une tache sombre posée sur une jungle
+       déjà pleine d'ombres ne se lit plus du tout — c'était le défaut
+       du premier essai, où l'on ne distinguait plus les nuages de la
+       nappe d'ombres au sol. */
+    for(i = 0; i < n - 2; i++){
+      var x2 = 48 + al() * 160, r2 = 22 + al() * 34;
+      g.globalAlpha = 0.22 + al() * 0.26;
+      g.drawImage(dh, x2 - r2, 44 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.05);
     }
     metSpNuages.push(cv);
   }
@@ -629,10 +635,10 @@ function nouveauNuageJungle(gx, gy, graine){
   var al = prng((graine | 0) || 1);
   return {
     gx:gx, gy:gy, gx0:gx, gy0:gy,
-    r:7 + al() * 8,
+    r:4.5 + al() * 5,
     h:250 + al() * 170,
     v:(al() * 4) | 0,
-    op:0.60 + al() * 0.40,
+    op:0.62 + al() * 0.38,
     vx:0.24 + al() * 0.18,
     vy:0.08 + al() * 0.09
   };
@@ -672,16 +678,44 @@ function majNuagesJungle(tps){
 }
 
 /* Le nuage le plus proche d'un point. C'est de lui que partira
-   l'éclair : la boucle de jeu peut s'en servir pour choisir où frapper
-   (tirer un nuage, puis un point sous lui) plutôt que l'inverse. */
+   l'éclair. Au-delà de MET_NUAGE_PORTEE cases, on répond « aucun » :
+   un éclair rattaché à un nuage situé à vingt cases arrive de biais en
+   travers de tout l'écran, et on lit alors qu'il vient d'ailleurs —
+   exactement ce qu'on cherchait à éviter en mettant des nuages. */
+var MET_NUAGE_PORTEE = 9;
 function nuageAuDessus(gx, gy){
-  var meilleur = null, d2 = 1e18;
+  var meilleur = null, d2 = MET_NUAGE_PORTEE * MET_NUAGE_PORTEE;
   for(var i = 0; i < nuagesJungle.length; i++){
     var u = nuagesJungle[i];
     var d = (u.gx - gx) * (u.gx - gx) + (u.gy - gy) * (u.gy - gy);
     if(d < d2){ d2 = d; meilleur = u; }
   }
   return meilleur;
+}
+
+/* OÙ FRAPPER — pour la boucle de jeu.
+   L'ORDRE COMPTE, et c'est tout l'intérêt de cette fonction : on
+   choisit d'abord LE NUAGE, ensuite le point sous lui. Tiré dans
+   l'autre sens — un point au hasard, puis le nuage le plus proche —
+   le nuage le plus proche peut être à l'autre bout de l'île, et
+   l'éclair traverse alors l'écran en diagonale sans qu'on comprenne
+   d'où il sort.
+   `al` est une fonction de tirage (Math.random convient) ; `evite` un
+   point à ne pas approcher (le Brasier), `rEvite` son rayon en cases.
+   Retourne {gx, gy, nuage}. */
+function tirePointDeFoudre(tps, al, evite, rEvite){
+  al = al || Math.random;
+  var nu = majNuagesJungle(tps);
+  if(!nu.length) return null;
+  for(var essai = 0; essai < 24; essai++){
+    var u = nu[(al() * nu.length) | 0];
+    var a = al() * 6.2832, r = Math.sqrt(al()) * u.r * 0.8;
+    var gx = borne(u.gx + Math.cos(a) * r, 5, GW - 5);
+    var gy = borne(u.gy + Math.sin(a) * r, 4, GH - 4);
+    if(evite && Math.hypot(gx - evite.gx, gy - evite.gy) < (rEvite || 20)) continue;
+    return { gx:gx, gy:gy, nuage:u };
+  }
+  return null;
 }
 
 /* L'OMBRE PORTÉE. Elle vit avec les ombres de nuages du sol, donc
@@ -725,7 +759,7 @@ function dessineNuagesJungle(c, tps){
     var w = u.r * RX * 2 * z * souffle, hh = w * 0.5;
     var x = p.x - w / 2, y = p.y - u.h * z - hh * 0.55;
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = 0.36 * u.op;
+    c.globalAlpha = 0.44 * u.op;
     c.drawImage(sp[u.v], x, y, w, hh);
   }
   c.restore();
@@ -907,8 +941,12 @@ function dessineNappeFoudre(c, e, ti, tps){
   c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.13 * vie) + ")";
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.fill();
 
-  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.28 + 0.55 * vie) * (1 - u) + ")";
-  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.55));
+  /* Le front s'éteint VITE en fin de course. Sans ce (1-u)³, la nappe
+     finit par n'être plus qu'une grande ellipse pâle et régulière au
+     milieu de la carte — c'est-à-dire, pour l'œil, un cercle de
+     sélection. Ce qu'on veut voir à la fin, ce sont les filaments. */
+  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.26 + 0.62 * vie) * (1 - u) * (1 - u) + ")";
+  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.65));
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.stroke();
 
   /* Les dix filaments sont tracés en DEUX passes seulement, chacune un
@@ -964,7 +1002,11 @@ function dessineEclairJungle(c, e, tps){
     var pn = versEcran(cam, e.nuage.gx, e.nuage.gy);
     ox = pn.x; oy = pn.y - e.nuage.h * z;
   }else{
-    ox = p.x; oy = -Math.max(70, H * 0.12);
+    /* Aucun nuage assez près : on fait descendre l'éclair de la
+       couche de nuages elle-même, à la verticale du point. Le joueur
+       ne voit pas d'où il part, mais il ne voit pas non plus un trait
+       qui traverse l'écran en biais depuis un nuage sans rapport. */
+    ox = p.x; oy = Math.min(p.y - 90, -Math.max(60, H * 0.10));
   }
   var haut = p.y - oy;
 

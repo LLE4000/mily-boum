@@ -1466,7 +1466,7 @@ function courseCochon(tps, ph, n, fuit){
      aucune cassure au changement de segment. */
   var tot = dur + 0.18;
   var av = u < tot ? Math.sin(u / tot * 3.1416) : 0;
-  av *= pop ? 0.7 : (fuit ? 4.2 : 2.6);
+  av *= pop ? 0.9 : (fuit ? 5.0 : 3.4);
   return { elan:elan, av:av, saut:saut, gel:elan < 0.02 ? 1 : 0, pop:pop };
 }
 
@@ -1598,14 +1598,18 @@ function dessineCochon(c, k, tps){
   c.save();
   c.translate(av, -saut);
   /* Nez en avant à la ruée : le cochon d'Inde court le ventre à terre,
-     la tête la première. Pétrifié, il s'aplatit au contraire. */
-  c.rotate(elan * 0.09 - saut * 0.03);
+     la tête la première. Au SAUT SUR PLACE c'est exactement l'inverse —
+     il se cabre, nez au ciel : sans cette bascule le popcorn n'était
+     qu'une bête qui monte et redescend, ce qui n'a rien de drôle.
+     Pétrifié, il s'aplatit. */
+  c.rotate(m.pop ? -saut * 0.055 : elan * 0.15);
   if(fig) c.scale(1 + sur * 0.09, 1 - sur * 0.14);
-  else if(elan > 0) c.scale(1 + elan * 0.07, 1 - elan * 0.05);
+  else if(elan > 0) c.scale(1 + elan * 0.11, 1 - elan * 0.07);
 
-  var t = renifle * 0.35 - elan * 1.0;      /* le nez : haut à l'arrêt, bas à la ruée */
-  var d = respi + elan * 0.8;               /* le dos se bombe quand il pousse */
-  var e = elan * 0.9;                       /* et le corps s'étire */
+  /* le nez : haut à l'arrêt, PLONGÉ à la ruée */
+  var t = renifle * 0.35 - elan * (m.pop ? -0.6 : 1.7);
+  var d = respi + elan * (m.pop ? 1.6 : 0.9);   /* le dos se bombe quand il pousse */
+  var e = elan * (m.pop ? 0.2 : 1.1);           /* et le corps s'étire */
 
   /* ---- les deux pieds du fond, plus sombres ----
      Ce ne sont PAS des pattes : quatre boutons qui dépassent sous le
