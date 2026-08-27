@@ -670,6 +670,69 @@ var podiumHtml = null;
    Le podium en jeu, le bilan de fin d'île et le sacre du vainqueur
    lisent tous les trois ICI : sinon ils se contrediraient.
    --------------------------------------------------------------- */
+/* ================================================================
+   DEUX CLASSEMENTS, ET CHACUN SA PLACE.
+
+   Il n'y en avait qu'un, et il était faux là où on le regardait le
+   plus. Le panneau TOP DÉGÂTS en jeu affichait le cumul de TOUTES les
+   îles, alors que la vignette de la même île, sur l'accueil, affichait
+   les dégâts de CETTE île. Le joueur voyait 11 388 261 en jeu et
+   90 339 sur l'accueil, pour la même carte, à la même seconde.
+
+   Le partage est maintenant celui-ci, et il tient en une phrase :
+     — DANS UNE ÎLE, on voit l'île. Le podium en jeu et le bilan de fin
+       lisent classementCarte(index). C'est le même nombre que la
+       vignette de l'accueil, à la virgule près, parce que c'est la
+       même fonction du noyau qui le calcule ;
+     — SUR L'ACCUEIL, on voit la carrière. classementSalon() garde son
+       cumul de toutes les îles, et il a désormais son bloc à lui.
+
+   Rien n'a changé dans le STOCKAGE : les scores étaient déjà rangés
+   par île — la clé d'un seau est « appareil:carte ». Seule la
+   projection affichée change.
+   ================================================================ */
+
+/* Le classement d'UNE île. Même ossature que classementSalon, mais le
+   total vient de totalParJoueurCarte, et le rafraîchissement entre deux
+   instantanés n'accepte que les joueurs qui sont sur CETTE île — voir
+   le champ `gc` du message d'état. */
+function classementCarte(carte){
+  var maj = (typeof scoresAJour === "function") ? scoresAJour() : decodeScores(monde && monde.s);
+  var par = totalParJoueurCarte(maj, carte | 0);
+  var noms = (typeof nomsDesSeaux === "function") ? nomsDesSeaux(maj) : {};
+  var id;
+  for(id in scoresSalon){
+    var e = scoresSalon[id];
+    if(!e.nom || e.nom === "?") continue;
+    /* LE SCORE VIVANT DOIT PARLER DE LA MÊME ÎLE. Un joueur peut très
+       bien être sur l'île 3 pendant que je suis sur l'île 1 : son
+       total vivant ne doit alors entrer dans aucun de mes calculs.
+       D'où `gcC`, l'île à laquelle `gc` se rapporte. Un client d'une
+       version précédente n'envoie ni l'un ni l'autre : il n'apparaît
+       que par l'instantané retenu, qui est déjà rangé par île. */
+    if(e.gc === undefined || (e.gcC | 0) !== (carte | 0)) continue;
+    var cible = (e.seau && noms[e.seau]) ? noms[e.seau] : e.nom;
+    if(e.gc > (par[cible] || 0)) par[cible] = e.gc;
+  }
+  return decoreClassement(classementDepuis(par));
+}
+
+/* Qui est encore là, et qui suis-je : commun aux deux classements. */
+function decoreClassement(l){
+  var present = {}, id;
+  if(monNom) present[monNom] = 1;
+  for(id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(j && j.nom && j.nom !== "?") present[j.nom] = 1;
+    if(scoresSalon[id] && scoresSalon[id].nom) present[scoresSalon[id].nom] = 1;
+  }
+  for(var i = 0; i < l.length; i++){
+    l[i].moi = (l[i].nom === monNom) ? 1 : 0;
+    l[i].absent = present[l[i].nom] ? 0 : 1;
+  }
+  return l;
+}
+
 function classementSalon(){
   /* LA SOURCE DE VÉRITÉ est le tableau partagé, mes propres seaux
      rafraîchis au passage : c'est ce que scoresAJour() fabrique. Le
@@ -702,19 +765,7 @@ function classementSalon(){
     if(e.g > (par[cible] || 0)) par[cible] = e.g;
   }
   /* qui est encore là, pour la petite prise ⏻ */
-  var present = {};
-  if(monNom) present[monNom] = 1;
-  for(id in autresJoueurs){
-    var j = autresJoueurs[id];
-    if(j && j.nom && j.nom !== "?") present[j.nom] = 1;
-    if(scoresSalon[id] && scoresSalon[id].nom) present[scoresSalon[id].nom] = 1;
-  }
-  var l = classementDepuis(par);
-  for(var i = 0; i < l.length; i++){
-    l[i].moi = (l[i].nom === monNom) ? 1 : 0;
-    l[i].absent = present[l[i].nom] ? 0 : 1;
-  }
-  return l;
+  return decoreClassement(classementDepuis(par));
 }
 
 /* Déplié ou non : le joueur décide, et son choix tient jusqu'à ce
@@ -725,7 +776,9 @@ function majPodium(){
   /* Le classement se lit dans le REGISTRE, pas dans la liste des
      joueurs entendus : un joueur qui ferme son navigateur garde sa
      place et son score. On marque seulement qu'il n'est plus là. */
-  var l = classementSalon();
+  /* L'ÎLE, PAS LA CARRIÈRE : c'est le même nombre que la vignette de
+     cette île sur l'accueil. Voir classementCarte. */
+  var l = classementCarte(jeu.index);
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < Math.min(3, l.length); i++){
@@ -852,9 +905,10 @@ function montreBilan(){
   if(bilanActif) return;
   bilanActif = true;
   bilanT = EQ.BILAN_SECONDES;
-  /* Même source que le podium en jeu : un joueur déconnecté garde sa
-     place au bilan, avec la marque ⏻ pour dire qu'il n'est plus là. */
-  var l = classementSalon();
+  /* Même source que le podium en jeu — et comme lui, le bilan d'une
+     île parle de CETTE île : on vient d'y passer une heure, ce qu'on
+     veut lire c'est ce qu'on y a fait. */
+  var l = classementCarte(jeu.index);
   var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < l.length; i++){
@@ -1500,6 +1554,61 @@ function majQuiSalon(){
   }
   e.innerHTML = h;
 }
+/* ================================================================
+   LE TOP CARRIÈRE, ET SA PAGE
+
+   Cinq lignes sur l'accueil, tout le reste derrière un bouton. Le
+   partage n'est pas décoratif : à vingt joueurs, une liste qui
+   s'allonge sous l'accueil pousserait le bouton DÉBARQUER sous
+   l'horizon, et c'est lui qu'on vient chercher. Cinq suffisent à
+   savoir où l'on en est ; « Voir tout » est pour la curiosité, et la
+   curiosité peut bien changer de page.
+
+   Les deux listes sont peintes par la MÊME fonction : elles doivent
+   se ressembler, sans quoi on croirait lire deux classements.
+   ================================================================ */
+var CARRIERE_APERCU = 5;
+function ligneClassement(o, rang){
+  var med = ["🥇", "🥈", "🥉"];
+  return '<div class="clR' + (o.moi ? " moi" : "") + (o.absent ? " parti" : "")
+       + (rang < 3 ? " pod" : "") + '">'
+       + '<span class="rg">' + (med[rang] || (rang + 1)) + '</span>'
+       + '<span class="nm">' + echappe(o.nom) + (o.absent ? " ⏻" : "") + '</span>'
+       + '<span class="vl">' + nombre(o.g) + '</span></div>';
+}
+function majCarriere(){
+  var e = $("carriereListe");
+  if(!e) return;
+  var l = classementSalon();
+  var h = "", i;
+  for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
+  e.innerHTML = h;
+  var c = $("carriereCompte");
+  if(c) c.textContent = l.length
+      ? (l.length + " joueur" + (l.length > 1 ? "s" : "") + " au classement")
+      : "";
+  var b = $("btCarriere");
+  /* le bouton ne sert à rien tant que tout tient dans l'aperçu */
+  if(b) b.style.display = l.length > CARRIERE_APERCU ? "" : "none";
+}
+function ouvreClassement(){
+  var e = $("classListe");
+  if(!e) return;
+  var l = classementSalon(), h = "", i;
+  for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
+  e.innerHTML = h || '<div class="clSous" style="padding:0">'
+                   + "Personne n'a encore marqué le moindre dégât.</div>";
+  $("classP").classList.add("on");
+}
+function fermeClassement(){ $("classP").classList.remove("on"); }
+function installeClassement(){
+  var b = $("btCarriere"), f = $("btClassFerme"), p = $("classP");
+  if(b) b.addEventListener("click", ouvreClassement);
+  if(f) f.addEventListener("click", fermeClassement);
+  /* le fond ferme aussi, comme partout ailleurs dans ce jeu */
+  if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeClassement(); });
+}
+
 function installeQuiSalon(){
   var e = $("quiSalon");
   if(!e) return;
@@ -1509,6 +1618,7 @@ function installeQuiSalon(){
     if(!ev.target.closest || !ev.target.closest("[data-quisalon]")) return;
     quiSalonDeplie = !quiSalonDeplie;
     majQuiSalon();
+    majCarriere();
   });
 }
 function majEtatReseau(){
@@ -1521,14 +1631,17 @@ function majEtatReseau(){
     p.classList.add("ok");
     t.textContent = "Salon MILY — connecté" + (n ? " · " + n + " autre" + (n > 1 ? "s" : "") + " joueur" + (n > 1 ? "s" : "") : " · seul pour l'instant");
     majQuiSalon();
+    majCarriere();
   }else if(reseau.etat === "coupe" || reseau.etat === "erreur" || reseau.etat === "refus"){
     p.classList.add("ko");
     t.textContent = "Relais injoignable — le jeu marche quand même en solo. Essaie l'autre relais.";
     majQuiSalon();
+    majCarriere();
   }else{
     p.classList.add("att");
     t.textContent = "Connexion au salon MILY…";
     majQuiSalon();
+    majCarriere();
   }
 }
 

@@ -34,6 +34,7 @@ function demarre(){
   installeChat();
   installeListeEnLigne();
   installeQuiSalon();
+  installeClassement();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

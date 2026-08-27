@@ -79,7 +79,10 @@ canvas{display:block}
 .enveloppe{max-width:920px;margin:0 auto}
 #titre{text-align:center;margin:6px 0 2px;position:relative}
 #logoCv{width:min(420px,88vw);height:auto;display:block;margin:0 auto;filter:drop-shadow(0 8px 22px rgba(255,110,20,.45))}
-#slogan{text-align:center;color:var(--or);font-size:13px;letter-spacing:2.6px;text-transform:uppercase;margin:2px 0 14px;opacity:.85}
+/* Le slogan « forteresse de braise » a été retiré à la demande du
+   joueur ; sa marge basse, elle, servait à décoller le logo de la
+   première carte, et on la reporte sur le titre. */
+#titre{margin-bottom:14px}
 
 .carteP{
   background:var(--verre);border:var(--bord);border-radius:16px;box-shadow:var(--ombre);
@@ -583,6 +586,62 @@ select.champ{cursor:pointer}
 /* SOUS l'éditeur de maps (35), jamais au-dessus : « Administration des
    maps » s'ouvre par-dessus le panneau, et le refermer redépose le
    joueur exactement là d'où il est parti. */
+/* ============================================================
+   LE TOP CARRIÈRE ET SA PAGE
+   Les lignes reprennent la grille du podium en jeu — rang, nom,
+   nombre aligné à droite en chiffres tabulaires — pour qu'on
+   reconnaisse le même objet d'un écran à l'autre.
+   ============================================================ */
+.clR{
+  display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:8px;
+  padding:7px 9px;border-radius:9px;
+  border:1px solid transparent;
+}
+.clR + .clR{margin-top:3px}
+.clR:nth-child(odd){background:rgba(255,255,255,.028)}
+.clR .rg{font-size:12px;color:var(--gris);text-align:center;font-variant-numeric:tabular-nums}
+.clR .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clR .vl{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
+.clR.moi{border-color:rgba(255,168,72,.42);background:rgba(255,138,30,.10)}
+.clR.moi .nm{color:var(--braise)}
+.clR.parti .nm{color:var(--gris)}
+/* les trois premiers portent leur médaille à la place du rang */
+.clR.pod .rg{font-size:15px}
+#carriereBas{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;
+}
+#carriereCompte{font-size:12px;color:var(--gris)}
+#carriereListe:empty::after{
+  content:"Personne n'a encore marqué.";font-size:12px;color:var(--gris);
+}
+#classP{
+  position:fixed;inset:0;z-index:34;display:none;
+  background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
+  align-items:center;justify-content:center;padding:16px;
+  overscroll-behavior:contain;
+}
+#classP.on{display:flex}
+.clBoite{
+  width:min(520px,100%);max-height:min(88vh,760px);display:flex;flex-direction:column;
+  background:#1a1024;border:1px solid rgba(255,255,255,.12);border-radius:18px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);overflow:hidden;
+}
+.clHaut{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);
+}
+/* Les deux tiennent sur UNE ligne, y compris sur un téléphone de 430
+   points : le titre ne se coupe pas, le bouton ne rétrécit pas. Écrit
+   « Retour à l'accueil » en toutes lettres, le bouton passait sur deux
+   lignes et poussait le titre avec lui — la flèche dit déjà « retour ». */
+.clTitre{font-weight:800;font-size:15px;line-height:1.2;letter-spacing:.6px;
+  color:var(--braise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#btClassFerme{flex:0 0 auto;white-space:nowrap}
+.clSous{
+  padding:10px 14px 0;font-size:12px;line-height:1.5;color:var(--gris);
+}
+.clCorps{padding:10px 14px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
+
 #adminP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
@@ -881,7 +940,6 @@ select.champ{cursor:pointer}
 <div id="brief">
   <div class="enveloppe">
     <div id="titre"><canvas id="logoCv" width="840" height="230"></canvas></div>
-    <div id="slogan">forteresse de braise · assaut multijoueur</div>
 
     <div class="carteP">
       <h2>Salon</h2>
@@ -937,6 +995,18 @@ select.champ{cursor:pointer}
       <button id="lancer" class="bt pri">DÉBARQUER</button>
       <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     </div>
+    <!-- LE TOP CARRIÈRE. Il est ICI et nulle part ailleurs : en jeu on
+         regarde l'île où l'on se bat, sur l'accueil on regarde la
+         campagne entière. Cinq lignes suffisent à savoir où l'on en
+         est ; le reste tient derrière « Voir tout ». -->
+    <div class="carteP">
+      <h2>Top carrière</h2>
+      <div id="carriereListe"></div>
+      <div id="carriereBas">
+        <span id="carriereCompte"></span>
+        <button id="btCarriere" class="bt ptt">Voir tout ↗</button>
+      </div>
+    </div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
@@ -975,6 +1045,22 @@ select.champ{cursor:pointer}
         <button id="btAdminReglages" class="bt">🌿 Régler la jungle</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ==================== CLASSEMENT COMPLET ====================
+     Frère de #adminP : même ossature, même façon de s'ouvrir. Une page
+     à part plutôt qu'une liste qui s'allonge sous l'accueil — à vingt
+     joueurs, le bouton DÉBARQUER se serait retrouvé sous l'horizon. -->
+<div id="classP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">🏆 Classement carrière</div>
+      <button id="btClassFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">Tous les dégâts, toutes les îles confondues, depuis
+      le début du salon. Un joueur parti garde sa place.</div>
+    <div class="clCorps"><div id="classListe"></div></div>
   </div>
 </div>
 

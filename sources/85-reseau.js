@@ -233,6 +233,13 @@ function monTotalLocal(){
   for(k in mesDegats) s += mesDegats[k];
   return s;
 }
+/* Ce que j'ai fait sur UNE île. Même compteur, sans la somme : c'est
+   lui que le podium en jeu affiche désormais, et c'est exactement le
+   nombre que la vignette de cette île montre sur l'accueil. */
+function monTotalCarte(carte){
+  repliMesDegats();
+  return mesDegats[carte | 0] || 0;
+}
 /* Le tableau partagé, MES seaux remplacés par leur valeur locale —
    plus fraîche que celle qui a été publiée il y a deux secondes. */
 function scoresAJour(){
@@ -1103,6 +1110,13 @@ function recoit(txt){
        aller chercher une ligne qui n'existe pas */
     j.palier = borne(m.pu | 0, 0, PALIERS_PUISSANCE.length - 1);
     noteScore(m.id, j.nom, j.g, j.seau);
+    /* APRÈS noteScore, jamais avant : c'est lui qui crée la ligne de
+       ce joueur dans le registre. Posé au-dessus, le tout premier
+       message d'un joueur perdait son score d'île. */
+    if(typeof m.gc === "number" && m.gc >= 0 && m.gc <= plafondScore()){
+      var ent = scoresSalon[m.id];
+      if(ent){ ent.gc = m.gc; ent.gcC = m.gcC | 0; }
+    }
     majUnitesDistantes(j, m.p || []);
     if(m.m && m.f){
       if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
@@ -1276,8 +1290,18 @@ function majReseau(dt){
          précédentes ignorent un champ inconnu, donc un salon mixte ne
          casse pas — elles dessineront simplement des troupes sans
          aura, ce qui était l'état d'avant. */
+      /* DEUX SCORES, ET C'EST VOULU. `g` est le cumul de CARRIÈRE, qui
+         nourrit le classement de l'accueil ; `gc` est ce que j'ai fait
+         sur l'ÎLE OÙ JE SUIS, qui nourrit le podium en jeu, et `gcC`
+         dit de quelle île il s'agit — un joueur peut être sur l'île 3
+         pendant que je suis sur l'île 1, et son score ne doit alors
+         entrer dans aucun de mes calculs.
+         Les trois champs sont ajoutés à la FIN, comme `sq` et `pu`
+         avant eux : une version précédente les ignore et n'apparaît
+         que par l'instantané retenu, qui est déjà rangé par île. */
       var msg = { t:"etat", nom:monNom, sq:monSeau, n:n,
-                  g:Math.round(monTotalLocal()), p:p, pu:jeu.palier | 0 };
+                  g:Math.round(monTotalLocal()), p:p, pu:jeu.palier | 0,
+                  gc:Math.round(monTotalCarte(jeu.index)), gcC:jeu.index | 0 };
       if(jeu.mort && jeu.fantome){
         msg.m = 1;
         msg.f = [Math.round(jeu.fantome.gx * 10) / 10, Math.round(jeu.fantome.gy * 10) / 10];
