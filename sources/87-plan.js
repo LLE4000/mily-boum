@@ -47,7 +47,10 @@ var FAMILLES_DECOR = {
   campagne: ["meules de foin", "buissons", "bouts de clôture", "sillons"],
   hippie  : ["combis", "tipis", "guirlandes", "feux de camp"],
   sud     : ["cyprès", "oliviers", "lavandes", "murets de pierre sèche"],
-  jungle  : ["arbres géants", "lianes", "fougères", "hautes herbes", "tapis de sol"]
+  jungle  : ["arbres géants", "lianes", "fougères", "hautes herbes", "tapis de sol"],
+  guinguette:["guirlandes", "tables de fête", "lampadaires", "tonneaux"],
+  tenebres: ["fissures de lave", "aiguilles de basalte", "vasques", "arbres calcinés"],
+  ibiza   : ["parasols", "transats", "palmiers", "carrés lounge"]
 };
 function decorDeLIle(i){
   var b = CARTES[i] ? CARTES[i].biome : "plage";
@@ -699,7 +702,8 @@ function dessinePlan(){
      dessine donc à chaque aperçu, discrètement, dans le vert de la
      végétation et l'ambre des bestioles. */
   var decVerts = { plage:"#4fae62", foret:"#3f8a45", campagne:"#8a9a52",
-                   hippie:"#c86ad0", sud:"#7fa06a", jungle:"#3fa05c" };
+                   hippie:"#c86ad0", sud:"#7fa06a", jungle:"#3fa05c",
+                   guinguette:"#e8a94a", tenebres:"#e2551a", ibiza:"#1fb9c9" };
   c.fillStyle = decVerts[CARTES[planCarteIdx].biome] || "#4fae62";
   c.globalAlpha = 0.55;
   for(i = 0; i < m.decors.length; i++){

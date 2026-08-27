@@ -850,13 +850,34 @@ var MET_NUAGE_ALT = 340;
    blanche, et rien ne tombe de ce nuage-la. */
 var MET_NUAGE_C   = "176,190,210";
 var MET_NUAGE_C_H = "255,255,255";
-var metSpNuages = null, metSpNuagesC = null;
-function spritesNuage(clair){
-  if(clair && metSpNuagesC) return metSpNuagesC;
-  if(!clair && metSpNuages) return metSpNuages;
+/* LES QUATRE CIELS, EN DEUX COULEURS CHACUN : le ventre, puis la crête
+   qui prend ce qui reste de lumière. Tout le reste du sprite — la
+   silhouette, le liseré fabriqué par soustraction, les bosses — est
+   identique aux quatre ; seule la matière change.
+     orage  le ciel de la jungle, ventre presque noir
+     clair  le beau temps des îles de jour
+     fumee  les ténèbres : de la cendre en suspension, et une crête qui
+            ne prend pas le jour mais le REFLET DE LA LAVE, d'en bas —
+            c'est ce rouge sur le dessus des masses qui dit que la
+            lumière de ce monde ne vient pas du ciel
+     nuit   la guinguette : un ciel de nuit d'été, à peine plus clair
+            que le noir, avec une crête tiède qui rappelle les lampions */
+var MET_CIELS = {
+  orage:{ bas:MET_NUAGE_G,  haut:MET_NUAGE_G_H },
+  clair:{ bas:MET_NUAGE_C,  haut:MET_NUAGE_C_H },
+  fumee:{ bas:"38,26,26",   haut:"196,92,40"    },
+  nuit :{ bas:"30,24,40",   haut:"140,124,150"  }
+};
+var metSpNuagesPar = {};
+function spritesNuage(style){
+  /* compatibilité : l'ancien appel passait un booléen « clair » */
+  if(style === 1 || style === true) style = "clair";
+  else if(!style || style === 0) style = "orage";
+  if(!MET_CIELS[style]) style = "clair";
+  if(metSpNuagesPar[style]) return metSpNuagesPar[style];
   var out = [];
-  var MET_NUAGE   = clair ? MET_NUAGE_C   : MET_NUAGE_G;
-  var MET_NUAGE_H = clair ? MET_NUAGE_C_H : MET_NUAGE_G_H;
+  var MET_NUAGE   = MET_CIELS[style].bas;
+  var MET_NUAGE_H = MET_CIELS[style].haut;
   var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
   for(var v = 0; v < 4; v++){
     var cv = nouveauCanvas(512, 256);
@@ -930,7 +951,10 @@ function spritesNuage(clair){
        nuage vers le bas : on repasse donc en source-over. */
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    if(clair){ out.push(cv); continue; }   // rien ne pend sous un beau nuage
+    /* Seul le ciel d'ORAGE porte de la virga sous le ventre : rien ne
+       tombe d'un beau nuage, ni d'un ciel de cendre, ni d'une nuit
+       d'été. */
+    if(style !== "orage"){ out.push(cv); continue; }
     /* LA VIRGA N'EST PLUS UN PEIGNE, C'EST UN VOILE — et c'est le
        joueur qui a tranché, devant l'image.
 
@@ -964,7 +988,7 @@ function spritesNuage(clair){
     g.globalAlpha = 1;
     out.push(cv);
   }
-  if(clair) metSpNuagesC = out; else metSpNuages = out;
+  metSpNuagesPar[style] = out;
   return out;
 }
 
@@ -1058,13 +1082,19 @@ var metNuagesDessin = -1;
 /* `clair` : le ciel des cinq îles ordinaires. Même silhouette, mais
    plus haute — un beau nuage est loin, pas au-dessus de la tête — et
    plus transparente, parce qu'elle ne menace de rien. */
-function dessineNuagesJungle(c, tps, clair){
+function dessineNuagesJungle(c, tps, style){
   if(tps === metNuagesDessin) return;
   metNuagesDessin = tps;
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
-  var z = cam.z, sp = spritesNuage(clair ? 1 : 0);
-  var alt = MET_NUAGE_ALT * (clair ? 1.35 : 1);
+  /* « clair » couvrait deux cas ; il y en a quatre. On garde le
+     booléen d'avant comme raccourci pour ne rien casser des appels
+     existants, mais le vrai argument est le NOM du ciel. */
+  if(style === 1 || style === true) style = "clair";
+  else if(!style || style === 0) style = "orage";
+  var haut = (style !== "orage");
+  var z = cam.z, sp = spritesNuage(style);
+  var alt = MET_NUAGE_ALT * (haut ? 1.35 : 1);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
@@ -1089,7 +1119,13 @@ function dessineNuagesJungle(c, tps, clair){
        impacts au sol et l'ombre portée.
        Le beau temps garde sa valeur fixe : ses nuages sont plus hauts
        (× 1,35) et ne recouvrent jamais rien. */
-    c.globalAlpha = clair ? 0.62 : borne(1.10 - z * 0.58, 0.38, 0.80);
+    /* Les trois ciels HORS ORAGE gardent une valeur fixe : leurs
+       nuages sont plus hauts (× 1,35) et ne recouvrent jamais rien.
+       Celui des ténèbres est un peu plus dense — c'est de la cendre,
+       elle pèse — et celui de la nuit un peu plus discret. */
+    c.globalAlpha = !haut ? borne(1.10 - z * 0.58, 0.38, 0.80)
+                  : style === "fumee" ? 0.70
+                  : style === "nuit"  ? 0.50 : 0.62;
     c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();

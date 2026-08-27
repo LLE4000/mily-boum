@@ -1516,7 +1516,10 @@ function dessineApercu(i){
   c.beginPath(); c.ellipse(w / 2, h * 0.78, w * 0.46, h * 0.34, 0, 0, 6.2832); c.fill();
   c.fillStyle = b.sol1;
   c.beginPath(); c.ellipse(w / 2, h * 0.78, w * 0.40, h * 0.28, 0, 0, 6.2832); c.fill();
-  c.fillStyle = "#e6d3a4";
+  /* la langue de sable. Elle vient de la palette de l'île et non d'un
+     beige écrit en dur : sur les ténèbres, une plage dorée au bord
+     d'une mer de lave n'avait aucun sens. */
+  c.fillStyle = b.sable;
   c.beginPath(); c.ellipse(w * 0.78, h * 0.80, w * 0.14, h * 0.20, 0, 0, 6.2832); c.fill();
   /* décor */
   var al = prng(graineCarte(CODE_SALON, i));
@@ -1525,10 +1528,20 @@ function dessineApercu(i){
     c.save(); c.translate(x, y); c.scale(0.42, 0.42);
     /* La vignette doit se reconnaître à la silhouette autant qu'à la
        palette : en 360×148, c'est la forme du décor qui dit l'île. */
-    if(CARTES[i].biome === "plage") palmier(c, 0, 0, 1);
-    else if(CARTES[i].biome === "foret") sapin(c, 0, 0, 1);
-    else if(CARTES[i].biome === "hippie") (k % 3 === 0 ? guirlande : tipi)(c, 0, 0, 1);
-    else if(CARTES[i].biome === "sud") (k % 3 === 0 ? olivier : cypres)(c, 0, 0, 1);
+    var bio = CARTES[i].biome;
+    if(bio === "plage") palmier(c, 0, 0, 1);
+    else if(bio === "foret") sapin(c, 0, 0, 1);
+    else if(bio === "hippie") (k % 3 === 0 ? guirlande : tipi)(c, 0, 0, 1);
+    else if(bio === "sud") (k % 3 === 0 ? olivier : cypres)(c, 0, 0, 1);
+    else if(bio === "guinguette")
+      (k % 3 === 0 ? guirlandeGuinguette : k % 3 === 1 ? lampadaireGuinguette
+                                                      : tableGuinguette)(c, 0, 0, 1);
+    else if(bio === "tenebres")
+      (k % 3 === 0 ? vasqueTenebres : k % 3 === 1 ? aiguilleTenebres
+                                                  : arbreCalcineTenebres)(c, 0, 0, 1);
+    else if(bio === "ibiza")
+      (k % 3 === 0 ? parasolIbiza : k % 3 === 1 ? palmierIbiza
+                                                : transatIbiza)(c, 0, 0, 1);
     else meule(c, 0, 0, 1);
     c.restore();
   }

@@ -51,6 +51,64 @@ var BIOMES = {
     herbe:"#3c6b30", allee:"#4a4030", roche:"#4e5450",
     eauC:"#4fbfa0", eau:"#12756e", eauO:"#063f42", ecume:"#d8fff2",
     fond:"#1d7a72", basFond:"#5cb8a4", ciel:"#0a1c18"
+  },
+  /* LA GUINGUETTE — un soir d'été sous les guirlandes.
+     Le ciel est bas et sombre, comme dans la jungle, et c'est
+     entièrement le but : une guirlande sur un ciel clair n'éclaire
+     rien. Tout le sol est donc tenu dans des bruns tièdes, à peine
+     éclairés — le terrain battu d'une piste de danse, le gravier des
+     allées, l'herbe foulée du jardin. Aucune lumière n'est peinte
+     ici : elles viennent toutes du décor, et elles ne portent que
+     parce que le fond leur laisse la place.
+     L'eau est un bord de rivière au crépuscule, pas une mer : sombre,
+     lisse, et elle rend le rose des lampions. */
+  guinguette: {
+    sol1:"#4a3a2c", sol2:"#3e3025", sable:"#7d6549", sableO:"#4e3c2b",
+    herbe:"#3f4a2e", allee:"#6b543c", roche:"#4a4048",
+    eauC:"#c9a06a", eau:"#3c4a66", eauO:"#1c2740", ecume:"#ffe9c4",
+    fond:"#33405c", basFond:"#6d7c96", ciel:"#1d1626"
+  },
+  /* LES TÉNÈBRES — l'île n'est pas dans la mer, elle est dans la lave.
+     Trois décisions font toute la carte.
+     1. LE SOL EST PRESQUE NOIR. C'est la seule façon de rendre la lave
+        aveuglante : une roche grise sous de la lave orange donne une
+        carte orange, une roche noire donne un brasier.
+     2. LA LAVE EST PEINTE COMME DE L'EAU, aux mêmes trois niveaux —
+        creux, moyen, crête. Le moteur des vagues n'a rien à
+        apprendre : il interpole entre eauO, eau et eauC, et il suffit
+        de lui donner du rouge sombre, de l'orange et du jaune blanc
+        pour que la houle devienne une coulée.
+     3. LE CIEL EST ROUGE SOMBRE, pas noir : un noir pur aurait aplati
+        l'horizon et fait disparaître la ligne de rivage.
+     L'« herbe » n'est pas de l'herbe : ce sont les fissures
+     incandescentes qui courent dans la roche. */
+  tenebres: {
+    /* Le sable N'EST PAS du sable : c'est du basalte broyé, presque
+       noir. Un rivage doré au bord d'une mer de lave se lisait comme
+       une plage tropicale mal éclairée. */
+    sol1:"#241d21", sol2:"#1a1519", sable:"#33272a", sableO:"#1d1517",
+    /* Et l'« herbe » n'est pas de l'herbe : ce sont les veines
+       incandescentes. Elles étaient trop claires — le sol devenait
+       orange et l'île perdait ses ténèbres. Rabattues à un rouge
+       sombre, elles redeviennent des VEINES dans du noir, ce qui est
+       tout l'effet cherché ; l'orange franc, lui, reste réservé au
+       décor et à la mer, où il est rare et donc brûlant. */
+    herbe:"#4a1a10", allee:"#2e2225", roche:"#2b2429",
+    eauC:"#ffdf7a", eau:"#e2551a", eauO:"#8a1408", ecume:"#fff2c4",
+    fond:"#b83a10", basFond:"#ff8b32", ciel:"#2a0c0a"
+  },
+  /* IBIZA — midi qui n'en finit pas, en plus riche que le Sud.
+     Le Sud est délavé par la lumière ; Ibiza est SATURÉE. C'est ce qui
+     les sépare, et il fallait que ça se voie tout de suite : un sable
+     presque blanc, une mer d'un turquoise franc qui vire au bleu
+     profond au large, et de la pierre chaulée en guise de roche. Le
+     vert n'est pas celui d'une prairie mais celui d'un palmier soigné
+     — sombre, verni. */
+  ibiza: {
+    sol1:"#efdfc0", sol2:"#e6d2ac", sable:"#f8eed6", sableO:"#d3bc95",
+    herbe:"#5f8a63", allee:"#fdf6e6", roche:"#e2dccf",
+    eauC:"#8ffff0", eau:"#12b6e0", eauO:"#0a4fa8", ecume:"#ffffff",
+    fond:"#25c4dc", basFond:"#8df0ec", ciel:"#7fd8f5"
   }
 };
 
@@ -674,6 +732,26 @@ function dessineDecor(c, biome, d){
     else if(d.v === 1) olivier(c, d.gx, d.gy, d.s);
     else if(d.v === 2) lavande(c, d.gx, d.gy, d.s);
     else muretSec(c, d.gx, d.gy, d.s);
+  /* LES TROIS ÎLES AJOUTÉES. Leurs objets vivent dans
+     31-decors-nouveaux.js — l'ORDRE de ces quatre lignes est leur
+     identité : `v` est tiré une fois pour toutes à la génération de la
+     carte, et échanger deux objets rhabillerait toutes les parties en
+     cours. On ajoute à la fin, on n'intercale pas. */
+  }else if(biome === "guinguette"){
+    if(d.v === 0) guirlandeGuinguette(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) tableGuinguette(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) lampadaireGuinguette(c, d.gx, d.gy, d.s);
+    else tonneauGuinguette(c, d.gx, d.gy, d.s);
+  }else if(biome === "tenebres"){
+    if(d.v === 0) fissureTenebres(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) aiguilleTenebres(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) vasqueTenebres(c, d.gx, d.gy, d.s);
+    else arbreCalcineTenebres(c, d.gx, d.gy, d.s);
+  }else if(biome === "ibiza"){
+    if(d.v === 0) parasolIbiza(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) transatIbiza(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) palmierIbiza(c, d.gx, d.gy, d.s);
+    else loungeIbiza(c, d.gx, d.gy, d.s);
   }
 }
 
@@ -833,6 +911,40 @@ var MATIERES = {
     herbe1:"#5c9440", herbe2:"#2a4522",
     sable1:"#7b7150", sable2:"#5f5740",
     mouille:"#33402e", roche1:"#525a58", roche2:"#3a4241"
+  },
+  /* La guinguette : de la terre battue, tassée par les pas. Les taches
+     sont plus claires que le fond, pas plus sombres — ce sont les
+     places usées où l'on danse, pas des flaques. L'« herbe » est celle
+     d'un jardin de bord de rivière, foulée et un peu grise. */
+  guinguette: {
+    fond1:"#4a3a2c", fond2:"#3c2f24",
+    tache1:"#5c4835", tache2:"#31261d",
+    herbe1:"#4e5c36", herbe2:"#33402a",
+    sable1:"#8a7053", sable2:"#6b5540",
+    mouille:"#3a2f26", roche1:"#4e4450", roche2:"#372f3a"
+  },
+  /* Les ténèbres : de la roche refroidie, craquelée. Les deux taches
+     encadrent le fond — l'une est de la cendre plus claire, l'autre du
+     basalte presque noir — et l'« herbe » est la fissure
+     incandescente : c'est la seule couleur vive du sol, et elle doit
+     rester rare pour ne pas devenir un tapis. */
+  tenebres: {
+    fond1:"#241d21", fond2:"#181316",
+    tache1:"#31282e", tache2:"#0f0c0e",
+    herbe1:"#7a2410", herbe2:"#3d1408",
+    sable1:"#372a2d", sable2:"#241b1e",
+    mouille:"#1e181b", roche1:"#332b31", roche2:"#1f1a1e"
+  },
+  /* Ibiza : du sable clair et sec, du calcaire blanchi. Presque aucun
+     contraste au sol — c'est voulu. Tout le contraste de cette carte
+     est dans la mer et dans le décor ; un sol bavard écraserait les
+     parasols. */
+  ibiza: {
+    fond1:"#eeddbe", fond2:"#e2cfa8",
+    tache1:"#f8efd8", tache2:"#cdb68f",
+    herbe1:"#6d986e", herbe2:"#4c7350",
+    sable1:"#faf2dd", sable2:"#e9d9b6",
+    mouille:"#c5ac82", roche1:"#e6e0d2", roche2:"#c2bbaa"
   }
 };
 

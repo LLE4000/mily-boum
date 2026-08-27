@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.34";
+var VERSION = "v0.35";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -711,7 +711,29 @@ var CARTES = [
      ---------------------------------------------------------------- */
   { nom:"Mily dans la jungle",    biome:"jungle",   pvQG:60000000,
     special:1,
-    victoire:"Mily lui offre un verre sous la pluie !" }
+    victoire:"Mily lui offre un verre sous la pluie !" },
+  /* ----------------------------------------------------------------
+     LES TROIS ÎLES AJOUTÉES APRÈS COUP, ET POURQUOI ELLES SONT ICI.
+
+     Elles viennent APRÈS la jungle dans le tableau, alors qu'elles se
+     jouent AVANT elle dans la campagne. Ce n'est pas une négligence,
+     c'est la règle : l'index d'une carte est une CLÉ — les scores sont
+     rangés sous « seau:carte », le cumul local sous mesDegats[index],
+     les champions et le bitmap des destructions sous cet index. Les
+     glisser à la place 5 aurait poussé la jungle à 8 et effacé tout ce
+     que le salon y a fait. Un index attribué ne bouge jamais ; c'est
+     ORDRE_CAMPAGNE qui dit dans quel ordre on les joue.
+
+     Leurs PV prolongent la montée des cinq premières (15, 20, 26, 31,
+     37) sans jamais rattraper la jungle, qui doit rester l'objectif
+     collectif le plus lourd du jeu.
+     ---------------------------------------------------------------- */
+  { nom:"Mily en guinguette",     biome:"guinguette", pvQG:43000000,
+    victoire:"Mily t'invite à danser sous les guirlandes !" },
+  { nom:"Mily dans les ténèbres", biome:"tenebres",   pvQG:50000000,
+    victoire:"Mily te ramène vers la lumière !" },
+  { nom:"Mily à Ibiza",           biome:"ibiza",      pvQG:56000000,
+    victoire:"Mily t'emmène finir la nuit au beach club !" }
 ];
 /* Combien de cartes participent à l'enchaînement ordinaire. Tout le
    reste du jeu compte les îles AVEC ce nombre et non CARTES.length :
@@ -808,6 +830,29 @@ function premiereCarte(){ return ORDRE_CAMPAGNE.length ? ORDRE_CAMPAGNE[0] : 0; 
    elle a son orage sans qu'on ait à y penser.
    ================================================================ */
 function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle"); }
+
+/* ================================================================
+   LE CIEL D'UNE ÎLE
+
+   Même raisonnement que carteOrageuse, poussé d'un cran. L'orage est
+   une propriété de l'île ; la COULEUR DES NUAGES en est une autre, et
+   elle ne se déduit pas de la première.
+
+   Le jeu n'avait que deux ciels : celui de l'orage, ventre presque
+   noir, et celui du beau temps, ventre gris clair sous une crête
+   blanche. Ce dernier était servi à toutes les îles non orageuses —
+   ce qui allait très bien tant qu'elles étaient toutes de plein jour.
+   Une nappe blanche au-dessus d'un monde de lave se lit comme de la
+   neige ; au-dessus d'une guinguette de nuit, comme un projecteur.
+
+   Quatre ciels, donc, nommés par ce qu'ils sont et choisis sur le
+   biome — jamais sur un tirage, jamais sur l'index.
+   ================================================================ */
+var CIELS_ILE = { jungle:"orage", tenebres:"fumee", guinguette:"nuit" };
+function styleCiel(i){
+  var b = CARTES[i] && CARTES[i].biome;
+  return (b && CIELS_ILE[b]) || "clair";
+}
 
 /* Le message de victoire nomme celui qui a le plus contribué à faire
    tomber le Brasier, et change avec le thème de l'île. */

@@ -2262,9 +2262,13 @@ function rendu(tps, dt){
     for(var ie = 0; ie < jeu.eclairs.length; ie++) dessineEclairJungle(ctx, jeu.eclairs[ie], tps);
     dessinePluieJungle(ctx, tps);
   }else{
-    /* La masse, en l air, au-dessus de tout le reste du décor. */
+    /* La masse, en l air, au-dessus de tout le reste du décor. Sa
+       teinte vient de l'ÎLE : blanche au-dessus d'une plage, de la
+       cendre rougie au-dessus des ténèbres, un bleu de nuit au-dessus
+       de la guinguette. Un seul ciel blanc pour toutes les îles non
+       orageuses posait de la neige sur un monde de lave. */
     repereEcran(ctx);
-    dessineNuagesJungle(ctx, tps, 1);
+    dessineNuagesJungle(ctx, tps, styleCiel(jeu.index));
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de

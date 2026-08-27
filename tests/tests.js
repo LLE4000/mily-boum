@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -191,10 +191,12 @@ G("2b. Le dézoom s'arrête au bord de l'île");
   ok("le plancher ne dépasse jamais le plafond",
      N.zoomPlancher(1e6, 1e6) <= N.ZMAX + 1e-12);
 
-  /* Le plancher vaut pour LES SIX CARTES : il ne regarde que la
-     géométrie du monde, jamais l'index de l'île. */
-  ok("le plancher est le même pour les six cartes",
-     typeof N.zoomPlancher(1900, 1000) === "number" && N.CARTES.length === 6);
+  /* Le plancher vaut pour TOUTES LES CARTES : il ne regarde que la
+     géométrie du monde, jamais l'index de l'île. On le dit en le
+     mesurant, plutôt qu'en épinglant un nombre de cartes qui a
+     vocation à grandir. */
+  ok("le plancher ne dépend pas de l'île (" + N.CARTES.length + " cartes)",
+     typeof N.zoomPlancher(1900, 1000) === "number" && N.CARTES.length >= 6);
 
   /* La marge de mer est partagée avec la butée de déplacement : c'est
      ce qui garantit que le zoom plancher montre exactement ce que la
@@ -1754,16 +1756,25 @@ G("4. Déterminisme de la génération de carte");
 
     /* LA PREUVE, sur les cartes elles-mêmes : la plage change, les
        quatre autres sont bit pour bit celles d'avant. */
-    var vierge = [], peinte = [], k;
-    for(k = 0; k < N.NB_CARTES_NORMALES; k++){
-      vierge.push(N.empreinteCarte(N.genereCarte("MILY", k, "", 0)));
-      peinte.push(N.empreinteCarte(N.genereCarte("MILY", k, N.planDeCarte(k, paquet), 0)));
+    /* ON PARCOURT L'ORDRE DE CAMPAGNE, PAS « 0 à NB_CARTES_NORMALES ».
+       Les deux se confondaient tant que les îles ordinaires occupaient
+       le début du tableau ; depuis que trois îles vivent après la
+       jungle, compter jusqu'à huit fait passer sur la carte événement
+       — qui a son plan gravé et n'est donc jamais « vierge ». Le test
+       échouait pour une raison qui n'avait rien à voir avec ce qu'il
+       vérifie. */
+    var vierge = [], peinte = [], k, idx;
+    for(k = 0; k < N.ORDRE_CAMPAGNE.length; k++){
+      idx = N.ORDRE_CAMPAGNE[k];
+      vierge.push(N.empreinteCarte(N.genereCarte("MILY", idx, "", 0)));
+      peinte.push(N.empreinteCarte(N.genereCarte("MILY", idx, N.planDeCarte(idx, paquet), 0)));
     }
     ok("peindre la plage change bien la plage", vierge[0] !== peinte[0]);
     var intactes = "";
-    for(k = 1; k < N.NB_CARTES_NORMALES; k++)
-      if(vierge[k] !== peinte[k]) intactes += N.CARTES[k].nom + " ";
-    ok("et ne touche AUCUNE des quatre autres", intactes === "", intactes);
+    for(k = 1; k < N.ORDRE_CAMPAGNE.length; k++)
+      if(vierge[k] !== peinte[k]) intactes += N.CARTES[N.ORDRE_CAMPAGNE[k]].nom + " ";
+    ok("et ne touche AUCUNE des " + (N.ORDRE_CAMPAGNE.length - 1) + " autres",
+       intactes === "", intactes);
 
     /* et le compte de Frelons, qui est ce qui se voyait */
     function frelons(idx, paq){
@@ -2302,11 +2313,97 @@ G("4. Déterminisme de la génération de carte");
        !N.planEstVide(N.litPlan(N.encodePlanComplet(N.planVide(), [anneau]), 0)));
   })();
 
+  /* ================================================================
+     5c. LES TROIS ÎLES AJOUTÉES
+
+     Guinguette, Ténèbres, Ibiza. Ce qui compte ici n'est pas qu'elles
+     soient jolies — ça, on le regarde — mais qu'elles soient
+     COMPLÈTES : une île à qui il manque une palette ne fait pas une
+     carte moche, elle fait un écran noir au démarrage, parce que
+     construitBriefing() lit « .ciel » sur undefined avant même que la
+     boucle de rendu commence.
+     ================================================================ */
+  G("5c. Les trois îles ajoutées");
+  (function(){
+    var neuves = [
+      { i:6, biome:"guinguette", nom:"Mily en guinguette",     pv:43000000, ciel:"nuit"  },
+      { i:7, biome:"tenebres",   nom:"Mily dans les ténèbres", pv:50000000, ciel:"fumee" },
+      { i:8, biome:"ibiza",      nom:"Mily à Ibiza",           pv:56000000, ciel:"clair" }
+    ];
+    var k, c, n;
+    for(k = 0; k < neuves.length; k++){
+      n = neuves[k];
+      c = N.CARTES[n.i];
+      ok(n.nom + " est à l'index " + n.i + ", et rien d'autre",
+         !!c && c.nom === n.nom && c.biome === n.biome,
+         c ? c.nom : "absente");
+      ok("… avec " + (n.pv / 1e6) + " M de Brasier", !!c && c.pvQG === n.pv, c ? "" + c.pvQG : "");
+      ok("… elle fait partie de la campagne, pas des événements",
+         !N.carteSpeciale(n.i) && N.ORDRE_CAMPAGNE.indexOf(n.i) >= 0);
+      ok("… son ciel est « " + n.ciel + " »", N.styleCiel(n.i) === n.ciel, N.styleCiel(n.i));
+      /* La vraie épreuve : la carte se génère, et elle est peuplée. */
+      var m = N.genereCarte("MILY", n.i, "", 0);
+      ok("… elle se génère : " + m.batiments.length + " bâtiments, "
+         + m.decors.length + " décors, " + m.creatures.length + " bestioles",
+         m.batiments.length > 600 && m.decors.length > 400 && m.creatures.length > 60,
+         m.batiments.length + "/" + m.decors.length + "/" + m.creatures.length);
+      ok("… ses décors tirent bien les QUATRE variantes",
+         (function(){
+           var vus = {};
+           for(var q = 0; q < m.decors.length; q++) vus[m.decors[q].v] = 1;
+           return vus[0] && vus[1] && vus[2] && vus[3];
+         })());
+      ok("… et ses cinq cellules électriques sont là", m.reacteurs.length === N.NB_REACTEURS);
+    }
+    /* La montée des PV : chaque île de la campagne est plus dure que
+       la précédente, et aucune ne rattrape la jungle. */
+    ok("les huit îles montent en difficulté, dans l'ordre de campagne",
+       (function(){
+         for(var q = 1; q < N.ORDRE_CAMPAGNE.length; q++)
+           if(N.CARTES[N.ORDRE_CAMPAGNE[q]].pvQG <= N.CARTES[N.ORDRE_CAMPAGNE[q - 1]].pvQG) return false;
+         return true;
+       })(),
+       N.ORDRE_CAMPAGNE.map(function(i){ return N.CARTES[i].pvQG / 1e6; }).join(" < "));
+    ok("et la jungle reste au-dessus de toutes",
+       N.CARTES.every(function(cc, i){ return i === N.IDX_JUNGLE || cc.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG; }));
+
+    /* LES CIELS. Une seule île est orageuse ; les autres se partagent
+       trois teintes de nuages, et aucune ne doit retomber par défaut
+       sur un blanc de plein jour qui ne lui va pas. */
+    ok("seule la jungle est orageuse",
+       N.CARTES.filter(function(cc, i){ return N.carteOrageuse(i); }).length === 1);
+    ok("le ciel d'orage n'est celui que de la jungle",
+       N.styleCiel(N.IDX_JUNGLE) === "orage" &&
+       N.ORDRE_CAMPAGNE.every(function(i){ return N.styleCiel(i) !== "orage"; }));
+    ok("une île sans ciel nommé retombe sur le beau temps",
+       N.styleCiel(0) === "clair" && N.styleCiel(999) === "clair");
+    ok("les quatre ciels sont tous employés",
+       (function(){
+         var vus = {};
+         for(var q = 0; q < N.CARTES.length; q++) vus[N.styleCiel(q)] = 1;
+         return vus.orage && vus.clair && vus.fumee && vus.nuit;
+       })());
+
+    /* Elles ne doivent RESSEMBLER à aucune autre : c'est la raison
+       d'être d'une île neuve. On compare les palettes deux à deux —
+       le test « cinq palettes distinctes » plus bas les couvre aussi,
+       mais celui-ci nomme la fautive. */
+    var jum = "";
+    for(k = 0; k < neuves.length; k++)
+      for(var q2 = 0; q2 < N.CARTES.length; q2++)
+        if(N.CARTES[q2].biome === neuves[k].biome && q2 !== neuves[k].i)
+          jum += neuves[k].biome + " ";
+    ok("chacune a un biome qui n'appartient qu'à elle", jum === "", jum);
+  })();
+
   G("5d. Mily dans la jungle — la carte événement");
   /* LA PROPRIÉTÉ QUI PORTE TOUT : la jungle ne doit RIEN changer à
      l'enchaînement des cinq îles. */
+  /* Ce n'est plus « son index est au-delà des îles ordinaires » — trois
+     îles vivent maintenant APRÈS elle dans le tableau, exprès, pour ne
+     pas déplacer le sien. C'est l'ORDRE qui dit l'enchaînement. */
   ok("la jungle n'est pas dans l'enchaînement des îles",
-     N.IDX_JUNGLE >= N.NB_CARTES_NORMALES);
+     N.ORDRE_CAMPAGNE.indexOf(N.IDX_JUNGLE) < 0 && N.carteSuivante(N.IDX_JUNGLE) === -1);
   ok("elle a plus de vie que toutes les autres",
      N.CARTES.every(function(c, i){
        return i === N.IDX_JUNGLE || c.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG;
@@ -2897,17 +2994,18 @@ G("8. Cohérence des règles de jeu");
       }
     }
     ok("chaque île a son message de victoire, avec le pseudo en tête", bon, det);
-    /* La campagne compte CINQ îles ; la jungle est une carte
+    /* La campagne compte HUIT îles ; la jungle est une carte
        événement, dans le même tableau mais hors de l'enchaînement.
        C'est NB_CARTES_NORMALES, jamais CARTES.length, que le reste du
        jeu doit consulter — sans quoi une carte événement allongerait
        la campagne de tout le monde. */
-    ok("la campagne compte cinq îles", N.NB_CARTES_NORMALES === 5,
+    ok("la campagne compte huit îles", N.NB_CARTES_NORMALES === 8,
        "" + N.NB_CARTES_NORMALES);
     ok("et une seule carte événement s'y ajoute",
-       N.CARTES.length === 6 && N.CARTES.filter(function(c){ return c.special; }).length === 1);
-    ok("aucune carte ordinaire n'est marquée spéciale",
-       N.CARTES.slice(0, 5).every(function(c){ return !c.special; }));
+       N.CARTES.length === 9 && N.CARTES.filter(function(c){ return c.special; }).length === 1,
+       N.CARTES.length + " cartes");
+    ok("aucune île de l'enchaînement n'est marquée spéciale",
+       N.ORDRE_CAMPAGNE.every(function(i){ return !N.CARTES[i].special; }));
     /* ================================================================
        L'ORDRE DE LA CAMPAGNE, ET L'INDEX QUI NE BOUGE JAMAIS
 
@@ -3003,8 +3101,11 @@ G("8. Cohérence des règles de jeu");
     ok("soirée hippie : chez elle", N.texteVictoire(3, "X")[1].indexOf("chez elle") > 0);
     ok("le Sud : elle l'aime", N.texteVictoire(4, "X")[1].indexOf("aime") > 0);
     ok("la jungle a son propre message", N.texteVictoire(5, "X")[1].indexOf("pluie") > 0);
+    ok("guinguette : les guirlandes", N.texteVictoire(6, "X")[1].indexOf("guirlandes") > 0);
+    ok("ténèbres : la lumière", N.texteVictoire(7, "X")[1].indexOf("lumière") > 0);
+    ok("Ibiza : le beach club", N.texteVictoire(8, "X")[1].indexOf("beach club") > 0);
     ok("le message boucle au-delà du tableau",
-       N.texteVictoire(6, "X")[1] === N.texteVictoire(0, "X")[1]);
+       N.texteVictoire(N.CARTES.length, "X")[1] === N.texteVictoire(0, "X")[1]);
     /* Elle s'appelle MILY. Aucune orthographe fantaisiste nulle part. */
     var fautes = "";
     for(var ic = 0; ic < N.CARTES.length; ic++){
