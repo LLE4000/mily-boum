@@ -2104,11 +2104,23 @@ function rendu(tps, dt){
   }
 
   /* L'ORAGE, par-dessus la carte : la pluie et les éclairs sont dans
-     l'air, rien au sol ne peut les masquer. Les lueurs de végétation
-     viennent avant la pluie — ce sont des lumières posées dans les
-     feuillages, pas des gouttes. */
+     l'air, rien au sol ne peut les masquer.
+
+     L'ORDRE EST CELUI DU CIEL, du plus loin au plus près :
+       le voile d'air, qui teinte tout ce qu'il y a derrière ;
+       les trois nuages, qui flottent dedans ;
+       les lueurs de la végétation — des lumières posées dans les
+         feuillages, donc sous la pluie et non dedans ;
+       les éclairs ;
+       la pluie enfin, qui tombe devant tout le reste.
+     Ces cinq appels étaient jusqu'ici enchaînés en cascade les uns
+     depuis les autres, par filet de sécurité. Les appeler ici les
+     remet dans le bon ordre ; les filets se désarment d'eux-mêmes,
+     chacun refusant de repeindre deux fois le même instant. */
   if(jeu.geysers.length){
     repereEcran(ctx);
+    dessineVoileOrage(ctx, tps);
+    dessineNuagesJungle(ctx, tps);
     dessineLueursVegetation(ctx, tps);
     for(var ie = 0; ie < jeu.eclairs.length; ie++) dessineEclairJungle(ctx, jeu.eclairs[ie], tps);
     dessinePluieJungle(ctx, tps);
