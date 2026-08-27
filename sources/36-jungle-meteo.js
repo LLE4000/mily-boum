@@ -334,6 +334,7 @@ function roulementJungle(tps){
 function dessineCielOrage(c, tps){
   var v = voilesOrage(c);
   var e = dpr;
+  greffeSonJungle();
 
   /* LES NUAGES. Une seule nappe : la teinte de l'orage, les ombres et
      les trouées de lumière sont dans la même tuile. Elle est ancrée
@@ -862,6 +863,24 @@ function grondementJungle(){
   tonnerreJungle(0.30, 0.2 + Math.random() * 1.4);
 }
 
+/* LA GREFFE. 80-jeu.js appelle `son.foudre()` au moment de l'impact,
+   et `son` n'existe pas encore quand ce fichier s'exécute. On greffe
+   donc les quatre sons la première fois qu'une image d'orage est
+   peinte : à cet instant `son` est là, et l'appel est idempotent.
+   C'est le seul endroit du fichier qui touche à un objet qui n'est
+   pas le mien, et c'est pour ne pas avoir à modifier 95-son.js. */
+var metSonGreffe = false;
+function greffeSonJungle(){
+  if(metSonGreffe || typeof son === "undefined") return;
+  metSonGreffe = true;
+  /* Le coup de foudre. Aucun retard : l'impact est SUR la carte, on
+     est dedans. C'est ce que 80-jeu.js appelle. */
+  son.foudre = function(){ tonnerreJungle(1, 0.02); };
+  son.tonnerreJungle = tonnerreJungle;
+  son.grondementJungle = grondementJungle;
+  son.vegetationJungle = froissementJungle;
+}
+
 /* Le froissement de la végétation sous une rafale. Une bouffée de
    bruit passe-bande, courte : c'est le seul son qui dit qu'il y a des
    feuilles autour, et non de la pluie sur du béton. */
@@ -946,6 +965,7 @@ var ambianceJungle = {
    qu'une bande-son posée à côté. */
 var metDernierRoulement = -1, metProchainFroisse = 0;
 function majMeteoJungle(dt, tps){
+  greffeSonJungle();
   if(typeof son === "undefined" || !son.ok()) return;
   ambianceJungle.demarre();
   var n = Math.floor(tps / 6.7);

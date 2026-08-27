@@ -470,7 +470,11 @@ function geyLangues(c, h, t, ech, att){
        symétrie et faire deux oreilles */
     lx = (geyOnde(0.50 + i * 0.20, t, i) + dev * 3.4 + (i ? 4 : -4)) * ech;
     ly = -h * (0.50 + 0.20 * i);
-    lh = h * (0.34 + 0.15 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
+    /* plafonnées : une langue partie des deux tiers de la colonne et
+       longue d'une demi-colonne dépassait le sommet de vingt pour
+       cent, et les trois mètres du cahier des charges devenaient
+       trois mètres soixante */
+    lh = h * (0.24 + 0.12 * (0.5 + 0.5 * Math.sin(t * (6.1 + i * 2.3) + i)));
     lw = (6.4 - i * 1.3) * ech;
     for(k = 0; k < 2; k++){
       e = k ? 0.52 : 1;                       // la couche chaude est plus fine
@@ -637,8 +641,13 @@ function dessineGeyser(c, g, tps){
   c.drawImage(geySpBouche[v], -GEY_SP_OX / GEY_SP_E, -GEY_SP_OY / GEY_SP_E,
               GEY_SP_W / GEY_SP_E, GEY_SP_H / GEY_SP_E);
 
-  /* les fêlures s'allument. Un seul chemin pour toutes les trois. */
-  if(fin && chaud > 0.05){
+  /* Les fêlures s'allument. Un seul chemin pour toutes les trois, et
+     surtout : conditionnées à `det` et non à `fin`. C'est le signal de
+     danger, celui qui doit encore se lire au zoom de carte quand la
+     bouche ne fait plus que six pixels — le couper au premier cran de
+     dézoom, c'était rendre le piège invisible juste au moment où le
+     joueur regarde toute l'île pour choisir où poser ses troupes. */
+  if(det && chaud > 0.05){
     var fel = geyFelures[v];
     c.lineCap = "round"; c.lineJoin = "round";
     c.strokeStyle = rgba("#ff8420", Math.min(0.85, 0.16 + chaud * 0.7) * a0);
