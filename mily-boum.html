@@ -222,6 +222,10 @@ select.champ{cursor:pointer}
 }
 #chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
 #chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatQui b{color:var(--or);cursor:pointer;font-weight:700}
+/* Un pseudo se touche : c'est par lui qu'on choisit de ne plus lire
+   quelqu'un. Le pointillé le dit sans crier. */
+#chatL .cm b[data-sourd]{cursor:pointer;border-bottom:1px dotted rgba(125,230,255,.45)}
 #chatFerme{
   flex:none;width:28px;height:28px;border-radius:8px;padding:0;
   border:1px solid rgba(255,168,72,.22);background:#241a30;color:var(--texte);
@@ -1939,7 +1943,22 @@ function genereCarte(codeSalon, index, plan, tirage){
      c.batiments pour ne rien planter sur une défense, et il doit
      donc les voir TOUS. Ces tirages ne concernent qu'une carte sur
      six ; les faire plus tôt décalerait la séquence des cinq autres. */
-  if(CARTES[index] && CARTES[index].biome === "jungle") peupleLaJungle(c, al);
+  /* SON PROPRE FLUX DE TIRAGE, et c'est la clé.
+     peupleLaJungle recevait `al`, la séquence commune. Elle héritait
+     donc de tout ce qui la précède — et deux passes en amont ne
+     consomment PAS un nombre de tirages constant : le quadrillage,
+     selon qu'il y a un plan ou non, et les champs de cellules peints,
+     qui ne bouclent que sur les zones portant le bit « champ ».
+     Cocher une case de récolte redessinait ainsi toute la végétation
+     de l'île, à l'autre bout de la carte.
+     Un flux à part, semé sur la seule graine de la carte, ferme la
+     question pour de bon : plus rien de ce qui précède ne peut la
+     décaler. Il ne reste que les tests d'encombrement, qui lisent les
+     bâtiments — et ceux-là sont LOCAUX depuis que la marche des
+     pousses hautes et les budgets d'essais sont à nombre fixe.
+     Rien ne vient après, donc ce flux séparé ne décale personne. */
+  if(CARTES[index] && CARTES[index].biome === "jungle")
+    peupleLaJungle(c, prng((gr ^ 0x1DEA5EED) >>> 0));
 
   /* --- LE DURCISSEMENT DE LA JUNGLE ---
      Les défenses y sont plus dures qu'ailleurs. On applique le bonus
@@ -2032,6 +2051,25 @@ function peupleLaJungle(c, al){
      Les grilles rendent le test constant : sans elles, tester huit
      mille pousses contre deux mille bâtiments coûterait seize
      millions de comparaisons à chaque génération de carte. */
+  /* Combien de cases on tire pour chaque pousse haute, libres ou non.
+
+     LE PIÈGE, ET IL EST JOLI. J'avais d'abord fait DESCENDRE la liste
+     jusqu'à la première case libre : moins de tirages, et parfaitement
+     local. Mais ça vide les clairières. Une case libre isolée au
+     milieu d'un massif récolte tout ce qui tombe dans les trente cases
+     encombrées au-dessus d'elle ; une case libre au milieu d'une
+     clairière ne récolte qu'elle-même. Résultat mesuré à l'écran :
+     l'intérieur de l'île se dépeuple et les massifs se tassent en
+     grappes. Exactement l'inverse de ce qu'on veut — les trouées sont
+     justement là pour qu'il y pousse des arbres.
+
+     Le tirage par REJET n'a pas ce défaut : chaque case libre a
+     exactement la même chance, où qu'elle soit. Sur la jungle saturée,
+     777 cases sur 17 680 sont libres — 4,4 % — donc 120 essais donnent
+     99,5 % de réussite. Et le budget est constant, ce qui est toute la
+     raison d'être de l'exercice. */
+  var ESSAIS_HAUTE = 120;
+
   var occHaut = {}, occBas = {}, i, b;
   function marque(grille, gx, gy, r){
     var x0 = Math.floor(gx - r), x1 = Math.ceil(gx + r);
@@ -2073,21 +2111,59 @@ function peupleLaJungle(c, al){
      piochant dans la liste, on décide vraiment de leur nombre, et les
      clairières deviennent ce qu'elles doivent être : des trouées
      pleines d'arbres au milieu du champ de tir. */
+/* LA LISTE NE REGARDE PLUS LES BÂTIMENTS, et c'est un correctif, pas
+     une optimisation.
+
+     LE DÉFAUT. Elle était bâtie sur occHaut, donc sur c.batiments :
+     sa LONGUEUR et son ORDRE dépendaient du plan. Or on y pioche par
+     indice — casesHautes[(al() * longueur) | 0]. Déplacer une seule
+     tourelle changeait la longueur d'une unité, et les deux mille cent
+     pousses hautes atterrissaient toutes ailleurs. Mesuré : repeindre
+     UNE zone de la jungle laissait 3 792 pousses sur 7 915 en place,
+     et 147 bêtes sur 777. Un joueur qui composait une clairière la
+     perdait en revenant y retoucher un détail — et l'éditeur lui
+     promettait le contraire.
+
+     Aucune des cinq autres cartes n'avait ce défaut : leur décor ne
+     lit pas les bâtiments. La jungle était le seul endroit du
+     générateur à violer la règle de la maison — « le test vient APRÈS
+     les tirages » — non pas en branchant, mais en faisant dépendre le
+     SENS du tirage des bâtiments.
+
+     LA CORRECTION. La liste ne retient plus que la forme de l'île et
+     le dégagement du Brasier, deux choses qu'aucun plan ne touche :
+     elle a donc toujours la même longueur et le même ordre. On tire
+     ensuite ESSAIS_HAUTE candidates et l'on garde la première libre —
+     un budget de tirages CONSTANT, quel que soit l'encombrement. Les
+     effectifs sont relevés à la mesure pour compenser les rejets. */
+  var occFixe = {};
+  marque(occFixe, QG_GX, QG_GY, 14);
   var casesHautes = [];
   for(var cx = 3; cx <= PLAGE_X0 - 2; cx++){
     for(var cy = 3; cy <= GH - 4; cy++){
-      if(!occHaut[cx + "," + cy]) casesHautes.push(cx + cy * 1000);
+      if(!occFixe[cx + "," + cy]) casesHautes.push(cx + cy * 1000);
     }
   }
   function poseHaute(fam, n){
     if(!casesHautes.length) return;
     for(var k = 0; k < n; k++){
-      var e = casesHautes[(al() * casesHautes.length) | 0];
+      /* On tire TOUJOURS ESSAIS_HAUTE cases, libres ou non, et l'on
+         garde la première libre. Toujours le même nombre de tirages,
+         donc rien derrière ne se décale ; et chaque case libre a la
+         même chance, donc les clairières restent des clairières
+         pleines d'arbres. Une pousse ne change de place que si SA
+         première case libre a changé d'état — c'est local. */
+      var e = -1, cand;
+      for(var t = 0; t < ESSAIS_HAUTE; t++){
+        cand = casesHautes[(al() * casesHautes.length) | 0];
+        if(e < 0 && !occHaut[(cand % 1000) + "," + ((cand / 1000) | 0)]) e = cand;
+      }
       /* la gigue est bornée à la demi-case : une pousse ne doit pas
          sortir de la case libre qu'on lui a trouvée */
-      var gx = (e % 1000) + (al() - 0.5) * 0.9;
-      var gy = ((e / 1000) | 0) + (al() - 0.5) * 0.9;
+      var jx = (al() - 0.5) * 0.9, jy = (al() - 0.5) * 0.9;
       var fv = al(), fs = al();
+      if(e < 0) continue;                       // massif infranchissable
+      var gx = (e % 1000) + jx, gy = ((e / 1000) | 0) + jy;
       if(!dansLIle(gx, gy)) continue;
       c.flore.push({ gx:gx, gy:gy, fam:fam, v:fv, s:fs });
     }
@@ -2182,9 +2258,18 @@ function peupleLaJungle(c, al){
      uniformément. C'est semeGeysers qui s'en charge ; on ne lui donne
      que le test de terrain libre. */
   c.geysers = [];
+  /* MÊME DISCIPLINE QUE PARTOUT : on tire toujours autant, on garde
+     ensuite. Cette boucle sortait dès qu'elle avait trouvé sa place,
+     et le nombre de tirages dépendait donc de l'encombrement, donc du
+     plan — c'est elle qui décalait la faune. Mesuré avant correction :
+     une poignée de tourelles déplacées et 629 bêtes sur 777
+     changeaient de place, alors que la flore, elle, tenait bon. */
   for(i = 0; i < EQ.JUNGLE_GEYSERS; i++){
+    var pris = 0;
     for(var e = 0; e < 200; e++){
       var gx = 8 + al() * (PLAGE_X0 - 14), gy = 5 + al() * (GH - 10);
+      var dodo = al() * 14;
+      if(pris) continue;
       if(!libre(gx, gy)) continue;
       if(Math.hypot(gx - QG_GX, gy - QG_GY) < 18) continue;
       var trop = 0;
@@ -2192,8 +2277,8 @@ function peupleLaJungle(c, al){
         if(Math.hypot(c.geysers[q].gx - gx, c.geysers[q].gy - gy) < 6){ trop = 1; break; }
       }
       if(trop) continue;
-      c.geysers.push({ gx:gx, gy:gy, sommeil:al() * 14 });
-      break;
+      c.geysers.push({ gx:gx, gy:gy, sommeil:dodo });
+      pris = 1;
     }
   }
 
@@ -2220,8 +2305,15 @@ function peupleLaJungle(c, al){
        effectifs très en dessous de la consigne : sur une carte
        saturée, un groupe sur trois tombe au pied du Brasier ou dans
        une tourelle. */
-    var pose = 0, essais = B.n * 12;
-    while(pose < B.n && essais-- > 0){
+    /* BUDGET D'ESSAIS FIXE, et non « jusqu'à ce que ça suffise ».
+       Le `while(pose < B.n)` s'arrêtait plus ou moins tôt selon
+       l'encombrement, donc selon le plan : le nombre de tirages
+       consommés en dépendait, et tout ce qui suivait se décalait.
+       Mesuré : 630 bêtes sur 777 changeaient de place pour UNE zone
+       repeinte. On tire désormais toujours autant, et l'on cesse
+       simplement de POSER une fois l'effectif atteint. */
+    var pose = 0;
+    for(var ess = 0; ess < B.n * 12; ess++){
       /* EN PETITS GROUPES, jamais un par un. Une jungle habitée, ce
          n'est pas une bestiole tous les vingt mètres : c'est une
          famille de cochons d'Inde qui détale ensemble, une bande de
@@ -2230,12 +2322,15 @@ function peupleLaJungle(c, al){
          qu'on ne remarquait jamais ; le groupe, lui, fait une SCÈNE. */
       var nb = 1 + ((al() * B.gr) | 0);
       var cx2 = 6 + al() * (PLAGE_X0 - 12), cy2 = 4 + al() * (GH - 8);
-      if(Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15) continue;
-      for(var g2 = 0; g2 < nb && pose < B.n; g2++){
+      /* le test du Brasier vient APRÈS, comme partout : on consomme
+         les tirages du groupe même si on le jette */
+      var auPied = Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15;
+      for(var g2 = 0; g2 < nb; g2++){
         var bx = cx2 + (al() - 0.5) * 3.4;
         var by = cy2 + (al() - 0.5) * 3.4;
         var teinte = (al() * 3) | 0;
         var assis = (B.t === "panda" && al() < 0.5) ? 1 : 0;
+        if(auPied || pose >= B.n) continue;
         /* libreBas et non libre : une bête se faufile entre les
            tourelles comme les fougères, elle ne cache rien. Avec la
            contrainte des grands arbres, la carte saturée en rejetait
@@ -9575,9 +9670,12 @@ function dessineCochon(c, k, tps){
                          pas à l'écran.
 
    PAR-DESSUS la carte — ce qui se passe DANS L'AIR :
-     dessineNuagesJungle les petits nuages qui se baladent. Ce sont
-                         eux qui donnent la CAUSE : la foudre part de
-                         l'un d'eux, jamais de nulle part.
+     dessineNuagesJungle les trois nuages de `jeu.nuages`. Ce sont eux
+                         qui donnent la CAUSE : la foudre part de l'un
+                         d'eux, jamais de nulle part. Ils APPARTIENNENT
+                         au jeu (80-jeu.js les fait dériver et choisit
+                         le point d'impact sous l'un d'eux) ; ce
+                         fichier ne fait que les peindre.
      dessineVoileOrage   la lumière de l'air entre la caméra et la
                          carte : teinte d'orage, vignette, lueur des
                          roulements lointains.
@@ -9613,6 +9711,23 @@ function dessineCochon(c, k, tps){
    avec un décalage ARRONDI À L'ENTIER et jamais de scale ; la
    variation d'échelle avec le zoom passe par des TUILES pré-rendues
    à plusieurs tailles, pas par un scale au moment de peindre.
+
+   Ce que ça donne, mesuré couche par couche sur la carte jungle
+   complète, canevas 1500×900, dpr 1, rendu logiciel (donc bien plus
+   pessimiste qu'une tablette), les TROIS nuages dans le champ :
+
+                                     z=0,35   z=0,9   z=1,2
+     ciel : la nappe d'ombres          0,35    0,39    0,40
+     ciel : les 3 ombres portées       0,15    0,75    1,24
+     brume au sol                      0,33    0,39    0,45
+     nuages : les 3 masses             0,29    1,29    1,40
+     voile d'air + vignette            0,45    0,48    0,47
+     lueurs de végétation              0,06    0,12    0,12
+     pluie + éclaboussures             0,22    0,59    1,11
+     ── périmètre du contrat           0,90    1,37    1,96   (plafond 2)
+     ── total permanent                1,85    4,01    5,19
+   Et, quatre images toutes les quinze secondes, l'éclair à son pic :
+   3,3 / 4,0 / 4,3 ms.
    ================================================================ */
 
 /* ---------------------------------------------------------------
@@ -10092,7 +10207,7 @@ function dessinePluieJungle(c, tps){
    chauds accrochés au sol, qui respirent. Au dézoom, quand plus
    aucune feuille n'est lisible, ce sont eux qui disent qu'il y a de
    la vie sous la canopée. Coût dérisoire : des blits de quinze
-   pixels de côté, mesurés à 0,05 ms les quarante.
+   pixels de côté, mesurés à 0,12 ms la vingtaine.
    ================================================================ */
 function dessineLueursVegetation(c, tps){
   /* C'est la PREMIÈRE des couches empilées par-dessus la carte, donc
@@ -10268,6 +10383,27 @@ function spritesNuage(){
   return metSpNuages;
 }
 
+/* HALO ADDITIF, en ellipse et SANS LISSAGE.
+   lueurRapide fait le même travail, mais elle agrandit son sprite de
+   128 px avec le filtrage actif. Sur les petites lueurs c'est sans
+   conséquence ; sur les grandes — le nuage qui s'allume avant l'éclair
+   fait cinq cents pixels de rayon au zoom de jeu — l'agrandissement
+   filtré coûtait à lui seul quatre millisecondes sur l'image du
+   flash. Coupé, il en coûte moins d'une, et sur un dégradé aussi doux
+   la différence ne se voit pas.
+   L'ellipse, elle, n'est pas décorative : une lueur de nuage ou une
+   flaque de lumière au sol sont COUCHÉES dans le plan de l'île, et
+   une ellipse écrasée coûte au passage la moitié des pixels. */
+function haloMeteo(c, x, y, rx, ry, coul, a){
+  if(!(a > 0.004) || !(rx > 0.5)) return;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.imageSmoothingEnabled = false;
+  c.globalAlpha = Math.min(1, a);
+  c.drawImage(disqueMeteo(coul), x - rx, y - ry, rx * 2, ry * 2);
+  c.restore();
+}
+
 /* La liste du jeu, ou rien. On ne fabrique jamais de nuages ici. */
 function nuagesDuJeu(){
   return (typeof jeu !== "undefined" && jeu && jeu.nuages) ? jeu.nuages : null;
@@ -10291,10 +10427,10 @@ function nuagesDuJeu(){
    L'ellipse plate est dix fois moins chère mais son bord est net, et
    un bord net ne peut pas passer pour une ombre. On garde donc le
    disque fondu, et on paie la surface en la RÉDUISANT : l'ombre ne
-   fait que les deux tiers du rayon du nuage. C'est deux fois moins de
+   fait que les trois cinquièmes du rayon du nuage. C'est trois fois moins de
    pixels, c'est physiquement juste — le soleil n'est jamais tout à
    fait à la verticale — et l'opacité rendue compense la taille. */
-var MET_OMBRE_PART = 0.66;
+var MET_OMBRE_PART = 0.60;
 function dessineOmbresNuages(c, tps){
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
@@ -10343,7 +10479,7 @@ function dessineNuagesJungle(c, tps){
     /* respiration très lente, décalée par nuage : trois masses qui
        enflent en même temps se lisent comme un seul objet répété */
     var souffle = 1 + Math.sin(tps * 0.17 + u.ph) * 0.055;
-    var w = Math.round(u.r * RX * 2.15 * z * souffle);
+    var w = Math.round(u.r * RX * 1.85 * z * souffle);
     var hh = Math.round(w * 0.5);
     var x = Math.round(p.x - w / 2);
     var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);
@@ -10523,15 +10659,17 @@ function dessineNappeFoudre(c, e, ti, tps){
 
   c.save();
   c.globalCompositeOperation = "lighter";
-  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.13 * vie) + ")";
+  /* un plancher sur la flaque : cette nappe TUE, et le joueur doit
+     voir jusqu'où elle est allée même à la fin de sa course */
+  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.09 + 0.14 * vie) + ")";
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.fill();
 
-  /* Le front s'éteint VITE en fin de course. Sans ce (1-u)³, la nappe
-     finit par n'être plus qu'une grande ellipse pâle et régulière au
-     milieu de la carte — c'est-à-dire, pour l'œil, un cercle de
-     sélection. Ce qu'on veut voir à la fin, ce sont les filaments. */
-  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.26 + 0.62 * vie) * (1 - u) * (1 - u) + ")";
-  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.65));
+  /* Le front s'éteint en fin de course, mais PAS trop vite : au
+     premier réglage il portait un (1-u) de trop et la nappe avait
+     disparu à mi-parcours, alors qu'elle tuait encore. Ce qu'on voit
+     et ce qui tue doivent durer aussi longtemps l'un que l'autre. */
+  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.30 + 0.60 * vie) * (1 - u * 0.55) + ")";
+  c.lineWidth = Math.max(1.4, 4.6 * z * (1 - u * 0.5));
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.stroke();
 
   /* Les dix filaments sont tracés en DEUX passes seulement, chacune un
@@ -10539,9 +10677,9 @@ function dessineNappeFoudre(c, e, ti, tps){
      appels à stroke, et c'est stroke qui coûte, pas les pixels. */
   var k, s;
   for(var q = 0; q < 2; q++){
-    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.16 + 0.46 * vie) + ")"
-                      : "rgba(" + MET_E_BLEU + "," + (0.20 * vie) + ")";
-    c.lineWidth = q ? Math.max(0.9, 1.4 * z) : Math.max(1.8, 4.6 * z);
+    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.24 + 0.44 * vie) + ")"
+                      : "rgba(" + MET_E_BLEU + "," + (0.10 + 0.20 * vie) + ")";
+    c.lineWidth = q ? Math.max(1.1, 1.8 * z) : Math.max(2.2, 5.4 * z);
     c.beginPath();
     for(k = 0; k < 10; k++){
       var a0 = k / 10 * 6.2832 + bruitStable(gr + k, 0) * 0.62;
@@ -10604,9 +10742,11 @@ function dessineEclairJungle(c, e, tps){
        qui s'allume. C'est plus précis, plus joli, moins cher, et ça
        dit au joueur d'où le coup va partir. */
     var pre = borne(t / EC_DESC, 0, 1);
-    if(t < EC_DESC + 0.09 && e.cx !== undefined)
-      lueurRapide(c, ox, oy + 16 * z, Math.max(70, 13 * RX * z), "#cfe0ff",
-                  0.60 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    if(t < EC_DESC + 0.09 && e.cx !== undefined){
+      var rg = Math.max(70, 12 * RX * z);
+      haloMeteo(c, ox, oy + 14 * z, rg, rg * 0.55, "207,224,255",
+                0.62 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    }
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
        dans l'air, il est aussi gros de près que de loin. Elle a été
@@ -10684,9 +10824,10 @@ function dessineEclairJungle(c, e, tps){
      comme le ferait un voile. Quand on veut qu'un éclair frappe plus
      fort, c'est ce chiffre-là qu'on monte, jamais celui du voile. */
   var ec = Math.exp(-ti * 10);
-  if(ec > 0.01)
-    lueurRapide(c, p.x, p.y - 8 * z, (40 + 92 * z) * (0.55 + ec * 1.0),
-                "#e6f0ff", 0.86 * ec);
+  if(ec > 0.01){
+    var rc = (40 + 92 * z) * (0.55 + ec * 1.0);
+    haloMeteo(c, p.x, p.y - 8 * z, rc, rc * 0.78, "230,240,255", 0.90 * ec);
+  }
   /* LA BRÛLURE. Premier essai : un disque noir. Sur une terre de
      jungle déjà presque noire, il ne se voyait tout simplement pas.
      Ce qui se voit, c'est la BRAISE — la terre est restée chaude, et
@@ -10700,7 +10841,7 @@ function dessineEclairJungle(c, e, tps){
     c.fill();
     c.globalAlpha = 1;
     var brz = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
-    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * brz);
+    haloMeteo(c, p.x, p.y, RX * z * 0.72, RY * z * 0.72, MET_BRAISE, 0.40 * brz);
   }
   c.restore();
 
@@ -25830,11 +25971,24 @@ var CHAT_LONGUEUR = 160;     // caractères par message
 var CHAT_REPOS    = 1200;    // ms entre deux envois du même joueur
 var CLE_CHAT      = "milyboum.chat";
 
+/* LE REPOS À L'ENTRÉE, et il compte autant que celui à la sortie.
+   Notre propre étranglement ne protège que les autres ; rien
+   n'empêchait sept joueurs bavards — ou un client modifié — de nous
+   inonder. Or chaque message reconstruit le fil, sur le fil principal,
+   dans le même budget d'image que le rendu de deux mille bâtiments.
+   Un message par joueur et par demi-seconde suffit largement à une
+   conversation, et ferme le trou. */
+var CHAT_REPOS_ENTREE = 500;
+var CLE_CHAT_SOURD    = "milyboum.chat.sourd";
+
 var chatActif   = true;      // le réglage du joueur : chat ou pas de chat
 var chatOuvert  = false;
 var chatNonLus  = 0;
 var chatDernier = 0;         // horodatage du dernier envoi, pour le repos
 var chatFil     = [];        // { nom, txt, moi, sys }
+var chatEntrees = {};        // dernier message reçu, par identifiant
+var chatSourds  = {};        // les joueurs qu'on a choisi de ne plus lire
+var chatARedessiner = 0;     // une seule reconstruction par image, au plus
 
 /* ---------------------------------------------------------------
    Le réglage, retenu sur cet appareil
@@ -25906,15 +26060,26 @@ function regleChat(on){
    lisent en gris : on ne doit jamais pouvoir les confondre avec la
    parole d'un joueur, sans quoi n'importe qui pourrait se faire passer
    pour le jeu en choisissant son pseudo. */
-function ajouteAuChat(nom, txt, moi, sys){
+function ajouteAuChat(nom, txt, moi, sys, id){
   if(!chatActif) return;
   txt = String(txt == null ? "" : txt).replace(/\s+/g, " ").trim();
   if(!txt) return;
   if(txt.length > CHAT_LONGUEUR) txt = txt.substr(0, CHAT_LONGUEUR);
-  chatFil.push({ nom:String(nom || "?").substr(0, 14), txt:txt, moi:!!moi, sys:!!sys });
+  chatFil.push({ nom:String(nom || "?").substr(0, 14), txt:txt,
+                 moi:!!moi, sys:!!sys, id:id || "" });
   if(chatFil.length > CHAT_MAX) chatFil.splice(0, chatFil.length - CHAT_MAX);
-  if(chatOuvert) dessineChat();
+  if(chatOuvert) demandeDessinChat();
   else if(!sys){ chatNonLus++; majBoutonChat(); }
+}
+/* UNE SEULE RECONSTRUCTION PAR IMAGE, AU PLUS. Reconstruire le fil
+   coûte quatre-vingts lignes de HTML ; le faire une fois par message
+   reçu, sur le fil principal, c'était offrir à sept bavards le budget
+   d'image du champ de bataille. */
+function demandeDessinChat(){
+  if(chatARedessiner) return;
+  chatARedessiner = 1;
+  var quand = window.requestAnimationFrame || function(f){ return setTimeout(f, 16); };
+  quand(function(){ chatARedessiner = 0; dessineChat(); });
 }
 /* Une ligne du jeu, pas d'un joueur. */
 function chatSysteme(txt){ ajouteAuChat("", txt, 0, 1); }
@@ -25930,10 +26095,13 @@ function dessineChat(){
     var h = "", i;
     for(i = 0; i < chatFil.length; i++){
       var m = chatFil[i];
+      /* Le pseudo porte l'identifiant : c'est par lui qu'on choisit de
+         ne plus lire quelqu'un. Le sien propre n'est pas cliquable. */
       h += m.sys
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
-         : '<div class="cm' + (m.moi ? " moi" : "") + '"><b>'
-           + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
+         : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
+           + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
+           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
     }
     e.innerHTML = h;
   }
@@ -25951,7 +26119,9 @@ function majQuiEstLa(){
   if(typeof autresJoueurs === "object" && autresJoueurs){
     for(k in autresJoueurs) if(autresJoueurs[k]) n++;
   }
-  e.textContent = n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant";
+  var s = nbSourds();
+  e.innerHTML = (n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant")
+    + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
 }
 
 /* ---------------------------------------------------------------
@@ -25994,7 +26164,56 @@ function envoieChat(){
    sinon n'importe qui pourrait signer du nom d'un autre. */
 function recoitChat(j, m){
   if(!chatActif) return;
-  ajouteAuChat(j && j.nom ? j.nom : (m.nom || "?"), m.x, 0, 0);
+  var id = m.id || "?";
+  if(chatSourds[id]) return;                        // on a choisi de ne plus le lire
+  var t = Date.now();
+  /* le repos à l'entrée, joueur par joueur : celui qui déborde est
+     seul étranglé, les autres continuent d'être lus */
+  if(chatEntrees[id] && t - chatEntrees[id] < CHAT_REPOS_ENTREE) return;
+  chatEntrees[id] = t;
+  ajouteAuChat(j && j.nom ? j.nom : (m.nom || "?"), m.x, 0, 0, id);
+}
+
+/* ---------------------------------------------------------------
+   NE PLUS LIRE QUELQU'UN
+   Le salon est unique et public : tout le monde y est. Il n'y a ni
+   modérateur ni salon privé — la seule chose honnête à offrir, c'est
+   de pouvoir se boucher les oreilles, joueur par joueur, sur cet
+   appareil et pour soi seul.
+   --------------------------------------------------------------- */
+function litSourds(){
+  try{
+    var o = JSON.parse(localStorage.getItem(CLE_CHAT_SOURD) || "{}");
+    return (o && typeof o === "object") ? o : {};
+  }catch(e){ return {}; }
+}
+function gardeSourds(){
+  try{ localStorage.setItem(CLE_CHAT_SOURD, JSON.stringify(chatSourds)); }catch(e){}
+}
+function ignoreAuChat(id, nom){
+  if(!id || id === "?") return;
+  if(!confirm("Ne plus lire « " + nom + " » ?\n\n"
+            + "Ses messages ne s'afficheront plus sur CET appareil.\n"
+            + "Tu peux revenir dessus avec le 🔇 en haut du chat.")) return;
+  chatSourds[id] = nom;
+  gardeSourds();
+  chatSysteme(nom + " ne sera plus affiché.");
+  dessineChat();
+}
+function nbSourds(){
+  var n = 0, k;
+  for(k in chatSourds) if(chatSourds[k]) n++;
+  return n;
+}
+function rendLOreille(){
+  var l = [], k;
+  for(k in chatSourds) if(chatSourds[k]) l.push(chatSourds[k]);
+  if(!l.length) return;
+  if(!confirm("Réafficher " + l.join(", ") + " ?")) return;
+  chatSourds = {};
+  gardeSourds();
+  chatSysteme("Tout le monde est réaffiché.");
+  dessineChat();
 }
 
 /* ---------------------------------------------------------------
@@ -26006,6 +26225,18 @@ function installeChat(){
   if(!b || !p) return;
 
   chatActif = litReglageChat();
+  chatSourds = litSourds();
+  /* Toucher un pseudo, c'est demander à ne plus le lire. Toucher le
+     🔇 du bandeau, c'est revenir dessus. */
+  var l = $("chatL");
+  if(l) l.addEventListener("click", function(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
+    if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
+  });
+  var q = $("chatQui");
+  if(q) q.addEventListener("click", function(ev){
+    if(ev.target && ev.target.id === "chatSourds") rendLOreille();
+  });
   if(c){
     c.checked = chatActif;
     c.addEventListener("change", function(){ regleChat(c.checked); });
@@ -27617,7 +27848,10 @@ function validePlan(){
             + (premiere
                 ? "\n  (première sauvegarde de cette île : ils seront\n"
                   + "   redistribués ailleurs — mêmes objets, autres places)"
-                : "\n  ils ne bougeront pas d'un pouce")
+                : carteSpeciale(planCarteIdx)
+                  ? "\n  ils restent en place, sauf ce qui poussait très\n"
+                    + "  exactement là où tu poses une défense"
+                  : "\n  ils ne bougeront pas d'un pouce")
             + "\n• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;

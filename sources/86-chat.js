@@ -31,11 +31,24 @@ var CHAT_LONGUEUR = 160;     // caractères par message
 var CHAT_REPOS    = 1200;    // ms entre deux envois du même joueur
 var CLE_CHAT      = "milyboum.chat";
 
+/* LE REPOS À L'ENTRÉE, et il compte autant que celui à la sortie.
+   Notre propre étranglement ne protège que les autres ; rien
+   n'empêchait sept joueurs bavards — ou un client modifié — de nous
+   inonder. Or chaque message reconstruit le fil, sur le fil principal,
+   dans le même budget d'image que le rendu de deux mille bâtiments.
+   Un message par joueur et par demi-seconde suffit largement à une
+   conversation, et ferme le trou. */
+var CHAT_REPOS_ENTREE = 500;
+var CLE_CHAT_SOURD    = "milyboum.chat.sourd";
+
 var chatActif   = true;      // le réglage du joueur : chat ou pas de chat
 var chatOuvert  = false;
 var chatNonLus  = 0;
 var chatDernier = 0;         // horodatage du dernier envoi, pour le repos
 var chatFil     = [];        // { nom, txt, moi, sys }
+var chatEntrees = {};        // dernier message reçu, par identifiant
+var chatSourds  = {};        // les joueurs qu'on a choisi de ne plus lire
+var chatARedessiner = 0;     // une seule reconstruction par image, au plus
 
 /* ---------------------------------------------------------------
    Le réglage, retenu sur cet appareil
@@ -107,15 +120,26 @@ function regleChat(on){
    lisent en gris : on ne doit jamais pouvoir les confondre avec la
    parole d'un joueur, sans quoi n'importe qui pourrait se faire passer
    pour le jeu en choisissant son pseudo. */
-function ajouteAuChat(nom, txt, moi, sys){
+function ajouteAuChat(nom, txt, moi, sys, id){
   if(!chatActif) return;
   txt = String(txt == null ? "" : txt).replace(/\s+/g, " ").trim();
   if(!txt) return;
   if(txt.length > CHAT_LONGUEUR) txt = txt.substr(0, CHAT_LONGUEUR);
-  chatFil.push({ nom:String(nom || "?").substr(0, 14), txt:txt, moi:!!moi, sys:!!sys });
+  chatFil.push({ nom:String(nom || "?").substr(0, 14), txt:txt,
+                 moi:!!moi, sys:!!sys, id:id || "" });
   if(chatFil.length > CHAT_MAX) chatFil.splice(0, chatFil.length - CHAT_MAX);
-  if(chatOuvert) dessineChat();
+  if(chatOuvert) demandeDessinChat();
   else if(!sys){ chatNonLus++; majBoutonChat(); }
+}
+/* UNE SEULE RECONSTRUCTION PAR IMAGE, AU PLUS. Reconstruire le fil
+   coûte quatre-vingts lignes de HTML ; le faire une fois par message
+   reçu, sur le fil principal, c'était offrir à sept bavards le budget
+   d'image du champ de bataille. */
+function demandeDessinChat(){
+  if(chatARedessiner) return;
+  chatARedessiner = 1;
+  var quand = window.requestAnimationFrame || function(f){ return setTimeout(f, 16); };
+  quand(function(){ chatARedessiner = 0; dessineChat(); });
 }
 /* Une ligne du jeu, pas d'un joueur. */
 function chatSysteme(txt){ ajouteAuChat("", txt, 0, 1); }
@@ -131,10 +155,13 @@ function dessineChat(){
     var h = "", i;
     for(i = 0; i < chatFil.length; i++){
       var m = chatFil[i];
+      /* Le pseudo porte l'identifiant : c'est par lui qu'on choisit de
+         ne plus lire quelqu'un. Le sien propre n'est pas cliquable. */
       h += m.sys
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
-         : '<div class="cm' + (m.moi ? " moi" : "") + '"><b>'
-           + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
+         : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
+           + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
+           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
     }
     e.innerHTML = h;
   }
@@ -152,7 +179,9 @@ function majQuiEstLa(){
   if(typeof autresJoueurs === "object" && autresJoueurs){
     for(k in autresJoueurs) if(autresJoueurs[k]) n++;
   }
-  e.textContent = n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant";
+  var s = nbSourds();
+  e.innerHTML = (n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant")
+    + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
 }
 
 /* ---------------------------------------------------------------
@@ -195,7 +224,56 @@ function envoieChat(){
    sinon n'importe qui pourrait signer du nom d'un autre. */
 function recoitChat(j, m){
   if(!chatActif) return;
-  ajouteAuChat(j && j.nom ? j.nom : (m.nom || "?"), m.x, 0, 0);
+  var id = m.id || "?";
+  if(chatSourds[id]) return;                        // on a choisi de ne plus le lire
+  var t = Date.now();
+  /* le repos à l'entrée, joueur par joueur : celui qui déborde est
+     seul étranglé, les autres continuent d'être lus */
+  if(chatEntrees[id] && t - chatEntrees[id] < CHAT_REPOS_ENTREE) return;
+  chatEntrees[id] = t;
+  ajouteAuChat(j && j.nom ? j.nom : (m.nom || "?"), m.x, 0, 0, id);
+}
+
+/* ---------------------------------------------------------------
+   NE PLUS LIRE QUELQU'UN
+   Le salon est unique et public : tout le monde y est. Il n'y a ni
+   modérateur ni salon privé — la seule chose honnête à offrir, c'est
+   de pouvoir se boucher les oreilles, joueur par joueur, sur cet
+   appareil et pour soi seul.
+   --------------------------------------------------------------- */
+function litSourds(){
+  try{
+    var o = JSON.parse(localStorage.getItem(CLE_CHAT_SOURD) || "{}");
+    return (o && typeof o === "object") ? o : {};
+  }catch(e){ return {}; }
+}
+function gardeSourds(){
+  try{ localStorage.setItem(CLE_CHAT_SOURD, JSON.stringify(chatSourds)); }catch(e){}
+}
+function ignoreAuChat(id, nom){
+  if(!id || id === "?") return;
+  if(!confirm("Ne plus lire « " + nom + " » ?\n\n"
+            + "Ses messages ne s'afficheront plus sur CET appareil.\n"
+            + "Tu peux revenir dessus avec le 🔇 en haut du chat.")) return;
+  chatSourds[id] = nom;
+  gardeSourds();
+  chatSysteme(nom + " ne sera plus affiché.");
+  dessineChat();
+}
+function nbSourds(){
+  var n = 0, k;
+  for(k in chatSourds) if(chatSourds[k]) n++;
+  return n;
+}
+function rendLOreille(){
+  var l = [], k;
+  for(k in chatSourds) if(chatSourds[k]) l.push(chatSourds[k]);
+  if(!l.length) return;
+  if(!confirm("Réafficher " + l.join(", ") + " ?")) return;
+  chatSourds = {};
+  gardeSourds();
+  chatSysteme("Tout le monde est réaffiché.");
+  dessineChat();
 }
 
 /* ---------------------------------------------------------------
@@ -207,6 +285,18 @@ function installeChat(){
   if(!b || !p) return;
 
   chatActif = litReglageChat();
+  chatSourds = litSourds();
+  /* Toucher un pseudo, c'est demander à ne plus le lire. Toucher le
+     🔇 du bandeau, c'est revenir dessus. */
+  var l = $("chatL");
+  if(l) l.addEventListener("click", function(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
+    if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
+  });
+  var q = $("chatQui");
+  if(q) q.addEventListener("click", function(ev){
+    if(ev.target && ev.target.id === "chatSourds") rendLOreille();
+  });
   if(c){
     c.checked = chatActif;
     c.addEventListener("change", function(){ regleChat(c.checked); });

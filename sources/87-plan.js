@@ -1579,7 +1579,10 @@ function validePlan(){
             + (premiere
                 ? "\n  (première sauvegarde de cette île : ils seront\n"
                   + "   redistribués ailleurs — mêmes objets, autres places)"
-                : "\n  ils ne bougeront pas d'un pouce")
+                : carteSpeciale(planCarteIdx)
+                  ? "\n  ils restent en place, sauf ce qui poussait très\n"
+                    + "  exactement là où tu poses une défense"
+                  : "\n  ils ne bougeront pas d'un pouce")
             + "\n• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;

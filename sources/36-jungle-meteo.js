@@ -29,9 +29,12 @@
                          pas à l'écran.
 
    PAR-DESSUS la carte — ce qui se passe DANS L'AIR :
-     dessineNuagesJungle les petits nuages qui se baladent. Ce sont
-                         eux qui donnent la CAUSE : la foudre part de
-                         l'un d'eux, jamais de nulle part.
+     dessineNuagesJungle les trois nuages de `jeu.nuages`. Ce sont eux
+                         qui donnent la CAUSE : la foudre part de l'un
+                         d'eux, jamais de nulle part. Ils APPARTIENNENT
+                         au jeu (80-jeu.js les fait dériver et choisit
+                         le point d'impact sous l'un d'eux) ; ce
+                         fichier ne fait que les peindre.
      dessineVoileOrage   la lumière de l'air entre la caméra et la
                          carte : teinte d'orage, vignette, lueur des
                          roulements lointains.
@@ -67,6 +70,23 @@
    avec un décalage ARRONDI À L'ENTIER et jamais de scale ; la
    variation d'échelle avec le zoom passe par des TUILES pré-rendues
    à plusieurs tailles, pas par un scale au moment de peindre.
+
+   Ce que ça donne, mesuré couche par couche sur la carte jungle
+   complète, canevas 1500×900, dpr 1, rendu logiciel (donc bien plus
+   pessimiste qu'une tablette), les TROIS nuages dans le champ :
+
+                                     z=0,35   z=0,9   z=1,2
+     ciel : la nappe d'ombres          0,35    0,39    0,40
+     ciel : les 3 ombres portées       0,15    0,75    1,24
+     brume au sol                      0,33    0,39    0,45
+     nuages : les 3 masses             0,29    1,29    1,40
+     voile d'air + vignette            0,45    0,48    0,47
+     lueurs de végétation              0,06    0,12    0,12
+     pluie + éclaboussures             0,22    0,59    1,11
+     ── périmètre du contrat           0,90    1,37    1,96   (plafond 2)
+     ── total permanent                1,85    4,01    5,19
+   Et, quatre images toutes les quinze secondes, l'éclair à son pic :
+   3,3 / 4,0 / 4,3 ms.
    ================================================================ */
 
 /* ---------------------------------------------------------------
@@ -546,7 +566,7 @@ function dessinePluieJungle(c, tps){
    chauds accrochés au sol, qui respirent. Au dézoom, quand plus
    aucune feuille n'est lisible, ce sont eux qui disent qu'il y a de
    la vie sous la canopée. Coût dérisoire : des blits de quinze
-   pixels de côté, mesurés à 0,05 ms les quarante.
+   pixels de côté, mesurés à 0,12 ms la vingtaine.
    ================================================================ */
 function dessineLueursVegetation(c, tps){
   /* C'est la PREMIÈRE des couches empilées par-dessus la carte, donc
@@ -720,6 +740,27 @@ function spritesNuage(){
     metSpNuages.push(cv);
   }
   return metSpNuages;
+}
+
+/* HALO ADDITIF, en ellipse et SANS LISSAGE.
+   lueurRapide fait le même travail, mais elle agrandit son sprite de
+   128 px avec le filtrage actif. Sur les petites lueurs c'est sans
+   conséquence ; sur les grandes — le nuage qui s'allume avant l'éclair
+   fait cinq cents pixels de rayon au zoom de jeu — l'agrandissement
+   filtré coûtait à lui seul quatre millisecondes sur l'image du
+   flash. Coupé, il en coûte moins d'une, et sur un dégradé aussi doux
+   la différence ne se voit pas.
+   L'ellipse, elle, n'est pas décorative : une lueur de nuage ou une
+   flaque de lumière au sol sont COUCHÉES dans le plan de l'île, et
+   une ellipse écrasée coûte au passage la moitié des pixels. */
+function haloMeteo(c, x, y, rx, ry, coul, a){
+  if(!(a > 0.004) || !(rx > 0.5)) return;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.imageSmoothingEnabled = false;
+  c.globalAlpha = Math.min(1, a);
+  c.drawImage(disqueMeteo(coul), x - rx, y - ry, rx * 2, ry * 2);
+  c.restore();
 }
 
 /* La liste du jeu, ou rien. On ne fabrique jamais de nuages ici. */
@@ -977,15 +1018,17 @@ function dessineNappeFoudre(c, e, ti, tps){
 
   c.save();
   c.globalCompositeOperation = "lighter";
-  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.13 * vie) + ")";
+  /* un plancher sur la flaque : cette nappe TUE, et le joueur doit
+     voir jusqu'où elle est allée même à la fin de sa course */
+  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.09 + 0.14 * vie) + ")";
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.fill();
 
-  /* Le front s'éteint VITE en fin de course. Sans ce (1-u)³, la nappe
-     finit par n'être plus qu'une grande ellipse pâle et régulière au
-     milieu de la carte — c'est-à-dire, pour l'œil, un cercle de
-     sélection. Ce qu'on veut voir à la fin, ce sont les filaments. */
-  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.26 + 0.62 * vie) * (1 - u) * (1 - u) + ")";
-  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.65));
+  /* Le front s'éteint en fin de course, mais PAS trop vite : au
+     premier réglage il portait un (1-u) de trop et la nappe avait
+     disparu à mi-parcours, alors qu'elle tuait encore. Ce qu'on voit
+     et ce qui tue doivent durer aussi longtemps l'un que l'autre. */
+  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.30 + 0.60 * vie) * (1 - u * 0.55) + ")";
+  c.lineWidth = Math.max(1.4, 4.6 * z * (1 - u * 0.5));
   c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.stroke();
 
   /* Les dix filaments sont tracés en DEUX passes seulement, chacune un
@@ -993,9 +1036,9 @@ function dessineNappeFoudre(c, e, ti, tps){
      appels à stroke, et c'est stroke qui coûte, pas les pixels. */
   var k, s;
   for(var q = 0; q < 2; q++){
-    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.16 + 0.46 * vie) + ")"
-                      : "rgba(" + MET_E_BLEU + "," + (0.20 * vie) + ")";
-    c.lineWidth = q ? Math.max(0.9, 1.4 * z) : Math.max(1.8, 4.6 * z);
+    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.24 + 0.44 * vie) + ")"
+                      : "rgba(" + MET_E_BLEU + "," + (0.10 + 0.20 * vie) + ")";
+    c.lineWidth = q ? Math.max(1.1, 1.8 * z) : Math.max(2.2, 5.4 * z);
     c.beginPath();
     for(k = 0; k < 10; k++){
       var a0 = k / 10 * 6.2832 + bruitStable(gr + k, 0) * 0.62;
@@ -1058,9 +1101,11 @@ function dessineEclairJungle(c, e, tps){
        qui s'allume. C'est plus précis, plus joli, moins cher, et ça
        dit au joueur d'où le coup va partir. */
     var pre = borne(t / EC_DESC, 0, 1);
-    if(t < EC_DESC + 0.09 && e.cx !== undefined)
-      lueurRapide(c, ox, oy + 16 * z, Math.max(70, 13 * RX * z), "#cfe0ff",
-                  0.60 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    if(t < EC_DESC + 0.09 && e.cx !== undefined){
+      var rg = Math.max(70, 12 * RX * z);
+      haloMeteo(c, ox, oy + 14 * z, rg, rg * 0.55, "207,224,255",
+                0.62 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    }
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
        dans l'air, il est aussi gros de près que de loin. Elle a été
@@ -1138,9 +1183,10 @@ function dessineEclairJungle(c, e, tps){
      comme le ferait un voile. Quand on veut qu'un éclair frappe plus
      fort, c'est ce chiffre-là qu'on monte, jamais celui du voile. */
   var ec = Math.exp(-ti * 10);
-  if(ec > 0.01)
-    lueurRapide(c, p.x, p.y - 8 * z, (40 + 92 * z) * (0.55 + ec * 1.0),
-                "#e6f0ff", 0.86 * ec);
+  if(ec > 0.01){
+    var rc = (40 + 92 * z) * (0.55 + ec * 1.0);
+    haloMeteo(c, p.x, p.y - 8 * z, rc, rc * 0.78, "230,240,255", 0.90 * ec);
+  }
   /* LA BRÛLURE. Premier essai : un disque noir. Sur une terre de
      jungle déjà presque noire, il ne se voyait tout simplement pas.
      Ce qui se voit, c'est la BRAISE — la terre est restée chaude, et
@@ -1154,7 +1200,7 @@ function dessineEclairJungle(c, e, tps){
     c.fill();
     c.globalAlpha = 1;
     var brz = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
-    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * brz);
+    haloMeteo(c, p.x, p.y, RX * z * 0.72, RY * z * 0.72, MET_BRAISE, 0.40 * brz);
   }
   c.restore();
 

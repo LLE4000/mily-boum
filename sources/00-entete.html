@@ -222,6 +222,10 @@ select.champ{cursor:pointer}
 }
 #chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
 #chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatQui b{color:var(--or);cursor:pointer;font-weight:700}
+/* Un pseudo se touche : c'est par lui qu'on choisit de ne plus lire
+   quelqu'un. Le pointillé le dit sans crier. */
+#chatL .cm b[data-sourd]{cursor:pointer;border-bottom:1px dotted rgba(125,230,255,.45)}
 #chatFerme{
   flex:none;width:28px;height:28px;border-radius:8px;padding:0;
   border:1px solid rgba(255,168,72,.22);background:#241a30;color:var(--texte);

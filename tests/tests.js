@@ -903,9 +903,17 @@ G("4. Déterminisme de la génération de carte");
     for(i = 0; i < N.CARTES.length; i++){
       var B = N.genereCarte("MILY", i, planA(), 0);
       var C = N.genereCarte("MILY", i, planB(), 0);
-      if(emp(B.decors, 1)    !== emp(C.decors, 1))    bouge.push(N.CARTES[i].nom + "/décors");
-      if(emp(B.rochers, 1)   !== emp(C.rochers, 1))   bouge.push(N.CARTES[i].nom + "/rochers");
-      if(emp(B.creatures)    !== emp(C.creatures))    bouge.push(N.CARTES[i].nom + "/bestioles");
+      if(emp(B.decors, 1)  !== emp(C.decors, 1))  bouge.push(N.CARTES[i].nom + "/décors");
+      if(emp(B.rochers, 1) !== emp(C.rochers, 1)) bouge.push(N.CARTES[i].nom + "/rochers");
+      /* Les bestioles de la JUNGLE sont le seul cas où l'on n'exige
+         pas l'identité stricte, et c'est justifié : là-bas elles se
+         posent entre les tourelles, donc une bête assise là où le plan
+         vient de poser une défense DOIT s'écarter. Ce qu'on exige,
+         c'est que ce soit local — vérifié juste en dessous. Sur les
+         cinq autres cartes, les créatures ne lisent pas les bâtiments
+         et l'identité est stricte. */
+      if(N.CARTES[i].biome !== "jungle" && emp(B.creatures) !== emp(C.creatures))
+        bouge.push(N.CARTES[i].nom + "/bestioles");
     }
     ok("d'un plan à un autre, décors, rochers et bestioles ne bougent pas d'un millième de case",
        bouge.length === 0, bouge.join(", "));
@@ -950,6 +958,104 @@ G("4. Déterminisme de la génération de carte");
     ok("mais elle en garde le même nombre, à quelques unités près ("
        + vierge.decors.length + " puis " + peinte.decors.length + ")",
        Math.abs(vierge.decors.length - peinte.decors.length) < 25);
+
+    /* ================================================================
+       LA JUNGLE, qui était le vrai trou.
+
+       Sa végétation et sa faune se posent ENTRE les bâtiments : elles
+       lisent donc c.batiments, ce qu'aucun autre décor ne fait. Trois
+       mécanismes en tiraient des conséquences GLOBALES au lieu de
+       locales, et une seule zone repeinte suffisait à tout rebattre :
+
+         — la liste des cases où un grand arbre tient était filtrée
+           par les bâtiments ; on y pioche par indice, donc sa
+           longueur changeait et les deux mille pousses hautes
+           atterrissaient toutes ailleurs. Mesuré : 3 792 pousses sur
+           7 915 conservées ;
+         — la pose des geysers et des groupes de bêtes sortait de
+           boucle dès qu'elle avait trouvé sa place : le nombre de
+           tirages dépendait de l'encombrement, donc du plan. Mesuré :
+           147 bêtes sur 777 conservées ;
+         — et tout peupleLaJungle héritait de la séquence commune,
+           que le bit « champ » d'une zone décale à lui seul.
+
+       Trois corrections : une liste bâtie sur la seule forme de
+       l'île avec une marche déterministe et locale, des budgets
+       d'essais à nombre FIXE, et un flux de tirage à part semé sur la
+       graine de la carte.
+       ================================================================ */
+    (function(){
+      var iJ = N.IDX_JUNGLE;
+      var socle = N.decodePlan(N.planJungle());
+      function variante(f){
+        var z = socle.slice(), k, n = 0;
+        for(k = 0; k < N.NB_ZONES; k++){
+          var zx = k % N.ZONES_L, zy = (k / N.ZONES_L) | 0;
+          if(zx >= 6 && zx <= 8 && zy >= 6 && zy <= 8){ z[k] = f(z[k]); n++; }
+        }
+        return { ch:N.encodePlan(z), n:n };
+      }
+      function garde(a, b){
+        var A = {}, n = 0;
+        a.forEach(function(s){ A[s] = (A[s] || 0) + 1; });
+        b.forEach(function(s){ if(A[s]){ A[s]--; n++; } });
+        return n / Math.max(1, a.length);
+      }
+      function liste(m, quoi){
+        return m[quoi].map(function(o){
+          return (o.fam || o.t || "") + "@" + o.gx.toFixed(3) + "," + o.gy.toFixed(3);
+        });
+      }
+      var REF = N.genereCarte("MILY", iJ, N.encodePlan(socle), 0);
+
+      /* trois gestes d'édition, du plus anodin au plus brutal */
+      var gestes = [
+        ["le type des défenses",
+         variante(function(z){ return N.faitZone(3, N.zoneDens(z), N.zoneChamp(z)); })],
+        ["la densité des défenses",
+         variante(function(z){ return N.faitZone(3, 1, N.zoneChamp(z)); })],
+        ["le bit des cellules à récolter",
+         variante(function(z){ return N.faitZone(N.zoneType(z), N.zoneDens(z), N.zoneChamp(z) ? 0 : 1); })]
+      ];
+      gestes.forEach(function(g){
+        var M = N.genereCarte("MILY", iJ, g[1].ch, 0);
+        var pf = garde(liste(REF, "flore"), liste(M, "flore"));
+        var pb = garde(liste(REF, "creatures"), liste(M, "creatures"));
+        ok("jungle — changer " + g[0] + " sur neuf zones garde la végétation en place ("
+           + Math.round(pf * 100) + " %)", pf > 0.90, pf.toFixed(3));
+        ok("jungle — … et les bêtes aussi (" + Math.round(pb * 100) + " %)",
+           pb > 0.90, pb.toFixed(3));
+      });
+
+      /* LES GEYSERS SONT LE SEUL CAS QUI RESTE EN CHAÎNE, et c'est
+         inhérent à ce qu'ils sont : ils se REPOUSSENT à six cases les
+         uns des autres. Déplacer le premier déplace son voisin, qui
+         déplace le sien. Ce n'est plus le rebattage global d'avant —
+         mesuré 57 à 71 % conservés selon le geste, contre une faune
+         entièrement redistribuée auparavant — et ce sont vingt-et-un
+         objets de jeu, pas l'ambiance de l'île.
+         Ce qui compte, et qui est vérifié juste au-dessus : leur
+         boucle consomme désormais un nombre FIXE de tirages, donc
+         elle ne décale plus la faune derrière elle. */
+      var M2 = N.genereCarte("MILY", iJ, gestes[2][1].ch, 0);
+      var pg = garde(liste(REF, "geysers"), liste(M2, "geysers"));
+      ok("jungle — les geysers ne partent plus en chaîne ("
+         + Math.round(pg * 100) + " % de " + REF.geysers.length + " conservés)",
+         pg > 0.5, pg.toFixed(3));
+      ok("jungle — et il y en a toujours autant",
+         Math.abs(REF.geysers.length - M2.geysers.length) <= 2);
+
+      /* et le flux séparé se prouve : un plan qui ne change RIEN au
+         terrain de la jungle la laisse strictement identique */
+      var pareil = N.genereCarte("MILY", iJ, N.encodePlan(socle), 0);
+      ok("jungle — deux générations du même plan sont identiques",
+         N.empreinteCarte(pareil) === N.empreinteCarte(REF) &&
+         liste(pareil, "flore").join("|") === liste(REF, "flore").join("|"));
+      ok("jungle — elle porte bien sa flore, sa faune et ses geysers ("
+         + REF.flore.length + " pousses, " + REF.creatures.length + " bêtes, "
+         + REF.geysers.length + " geysers)",
+         REF.flore.length > 6000 && REF.creatures.length > 600 && REF.geysers.length > 15);
+    })();
   })();
 
   G("5f. Les zones vectorielles — le compas");

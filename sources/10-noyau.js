@@ -993,7 +993,22 @@ function genereCarte(codeSalon, index, plan, tirage){
      c.batiments pour ne rien planter sur une défense, et il doit
      donc les voir TOUS. Ces tirages ne concernent qu'une carte sur
      six ; les faire plus tôt décalerait la séquence des cinq autres. */
-  if(CARTES[index] && CARTES[index].biome === "jungle") peupleLaJungle(c, al);
+  /* SON PROPRE FLUX DE TIRAGE, et c'est la clé.
+     peupleLaJungle recevait `al`, la séquence commune. Elle héritait
+     donc de tout ce qui la précède — et deux passes en amont ne
+     consomment PAS un nombre de tirages constant : le quadrillage,
+     selon qu'il y a un plan ou non, et les champs de cellules peints,
+     qui ne bouclent que sur les zones portant le bit « champ ».
+     Cocher une case de récolte redessinait ainsi toute la végétation
+     de l'île, à l'autre bout de la carte.
+     Un flux à part, semé sur la seule graine de la carte, ferme la
+     question pour de bon : plus rien de ce qui précède ne peut la
+     décaler. Il ne reste que les tests d'encombrement, qui lisent les
+     bâtiments — et ceux-là sont LOCAUX depuis que la marche des
+     pousses hautes et les budgets d'essais sont à nombre fixe.
+     Rien ne vient après, donc ce flux séparé ne décale personne. */
+  if(CARTES[index] && CARTES[index].biome === "jungle")
+    peupleLaJungle(c, prng((gr ^ 0x1DEA5EED) >>> 0));
 
   /* --- LE DURCISSEMENT DE LA JUNGLE ---
      Les défenses y sont plus dures qu'ailleurs. On applique le bonus
@@ -1086,6 +1101,25 @@ function peupleLaJungle(c, al){
      Les grilles rendent le test constant : sans elles, tester huit
      mille pousses contre deux mille bâtiments coûterait seize
      millions de comparaisons à chaque génération de carte. */
+  /* Combien de cases on tire pour chaque pousse haute, libres ou non.
+
+     LE PIÈGE, ET IL EST JOLI. J'avais d'abord fait DESCENDRE la liste
+     jusqu'à la première case libre : moins de tirages, et parfaitement
+     local. Mais ça vide les clairières. Une case libre isolée au
+     milieu d'un massif récolte tout ce qui tombe dans les trente cases
+     encombrées au-dessus d'elle ; une case libre au milieu d'une
+     clairière ne récolte qu'elle-même. Résultat mesuré à l'écran :
+     l'intérieur de l'île se dépeuple et les massifs se tassent en
+     grappes. Exactement l'inverse de ce qu'on veut — les trouées sont
+     justement là pour qu'il y pousse des arbres.
+
+     Le tirage par REJET n'a pas ce défaut : chaque case libre a
+     exactement la même chance, où qu'elle soit. Sur la jungle saturée,
+     777 cases sur 17 680 sont libres — 4,4 % — donc 120 essais donnent
+     99,5 % de réussite. Et le budget est constant, ce qui est toute la
+     raison d'être de l'exercice. */
+  var ESSAIS_HAUTE = 120;
+
   var occHaut = {}, occBas = {}, i, b;
   function marque(grille, gx, gy, r){
     var x0 = Math.floor(gx - r), x1 = Math.ceil(gx + r);
@@ -1127,21 +1161,59 @@ function peupleLaJungle(c, al){
      piochant dans la liste, on décide vraiment de leur nombre, et les
      clairières deviennent ce qu'elles doivent être : des trouées
      pleines d'arbres au milieu du champ de tir. */
+/* LA LISTE NE REGARDE PLUS LES BÂTIMENTS, et c'est un correctif, pas
+     une optimisation.
+
+     LE DÉFAUT. Elle était bâtie sur occHaut, donc sur c.batiments :
+     sa LONGUEUR et son ORDRE dépendaient du plan. Or on y pioche par
+     indice — casesHautes[(al() * longueur) | 0]. Déplacer une seule
+     tourelle changeait la longueur d'une unité, et les deux mille cent
+     pousses hautes atterrissaient toutes ailleurs. Mesuré : repeindre
+     UNE zone de la jungle laissait 3 792 pousses sur 7 915 en place,
+     et 147 bêtes sur 777. Un joueur qui composait une clairière la
+     perdait en revenant y retoucher un détail — et l'éditeur lui
+     promettait le contraire.
+
+     Aucune des cinq autres cartes n'avait ce défaut : leur décor ne
+     lit pas les bâtiments. La jungle était le seul endroit du
+     générateur à violer la règle de la maison — « le test vient APRÈS
+     les tirages » — non pas en branchant, mais en faisant dépendre le
+     SENS du tirage des bâtiments.
+
+     LA CORRECTION. La liste ne retient plus que la forme de l'île et
+     le dégagement du Brasier, deux choses qu'aucun plan ne touche :
+     elle a donc toujours la même longueur et le même ordre. On tire
+     ensuite ESSAIS_HAUTE candidates et l'on garde la première libre —
+     un budget de tirages CONSTANT, quel que soit l'encombrement. Les
+     effectifs sont relevés à la mesure pour compenser les rejets. */
+  var occFixe = {};
+  marque(occFixe, QG_GX, QG_GY, 14);
   var casesHautes = [];
   for(var cx = 3; cx <= PLAGE_X0 - 2; cx++){
     for(var cy = 3; cy <= GH - 4; cy++){
-      if(!occHaut[cx + "," + cy]) casesHautes.push(cx + cy * 1000);
+      if(!occFixe[cx + "," + cy]) casesHautes.push(cx + cy * 1000);
     }
   }
   function poseHaute(fam, n){
     if(!casesHautes.length) return;
     for(var k = 0; k < n; k++){
-      var e = casesHautes[(al() * casesHautes.length) | 0];
+      /* On tire TOUJOURS ESSAIS_HAUTE cases, libres ou non, et l'on
+         garde la première libre. Toujours le même nombre de tirages,
+         donc rien derrière ne se décale ; et chaque case libre a la
+         même chance, donc les clairières restent des clairières
+         pleines d'arbres. Une pousse ne change de place que si SA
+         première case libre a changé d'état — c'est local. */
+      var e = -1, cand;
+      for(var t = 0; t < ESSAIS_HAUTE; t++){
+        cand = casesHautes[(al() * casesHautes.length) | 0];
+        if(e < 0 && !occHaut[(cand % 1000) + "," + ((cand / 1000) | 0)]) e = cand;
+      }
       /* la gigue est bornée à la demi-case : une pousse ne doit pas
          sortir de la case libre qu'on lui a trouvée */
-      var gx = (e % 1000) + (al() - 0.5) * 0.9;
-      var gy = ((e / 1000) | 0) + (al() - 0.5) * 0.9;
+      var jx = (al() - 0.5) * 0.9, jy = (al() - 0.5) * 0.9;
       var fv = al(), fs = al();
+      if(e < 0) continue;                       // massif infranchissable
+      var gx = (e % 1000) + jx, gy = ((e / 1000) | 0) + jy;
       if(!dansLIle(gx, gy)) continue;
       c.flore.push({ gx:gx, gy:gy, fam:fam, v:fv, s:fs });
     }
@@ -1236,9 +1308,18 @@ function peupleLaJungle(c, al){
      uniformément. C'est semeGeysers qui s'en charge ; on ne lui donne
      que le test de terrain libre. */
   c.geysers = [];
+  /* MÊME DISCIPLINE QUE PARTOUT : on tire toujours autant, on garde
+     ensuite. Cette boucle sortait dès qu'elle avait trouvé sa place,
+     et le nombre de tirages dépendait donc de l'encombrement, donc du
+     plan — c'est elle qui décalait la faune. Mesuré avant correction :
+     une poignée de tourelles déplacées et 629 bêtes sur 777
+     changeaient de place, alors que la flore, elle, tenait bon. */
   for(i = 0; i < EQ.JUNGLE_GEYSERS; i++){
+    var pris = 0;
     for(var e = 0; e < 200; e++){
       var gx = 8 + al() * (PLAGE_X0 - 14), gy = 5 + al() * (GH - 10);
+      var dodo = al() * 14;
+      if(pris) continue;
       if(!libre(gx, gy)) continue;
       if(Math.hypot(gx - QG_GX, gy - QG_GY) < 18) continue;
       var trop = 0;
@@ -1246,8 +1327,8 @@ function peupleLaJungle(c, al){
         if(Math.hypot(c.geysers[q].gx - gx, c.geysers[q].gy - gy) < 6){ trop = 1; break; }
       }
       if(trop) continue;
-      c.geysers.push({ gx:gx, gy:gy, sommeil:al() * 14 });
-      break;
+      c.geysers.push({ gx:gx, gy:gy, sommeil:dodo });
+      pris = 1;
     }
   }
 
@@ -1274,8 +1355,15 @@ function peupleLaJungle(c, al){
        effectifs très en dessous de la consigne : sur une carte
        saturée, un groupe sur trois tombe au pied du Brasier ou dans
        une tourelle. */
-    var pose = 0, essais = B.n * 12;
-    while(pose < B.n && essais-- > 0){
+    /* BUDGET D'ESSAIS FIXE, et non « jusqu'à ce que ça suffise ».
+       Le `while(pose < B.n)` s'arrêtait plus ou moins tôt selon
+       l'encombrement, donc selon le plan : le nombre de tirages
+       consommés en dépendait, et tout ce qui suivait se décalait.
+       Mesuré : 630 bêtes sur 777 changeaient de place pour UNE zone
+       repeinte. On tire désormais toujours autant, et l'on cesse
+       simplement de POSER une fois l'effectif atteint. */
+    var pose = 0;
+    for(var ess = 0; ess < B.n * 12; ess++){
       /* EN PETITS GROUPES, jamais un par un. Une jungle habitée, ce
          n'est pas une bestiole tous les vingt mètres : c'est une
          famille de cochons d'Inde qui détale ensemble, une bande de
@@ -1284,12 +1372,15 @@ function peupleLaJungle(c, al){
          qu'on ne remarquait jamais ; le groupe, lui, fait une SCÈNE. */
       var nb = 1 + ((al() * B.gr) | 0);
       var cx2 = 6 + al() * (PLAGE_X0 - 12), cy2 = 4 + al() * (GH - 8);
-      if(Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15) continue;
-      for(var g2 = 0; g2 < nb && pose < B.n; g2++){
+      /* le test du Brasier vient APRÈS, comme partout : on consomme
+         les tirages du groupe même si on le jette */
+      var auPied = Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15;
+      for(var g2 = 0; g2 < nb; g2++){
         var bx = cx2 + (al() - 0.5) * 3.4;
         var by = cy2 + (al() - 0.5) * 3.4;
         var teinte = (al() * 3) | 0;
         var assis = (B.t === "panda" && al() < 0.5) ? 1 : 0;
+        if(auPied || pose >= B.n) continue;
         /* libreBas et non libre : une bête se faufile entre les
            tourelles comme les fougères, elle ne cache rien. Avec la
            contrainte des grands arbres, la carte saturée en rejetait
