@@ -38,13 +38,27 @@ function ajuste(){
    se replie — donc il se recalcule, il ne se retient pas. */
 function zMinEcran(){ return zoomPlancher(W, H); }
 
+/* CE QUE LA CARTE GARDE À L'ÉCRAN, au minimum. C'était 0,42 : on
+   pouvait pousser l'île jusqu'à ce qu'il n'en reste que 42 % de la
+   largeur, et comme elle est en losange, le compte réel tombait à
+   HUIT POUR CENT de l'écran — mesuré. Quatre-vingt-douze pour cent
+   d'eau, l'île coincée dans un coin. C'est ce qu'on voyait quand on
+   trouvait « le dézoom fort » : ce n'était pas le zoom, c'était le
+   déplacement.
+   À 0,80, il reste au plus un cinquième d'écran vide de chaque côté.
+   Le `Math.min` avec la taille réelle de la boîte est indispensable :
+   quand elle est PLUS PETITE que cette fraction — grand écran, zoom au
+   plancher —, exiger 80 % d'une chose qui n'en fait pas tant
+   croiserait les deux bornes. On se rabat alors sur « la boîte entière
+   tient dans l'écran », qui est la bonne réponse à ce moment-là. */
+var TENUE_ECRAN = 0.80;
 function borneCamera(){
   cam.z = borne(cam.z, zMinEcran(), ZMAX);
   var B = boiteMonde();
-  var x0 = B.x0, x1 = B.x1, y0 = B.y0, y1 = B.y1;
-  var mx = W * 0.42, my = H * 0.42;
-  cam.px = borne(cam.px, mx - x1 * cam.z, W - mx - x0 * cam.z);
-  cam.py = borne(cam.py, my - y1 * cam.z, H - my - y0 * cam.z);
+  var mx = Math.min(W * TENUE_ECRAN, B.l * cam.z);
+  var my = Math.min(H * TENUE_ECRAN, B.h * cam.z);
+  cam.px = borne(cam.px, mx - B.x1 * cam.z, W - mx - B.x0 * cam.z);
+  cam.py = borne(cam.py, my - B.y1 * cam.z, H - my - B.y0 * cam.z);
 }
 function zoomVers(sx, sy, facteur){
   var av = cam.z;

@@ -199,8 +199,44 @@ G("2b. Le dézoom s'arrête au bord de l'île");
   /* La marge de mer est partagée avec la butée de déplacement : c'est
      ce qui garantit que le zoom plancher montre exactement ce que la
      caméra permet d'atteindre. */
-  var att = N.iso(N.GW + N.MARGE_MONDE, 0).x - N.iso(0, N.GH).x;
+  var m = N.MARGE_MONDE;
+  var att = N.iso(N.GW + m, -m).x - N.iso(-m, N.GH + m).x;
   ok("la boîte du zoom est celle de la butée de caméra", Math.abs(B.l - att) < 1e-9);
+
+  /* ================================================================
+     LA MARGE VAUT POUR LES QUATRE CÔTÉS
+
+     Elle n'entrait que par gx, et seulement par sa borne haute :
+     mesuré, 208 pixels à l'est, 104 au sud, ZÉRO à l'ouest et au nord.
+     L'île n'était donc pas centrée dans sa propre boîte, et la caméra
+     pouvait s'écarter deux fois plus d'un côté que de l'autre.
+     ================================================================ */
+  (function(){
+    var q = [N.iso(0, 0), N.iso(N.GW, 0), N.iso(N.GW, N.GH), N.iso(0, N.GH)];
+    var xs = q.map(function(p){ return p.x; }), ys = q.map(function(p){ return p.y; });
+    var ouest = Math.min.apply(null, xs) - B.x0, est = B.x1 - Math.max.apply(null, xs);
+    var nord  = Math.min.apply(null, ys) - B.y0, sud = B.y1 - Math.max.apply(null, ys);
+    ok("la marge est la même à l'ouest et à l'est",
+       Math.abs(ouest - est) < 1e-9, Math.round(ouest) + " / " + Math.round(est));
+    ok("et la même au nord et au sud",
+       Math.abs(nord - sud) < 1e-9, Math.round(nord) + " / " + Math.round(sud));
+    ok("aucune n'est nulle : on voit un peu de mer de tous les côtés",
+       ouest > 0 && nord > 0, Math.round(ouest) + " px");
+    /* L'île est donc CENTRÉE dans sa boîte, ce qui n'était pas le cas :
+       le centre du losange doit tomber sur le centre de la boîte. */
+    ok("l'île est centrée dans sa boîte", (function(){
+      var cx = (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2;
+      var cy = (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2;
+      return Math.abs(cx - (B.x0 + B.x1) / 2) < 1e-9
+          && Math.abs(cy - (B.y0 + B.y1) / 2) < 1e-9;
+    })());
+    /* Et le plancher ne s'en trouve pas dégradé : la marge est passée
+       de huit cases à quatre précisément pour ça. À huit sur les
+       quatre côtés il tombait à 0,168 — on aurait vu plus d'eau. */
+    ok("le plancher reste au-dessus de 0,17 sur une tablette",
+       N.zoomPlancher(1400, 860) > 0.17,
+       N.zoomPlancher(1400, 860).toFixed(4));
+  })();
 })();
 
 /* ================================================================

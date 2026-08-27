@@ -236,10 +236,20 @@ var ZMIN = 0.13, ZMAX = 1.7;
    ne voit pas l'île entière — mais on ne voit pas le vide non plus,
    puisqu'on est encore trop près pour l'atteindre.
    ---------------------------------------------------------------- */
-var MARGE_MONDE = 8;
+/* LA MARGE VAUT POUR LES QUATRE CÔTÉS, et c'est une correction.
+   Elle n'entrait que par gx, et seulement par sa borne haute : mesuré,
+   208 pixels à l'est, 104 au sud, ZÉRO à l'ouest et au nord. L'île
+   n'était donc pas centrée dans sa propre boîte, et la caméra pouvait
+   s'écarter deux fois plus d'un côté que de l'autre.
+   Elle passe de huit cases à quatre parce qu'elle compte maintenant
+   quatre fois : à huit sur les quatre côtés, le plancher du zoom
+   descendait de 0,182 à 0,168 — on aurait vu plus d'eau, exactement ce
+   qu'on cherche à éviter. À quatre, symétrique, il vaut 0,177. */
+var MARGE_MONDE = 4;
 function boiteMonde(){
-  var a = iso(0, GH), b = iso(GW + MARGE_MONDE, 0);   // extrêmes gauche / droite
-  var c = iso(0, 0),  d = iso(GW + MARGE_MONDE, GH);  // extrêmes haut / bas
+  var m = MARGE_MONDE;
+  var a = iso(-m, GH + m), b = iso(GW + m, -m);        // extrêmes gauche / droite
+  var c = iso(-m, -m),     d = iso(GW + m, GH + m);    // extrêmes haut / bas
   return { x0:a.x, x1:b.x, y0:c.y, y1:d.y, l:b.x - a.x, h:d.y - c.y };
 }
 function zoomAjuste(w, h){
@@ -1223,7 +1233,28 @@ function peupleLaJungle(c, al){
       if(e < 0) continue;                       // massif infranchissable
       var gx = (e % 1000) + jx, gy = ((e / 1000) | 0) + jy;
       if(!dansLIle(gx, gy)) continue;
-      c.flore.push({ gx:gx, gy:gy, fam:fam, v:fv, s:fs });
+      /* LES GRANDS ARBRES DE L'INTÉRIEUR ONT UNE ÉCHELLE, EUX AUSSI.
+         Ils étaient dessinés à 1 quand la forêt du pourtour va de 1,05
+         à 2,40 : à côté d'une ceinture d'arbres deux fois plus hauts,
+         et sous deux mille tourelles, les 377 de l'intérieur ne
+         lisaient plus comme une forêt — d'où « tu as retiré les grands
+         arbres ? ». Ils n'avaient jamais été retirés : comptés avant
+         et après la dernière retouche de la jungle, 380 puis 377.
+         C'était un problème d'échelle, pas de nombre.
+
+         On les grossit plutôt que d'en ajouter, et c'est le point :
+         un arbre coûte exactement le même blit quelle que soit sa
+         taille. À 1,25–1,85 la surface de feuillage double sans qu'une
+         seule pousse de plus soit dessinée — la jungle s'épaissit pour
+         zéro image par seconde.
+
+         `fs` est DÉJÀ TIRÉ deux lignes plus haut et ne servait à rien
+         pour cette famille (le sprite se choisit sur `fv`) : on s'en
+         sert, donc la séquence de tirages ne bouge pas d'un cran et
+         aucune carte ne se redessine ailleurs. */
+      var o = { gx:gx, gy:gy, fam:fam, v:fv, s:fs };
+      if(fam === "arbre") o.ech = 1.25 + fs * 0.60;
+      c.flore.push(o);
     }
   }
   poseHaute("arbre",   420);
