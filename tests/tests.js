@@ -709,6 +709,45 @@ G("4. Déterminisme de la génération de carte");
        N.totalParJoueur(N.decodeScores(mf.s)).Roro === 3000000 &&
        N.totalParJoueur(N.decodeScores(mf.s)).Lu === 250000);
     ok("un classement différent force une republication", !N.memeMonde(m1, m2));
+    /* ---- ET IL SURVIT AU CHANGEMENT D'ÎLE ----
+       Le tableau appartient au SALON, pas à l'île : le total est la
+       somme des contributions île par île. La branche « île plus
+       avancée » de fusionneMonde le jetait pourtant en entier. Il
+       suffisait qu'un client passe à l'île suivante avec une table qui
+       n'avait pas encore intégré la dernière publication d'un autre
+       pour effacer le score de celui-ci — définitivement s'il avait
+       fermé son navigateur, puisque plus personne ne le republiait. */
+    (function(){
+      var i0 = N.mondeVide(0, 1000, 0);
+      i0.s = N.fusionneScores(un("ro01", "Roro", 0, 1800000), un("bo02", "Bob", 0, 90000));
+      var i1 = N.mondeVide(1, 1000, 0);          // île suivante, table périmée
+      i1.s = un("an03", "Ana", 1, 300);
+      var av = N.totalParJoueur(N.decodeScores(N.fusionneMonde(i0, i1).s));
+      var ar = N.totalParJoueur(N.decodeScores(N.fusionneMonde(i1, i0).s));
+      ok("passer à l'île suivante ne jette pas le tableau des dégâts",
+         av.Roro === 1800000 && av.Bob === 90000 && av.Ana === 300, JSON.stringify(av));
+      ok("et pas davantage dans l'autre sens de fusion",
+         ar.Roro === 1800000 && ar.Bob === 90000 && ar.Ana === 300, JSON.stringify(ar));
+      ok("le classement de l'île quittée reste consultable",
+         N.totalParJoueurCarte(N.decodeScores(N.fusionneMonde(i0, i1).s), 0).Roro === 1800000);
+      /* mais une CAMPAGNE ou un TIRAGE neufs effacent bien tout :
+         c'est ce que publient remetSalonAZero et nouveauTirageSalon. */
+      var neuf = N.mondeVide(0, 1000, 1);        // cy = 1, table vide
+      ok("une remise à zéro du salon efface bien le tableau",
+         Object.keys(N.totalParJoueur(N.decodeScores(N.fusionneMonde(i0, neuf).s))).length === 0,
+         N.fusionneMonde(i0, neuf).s);
+      var tir = N.mondeVide(0, 1000, 0); tir.tg = 1; tir.s = "";
+      ok("un tirage neuf aussi",
+         Object.keys(N.totalParJoueur(N.decodeScores(N.fusionneMonde(i0, tir).s))).length === 0,
+         N.fusionneMonde(i0, tir).s);
+      /* et le raccourci « return a » de la branche ra > rb ne doit pas
+         non plus avaler ce que b apporte au tableau */
+      var i2 = N.mondeVide(2, 1000, 0); i2.s = un("an03", "Ana", 2, 7);
+      var i1b = N.mondeVide(1, 1000, 0); i1b.s = un("ro01", "Roro", 1, 40000);
+      ok("le raccourci de la branche inverse n'avale rien",
+         N.totalParJoueur(N.decodeScores(N.fusionneMonde(i2, i1b).s)).Roro === 40000,
+         N.fusionneMonde(i2, i1b).s);
+    })();
     ok("un instantané fusionné avec lui-même ne force RIEN", (function(){
       var a = N.fusionneMonde(m1, m2);
       return N.memeMonde(a, N.fusionneMonde(a, a));
