@@ -3175,6 +3175,48 @@ G("8. Cohérence des règles de jeu");
   ok("il faut " + Math.ceil(cases / couv) + " Balises pour traverser " + cases + " cases",
      Math.ceil(cases / couv) <= 6);
   ok("la version est au format vX.YY", /^v\d+\.\d{2}$/.test(N.VERSION), N.VERSION);
+  /* ================================================================
+     LA COMPARAISON DE VERSIONS
+
+     Elle décide si l'on annonce au joueur qu'une mise à jour existe.
+     Une comparaison de TEXTES aurait l'air de marcher longtemps puis
+     mentirait exactement au mauvais moment : « v0.9 » > « v0.10 » en
+     ordre alphabétique, et « v1.0 » < « v0.99 ». On compare donc des
+     nombres, majeur × 1000 + mineur.
+     La fonction vit hors du noyau (96-version.js) ; on la relit dans
+     le fichier livré, comme les palettes.
+     ================================================================ */
+  (function(){
+    var d = html.indexOf("function numeroVersion(");
+    var f = html.indexOf("\n}", d);
+    if(d < 0 || f < 0){ ok("numeroVersion se relit dans le fichier livré", false); return; }
+    var num;
+    try{ num = new Function(html.slice(d, f + 2) + "; return numeroVersion;")(); }
+    catch(e){ num = null; }
+    ok("numeroVersion se relit dans le fichier livré", typeof num === "function");
+    if(typeof num !== "function") return;
+    ok("v0.37 vaut 37", num("v0.37") === 37, "" + num("v0.37"));
+    ok("le préfixe v est facultatif", num("0.37") === 37);
+    ok("v0.9 est PLUS ANCIEN que v0.10 — le piège du tri de textes",
+       num("v0.9") < num("v0.10"), num("v0.9") + " < " + num("v0.10"));
+    ok("v1.0 est PLUS RÉCENT que v0.99 — l'autre piège",
+       num("v1.00") > num("v0.99"), num("v1.00") + " > " + num("v0.99"));
+    ok("la version du jeu se lit", num(N.VERSION) > 0, N.VERSION + " → " + num(N.VERSION));
+    ok("une chaîne qui n'est pas une version rend -1",
+       num("") === -1 && num(null) === -1 && num("bonjour") === -1);
+    /* Le contrat qui compte : la même version ne déclenche RIEN. Un
+       bandeau qui reparaît à chaque chargement est pire que pas de
+       bandeau du tout. */
+    ok("la même version ne déclenche aucune annonce",
+       !(num(N.VERSION) > num(N.VERSION)));
+    /* Et la suite des versions est bien croissante d'un cran. */
+    ok("la version suivante est toujours vue comme plus récente",
+       (function(){
+         var m = /v(\d+)\.(\d+)/.exec(N.VERSION);
+         var suiv = "v" + m[1] + "." + (+m[2] + 1);
+         return num(suiv) > num(N.VERSION);
+       })());
+  })();
   ok("huit navettes par vie", N.EQ.NB_BARGES === 8);
   ok("douze Furies par navette au maximum", N.placesNavette("furie") === 12);
   ok("quinze Commandos par navette au maximum", N.placesNavette("commando") === 15);

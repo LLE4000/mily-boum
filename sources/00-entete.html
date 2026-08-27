@@ -65,6 +65,32 @@ canvas{display:block}
 .bt:disabled{opacity:.42;cursor:default}
 
 /* ============================================================
+   LE BANDEAU DE MISE À JOUR
+   Posé par 96-version.js quand le fichier livré est plus récent que
+   celui qu'on est en train d'exécuter. Il flotte au-dessus de TOUT,
+   briefing comme partie — y compris au-dessus de l'éditeur de plan —
+   et il ne se ferme que sur un geste : personne ne doit rater une
+   mise à jour parce qu'elle est passée derrière un panneau.
+   ============================================================ */
+#bandeauMaj{
+  position:fixed;z-index:9000;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + var(--sab));
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+  max-width:calc(100vw - 28px);
+  padding:10px 14px;border-radius:14px;
+  background:linear-gradient(180deg,#33200f,#1d1208);
+  border:1px solid rgba(255,168,72,.55);
+  box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 0 1px rgba(255,138,30,.18);
+  animation:majEntre .35s ease-out;
+}
+#bandeauMaj .bmT{font-size:13px;color:#ffd9a8}
+#bandeauMaj .bmT b{color:var(--braise)}
+#bandeauMaj #btMaj{border-color:rgba(255,168,72,.6);color:#ffd08a}
+@keyframes majEntre{from{opacity:0;transform:translateX(-50%) translateY(14px)}
+                    to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@media (prefers-reduced-motion:reduce){ #bandeauMaj{animation:none} }
+
+/* ============================================================
    ÉCRAN DE BRIEFING
    ============================================================ */
 #brief{

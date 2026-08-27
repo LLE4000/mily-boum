@@ -40,6 +40,11 @@ function demarre(){
   monNom = pseudoSaisi();
   connecteRelais($("relais").value);
   majEtatReseau();
+  /* Est-ce bien la dernière version ? Le navigateur garde volontiers
+     un fichier de 1,6 Mo, et un onglet restauré ne repasse jamais par
+     index.html — donc jamais par l'adresse horodatée. Voir
+     96-version.js. La requête est muette si elle échoue. */
+  verifieVersion();
 
   /* le contexte audio ne peut démarrer qu'après un geste */
   ["pointerdown", "keydown"].forEach(function(ev){
