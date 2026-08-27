@@ -26682,8 +26682,22 @@ function construitFicheForme(){
        + '<button class="pfa" data-melplus="' + i + '">+</button>'
        + '<button class="pfa danger" data-melsup="' + i + '">✕</button></div>';
   }
-  h += '<button class="bt ptt" id="btMelAjoute">+ Ajouter « '
-     + echappe(nomOutilPlan(planOutil)) + ' »</button>';
+  /* LA PALETTE DES TYPES, ICI ET PAS AILLEURS.
+     Elle vivait dans le bloc du pinceau — lequel est CACHÉ dès qu'on
+     passe au compas. On ne pouvait donc rien mettre d'autre dans une
+     forme que le type sélectionné avant de changer de mode, et le
+     bouton répétait « + Ajouter Crible » sans qu'on puisse en sortir.
+     Toucher un type l'ajoute au mélange ; le retoucher l'enlève. */
+  h += '<div class="planAide">Touche un type pour l\'ajouter au mélange '
+     + '(ou le retirer) :</div><div class="pzs" id="planTypes">';
+  for(i = 0; i < TYPES_PLAN.length; i++){
+    var dedans = -1, j;
+    for(j = 0; j < F.C.length; j++) if(F.C[j][0] === i) dedans = j;
+    h += '<div class="pz' + (dedans >= 0 ? " on" : "") + '" data-ajtype="' + i + '">'
+       + '<i style="background:' + coulOutilPlan(i) + '"></i>'
+       + echappe(nomOutilPlan(i)) + '</div>';
+  }
+  h += '</div>';
 
   h += '<div class="tt">Répartition</div><select id="selRep">';
   for(i = 0; i < REPARTITIONS.length; i++)
@@ -27422,11 +27436,28 @@ function finForme(){
       message2("Forme trop petite — tire un peu plus loin pour la tracer.");
     }
   }
+  /* L'OUTIL SE DÉSARME DÈS QUE LA FORME EST TRACÉE.
+     Il restait armé : le toucher suivant retraçait une forme par-dessus
+     au lieu d'attraper une poignée, et l'on ne pouvait plus ajuster ce
+     qu'on venait de dessiner sans aller décocher l'outil soi-même.
+     Personne ne devine ça. On repasse donc en « Sélectionner », la
+     forme neuve est choisie, ses poignées sont sous le doigt. */
+  var venaitDeTracer = !!planTrace;
   planTrace = null; planPoignee = -1; planDejaEmpile = 0;
   planPriseDx = 0; planPriseDy = 0;
+  var desarme = 0;
+  if(venaitDeTracer && planSel >= 0 && planOutilForme >= 0){
+    planOutilForme = -1;
+    construitOutilsFormes();
+    desarme = 1;
+  }
   planApercuSale = true;
   construitListeFormes(); construitFicheForme();
   dessinePlan(); majPanneauPlan();
+  /* APRÈS majPanneauPlan, jamais avant : c'est elle qui réécrit le
+     bandeau, et un conseil posé plus tôt disparaissait aussitôt. */
+  if(desarme) message2("Forme posée. Tire la poignée JAUNE pour la déplacer, "
+                     + "les VERTES pour la redimensionner.");
 }
 function fermePolygone(){
   if(!planPoly || planPoly.length < 6){
@@ -27569,8 +27600,24 @@ function installePlan(){
     if((b = ev.target.closest("[data-melsup]"))){
       poussePile(); retireDuMelange(F, +b.getAttribute("data-melsup")); formeModifiee(); return;
     }
-    if(ev.target.closest("#btMelAjoute")){
-      poussePile(); ajouteAuMelange(F, planOutil); formeModifiee(); return;
+    var a = ev.target.closest("[data-ajtype]");
+    if(a){
+      var t = +a.getAttribute("data-ajtype"), k, dans = -1;
+      for(k = 0; k < F.C.length; k++) if(F.C[k][0] === t) dans = k;
+      poussePile();
+      if(dans >= 0){
+        /* on ne vide jamais complètement le mélange par un simple
+           toucher : une forme sans type est un cas valable, mais il
+           doit se demander, pas se produire par accident */
+        if(F.C.length > 1) retireDuMelange(F, dans);
+        else message2("Dernier type du mélange — ajoute-en un autre avant de l'enlever.");
+      }else{
+        ajouteAuMelange(F, t);
+        planOutil = t;                       // le pinceau suit, c'est ce qu'on attend
+        construitPalettePlan();
+      }
+      formeModifiee();
+      return;
     }
     if(ev.target.closest("#btFixe")){
       poussePile(); F.x = F.x ? 0 : 1; formeModifiee(); return;
