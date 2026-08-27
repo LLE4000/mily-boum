@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.18";
+var VERSION = "v0.19";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1097,6 +1097,29 @@ function multDegatsDefense(){
       qui rend ce test constant au lieu de parcourir deux mille
       bâtiments par plante.
    ---------------------------------------------------------------- */
+/* ================================================================
+   LA TAILLE DES ARBRES DE L'INTÉRIEUR, ET LEUR NOMBRE
+
+   Trois réglages successifs, et il fallait les trois pour tomber
+   juste. À l'échelle 1 ils ne lisaient pas comme une forêt ; montés à
+   1,25–1,85 ils lisaient enfin, mais ils sont devenus trop GROS une
+   fois autorisés à pousser entre les tourelles — une masse de
+   feuillage par tourelle, ce n'est plus une jungle, c'est un
+   couvercle.
+
+   On les rend donc deux fois et demie plus petits, et l'on en met
+   BEAUCOUP PLUS : c'est le rapport qui fait une forêt, pas la taille.
+   Un arbre coûte le même blit quelle que soit sa taille, donc en
+   ajouter se paie ; les rétrécir, non. Le renfort est posé À LA FIN
+   de la génération, après la faune, précisément pour que pas un seul
+   tirage de ce qui existe déjà ne se décale : les tourelles, le
+   tapis, les geysers et les bêtes restent exactement où ils sont.
+   ================================================================ */
+var ECH_ARBRE_MIN     = 0.52;
+var ECH_ARBRE_ETENDUE = 0.26;   // 0,52 à 0,78 — deux fois et demie plus petit
+var RENFORT_ARBRES    = 900;    // dans l'île, en plus des 420 d'origine
+var RENFORT_POURTOUR  = 1500;   // dans la ceinture, en plus des 2 810
+
 function peupleLaJungle(c, al){
   /* DEUX GRILLES D'OCCUPATION, ET C'EST TOUT LE SUJET.
 
@@ -1268,7 +1291,7 @@ function peupleLaJungle(c, al){
          sert, donc la séquence de tirages ne bouge pas d'un cran et
          aucune carte ne se redessine ailleurs. */
       var o = { gx:gx, gy:gy, fam:fam, v:fv, s:fs };
-      if(fam === "arbre") o.ech = 1.25 + fs * 0.60;
+      if(fam === "arbre") o.ech = ECH_ARBRE_MIN + fs * ECH_ARBRE_ETENDUE;
       c.flore.push(o);
     }
   }
@@ -1444,6 +1467,44 @@ function peupleLaJungle(c, al){
         c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:teinte, assis:assis });
         pose++;
       }
+    }
+  }
+
+  /* --- LE RENFORT D'ARBRES, TOUT À LA FIN ---
+     Ici et nulle part ailleurs : un tirage ajouté plus haut décalerait
+     tout ce qui suit, et l'île entière se redessinerait. À cette
+     place, ce qui existe déjà ne bouge pas d'un millième de case — ni
+     les tourelles, ni le tapis, ni les geysers, ni les bêtes.
+
+     DANS L'ÎLE, on repasse par poseHaute : même grille occArbre, même
+     tirage par rejet, donc les nouveaux se glissent entre les
+     tourelles exactement comme les premiers.
+
+     AU POURTOUR, on épaissit surtout la LISIÈRE — le premier rang,
+     celui qu'on regarde vraiment. Les rangs lointains sont déjà peu
+     nombreux et gros par construction : en rajouter là coûterait
+     autant de blits et se verrait beaucoup moins. */
+  poseHaute("arbre", RENFORT_ARBRES);
+  var RENFORT_RANGS = [
+    { d0:1.5, d1:11, n:Math.round(RENFORT_POURTOUR * 0.62), ech:[0.60, 0.95] },
+    { d0:9,   d1:24, n:Math.round(RENFORT_POURTOUR * 0.38), ech:[0.80, 1.30] }
+  ];
+  for(var ir2 = 0; ir2 < RENFORT_RANGS.length; ir2++){
+    var R2 = RENFORT_RANGS[ir2];
+    for(var kr = 0; kr < R2.n; kr++){
+      var co = (al() * 4) | 0;
+      var pr = R2.d0 + al() * (R2.d1 - R2.d0);
+      var lo2, fx3, fy3;
+      if(co === 0){ lo2 = -R2.d1 + al() * (GW + 2 * R2.d1); fx3 = lo2; fy3 = -pr; }
+      else if(co === 1){ lo2 = -R2.d1 + al() * (GW + 2 * R2.d1); fx3 = lo2; fy3 = GH - 1 + pr; }
+      else if(co === 2){ lo2 = -R2.d1 + al() * (GH + 2 * R2.d1); fx3 = -pr; fy3 = lo2; }
+      else { lo2 = -R2.d1 + al() * (GH + 2 * R2.d1); fx3 = PLAGE_X0 - 1 + pr; fy3 = lo2; }
+      var v3 = al(), s3 = al();
+      /* la plage de débarquement reste dégagée, comme pour la forêt
+         d'origine : c'est par là qu'on arrive */
+      if(fx3 > PLAGE_X0 - 3 && fy3 > -4 && fy3 < GH + 3) continue;
+      c.flore.push({ gx:fx3, gy:fy3, fam:"arbre", v:v3, s:s3,
+                     ech:R2.ech[0] + (R2.ech[1] - R2.ech[0]) * s3, fond:1 });
     }
   }
   return c;
