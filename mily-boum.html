@@ -25535,24 +25535,88 @@ function faitMonSeau(){
 /* LA CLÉ DU CUMUL LOCAL NE PORTE PLUS LE PSEUDO. Elle le portait, et
    c'était le même défaut que dans l'instantané : taper son nom
    autrement repartait de zéro. Le cumul appartient à l'APPAREIL et à
-   la campagne — le pseudo n'est qu'une étiquette. */
-function cleMesDegats(){
-  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0);
-}
-function chargeMesDegats(){
-  var c = cleMesDegats();
-  if(c === cleDegatsChargee) return;
-  cleDegatsChargee = c;
-  mesDegats = {};
+   la campagne — le pseudo n'est qu'une étiquette.
+
+   ELLE NE PORTE PLUS LA CAMPAGNE NON PLUS, et c'est une correction.
+   La campagne était DANS LA CLÉ, or au démarrage on ne la connaît pas
+   encore : cycleSalon vaut 0 tant que l'instantané retenu n'est pas
+   arrivé. Qui ouvrait le jeu relais coupé, jouait, et infligeait
+   640 000 dégâts, les rangeait sous « …:0 » ; l'instantané arrivait
+   ensuite avec cy = 7, la clé changeait, et chargeMesDegats vidait
+   tout sans jamais relire l'ancienne. Les 640 000 restaient sur le
+   disque, dans une clé que plus aucun code n'ouvrait — et le
+   compteur du joueur retombait à zéro.
+
+   UNE SEULE CLÉ, donc, et la campagne dans la VALEUR : { cy, d, p }.
+   Le drapeau `p` dit « provisoire » : ce cumul a été accumulé avant
+   qu'on sache dans quelle campagne on jouait. Un cumul provisoire est
+   ADOPTÉ par la campagne réelle dès qu'on l'apprend — les dégâts ont
+   bien été infligés, ils comptent. Un cumul non provisoire d'une
+   AUTRE campagne, lui, est bien jeté : c'est ce que veut une remise à
+   zéro.
+
+   Au passage, ça referme une petite fuite : l'ancienne forme laissait
+   une clé morte de plus dans le stockage à chaque remise à zéro,
+   chaque nouveau tirage et chaque enregistrement de plan, sans borne.
+   On les balaie une fois, au premier chargement. */
+var CLE_DEGATS = "milyboum:deg:" + CODE_SALON;
+var mesDegatsCycle = -1;       // la campagne du cumul actuellement en mémoire
+var mondeRecu = false;         // un instantané, local ou du relais, est arrivé
+
+/* Les clés de l'ancienne forme « …:<cycle> », lues une fois pour ne
+   rien perdre, puis effacées. */
+function migreVieuxDegats(){
+  var repris = null, i, k, cy;
   try{
-    var o = JSON.parse(localStorage.getItem(c) || "{}");
-    if(o && typeof o === "object"){
-      for(var k in o) if(o[k] > 0) mesDegats[k | 0] = Math.round(o[k]);
+    for(i = localStorage.length - 1; i >= 0; i--){
+      k = localStorage.key(i);
+      if(!k || k.indexOf(CLE_DEGATS + ":") !== 0) continue;
+      cy = parseInt(k.substr(CLE_DEGATS.length + 1), 10) | 0;
+      if(cy === (cycleSalon | 0) && !repris){
+        try{ repris = JSON.parse(localStorage.getItem(k) || "null"); }catch(e){}
+      }
+      localStorage.removeItem(k);
     }
   }catch(e){}
+  return repris;
+}
+function chargeMesDegats(){
+  if(mesDegatsCycle === (cycleSalon | 0) && cleDegatsChargee) return;
+  cleDegatsChargee = CLE_DEGATS;
+  var o = null;
+  try{ o = JSON.parse(localStorage.getItem(CLE_DEGATS) || "null"); }catch(e){}
+  var vientDeMigrer = 0;
+  if(!o){
+    /* UN SEUL appel : le balayage efface au passage, un second ne
+       trouverait plus rien. */
+    var vieux = migreVieuxDegats();
+    if(vieux){ o = { cy:cycleSalon | 0, d:vieux, p:0 }; vientDeMigrer = 1; }
+  }
+  var garde = null;
+  if(o && typeof o === "object" && o.d && typeof o.d === "object"){
+    /* provisoire : on l'adopte, quelle que soit la campagne qu'il
+       portait — ces dégâts-là ont bien été infligés */
+    if(o.p) garde = o.d;
+    else if((o.cy | 0) === (cycleSalon | 0)) garde = o.d;
+  }
+  mesDegats = {};
+  if(garde) for(var k in garde) if(garde[k] > 0) mesDegats[k | 0] = Math.round(garde[k]);
+  mesDegatsCycle = cycleSalon | 0;
+  /* ON RÉÉCRIT TOUT DE SUITE dans deux cas, et pour la même raison :
+     ce qu'on vient de récupérer n'existe plus que dans cette mémoire,
+     et l'onglet peut se fermer avant le prochain coup de hache.
+       — un cumul provisoire adopté par sa vraie campagne (sans quoi il
+         se ferait adopter une seconde fois plus tard) ;
+       — un cumul migré depuis l'ancienne forme de clé, dont le
+         balayage vient d'effacer l'original. */
+  if(garde && ((o && o.p && mondeRecu) || vientDeMigrer)) gardeMesDegats();
 }
 function gardeMesDegats(){
-  try{ localStorage.setItem(cleMesDegats(), JSON.stringify(mesDegats)); }catch(e){}
+  try{
+    localStorage.setItem(CLE_DEGATS, JSON.stringify({
+      cy:cycleSalon | 0, d:mesDegats, p:mondeRecu ? 0 : 1
+    }));
+  }catch(e){}
 }
 /* ON RANGE LE DELTA, JAMAIS LE TOTAL.
 
@@ -25879,6 +25943,13 @@ function adopteMonde(m, source){
   }
   if(monde.cy > cycleSalon){ cycleSalon = monde.cy | 0; carteSalon = monde.c | 0; }
   else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
+  /* ON SAIT MAINTENANT DANS QUELLE CAMPAGNE ON JOUE. Tant que ce
+     drapeau est bas, tout cumul rangé l'est « à titre provisoire » :
+     c'est ce qui permet de l'adopter plutôt que de le jeter quand la
+     vraie campagne se révèle. Le miroir local compte autant que le
+     relais — il porte le même cy. */
+  mondeRecu = true;
+  chargeMesDegats();
   if(source === "relais" && avant && !memeMonde(avant, monde)) majMondes();
 }
 
@@ -26212,6 +26283,43 @@ function remetSalonAZero(){
    est réalisée autrement : d'autres positions, d'autres décors,
    d'autres bestioles. C'est le pendant du bouton « Régénérer » de
    l'éditeur, qui ne changeait jusqu'ici que l'aperçu. */
+/* ----------------------------------------------------------------
+   LA CAMPAGNE BOUCLE — et le tableau des dégâts repart avec elle.
+
+   Les cinq îles sont tombées, on recommence. L'interface faisait
+   simplement « cycleSalon++ » puis nouvelleCarte(0), sans rien
+   publier : le tableau des dégâts de la campagne écoulée restait donc
+   dans l'instantané, alors que le cumul LOCAL, lui, repartait de zéro.
+   Or scoresAJour garde le MAXIMUM par clé, et la clé ne porte pas la
+   campagne. Le joueur reprenait l'île 4, détruisait tout ce qu'il
+   pouvait, et son podium restait figé sur les 38 000 000 de la
+   campagne précédente : il lui aurait fallu refaire 38 000 000 sur
+   cette seule île pour gagner UN point. Son propre score devenait le
+   mur qu'il avait déjà à franchir avant qu'on répare le compteur.
+
+   On publie donc s:"" exactement comme le font remetSalonAZero et
+   nouveauTirageSalon, et pour la même raison — « une campagne neuve
+   efface la guerre ». Les champions et les podiums, eux, traversent :
+   c'est précisément là que « Derniers champions » prend son sens.
+   ---------------------------------------------------------------- */
+function nouvelleCampagneSalon(){
+  cycleSalon = (cycleSalon | 0) + 1;
+  carteSalon = 0;
+  scoresSalon = {};
+  var av = monde || {};
+  var jg = jungleCourante();
+  jg.ch = av.ch || "";
+  jg.t3 = av.t3 || "";
+  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+  chargeMesDegats();          // le cumul local suit la campagne
+  degatsReplies = 0;
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return cycleSalon;
+}
+
 function nouveauTirageSalon(){
   numeroPlan  = (numeroPlan | 0) + 1;
   tirageSalon = (tirageSalon | 0) + 1;
@@ -32284,9 +32392,15 @@ function majBilan(dt){
        vit dans le même tableau mais hors de l'enchaînement, et la
        campagne doit boucler sur cinq îles comme avant. */
     if(suiv >= NB_CARTES_NORMALES){
-      /* toutes les îles sont tombées : nouvelle campagne, monde neuf */
-      carteSalon = 0; suiv = 0;
-      cycleSalon++;
+      /* Toutes les îles sont tombées : nouvelle campagne, monde neuf.
+         « cycleSalon++ » tout seul ne suffisait pas — il changeait de
+         campagne sans publier le monde neuf, si bien que le tableau
+         des dégâts de la campagne écoulée restait dans l'instantané
+         pendant que le cumul local repartait de zéro. Le joueur
+         repassait alors contre son propre mur. nouvelleCampagneSalon
+         fait les deux, et grave les podiums au passage. */
+      suiv = 0;
+      nouvelleCampagneSalon();
     }
     nouvelleCarte(suiv);
     construitFondMini();

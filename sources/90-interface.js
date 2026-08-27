@@ -843,9 +843,15 @@ function majBilan(dt){
        vit dans le même tableau mais hors de l'enchaînement, et la
        campagne doit boucler sur cinq îles comme avant. */
     if(suiv >= NB_CARTES_NORMALES){
-      /* toutes les îles sont tombées : nouvelle campagne, monde neuf */
-      carteSalon = 0; suiv = 0;
-      cycleSalon++;
+      /* Toutes les îles sont tombées : nouvelle campagne, monde neuf.
+         « cycleSalon++ » tout seul ne suffisait pas — il changeait de
+         campagne sans publier le monde neuf, si bien que le tableau
+         des dégâts de la campagne écoulée restait dans l'instantané
+         pendant que le cumul local repartait de zéro. Le joueur
+         repassait alors contre son propre mur. nouvelleCampagneSalon
+         fait les deux, et grave les podiums au passage. */
+      suiv = 0;
+      nouvelleCampagneSalon();
     }
     nouvelleCarte(suiv);
     construitFondMini();
