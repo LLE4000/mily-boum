@@ -147,7 +147,7 @@ var MET_TEXTURES = {
      mettait les deux à égalité et rendait une jungle laiteuse et
      plate, sans un seul noir. */
   nuages:{ n:26, sombre:MET_OMBRE, claire:MET_CLARTE, opaS:0.30, opaC:0.075,
-           fond:"rgba(7,26,22,0.21)", graine:0x51A9E1 },
+           fond:"rgba(7,26,22,0.09)", graine:0x51A9E1 },
   brume: { n:20, sombre:MET_BRUME, claire:null,       opaS:0.055, opaC:0,
            fond:null,                graine:0x2C77B3 }
 };
@@ -218,14 +218,18 @@ function voilesOrage(c){
   if(metVoiles.w === lw && metVoiles.h === lh) return metVoiles;
   metVoiles.w = lw; metVoiles.h = lh;
 
-  /* la vignette : les bords de l'écran s'enfoncent sous l'orage */
+  /* LE VOILE D'AIR : la teinte d'orage et la vignette dans la MÊME
+     image. Deux passes plein écran coûteraient deux fois le prix pour
+     un résultat identique — le dégradé porte les deux. Il ne descend
+     jamais à zéro au centre : c'est cette part uniforme qui fait la
+     lumière d'orage sur toute la carte. */
   var v = nouveauCanvas(lw, lh);
   var g = v.getContext("2d");
-  var gr = g.createRadialGradient(lw / 2, lh * 0.54, lh * 0.16,
+  var gr = g.createRadialGradient(lw / 2, lh * 0.54, lh * 0.10,
                                   lw / 2, lh * 0.54, lh * 0.95);
-  gr.addColorStop(0, "rgba(3,12,12,0)");
-  gr.addColorStop(0.50, "rgba(3,12,12,0.10)");
-  gr.addColorStop(1, "rgba(2,9,10,0.52)");
+  gr.addColorStop(0, "rgba(8,30,26,0.17)");
+  gr.addColorStop(0.50, "rgba(6,24,22,0.24)");
+  gr.addColorStop(1, "rgba(2,10,11,0.50)");
   g.fillStyle = gr;
   g.fillRect(0, 0, lw, lh);
   metVoiles.vignette = v;
@@ -331,31 +335,53 @@ function roulementJungle(tps){
   return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
 }
 
+/* LES OMBRES DE NUAGES, sur le SOL. Appelée tôt, sous les entités :
+   c'est bien de l'ombre portée sur la terre, elle n'a rien à faire
+   par-dessus les troupes. */
 function dessineCielOrage(c, tps){
-  var v = voilesOrage(c);
   var e = dpr;
   greffeSonJungle();
-
-  /* LES NUAGES. Une seule nappe : la teinte de l'orage, les ombres et
-     les trouées de lumière sont dans la même tuile. Elle est ancrée
-     au monde à 85 % — pas 100 : ce léger glissement par rapport au
-     sol suffit à lire les taches comme des nuages qui passent
-     AU-DESSUS, et non comme une salissure peinte sur la terre. */
+  /* Une seule nappe : les ombres et les trouées de lumière sont dans
+     la même tuile. Elle est ancrée au monde à 85 % — pas 100 : ce
+     léger glissement par rapport au sol suffit à lire les taches comme
+     des nuages qui passent AU-DESSUS, et non comme une salissure
+     peinte sur la terre. */
   var T = tailleTuile(250 * e * borne(cam.z * 1.7, 0.6, 2.3));
   nappeMeteo(c, motifMeteo(c, "nuages", T),
              (cam.px * 0.85 + secX + tps * 6.5) * e,
              (cam.py * 0.85 + secY + tps * 2.2) * e);
+}
 
-  /* LA VIGNETTE, posée à l'échelle un. */
+/* ---------------------------------------------------------------
+   LE VOILE D'AIR — À APPELER EN DERNIER, APRÈS LA PLUIE.
+   C'est le point d'entrée que le contrat ne prévoyait pas, et il
+   s'est imposé à la première capture honnête : les ombres de nuages
+   sont peintes SOUS les entités, or au zoom de jeu la carte est
+   couverte de bâtiments et de canopée. Résultat, tout l'orage passait
+   dessous et il ne restait, de près, qu'une jungle ensoleillée avec
+   trois gouttes. Ce qui manque n'est pas une ombre au sol : c'est la
+   lumière de l'AIR entre la caméra et la carte, et celle-là passe
+   forcément par-dessus tout.
+   Une seule image posée à l'échelle un : teinte d'orage et vignette
+   dans le même dégradé, plus la lueur des roulements lointains.
+   FILET DE SÉCURITÉ : si personne ne l'appelle, dessinePluieJungle
+   s'en charge à la fin — la pluie est dans le même air. Le garde-fou
+   sur `tps` fait que la couche n'est jamais peinte deux fois dans la
+   même image, quel que soit celui des deux qui arrive le premier.
+   --------------------------------------------------------------- */
+var metVoileTps = -1;
+function dessineVoileOrage(c, tps){
+  if(tps === metVoileTps) return;
+  metVoileTps = tps;
+  var v = voilesOrage(c);
   c.save();
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.drawImage(v.vignette, 0, 0);
-
   /* LES ROULEMENTS, tout en haut de l'écran. */
   var r = roulementJungle(tps);
   if(r > 0.015){
     c.globalCompositeOperation = "lighter";
-    c.globalAlpha = r * 0.13;
+    c.globalAlpha = r * 0.16;
     c.drawImage(v.ciel, 0, 0);
   }
   c.restore();
@@ -404,6 +430,9 @@ var MET_COUCHES_PLUIE = [
 ];
 
 function dessinePluieJungle(c, tps){
+  /* filet de sécurité : voir dessineVoileOrage. La pluie tombe DANS
+     l'air voilé, donc le voile passe avant elle. */
+  dessineVoileOrage(c, tps);
   var z = cam.z;
   var pente = ventJungle(tps);
   /* Les gouttes rétrécissent au dézoom. Sinon, quand on prend toute
@@ -479,6 +508,11 @@ function dessinePluieJungle(c, tps){
    pixels de côté, mesurés à 0,05 ms les quarante.
    ================================================================ */
 function dessineLueursVegetation(c, tps){
+  /* C'est la PREMIÈRE des couches empilées par-dessus la carte, donc
+     le meilleur endroit pour le filet de sécurité du voile : ainsi
+     l'éclair, qui vient ensuite, perce le voile au lieu d'être posé
+     dessous. Voir dessineVoileOrage. */
+  dessineVoileOrage(c, tps);
   var z = cam.z;
   if(z < 0.18) return;
   var g = bornesGrille(170, 60);

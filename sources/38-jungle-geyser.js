@@ -650,8 +650,12 @@ function dessineGeyser(c, g, tps){
   if(det && chaud > 0.05){
     var fel = geyFelures[v];
     c.lineCap = "round"; c.lineJoin = "round";
-    c.strokeStyle = rgba("#ff8420", Math.min(0.85, 0.16 + chaud * 0.7) * a0);
-    c.lineWidth = 0.9 + chaud * 1.5;
+    c.strokeStyle = rgba("#ff8420", Math.min(0.85, 0.20 + chaud * 0.68) * a0);
+    /* épaisseur plafonnée EN PIXELS D'ÉCRAN : à un zoom de carte, un
+       trait d'une unité locale fait moins d'un demi-pixel et disparaît
+       — c'est-à-dire exactement au moment où le joueur en a le plus
+       besoin. Même garde-fou que les cercles du Brouillard. */
+    c.lineWidth = Math.max(1.15 / z, 0.9 + chaud * 1.5);
     c.beginPath();
     for(i = 0; i < fel.length; i++){
       /* elle ne s'allume que sur sa moitié proche de la fente : une
@@ -1317,7 +1321,6 @@ function vjConstruitFond(w, h){
     c.moveTo(x - lp, y); c.lineTo(x + lp, y);
     c.lineTo(x + lp * 0.86, y - hp); c.lineTo(x - lp * 0.92, y - hp * 0.86);
     c.closePath(); c.fill();
-    c.fillStyle = "#25352450".slice(0, 7);
     c.fillStyle = "rgba(56,84,54,.55)";        // mousse sur le dessus
     c.beginPath();
     c.ellipse(x - lp * 0.05, y - hp * 0.9, lp * 0.88, hp * 0.20, 0, 0, 6.2832);
