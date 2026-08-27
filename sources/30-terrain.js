@@ -105,8 +105,13 @@ var BIOMES = {
      vert n'est pas celui d'une prairie mais celui d'un palmier soigné
      — sombre, verni. */
   ibiza: {
-    sol1:"#efdfc0", sol2:"#e6d2ac", sable:"#f8eed6", sableO:"#d3bc95",
-    herbe:"#5f8a63", allee:"#fdf6e6", roche:"#e2dccf",
+    /* Le sable est CHAUD, pas beige-gris : c'est ce qui sépare un midi
+       méditerranéen d'une plage du nord. Et l'« herbe » n'est pas une
+       prairie mais une pelouse de club, tondue et un peu grillée —
+       verte franche, elle faisait des taches de gazon anglais au bord
+       de l'eau et tirait toute la carte vers le terne. */
+    sol1:"#f2e0ba", sol2:"#e9d4a4", sable:"#fbf2dc", sableO:"#d6b98c",
+    herbe:"#96ac72", allee:"#fffaee", roche:"#e8e2d4",
     eauC:"#8ffff0", eau:"#12b6e0", eauO:"#0a4fa8", ecume:"#ffffff",
     fond:"#25c4dc", basFond:"#8df0ec", ciel:"#7fd8f5"
   }
@@ -940,11 +945,11 @@ var MATIERES = {
      est dans la mer et dans le décor ; un sol bavard écraserait les
      parasols. */
   ibiza: {
-    fond1:"#eeddbe", fond2:"#e2cfa8",
-    tache1:"#f8efd8", tache2:"#cdb68f",
-    herbe1:"#6d986e", herbe2:"#4c7350",
-    sable1:"#faf2dd", sable2:"#e9d9b6",
-    mouille:"#c5ac82", roche1:"#e6e0d2", roche2:"#c2bbaa"
+    fond1:"#f1debb", fond2:"#e6d0a2",
+    tache1:"#fdf4de", tache2:"#d2b789",
+    herbe1:"#a8bd82", herbe2:"#7f9660",
+    sable1:"#fdf5e2", sable2:"#eddcb8",
+    mouille:"#cbae7e", roche1:"#ebe5d6", roche2:"#c8c0ad"
   }
 };
 
@@ -1158,6 +1163,178 @@ function construitSol(carteC){
     }
     c.restore();
   }
+  /* ================================================================
+     LES TROIS SOLS AJOUTÉS
+
+     Chaque île du jeu a sa passe de texture : les sillons de la
+     campagne, la mousse de la forêt, les parcelles de lavande du Sud.
+     Sans elle, une carte n'est qu'une palette — le terrain est juste,
+     mais il ne raconte rien. Ces trois-là sont peintes ici, dans le
+     canevas de sol PRÉ-CALCULÉ : elles ne coûtent qu'une fois, au
+     chargement de l'île, et rien du tout à l'image.
+     ================================================================ */
+  if(carteC.biome === "guinguette"){
+    /* 1. LES FLAQUES DE LUMIÈRE. Le ciel est presque noir et le sol
+       tenu dans des bruns sourds : sans ces ronds tièdes, la carte
+       serait un terrain vague à guirlandes. Ce sont eux qui font
+       croire que quelqu'un a allumé quelque chose. Elles sont
+       DISPERSÉES et non régulières — une fête s'organise autour de ce
+       qu'on éclaire, pas en quadrillage. */
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+    for(i = 0; i < 62; i++){
+      var gx1 = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE), gy1 = al() * GH;
+      var pg1 = iso(gx1, gy1);
+      var rg1 = 90 + al() * 230;
+      var chaud = al() < 0.62;
+      var gg1 = c.createRadialGradient(pg1.x, pg1.y, 5, pg1.x, pg1.y, rg1);
+      gg1.addColorStop(0, chaud ? "rgba(255,196,110,.15)" : "rgba(255,150,90,.10)");
+      gg1.addColorStop(0.55, chaud ? "rgba(255,170,90,.05)" : "rgba(240,130,80,.035)");
+      gg1.addColorStop(1, "rgba(255,150,70,0)");
+      c.fillStyle = gg1;
+      c.beginPath(); c.ellipse(pg1.x, pg1.y, rg1, rg1 / 2, 0, 0, 6.2832); c.fill();
+    }
+    /* 2. LES PLANCHERS DE BAL. Quelques carrés de bois clair posés à
+       même la terre : c'est là qu'on danse, et c'est ce qui distingue
+       un jardin d'une guinguette. Ils suivent le losange de la
+       projection, comme tout le reste. */
+    for(i = 0; i < 14; i++){
+      var bx1 = LARGEUR_ROCHE + 3 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 12);
+      var by1 = 4 + al() * (GH - 12);
+      var cw1 = 5 + al() * 4, ch1 = 4 + al() * 3;
+      var q1 = iso(bx1, by1), q2 = iso(bx1 + cw1, by1);
+      var q3 = iso(bx1 + cw1, by1 + ch1), q4 = iso(bx1, by1 + ch1);
+      c.globalAlpha = 0.22;
+      c.fillStyle = "#8a6a45";
+      c.beginPath();
+      c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y); c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y);
+      c.closePath(); c.fill();
+      /* les lames du plancher, dans le sens de la longueur */
+      c.globalAlpha = 0.14;
+      c.strokeStyle = "#4a3624"; c.lineWidth = 1.2;
+      for(j = 0.5; j < ch1; j += 0.8){
+        var l1 = iso(bx1, by1 + j), l2 = iso(bx1 + cw1, by1 + j);
+        c.beginPath(); c.moveTo(l1.x, l1.y); c.lineTo(l2.x, l2.y); c.stroke();
+      }
+    }
+    c.globalAlpha = 1;
+    c.restore();
+  }
+
+  if(carteC.biome === "tenebres"){
+    /* LE RÉSEAU DE FISSURES. C'est LA texture de cette île, et elle
+       doit courir sur toute sa surface : des veines isolées se
+       liraient comme des accidents, un réseau se lit comme une croûte
+       posée sur quelque chose de vivant.
+       Chaque veine part d'un point et marche en zigzag, en se divisant
+       une fois sur trois. Trois passes de plus en plus fines et de
+       plus en plus claires : la lèvre sombre, la lave, le cœur. Le
+       tracé est le MÊME pour les trois — on le retient dans un tableau
+       de points au lieu de le retirer trois fois, sinon les trois
+       couches ne se superposeraient pas. */
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+    var veines = [];
+    for(i = 0; i < 46; i++){
+      var vx = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE);
+      var vy = al() * GH;
+      var ang = al() * 6.2832;
+      var pts = [[vx, vy]];
+      var pas = 6 + ((al() * 10) | 0);
+      for(j = 0; j < pas; j++){
+        ang += (al() - 0.5) * 1.5;
+        vx += Math.cos(ang) * (1.6 + al() * 2.6);
+        vy += Math.sin(ang) * (1.6 + al() * 2.6);
+        if(vx < 1 || vx > PLAGE_X0 || vy < 1 || vy > GH - 1) break;
+        pts.push([vx, vy]);
+      }
+      if(pts.length > 2) veines.push(pts);
+    }
+    var couches = [
+      { e:7.0, col:"rgba(10,6,8,.62)",    lum:0 },
+      { e:3.4, col:"rgba(150,34,10,.60)", lum:1 },
+      { e:1.5, col:"rgba(240,110,36,.62)",lum:1 },
+      { e:0.6, col:"rgba(255,214,120,.5)",lum:1 }
+    ];
+    for(var kc = 0; kc < couches.length; kc++){
+      c.save();
+      if(couches[kc].lum) c.globalCompositeOperation = "lighter";
+      c.strokeStyle = couches[kc].col;
+      c.lineWidth = couches[kc].e;
+      c.lineCap = "round"; c.lineJoin = "round";
+      for(i = 0; i < veines.length; i++){
+        var vv = veines[i];
+        c.beginPath();
+        var d0 = iso(vv[0][0], vv[0][1]);
+        c.moveTo(d0.x, d0.y);
+        for(j = 1; j < vv.length; j++){
+          var dd = iso(vv[j][0], vv[j][1]);
+          c.lineTo(dd.x, dd.y);
+        }
+        c.stroke();
+      }
+      c.restore();
+    }
+    /* les plaques de cendre froide, par-dessus : elles cassent le
+       réseau et empêchent la carte de devenir un filet régulier */
+    for(i = 0; i < 46; i++){
+      var cx1 = al() * PLAGE_X0, cy1 = al() * GH;
+      var pc1 = iso(cx1, cy1);
+      var rc1 = 100 + al() * 300;
+      var gc1 = c.createRadialGradient(pc1.x, pc1.y, 6, pc1.x, pc1.y, rc1);
+      gc1.addColorStop(0, "rgba(12,9,11,.30)");
+      gc1.addColorStop(1, "rgba(12,9,11,0)");
+      c.fillStyle = gc1;
+      c.beginPath(); c.ellipse(pc1.x, pc1.y, rc1, rc1 / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+  }
+
+  if(carteC.biome === "ibiza"){
+    /* 1. LES RIDES DU SABLE. De longues courbes parallèles au rivage,
+       très pâles : c'est ce qui fait qu'un sable est du sable et non
+       un aplat beige. Elles s'estompent en s'éloignant de l'eau. */
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+    c.lineCap = "round";
+    for(i = 0; i < 210; i++){
+      var rx1 = PLAGE_X0 - al() * al() * (PLAGE_X0 - LARGEUR_ROCHE);
+      var ry1 = al() * GH;
+      var lgr = 6 + al() * 16;
+      var creux = al() < 0.5;
+      c.strokeStyle = creux ? "rgba(168,146,110,.16)" : "rgba(255,250,232,.20)";
+      c.lineWidth = 1.4 + al() * 1.8;
+      c.beginPath();
+      var w0 = iso(rx1, ry1);
+      c.moveTo(w0.x, w0.y);
+      for(j = 1; j <= 5; j++){
+        var wj = iso(rx1 + Math.sin(j * 0.9 + ry1) * 1.4, ry1 + lgr * j / 5);
+        c.lineTo(wj.x, wj.y);
+      }
+      c.stroke();
+    }
+    /* 2. LES TERRASSES DU CLUB. De grandes dalles claires, bordées de
+       turquoise : c'est le mobilier du sol, et c'est ce qui empêche
+       Ibiza d'être une seconde plage. */
+    for(i = 0; i < 16; i++){
+      var tx1 = LARGEUR_ROCHE + 4 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 16);
+      var ty1 = 4 + al() * (GH - 14);
+      var tw1 = 7 + al() * 7, th1 = 5 + al() * 5;
+      var u1 = iso(tx1, ty1), u2 = iso(tx1 + tw1, ty1);
+      var u3 = iso(tx1 + tw1, ty1 + th1), u4 = iso(tx1, ty1 + th1);
+      c.globalAlpha = 0.30;
+      c.fillStyle = "#fdf8ec";
+      c.beginPath();
+      c.moveTo(u1.x, u1.y); c.lineTo(u2.x, u2.y); c.lineTo(u3.x, u3.y); c.lineTo(u4.x, u4.y);
+      c.closePath(); c.fill();
+      c.globalAlpha = 0.34;
+      c.strokeStyle = "#1fb9c9"; c.lineWidth = 1.8;
+      c.stroke();
+      c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+
   if(carteC.biome === "sud"){
     /* De larges plaques de paille et d'ocre rouge, posées les
        premières : l'île entière au même beige donnait un désert, pas
