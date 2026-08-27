@@ -186,6 +186,10 @@ function ouvrePlan(ou){
   $("plan").classList.add("on");
   construitPalettePlan();
   construitOngletsCartes();
+  /* On rouvre TOUJOURS sur l'île entière. Garder le cadrage d'une
+     session précédente déposerait le créateur au fond d'un coin sans
+     lui dire où il est ; le zoom, lui, est à un appui. */
+  planVueLibre = false;
   ajustePlanCv();
   basculeModePlan(planMode);      // reconstruit les deux outillages et redessine
 }
@@ -497,6 +501,66 @@ function choisitForme(i){
 /* ---------------------------------------------------------------
    Le canevas : la carte à plat, une couleur par défense
    --------------------------------------------------------------- */
+/* ================================================================
+   LA VUE DE L'ÉDITEUR — cadrage, zoom et déplacement
+
+   Il n'y en avait pas : planEch/planOx/planOy étaient posés une fois
+   par ajustePlanCv pour faire tenir l'île entière, et rien ne pouvait
+   plus les changer. Sur une île de 152 × 136 cases ramenée à la
+   largeur d'un panneau, une case fait deux ou trois pixels : poser
+   une forme au doigt à cette échelle, c'est viser à l'aveugle. Le
+   multi-touch était même refusé par construction — « if(planDoigt
+   !== null) return » écartait le second doigt —, donc une pincée
+   était impossible.
+
+   Trois nombres suffisent, et ils restent LES MÊMES que le dessin et
+   planVersCase lisent déjà : on ne change pas le contrat, on rend
+   simplement ces nombres réglables.
+   ================================================================ */
+var planFit = { e:1, ox:0, oy:0 };     // le cadrage « tout tient »
+var planVueLibre = false;              // le joueur a-t-il zoomé lui-même ?
+var PLAN_ZOOM_MAX = 6;
+
+function poseCadragePlan(){
+  planFit.e  = Math.min(planCv.width / GW, planCv.height / GH);
+  planFit.ox = (planCv.width  - GW * planFit.e) / 2;
+  planFit.oy = (planCv.height - GH * planFit.e) / 2;
+}
+/* La carte ne quitte jamais le canevas : elle le couvre tant qu'elle
+   est plus grande que lui, et se recentre dès qu'elle est plus
+   petite. Pas de marge, pas de vide sur les bords — on édite, on ne
+   contemple pas. */
+function bornePlanVue(){
+  planEch = Math.max(planFit.e, Math.min(planFit.e * PLAN_ZOOM_MAX, planEch));
+  var w = GW * planEch, h = GH * planEch;
+  planOx = (w <= planCv.width)  ? (planCv.width  - w) / 2
+                                : Math.max(planCv.width  - w, Math.min(0, planOx));
+  planOy = (h <= planCv.height) ? (planCv.height - h) / 2
+                                : Math.max(planCv.height - h, Math.min(0, planOy));
+}
+/* Zoome autour d'un point du CANEVAS : ce point ne bouge pas d'un
+   pixel, c'est ce qui fait qu'on zoome « là où on regarde ». */
+function zoomPlanVers(cx, cy, k){
+  var av = planEch;
+  planEch = Math.max(planFit.e, Math.min(planFit.e * PLAN_ZOOM_MAX, planEch * k));
+  if(planEch === av) return false;
+  planOx = cx - (cx - planOx) * (planEch / av);
+  planOy = cy - (cy - planOy) * (planEch / av);
+  planVueLibre = planEch > planFit.e * 1.001;
+  bornePlanVue();
+  return true;
+}
+function recadrePlan(){
+  planEch = planFit.e; planOx = planFit.ox; planOy = planFit.oy;
+  planVueLibre = false;
+}
+/* Un point d'écran en pixels de canevas — c'est l'unité de la vue. */
+function planPixels(sx, sy){
+  var r = planCv.getBoundingClientRect();
+  var dpr = planCv.width / Math.max(1, r.width);
+  return { x:(sx - r.left) * dpr, y:(sy - r.top) * dpr };
+}
+
 function ajustePlanCv(){
   planCv = $("planCv");
   if(!planCv) return;
@@ -506,10 +570,19 @@ function ajustePlanCv(){
   planCv.width  = Math.max(2, Math.round(r.width  * dpr));
   planCv.height = Math.max(2, Math.round(r.height * dpr));
   planCtx = planCv.getContext("2d");
-  /* la carte entière tient dans le canevas, sans déformation */
-  planEch = Math.min(planCv.width / GW, planCv.height / GH);
-  planOx = (planCv.width  - GW * planEch) / 2;
-  planOy = (planCv.height - GH * planEch) / 2;
+  /* On retient le point de carte visé par le CENTRE du canevas avant
+     de changer sa taille, et on le remet dessous après : tourner la
+     tablette ne doit pas déplacer ce qu'on est en train d'éditer. */
+  var vise = planVueLibre && planEch > 0
+             ? { gx:(planCv.width / 2 - planOx) / planEch,
+                 gy:(planCv.height / 2 - planOy) / planEch } : null;
+  var facteur = planVueLibre && planFit.e > 0 ? planEch / planFit.e : 1;
+  poseCadragePlan();
+  if(!vise){ recadrePlan(); return; }
+  planEch = planFit.e * facteur;
+  planOx = planCv.width / 2 - vise.gx * planEch;
+  planOy = planCv.height / 2 - vise.gy * planEch;
+  bornePlanVue();
 }
 function planVersCase(sx, sy){
   var r = planCv.getBoundingClientRect();
@@ -983,8 +1056,30 @@ function ajouteAuMelange(F, t){
   for(i = 0; i < F.C.length; i++) if(F.C[i][0] === t) return;
   if(F.C.length >= 6) return;                    // au-delà, plus personne ne lit
   F.C.push([t, sommeMelange(F) ? sommeMelange(F) / Math.max(1, F.C.length) : 100]);
+  normaliseMelange(F);
 }
-function retireDuMelange(F, i){ F.C.splice(i, 1); }
+function retireDuMelange(F, i){ F.C.splice(i, 1); normaliseMelange(F); }
+/* LES POIDS SONT RAMENÉS À UNE SOMME FIXE APRÈS CHAQUE RÉGLAGE.
+
+   Sans cela, ils grimpaient sans borne : pousser une entrée à 95 %
+   multiplie son poids par dix-neuf, et l'appui suivant repart de là.
+   Or encodeFormes fait passer chaque poids par entierPlan, qui BORNE
+   à 9999 — au-delà, la proportion enregistrée n'est plus celle qu'on
+   voit. Mesuré : après sept réglages sur une forme à six types, le
+   poids atteignait 19 344, la fiche annonçait 80 % et la carte
+   relue en appliquait 67. Le panneau mentait, sans rien dire.
+
+   On normalise donc à 1000, assez fin pour qu'un dixième de pour cent
+   reste distinct, assez loin de 9999 pour que la borne ne serve
+   jamais. Ce que la fiche affiche est alors exactement ce qui part
+   dans le plan. */
+var SOMME_MELANGE = 1000;
+function normaliseMelange(F){
+  var s = sommeMelange(F), i;
+  if(!(s > 0)) return;
+  for(i = 0; i < F.C.length; i++)
+    F.C[i][1] = Math.max(1, Math.round(F.C[i][1] * SOMME_MELANGE / s));
+}
 /* Décale la PART AFFICHÉE de cette entrée de « pas », en laissant aux
    autres leur proportion relative. La formule vient de p = w/(w+r). */
 function regleMelange(F, i, pas){
@@ -993,6 +1088,7 @@ function regleMelange(F, i, pas){
   var p = F.C[i][1] / s, reste = s - F.C[i][1];
   var but = Math.min(0.95, Math.max(0.05, Math.round((p + pas) * 20) / 20));
   F.C[i][1] = reste * but / (1 - but);
+  normaliseMelange(F);
 }
 
 function decaleForme(F, dx, dy){
@@ -1216,7 +1312,44 @@ function installePlan(){
   var cv = $("planCv");
   if(!cv) return;
 
+  /* ---- LA PINCÉE À DEUX DOIGTS ----
+     Deux doigts ne dessinent pas : ils cadrent. Dès que le second se
+     pose, le trait en cours est ABANDONNÉ — c'est le geste attendu, et
+     laisser courir un trait pendant qu'on zoome poserait des formes au
+     hasard. Un doigt reste l'outil, deux doigts sont la vue : aucune
+     modalité à apprendre. */
+  var pince = null;
+  function deuxDoigts(ev){
+    if(!ev.touches || ev.touches.length < 2) return null;
+    var a = ev.touches[0], b = ev.touches[1];
+    var pa = planPixels(a.clientX, a.clientY), pb = planPixels(b.clientX, b.clientY);
+    return { d:Math.hypot(pb.x - pa.x, pb.y - pa.y),
+             cx:(pa.x + pb.x) / 2, cy:(pa.y + pb.y) / 2 };
+  }
+  function debutPince(ev){
+    var p = deuxDoigts(ev);
+    if(!p) return false;
+    /* on lâche le trait en cours, proprement */
+    if(planDoigt !== null){ if(planMode) finForme(); planDoigt = null; }
+    pince = p;
+    return true;
+  }
+  function bougePince(ev){
+    var p = deuxDoigts(ev);
+    if(!pince || !p) return false;
+    if(pince.d > 4 && p.d > 4) zoomPlanVers(p.cx, p.cy, p.d / pince.d);
+    /* le glissé des deux doigts déplace la carte du même mouvement */
+    planOx += p.cx - pince.cx;
+    planOy += p.cy - pince.cy;
+    if(planEch > planFit.e * 1.001) planVueLibre = true;
+    bornePlanVue();
+    pince = p;
+    dessinePlan();
+    return true;
+  }
+
   function debut(ev){
+    if(ev.touches && ev.touches.length >= 2){ debutPince(ev); ev.preventDefault(); return; }
     if(planDoigt !== null) return;
     var t = ev.changedTouches ? ev.changedTouches[0] : ev;
     planDoigt = ev.changedTouches ? t.identifier : "souris";
@@ -1233,6 +1366,7 @@ function installePlan(){
     ev.preventDefault();
   }
   function bouge(ev){
+    if(pince && ev.touches && ev.touches.length >= 2){ bougePince(ev); ev.preventDefault(); return; }
     if(planDoigt === null) return;
     var t = ev.changedTouches ? ev.changedTouches[0] : ev;
     if(ev.changedTouches && t.identifier !== planDoigt) return;
@@ -1241,11 +1375,41 @@ function installePlan(){
     ev.preventDefault();
   }
   function fin(ev){
+    /* Tant qu'il reste deux doigts, on cadre encore. En dessous, la
+       pincée s'achève — et le doigt restant ne se met PAS à dessiner :
+       il faudrait le relever et le reposer, sinon lâcher un doigt en
+       fin de zoom laisserait une trace en travers de la carte. */
+    if(pince){
+      if(ev.touches && ev.touches.length >= 2){ ev.preventDefault(); return; }
+      pince = null;
+      planDoigt = null;
+      majPanneauPlan();
+      ev.preventDefault();
+      return;
+    }
     if(planDoigt === null) return;
     planDoigt = null;
     if(planMode) finForme();
     ev.preventDefault();
   }
+  /* La molette, pour qui édite à la souris. Le zoom se fait sous le
+     pointeur, comme partout ailleurs dans le jeu. */
+  function molette(ev){
+    var p = planPixels(ev.clientX, ev.clientY);
+    if(zoomPlanVers(p.x, p.y, ev.deltaY < 0 ? 1.18 : 1 / 1.18)){
+      dessinePlan(); majPanneauPlan();
+    }
+    ev.preventDefault();
+  }
+  cv.addEventListener("wheel", molette, { passive:false });
+
+  function boutonVue(id, f){
+    var b = $(id);
+    if(b) b.addEventListener("click", function(){ f(); dessinePlan(); majPanneauPlan(); });
+  }
+  boutonVue("btPlanZp",  function(){ zoomPlanVers(planCv.width / 2, planCv.height / 2, 1.35); });
+  boutonVue("btPlanZm",  function(){ zoomPlanVers(planCv.width / 2, planCv.height / 2, 1 / 1.35); });
+  boutonVue("btPlanFit", recadrePlan);
   cv.addEventListener("touchstart", debut, { passive:false });
   cv.addEventListener("touchmove",  bouge, { passive:false });
   cv.addEventListener("touchend",   fin,   { passive:false });
