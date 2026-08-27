@@ -1461,6 +1461,119 @@ G("4. Déterminisme de la génération de carte");
        "il faut balayer " + Math.ceil((O.rayon * 2) / maille) + " case(s) autour");
   })();
 
+  /* ---- LE DOC ----
+     Cinq par navette, il ne tire pas, il recoud. Une troupe de soutien
+     a deux façons de rater : ne rien changer, ou rendre le reste
+     immortel. C'est cette fenêtre-là qu'on épingle ici, en chiffres. */
+  G("4e. Le Doc");
+  (function(){
+    var D = N.UNI.doc, M = N.UNI.furie;
+    ok("le Doc existe et s'appelle Doc", !!D && D.nom === "Doc");
+    if(!D) return;
+    ok("il est proposé au briefing", N.TYPES_TROUPE.indexOf("doc") >= 0);
+    ok("cinq Docs par navette", N.placesNavette("doc") === 5, "" + N.placesNavette("doc"));
+    ok("il ne gonfle pas la flotte maximale",
+       N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("commando"),
+       "" + N.flotteMaximum());
+
+    /* IL EST HORS DE LA CHAÎNE DE TIR. `degats: 0` n'est pas un
+       réglage faible, c'est la porte de sortie : une cadence nulle et
+       zéro dégât, et rien dans le code de ciblage ne le concerne. */
+    ok("il ne fait aucun dégât", D.degats === 0);
+    ok("et n'a aucune cadence de tir", D.cadence === 0);
+    ok("il soigne, et il est le seul", D.soin > 0 &&
+       Object.keys(N.UNI).filter(function(t){ return N.UNI[t].soin; }).length === 1,
+       D.soin + " PV/s");
+
+    /* LA FENÊTRE DE SOIN — les deux bornes, l'une contre l'autre.
+       En bas : un seul Doc doit rendre moins de vie que la PLUS FAIBLE
+       défense n'en retire, sinon un soldat planté sous une tourelle ne
+       meurt plus jamais et la carte devient une salle d'attente.
+       En haut : une navette ENTIÈRE de cinq Docs, tous empilés sur le
+       même blessé, ne doit toujours pas tenir la plus forte défense —
+       sans quoi le bon coup n'est plus d'assaillir mais de camper. */
+    var dps = {}, mini = 1e9, maxi = 0, nomMini = "", nomMaxi = "";
+    Object.keys(N.DEF).forEach(function(t){
+      var b = N.DEF[t];
+      if(!(b.degats > 0) || !(b.cadence > 0)) return;
+      var v = b.degats / (b.cadence / 1000);
+      dps[t] = v;
+      if(v < mini){ mini = v; nomMini = b.nom; }
+      if(v > maxi){ maxi = v; nomMaxi = b.nom; }
+    });
+    ok("un Doc rend moins de vie que la plus faible défense n'en retire ("
+       + D.soin + " < " + mini.toFixed(1) + " PV/s, " + nomMini + ")",
+       D.soin < mini, D.soin + " contre " + mini.toFixed(1));
+    ok("une navette entière de Docs ne tient toujours pas devant la plus forte ("
+       + (D.soin * N.placesNavette("doc")) + " < " + maxi.toFixed(1) + " PV/s, " + nomMaxi + ")",
+       D.soin * N.placesNavette("doc") < maxi,
+       (D.soin * N.placesNavette("doc")) + " contre " + maxi.toFixed(1));
+    ok("mais il change quelque chose : une Furie remise sur pied en moins de dix secondes",
+       M.pv / D.soin < 10, (M.pv / D.soin).toFixed(1) + " s");
+
+    /* IL SUIT, IL NE MÈNE PAS. Sa vitesse propre est un PLAFOND :
+       majDoc() la ramène à celle de l'escorte. Elle doit donc dépasser
+       celle de TOUTES les troupes — sinon il ne rattrape jamais un
+       Ogre lancé — sans excès, puisqu'elle ne sert qu'au rattrapage. */
+    var plusVite = 0, nomVite = "";
+    Object.keys(N.UNI).forEach(function(t){
+      if(t === "doc") return;
+      if(N.UNI[t].vitesse > plusVite){ plusVite = N.UNI[t].vitesse; nomVite = N.UNI[t].nom; }
+    });
+    ok("il va plus vite que la troupe la plus rapide (" + nomVite + "), sinon il la perd",
+       D.vitesse > plusVite, D.vitesse + " > " + plusVite);
+    ok("mais à peine : moins de 20 % de plus, c'est une marge de rattrapage",
+       D.vitesse / plusVite < 1.20, "×" + (D.vitesse / plusVite).toFixed(3));
+
+    /* PORTÉES. Il s'arrête DANS son rayon de soin, et il cherche plus
+       loin qu'il ne soigne : sinon il ne trouverait que ce qu'il touche
+       déjà, et n'irait jamais chercher personne. */
+    ok("il s'arrête à l'intérieur de son rayon de soin",
+       D.arret < D.portee, D.arret + " < " + D.portee);
+    ok("il cherche bien plus loin qu'il ne soigne",
+       N.EQ.DOC_RECHERCHE > D.portee * 2, N.EQ.DOC_RECHERCHE + " contre " + D.portee);
+    ok("… mais pas à travers toute l'île", N.EQ.DOC_RECHERCHE < N.GW / 4,
+       "" + N.EQ.DOC_RECHERCHE);
+    ok("il tient debout plus longtemps qu'une Furie sans être un char",
+       D.pv > M.pv && D.pv < N.UNI.commando.pv, D.pv + " PV");
+    ok("il est aussi discret qu'une petite troupe",
+       D.rayon < N.UNI.ogre.rayon && D.rayon <= N.UNI.commando.rayon);
+
+    /* LE FIL — deux bits pour le type, et la compatibilité dans les
+       deux sens. Le bit 0 reste l'orientation ; au-dessus vient
+       l'INDICE dans TYPES_TROUPE. Tout tient à l'ORDRE de cette table :
+       furie en 0 et commando en 1 sont les deux valeurs qu'un ancien
+       client sait produire, et elles gardent leur sens. */
+    var T = N.TYPES_TROUPE;
+    ok("quatre troupes exactement", T.length === 4, T.join(","));
+    ok("l'ordre historique est intact : furie=0, commando=1",
+       T[0] === "furie" && T[1] === "commando", T.join(","));
+    ok("le type tient sur deux bits — au-delà, le format du fil casse",
+       T.length <= 4, T.length + " types");
+    var rond = true, det = "";
+    for(var i = 0; i < T.length; i++){
+      for(var d = 0; d < 2; d++){
+        var code = (i << 1) + d;
+        if(T[code >> 1] !== T[i] || !!(code & 1) !== !!d){ rond = false; det += code + " "; }
+      }
+    }
+    ok("chaque type et chaque orientation font l'aller-retour", rond, det);
+    /* Ce qu'un ANCIEN client comprend en recevant les nouveaux codes :
+       il ne lit que le bit 1. Un Ogre lui arrive en Furie, un Doc en
+       Commando — une silhouette approchée, jamais une erreur. */
+    ok("un ancien client voit l'Ogre en Furie, le Doc en Commando",
+       !(((T.indexOf("ogre") << 1) + 1) & 2) && !!(((T.indexOf("doc") << 1) + 1) & 2));
+    /* Et ce qu'un client NEUF comprend en recevant les anciens codes. */
+    ok("les quatre anciens codes gardent exactement leur sens",
+       T[0 >> 1] === "furie" && T[1 >> 1] === "furie" &&
+       T[2 >> 1] === "commando" && T[3 >> 1] === "commando");
+    /* Le décodage borne l'indice : un code venu d'un client PLUS
+       RÉCENT, qui connaîtrait une cinquième troupe, ne doit pas rendre
+       `undefined` et faire planter le dessin. */
+    var horsTable = Math.min(Math.max(9 >> 1, 0), T.length - 1);
+    ok("un type inconnu retombe sur une troupe existante", !!T[horsTable], T[horsTable]);
+  })();
+
   /* ---- LES CINQ CELLULES ÉLECTRIQUES ----
      Elles portent le bouclier du Brasier : leur nombre, leurs PV et
      leur placement sont du contrat de jeu, pas de la décoration. */

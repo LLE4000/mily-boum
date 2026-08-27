@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.30";
+var VERSION = "v0.31";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -121,6 +121,10 @@ var EQ = {
      celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
      soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
   FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  /* Jusqu'où un Doc va chercher un blessé. Au-delà il renonce et se
+     recolle à la troupe : un soigneur qui traverse la carte pour un
+     éclopé isolé abandonne les vingt autres. */
+  DOC_RECHERCHE        : 11.0,
   FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
   SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
   SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
@@ -407,6 +411,12 @@ var UNI = {
      bâtiments. À 0,72 trois ogres se chevauchaient presque entièrement :
      leur corps fait trois fois celui d'une Furie et déborde largement de
      l'écart qui convient à une petite troupe. */
+  /* LE DOC. `degats: 0` n'est pas un oubli : c'est ce qui le fait
+     sortir de toute la chaîne de tir. `soin` est le champ qui le
+     remplace, et il n'existe que sur lui. */
+  doc     :{ nom:"Doc",      role:"soigne les blessés",  pv:300, portee:3.4, arret:2.6,
+             degats:0,   cadence:0,    vitesse:1.85,  rayon:0.36, places:5, soin:12 },
+
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, ech:3,
@@ -420,7 +430,30 @@ var UNI = {
             avec une gerbe, et il n'a nulle part où se mettre à couvert. */
          vuln:{ precision:5, mortier:2 } }
 };
-var TYPES_TROUPE = ["furie", "commando", "ogre"];
+/* ================================================================
+   LE DOC — la quatrième troupe, et la première qui ne tire pas.
+
+   Cinq par navette. Il ne fait aucun dégât : il SUIT la troupe et il
+   la recoud. Deux choses le distinguent de tout ce qui existait :
+
+     1. IL N'A PAS DE CIBLE. Les trois autres cherchent un bâtiment et
+        marchent dessus ; lui cherche un BLESSÉ, et à défaut il colle
+        au soldat le plus proche. C'est un satellite, pas un
+        assaillant.
+     2. IL PREND LA VITESSE DE CELUI QU'IL SUIT. Sa vitesse propre
+        (1,85) n'est qu'un plafond : elle est là pour qu'il puisse
+        rattraper un Ogre lancé (1,782), jamais pour qu'il le double.
+        Un soigneur qui distance sa troupe arrive seul au contact et
+        meurt le premier ; un soigneur qui traîne ne soigne personne.
+        Il adopte donc la vitesse du type qu'il escorte.
+
+   `soin` est en points de vie par seconde, et il vaut douze : cinq
+   Docs — une navette pleine — rendent soixante points par seconde à
+   tout ce qui saigne autour d'eux, à comparer aux trente de la
+   capacité Soin, qui est ponctuelle et coûte de l'énergie. C'est le
+   chiffre à bouger si l'équilibre ne va pas ; tout le reste est de la
+   plomberie. */
+var TYPES_TROUPE = ["furie", "commando", "ogre", "doc"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },

@@ -1214,7 +1214,7 @@ function majUnitesDistantes(j, p){
     var u = j.unites[i];
     u.cx = e[0]; u.cy = e[1];
     var code = e[2] | 0;
-    u.type = (code & 2) ? "commando" : "furie";
+    u.type = TYPES_TROUPE[borne(code >> 1, 0, TYPES_TROUPE.length - 1)] || "furie";
     u.droite = !!(code & 1);
   }
   j.unites.length = p.length;
@@ -1230,7 +1230,11 @@ function interpoleDistants(dt){
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }
       var k = Math.min(1, dt * 5);
       u.gx += dx * k; u.gy += dy * k;
-      if(d > 0.02) u.phase += dt * (u.type === "commando" ? 6.2 : 8.6);
+      /* même cadence de pas que chez soi, sinon les troupes des autres
+         marchent au ralenti ou trottinent */
+      if(d > 0.02) u.phase += dt * (u.type === "ogre" ? 4.1
+                                  : u.type === "commando" ? 6.2
+                                  : u.type === "doc" ? 7.4 : 8.6);
     }
   }
 }
@@ -1268,8 +1272,20 @@ function majReseau(dt){
       var pas = Math.max(1, Math.ceil(n / EQ.UNITES_DIFFUSEES));
       for(var i = 0; i < n && p.length < EQ.UNITES_DIFFUSEES; i += pas){
         var u = jeu.unites[i];
+        /* LE TYPE TIENT MAINTENANT SUR DEUX BITS, ET LE CHANGEMENT EST
+           COMPATIBLE DANS LES DEUX SENS. Le bit 0 reste l'orientation ;
+           au-dessus, on écrit l'INDICE dans TYPES_TROUPE au lieu d'un
+           unique drapeau « commando ». Comme furie vaut 0 et commando 1,
+           les deux valeurs qu'un ancien client sait produire (0 et 2)
+           gardent exactement le sens qu'elles avaient. Un ancien client
+           qui reçoit un Ogre ou un Doc lit son bit 1 et affiche une
+           Furie ou un Commando : une silhouette approximative, jamais
+           une erreur. Et l'Ogre, qui n'était pas transmis du tout, l'est
+           enfin. */
+        var it = TYPES_TROUPE.indexOf(u.t);
+        if(it < 0) it = 0;
         p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
-                (u.t === "commando" ? 2 : 0) + (u.droite ? 1 : 0)]);
+                (it << 1) + (u.droite ? 1 : 0)]);
       }
       /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
          en cours : c'est un total qui ne fait que monter, donc le

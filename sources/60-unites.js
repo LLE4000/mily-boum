@@ -26,6 +26,26 @@ var C_COMMANDO = {
   pantalon:"#3a3a32", botte:"#22221f", laiton:"#d3a94e"
 };
 
+/* LE DOC. Palette d'arrière-boutique : une blouse qui a été blanche,
+   un manteau long et sombre par-dessus, du laiton fatigué. Le rouge de
+   la croix est le seul accent franc — c'est le seul endroit du
+   personnage qui prétende encore au métier. */
+var C_DOC = {
+  /* Le manteau tire vers le brun-olive et non vers le noir : à côté de
+     la Furie, entièrement noire, un Doc noir devenait une deuxième
+     Furie floue dans la foule. */
+  manteau:"#3b3428", manteauC:"#5c5138", manteauO:"#221d16",
+  blouse:"#e6dfcd", blouseO:"#b3ab96",
+  chapeau:"#2b251c", chapeauC:"#48402f", ruban:"#181410",
+  peau:"#e8c9a6", peauO:"#bd9a75",
+  cheveux:"#241c16",
+  lunettes:"#111013", verre:"#2b2b33", refletV:"#8fb8c8",
+  mallette:"#6b4a2f", malletteC:"#8f6a44", malletteO:"#3f2a19",
+  croix:"#b8342c", croixC:"#e05a4a",
+  laiton:"#c09a52", pantalon:"#232028", botte:"#171418",
+  fiole:"#8ce6a8"
+};
+
 /* ---------------------------------------------------------------
    Cache de dégradés.
    Les couleurs et les coordonnées locales d'un soldat ne changent
@@ -648,6 +668,260 @@ function dessineCommando(c, phase, variante, tir){
   c.restore();
 }
 
+/* ================================================================
+   LE DOC — « il doit avoir un air louche », et c'est tout le cahier
+   des charges du dessin.
+
+   Ce qui fait le louche, et rien d'autre : la POSTURE et le REGARD.
+   Un personnage bien planté sur ses deux jambes, la tête droite, aura
+   l'air honnête quel que soit son costume. Celui-ci est voûté, la tête
+   rentrée dans les épaules, une main enfouie dans la poche du manteau,
+   et surtout il ne regarde jamais devant lui : ses lunettes noires
+   sont tournées de trois quarts, comme s'il surveillait qui arrive
+   derrière. Le manteau long par-dessus la blouse fait le reste — on ne
+   sait pas ce qu'il y a dessous, et c'est le but.
+
+   La croix rouge sur la mallette est le seul accent franc du
+   personnage : c'est ce qui le rend lisible en une fraction de seconde
+   au milieu de cent vingt soldats, et c'est aussi la seule chose qui
+   prétende encore au métier.
+
+   `tir` vaut 1 quand il soigne : la mallette s'ouvre alors et la fiole
+   s'allume. C'est le même drapeau que pour les autres, réemployé —
+   un Doc ne tire jamais.
+   ================================================================ */
+function dessineDoc(c, phase, variante, tir){
+  var C = C_DOC;
+  var p = pose(phase, 3.4);
+  var yb = -p.rebond;
+  /* le manteau bat derrière lui, décalé d'un quart de cycle */
+  var pan = Math.sin(phase + 0.9) * 1.5;
+
+  c.fillStyle = "rgba(0,0,0,.26)";
+  c.beginPath(); c.ellipse(0, 0, 7.2, 3.1, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, yb);
+  c.lineCap = "round";
+
+  /* --- jambes : pantalon sombre, chaussures de ville fatiguées --- */
+  function jambe(dx, devant){
+    var kx = dx * 0.55, ky = -7.0;
+    c.strokeStyle = devant ? C.pantalon : ecl(C.pantalon, 0.74);
+    c.lineWidth = 3.7;
+    c.beginPath();
+    c.moveTo(dx * 0.10, -12.6);
+    c.quadraticCurveTo(dx * 0.32, -9.8, kx, ky);
+    c.stroke();
+    c.strokeStyle = devant ? C.botte : ecl(C.botte, 0.8);
+    c.lineWidth = 3.0;
+    c.beginPath();
+    c.moveTo(kx, ky);
+    c.quadraticCurveTo(dx * 0.84, -4.4, dx, -1.8);
+    c.stroke();
+    c.fillStyle = devant ? C.botte : ecl(C.botte, 0.8);
+    c.beginPath(); c.ellipse(dx + (dx > 0 ? 1.0 : -1.0), -1.1, 2.9, 1.6, 0, 0, 6.2832); c.fill();
+  }
+  jambe(p.jambeB * 0.85, false);
+  jambe(p.jambeA * 0.85, true);
+
+  c.save();
+  /* LA VOÛTE. Une inclinaison constante vers l'avant, en plus du
+     balancement : c'est elle qui donne l'échine basse. */
+  c.rotate(p.incl + 0.075);
+
+  /* --- le pan arrière du manteau, qui bat --- */
+  c.fillStyle = C.manteauO;
+  c.beginPath();
+  c.moveTo(-3.4, -19.0);
+  c.quadraticCurveTo(-6.2 + pan * 0.5, -13.0, -5.0 + pan, -7.2);
+  c.lineTo(-1.4, -8.6);
+  c.lineTo(-1.8, -18.4);
+  c.closePath(); c.fill();
+
+  /* --- LA BLOUSE. Elle monte jusqu'au col et descend sous le manteau :
+     c'est la bande claire au milieu d'une silhouette sombre qui dit
+     « soignant » en un dixième de seconde, à cent vingt unités à
+     l'écran. Cachée sous le manteau, comme au premier jet, le Doc
+     n'était plus qu'une ombre de plus. --- */
+  c.fillStyle = C.blouse;
+  c.beginPath();
+  c.moveTo(-2.4, -23.6); c.lineTo(2.4, -23.6);
+  c.lineTo(2.9, -8.2); c.lineTo(-2.9, -8.2);
+  c.closePath(); c.fill();
+  c.fillStyle = C.blouseO;
+  c.fillRect(-2.9, -9.4, 5.8, 1.2);
+  /* le rang de boutons, et la petite croix rouge sur la poitrine */
+  c.fillStyle = C.manteauO;
+  c.fillRect(-0.4, -21.8, 0.8, 0.8);
+  c.fillRect(-0.4, -18.6, 0.8, 0.8);
+  c.fillRect(-0.4, -15.4, 0.8, 0.8);
+  c.fillStyle = C.croix;
+  c.fillRect(1.1, -21.4, 0.7, 2.1);
+  c.fillRect(0.4, -20.7, 2.1, 0.7);
+
+  /* --- le manteau long, ouvert --- */
+  c.fillStyle = degCache(c, "docManteau", function(){
+    var g = c.createLinearGradient(-4.4, -24, 4.4, -9);
+    g.addColorStop(0, C.manteauC); g.addColorStop(0.45, C.manteau);
+    g.addColorStop(1, C.manteauO);
+    return g;
+  });
+  c.beginPath();
+  c.moveTo(-4.8, -23.6);
+  c.quadraticCurveTo(-5.9, -16.0, -5.1, -8.6);
+  c.lineTo(-2.6, -8.8);
+  c.lineTo(-2.9, -22.6);
+  c.lineTo(2.9, -22.6);
+  c.lineTo(2.6, -8.8);
+  c.lineTo(5.1, -8.6);
+  c.quadraticCurveTo(5.9, -16.0, 4.8, -23.6);
+  c.closePath(); c.fill();
+  /* col relevé — on se cache aussi le cou */
+  c.fillStyle = C.manteauC;
+  c.beginPath();
+  c.moveTo(-4.6, -23.4); c.lineTo(-2.0, -25.4); c.lineTo(-1.6, -21.6);
+  c.lineTo(1.6, -21.6); c.lineTo(2.0, -25.4); c.lineTo(4.6, -23.4);
+  c.closePath(); c.fill();
+  /* liseré de lumière sur l'épaule */
+  c.strokeStyle = "rgba(255,255,255,.30)"; c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-4.3, -22.6); c.quadraticCurveTo(-2.6, -25.0, 0.2, -25.4);
+  c.stroke();
+
+  /* --- LA MAIN DANS LA POCHE, bras arrière. Le geste du personnage. --- */
+  c.strokeStyle = C.manteauO; c.lineWidth = 2.5;
+  c.beginPath();
+  c.moveTo(-4.0, -21.6);
+  c.quadraticCurveTo(-5.8, -17.4, -3.6, -14.2);
+  c.stroke();
+  c.fillStyle = C.manteauO;
+  c.beginPath(); c.ellipse(-3.6, -13.8, 1.5, 1.2, 0, 0, 6.2832); c.fill();
+
+  /* --- LA MALLETTE, bras avant. Ouverte quand il travaille. --- */
+  var mx = tir ? 5.4 : 4.4, my = tir ? -15.4 : -11.6;
+  c.strokeStyle = C.manteau; c.lineWidth = 2.4;
+  c.beginPath();
+  c.moveTo(4.0, -21.4);
+  c.quadraticCurveTo(5.4, -18.4, mx, my + 1.2);
+  c.stroke();
+  c.save();
+  c.translate(mx, my);
+  c.rotate(tir ? -0.34 : 0.06);
+  /* le couvercle, relevé quand la mallette est ouverte */
+  if(tir){
+    c.fillStyle = C.malletteO;
+    c.save(); c.translate(-2.6, -1.5); c.rotate(-0.85);
+    c.fillRect(0, -3.6, 5.4, 3.6);
+    c.restore();
+    /* la fiole qui luit dedans */
+    c.fillStyle = C.fiole;
+    c.beginPath(); c.ellipse(0.6, -2.4, 1.5, 1.9, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,255,255,.55)";
+    c.beginPath(); c.ellipse(0.1, -3.0, 0.5, 0.8, 0, 0, 6.2832); c.fill();
+  }
+  c.fillStyle = degCache(c, "docMallette", function(){
+    var g = c.createLinearGradient(0, -2.0, 0, 2.4);
+    g.addColorStop(0, C.malletteC); g.addColorStop(0.5, C.mallette);
+    g.addColorStop(1, C.malletteO);
+    return g;
+  });
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-2.8, -2.0, 5.6, 4.4, 0.8); else c.rect(-2.8, -2.0, 5.6, 4.4);
+  c.fill();
+  /* la croix rouge — le seul accent franc du personnage */
+  c.fillStyle = C.croix;
+  c.fillRect(-0.5, -1.2, 1.0, 2.8);
+  c.fillRect(-1.4, -0.3, 2.8, 1.0);
+  c.fillStyle = C.croixC;
+  c.fillRect(-0.5, -1.2, 1.0, 0.7);
+  /* poignée + fermoirs de laiton */
+  c.strokeStyle = C.laiton; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(-1.5, -2.0); c.quadraticCurveTo(0, -3.5, 1.5, -2.0); c.stroke();
+  c.fillStyle = C.laiton;
+  c.fillRect(-2.2, -0.4, 0.7, 0.7);
+  c.fillRect(1.5, -0.4, 0.7, 0.7);
+  c.restore();
+
+  /* --- LA TÊTE, rentrée dans les épaules et tournée de trois quarts ---
+     C'est le regard de côté qui fait tout : il ne regarde pas où il
+     va, il regarde qui vient. */
+  var tx = 0.9;                       /* décalage : la tête n'est pas dans l'axe */
+  c.fillStyle = C.peauO;
+  c.beginPath(); c.ellipse(tx, -26.4, 3.5, 3.9, 0.06, 0, 6.2832); c.fill();
+  c.fillStyle = C.peau;
+  c.beginPath(); c.ellipse(tx - 0.35, -26.7, 3.1, 3.6, 0.06, 0, 6.2832); c.fill();
+  /* la mâchoire mal rasée */
+  c.fillStyle = "rgba(36,28,22,.30)";
+  c.beginPath(); c.ellipse(tx + 0.1, -24.4, 2.5, 1.5, 0, 0, 6.2832); c.fill();
+
+  /* cheveux plaqués en arrière, un peu gras */
+  c.fillStyle = C.cheveux;
+  c.beginPath();
+  c.moveTo(tx - 3.4, -27.6);
+  c.quadraticCurveTo(tx - 1.0, -31.0, tx + 3.2, -28.8);
+  c.quadraticCurveTo(tx + 1.4, -29.4, tx - 0.6, -29.0);
+  c.quadraticCurveTo(tx - 2.4, -28.6, tx - 3.4, -27.6);
+  c.closePath(); c.fill();
+
+  /* LE CHAPEAU, RABATTU SUR LES YEUX.
+     C'est lui qui fait le personnage, et c'est aussi lui qui le rend
+     reconnaissable de loin : la Furie a une chevelure, le Commando un
+     casque, l'Ogre sa masse — il manquait au Doc une silhouette à lui.
+     Le bord est plus large devant que derrière, et il descend jusqu'à
+     la ligne des lunettes : on ne voit de son visage que la mâchoire
+     et deux verres noirs. */
+  c.fillStyle = C.chapeau;
+  c.beginPath();
+  c.ellipse(tx - 0.2, -28.8, 5.0, 1.35, -0.05, 0, 6.2832);
+  c.fill();
+  c.fillStyle = C.chapeauC;
+  c.beginPath();
+  c.moveTo(tx - 3.0, -29.2);
+  c.quadraticCurveTo(tx - 2.7, -32.6, tx + 0.2, -32.7);
+  c.quadraticCurveTo(tx + 3.0, -32.5, tx + 3.1, -29.2);
+  c.closePath(); c.fill();
+  /* le pli du sommet, et le ruban */
+  c.strokeStyle = C.chapeau; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(tx - 0.6, -32.6); c.lineTo(tx + 0.1, -30.6); c.stroke();
+  c.fillStyle = C.ruban;
+  c.beginPath();
+  c.moveTo(tx - 3.0, -29.4); c.lineTo(tx + 3.1, -29.4);
+  c.lineTo(tx + 3.05, -30.5); c.lineTo(tx - 2.92, -30.5);
+  c.closePath(); c.fill();
+  /* la variante : chapeau incliné, ou une mèche qui dépasse */
+  if(variante !== 1){
+    c.strokeStyle = C.cheveux; c.lineWidth = 1.0;
+    c.beginPath();
+    c.moveTo(tx - 3.0, -28.4);
+    c.quadraticCurveTo(tx - 3.9, -26.6, tx - 3.1, -25.2);
+    c.stroke();
+  }
+
+  /* LES LUNETTES NOIRES. Rondes, petites, posées bas sur le nez : on
+     voit qu'il y a des yeux derrière et qu'ils ne regardent pas là où
+     ils devraient. */
+  c.strokeStyle = C.lunettes; c.lineWidth = 0.7;
+  c.fillStyle = C.verre;
+  c.beginPath(); c.ellipse(tx - 1.5, -26.9, 1.35, 1.25, 0, 0, 6.2832); c.fill(); c.stroke();
+  c.beginPath(); c.ellipse(tx + 1.6, -27.0, 1.35, 1.25, 0, 0, 6.2832); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(tx - 0.2, -27.0); c.lineTo(tx + 0.3, -27.0); c.stroke();
+  /* le reflet, décalé du même côté sur les deux verres : c'est ce qui
+     dit qu'il regarde AILLEURS */
+  c.fillStyle = rgba(C.refletV, 0.7);
+  c.fillRect(tx - 2.0, -27.5, 0.7, 0.6);
+  c.fillRect(tx + 1.1, -27.6, 0.7, 0.6);
+
+  /* le cure-dent au coin de la bouche, variante */
+  if(variante === 2){
+    c.strokeStyle = "#d8cba8"; c.lineWidth = 0.55;
+    c.beginPath(); c.moveTo(tx + 2.0, -24.9); c.lineTo(tx + 4.2, -25.4); c.stroke();
+  }
+
+  c.restore();
+  c.restore();
+}
+
 /* Aiguillage */
 function dessineUnite(c, type, phase, variante, tir){
   /* L'Ogre vit dans son propre fichier (62-ogre.js) : il est trois fois
@@ -655,6 +929,7 @@ function dessineUnite(c, type, phase, variante, tir){
      garde-fou typeof le rend optionnel — si un jour on retire le
      fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
+  if(type === "doc" && typeof dessineDoc === "function"){ dessineDoc(c, phase, variante, tir); return; }
   if(type === "commando") dessineCommando(c, phase, variante, tir);
   else dessineFurie(c, phase, variante, tir);
 }
@@ -670,7 +945,7 @@ function dessineUnite(c, type, phase, variante, tir){
 var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["furie", "commando", "ogre"];
+var VIG_TYPES = ["furie", "commando", "ogre", "doc"];
 
 function construitVignettesGrises(){
   vignettes = [];

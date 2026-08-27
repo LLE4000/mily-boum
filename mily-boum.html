@@ -1223,7 +1223,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.30";
+var VERSION = "v0.31";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1335,6 +1335,10 @@ var EQ = {
      celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
      soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
   FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  /* Jusqu'où un Doc va chercher un blessé. Au-delà il renonce et se
+     recolle à la troupe : un soigneur qui traverse la carte pour un
+     éclopé isolé abandonne les vingt autres. */
+  DOC_RECHERCHE        : 11.0,
   FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
   SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
   SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
@@ -1621,6 +1625,12 @@ var UNI = {
      bâtiments. À 0,72 trois ogres se chevauchaient presque entièrement :
      leur corps fait trois fois celui d'une Furie et déborde largement de
      l'écart qui convient à une petite troupe. */
+  /* LE DOC. `degats: 0` n'est pas un oubli : c'est ce qui le fait
+     sortir de toute la chaîne de tir. `soin` est le champ qui le
+     remplace, et il n'existe que sur lui. */
+  doc     :{ nom:"Doc",      role:"soigne les blessés",  pv:300, portee:3.4, arret:2.6,
+             degats:0,   cadence:0,    vitesse:1.85,  rayon:0.36, places:5, soin:12 },
+
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, ech:3,
@@ -1634,7 +1644,30 @@ var UNI = {
             avec une gerbe, et il n'a nulle part où se mettre à couvert. */
          vuln:{ precision:5, mortier:2 } }
 };
-var TYPES_TROUPE = ["furie", "commando", "ogre"];
+/* ================================================================
+   LE DOC — la quatrième troupe, et la première qui ne tire pas.
+
+   Cinq par navette. Il ne fait aucun dégât : il SUIT la troupe et il
+   la recoud. Deux choses le distinguent de tout ce qui existait :
+
+     1. IL N'A PAS DE CIBLE. Les trois autres cherchent un bâtiment et
+        marchent dessus ; lui cherche un BLESSÉ, et à défaut il colle
+        au soldat le plus proche. C'est un satellite, pas un
+        assaillant.
+     2. IL PREND LA VITESSE DE CELUI QU'IL SUIT. Sa vitesse propre
+        (1,85) n'est qu'un plafond : elle est là pour qu'il puisse
+        rattraper un Ogre lancé (1,782), jamais pour qu'il le double.
+        Un soigneur qui distance sa troupe arrive seul au contact et
+        meurt le premier ; un soigneur qui traîne ne soigne personne.
+        Il adopte donc la vitesse du type qu'il escorte.
+
+   `soin` est en points de vie par seconde, et il vaut douze : cinq
+   Docs — une navette pleine — rendent soixante points par seconde à
+   tout ce qui saigne autour d'eux, à comparer aux trente de la
+   capacité Soin, qui est ponctuelle et coûte de l'énergie. C'est le
+   chiffre à bouger si l'équilibre ne va pas ; tout le reste est de la
+   plomberie. */
+var TYPES_TROUPE = ["furie", "commando", "ogre", "doc"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },
@@ -19606,6 +19639,26 @@ var C_COMMANDO = {
   pantalon:"#3a3a32", botte:"#22221f", laiton:"#d3a94e"
 };
 
+/* LE DOC. Palette d'arrière-boutique : une blouse qui a été blanche,
+   un manteau long et sombre par-dessus, du laiton fatigué. Le rouge de
+   la croix est le seul accent franc — c'est le seul endroit du
+   personnage qui prétende encore au métier. */
+var C_DOC = {
+  /* Le manteau tire vers le brun-olive et non vers le noir : à côté de
+     la Furie, entièrement noire, un Doc noir devenait une deuxième
+     Furie floue dans la foule. */
+  manteau:"#3b3428", manteauC:"#5c5138", manteauO:"#221d16",
+  blouse:"#e6dfcd", blouseO:"#b3ab96",
+  chapeau:"#2b251c", chapeauC:"#48402f", ruban:"#181410",
+  peau:"#e8c9a6", peauO:"#bd9a75",
+  cheveux:"#241c16",
+  lunettes:"#111013", verre:"#2b2b33", refletV:"#8fb8c8",
+  mallette:"#6b4a2f", malletteC:"#8f6a44", malletteO:"#3f2a19",
+  croix:"#b8342c", croixC:"#e05a4a",
+  laiton:"#c09a52", pantalon:"#232028", botte:"#171418",
+  fiole:"#8ce6a8"
+};
+
 /* ---------------------------------------------------------------
    Cache de dégradés.
    Les couleurs et les coordonnées locales d'un soldat ne changent
@@ -20228,6 +20281,260 @@ function dessineCommando(c, phase, variante, tir){
   c.restore();
 }
 
+/* ================================================================
+   LE DOC — « il doit avoir un air louche », et c'est tout le cahier
+   des charges du dessin.
+
+   Ce qui fait le louche, et rien d'autre : la POSTURE et le REGARD.
+   Un personnage bien planté sur ses deux jambes, la tête droite, aura
+   l'air honnête quel que soit son costume. Celui-ci est voûté, la tête
+   rentrée dans les épaules, une main enfouie dans la poche du manteau,
+   et surtout il ne regarde jamais devant lui : ses lunettes noires
+   sont tournées de trois quarts, comme s'il surveillait qui arrive
+   derrière. Le manteau long par-dessus la blouse fait le reste — on ne
+   sait pas ce qu'il y a dessous, et c'est le but.
+
+   La croix rouge sur la mallette est le seul accent franc du
+   personnage : c'est ce qui le rend lisible en une fraction de seconde
+   au milieu de cent vingt soldats, et c'est aussi la seule chose qui
+   prétende encore au métier.
+
+   `tir` vaut 1 quand il soigne : la mallette s'ouvre alors et la fiole
+   s'allume. C'est le même drapeau que pour les autres, réemployé —
+   un Doc ne tire jamais.
+   ================================================================ */
+function dessineDoc(c, phase, variante, tir){
+  var C = C_DOC;
+  var p = pose(phase, 3.4);
+  var yb = -p.rebond;
+  /* le manteau bat derrière lui, décalé d'un quart de cycle */
+  var pan = Math.sin(phase + 0.9) * 1.5;
+
+  c.fillStyle = "rgba(0,0,0,.26)";
+  c.beginPath(); c.ellipse(0, 0, 7.2, 3.1, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, yb);
+  c.lineCap = "round";
+
+  /* --- jambes : pantalon sombre, chaussures de ville fatiguées --- */
+  function jambe(dx, devant){
+    var kx = dx * 0.55, ky = -7.0;
+    c.strokeStyle = devant ? C.pantalon : ecl(C.pantalon, 0.74);
+    c.lineWidth = 3.7;
+    c.beginPath();
+    c.moveTo(dx * 0.10, -12.6);
+    c.quadraticCurveTo(dx * 0.32, -9.8, kx, ky);
+    c.stroke();
+    c.strokeStyle = devant ? C.botte : ecl(C.botte, 0.8);
+    c.lineWidth = 3.0;
+    c.beginPath();
+    c.moveTo(kx, ky);
+    c.quadraticCurveTo(dx * 0.84, -4.4, dx, -1.8);
+    c.stroke();
+    c.fillStyle = devant ? C.botte : ecl(C.botte, 0.8);
+    c.beginPath(); c.ellipse(dx + (dx > 0 ? 1.0 : -1.0), -1.1, 2.9, 1.6, 0, 0, 6.2832); c.fill();
+  }
+  jambe(p.jambeB * 0.85, false);
+  jambe(p.jambeA * 0.85, true);
+
+  c.save();
+  /* LA VOÛTE. Une inclinaison constante vers l'avant, en plus du
+     balancement : c'est elle qui donne l'échine basse. */
+  c.rotate(p.incl + 0.075);
+
+  /* --- le pan arrière du manteau, qui bat --- */
+  c.fillStyle = C.manteauO;
+  c.beginPath();
+  c.moveTo(-3.4, -19.0);
+  c.quadraticCurveTo(-6.2 + pan * 0.5, -13.0, -5.0 + pan, -7.2);
+  c.lineTo(-1.4, -8.6);
+  c.lineTo(-1.8, -18.4);
+  c.closePath(); c.fill();
+
+  /* --- LA BLOUSE. Elle monte jusqu'au col et descend sous le manteau :
+     c'est la bande claire au milieu d'une silhouette sombre qui dit
+     « soignant » en un dixième de seconde, à cent vingt unités à
+     l'écran. Cachée sous le manteau, comme au premier jet, le Doc
+     n'était plus qu'une ombre de plus. --- */
+  c.fillStyle = C.blouse;
+  c.beginPath();
+  c.moveTo(-2.4, -23.6); c.lineTo(2.4, -23.6);
+  c.lineTo(2.9, -8.2); c.lineTo(-2.9, -8.2);
+  c.closePath(); c.fill();
+  c.fillStyle = C.blouseO;
+  c.fillRect(-2.9, -9.4, 5.8, 1.2);
+  /* le rang de boutons, et la petite croix rouge sur la poitrine */
+  c.fillStyle = C.manteauO;
+  c.fillRect(-0.4, -21.8, 0.8, 0.8);
+  c.fillRect(-0.4, -18.6, 0.8, 0.8);
+  c.fillRect(-0.4, -15.4, 0.8, 0.8);
+  c.fillStyle = C.croix;
+  c.fillRect(1.1, -21.4, 0.7, 2.1);
+  c.fillRect(0.4, -20.7, 2.1, 0.7);
+
+  /* --- le manteau long, ouvert --- */
+  c.fillStyle = degCache(c, "docManteau", function(){
+    var g = c.createLinearGradient(-4.4, -24, 4.4, -9);
+    g.addColorStop(0, C.manteauC); g.addColorStop(0.45, C.manteau);
+    g.addColorStop(1, C.manteauO);
+    return g;
+  });
+  c.beginPath();
+  c.moveTo(-4.8, -23.6);
+  c.quadraticCurveTo(-5.9, -16.0, -5.1, -8.6);
+  c.lineTo(-2.6, -8.8);
+  c.lineTo(-2.9, -22.6);
+  c.lineTo(2.9, -22.6);
+  c.lineTo(2.6, -8.8);
+  c.lineTo(5.1, -8.6);
+  c.quadraticCurveTo(5.9, -16.0, 4.8, -23.6);
+  c.closePath(); c.fill();
+  /* col relevé — on se cache aussi le cou */
+  c.fillStyle = C.manteauC;
+  c.beginPath();
+  c.moveTo(-4.6, -23.4); c.lineTo(-2.0, -25.4); c.lineTo(-1.6, -21.6);
+  c.lineTo(1.6, -21.6); c.lineTo(2.0, -25.4); c.lineTo(4.6, -23.4);
+  c.closePath(); c.fill();
+  /* liseré de lumière sur l'épaule */
+  c.strokeStyle = "rgba(255,255,255,.30)"; c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-4.3, -22.6); c.quadraticCurveTo(-2.6, -25.0, 0.2, -25.4);
+  c.stroke();
+
+  /* --- LA MAIN DANS LA POCHE, bras arrière. Le geste du personnage. --- */
+  c.strokeStyle = C.manteauO; c.lineWidth = 2.5;
+  c.beginPath();
+  c.moveTo(-4.0, -21.6);
+  c.quadraticCurveTo(-5.8, -17.4, -3.6, -14.2);
+  c.stroke();
+  c.fillStyle = C.manteauO;
+  c.beginPath(); c.ellipse(-3.6, -13.8, 1.5, 1.2, 0, 0, 6.2832); c.fill();
+
+  /* --- LA MALLETTE, bras avant. Ouverte quand il travaille. --- */
+  var mx = tir ? 5.4 : 4.4, my = tir ? -15.4 : -11.6;
+  c.strokeStyle = C.manteau; c.lineWidth = 2.4;
+  c.beginPath();
+  c.moveTo(4.0, -21.4);
+  c.quadraticCurveTo(5.4, -18.4, mx, my + 1.2);
+  c.stroke();
+  c.save();
+  c.translate(mx, my);
+  c.rotate(tir ? -0.34 : 0.06);
+  /* le couvercle, relevé quand la mallette est ouverte */
+  if(tir){
+    c.fillStyle = C.malletteO;
+    c.save(); c.translate(-2.6, -1.5); c.rotate(-0.85);
+    c.fillRect(0, -3.6, 5.4, 3.6);
+    c.restore();
+    /* la fiole qui luit dedans */
+    c.fillStyle = C.fiole;
+    c.beginPath(); c.ellipse(0.6, -2.4, 1.5, 1.9, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,255,255,.55)";
+    c.beginPath(); c.ellipse(0.1, -3.0, 0.5, 0.8, 0, 0, 6.2832); c.fill();
+  }
+  c.fillStyle = degCache(c, "docMallette", function(){
+    var g = c.createLinearGradient(0, -2.0, 0, 2.4);
+    g.addColorStop(0, C.malletteC); g.addColorStop(0.5, C.mallette);
+    g.addColorStop(1, C.malletteO);
+    return g;
+  });
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-2.8, -2.0, 5.6, 4.4, 0.8); else c.rect(-2.8, -2.0, 5.6, 4.4);
+  c.fill();
+  /* la croix rouge — le seul accent franc du personnage */
+  c.fillStyle = C.croix;
+  c.fillRect(-0.5, -1.2, 1.0, 2.8);
+  c.fillRect(-1.4, -0.3, 2.8, 1.0);
+  c.fillStyle = C.croixC;
+  c.fillRect(-0.5, -1.2, 1.0, 0.7);
+  /* poignée + fermoirs de laiton */
+  c.strokeStyle = C.laiton; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(-1.5, -2.0); c.quadraticCurveTo(0, -3.5, 1.5, -2.0); c.stroke();
+  c.fillStyle = C.laiton;
+  c.fillRect(-2.2, -0.4, 0.7, 0.7);
+  c.fillRect(1.5, -0.4, 0.7, 0.7);
+  c.restore();
+
+  /* --- LA TÊTE, rentrée dans les épaules et tournée de trois quarts ---
+     C'est le regard de côté qui fait tout : il ne regarde pas où il
+     va, il regarde qui vient. */
+  var tx = 0.9;                       /* décalage : la tête n'est pas dans l'axe */
+  c.fillStyle = C.peauO;
+  c.beginPath(); c.ellipse(tx, -26.4, 3.5, 3.9, 0.06, 0, 6.2832); c.fill();
+  c.fillStyle = C.peau;
+  c.beginPath(); c.ellipse(tx - 0.35, -26.7, 3.1, 3.6, 0.06, 0, 6.2832); c.fill();
+  /* la mâchoire mal rasée */
+  c.fillStyle = "rgba(36,28,22,.30)";
+  c.beginPath(); c.ellipse(tx + 0.1, -24.4, 2.5, 1.5, 0, 0, 6.2832); c.fill();
+
+  /* cheveux plaqués en arrière, un peu gras */
+  c.fillStyle = C.cheveux;
+  c.beginPath();
+  c.moveTo(tx - 3.4, -27.6);
+  c.quadraticCurveTo(tx - 1.0, -31.0, tx + 3.2, -28.8);
+  c.quadraticCurveTo(tx + 1.4, -29.4, tx - 0.6, -29.0);
+  c.quadraticCurveTo(tx - 2.4, -28.6, tx - 3.4, -27.6);
+  c.closePath(); c.fill();
+
+  /* LE CHAPEAU, RABATTU SUR LES YEUX.
+     C'est lui qui fait le personnage, et c'est aussi lui qui le rend
+     reconnaissable de loin : la Furie a une chevelure, le Commando un
+     casque, l'Ogre sa masse — il manquait au Doc une silhouette à lui.
+     Le bord est plus large devant que derrière, et il descend jusqu'à
+     la ligne des lunettes : on ne voit de son visage que la mâchoire
+     et deux verres noirs. */
+  c.fillStyle = C.chapeau;
+  c.beginPath();
+  c.ellipse(tx - 0.2, -28.8, 5.0, 1.35, -0.05, 0, 6.2832);
+  c.fill();
+  c.fillStyle = C.chapeauC;
+  c.beginPath();
+  c.moveTo(tx - 3.0, -29.2);
+  c.quadraticCurveTo(tx - 2.7, -32.6, tx + 0.2, -32.7);
+  c.quadraticCurveTo(tx + 3.0, -32.5, tx + 3.1, -29.2);
+  c.closePath(); c.fill();
+  /* le pli du sommet, et le ruban */
+  c.strokeStyle = C.chapeau; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(tx - 0.6, -32.6); c.lineTo(tx + 0.1, -30.6); c.stroke();
+  c.fillStyle = C.ruban;
+  c.beginPath();
+  c.moveTo(tx - 3.0, -29.4); c.lineTo(tx + 3.1, -29.4);
+  c.lineTo(tx + 3.05, -30.5); c.lineTo(tx - 2.92, -30.5);
+  c.closePath(); c.fill();
+  /* la variante : chapeau incliné, ou une mèche qui dépasse */
+  if(variante !== 1){
+    c.strokeStyle = C.cheveux; c.lineWidth = 1.0;
+    c.beginPath();
+    c.moveTo(tx - 3.0, -28.4);
+    c.quadraticCurveTo(tx - 3.9, -26.6, tx - 3.1, -25.2);
+    c.stroke();
+  }
+
+  /* LES LUNETTES NOIRES. Rondes, petites, posées bas sur le nez : on
+     voit qu'il y a des yeux derrière et qu'ils ne regardent pas là où
+     ils devraient. */
+  c.strokeStyle = C.lunettes; c.lineWidth = 0.7;
+  c.fillStyle = C.verre;
+  c.beginPath(); c.ellipse(tx - 1.5, -26.9, 1.35, 1.25, 0, 0, 6.2832); c.fill(); c.stroke();
+  c.beginPath(); c.ellipse(tx + 1.6, -27.0, 1.35, 1.25, 0, 0, 6.2832); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(tx - 0.2, -27.0); c.lineTo(tx + 0.3, -27.0); c.stroke();
+  /* le reflet, décalé du même côté sur les deux verres : c'est ce qui
+     dit qu'il regarde AILLEURS */
+  c.fillStyle = rgba(C.refletV, 0.7);
+  c.fillRect(tx - 2.0, -27.5, 0.7, 0.6);
+  c.fillRect(tx + 1.1, -27.6, 0.7, 0.6);
+
+  /* le cure-dent au coin de la bouche, variante */
+  if(variante === 2){
+    c.strokeStyle = "#d8cba8"; c.lineWidth = 0.55;
+    c.beginPath(); c.moveTo(tx + 2.0, -24.9); c.lineTo(tx + 4.2, -25.4); c.stroke();
+  }
+
+  c.restore();
+  c.restore();
+}
+
 /* Aiguillage */
 function dessineUnite(c, type, phase, variante, tir){
   /* L'Ogre vit dans son propre fichier (62-ogre.js) : il est trois fois
@@ -20235,6 +20542,7 @@ function dessineUnite(c, type, phase, variante, tir){
      garde-fou typeof le rend optionnel — si un jour on retire le
      fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
+  if(type === "doc" && typeof dessineDoc === "function"){ dessineDoc(c, phase, variante, tir); return; }
   if(type === "commando") dessineCommando(c, phase, variante, tir);
   else dessineFurie(c, phase, variante, tir);
 }
@@ -20250,7 +20558,7 @@ function dessineUnite(c, type, phase, variante, tir){
 var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["furie", "commando", "ogre"];
+var VIG_TYPES = ["furie", "commando", "ogre", "doc"];
 
 function construitVignettesGrises(){
   vignettes = [];
@@ -24592,6 +24900,139 @@ function abimeQG(d){
 /* ---------------------------------------------------------------
    Déplacement avec évitement simple
    --------------------------------------------------------------- */
+/* ================================================================
+   LE DOC, IMAGE PAR IMAGE
+
+   Trois questions, dans cet ordre, et la première qui répond gagne :
+     1. y a-t-il un blessé à portée de recherche ? on va le recoudre ;
+     2. sinon, où est la troupe ? on s'y recolle ;
+     3. et dans tous les cas, on soigne tout ce qui saigne autour.
+
+   IL PREND LA VITESSE DE CELUI QU'IL SUIT, et c'est le cœur du
+   personnage. Sa vitesse propre est un PLAFOND, pas une consigne :
+   assez haute pour rattraper un Ogre lancé, jamais pour le doubler.
+   Un soigneur qui distance sa troupe arrive seul au contact et meurt
+   le premier ; un soigneur qui traîne ne soigne personne. Il regarde
+   donc ce qu'il escorte et se cale dessus.
+   ================================================================ */
+var docAutour = [];
+function majDoc(u, f, dt, cachee){
+  u.cible = null;
+  u.tir = 0;
+  u.arme = 0;
+
+  /* --- 1. LE PLUS MAL EN POINT, à portée de recherche ---
+     On rafraîchit ce choix comme tout le reste : à espacement, sinon
+     quarante Docs balaieraient la grille à chaque image. Mais on le
+     rafraîchit AUSSI dès que le patient est guéri ou tombé, sans quoi
+     le Doc resterait planté au chevet d'un mort. */
+  var pat = u.patient;
+  var patOk = pat && pat.pv > 0 && pat.pv < pat.pvMax && !pat.leurre &&
+              Math.hypot(pat.gx - u.gx, pat.gy - u.gy) < EQ.DOC_RECHERCHE * 1.4;
+  u.prochainCiblage -= dt * 1000;
+  if(!patOk || u.prochainCiblage <= 0){
+    u.prochainCiblage = 320 + Math.random() * 240;
+    u.patient = chercheBlesseAutour(u, EQ.DOC_RECHERCHE);
+    pat = u.patient;
+  }
+
+  /* --- 2. SINON, ON SUIT LA TROUPE ---
+     L'escorte sert à deux choses : donner une direction, et donner une
+     VITESSE. On garde l'unité suivie d'une image à l'autre tant qu'elle
+     vit, pour que le Doc ne saute pas d'un soldat à l'autre. */
+  var but = pat, escorte = pat;
+  if(!but){
+    if(!u.escorte || u.escorte.pv <= 0 ||
+       Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > 26){
+      u.escorte = chercheCompagnon(u);
+    }
+    but = escorte = u.escorte;
+  }
+
+  /* LA VITESSE ADOPTÉE. On plafonne par la sienne, et l'on ajoute une
+     marge de rattrapage quand on est loin derrière : sans elle, un Doc
+     qui a pris du retard ne le rattraperait jamais, puisqu'il irait
+     exactement à la vitesse de celui qu'il poursuit. */
+  var vitBase = f.vitesse;
+  if(escorte && UNI[escorte.t]) vitBase = Math.min(f.vitesse, UNI[escorte.t].vitesse);
+  var loin = but ? Math.hypot(but.gx - u.gx, but.gy - u.gy) : 0;
+  if(loin > 6) vitBase = Math.min(f.vitesse, vitBase * 1.35);
+  var vit = vitBase * (u.ralenti > 0 ? EQ.CRYO_RALENTI : 1);
+
+  if(but){
+    var dx = but.gx - u.gx, dy = but.gy - u.gy;
+    var dd = Math.hypot(dx, dy);
+    u.droite = (dx - dy) > 0;
+    /* il se tient À CÔTÉ de son patient, pas dessus : sa place dans la
+       spirale de formation lui sert de décalage, comme aux autres */
+    var vise = pat ? f.arret : 2.2;
+    if(dd > vise){
+      deplace(u, dx + u.ancX * 1.4, dy + u.ancY * 1.4, vit * dt);
+      u.phase += dt * 7.4;
+    }else{
+      u.phase += dt * 1.5;
+    }
+  }else{
+    u.phase += dt * 1.5;
+  }
+
+  /* --- 3. LA SOIGNE ---
+     Elle ne dépend PAS d'avoir un patient désigné : tout ce qui saigne
+     dans le rayon en profite, blessé de passage compris. Un Doc qui
+     court vers un éclopé soigne au passage ceux qu'il croise, et c'est
+     ce qui le rend agréable à jouer.
+     La fumée l'arrête, comme elle arrête les tirs : sous Brouillard on
+     se planque, on ne travaille pas. */
+  if(cachee) return;
+  unitesAutour(u.gx, u.gy, f.portee, docAutour);
+  var rendu = 0;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a.leurre || a.pv <= 0 || a.pv >= a.pvMax) continue;
+    if(Math.hypot(a.gx - u.gx, a.gy - u.gy) > f.portee) continue;
+    a.pv = Math.min(a.pvMax, a.pv + f.soin * dt);
+    if(a.brulure > 0) a.brulure = Math.max(0, a.brulure - dt * 1.4);
+    rendu++;
+  }
+  /* `soigne` sert au dessin : la mallette s'ouvre et la croix
+     s'allume tant qu'il y a du travail. */
+  u.soigne = rendu;
+  if(rendu) u.tir = 1;
+}
+
+/* Le blessé le plus mal en point dans un rayon. On compare la PART de
+   vie perdue et non les points perdus : sans ça le Doc irait toujours
+   au Commando, qui a cinq fois plus de vie qu'une Furie et perd donc
+   cinq fois plus de points pour la même égratignure. */
+function chercheBlesseAutour(u, r){
+  unitesAutour(u.gx, u.gy, r, docAutour);
+  var pire = null, pireP = 0.999;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a === u || a.leurre || a.pv <= 0 || a.pv >= a.pvMax) continue;
+    if(Math.hypot(a.gx - u.gx, a.gy - u.gy) > r) continue;
+    var part = a.pv / a.pvMax;
+    if(part < pireP){ pireP = part; pire = a; }
+  }
+  return pire;
+}
+
+/* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
+   escorte. Entre Docs on se suivrait en ronde sans jamais rejoindre
+   l'assaut. */
+function chercheCompagnon(u){
+  var r = 30;
+  unitesAutour(u.gx, u.gy, r, docAutour);
+  var pres = null, dPres = 1e9;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a === u || a.t === "doc" || a.leurre || a.pv <= 0) continue;
+    var d = Math.hypot(a.gx - u.gx, a.gy - u.gy);
+    if(d < dPres){ dPres = d; pres = a; }
+  }
+  return pres;
+}
+
 /* Caps de contournement, de plus en plus écartés du cap voulu : un
    frôlement, un évitement franc, la parallèle au mur, puis des caps de
    dégagement vers l'arrière pour sortir d'un cul-de-sac. */
@@ -24776,6 +25217,13 @@ function majUnites(dt){
       u.cible = null;
       u.prochainCiblage = 0;
     }
+
+    /* --- LE DOC : il ne cherche pas de cible, il cherche un blessé ---
+       Placé APRÈS la balise, donc un Doc sous fusée marche avec le
+       groupe comme tout le monde, et se remet à soigner en arrivant.
+       Et placé AVANT le ciblage, donc il ne consomme jamais une
+       recherche de bâtiment qui ne lui servirait à rien. */
+    if(u.t === "doc"){ majDoc(u, f, dt, cachee); continue; }
 
     /* --- recherche de cible, espacée --- */
     u.prochainCiblage -= dt * 1000;
@@ -27643,7 +28091,7 @@ function majUnitesDistantes(j, p){
     var u = j.unites[i];
     u.cx = e[0]; u.cy = e[1];
     var code = e[2] | 0;
-    u.type = (code & 2) ? "commando" : "furie";
+    u.type = TYPES_TROUPE[borne(code >> 1, 0, TYPES_TROUPE.length - 1)] || "furie";
     u.droite = !!(code & 1);
   }
   j.unites.length = p.length;
@@ -27659,7 +28107,11 @@ function interpoleDistants(dt){
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }
       var k = Math.min(1, dt * 5);
       u.gx += dx * k; u.gy += dy * k;
-      if(d > 0.02) u.phase += dt * (u.type === "commando" ? 6.2 : 8.6);
+      /* même cadence de pas que chez soi, sinon les troupes des autres
+         marchent au ralenti ou trottinent */
+      if(d > 0.02) u.phase += dt * (u.type === "ogre" ? 4.1
+                                  : u.type === "commando" ? 6.2
+                                  : u.type === "doc" ? 7.4 : 8.6);
     }
   }
 }
@@ -27697,8 +28149,20 @@ function majReseau(dt){
       var pas = Math.max(1, Math.ceil(n / EQ.UNITES_DIFFUSEES));
       for(var i = 0; i < n && p.length < EQ.UNITES_DIFFUSEES; i += pas){
         var u = jeu.unites[i];
+        /* LE TYPE TIENT MAINTENANT SUR DEUX BITS, ET LE CHANGEMENT EST
+           COMPATIBLE DANS LES DEUX SENS. Le bit 0 reste l'orientation ;
+           au-dessus, on écrit l'INDICE dans TYPES_TROUPE au lieu d'un
+           unique drapeau « commando ». Comme furie vaut 0 et commando 1,
+           les deux valeurs qu'un ancien client sait produire (0 et 2)
+           gardent exactement le sens qu'elles avaient. Un ancien client
+           qui reçoit un Ogre ou un Doc lit son bit 1 et affiche une
+           Furie ou un Commando : une silhouette approximative, jamais
+           une erreur. Et l'Ogre, qui n'était pas transmis du tout, l'est
+           enfin. */
+        var it = TYPES_TROUPE.indexOf(u.t);
+        if(it < 0) it = 0;
         p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
-                (u.t === "commando" ? 2 : 0) + (u.droite ? 1 : 0)]);
+                (it << 1) + (u.droite ? 1 : 0)]);
       }
       /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
          en cours : c'est un total qui ne fait que monter, donc le

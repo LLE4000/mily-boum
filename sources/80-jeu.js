@@ -1095,6 +1095,139 @@ function abimeQG(d){
 /* ---------------------------------------------------------------
    Déplacement avec évitement simple
    --------------------------------------------------------------- */
+/* ================================================================
+   LE DOC, IMAGE PAR IMAGE
+
+   Trois questions, dans cet ordre, et la première qui répond gagne :
+     1. y a-t-il un blessé à portée de recherche ? on va le recoudre ;
+     2. sinon, où est la troupe ? on s'y recolle ;
+     3. et dans tous les cas, on soigne tout ce qui saigne autour.
+
+   IL PREND LA VITESSE DE CELUI QU'IL SUIT, et c'est le cœur du
+   personnage. Sa vitesse propre est un PLAFOND, pas une consigne :
+   assez haute pour rattraper un Ogre lancé, jamais pour le doubler.
+   Un soigneur qui distance sa troupe arrive seul au contact et meurt
+   le premier ; un soigneur qui traîne ne soigne personne. Il regarde
+   donc ce qu'il escorte et se cale dessus.
+   ================================================================ */
+var docAutour = [];
+function majDoc(u, f, dt, cachee){
+  u.cible = null;
+  u.tir = 0;
+  u.arme = 0;
+
+  /* --- 1. LE PLUS MAL EN POINT, à portée de recherche ---
+     On rafraîchit ce choix comme tout le reste : à espacement, sinon
+     quarante Docs balaieraient la grille à chaque image. Mais on le
+     rafraîchit AUSSI dès que le patient est guéri ou tombé, sans quoi
+     le Doc resterait planté au chevet d'un mort. */
+  var pat = u.patient;
+  var patOk = pat && pat.pv > 0 && pat.pv < pat.pvMax && !pat.leurre &&
+              Math.hypot(pat.gx - u.gx, pat.gy - u.gy) < EQ.DOC_RECHERCHE * 1.4;
+  u.prochainCiblage -= dt * 1000;
+  if(!patOk || u.prochainCiblage <= 0){
+    u.prochainCiblage = 320 + Math.random() * 240;
+    u.patient = chercheBlesseAutour(u, EQ.DOC_RECHERCHE);
+    pat = u.patient;
+  }
+
+  /* --- 2. SINON, ON SUIT LA TROUPE ---
+     L'escorte sert à deux choses : donner une direction, et donner une
+     VITESSE. On garde l'unité suivie d'une image à l'autre tant qu'elle
+     vit, pour que le Doc ne saute pas d'un soldat à l'autre. */
+  var but = pat, escorte = pat;
+  if(!but){
+    if(!u.escorte || u.escorte.pv <= 0 ||
+       Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > 26){
+      u.escorte = chercheCompagnon(u);
+    }
+    but = escorte = u.escorte;
+  }
+
+  /* LA VITESSE ADOPTÉE. On plafonne par la sienne, et l'on ajoute une
+     marge de rattrapage quand on est loin derrière : sans elle, un Doc
+     qui a pris du retard ne le rattraperait jamais, puisqu'il irait
+     exactement à la vitesse de celui qu'il poursuit. */
+  var vitBase = f.vitesse;
+  if(escorte && UNI[escorte.t]) vitBase = Math.min(f.vitesse, UNI[escorte.t].vitesse);
+  var loin = but ? Math.hypot(but.gx - u.gx, but.gy - u.gy) : 0;
+  if(loin > 6) vitBase = Math.min(f.vitesse, vitBase * 1.35);
+  var vit = vitBase * (u.ralenti > 0 ? EQ.CRYO_RALENTI : 1);
+
+  if(but){
+    var dx = but.gx - u.gx, dy = but.gy - u.gy;
+    var dd = Math.hypot(dx, dy);
+    u.droite = (dx - dy) > 0;
+    /* il se tient À CÔTÉ de son patient, pas dessus : sa place dans la
+       spirale de formation lui sert de décalage, comme aux autres */
+    var vise = pat ? f.arret : 2.2;
+    if(dd > vise){
+      deplace(u, dx + u.ancX * 1.4, dy + u.ancY * 1.4, vit * dt);
+      u.phase += dt * 7.4;
+    }else{
+      u.phase += dt * 1.5;
+    }
+  }else{
+    u.phase += dt * 1.5;
+  }
+
+  /* --- 3. LA SOIGNE ---
+     Elle ne dépend PAS d'avoir un patient désigné : tout ce qui saigne
+     dans le rayon en profite, blessé de passage compris. Un Doc qui
+     court vers un éclopé soigne au passage ceux qu'il croise, et c'est
+     ce qui le rend agréable à jouer.
+     La fumée l'arrête, comme elle arrête les tirs : sous Brouillard on
+     se planque, on ne travaille pas. */
+  if(cachee) return;
+  unitesAutour(u.gx, u.gy, f.portee, docAutour);
+  var rendu = 0;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a.leurre || a.pv <= 0 || a.pv >= a.pvMax) continue;
+    if(Math.hypot(a.gx - u.gx, a.gy - u.gy) > f.portee) continue;
+    a.pv = Math.min(a.pvMax, a.pv + f.soin * dt);
+    if(a.brulure > 0) a.brulure = Math.max(0, a.brulure - dt * 1.4);
+    rendu++;
+  }
+  /* `soigne` sert au dessin : la mallette s'ouvre et la croix
+     s'allume tant qu'il y a du travail. */
+  u.soigne = rendu;
+  if(rendu) u.tir = 1;
+}
+
+/* Le blessé le plus mal en point dans un rayon. On compare la PART de
+   vie perdue et non les points perdus : sans ça le Doc irait toujours
+   au Commando, qui a cinq fois plus de vie qu'une Furie et perd donc
+   cinq fois plus de points pour la même égratignure. */
+function chercheBlesseAutour(u, r){
+  unitesAutour(u.gx, u.gy, r, docAutour);
+  var pire = null, pireP = 0.999;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a === u || a.leurre || a.pv <= 0 || a.pv >= a.pvMax) continue;
+    if(Math.hypot(a.gx - u.gx, a.gy - u.gy) > r) continue;
+    var part = a.pv / a.pvMax;
+    if(part < pireP){ pireP = part; pire = a; }
+  }
+  return pire;
+}
+
+/* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
+   escorte. Entre Docs on se suivrait en ronde sans jamais rejoindre
+   l'assaut. */
+function chercheCompagnon(u){
+  var r = 30;
+  unitesAutour(u.gx, u.gy, r, docAutour);
+  var pres = null, dPres = 1e9;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a === u || a.t === "doc" || a.leurre || a.pv <= 0) continue;
+    var d = Math.hypot(a.gx - u.gx, a.gy - u.gy);
+    if(d < dPres){ dPres = d; pres = a; }
+  }
+  return pres;
+}
+
 /* Caps de contournement, de plus en plus écartés du cap voulu : un
    frôlement, un évitement franc, la parallèle au mur, puis des caps de
    dégagement vers l'arrière pour sortir d'un cul-de-sac. */
@@ -1279,6 +1412,13 @@ function majUnites(dt){
       u.cible = null;
       u.prochainCiblage = 0;
     }
+
+    /* --- LE DOC : il ne cherche pas de cible, il cherche un blessé ---
+       Placé APRÈS la balise, donc un Doc sous fusée marche avec le
+       groupe comme tout le monde, et se remet à soigner en arrivant.
+       Et placé AVANT le ciblage, donc il ne consomme jamais une
+       recherche de bâtiment qui ne lui servirait à rien. */
+    if(u.t === "doc"){ majDoc(u, f, dt, cachee); continue; }
 
     /* --- recherche de cible, espacée --- */
     u.prochainCiblage -= dt * 1000;
