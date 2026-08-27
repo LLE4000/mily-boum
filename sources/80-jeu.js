@@ -10,6 +10,52 @@ var W = 960, H = 600, dpr = 1;
 /* ---------------------------------------------------------------
    Création d'une carte
    --------------------------------------------------------------- */
+/* ================================================================
+   LES NUAGES, SUR LES SIX CARTES
+
+   Ils n'existaient que sur la jungle : la fabrication était
+   conditionnée à la présence de geysers, si bien que jeu.nuages était
+   un tableau VIDE sur les cinq îles ordinaires — la dérive tournait à
+   vide et le dessin ne trouvait rien. Leur ciel n'avait tout
+   simplement rien dedans.
+
+   Deux climats, et ils ne demandent pas les mêmes nuages.
+
+   L'ORAGE : TROIS, ET ILS VONT VITE. Trois, parce qu'un ciel couvert
+   n'est plus une menace, c'est un décor. Trois masses qu'on suit du
+   regard, c'est une information — celle qui dit où la foudre va
+   tomber. Leur vitesse est le DOUBLE de celle d'une troupe : on ne
+   distance pas un orage, on ne peut que sortir de son chemin.
+
+   LE BEAU TEMPS : CINQ, ET ILS PRENNENT LEUR TEMPS. Ils ne menacent
+   de rien, donc ils n'ont pas à être comptés ni suivis : ils habitent
+   le ciel. Plus larges, trois fois plus lents, et ils virent
+   mollement — un nuage de beau temps qui filerait aurait l'air d'un
+   nuage d'orage sans la couleur.
+
+   Le tirage est Math.random et non le prng de la carte, à dessein :
+   le ciel n'appartient pas au terrain, deux joueurs sur la même île
+   n'ont pas à voir les mêmes nuages au même endroit.
+   ================================================================ */
+function fabriqueNuages(orage){
+  var n = orage ? 3 : 5;
+  var out = [], i;
+  for(i = 0; i < n; i++){
+    out.push({ gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
+               r:orage ? 10 + Math.random() * 6 : 13 + Math.random() * 9,
+               cap:Math.random() * 6.2832,
+               /* le cap voulu, vers lequel le vrai cap glisse : c'est
+                  cette inertie qui donne une dérive erratique plutôt
+                  qu'un zigzag mécanique */
+               capBut:Math.random() * 6.2832,
+               vire:1 + Math.random() * 3,
+               v:EQ.NUAGE_VITESSE * (orage ? 0.85 + Math.random() * 0.3
+                                           : 0.26 + Math.random() * 0.14),
+               ph:i * 2.3 });
+  }
+  return out;
+}
+
 function nouvelleCarte(index, pvConnu){
   /* les panneaux de commande, effacés pendant la séquence finale de
      l'île précédente, reviennent avec la nouvelle */
@@ -66,20 +112,7 @@ function nouvelleCarte(index, pvConnu){
        information — celle qui dit où la foudre va tomber.
        Leur vitesse est le DOUBLE de celle d'une troupe : on ne
        distance pas un orage, on ne peut que sortir de son chemin. */
-    nuages:(carte.geysers && carte.geysers.length)
-      ? Array.apply(null, Array(3)).map(function(_, i){
-          return { gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
-                   r:10 + Math.random() * 6,
-                   cap:Math.random() * 6.2832,
-                   /* le cap voulu, vers lequel le vrai cap glisse :
-                      c'est cette inertie qui donne une dérive erratique
-                      plutôt qu'un zigzag mécanique */
-                   capBut:Math.random() * 6.2832,
-                   vire:1 + Math.random() * 3,
-                   v:EQ.NUAGE_VITESSE * (0.85 + Math.random() * 0.3),
-                   ph:i * 2.3 };
-        })
-      : [],
+    nuages:fabriqueNuages(carte.geysers && carte.geysers.length ? 1 : 0),
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -2607,6 +2640,7 @@ function majJeu(dt){
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);
   majZones(dt);
+  majNuages(dt);          // le ciel n appartient pas à la jungle
   majJungle(dt);
   majQG(dt, jeu.tps);
   majEffets(dt);
@@ -2620,33 +2654,18 @@ function majJeu(dt){
    ce qui permet à la carte événement d'être aussi chargée sans rien
    coûter aux autres.
    ================================================================ */
-function majJungle(dt){
-  if(!jeu.geysers.length) return;
-  var i;
+/* ================================================================
+   LA DÉRIVE DES NUAGES — SUR LES SIX CARTES
 
-  /* --- LES GEYSERS ---
-     Chacun a sa propre horloge, tirée à la génération : deux bouches
-     voisines ne soufflent jamais ensemble, sans quoi la carte
-     ressemblerait à un métronome. */
-  for(i = 0; i < jeu.geysers.length; i++){
-    var g = jeu.geysers[i], avant = g.phase;
-    majGeyser(g, dt);
-    /* le souffle ne s'entend que si l'on est à portée de l'écran :
-       vingt-deux bouches qui grondent toutes ensemble seraient un
-       vacarme, et la plupart sont hors champ */
-    if(g.phase === "feu" && avant !== "feu" && son.geyser &&
-       Math.abs(g.gx - centreCameraGx()) < 26 && Math.abs(g.gy - centreCameraGy()) < 26){
-      son.geyser();
-    }
-  }
-
-  /* --- LES NUAGES D'ORAGE ---
-     Ils dérivent lentement au-dessus de l'île, et c'est d'EUX que
-     tombe la foudre. Sans eux, l'éclair sortait de nulle part : le
-     joueur ne pouvait pas comprendre pourquoi il tombait là, et encore
-     moins l'anticiper. Avec eux, une masse sombre qui passe au-dessus
-     de ses troupes devient une raison de les déplacer. */
-  for(i = 0; i < jeu.nuages.length; i++){
+   Elle vivait DANS majJungle, qui sort à sa première ligne quand il
+   n y a pas de geysers : sur les cinq îles ordinaires, elle ne
+   tournait jamais. Leurs nuages, une fois enfin fabriqués, seraient
+   restés cloués au ciel — vérifié avant correction, cinq nuages
+   immobiles au dixième de case près après quatre secondes.
+   Le ciel n appartient pas à la jungle : la dérive en sort.
+   ================================================================ */
+function majNuages(dt){
+  for(var i = 0; i < jeu.nuages.length; i++){
     var nu = jeu.nuages[i];
     /* UNE DÉRIVE ERRATIQUE, pas un zigzag. Le nuage se choisit un
        nouveau cap de temps en temps, et son cap réel GLISSE vers
@@ -2673,6 +2692,28 @@ function majJungle(dt){
     if(nu.gy < -22) nu.gy = GH + 20;
     if(nu.gy > GH + 22) nu.gy = -20;
   }
+}
+
+function majJungle(dt){
+  if(!jeu.geysers.length) return;
+  var i;
+
+  /* --- LES GEYSERS ---
+     Chacun a sa propre horloge, tirée à la génération : deux bouches
+     voisines ne soufflent jamais ensemble, sans quoi la carte
+     ressemblerait à un métronome. */
+  for(i = 0; i < jeu.geysers.length; i++){
+    var g = jeu.geysers[i], avant = g.phase;
+    majGeyser(g, dt);
+    /* le souffle ne s'entend que si l'on est à portée de l'écran :
+       vingt-deux bouches qui grondent toutes ensemble seraient un
+       vacarme, et la plupart sont hors champ */
+    if(g.phase === "feu" && avant !== "feu" && son.geyser &&
+       Math.abs(g.gx - centreCameraGx()) < 26 && Math.abs(g.gy - centreCameraGy()) < 26){
+      son.geyser();
+    }
+  }
+
 
   /* --- LA FOUDRE ---
      Un impact toutes les quinze secondes. Le point n'est pas tiré au

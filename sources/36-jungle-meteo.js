@@ -633,8 +633,8 @@ function dessineLueursVegetation(c, tps){
    donc identiques chez tous les joueurs sans qu'aucun champ de plus
    ait besoin de circuler sur le réseau.
    ================================================================ */
-var MET_NUAGE   = "18,32,34";       // le ventre du nuage, presque noir
-var MET_NUAGE_H = "176,198,188";    // sa crête, qui prend ce qui reste de jour
+var MET_NUAGE_G   = "18,32,34";     // le ventre du nuage d orage, presque noir
+var MET_NUAGE_G_H = "176,198,188";  // sa crête, qui prend ce qui reste de jour
 /* La hauteur de la couche, en unités locales — la même pour les trois.
    Un ciel d'orage est une NAPPE : trois nuages à trois altitudes
    différentes se liraient comme trois objets sans rapport. C'est aussi
@@ -649,12 +649,25 @@ var MET_NUAGE_ALT = 340;
    seul, et la tuile est deux fois plus fine qu'à douze — 512 px, pour
    qu'un nuage occupant huit cents pixels d'écran ne soit pas un
    agrandissement de trois fois. */
-var metSpNuages = null;
-function spritesNuage(){
-  if(metSpNuages) return metSpNuages;
-  metSpNuages = [];
+/* LE NUAGE DE BEAU TEMPS.
+   Les cinq îles ordinaires n avaient AUCUN nuage : la création était
+   conditionnee aux geysers, donc a la seule jungle, et leur ciel etait
+   vide. Mais on ne peut pas y poser les memes : un nuage d orage a le
+   ventre presque noir et un rideau de pluie qui pend dessous — au
+   dessus d une plage ensoleillee, c est un contresens.
+   Meme silhouette, donc, meme code, mais deux couleurs et pas de
+   virga : le ventre gris clair garde un degrade lisible sous la crete
+   blanche, et rien ne tombe de ce nuage-la. */
+var MET_NUAGE_C   = "176,190,210";
+var MET_NUAGE_C_H = "255,255,255";
+var metSpNuages = null, metSpNuagesC = null;
+function spritesNuage(clair){
+  if(clair && metSpNuagesC) return metSpNuagesC;
+  if(!clair && metSpNuages) return metSpNuages;
+  var out = [];
+  var MET_NUAGE   = clair ? MET_NUAGE_C   : MET_NUAGE_G;
+  var MET_NUAGE_H = clair ? MET_NUAGE_C_H : MET_NUAGE_G_H;
   var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
-  var dp = disqueMeteo(MET_PLUIE);
   for(var v = 0; v < 4; v++){
     var cv = nouveauCanvas(512, 256);
     var g = cv.getContext("2d");
@@ -727,6 +740,7 @@ function spritesNuage(){
        nuage vers le bas : on repasse donc en source-over. */
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
+    if(clair){ out.push(cv); continue; }   // rien ne pend sous un beau nuage
     g.lineCap = "butt";
     g.strokeStyle = "rgba(" + MET_PLUIE + ",0.085)";
     g.lineWidth = 2.4;
@@ -737,9 +751,10 @@ function spritesNuage(){
       g.lineTo(vx + 10, vy + 34 + al() * 44);
     }
     g.stroke();
-    metSpNuages.push(cv);
+    out.push(cv);
   }
-  return metSpNuages;
+  if(clair) metSpNuagesC = out; else metSpNuages = out;
+  return out;
 }
 
 /* HALO ADDITIF, en ellipse et SANS LISSAGE.
@@ -790,14 +805,19 @@ function nuagesDuJeu(){
    pixels, c'est physiquement juste — le soleil n'est jamais tout à
    fait à la verticale — et l'opacité rendue compense la taille. */
 var MET_OMBRE_PART = 0.60;
-function dessineOmbresNuages(c, tps){
+/* `a` : l'opacité. Sous l'orage elle est franche — 0,36 — parce
+   qu'elle a un travail à faire : dire au sol où le nuage passe, donc
+   où la foudre peut tomber. Sur une île ensoleillée elle ne prévient
+   de rien, elle habite : un tiers de cette valeur suffit à donner du
+   relief au ciel sans salir le sable. */
+function dessineOmbresNuages(c, tps, a){
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
   var z = cam.z;
   var d = disqueMeteo(MET_OMBRE);
   c.save();
   c.imageSmoothingEnabled = false;
-  c.globalAlpha = 0.36;
+  c.globalAlpha = a || 0.36;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
@@ -824,12 +844,16 @@ function dessineOmbresNuages(c, tps){
         le même pixel de source, et le nuage se contente de translater.
         Sans cet arrondi, sa texture grouillait pendant qu'il avançait. */
 var metNuagesDessin = -1;
-function dessineNuagesJungle(c, tps){
+/* `clair` : le ciel des cinq îles ordinaires. Même silhouette, mais
+   plus haute — un beau nuage est loin, pas au-dessus de la tête — et
+   plus transparente, parce qu'elle ne menace de rien. */
+function dessineNuagesJungle(c, tps, clair){
   if(tps === metNuagesDessin) return;
   metNuagesDessin = tps;
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
-  var z = cam.z, sp = spritesNuage();
+  var z = cam.z, sp = spritesNuage(clair ? 1 : 0);
+  var alt = MET_NUAGE_ALT * (clair ? 1.35 : 1);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
@@ -841,9 +865,9 @@ function dessineNuagesJungle(c, tps){
     var w = Math.round(u.r * RX * 1.85 * z * souffle);
     var hh = Math.round(w * 0.5);
     var x = Math.round(p.x - w / 2);
-    var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);
+    var y = Math.round(p.y - alt * z - hh * 0.52);
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = 0.58;
+    c.globalAlpha = clair ? 0.62 : 0.58;
     c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();

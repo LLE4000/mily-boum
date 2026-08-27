@@ -1981,6 +1981,16 @@ function rendu(tps, dt){
     dessineCielOrage(ctx, tps);
     dessineBrumeSol(ctx, tps);
     repereMonde(ctx);
+  }else{
+    /* LE CIEL DES CINQ AUTRES ÎLES. Pas de nappe d ombres ni de brume
+       — il fait beau —, mais les ombres portées des nuages, oui : ce
+       sont elles qui rattachent une masse du ciel au sol qu elle
+       survole. Sans elles, un nuage flotte comme un autocollant.
+       Un tiers de l opacité de l orage : elle ne prévient de rien
+       ici, elle donne du relief. */
+    repereEcran(ctx);
+    dessineOmbresNuages(ctx, tps, 0.18);
+    repereMonde(ctx);
   }
   repereEcran(ctx);
 
@@ -2139,6 +2149,10 @@ function rendu(tps, dt){
     dessineLueursVegetation(ctx, tps);
     for(var ie = 0; ie < jeu.eclairs.length; ie++) dessineEclairJungle(ctx, jeu.eclairs[ie], tps);
     dessinePluieJungle(ctx, tps);
+  }else{
+    /* La masse, en l air, au-dessus de tout le reste du décor. */
+    repereEcran(ctx);
+    dessineNuagesJungle(ctx, tps, 1);
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de
