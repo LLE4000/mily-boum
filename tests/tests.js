@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -2457,6 +2457,44 @@ G("4. Déterminisme de la génération de carte");
     ok("la traînée s'éteint (" + N.EQ.TORNADE_TRAINEE
        + " s) bien avant que la tornade n'ait fini sa course",
        N.EQ.TORNADE_TRAINEE < N.EQ.TORNADE_VIE * N.EQ.TORNADE_TRAJET_MIN * 0.5);
+
+    /* ================================================================
+       LA FOUDRE, SÉPARÉE DE L'ORAGE
+
+       Elle n'appartenait qu'à la jungle parce que tout l'orage y était
+       d'un bloc : ciel vert, brume, pluie, nuages, foudre et tonnerre
+       tenaient dans un seul carteOrageuse(). Les ténèbres veulent la
+       foudre et le tonnerre, mais surtout PAS la pluie — il ne pleut
+       pas sur un monde de lave. Ces deux questions sont maintenant
+       distinctes, et ce groupe vérifie qu'elles le restent.
+       ================================================================ */
+    ok("la jungle a la foudre ET la pluie",
+       N.carteFoudre(N.IDX_JUNGLE) && N.carteOrageuse(N.IDX_JUNGLE));
+    ok("les ténèbres ont la foudre SANS la pluie",
+       N.carteFoudre(7) && !N.carteOrageuse(7));
+    ok("aucune autre île n'a de foudre",
+       N.CARTES.filter(function(c, i){ return N.carteFoudre(i); }).length === 2,
+       N.CARTES.filter(function(c, i){ return N.carteFoudre(i); })
+         .map(function(c){ return c.nom; }).join(", "));
+    ok("un orage implique toujours la foudre — jamais l'inverse",
+       N.CARTES.every(function(c, i){ return !N.carteOrageuse(i) || N.carteFoudre(i); }));
+    ok("une île inexistante n'a ni l'un ni l'autre",
+       !N.carteFoudre(999) && !N.carteOrageuse(999) && !N.carteFoudre(-1));
+    /* LE RYTHME. Celui des ténèbres est plus LENT, et ce n'est pas de
+       la timidité : cette île porte déjà les tornades. Deux dangers
+       qui tombent du ciel au même rythme ne se distinguent plus l'un
+       de l'autre — on ne saurait plus lequel on esquive. */
+    ok("la foudre des ténèbres (" + N.periodeEclair(7) + " s) est plus rare que celle de la jungle ("
+       + N.periodeEclair(N.IDX_JUNGLE) + " s)",
+       N.periodeEclair(7) > N.periodeEclair(N.IDX_JUNGLE) * 1.4);
+    ok("… parce que les ténèbres ont déjà les tornades",
+       N.carteTornades(7) && !N.carteTornades(N.IDX_JUNGLE));
+    /* Et les deux dangers du ciel des ténèbres ne se déclenchent pas
+       au même rythme : s'ils coïncidaient, on lirait un seul
+       phénomène. */
+    ok("foudre et tornades des ténèbres ont des périodes bien distinctes",
+       Math.abs(N.periodeEclair(7) - N.EQ.TORNADE_PERIODE) > 5,
+       N.periodeEclair(7) + " s contre " + N.EQ.TORNADE_PERIODE + " s");
 
     /* LES CIELS. Une seule île est orageuse ; les autres se partagent
        trois teintes de nuages, et aucune ne doit retomber par défaut

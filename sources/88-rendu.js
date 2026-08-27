@@ -2281,7 +2281,17 @@ function rendu(tps, dt){
        de la guinguette. Un seul ciel blanc pour toutes les îles non
        orageuses posait de la neige sur un monde de lave. */
     repereEcran(ctx);
+    /* LES ÎLES QUI ONT LA FOUDRE SANS AVOIR L ORAGE — les ténèbres.
+       On leur donne la lueur des roulements et les éclairs, PAS le
+       voile vert ni la pluie : il ne pleut pas sur un monde de lave.
+       La lueur d abord, sous les nuages : un ciel qui s allume
+       derrière une masse, c est ce qui dit qu il y a quelque chose
+       au-dessus. */
+    if(carteFoudre(jeu.index)) dessineLueurRoulement(ctx, tps);
     dessineNuagesJungle(ctx, tps, styleCiel(jeu.index));
+    if(carteFoudre(jeu.index))
+      for(var ie2 = 0; ie2 < jeu.eclairs.length; ie2++)
+        dessineEclairJungle(ctx, jeu.eclairs[ie2], tps);
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de

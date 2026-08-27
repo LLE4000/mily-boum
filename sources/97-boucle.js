@@ -97,6 +97,11 @@ function boucle(maintenant){
      dans 88-rendu.js : la présence de geysers, c'est-à-dire la
      jungle. */
   if(carteOrageuse(jeu.index)) majMeteoJungle(dt, tempsGlobal);
+  /* Les ténèbres grondent aussi, mais sans pluie ni froissement de
+     feuillage : elles n'ont ni l'un ni l'autre. majTonnerre() est la
+     moitié de majMeteoJungle() qui vaut pour toute île dont le ciel
+     gronde. */
+  else if(carteFoudre(jeu.index)) majTonnerre(dt, tempsGlobal);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);

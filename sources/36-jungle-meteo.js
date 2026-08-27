@@ -1784,15 +1784,50 @@ var ambianceJungle = {
    l'œil doivent parler du même orage, sans quoi le tonnerre n'est
    qu'une bande-son posée à côté. */
 var metDernierRoulement = -1, metProchainFroisse = 0;
-function majMeteoJungle(dt, tps){
+/* LA LUEUR DES ROULEMENTS, TOUTE SEULE.
+   dessineVoileOrage() la peint déjà, mais au milieu du voile vert et
+   de la vignette d'orage tropical — inutilisables sur une île de feu.
+   Celle-ci ne peint QUE le ciel qui s'allume, sur toute la largeur, et
+   sert aux îles qui ont la foudre sans avoir la pluie.
+   Sa teinte n'est pas celle de la jungle : sur un monde noir et rouge,
+   un flash vert-bleu se lirait comme une erreur. On garde le sprite du
+   ciel, et l'on pose par-dessus une lueur chaude — l'éclair, lui,
+   restera franchement froid, et c'est le contraste qu'on cherche. */
+var metLueurTps = -1;
+function dessineLueurRoulement(c, tps){
+  if(tps === metLueurTps) return;
+  metLueurTps = tps;
+  var r = roulementJungle(tps);
+  if(r <= 0.015) return;
+  var v = voilesOrage(c);
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = "lighter";
+  c.globalAlpha = Math.min(0.40, r * 0.22);
+  c.drawImage(v.ciel, 0, 0);
+  c.restore();
+}
+
+/* LE PILOTE SONORE, EN DEUX MORCEAUX.
+
+   Le tonnerre et l'ambiance ne vont pas ensemble. La pluie et le vent
+   qui tournent en boucle appartiennent à la jungle, et à elle seule :
+   une averse au-dessus d'un monde de lave serait un contresens. Les
+   ROULEMENTS, eux, valent pour toute île dont le ciel gronde.
+   D'où deux fonctions au lieu d'une, et deux verrous au lieu d'un. */
+function majTonnerre(dt, tps){
   greffeSonJungle();
   if(typeof son === "undefined" || !son.ok()) return;
-  ambianceJungle.demarre();
   var n = Math.floor(tps / MET_ROULEMENT);
   if(n !== metDernierRoulement && roulementJungle(tps) > 0.05){
     metDernierRoulement = n;
     grondementJungle(grosRoulement(n));
   }
+}
+function majMeteoJungle(dt, tps){
+  majTonnerre(dt, tps);
+  if(typeof son === "undefined" || !son.ok()) return;
+  ambianceJungle.demarre();
   metProchainFroisse -= dt;
   if(metProchainFroisse <= 0){
     metProchainFroisse = 2.5 + Math.random() * 5;

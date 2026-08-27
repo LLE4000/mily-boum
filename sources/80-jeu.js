@@ -113,7 +113,7 @@ function nouvelleCarte(index, pvConnu){
     geysers:(carte.geysers || []).map(function(g){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
-    eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
+    eclairs:[], prochainEclair:periodeEclair(index) * (0.4 + 0.5 * Math.random()),
     /* Les tornades de flammes des ténèbres, et la terre qu'elles
        laissent en feu derrière elles. Vides ailleurs : c'est
        carteTornades(index) qui décide, et lui seul. La première ne
@@ -2918,6 +2918,7 @@ function majJeu(dt){
      décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
      doit pas tirer une dernière fois dans la même image. */
   if(carteTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
+  majFoudre(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);
@@ -3001,6 +3002,26 @@ function majJungle(dt){
   }
 
 
+}
+
+/* ================================================================
+   LA FOUDRE — la jungle ET les ténèbres
+
+   Elle vivait dans majJungle(), avec les geysers, sous le même
+   verrou : carteOrageuse(). C'était juste tant qu'une seule île avait
+   un ciel. Les ténèbres veulent la foudre et le tonnerre, mais surtout
+   pas la pluie ni la brume verte — il ne pleut pas sur un monde de
+   lave. On sort donc la foudre de la jungle : elle a son verrou à
+   elle, carteFoudre(), et son rythme par île, periodeEclair().
+
+   Rien d'autre ne change. Le même éclair, le même impact mortel, la
+   même nappe qui court sur la terre. Un éclair blanc-bleu au-dessus
+   d'une île qui brûle est d'ailleurs le seul élément FROID de cette
+   carte-là — c'est très exactement ce qu'il y fait de mieux.
+   ================================================================ */
+function majFoudre(dt){
+  if(!carteFoudre(jeu.index)) return;
+  if(!jeu.nuages || !jeu.nuages.length) return;
   /* --- LA FOUDRE ---
      Un impact toutes les quinze secondes. Le point n'est pas tiré au
      hasard sur la carte : il tombe SOUS UN NUAGE, avec un peu de
@@ -3008,7 +3029,7 @@ function majJungle(dt){
      l'objectif ferait croire à un dégât qui n'existe pas. */
   jeu.prochainEclair -= dt;
   if(jeu.prochainEclair <= 0){
-    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.72 + Math.random() * 0.56);
+    jeu.prochainEclair = periodeEclair(jeu.index) * (0.72 + Math.random() * 0.56);
     var nu2 = jeu.nuages[(Math.random() * jeu.nuages.length) | 0];
     var ex, ey, essais = 0;
     do{
@@ -3035,7 +3056,7 @@ function majJungle(dt){
          unité : sans ce marquage, une troupe restée sur place aurait
          encaissé la nappe à chaque image et le rayon de mort aurait
          valu sept cases au lieu de deux. */
-  for(i = jeu.eclairs.length - 1; i >= 0; i--){
+  for(var i = jeu.eclairs.length - 1; i >= 0; i--){
     var e2 = jeu.eclairs[i];
     var avant = e2.front;
     e2.age += dt;

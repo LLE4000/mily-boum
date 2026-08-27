@@ -1332,7 +1332,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.42";
+var VERSION = "v0.43";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1405,6 +1405,11 @@ var EQ = {
   JUNGLE_MIN_JOUEURS   : 7,
   JUNGLE_ATTENTE_H     : 48,    // heures de verrou après une victoire
   JUNGLE_ECLAIR        : 15,    // secondes entre deux impacts de foudre
+  /* La foudre des ténèbres est plus RARE que celle de la jungle, et ce
+     n'est pas de la timidité : cette île porte déjà les tornades. Deux
+     dangers qui tombent du ciel au même rythme ne se distinguent plus
+     l'un de l'autre — on ne saurait plus lequel on esquive. */
+  TENEBRES_ECLAIR      : 26,    // secondes entre deux impacts
   JUNGLE_GEYSERS       : 22,    // ouvertures de feu sur l'île
   /* LE DURCISSEMENT DE LA CARTE ÉVÉNEMENT.
      Les défenses de la jungle sont plus dures et frappent plus fort
@@ -2193,6 +2198,26 @@ function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle");
    l'ÎLE, jamais d'un tirage ni d'un tableau qui pourrait revenir
    vide. */
 function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"); }
+
+/* ================================================================
+   OÙ LA FOUDRE TOMBE
+
+   Elle n'appartenait qu'à la jungle, parce que tout l'orage y était
+   d'un bloc : le ciel vert, la brume, la pluie, les nuages, la foudre
+   et le tonnerre tenaient dans un seul carteOrageuse(). Les ténèbres
+   veulent la FOUDRE et LE TONNERRE, mais surtout pas la pluie ni la
+   brume verte — il ne pleut pas sur un monde de lave.
+
+   On sépare donc les deux questions. carteOrageuse() reste « cette
+   île est-elle sous un orage tropical complet » ; carteFoudre() dit
+   « le ciel y jette-t-il des éclairs et gronde-t-il ». La jungle
+   répond oui aux deux, les ténèbres à la seconde seulement.
+   ================================================================ */
+function carteFoudre(i){ return carteOrageuse(i) || carteTornades(i); }
+/* Le rythme des impacts, par île. */
+function periodeEclair(i){
+  return carteTornades(i) ? EQ.TENEBRES_ECLAIR : EQ.JUNGLE_ECLAIR;
+}
 
 /* ================================================================
    LE CIEL D'UNE ÎLE
@@ -14459,15 +14484,50 @@ var ambianceJungle = {
    l'œil doivent parler du même orage, sans quoi le tonnerre n'est
    qu'une bande-son posée à côté. */
 var metDernierRoulement = -1, metProchainFroisse = 0;
-function majMeteoJungle(dt, tps){
+/* LA LUEUR DES ROULEMENTS, TOUTE SEULE.
+   dessineVoileOrage() la peint déjà, mais au milieu du voile vert et
+   de la vignette d'orage tropical — inutilisables sur une île de feu.
+   Celle-ci ne peint QUE le ciel qui s'allume, sur toute la largeur, et
+   sert aux îles qui ont la foudre sans avoir la pluie.
+   Sa teinte n'est pas celle de la jungle : sur un monde noir et rouge,
+   un flash vert-bleu se lirait comme une erreur. On garde le sprite du
+   ciel, et l'on pose par-dessus une lueur chaude — l'éclair, lui,
+   restera franchement froid, et c'est le contraste qu'on cherche. */
+var metLueurTps = -1;
+function dessineLueurRoulement(c, tps){
+  if(tps === metLueurTps) return;
+  metLueurTps = tps;
+  var r = roulementJungle(tps);
+  if(r <= 0.015) return;
+  var v = voilesOrage(c);
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = "lighter";
+  c.globalAlpha = Math.min(0.40, r * 0.22);
+  c.drawImage(v.ciel, 0, 0);
+  c.restore();
+}
+
+/* LE PILOTE SONORE, EN DEUX MORCEAUX.
+
+   Le tonnerre et l'ambiance ne vont pas ensemble. La pluie et le vent
+   qui tournent en boucle appartiennent à la jungle, et à elle seule :
+   une averse au-dessus d'un monde de lave serait un contresens. Les
+   ROULEMENTS, eux, valent pour toute île dont le ciel gronde.
+   D'où deux fonctions au lieu d'une, et deux verrous au lieu d'un. */
+function majTonnerre(dt, tps){
   greffeSonJungle();
   if(typeof son === "undefined" || !son.ok()) return;
-  ambianceJungle.demarre();
   var n = Math.floor(tps / MET_ROULEMENT);
   if(n !== metDernierRoulement && roulementJungle(tps) > 0.05){
     metDernierRoulement = n;
     grondementJungle(grosRoulement(n));
   }
+}
+function majMeteoJungle(dt, tps){
+  majTonnerre(dt, tps);
+  if(typeof son === "undefined" || !son.ok()) return;
+  ambianceJungle.demarre();
   metProchainFroisse -= dt;
   if(metProchainFroisse <= 0){
     metProchainFroisse = 2.5 + Math.random() * 5;
@@ -26169,7 +26229,7 @@ function nouvelleCarte(index, pvConnu){
     geysers:(carte.geysers || []).map(function(g){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
-    eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
+    eclairs:[], prochainEclair:periodeEclair(index) * (0.4 + 0.5 * Math.random()),
     /* Les tornades de flammes des ténèbres, et la terre qu'elles
        laissent en feu derrière elles. Vides ailleurs : c'est
        carteTornades(index) qui décide, et lui seul. La première ne
@@ -28974,6 +29034,7 @@ function majJeu(dt){
      décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
      doit pas tirer une dernière fois dans la même image. */
   if(carteTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
+  majFoudre(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);
@@ -29057,6 +29118,26 @@ function majJungle(dt){
   }
 
 
+}
+
+/* ================================================================
+   LA FOUDRE — la jungle ET les ténèbres
+
+   Elle vivait dans majJungle(), avec les geysers, sous le même
+   verrou : carteOrageuse(). C'était juste tant qu'une seule île avait
+   un ciel. Les ténèbres veulent la foudre et le tonnerre, mais surtout
+   pas la pluie ni la brume verte — il ne pleut pas sur un monde de
+   lave. On sort donc la foudre de la jungle : elle a son verrou à
+   elle, carteFoudre(), et son rythme par île, periodeEclair().
+
+   Rien d'autre ne change. Le même éclair, le même impact mortel, la
+   même nappe qui court sur la terre. Un éclair blanc-bleu au-dessus
+   d'une île qui brûle est d'ailleurs le seul élément FROID de cette
+   carte-là — c'est très exactement ce qu'il y fait de mieux.
+   ================================================================ */
+function majFoudre(dt){
+  if(!carteFoudre(jeu.index)) return;
+  if(!jeu.nuages || !jeu.nuages.length) return;
   /* --- LA FOUDRE ---
      Un impact toutes les quinze secondes. Le point n'est pas tiré au
      hasard sur la carte : il tombe SOUS UN NUAGE, avec un peu de
@@ -29064,7 +29145,7 @@ function majJungle(dt){
      l'objectif ferait croire à un dégât qui n'existe pas. */
   jeu.prochainEclair -= dt;
   if(jeu.prochainEclair <= 0){
-    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.72 + Math.random() * 0.56);
+    jeu.prochainEclair = periodeEclair(jeu.index) * (0.72 + Math.random() * 0.56);
     var nu2 = jeu.nuages[(Math.random() * jeu.nuages.length) | 0];
     var ex, ey, essais = 0;
     do{
@@ -29091,7 +29172,7 @@ function majJungle(dt){
          unité : sans ce marquage, une troupe restée sur place aurait
          encaissé la nappe à chaque image et le rayon de mort aurait
          valu sept cases au lieu de deux. */
-  for(i = jeu.eclairs.length - 1; i >= 0; i--){
+  for(var i = jeu.eclairs.length - 1; i >= 0; i--){
     var e2 = jeu.eclairs[i];
     var avant = e2.front;
     e2.age += dt;
@@ -35139,7 +35220,17 @@ function rendu(tps, dt){
        de la guinguette. Un seul ciel blanc pour toutes les îles non
        orageuses posait de la neige sur un monde de lave. */
     repereEcran(ctx);
+    /* LES ÎLES QUI ONT LA FOUDRE SANS AVOIR L ORAGE — les ténèbres.
+       On leur donne la lueur des roulements et les éclairs, PAS le
+       voile vert ni la pluie : il ne pleut pas sur un monde de lave.
+       La lueur d abord, sous les nuages : un ciel qui s allume
+       derrière une masse, c est ce qui dit qu il y a quelque chose
+       au-dessus. */
+    if(carteFoudre(jeu.index)) dessineLueurRoulement(ctx, tps);
     dessineNuagesJungle(ctx, tps, styleCiel(jeu.index));
+    if(carteFoudre(jeu.index))
+      for(var ie2 = 0; ie2 < jeu.eclairs.length; ie2++)
+        dessineEclairJungle(ctx, jeu.eclairs[ie2], tps);
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de
@@ -38404,6 +38495,11 @@ function boucle(maintenant){
      dans 88-rendu.js : la présence de geysers, c'est-à-dire la
      jungle. */
   if(carteOrageuse(jeu.index)) majMeteoJungle(dt, tempsGlobal);
+  /* Les ténèbres grondent aussi, mais sans pluie ni froissement de
+     feuillage : elles n'ont ni l'un ni l'autre. majTonnerre() est la
+     moitié de majMeteoJungle() qui vaut pour toute île dont le ciel
+     gronde. */
+  else if(carteFoudre(jeu.index)) majTonnerre(dt, tempsGlobal);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);

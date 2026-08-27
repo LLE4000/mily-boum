@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.42";
+var VERSION = "v0.43";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -82,6 +82,11 @@ var EQ = {
   JUNGLE_MIN_JOUEURS   : 7,
   JUNGLE_ATTENTE_H     : 48,    // heures de verrou après une victoire
   JUNGLE_ECLAIR        : 15,    // secondes entre deux impacts de foudre
+  /* La foudre des ténèbres est plus RARE que celle de la jungle, et ce
+     n'est pas de la timidité : cette île porte déjà les tornades. Deux
+     dangers qui tombent du ciel au même rythme ne se distinguent plus
+     l'un de l'autre — on ne saurait plus lequel on esquive. */
+  TENEBRES_ECLAIR      : 26,    // secondes entre deux impacts
   JUNGLE_GEYSERS       : 22,    // ouvertures de feu sur l'île
   /* LE DURCISSEMENT DE LA CARTE ÉVÉNEMENT.
      Les défenses de la jungle sont plus dures et frappent plus fort
@@ -870,6 +875,26 @@ function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle");
    l'ÎLE, jamais d'un tirage ni d'un tableau qui pourrait revenir
    vide. */
 function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"); }
+
+/* ================================================================
+   OÙ LA FOUDRE TOMBE
+
+   Elle n'appartenait qu'à la jungle, parce que tout l'orage y était
+   d'un bloc : le ciel vert, la brume, la pluie, les nuages, la foudre
+   et le tonnerre tenaient dans un seul carteOrageuse(). Les ténèbres
+   veulent la FOUDRE et LE TONNERRE, mais surtout pas la pluie ni la
+   brume verte — il ne pleut pas sur un monde de lave.
+
+   On sépare donc les deux questions. carteOrageuse() reste « cette
+   île est-elle sous un orage tropical complet » ; carteFoudre() dit
+   « le ciel y jette-t-il des éclairs et gronde-t-il ». La jungle
+   répond oui aux deux, les ténèbres à la seconde seulement.
+   ================================================================ */
+function carteFoudre(i){ return carteOrageuse(i) || carteTornades(i); }
+/* Le rythme des impacts, par île. */
+function periodeEclair(i){
+  return carteTornades(i) ? EQ.TENEBRES_ECLAIR : EQ.JUNGLE_ECLAIR;
+}
 
 /* ================================================================
    LE CIEL D'UNE ÎLE
