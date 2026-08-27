@@ -65,6 +65,7 @@ function boucle(maintenant){
      dans le BRIEFING, donc avant le « if(!enJeu) return » : c'est là,
      menu ouvert, qu'on les regarde. */
   majJungleLent(dt);
+  majTop3Lent(dt);
 
   if(!enJeu) return;
   /* Le gouverneur passe AVANT le rendu, jamais après : son ajuste()

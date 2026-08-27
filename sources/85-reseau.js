@@ -328,7 +328,7 @@ function jungleCourante(){
             jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:m.jmn | 0,
             jb:(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS),
-            ch:m.ch || "" };
+            ch:m.ch || "", t3:m.t3 || "" };
   if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
     var bits = [], i;
     for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
@@ -567,17 +567,28 @@ function inscritChampion(ch, index, nom){
 /* Sacre le champion d'une carte ORDINAIRE et le publie. La jungle a
    son propre chemin (termineExpedition), qui inscrit le champion en
    même temps qu'il referme l'expédition. */
+/* LE SACRE : le champion ET le podium, gelés ensemble.
+   Les deux décrivent la même victoire, ils montent donc du même cran
+   et par le même chemin — sans quoi une carte pourrait afficher un
+   champion d'une bataille et un podium d'une autre. */
 function sacreChampion(index, nom){
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   var jg = jungleCourante();
   jg.ch = inscritChampion(jg.ch, index, nom);
+  /* Le podium de CETTE bataille : les dégâts infligés sur CETTE île,
+     pas le total des joueurs. Ce sont deux classements différents, et
+     c'est celui de la bataille qu'on grave. */
+  var podium = classementDepuis(totalParJoueurCarte(scoresAJour(), index));
+  var t3 = inscritTop3((m.t3 || ""), index, podium.slice(0, 3));
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
+                       tg:tirageSalon | 0, t3:t3 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
+/* Le podium d'une carte, tel que le salon le connaît. */
+function top3Salon(index){ return top3DeCarte(monde && monde.t3, index); }
 
 /* Le champion d'une carte, tel que le salon le connaît. */
 function championDeCarte(index){
@@ -718,7 +729,7 @@ function nouveauTirageSalon(){
             je:0, jf:0, jd:"", jq:0,
             jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "" };
+            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return tirageSalon;
@@ -767,7 +778,7 @@ function enregistrePlan(chaine){
             je:0, jf:0, jd:"", jq:0,
             jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "" };
+            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;

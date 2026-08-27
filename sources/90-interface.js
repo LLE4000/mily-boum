@@ -1020,6 +1020,73 @@ function blocChampion(i){
        + '. Mily lui offre un verre.</i></div>';
 }
 
+/* ---------------------------------------------------------------
+   LE TOP 3 D'UNE CARTE
+
+   Chaque île a SON podium : les dégâts infligés sur elle, pas le total
+   des joueurs. Ce sont deux classements différents et il ne faut pas
+   les confondre — celui qui a le plus gros total du salon n'est pas
+   forcément celui qui a pris cette île-là.
+
+   Trois états, et le titre le dit :
+     — l'île est en cours : « Top actuel », il bouge encore ;
+     — l'île vient de tomber, ou est tombée dans cette campagne :
+       « Top 3 final », figé au moment de la chute ;
+     — l'île est verrouillée mais a déjà été prise lors d'un cycle
+       précédent : « Derniers champions », son podium gelé survit au
+       verrouillage.
+
+   La phrase sous le podium est celle de la carte, reprise telle
+   quelle : chaque île garde la sienne.
+   --------------------------------------------------------------- */
+var MEDAILLES = ["🏆", "🥈", "🥉"];
+function phraseTop3(i){
+  var f = CARTES[i];
+  if(!f || !f.victoire) return "";
+  /* « Mily lui offre un verre ! » devient « Mily vous offre un verre »
+     — c'est le podium entier qu'on félicite, plus un seul joueur.
+     La phrase reste celle de l'île, on n'en invente pas. */
+  var p = f.victoire.replace(/\blui\b/g, "vous").replace(/\bl'invite\b/g, "vous invite")
+                    .replace(/\bt'invite\b/g, "vous invite").replace(/\bte dit\b/g, "vous dit")
+                    .replace(/\bqu'elle t'aime\b/g, "qu'elle vous aime")
+                    .replace(/\s*!\s*$/, "");
+  return "Félicitations au Top 3 ! " + p + ".";
+}
+function blocTop3(i){
+  var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
+  var enCours = (i === carteSalon) && !carteSpeciale(i);
+  var liste = fige, titre;
+  /* Tant que l'île est en cours, on montre le classement VIVANT de
+     cette bataille — il bouge, et c'est ce qu'on vient regarder. */
+  if(enCours && typeof scoresAJour === "function"){
+    var vif = classementDepuis(totalParJoueurCarte(scoresAJour(), i)).slice(0, 3);
+    if(vif.length) liste = vif;
+  }
+  if(!liste || !liste.length) return blocChampion(i);
+  titre = enCours ? "Top actuel"
+        : (i < carteSalon || carteSpeciale(i)) ? "Top 3 final"
+        : "Derniers champions";
+  var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
+  for(var k = 0; k < liste.length && k < 3; k++){
+    h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
+       + '<span class="n">' + echappe(liste[k].nom) + '</span>'
+       + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
+  }
+  var ph = phraseTop3(i);
+  if(ph && !enCours) h += '<div class="t3p">' + echappe(ph) + '</div>';
+  return h + '</div>';
+}
+/* Le podium de l'île EN COURS bouge sans arrêt. On le réécrit en place
+   plutôt que de reconstruire tout le menu — reconstruire tuerait
+   l'appui long du créateur et relancerait les animations. */
+function majTop3Vivant(){
+  if(enJeu) return;
+  var e = document.querySelector('.top3[data-t3="' + carteSalon + '"]');
+  if(!e || carteSpeciale(carteSalon)) return;
+  var neuf = blocTop3(carteSalon);
+  if(neuf && e.outerHTML !== neuf) e.outerHTML = neuf;
+}
+
 /* Combien de joueurs le salon entend en ce moment, moi compris. */
 function joueursEnLigne(){
   var n = 1, id;
@@ -1050,7 +1117,21 @@ function etatJungle(){
   return joueursEnLigne() >= minJoueursJungle() ? "prete" : "attente";
 }
 
+/* UN APPUI LONG EN COURS INTERDIT LA RECONSTRUCTION.
+
+   Le défaut : majMondes() est appelée à chaque instantané reçu qui
+   diffère du précédent, et depuis que le score s'additionne il diffère
+   toutes les deux secondes dès que quelqu'un joue. Elle réécrit tout
+   le innerHTML — donc elle DÉTRUIT la vignette sous le doigt, avec son
+   anneau et ses écouteurs. Un appui long de cinq secondes ne pouvait
+   plus arriver au bout : « le chargement s'arrête avant ».
+
+   On diffère donc la reconstruction jusqu'à la fin du geste. Rien
+   d'urgent ne s'y perd : le menu se rafraîchira une seconde plus tard. */
+var mondesEnAttente = false;
 function majMondes(){
+  if(typeof appuiAdmin !== "undefined" && appuiAdmin){ mondesEnAttente = true; return; }
+  mondesEnAttente = false;
   var h = "";
   for(var i = 0; i < CARTES.length; i++){
     if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
@@ -1061,7 +1142,7 @@ function majMondes(){
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
-       + blocChampion(i) + '</div>';
+       + blocTop3(i) + '</div>';
   }
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
@@ -1141,7 +1222,7 @@ function vignetteEvenement(i){
        +   '<span class="barreJ"><i style="width:' + (frac * 100).toFixed(0) + '%"></i></span>'
        + '</div>'
        + '<button id="btJungle"' + (actif ? "" : " disabled") + '>' + bouton + '</button>'
-       + blocChampion(i) + '</div>';
+       + blocTop3(i) + '</div>';
 }
 
 /* Le menu ne se reconstruit pas à chaque image — mais le compte à
@@ -1170,6 +1251,18 @@ function majJungleLent(dt){
   }
   var barre = el.querySelector(".barreJ i");
   if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
+}
+
+/* Le podium de l'île en cours, une fois par seconde. Même raison que
+   le compte à rebours de la jungle : ça bouge, et reconstruire tout le
+   menu pour ça casserait l'appui long et les animations. */
+var t3T = 0;
+function majTop3Lent(dt){
+  if(enJeu) return;
+  t3T -= dt;
+  if(t3T > 0) return;
+  t3T = 1.0;
+  majTop3Vivant();
 }
 
 function installeBoutonJungle(){
@@ -1378,6 +1471,9 @@ function armeAppuiLong(el, i){
     appuiAdmin.el.classList.remove("presse");
     appuiAdmin.anneau.style.setProperty("--av", 0);
     appuiAdmin = null;
+    /* le menu avait peut-être quelque chose à dire pendant le geste :
+       on le laisse parler maintenant */
+    if(mondesEnAttente) majMondes();
   }
   el.addEventListener("pointerdown", debut);
   el.addEventListener("pointermove", bouge);

@@ -371,6 +371,34 @@ select.champ{cursor:pointer}
 .monde .champ b{color:#ffd870}
 .monde .champ i{display:block;color:#8f86a0;font-style:normal;font-size:10px}
 
+/* ---- LE TOP 3 D'UNE CARTE ----
+   Le premier doit se détacher SANS que la vignette devienne un
+   tableau : coupe dorée, nom plus gros, une ligne bien à lui. Les deux
+   suivants se lisent en dessous, plus discrets — on doit comprendre
+   l'ordre d'un coup d'œil, pas le déchiffrer. */
+.monde .top3{padding:2px 10px 9px;display:flex;flex-direction:column;gap:2px}
+.monde .t3t{
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--braise);opacity:.85;margin-bottom:1px;
+}
+.monde .t3l{display:flex;align-items:baseline;gap:6px;line-height:1.25}
+.monde .t3l .m{flex:none;font-size:12px;filter:saturate(1.1)}
+.monde .t3l .n{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#cdbfd6;font-size:11.5px;
+}
+.monde .t3l .g{
+  flex:none;color:#8f86a0;font-size:10px;font-variant-numeric:tabular-nums;
+}
+/* le premier : plus gros, doré, et sa coupe légèrement agrandie */
+.monde .t3l.r0 .m{font-size:15px;filter:drop-shadow(0 1px 3px rgba(255,190,60,.5))}
+.monde .t3l.r0 .n{color:#ffd870;font-size:13.5px;font-weight:700}
+.monde .t3l.r0 .g{color:#e8c37a;font-size:11px}
+.monde .t3l.r1 .n,.monde .t3l.r2 .n{font-size:11px;color:#b9adc4}
+.monde .t3p{
+  margin-top:4px;font-size:10px;line-height:1.35;color:#8f86a0;font-style:italic;
+}
+
 /* ---- LA CARTE ÉVÉNEMENT ----
    Elle occupe toute la largeur de la grille et vit sous une autre
    lumière : un vert profond, un liseré qui respire, et un halo. Il
@@ -3306,7 +3334,7 @@ function planEstVide(P){
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
            p:"", pn:0, tg:0, s:"", k:"",
-           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"",
+           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"", t3:"",
            jb:EQ.JUNGLE_PV_BONUS };
 }
 function mondeValide(m){
@@ -3664,6 +3692,100 @@ function fusionneChampions(a, b){
   return encodeChampions(x);
 }
 
+/* ================================================================
+   LE TOP 3 DE CHAQUE CARTE, GELÉ À SA CHUTE
+
+   Le champion — le premier — voyageait déjà. Ce qui manquait, c'est le
+   PODIUM : les trois premiers d'une bataille, figés au moment où le
+   Brasier tombe, et gardés jusqu'à ce que cette même île soit
+   reconquise. Une carte verrouillée continue donc d'afficher qui l'a
+   prise la dernière fois — le verrouillage de progression n'efface pas
+   l'histoire.
+
+   Pourquoi un champ à part, plutôt que le classement vivant ? Parce
+   que le classement vivant appartient à la CAMPAGNE en cours : il
+   repart à zéro à chaque remise à zéro du salon, et il ne saurait rien
+   dire d'une île tombée au cycle précédent. Le podium gelé, lui,
+   survit — comme le champion, et pour la même raison.
+
+   Format : « carte:numéro:nom:dégâts:nom:dégâts:nom:dégâts », les
+   cartes séparées par « | ». Le numéro est celui de la victoire, le
+   même compteur que le champion : à la fusion, la victoire la plus
+   récente l'emporte, et à numéro égal la chaîne tranche — il faut que
+   deux clients arrivent au même résultat quel que soit l'ordre.
+   ================================================================ */
+var TOP3_GARDES = 3;
+function encodeTop3(tab){
+  var l = [], k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e || !e.l || !e.l.length) continue;
+    var bouts = [(k | 0), Math.max(1, e.n | 0)];
+    for(var i = 0; i < e.l.length && i < TOP3_GARDES; i++){
+      var nom = nettoieNomScore(e.l[i].nom);
+      var g = Math.max(0, Math.round(e.l[i].g || 0));
+      if(!nom || !g) continue;
+      bouts.push(nom, g);
+    }
+    if(bouts.length < 4) continue;                 // pas même un premier
+    l.push(bouts.join(":"));
+  }
+  /* tri par index de carte : deux clients au même état doivent
+     produire exactement la même chaîne */
+  l.sort(function(x, y){ return parseInt(x, 10) - parseInt(y, 10); });
+  return l.join("|");
+}
+function decodeTop3(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var m = p[i].split(":");
+    if(m.length < 4) continue;
+    var idx = parseInt(m[0], 10), n = parseInt(m[1], 10);
+    if(!(idx >= 0) || !(n > 0)) continue;
+    var l = [];
+    for(var j = 2; j + 1 < m.length && l.length < TOP3_GARDES; j += 2){
+      var nom = nettoieNomScore(m[j]), g = parseInt(m[j + 1], 10);
+      if(!nom || !(g > 0)) continue;
+      l.push({ nom:nom, g:g });
+    }
+    if(!l.length) continue;
+    var av = out[idx];
+    if(!av || n > av.n) out[idx] = { n:n, l:l };
+  }
+  return out;
+}
+/* Par carte, la victoire de plus haut numéro l'emporte. À numéro égal,
+   la chaîne tranche : l'ordre d'arrivée ne doit rien changer. */
+function fusionneTop3(a, b){
+  var x = decodeTop3(a), y = decodeTop3(b), k;
+  for(k in y){
+    if(!x[k] || y[k].n > x[k].n){ x[k] = y[k]; continue; }
+    if(y[k].n === x[k].n){
+      var ax = encodeTop3((function(){ var o = {}; o[k] = x[k]; return o; })());
+      var ay = encodeTop3((function(){ var o = {}; o[k] = y[k]; return o; })());
+      if(ay < ax) x[k] = y[k];
+    }
+  }
+  return encodeTop3(x);
+}
+/* Le podium gelé d'une carte, ou null si elle n'est jamais tombée. */
+function top3DeCarte(s, index){
+  var t = decodeTop3(s);
+  return t[index | 0] ? t[index | 0].l : null;
+}
+/* Inscrit un podium pour une carte, en montant d'un cran son numéro de
+   victoire. Symétrique d'inscritChampion, et volontairement : les deux
+   décrivent la même victoire. */
+function inscritTop3(s, index, liste){
+  var t = decodeTop3(s);
+  var n = (t[index | 0] ? t[index | 0].n : 0) + 1;
+  t[index | 0] = { n:n, l:(liste || []).slice(0, TOP3_GARDES) };
+  return encodeTop3(t);
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -3712,7 +3834,8 @@ function fusionneJungle(a, b){
        donc ils voyagent ensemble. Un seul compteur à tenir. */
     jb : (mj.jmn === (b.jmn | 0) && b.jb !== undefined) ? (b.jb | 0)
        : (a.jb !== undefined ? (a.jb | 0) : EQ.JUNGLE_PV_BONUS),
-    ch : fusionneChampions(a.ch, b.ch)
+    ch : fusionneChampions(a.ch, b.ch),
+    t3 : fusionneTop3(a.t3, b.t3)
   };
   /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
      à cy : une expédition plus récente balaie les destructions de la
@@ -3732,7 +3855,7 @@ function fusionneJungle(a, b){
 /* Recopie les champs de la jungle dans un instantané fusionné. */
 function poseJungle(o, j){
   o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
-  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch;
+  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch; o.t3 = j.t3;
   return o;
 }
 
@@ -3781,7 +3904,7 @@ function memeJungle(m, j){
          (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
          msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
          (m.jmn | 0) === j.jmn && (m.jb | 0) === (j.jb | 0) &&
-         (m.ch || "") === j.ch;
+         (m.ch || "") === j.ch && (m.t3 || "") === (j.t3 || "");
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -3799,7 +3922,7 @@ function memeMonde(a, b){
          (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
          msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
          (a.jmn | 0) === (b.jmn | 0) && (a.jb | 0) === (b.jb | 0) &&
-         (a.ch || "") === (b.ch || "");
+         (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
@@ -25480,7 +25603,7 @@ function jungleCourante(){
             jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:m.jmn | 0,
             jb:(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS),
-            ch:m.ch || "" };
+            ch:m.ch || "", t3:m.t3 || "" };
   if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
     var bits = [], i;
     for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
@@ -25719,17 +25842,28 @@ function inscritChampion(ch, index, nom){
 /* Sacre le champion d'une carte ORDINAIRE et le publie. La jungle a
    son propre chemin (termineExpedition), qui inscrit le champion en
    même temps qu'il referme l'expédition. */
+/* LE SACRE : le champion ET le podium, gelés ensemble.
+   Les deux décrivent la même victoire, ils montent donc du même cran
+   et par le même chemin — sans quoi une carte pourrait afficher un
+   champion d'une bataille et un podium d'une autre. */
 function sacreChampion(index, nom){
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   var jg = jungleCourante();
   jg.ch = inscritChampion(jg.ch, index, nom);
+  /* Le podium de CETTE bataille : les dégâts infligés sur CETTE île,
+     pas le total des joueurs. Ce sont deux classements différents, et
+     c'est celui de la bataille qu'on grave. */
+  var podium = classementDepuis(totalParJoueurCarte(scoresAJour(), index));
+  var t3 = inscritTop3((m.t3 || ""), index, podium.slice(0, 3));
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
+                       tg:tirageSalon | 0, t3:t3 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
+/* Le podium d'une carte, tel que le salon le connaît. */
+function top3Salon(index){ return top3DeCarte(monde && monde.t3, index); }
 
 /* Le champion d'une carte, tel que le salon le connaît. */
 function championDeCarte(index){
@@ -25870,7 +26004,7 @@ function nouveauTirageSalon(){
             je:0, jf:0, jd:"", jq:0,
             jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "" };
+            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return tirageSalon;
@@ -25919,7 +26053,7 @@ function enregistrePlan(chaine){
             je:0, jf:0, jd:"", jq:0,
             jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
             jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "" };
+            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;
@@ -32076,6 +32210,73 @@ function blocChampion(i){
        + '. Mily lui offre un verre.</i></div>';
 }
 
+/* ---------------------------------------------------------------
+   LE TOP 3 D'UNE CARTE
+
+   Chaque île a SON podium : les dégâts infligés sur elle, pas le total
+   des joueurs. Ce sont deux classements différents et il ne faut pas
+   les confondre — celui qui a le plus gros total du salon n'est pas
+   forcément celui qui a pris cette île-là.
+
+   Trois états, et le titre le dit :
+     — l'île est en cours : « Top actuel », il bouge encore ;
+     — l'île vient de tomber, ou est tombée dans cette campagne :
+       « Top 3 final », figé au moment de la chute ;
+     — l'île est verrouillée mais a déjà été prise lors d'un cycle
+       précédent : « Derniers champions », son podium gelé survit au
+       verrouillage.
+
+   La phrase sous le podium est celle de la carte, reprise telle
+   quelle : chaque île garde la sienne.
+   --------------------------------------------------------------- */
+var MEDAILLES = ["🏆", "🥈", "🥉"];
+function phraseTop3(i){
+  var f = CARTES[i];
+  if(!f || !f.victoire) return "";
+  /* « Mily lui offre un verre ! » devient « Mily vous offre un verre »
+     — c'est le podium entier qu'on félicite, plus un seul joueur.
+     La phrase reste celle de l'île, on n'en invente pas. */
+  var p = f.victoire.replace(/\blui\b/g, "vous").replace(/\bl'invite\b/g, "vous invite")
+                    .replace(/\bt'invite\b/g, "vous invite").replace(/\bte dit\b/g, "vous dit")
+                    .replace(/\bqu'elle t'aime\b/g, "qu'elle vous aime")
+                    .replace(/\s*!\s*$/, "");
+  return "Félicitations au Top 3 ! " + p + ".";
+}
+function blocTop3(i){
+  var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
+  var enCours = (i === carteSalon) && !carteSpeciale(i);
+  var liste = fige, titre;
+  /* Tant que l'île est en cours, on montre le classement VIVANT de
+     cette bataille — il bouge, et c'est ce qu'on vient regarder. */
+  if(enCours && typeof scoresAJour === "function"){
+    var vif = classementDepuis(totalParJoueurCarte(scoresAJour(), i)).slice(0, 3);
+    if(vif.length) liste = vif;
+  }
+  if(!liste || !liste.length) return blocChampion(i);
+  titre = enCours ? "Top actuel"
+        : (i < carteSalon || carteSpeciale(i)) ? "Top 3 final"
+        : "Derniers champions";
+  var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
+  for(var k = 0; k < liste.length && k < 3; k++){
+    h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
+       + '<span class="n">' + echappe(liste[k].nom) + '</span>'
+       + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
+  }
+  var ph = phraseTop3(i);
+  if(ph && !enCours) h += '<div class="t3p">' + echappe(ph) + '</div>';
+  return h + '</div>';
+}
+/* Le podium de l'île EN COURS bouge sans arrêt. On le réécrit en place
+   plutôt que de reconstruire tout le menu — reconstruire tuerait
+   l'appui long du créateur et relancerait les animations. */
+function majTop3Vivant(){
+  if(enJeu) return;
+  var e = document.querySelector('.top3[data-t3="' + carteSalon + '"]');
+  if(!e || carteSpeciale(carteSalon)) return;
+  var neuf = blocTop3(carteSalon);
+  if(neuf && e.outerHTML !== neuf) e.outerHTML = neuf;
+}
+
 /* Combien de joueurs le salon entend en ce moment, moi compris. */
 function joueursEnLigne(){
   var n = 1, id;
@@ -32106,7 +32307,21 @@ function etatJungle(){
   return joueursEnLigne() >= minJoueursJungle() ? "prete" : "attente";
 }
 
+/* UN APPUI LONG EN COURS INTERDIT LA RECONSTRUCTION.
+
+   Le défaut : majMondes() est appelée à chaque instantané reçu qui
+   diffère du précédent, et depuis que le score s'additionne il diffère
+   toutes les deux secondes dès que quelqu'un joue. Elle réécrit tout
+   le innerHTML — donc elle DÉTRUIT la vignette sous le doigt, avec son
+   anneau et ses écouteurs. Un appui long de cinq secondes ne pouvait
+   plus arriver au bout : « le chargement s'arrête avant ».
+
+   On diffère donc la reconstruction jusqu'à la fin du geste. Rien
+   d'urgent ne s'y perd : le menu se rafraîchira une seconde plus tard. */
+var mondesEnAttente = false;
 function majMondes(){
+  if(typeof appuiAdmin !== "undefined" && appuiAdmin){ mondesEnAttente = true; return; }
+  mondesEnAttente = false;
   var h = "";
   for(var i = 0; i < CARTES.length; i++){
     if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
@@ -32117,7 +32332,7 @@ function majMondes(){
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
-       + blocChampion(i) + '</div>';
+       + blocTop3(i) + '</div>';
   }
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
@@ -32197,7 +32412,7 @@ function vignetteEvenement(i){
        +   '<span class="barreJ"><i style="width:' + (frac * 100).toFixed(0) + '%"></i></span>'
        + '</div>'
        + '<button id="btJungle"' + (actif ? "" : " disabled") + '>' + bouton + '</button>'
-       + blocChampion(i) + '</div>';
+       + blocTop3(i) + '</div>';
 }
 
 /* Le menu ne se reconstruit pas à chaque image — mais le compte à
@@ -32226,6 +32441,18 @@ function majJungleLent(dt){
   }
   var barre = el.querySelector(".barreJ i");
   if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
+}
+
+/* Le podium de l'île en cours, une fois par seconde. Même raison que
+   le compte à rebours de la jungle : ça bouge, et reconstruire tout le
+   menu pour ça casserait l'appui long et les animations. */
+var t3T = 0;
+function majTop3Lent(dt){
+  if(enJeu) return;
+  t3T -= dt;
+  if(t3T > 0) return;
+  t3T = 1.0;
+  majTop3Vivant();
 }
 
 function installeBoutonJungle(){
@@ -32434,6 +32661,9 @@ function armeAppuiLong(el, i){
     appuiAdmin.el.classList.remove("presse");
     appuiAdmin.anneau.style.setProperty("--av", 0);
     appuiAdmin = null;
+    /* le menu avait peut-être quelque chose à dire pendant le geste :
+       on le laisse parler maintenant */
+    if(mondesEnAttente) majMondes();
   }
   el.addEventListener("pointerdown", debut);
   el.addEventListener("pointermove", bouge);
@@ -32991,6 +33221,7 @@ function boucle(maintenant){
      dans le BRIEFING, donc avant le « if(!enJeu) return » : c'est là,
      menu ouvert, qu'on les regarde. */
   majJungleLent(dt);
+  majTop3Lent(dt);
 
   if(!enJeu) return;
   /* Le gouverneur passe AVANT le rendu, jamais après : son ajuste()

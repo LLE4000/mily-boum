@@ -2356,7 +2356,7 @@ function planEstVide(P){
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
            p:"", pn:0, tg:0, s:"", k:"",
-           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"",
+           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"", t3:"",
            jb:EQ.JUNGLE_PV_BONUS };
 }
 function mondeValide(m){
@@ -2714,6 +2714,100 @@ function fusionneChampions(a, b){
   return encodeChampions(x);
 }
 
+/* ================================================================
+   LE TOP 3 DE CHAQUE CARTE, GELÉ À SA CHUTE
+
+   Le champion — le premier — voyageait déjà. Ce qui manquait, c'est le
+   PODIUM : les trois premiers d'une bataille, figés au moment où le
+   Brasier tombe, et gardés jusqu'à ce que cette même île soit
+   reconquise. Une carte verrouillée continue donc d'afficher qui l'a
+   prise la dernière fois — le verrouillage de progression n'efface pas
+   l'histoire.
+
+   Pourquoi un champ à part, plutôt que le classement vivant ? Parce
+   que le classement vivant appartient à la CAMPAGNE en cours : il
+   repart à zéro à chaque remise à zéro du salon, et il ne saurait rien
+   dire d'une île tombée au cycle précédent. Le podium gelé, lui,
+   survit — comme le champion, et pour la même raison.
+
+   Format : « carte:numéro:nom:dégâts:nom:dégâts:nom:dégâts », les
+   cartes séparées par « | ». Le numéro est celui de la victoire, le
+   même compteur que le champion : à la fusion, la victoire la plus
+   récente l'emporte, et à numéro égal la chaîne tranche — il faut que
+   deux clients arrivent au même résultat quel que soit l'ordre.
+   ================================================================ */
+var TOP3_GARDES = 3;
+function encodeTop3(tab){
+  var l = [], k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e || !e.l || !e.l.length) continue;
+    var bouts = [(k | 0), Math.max(1, e.n | 0)];
+    for(var i = 0; i < e.l.length && i < TOP3_GARDES; i++){
+      var nom = nettoieNomScore(e.l[i].nom);
+      var g = Math.max(0, Math.round(e.l[i].g || 0));
+      if(!nom || !g) continue;
+      bouts.push(nom, g);
+    }
+    if(bouts.length < 4) continue;                 // pas même un premier
+    l.push(bouts.join(":"));
+  }
+  /* tri par index de carte : deux clients au même état doivent
+     produire exactement la même chaîne */
+  l.sort(function(x, y){ return parseInt(x, 10) - parseInt(y, 10); });
+  return l.join("|");
+}
+function decodeTop3(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var m = p[i].split(":");
+    if(m.length < 4) continue;
+    var idx = parseInt(m[0], 10), n = parseInt(m[1], 10);
+    if(!(idx >= 0) || !(n > 0)) continue;
+    var l = [];
+    for(var j = 2; j + 1 < m.length && l.length < TOP3_GARDES; j += 2){
+      var nom = nettoieNomScore(m[j]), g = parseInt(m[j + 1], 10);
+      if(!nom || !(g > 0)) continue;
+      l.push({ nom:nom, g:g });
+    }
+    if(!l.length) continue;
+    var av = out[idx];
+    if(!av || n > av.n) out[idx] = { n:n, l:l };
+  }
+  return out;
+}
+/* Par carte, la victoire de plus haut numéro l'emporte. À numéro égal,
+   la chaîne tranche : l'ordre d'arrivée ne doit rien changer. */
+function fusionneTop3(a, b){
+  var x = decodeTop3(a), y = decodeTop3(b), k;
+  for(k in y){
+    if(!x[k] || y[k].n > x[k].n){ x[k] = y[k]; continue; }
+    if(y[k].n === x[k].n){
+      var ax = encodeTop3((function(){ var o = {}; o[k] = x[k]; return o; })());
+      var ay = encodeTop3((function(){ var o = {}; o[k] = y[k]; return o; })());
+      if(ay < ax) x[k] = y[k];
+    }
+  }
+  return encodeTop3(x);
+}
+/* Le podium gelé d'une carte, ou null si elle n'est jamais tombée. */
+function top3DeCarte(s, index){
+  var t = decodeTop3(s);
+  return t[index | 0] ? t[index | 0].l : null;
+}
+/* Inscrit un podium pour une carte, en montant d'un cran son numéro de
+   victoire. Symétrique d'inscritChampion, et volontairement : les deux
+   décrivent la même victoire. */
+function inscritTop3(s, index, liste){
+  var t = decodeTop3(s);
+  var n = (t[index | 0] ? t[index | 0].n : 0) + 1;
+  t[index | 0] = { n:n, l:(liste || []).slice(0, TOP3_GARDES) };
+  return encodeTop3(t);
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -2762,7 +2856,8 @@ function fusionneJungle(a, b){
        donc ils voyagent ensemble. Un seul compteur à tenir. */
     jb : (mj.jmn === (b.jmn | 0) && b.jb !== undefined) ? (b.jb | 0)
        : (a.jb !== undefined ? (a.jb | 0) : EQ.JUNGLE_PV_BONUS),
-    ch : fusionneChampions(a.ch, b.ch)
+    ch : fusionneChampions(a.ch, b.ch),
+    t3 : fusionneTop3(a.t3, b.t3)
   };
   /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
      à cy : une expédition plus récente balaie les destructions de la
@@ -2782,7 +2877,7 @@ function fusionneJungle(a, b){
 /* Recopie les champs de la jungle dans un instantané fusionné. */
 function poseJungle(o, j){
   o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
-  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch;
+  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch; o.t3 = j.t3;
   return o;
 }
 
@@ -2831,7 +2926,7 @@ function memeJungle(m, j){
          (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
          msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
          (m.jmn | 0) === j.jmn && (m.jb | 0) === (j.jb | 0) &&
-         (m.ch || "") === j.ch;
+         (m.ch || "") === j.ch && (m.t3 || "") === (j.t3 || "");
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -2849,7 +2944,7 @@ function memeMonde(a, b){
          (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
          msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
          (a.jmn | 0) === (b.jmn | 0) && (a.jb | 0) === (b.jb | 0) &&
-         (a.ch || "") === (b.ch || "");
+         (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */

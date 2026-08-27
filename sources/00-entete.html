@@ -371,6 +371,34 @@ select.champ{cursor:pointer}
 .monde .champ b{color:#ffd870}
 .monde .champ i{display:block;color:#8f86a0;font-style:normal;font-size:10px}
 
+/* ---- LE TOP 3 D'UNE CARTE ----
+   Le premier doit se détacher SANS que la vignette devienne un
+   tableau : coupe dorée, nom plus gros, une ligne bien à lui. Les deux
+   suivants se lisent en dessous, plus discrets — on doit comprendre
+   l'ordre d'un coup d'œil, pas le déchiffrer. */
+.monde .top3{padding:2px 10px 9px;display:flex;flex-direction:column;gap:2px}
+.monde .t3t{
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--braise);opacity:.85;margin-bottom:1px;
+}
+.monde .t3l{display:flex;align-items:baseline;gap:6px;line-height:1.25}
+.monde .t3l .m{flex:none;font-size:12px;filter:saturate(1.1)}
+.monde .t3l .n{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#cdbfd6;font-size:11.5px;
+}
+.monde .t3l .g{
+  flex:none;color:#8f86a0;font-size:10px;font-variant-numeric:tabular-nums;
+}
+/* le premier : plus gros, doré, et sa coupe légèrement agrandie */
+.monde .t3l.r0 .m{font-size:15px;filter:drop-shadow(0 1px 3px rgba(255,190,60,.5))}
+.monde .t3l.r0 .n{color:#ffd870;font-size:13.5px;font-weight:700}
+.monde .t3l.r0 .g{color:#e8c37a;font-size:11px}
+.monde .t3l.r1 .n,.monde .t3l.r2 .n{font-size:11px;color:#b9adc4}
+.monde .t3p{
+  margin-top:4px;font-size:10px;line-height:1.35;color:#8f86a0;font-style:italic;
+}
+
 /* ---- LA CARTE ÉVÉNEMENT ----
    Elle occupe toute la largeur de la grille et vit sous une autre
    lumière : un vert profond, un liseré qui respire, et un halo. Il
