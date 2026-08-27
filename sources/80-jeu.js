@@ -124,13 +124,7 @@ function nouvelleCarte(index, pvConnu){
        voir carteOrageuse dans 10-noyau.js */
     nuages:fabriqueNuages(carteOrageuse(index) ? 1 : 0),
     navettes:[],
-    /* On démarre à UNE Nova sans regarder le palier : majPuissance()
-       tourne dès la première image de la partie, lit le cumul déjà
-       gagné sur cette île et crédite les quatre autres si la super
-       Nova est acquise. Un seul chemin, donc — celui qui sert aussi au
-       joueur qui franchit le seuil en pleine partie. */
-    energie:EQ.ENERGIE_DEPART,
-    novaDispo:EQ.NOVA_PAR_VIE, novaPlafond:EQ.NOVA_PAR_VIE,
+    energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
     messageTweety:0,
     /* Les trois chats de Mily : qui a tué lequel, et la riposte en cours. */
@@ -2354,17 +2348,16 @@ function lanceEruption(){
 /* ---------------------------------------------------------------
    Capacités
    --------------------------------------------------------------- */
-/* La Nova ne se paie pas en Énergie : elle se paie en CHARGES. Une par
-   vie tant que la super Nova n'est pas acquise, cinq ensuite. C'est ce
-   compteur-là qui la garde rare et rend son emploi mémorable — jamais
-   le prix. */
+/* La Nova ne se paie pas en Énergie : on en a UNE par vie, point.
+   C'est ce qui la garde rare, et ce qui rend son emploi mémorable. Ce
+   qui monte avec les paliers, c'est son CALIBRE — voir calibreNova(). */
 function capaciteDisponible(m){
   if(m === "nova") return jeu.novaDispo > 0;
   return jeu.energie >= coutActuel(m, jeu.usages);
 }
 function armeCapacite(m){
   if(!capaciteDisponible(m)){
-    message(m === "nova" ? "Plus de Nova : il faut une nouvelle vie."
+    message(m === "nova" ? "Nova déjà employée : il faut une nouvelle vie."
                          : "Pas assez d'Énergie pour " + COUT[m].nom + ".");
     return;
   }
@@ -2376,7 +2369,7 @@ function utiliseCapacite(m, gx, gy){
   if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message(m === "nova" ? "Plus de Nova pendant cette vie."
+    message(m === "nova" ? "Nova déjà employée pendant cette vie."
                          : "Plus assez d'Énergie : " + COUT[m].nom + " désarmée.");
     return;
   }
@@ -2520,22 +2513,22 @@ function lanceCapacite(m, gx, gy, distante){
 /* --------------- Nova : le champignon --------------- */
 function explosionNova(gx, gy, distante){
   var C = CAP.nova;
-  /* LA SUPER NOVA, à partir de trois millions de dégâts sur l'île.
-     Elle change trois choses côté ENNEMI — les dégâts du cœur, ceux du
-     souffle, et le rayon — et RIEN côté allié. Le rayon allié reste
-     lui aussi celui d'origine : une troupe qui était hors de portée
-     avant ne doit pas se mettre à mourir parce que le joueur a
-     progressé. Sans cette dissymétrie, la super Nova tuerait tout le
-     débarquement à chaque emploi. */
-  var sup = jeu.palier >= PALIER_SUPERNOVA;
-  var ech = sup ? C.echSuper : 1;
-  var rC = C.rayon * ech, rS = C.rayonSouffle * ech;
+  /* LES TROIS CALIBRES — ordinaire, super à trois millions, plein
+     calibre à cinq. Ils ne changent que le côté ENNEMI : les dégâts du
+     cœur, ceux du souffle, et le rayon. RIEN côté allié, ni les
+     dégâts ni le rayon : une troupe qui était hors de portée avant ne
+     doit pas se mettre à mourir parce que le joueur a progressé, et
+     sans cette dissymétrie la super Nova tuerait tout le débarquement
+     à chaque emploi. */
+  var cal = calibreNova(jeu.palier);
+  var sup = cal.rang > 0;
+  var rC = C.rayon * cal.ech, rS = C.rayonSouffle * cal.ech;
   if(!distante){
     /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
-    degatsZoneEnnemis(gx, gy, rC, sup ? C.degatsSuper : C.degats);
+    degatsZoneEnnemis(gx, gy, rC, cal.degats);
     degatsZone(gx, gy, C.rayon, C.degats);
     /* souffle : plus large, beaucoup plus doux */
-    degatsZoneEnnemis(gx, gy, rS, sup ? C.degatsSouffleSuper : C.degatsSouffle);
+    degatsZoneEnnemis(gx, gy, rS, cal.souffle);
     degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
   }
   jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0,
@@ -2628,10 +2621,7 @@ function majMort(dt){
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
-    /* une vie neuve, des Novas neuves — une, ou cinq si la super Nova
-       est acquise sur cette île */
-    jeu.novaDispo = novaParVie(jeu.palier);
-    jeu.novaPlafond = jeu.novaDispo;
+    jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
        renchérit le suivant ; après trois ou quatre morts, la note était
        telle qu'on ne pouvait plus rien lancer du tout. Le compteur
@@ -2639,8 +2629,7 @@ function majMort(dt){
     for(var cu in jeu.usages) jeu.usages[cu] = 0;
     montreBandeauFantome(false);
     majBarres();
-    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, "
-          + (jeu.novaDispo > 1 ? jeu.novaDispo + " Novas rechargées." : "Nova rechargée."));
+    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
     son.renfort();
   }
 }
@@ -2881,38 +2870,18 @@ function majPuissance(){
     jeu.palier = p;
     jeu.puissance = PALIERS_PUISSANCE[p].mult;
     /* on ne fête que la montée, et une seule fois par palier */
+    /* Les deux marches de la Nova s'annoncent, parce qu'elles sont
+       invisibles autrement : rien ne change dans le menu, la charge
+       reste à une, et seul le prochain tir dira que le calibre a
+       doublé. */
     if(p > 0 && typeof message === "function")
       message("Palier " + p + " — tes troupes frappent à "
             + Math.round(jeu.puissance * 100) + " %"
             + (p === PALIER_SUPERNOVA
-               ? " — et ta Nova devient une SUPER Nova, cinq fois par vie."
+               ? " — et ta Nova devient une SUPER Nova."
+               : p === PALIER_NOVA_MAX
+               ? " — et ta SUPER Nova passe à son plein calibre : deux fois plus fort."
                : "."));
-  }
-  /* LE CRÉDIT DE NOVAS, HORS DU TEST DE CHANGEMENT DE PALIER.
-     Il doit s'appliquer aussi quand le palier ne bouge PAS de l'image
-     — c'est le cas du joueur qui avait déjà passé les trois millions
-     avant cette version : son palier est le bon dès la première image,
-     rien ne « change », et pourtant il lui manque quatre charges. La
-     comparaison au PLAFOND DÉJÀ ACCORDÉ est ce qui rend l'opération
-     idempotente : on ne crédite que ce qui n'a jamais été accordé.
-
-     Et l'on remonte à PLEIN, sans retirer les Novas déjà tirées : le
-     seuil se franchit une seule fois par île (le cumul ne fait que
-     monter), donc rien à gagner à le franchir « proprement ». Celui
-     qui avait dépensé sa charge en arrivant à trois millions serait
-     sinon puni de s'en être servi. */
-  var n = novaParVie(jeu.palier);
-  /* « | 0 » des deux côtés : une partie reprise d'un état plus ancien
-     n'a pas ces champs, et « n > undefined » est faux — le crédit ne
-     serait alors JAMAIS accordé, silencieusement. */
-  if(n > (jeu.novaPlafond | 0)){
-    jeu.novaPlafond = n;
-    if((jeu.novaDispo | 0) < n){
-      jeu.novaDispo = n;
-      if(typeof demandeMajBarres === "function") demandeMajBarres();
-      if(typeof message === "function")
-        message("SUPER Nova : tu en as " + n + " par vie, à toi de jouer.");
-    }
   }
 }
 

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.32";
+var VERSION = "v0.33";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -25,11 +25,10 @@ var EQ = {
   ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
   ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
 
-  /* Nova : une seule charge par vie, jamais cumulable… tant qu'on n'a
-     pas débloqué la SUPER Nova. Passé trois millions de dégâts sur
-     l'île, la charge passe à cinq — voir novaParVie(). */
+  /* Nova : une seule charge par vie, jamais cumulable. Ce qui monte
+     avec les paliers, ce n'est pas le NOMBRE de Novas, c'est leur
+     CALIBRE — voir calibreNova(). */
   NOVA_PAR_VIE         : 1,
-  NOVA_SUPER_PAR_VIE   : 5,
 
   /* Débarquement */
   NB_BARGES            : 8,
@@ -576,27 +575,52 @@ var PALIERS_PUISSANCE = [
    cent soixante-dix mille de Brasier : elle se débloque exactement au
    moment où l'on attaque le Brasier. */
 var PALIER_SUPERNOVA = 4;             // l'indice de la ligne « 3 000 000 »
+/* Et le palier où la super Nova prend son plein calibre : cinq
+   millions, soit deux millions de Brasier déjà entamés. */
+var PALIER_NOVA_MAX  = 6;             // l'indice de la ligne « 5 000 000 »
 
 /* ================================================================
-   COMBIEN DE NOVAS PAR VIE.
+   LES TROIS CALIBRES DE LA NOVA.
 
-   Une, tant qu'on n'a pas débloqué la SUPER Nova ; CINQ ensuite. Le
-   même palier commande donc deux choses : la Nova change de calibre,
-   et l'on en reçoit cinq au lieu d'une. C'est volontairement le même
-   seuil : deux récompenses au même endroit se retiennent, deux seuils
-   voisins se confondent.
+   Ce n'est jamais le NOMBRE de Novas qui monte — on en a une par vie,
+   du début à la fin — c'est leur calibre. Trois marches :
 
-   POURQUOI CINQ NE CASSE RIEN. Une super Nova retire 66 000 points au
-   Brasier (50 000 au cœur, 16 000 au souffle) ; cinq en retirent
-   330 000. Sur la plage (quinze millions) c'est deux pour cent de la
-   forteresse par vie, sur la jungle (soixante millions) un demi. Et
-   une vie ne se rejoue pas à volonté : il faut avoir perdu ses huit
-   navettes ET toutes ses troupes pour en recevoir une neuve. Le
-   bombardement à distance reste donc un ornement, jamais une
-   stratégie — c'était la crainte à écarter, et les chiffres l'écartent.
+     avant 3 M   la Nova ordinaire        130 + 45      rayon ×1
+     à 3 M       la SUPER Nova         50 000 + 16 000  rayon ×3
+     à 5 M       son plein calibre    100 000 + 50 000  rayon ×3
+
+   Le premier saut est celui qui compte : il tombe pile au moment où
+   l'on cesse de démonter des défenses pour attaquer le Brasier. Le
+   second récompense les deux millions suivants, tous pris sur la
+   forteresse elle-même.
+
+   POURQUOI CE N'EST PAS UN RACCOURCI. Au plein calibre une Nova retire
+   150 000 points au Brasier, une fois par vie — et une vie ne se
+   rejoue pas à volonté : il faut avoir perdu ses huit navettes ET
+   toutes ses troupes pour en recevoir une neuve. Sur la plage (quinze
+   millions) cela fait un pour cent de la forteresse par vie ; sur la
+   jungle (soixante millions), un quart. Le bombardement à distance
+   reste un ornement, jamais une stratégie.
+
+   LE RAYON NE CHANGE PLUS APRÈS LE PREMIER SAUT, et le rayon ALLIÉ ne
+   change jamais : voir explosionNova(). Une troupe qui était hors de
+   portée ne doit pas se mettre à mourir parce que le joueur a
+   progressé.
    ================================================================ */
-function novaParVie(palier){
-  return (palier | 0) >= PALIER_SUPERNOVA ? EQ.NOVA_SUPER_PAR_VIE : EQ.NOVA_PAR_VIE;
+var CALIBRES_NOVA = [
+  { seuil:0,                degats:"degats",    souffle:"degatsSouffle",     ech:1 },
+  { seuil:PALIER_SUPERNOVA, degats:"degatsSuper", souffle:"degatsSouffleSuper", ech:3 },
+  { seuil:PALIER_NOVA_MAX,  degats:"degatsMax",  souffle:"degatsSouffleMax",  ech:3 }
+];
+/* Rend les trois chiffres du tir : le cœur, le souffle, et le facteur
+   d'agrandissement du rayon côté ennemi. `rang` (0, 1, 2) sert au
+   dessin et aux messages — c'est le seul endroit qui nomme la marche. */
+function calibreNova(palier){
+  var p = (palier | 0) > 0 ? (palier | 0) : 0, i, c = CALIBRES_NOVA[0], rang = 0;
+  for(i = CALIBRES_NOVA.length - 1; i > 0; i--)
+    if(p >= CALIBRES_NOVA[i].seuil){ c = CALIBRES_NOVA[i]; rang = i; break; }
+  return { degats:CAP.nova[c.degats], souffle:CAP.nova[c.souffle],
+           ech:c.ech, rang:rang };
 }
 
 /* L'indice du palier atteint. On parcourt du haut vers le bas : la
@@ -640,8 +664,13 @@ var CAP = {
      elle tuerait tout le débarquement d'un coup, et comme c'est la
      mort de la flotte qui met fin à la vie, le joueur s'interromprait
      lui-même : la super Nova serait STRICTEMENT PIRE que l'ordinaire. */
+  /* Les trois calibres se lisent ici et nulle part ailleurs ; c'est
+     calibreNova(palier) qui choisit la ligne. `degats`/`degatsSouffle`
+     servent AUSSI de dégâts alliés, à tous les calibres : eux ne
+     montent jamais. */
   nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45,
-               degatsSuper:50000, degatsSouffleSuper:16000, echSuper:3 },
+               degatsSuper:50000,  degatsSouffleSuper:16000,
+               degatsMax:100000,   degatsSouffleMax:50000,   echSuper:3 },
   poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
   brouillard:{ rayon:4.2, duree:20.0 },
   salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },
