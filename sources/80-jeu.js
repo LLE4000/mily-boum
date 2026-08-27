@@ -21,8 +21,8 @@ var W = 960, H = 600, dpr = 1;
 
    Deux climats, et ils ne demandent pas les mêmes nuages.
 
-   L'ORAGE : TROIS, ET ILS VONT VITE. Trois, parce qu'un ciel couvert
-   n'est plus une menace, c'est un décor. Trois masses qu'on suit du
+   L'ORAGE : QUATRE, ET ILS VONT VITE. Peu, parce qu'un ciel couvert
+   n'est plus une menace, c'est un décor. Des masses qu'on suit du
    regard, c'est une information — celle qui dit où la foudre va
    tomber. Leur vitesse est le DOUBLE de celle d'une troupe : on ne
    distance pas un orage, on ne peut que sortir de son chemin.
@@ -37,12 +37,20 @@ var W = 960, H = 600, dpr = 1;
    le ciel n'appartient pas au terrain, deux joueurs sur la même île
    n'ont pas à voir les mêmes nuages au même endroit.
    ================================================================ */
+/* TROIS NUAGES D'ORAGE SONT DEVENUS QUATRE, et c'est une mesure qui
+   l'a décidé, pas un goût. Au zoom de jeu on voit environ un cinquième
+   de l'île : avec trois masses tirées au hasard sur toute sa surface,
+   il n'y a de nuage dans le champ qu'une fois sur deux — donc, une
+   fois sur deux, il pleut sans qu'on voie d'où. Un quatrième porte
+   cette chance aux trois cinquièmes, et il est un peu plus petit pour
+   que la surface d'ombre totale — le seul poste qui se paie au pixel —
+   n'augmente presque pas. */
 function fabriqueNuages(orage){
-  var n = orage ? 3 : 5;
+  var n = orage ? 4 : 5;
   var out = [], i;
   for(i = 0; i < n; i++){
     out.push({ gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
-               r:orage ? 10 + Math.random() * 6 : 13 + Math.random() * 9,
+               r:orage ? 9 + Math.random() * 5.5 : 13 + Math.random() * 9,
                cap:Math.random() * 6.2832,
                /* le cap voulu, vers lequel le vrai cap glisse : c'est
                   cette inertie qui donne une dérive erratique plutôt
@@ -106,9 +114,9 @@ function nouvelleCarte(index, pvConnu){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
     eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
-    /* TROIS NUAGES D'ORAGE, et ils vont vite.
-       Trois, parce qu'un ciel couvert n'est plus une menace : c'est un
-       décor. Trois masses qu'on peut suivre du regard, c'est une
+    /* QUATRE NUAGES D'ORAGE, et ils vont vite.
+       Peu, parce qu'un ciel couvert n'est plus une menace : c'est un
+       décor. Des masses qu'on peut suivre du regard, c'est une
        information — celle qui dit où la foudre va tomber.
        Leur vitesse est le DOUBLE de celle d'une troupe : on ne
        distance pas un orage, on ne peut que sortir de son chemin. */

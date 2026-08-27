@@ -10,10 +10,22 @@
         il est retombé sous 0,01 en 120 ms. Il a été BAISSÉ de 0,32 à
         0,23 le jour où la cadence a doublé : ce qu'on gagne en
         fréquence, on le rend en douceur ;
-     2. la pluie est un rideau PÂLE — trois couches, 270 traits fins,
-        jamais un mur d'eau : on doit lire un combat au travers ;
-     3. pluie + brume + ciel tiennent sous 2 ms par image, à plein
-        écran, à toutes les images de la partie.
+     2. la pluie NE FAIT PAS DE LIGNES. Le rideau de traits existe
+        encore, mais réduit à une suggestion : c'est le SOL qui dit
+        qu'il pleut. La règle vient du joueur, mot pour mot — « les
+        lignes verticales […] en image, ce n'est pas très joli ;
+        juste voir les gouttes au sol, c'est bien ». Sur une canopée
+        hachée de troncs, un trait pâle presque vertical ne se lit pas
+        comme de l'eau, il se lit comme une rayure sur l'image ;
+     3. pluie + brume + nappe de ciel tiennent sous 2,6 ms par image,
+        à plein écran, à toutes les images de la partie. Ce plafond
+        était à 2 quand la pluie vivait dans l'AIR ; il a été relevé
+        le jour où elle est descendue au sol, parce qu'un anneau
+        d'éclaboussure est une courbe et qu'une courbe se paie plus
+        cher qu'un trait. Ce qui n'a pas bougé, et c'est ce qui
+        compte, ce sont les images par seconde de bout en bout,
+        mesurées avant/après sur la carte complète en rendu logiciel :
+        17 / 13 / 16 à z = 0,45 / 0,9 / 1,2, identiques.
 
    Les couches, dans l'ordre où le rendu doit les empiler. Toutes en
    repère ÉCRAN (repereEcran déjà fait) :
@@ -29,7 +41,7 @@
                          pas à l'écran.
 
    PAR-DESSUS la carte — ce qui se passe DANS L'AIR :
-     dessineNuagesJungle les trois nuages de `jeu.nuages`. Ce sont eux
+     dessineNuagesJungle les quatre nuages de `jeu.nuages`. Ce sont eux
                          qui donnent la CAUSE : la foudre part de l'un
                          d'eux, jamais de nulle part. Ils APPARTIENNENT
                          au jeu (80-jeu.js les fait dériver et choisit
@@ -42,8 +54,14 @@
      dessineEclairJungle l'événement, en cinq temps : le nuage
                          s'allume, l'éclair descend, il frappe, LE
                          COURANT SE DIFFUSE AU SOL, ça fume.
-     dessinePluieJungle  le rideau (écran) + les éclaboussures
-                         (monde, elles marquent le sol).
+     dessinePluieJungle  un reste de rideau (écran) et, surtout, LES
+                         ÉCLABOUSSURES (monde, elles marquent le sol).
+                         C'est la seule couche dont le poids s'est
+                         déplacé depuis l'écriture du fichier : la
+                         pluie ne se voit plus tomber, elle se voit
+                         ARRIVER — et elle arrive plus dru sous les
+                         nuages, ce qui est la seule chose qui relie
+                         encore le ciel à l'eau.
 
    Les deux couches d'AIR ont un filet de sécurité : si le rendu ne les
    appelle pas explicitement, dessineLueursVegetation puis
@@ -73,20 +91,30 @@
 
    Ce que ça donne, mesuré couche par couche sur la carte jungle
    complète, canevas 1500×900, dpr 1, rendu logiciel (donc bien plus
-   pessimiste qu'une tablette), les TROIS nuages dans le champ :
+   pessimiste qu'une tablette). DEUX colonnes par zoom, et l'écart
+   entre les deux est l'essentiel du fichier : « pire » ramène les
+   QUATRE nuages au-dessus de la caméra, ce qui n'arrive jamais en
+   partie — les quatre masses couvrent cinq pour cent de l'île — ;
+   « courant » les laisse dispersés, ce qu'on voit vraiment.
 
-                                     z=0,35   z=0,9   z=1,2
-     ciel : la nappe d'ombres          0,35    0,39    0,40
-     ciel : les 3 ombres portées       0,15    0,75    1,24
-     brume au sol                      0,33    0,39    0,45
-     nuages : les 3 masses             0,29    1,29    1,40
-     voile d'air + vignette            0,45    0,48    0,47
-     lueurs de végétation              0,06    0,12    0,12
-     pluie + éclaboussures             0,22    0,59    1,11
-     ── périmètre du contrat           0,90    1,37    1,96   (plafond 2)
-     ── total permanent                1,85    4,01    5,19
+                              z=0,35      z=0,9      z=1,2
+                            pire cour  pire cour  pire cour
+     ciel : nappe + ombres  0,60 0,45  1,45 0,41  2,05 0,45
+     brume au sol           0,38 0,35  0,41 0,41  0,49 0,49
+     nuages : les 4 masses  0,42 0,14  1,76 0,01  1,81 0,01
+     voile d'air + vignette 0,49 0,48  0,47 0,47  0,48 0,47
+     lueurs de végétation   0,09 0,08  0,15 0,17  0,14 0,20
+     pluie + éclaboussures  0,25 0,22  0,54 0,47  2,06 1,45
+     ── brume + pluie       0,63 0,57  0,95 0,88  2,55 1,94
+     ── total permanent     2,23 1,72  4,78 1,94  7,03 3,07
    Et, quatre images toutes les quinze secondes, l'éclair à son pic :
    3,3 / 4,0 / 4,3 ms.
+
+   La ligne à surveiller est « pluie + éclaboussures » à z = 1,2 : les
+   anneaux au sol y coûtent désormais plus que les trois couches de
+   traits qu'ils remplacent. C'est le prix assumé du réglage demandé —
+   et le gouverneur de résolution (97-boucle.js) reste derrière pour
+   les appareils qui ne suivraient pas.
    ================================================================ */
 
 /* ---------------------------------------------------------------
@@ -118,8 +146,18 @@ var MET_FUMEE  = "196,206,198";     // pâle : une fumée sombre disparaît sur 
    unes aux autres. Deux rafales de périodes premières entre elles :
    le motif ne se répète jamais à l'œil.
    --------------------------------------------------------------- */
+/* LA PENTE MOYENNE A ÉTÉ MONTÉE de 0,27 à 0,40, et c'est un correctif
+   de lisibilité, pas un réglage de météo. À 0,27, une goutte descend
+   de quatre pixels pour un de côté : sur un fond de troncs et de
+   lianes verticaux, l'œil range ça avec les troncs et lit une RAYURE
+   posée sur l'image. À 0,40 — vingt-deux degrés — plus rien sur la
+   carte ne penche comme ça, et le même trait redevient de l'eau qui
+   tombe de travers. C'est gratuit : la pente ne change ni le nombre de
+   traits, ni leur longueur, ni un seul appel à stroke.
+   Tout ce qui dérive s'y accroche — pluie, brume, fumée —, donc la
+   carte entière prend le vent d'un coup, ce qui est exactement le but. */
 function ventJungle(tps){
-  return 0.27 + 0.15 * Math.sin(tps * 0.21) + 0.09 * Math.sin(tps * 0.53 + 1.7);
+  return 0.40 + 0.17 * Math.sin(tps * 0.21) + 0.10 * Math.sin(tps * 0.53 + 1.7);
 }
 
 /* ================================================================
@@ -259,13 +297,20 @@ function voilesOrage(c){
      un résultat identique — le dégradé porte les deux. Il ne descend
      jamais à zéro au centre : c'est cette part uniforme qui fait la
      lumière d'orage sur toute la carte. */
+  /* ASSOMBRI À LA DEMANDE DU JOUEUR — « il y avait une ambiance […]
+     un peu sombre, ça faisait un peu plus jungle ». Le voile monte de
+     0,21 à 0,30 au centre et de 0,54 à 0,66 au bord. C'est la seule
+     valeur de tout le jeu qui teinte AUSSI les troupes et les
+     bâtiments, donc la seule qu'on ne monte qu'après l'avoir regardée
+     en capture : au-delà de 0,32 au centre, les barres de vie
+     commencent à se lire de travers. */
   var v = nouveauCanvas(lw, lh);
   var g = v.getContext("2d");
   var gr = g.createRadialGradient(lw / 2, lh * 0.54, lh * 0.10,
                                   lw / 2, lh * 0.54, lh * 0.95);
-  gr.addColorStop(0, "rgba(8,30,26,0.21)");
-  gr.addColorStop(0.50, "rgba(6,24,22,0.28)");
-  gr.addColorStop(1, "rgba(2,10,11,0.54)");
+  gr.addColorStop(0, "rgba(6,26,23,0.30)");
+  gr.addColorStop(0.50, "rgba(4,20,19,0.39)");
+  gr.addColorStop(1, "rgba(1,7,8,0.66)");
   g.fillStyle = gr;
   g.fillRect(0, 0, lw, lh);
   metVoiles.vignette = v;
@@ -361,16 +406,33 @@ function bornesGrille(pasEcran, marge){
    deux impacts, et non devant une carte verte qui attend son effet.
    Rare, faible, et toujours en haut de l'écran — un voile plein cadre
    toutes les sept secondes ne servirait qu'à fatiguer. */
-/* Le cycle a été ALLONGÉ de 6,7 à 9,5 s et le tirage resserré quand la
-   foudre est passée à un impact toutes les quinze secondes : entre les
-   vrais coups et les lueurs lointaines, le ciel finissait par gronder
-   sans arrêt, et un orage permanent ne fait plus peur à personne. */
-var MET_ROULEMENT = 9.5;
+/* CE RÉGLAGE A ÉTÉ FAIT DEUX FOIS, DANS LES DEUX SENS.
+   Le cycle avait d'abord été ALLONGÉ de 6,7 à 9,5 s, et le tirage
+   resserré, quand la foudre est passée à un impact toutes les quinze
+   secondes : entre les vrais coups et les lueurs lointaines, le ciel
+   finissait par gronder sans arrêt.
+   Le joueur a tranché dans l'autre sens — « il y avait une ambiance
+   avec plus de coups de tonnerre » — et sur la carte finie il a
+   raison : un grondement toutes les vingt et une secondes, sous une
+   canopée qui mange déjà le ciel, ne s'entend pas. On redescend donc à
+   6,8 s avec un tirage plus large : un roulement toutes les douze
+   secondes environ, qui s'intercale entre les impacts de foudre sans
+   jamais tomber dessus.
+   Ce qu'on NE touche pas, c'est EQ.JUNGLE_ECLAIR : la foudre TUE des
+   troupes. Le tonnerre, lui, ne fait que du bruit et de la lumière —
+   c'est exactement pour ça qu'on peut en donner plus. */
+var MET_ROULEMENT = 6.8;
 function roulementJungle(tps){
   var n = Math.floor(tps / MET_ROULEMENT);
   var f = bruitStable(n, 1);
-  if(f < 0.55) return 0;                      // moins d'un cycle sur deux
-  var d = tps - n * MET_ROULEMENT - (0.4 + bruitStable(n, 0) * 7.4);
+  if(f < 0.42) return 0;                      // près de trois cycles sur cinq
+  /* Le retard dans le cycle est tiré SUR LE CYCLE, pas sur une durée
+     écrite en dur. La version à 9,5 s tirait jusqu'à 7,8 s ; en
+     raccourcissant le cycle sans y toucher, tout roulement tiré au-delà
+     de 6,1 s serait tombé dans le cycle suivant — c'est-à-dire jamais.
+     Un tiers des grondements aurait disparu au moment précis où l'on
+     en demandait davantage. */
+  var d = tps - n * MET_ROULEMENT - (0.4 + bruitStable(n, 0) * (MET_ROULEMENT - 1.4));
   if(d < 0 || d > 0.7) return 0;
   /* deux claquements : un vrai éclair lointain se réamorce */
   return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
@@ -423,11 +485,16 @@ function dessineVoileOrage(c, tps){
   c.save();
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.drawImage(v.vignette, 0, 0);
-  /* LES ROULEMENTS, tout en haut de l'écran. */
+  /* LES ROULEMENTS, tout en haut de l'écran. Montés de 0,16 à 0,26 en
+     même temps que le ciel s'assombrissait : sur un fond plus noir, un
+     voile à 0,16 ne se voyait plus du tout, et l'on entendait un
+     tonnerre sans jamais voir ce qui l'avait fait. C'est le même
+     rattrapage que la pluie — ce qu'on assombrit, il faut le rendre
+     ailleurs. */
   var r = roulementJungle(tps);
   if(r > 0.015){
     c.globalCompositeOperation = "lighter";
-    c.globalAlpha = r * 0.16;
+    c.globalAlpha = r * 0.26;
     c.drawImage(v.ciel, 0, 0);
   }
   c.restore();
@@ -469,11 +536,50 @@ function dessineBrumeSol(c, tps){
    en gardant une surface couverte dérisoire — 270 traits d'un pixel
    et demi de large, c'est deux millièmes de l'écran. Il n'y a rien à
    cacher là-dedans. */
+/* …ET ON EST REVENU EN ARRIÈRE, parce que la jungle n'est pas la
+   plage. Le rideau avait été réglé sur une capture de sable, où un
+   trait pâle se voit ; sur une canopée hachée de troncs, de lianes et
+   de deux mille tourelles, les mêmes traits ne se lisent plus comme de
+   la pluie mais comme des RAYURES verticales posées par-dessus
+   l'image. Le joueur l'a dit sans détour : « les lignes verticales […]
+   ce n'est pas très joli, juste voir les gouttes au sol, c'est bien. »
+   Il a raison, et c'est même le meilleur réglage physiquement : une
+   averse tropicale vue de trois quarts, on ne la voit pas tomber, on
+   la voit ARRIVER. Le rideau redescend donc au rang de suggestion —
+   traits raccourcis d'un tiers, opacité rendue de moitié sur la couche
+   de tête, celle qui faisait les rayures — et toute la dépense passe
+   dans les impacts au sol, quinze lignes plus bas.
+   La PENTE, elle, monte (voir ventJungle) : ce qui reste de traits
+   penche franchement, et un trait penché ne se lit jamais comme une
+   rayure. */
 var MET_COUCHES_PLUIE = [
-  { n:98,  v:560,  len:14, ep:0.75, a:0.11, sway:14 },
-  { n:104, v:800,  len:21, ep:1.00, a:0.15, sway:22 },
-  { n:68,  v:1090, len:31, ep:1.40, a:0.20, sway:30 }
+  { n:98,  v:560,  len:10, ep:0.70, a:0.075, sway:14 },
+  { n:104, v:800,  len:14, ep:0.90, a:0.095, sway:22 },
+  { n:68,  v:1090, len:20, ep:1.15, a:0.115, sway:30 }
 ];
+
+/* COMBIEN IL PLEUT À CET ENDROIT-LÀ : 1 à l'écart de tout nuage,
+   jusqu'à 1,75 en plein dessous, avec un bord fondu. C'est ce seul
+   nombre qui porte tout le « la pluie tombe DES nuages » : il commande
+   à la fois combien de cases éclaboussent et la taille des anneaux.
+   On compare des CARRÉS — une racine par case et par nuage
+   n'apporterait rien à un dégradé qu'on ne regarde pas de près — et
+   l'on divise dy par le rapport RY/RX, parce que la zone battue est
+   couchée dans le plan de l'île comme l'ombre qui la surplombe. */
+var metAvX = [], metAvY = [], metAvR = [];
+function facteurAverse(x, y){
+  var f = 1;
+  for(var q = 0; q < metAvR.length; q++){
+    var dx = (x - metAvX[q]) / metAvR[q];
+    var dy = (y - metAvY[q]) / (metAvR[q] * RY / RX);
+    var d2 = dx * dx + dy * dy;
+    if(d2 < 2.25){
+      var v = 1 + 0.75 * (1 - d2 / 2.25);
+      if(v > f) f = v;
+    }
+  }
+  return f;
+}
 
 function dessinePluieJungle(c, tps){
   /* filets de sécurité : voir dessineVoileOrage. La pluie tombe DANS
@@ -515,14 +621,62 @@ function dessinePluieJungle(c, tps){
   }
   c.restore();
 
-  /* LES ÉCLABOUSSURES. Ancrées au MONDE : elles marquent le sol, pas
-     l'écran — sans ça elles glissent dès qu'on déplace la caméra et
-     tout l'effet s'effondre. On ne les paie qu'au-dessus du zoom où
-     on les distingue ; en dessous ce ne serait qu'un pointillé gris
-     de plus par-dessus la carte. */
-  if(z < 0.44) return;
-  var g = bornesGrille(128, 70);
-  var vis = borne((z - 0.44) * 4, 0, 1);
+  /* ================================================================
+     LES ÉCLABOUSSURES — c'est ICI que se voit la pluie, désormais.
+
+     Ancrées au MONDE : elles marquent le sol, pas l'écran — sans ça
+     elles glissent dès qu'on déplace la caméra et tout l'effet
+     s'effondre. On ne les paie qu'au-dessus du zoom où on les
+     distingue ; en dessous ce ne serait qu'un pointillé gris de plus
+     par-dessus la carte.
+
+     ET ELLES DISENT D'OÙ VIENT L'EAU. C'est la vraie réponse à « la
+     pluie qui tombait des nuages, c'était mieux », et elle ne coûte
+     pas un tracé de plus : au lieu de faire descendre une colonne
+     d'eau du nuage jusqu'au sol — ce qui donnait précisément les
+     lignes verticales dont le joueur ne voulait pas —, on regarde le
+     SOL. Sous un nuage, il tombe deux fois plus de gouttes et elles
+     frappent plus large ; à l'écart, c'est un crépitement. Le nuage
+     dérive, la zone battue dérive avec lui, et l'on comprend d'un coup
+     d'œil que c'est lui qui pleut — sans qu'un seul trait ait été
+     tracé entre les deux.
+     ================================================================ */
+  /* LE SEUIL ET LE PAS ONT ÉTÉ RESSERRÉS EN MÊME TEMPS, parce que
+     les impacts portent maintenant seuls ce que trois couches de
+     traits portaient avant. Un pas de 128 px ne mettait qu'une
+     trentaine d'anneaux à l'écran : de la bruine. À 100 il y en a une
+     cinquantaine, et moitié plus sous un nuage — c'est une averse.
+     Le pas suit le zoom, donc le nombre de cases parcourues est le
+     même à tous les zooms, et l'on trace toujours QUATRE chemins.
+     92 avait été essayé, et mesuré : 2,46 ms au zoom maximum avec les
+     quatre nuages ramenés dans le champ, contre un plafond de 2 au
+     contrat. Un cas de figure introuvable en partie — les quatre
+     masses couvrent cinq pour cent de l'île —, mais un plafond n'est
+     un plafond que si on le respecte dans le pire cas. À 100, et avec
+     le renfort d'averse borné à 1,75 au lieu de 2, on repasse dessous
+     sans qu'on voie la différence.
+     Le seuil descend de 0,44 à 0,34 : au dézoom, l'orage doit se voir
+     aussi quand on prend toute l'île dans l'écran — c'est même là
+     qu'on voit le mieux la zone battue dériver avec sa masse. */
+  if(z < 0.34) return;
+  var g = bornesGrille(100, 70);
+  var vis = borne((z - 0.34) * 4.5, 0, 1);
+  /* Les nuages sont projetés UNE fois, hors des quatre passes : au
+     zoom de jeu la grille compte une centaine de cases, et refaire
+     quatre projections par case serait payer quatre cents fois un
+     calcul qui ne change pas. Le rayon retenu est celui de l'ombre
+     portée, MET_OMBRE_PART — la zone battue et l'ombre au sol sont le
+     même endroit, et c'est ce qui les fait lire ensemble.
+     Les trois tableaux sont des MODULES, réutilisés d'une image à
+     l'autre : cette fonction tourne soixante fois par seconde, elle
+     n'a pas le droit d'allouer. */
+  metAvX.length = 0; metAvY.length = 0; metAvR.length = 0;
+  var nu = nuagesDuJeu();
+  if(nu) for(i = 0; i < nu.length; i++){
+    var pn = versEcran(cam, nu[i].gx, nu[i].gy);
+    metAvX.push(pn.x); metAvY.push(pn.y);
+    metAvR.push(nu[i].r * RX * z * MET_OMBRE_PART * 1.25);
+  }
   c.save();
   c.lineWidth = Math.max(0.8, 1.1 * z);
   /* QUATRE TRACÉS, PAS SOIXANTE. Au zoom de jeu il y a une soixantaine
@@ -535,22 +689,32 @@ function dessinePluieJungle(c, tps){
      anneau il n'y a de toute façon qu'un tiers d'opacité d'écart.
      Le moveTo avant chaque ellipse n'est pas décoratif — sans lui,
      ellipse() relie le nouvel anneau au précédent par un trait. */
+  /* L'opacité est passée de 0,34 à 0,62 : ce que le rideau a rendu,
+     les impacts le prennent. C'est le même orage, lu au sol au lieu
+     d'être lu dans l'air. */
   for(var pal = 0; pal < 4; pal++){
-    c.strokeStyle = "rgba(" + MET_PLUIE + "," + (((pal + 0.5) / 4) * 0.34 * vis) + ")";
+    c.strokeStyle = "rgba(" + MET_PLUIE + "," + (((pal + 0.5) / 4) * 0.62 * vis) + ")";
     c.beginPath();
     for(i = g.i0; i <= g.i1; i++){
       for(var j = g.j0; j <= g.j1; j++){
         var n0 = i * 131.7 + j * 37.3;
         var b2 = bruitStable(i * 57.1 - j * 91.9, 1);
         var ph = (tps * 1.55 + b2) % 1;
-        if(ph > 0.42) continue;                    // deux cases sur cinq
-        var u = ph / 0.42;
-        if((((1 - u) * 4) | 0) !== pal) continue;
         var b0 = bruitStable(n0, 0), b1 = bruitStable(n0, 1);
         var x = ((i + b0) * g.pas) * z + cam.px;
         var y = ((j + b1) * g.pas) * z + cam.py;
+        /* LE TEST DU CADRE VIENT AVANT LE RESTE : il écarte les trois
+           quarts des cases pour deux comparaisons, alors que la
+           mesure du nuage en coûte quatre. */
         if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
-        var rr = (2.5 + u * 9) * z;
+        var pl = facteurAverse(x, y);
+        /* Deux cases sur cinq à l'écart, quatre sur cinq sous un
+           nuage : c'est ce SEUIL, plus que la taille des anneaux, qui
+           fait qu'on voit l'averse se déplacer avec la masse. */
+        if(ph > 0.42 * pl) continue;
+        var u = ph / (0.42 * pl);
+        if((((1 - u) * 4) | 0) !== pal) continue;
+        var rr = (2.5 + u * 9) * z * (0.72 + pl * 0.34);
         c.moveTo(x + rr, y);
         c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
       }
@@ -613,14 +777,14 @@ function dessineLueursVegetation(c, tps){
 }
 
 /* ================================================================
-   5. LES TROIS NUAGES D'ORAGE
+   5. LES QUATRE NUAGES D'ORAGE
    Ils ne sont pas décoratifs : ils sont la CAUSE. Un éclair qui tombe
    d'un ciel vide n'est qu'un effet posé sur la carte ; le même éclair
    parti d'une masse qu'on regardait dériver vers ses troupes est une
    information, et une raison de bouger.
 
    ILS APPARTIENNENT AU JEU, PAS À CE FICHIER. `jeu.nuages` est tenu
-   par 80-jeu.js : trois nuages, leur dérive erratique, leur vitesse
+   par 80-jeu.js : quatre nuages, leur dérive erratique, leur vitesse
    (le double d'une troupe) et le tirage du point d'impact sous l'un
    d'eux. Ce fichier ne fait que les PEINDRE. Une seconde liste tenue
    ici donnerait des nuages dessinés à un endroit et une foudre qui
@@ -633,19 +797,36 @@ function dessineLueursVegetation(c, tps){
    donc identiques chez tous les joueurs sans qu'aucun champ de plus
    ait besoin de circuler sur le réseau.
    ================================================================ */
-var MET_NUAGE_G   = "18,32,34";     // le ventre du nuage d orage, presque noir
+/* LE VENTRE, ET LA LEÇON QU'IL A COÛTÉE.
+   Il a été éclairci une fois — 18,32,34 vers 44,60,66 — au motif,
+   juste en soi, qu'on regarde ce nuage depuis le SOUS-BOIS et que le
+   ciel, même bouché, reste plus clair qu'une canopée. La capture a
+   tranché autrement : au zoom de jeu, une masse de cinq cents pixels
+   de large peinte en pâle par-dessus la carte ne se lit pas comme un
+   nuage, elle se lit comme un BANC DE BROUILLARD posé sur les arbres.
+   Ce qui fait qu'un nuage se voit n'est pas sa clarté, c'est son
+   BORD : la crête éclairée, en haut. On revient donc à un ventre
+   sombre — à peine relevé, pour qu'il ne soit pas noir pur — et l'on
+   règle la lisibilité là où elle se joue vraiment, dans l'opacité qui
+   suit le zoom (voir dessineNuagesJungle). */
+var MET_NUAGE_G   = "26,40,46";     // le ventre du nuage d orage, sombre
 var MET_NUAGE_G_H = "176,198,188";  // sa crête, qui prend ce qui reste de jour
-/* La hauteur de la couche, en unités locales — la même pour les trois.
-   Un ciel d'orage est une NAPPE : trois nuages à trois altitudes
-   différentes se liraient comme trois objets sans rapport. C'est aussi
-   de cette hauteur que part la foudre. */
+/* La hauteur de la couche, en unités locales — la même pour les
+   quatre. Un ciel d'orage est une NAPPE : quatre nuages à quatre
+   altitudes différentes se liraient comme quatre objets sans rapport.
+   C'est aussi de cette hauteur que part la foudre.
+   Elle a été essayée à 285 pour faire tenir le haut des masses dans le
+   cadre au zoom de jeu. Mauvais calcul : un nuage plus bas recouvre
+   d'autant plus le terrain qu'on est en train de regarder. On la
+   remet à 340 et l'on rend la place autrement — en effaçant la masse
+   quand on se rapproche. */
 var MET_NUAGE_ALT = 340;
 
 /* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
    une vingtaine de dégradés par image et par nuage ; celui-ci coûte un
    seul blit. Le rapport 2:1 de la tuile est celui de la projection :
    un nuage vu de trois quarts est un objet couché.
-   Ils ne sont plus que TROIS sur toute l'île : chacun doit donc porter
+   Ils ne sont que QUATRE sur toute l'île : chacun doit donc porter
    seul, et la tuile est deux fois plus fine qu'à douze — 512 px, pour
    qu'un nuage occupant huit cents pixels d'écran ne soit pas un
    agrandissement de trois fois. */
@@ -741,16 +922,37 @@ function spritesNuage(clair){
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     if(clair){ out.push(cv); continue; }   // rien ne pend sous un beau nuage
-    g.lineCap = "butt";
-    g.strokeStyle = "rgba(" + MET_PLUIE + ",0.085)";
-    g.lineWidth = 2.4;
-    g.beginPath();
-    for(i = 0; i < 30; i++){
-      var vx = 104 + al() * 304, vy = 172 + al() * 18;
-      g.moveTo(vx, vy);
-      g.lineTo(vx + 10, vy + 34 + al() * 44);
+    /* LA VIRGA N'EST PLUS UN PEIGNE, C'EST UN VOILE — et c'est le
+       joueur qui a tranché, devant l'image.
+
+       Elle était faite de trente traits presque verticaux, à peine
+       visibles (0,085 × l'opacité de la masse, soit cinq millièmes).
+       En les épaississant pour qu'on voie enfin d'où vient l'eau, on a
+       obtenu exactement ce qu'il ne fallait pas : « les lignes
+       verticales, je ne sais pas comment ça se passe, mais en tout cas
+       en image, ce n'est pas très joli. » Il a raison, et la raison
+       est mécanique — au zoom de jeu le sprite est peint à l'échelle
+       un, donc chaque trait de virga mesure sur l'écran ce qu'il
+       mesure dans la tuile : quatre-vingts pixels de rayure sur une
+       canopée déjà hachée de troncs.
+
+       Un voile n'a pas ce défaut : il n'a AUCUN bord. On remplace donc
+       les traits par une haleine pâle qui pend sous le ventre et
+       s'éteint. On y lit la même chose — il tombe quelque chose de
+       là-dessous — sans une seule ligne, et pour trois blits au lieu
+       de trente lineTo.
+       Trois DISQUES FONDUS, et non un fillRect en dégradé : un
+       rectangle, si fondu soit-il vers le bas, garde deux bords NETS
+       sur les côtés — et l'on aurait remplacé trente lignes verticales
+       par deux, ce qui n'est pas un progrès. Un disque fondu n'a
+       aucun bord, dans aucune direction. */
+    var dp = disqueMeteo(MET_PLUIE);
+    g.globalAlpha = 0.075;
+    for(i = 0; i < 3; i++){
+      var vx = 158 + i * 98, rw = 122, rh = 54;
+      g.drawImage(dp, vx - rw, 198 - rh, rw * 2, rh * 2);
     }
-    g.stroke();
+    g.globalAlpha = 1;
     out.push(cv);
   }
   if(clair) metSpNuagesC = out; else metSpNuages = out;
@@ -859,7 +1061,7 @@ function dessineNuagesJungle(c, tps, clair){
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    /* respiration très lente, décalée par nuage : trois masses qui
+    /* respiration très lente, décalée par nuage : quatre masses qui
        enflent en même temps se lisent comme un seul objet répété */
     var souffle = 1 + Math.sin(tps * 0.17 + u.ph) * 0.055;
     var w = Math.round(u.r * RX * 1.85 * z * souffle);
@@ -867,7 +1069,18 @@ function dessineNuagesJungle(c, tps, clair){
     var x = Math.round(p.x - w / 2);
     var y = Math.round(p.y - alt * z - hh * 0.52);
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = clair ? 0.62 : 0.58;
+    /* L'OPACITÉ DE LA MASSE SUIT LE ZOOM, ET C'EST TOUT LE RÉGLAGE.
+       Un nuage est un objet du CIEL : de loin il doit peser, de près
+       il est au-dessus de la tête et n'a rien à faire en travers du
+       combat. À une valeur fixe, il fallait choisir entre les deux —
+       0,58 donnait un ciel vide au dézoom, 0,74 un brouillard sur le
+       terrain au zoom de jeu. En la faisant descendre avec le zoom on
+       a les deux : 0,80 quand on prend toute l'île dans l'écran, 0,58
+       au zoom de jeu, 0,41 collé au sol, où seuls comptent les
+       impacts au sol et l'ombre portée.
+       Le beau temps garde sa valeur fixe : ses nuages sont plus hauts
+       (× 1,35) et ne recouvrent jamais rien. */
+    c.globalAlpha = clair ? 0.62 : borne(1.10 - z * 0.58, 0.38, 0.80);
     c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();
