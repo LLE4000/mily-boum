@@ -2887,21 +2887,43 @@ function fusionneMonde(a, b){
   var ra = rangMonde(a), rb = rangMonde(b);
   var pl = meilleurPlan(a, b);
   var jg = fusionneJungle(a, b);
-  /* Une île plus avancée écrase la précédente : ses destructions ET
-     son tableau des dégâts, exactement comme jeu.degatsMoi qui repart
-     à zéro à chaque île. La jungle, elle, suit sa propre voie. */
+  /* Une île plus avancée écrase la précédente : ses destructions n'ont
+     rien à voir avec celles de la précédente. La jungle, elle, suit sa
+     propre voie.
+
+     LE TABLEAU DES DÉGÂTS, LUI, APPARTIENT AU SALON, PAS À L'ÎLE.
+     Il l'a suivie tant que le score était jeu.degatsMoi, qui repart
+     bien à zéro à chaque île — et ce commentaire disait encore ça.
+     Depuis que le total est la SOMME des contributions île par île,
+     jeter la table en changeant d'île rouvre exactement le défaut
+     qu'on venait de fermer : il suffit qu'un client passe à l'île
+     suivante avec une table qui n'a pas encore intégré la dernière
+     publication d'un autre, et le score de celui-ci disparaît — pour
+     de bon s'il a fermé son navigateur, puisque plus personne ne le
+     republie.
+
+     Une CAMPAGNE ou un TIRAGE neufs effacent en revanche bien tout :
+     c'est ce que demandent remetSalonAZero, nouveauTirageSalon et
+     enregistrePlan, qui publient s:"" avec un cy plus grand. Le
+     partage se fait donc là : même guerre, on fusionne ; guerre
+     neuve, la plus récente impose sa table. */
+  var memeGuerre = (a.cy | 0) === (b.cy | 0) && (a.tg | 0) === (b.tg | 0);
+  var sc = memeGuerre ? fusionneScores(a.s, b.s)
+                      : ((rb > ra) ? (b.s || "") : (a.s || ""));
   if(rb > ra) return poseJungle({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "", k:b.k || "" }, jg);
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "" }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
        bien son plan qui l'emporte — ET si b n'apporte rien à la
-       jungle, dont l'état est indépendant de l'avancée de campagne. */
-    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeJungle(a, jg)) return a;
+       jungle, dont l'état est indépendant de l'avancée de campagne,
+       ni au tableau des dégâts, qui ne l'est pas davantage. */
+    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeJungle(a, jg) &&
+       sc === (a.s || "")) return a;
     return poseJungle({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
-             s:a.s || "", k:a.k || "" }, jg);
+             s:sc, k:a.k || "" }, jg);
   }
   return poseJungle({
     v : Math.max(a.v, b.v),
@@ -2916,7 +2938,7 @@ function fusionneMonde(a, b){
     /* et les trois chats de Mily non plus */
     k : fusionneChats(a.k, b.k),
     /* le meilleur score de chacun survit à sa déconnexion */
-    s : fusionneScores(a.s, b.s),
+    s : sc,
     p : pl.p, pn: pl.pn, tg: a.tg | 0
   }, jg);
 }
