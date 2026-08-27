@@ -32,6 +32,7 @@ function demarre(){
   installeAdmin();
   installePlan();
   installeChat();
+  installeListeEnLigne();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

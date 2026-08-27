@@ -689,6 +689,9 @@ function classementSalon(){
   return l;
 }
 
+/* Déplié ou non : le joueur décide, et son choix tient jusqu'à ce
+   qu'il en décide autrement. */
+var listeEnLigne = false;
 function majPodium(){
   if(!jeu) return;
   /* Le classement se lit dans le REGISTRE, pas dans la liste des
@@ -727,16 +730,61 @@ function majPodium(){
   if(!reseau.connecte){
     h += '<div class="gg">🔌 hors ligne — relais injoignable</div>';
   }else{
-    /* le COMPTE, pas les noms : à dix joueurs la liste mangerait
-       l'écran, et les noms sont déjà au classement */
+    /* LE COMPTE D'ABORD, LES NOMS SI ON LES DEMANDE.
+       À dix joueurs, une liste ouverte en permanence mangerait le coin
+       de l'écran ; mais « deux joueurs en ligne » sans savoir QUI est
+       une demi-réponse. On garde donc le compte, et un toucher
+       déplie la liste — avec le nombre d'unités de chacun, qui dit
+       d'un coup d'œil qui est réellement en train de se battre et qui
+       regarde le menu. */
     var nAutres = 0, idj;
     for(idj in autresJoueurs) nAutres++;
-    h += '<div class="gg">🌐 ' + (nAutres
-       ? (nAutres + 1) + " joueurs en ligne"
-       : "seul dans le salon pour l'instant") + '</div>';
+    h += '<div class="gg enligne' + (listeEnLigne ? " ouverte" : "") + '" data-enligne="1">'
+       + '🌐 ' + (nAutres ? (nAutres + 1) + " joueurs en ligne"
+                          : "seul dans le salon pour l'instant")
+       + (nAutres ? '<i>' + (listeEnLigne ? "▾" : "▸") + '</i>' : "")
+       + '</div>';
+    if(listeEnLigne && nAutres){
+      h += '<div class="quiLa">' + ligneEnLigne(monNom, jeu ? jeu.unites.length : 0, 1);
+      /* rangés par nom, pour que la liste ne saute pas d'une seconde à
+         l'autre au gré des messages reçus */
+      var noms = [];
+      for(idj in autresJoueurs){
+        var ja = autresJoueurs[idj];
+        noms.push({ nom:(ja && ja.nom) || "?", n:(ja && ja.n) | 0 });
+      }
+      noms.sort(function(x, y){ return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
+      for(var iq = 0; iq < noms.length; iq++) h += ligneEnLigne(noms[iq].nom, noms[iq].n, 0);
+      h += '</div>';
+    }
   }
   if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
 }
+/* Une ligne de la liste des présents. Le nombre d'unités dit qui se
+   bat vraiment : zéro, c'est quelqu'un qui regarde le menu ou qui vient
+   de perdre sa vague. */
+function ligneEnLigne(nom, n, moi){
+  return '<div class="ql' + (moi ? " moi" : "") + '">'
+       + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'
+       + '<span class="n">' + echappe(nom || "?") + (moi ? " (toi)" : "") + '</span>'
+       + '<span class="u">' + (n > 0 ? n + " unité" + (n > 1 ? "s" : "") : "au menu") + '</span>'
+       + '</div>';
+}
+/* Le panneau du haut-gauche est réécrit en entier dès qu'il change :
+   l'écouteur est donc posé sur le CONTENEUR, une fois pour toutes, et
+   non sur la ligne — qui, elle, disparaît à chaque rafraîchissement. */
+function installeListeEnLigne(){
+  var e = $("podium");
+  if(!e) return;
+  e.addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    if(!ev.target.closest("[data-enligne]")) return;
+    listeEnLigne = !listeEnLigne;
+    podiumHtml = "";                 // on force la réécriture
+    majPodium();
+  });
+}
+
 function echappe(s){
   return String(s).replace(/[&<>"]/g, function(c){
     return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c];
