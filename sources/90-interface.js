@@ -954,11 +954,20 @@ function construitBriefing(){
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
-/* Le pseudo, une seule définition pour tout le fichier : trimé, borné
-   à quatorze caractères, et vide s'il ne reste rien. */
+/* Le pseudo, une seule définition pour tout le fichier : nettoyé
+   EXACTEMENT comme le fera le tableau des scores, borné à quatorze
+   caractères, et vide s'il ne reste rien.
+
+   Pourquoi le même nettoyage ici : « : », « | » et « ~ » séparent les
+   champs de l'instantané partagé, donc nettoieNomScore les retire.
+   Un pseudo qui n'était fait que de ceux-là — « :::: » — passait ce
+   contrôle (non vide après trim) mais partait sur le réseau SANS nom :
+   son auteur voyait ses 1 800 000, personne d'autre ne les voyait
+   jamais, et l'entrée mangeait quand même une des SCORES_GARDES
+   places. Le même nettoyage des deux côtés supprime l'écart : le
+   bouton reste grisé et l'avertissement dit pourquoi. */
 function pseudoSaisi(){
-  var v = ($("pseudo").value || "").trim().substr(0, 14);
-  return v;
+  return nettoieNomScore($("pseudo").value);
 }
 function majEtatPseudo(){
   var ok = !!pseudoSaisi();
@@ -981,45 +990,49 @@ function sauvegarde(){
     }));
   }catch(e){}
 }
+/* LA RANGÉE DES HUIT NAVETTES.
+   Trois vignettes-portraits par navette, c'était vingt-quatre
+   portraits de quatre-vingt-quatre pixels et deux rangées pleines :
+   DÉBARQUER partait sous l'horizon. On ne montre plus que le type
+   CHOISI, et le choix se fait dans un menu déroulant.
+   Rien ne change sous le capot : c'est toujours compoBarges[i].type
+   qu'on écrit, toujours placesNavette() qui fixe l'effectif, et
+   toujours sauvegarde() qui range le tout. */
 function majBargesBrief(){
-  var h = "";
-  for(var i = 0; i < EQ.NB_BARGES; i++){
+  var h = "", i, t;
+  for(i = 0; i < EQ.NB_BARGES; i++){
     var b = compoBarges[i];
-    /* « 12 Meufs », « 15 Mecs », « 1 Ogre » : l'effectif est FIXE, une
-       navette part toujours pleine. Plus de « n/max » : il n'y a plus
-       de n à régler. */
-    h += '<div class="barge"><div class="tt"><span>Navette ' + (i + 1) + '</span>'
-       + '<span>' + nommeTroupes(b.type, b.n) + '</span></div>'
-       + '<div class="choixT">';
-    for(var t = 0; t < TYPES_TROUPE.length; t++){
+    h += '<div class="nv"><div class="nvt"><span>N' + (i + 1) + '</span>'
+       + '<b>' + b.n + '</b></div>'
+       + '<canvas width="150" height="104" id="pt_' + i + '"></canvas>'
+       + '<select class="nvs" data-i="' + i + '" aria-label="Troupe de la navette ' + (i + 1) + '">';
+    for(t = 0; t < TYPES_TROUPE.length; t++){
       var cle = TYPES_TROUPE[t];
-      h += '<div class="pt' + (b.type === cle ? " on" : "") + '" data-i="' + i + '" data-t="' + cle + '">'
-         + '<canvas width="150" height="126" id="pt_' + i + '_' + cle + '"></canvas>'
-         + '<div class="nm">' + UNI[cle].nom + '<span class="role">' + UNI[cle].role + '</span></div>'
-         + '</div>';
+      h += '<option value="' + cle + '"' + (b.type === cle ? " selected" : "") + '>'
+         + UNI[cle].nom + '</option>';
     }
-    h += '</div>' + rangeeNavette(i, b) + '</div>';
+    h += '</select></div>';
   }
   $("barges").innerHTML = h;
 
-  /* portraits décalqués */
-  for(var k = 0; k < EQ.NB_BARGES; k++){
-    for(var q = 0; q < TYPES_TROUPE.length; q++){
-      var el = $("pt_" + k + "_" + TYPES_TROUPE[q]);
-      if(!el) continue;
-      var c = el.getContext("2d");
-      var g = c.createLinearGradient(0, 0, 0, 126);
-      g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
-      c.fillStyle = g; c.fillRect(0, 0, 150, 126);
-      dessinePortrait(c, TYPES_TROUPE[q], 0, -6, 150);
-    }
+  /* portraits décalqués : un seul par navette désormais, celui du
+     type embarqué */
+  for(i = 0; i < EQ.NB_BARGES; i++){
+    var el = $("pt_" + i);
+    if(!el) continue;
+    var c = el.getContext("2d");
+    var g = c.createLinearGradient(0, 0, 0, 104);
+    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+    c.fillStyle = g; c.fillRect(0, 0, 150, 104);
+    dessinePortrait(c, compoBarges[i].type, 0, -14, 150);
   }
   /* choix du type : une navette n'embarque qu'un seul type de troupe */
-  var pts = $("barges").querySelectorAll(".pt");
-  for(var m = 0; m < pts.length; m++){
-    pts[m].addEventListener("click", function(){
+  var sels = $("barges").querySelectorAll(".nvs");
+  for(i = 0; i < sels.length; i++){
+    sels[i].addEventListener("change", function(){
       var i2 = +this.getAttribute("data-i");
-      compoBarges[i2].type = this.getAttribute("data-t");
+      if(!UNI[this.value]) return;
+      compoBarges[i2].type = this.value;
       /* L'effectif suit le type, TOUJOURS au complet : douze Meufs,
          quinze Mecs, un Ogre. L'ancien « min(max, n) » gardait le 1 de
          l'Ogre quand on revenait aux Meufs — une navette qui partait
@@ -1034,23 +1047,11 @@ function majBargesBrief(){
   var det = TYPES_TROUPE.map(function(t2){ return nommeTroupes(t2, cpt[t2] || 0); }).join(", ");
   $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
-/* Pastille de couleur par type de troupe. */
-var PION_TROUPE = { meuf:"f", mec:"m", ogre:"o" };
 /* « 1 Ogre », « 12 Meufs » : le pluriel suit l'effectif, pas le type.
    « 1 Ogres » sur la seule navette qui n'en embarque qu'un aurait été
    la plus visible des fautes. */
 function nommeTroupes(type, n){
   return n + " " + UNI[type].nom + (n > 1 ? "s" : "");
-}
-function rangeeNavette(i, b){
-  var maxi = placesNavette(b.type);
-  var lab = '<span class="lab"><span class="pion ' + (PION_TROUPE[b.type] || "m")
-          + '"></span>' + UNI[b.type].nom + (maxi > 1 ? "s" : "") + '</span>';
-  /* Plus de boutons +/− du tout : une navette part TOUJOURS au complet.
-     Douze Meufs, quinze Mecs, un Ogre — on choisit le type, jamais le
-     nombre. Des boutons qui prétendraient le contraire mentiraient. */
-  return '<div class="rangee">' + lab
-       + '<span class="unSeul">' + maxi + ' par navette</span></div>';
 }
 
 /* ---------------------------------------------------------------
@@ -1684,6 +1685,29 @@ function quitteVersBriefing(){
    fait pour en accueillir d'autres : chaque réglage part dans
    l'instantané partagé, donc il vaut pour tout le salon.
    --------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   LE PANNEAU D'ADMINISTRATION
+
+   Le bouton ne déroule plus une file d'invites : il ouvre une porte,
+   et c'est derrière elle que vivent maintenant les deux choses
+   réservées — le plan de défense des six cartes, qui occupait un bloc
+   entier de l'accueil pour ne parler qu'à une personne, et les
+   réglages de la jungle.
+   Le mot de passe reste demandé à l'entrée, une seule fois : ce qui
+   est derrière ne se redemande pas à chaque geste, sauf la porte des
+   maps qui garde le sien — elle mène à des changements que tout le
+   salon subit.
+   --------------------------------------------------------------- */
+function ouvreAdminP(){
+  var e = $("adminP");
+  if(!e) return;
+  rafraichitPlan();                 // le résumé peut avoir changé ailleurs
+  e.classList.add("on");
+}
+function fermeAdminP(){
+  var e = $("adminP");
+  if(e) e.classList.remove("on");
+}
 function installeAdmin(){
   var b = $("btAdmin");
   if(!b) return;
@@ -1694,50 +1718,64 @@ function installeAdmin(){
       alert("Mot de passe incorrect. Rien n'a été touché.");
       return;
     }
-    var actuel = minJoueursJungle();
-    var rep = prompt(
-      "RÉGLAGES DU SALON — 1 sur 2\n\n"
-      + "Nombre minimum de joueurs connectés pour lancer\n"
-      + "« Mily dans la jungle ».\n\n"
-      + "Valeur actuelle : " + actuel + " joueurs.\n"
-      + "Par défaut : " + EQ.JUNGLE_MIN_JOUEURS + " joueurs.\n\n"
-      + "Entre un nombre entre 1 et 60 :", "" + actuel);
-    if(rep === null) return;
-    var n = parseInt(rep, 10);
-    if(!(n >= 1 && n <= 60)){
-      alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
-      return;
-    }
-    /* Le second réglage : la dureté des défenses de la jungle. Il vit
-       dans le même panneau et voyage avec le même numéro, parce qu'on
-       les règle ensemble — l'un dit qui peut entrer, l'autre ce qu'on
-       y trouve. */
-    var repPv = prompt(
-      "RÉGLAGES DU SALON — 2 sur 2\n\n"
-      + "Bonus de PV des défenses sur « Mily dans la jungle ».\n"
-      + "Le Brasier, lui, garde exactement sa vie.\n\n"
-      + "Valeur actuelle : +" + bonusPvJungle + " %.\n"
-      + "Par défaut : +" + EQ.JUNGLE_PV_BONUS + " % (leur vie est doublée).\n\n"
-      + "Entre un pourcentage entre 0 et 900 :", "" + bonusPvJungle);
-    if(repPv === null) return;
-    var pv = parseInt(repPv, 10);
-    if(!(pv >= 0 && pv <= 900)){
-      alert("Il faut un pourcentage entre 0 et 900. Rien n'a été changé.");
-      return;
-    }
-    var pose = regleMinJoueurs(n, pv);
-    evtEtat = "";
-    majMondes();
-    alert("Réglages enregistrés.\n\n"
-        + "• " + pose + " joueur" + (pose > 1 ? "s" : "") + " connecté"
-        + (pose > 1 ? "s" : "") + " pour lancer la jungle\n"
-        + "• défenses à +" + bonusPvJungle + " % de PV\n\n"
-        + "Ils valent pour TOUT LE SALON et survivent à la fermeture du\n"
-        + "navigateur : ils voyagent dans l'instantané partagé.\n\n"
-        + "Le changement de PV prend effet à la prochaine expédition —\n"
-        + "une jungle en cours garde la dureté avec laquelle elle a été\n"
-        + "bâtie.");
+    ouvreAdminP();
   });
+  var f = $("btAdminFerme");
+  if(f) f.addEventListener("click", fermeAdminP);
+  /* Un doigt sur le voile ferme aussi : c'est le geste attendu sur
+     tablette, et il ne touche à rien. */
+  var p = $("adminP");
+  if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeAdminP(); });
+  var r = $("btAdminReglages");
+  if(r) r.addEventListener("click", regleJungleAdmin);
+}
+
+/* Les deux réglages du salon, mot pour mot comme avant : seul l'endroit
+   d'où on les appelle a changé. */
+function regleJungleAdmin(){
+  var actuel = minJoueursJungle();
+  var rep = prompt(
+    "RÉGLAGES DU SALON — 1 sur 2\n\n"
+    + "Nombre minimum de joueurs connectés pour lancer\n"
+    + "« Mily dans la jungle ».\n\n"
+    + "Valeur actuelle : " + actuel + " joueurs.\n"
+    + "Par défaut : " + EQ.JUNGLE_MIN_JOUEURS + " joueurs.\n\n"
+    + "Entre un nombre entre 1 et 60 :", "" + actuel);
+  if(rep === null) return;
+  var n = parseInt(rep, 10);
+  if(!(n >= 1 && n <= 60)){
+    alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
+    return;
+  }
+  /* Le second réglage : la dureté des défenses de la jungle. Il vit
+     dans le même panneau et voyage avec le même numéro, parce qu'on
+     les règle ensemble — l'un dit qui peut entrer, l'autre ce qu'on
+     y trouve. */
+  var repPv = prompt(
+    "RÉGLAGES DU SALON — 2 sur 2\n\n"
+    + "Bonus de PV des défenses sur « Mily dans la jungle ».\n"
+    + "Le Brasier, lui, garde exactement sa vie.\n\n"
+    + "Valeur actuelle : +" + bonusPvJungle + " %.\n"
+    + "Par défaut : +" + EQ.JUNGLE_PV_BONUS + " % (leur vie est doublée).\n\n"
+    + "Entre un pourcentage entre 0 et 900 :", "" + bonusPvJungle);
+  if(repPv === null) return;
+  var pv = parseInt(repPv, 10);
+  if(!(pv >= 0 && pv <= 900)){
+    alert("Il faut un pourcentage entre 0 et 900. Rien n'a été changé.");
+    return;
+  }
+  var pose = regleMinJoueurs(n, pv);
+  evtEtat = "";
+  majMondes();
+  alert("Réglages enregistrés.\n\n"
+      + "• " + pose + " joueur" + (pose > 1 ? "s" : "") + " connecté"
+      + (pose > 1 ? "s" : "") + " pour lancer la jungle\n"
+      + "• défenses à +" + bonusPvJungle + " % de PV\n\n"
+      + "Ils valent pour TOUT LE SALON et survivent à la fermeture du\n"
+      + "navigateur : ils voyagent dans l'instantané partagé.\n\n"
+      + "Le changement de PV prend effet à la prochaine expédition —\n"
+      + "une jungle en cours garde la dureté avec laquelle elle a été\n"
+      + "bâtie.");
 }
 
 function installeRaz(){

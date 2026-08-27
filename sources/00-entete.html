@@ -474,8 +474,31 @@ select.champ{cursor:pointer}
   #voletJungle.on .ecl{animation:none}
 }
 
-/* navettes */
-#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+/* navettes — LA RANGÉE COMPACTE
+   Huit navettes sur une seule ligne. Le portrait reste, parce que
+   c'est lui qu'on reconnaît d'un coup d'œil, mais il ne fait plus
+   quatre-vingt-quatre pixels de haut : le choix se fait dans un menu
+   déroulant, qui tient sur une ligne et ne demande pas de place pour
+   ses deux options non retenues.
+   `auto-fit` et non huit colonnes en dur : sur un téléphone étroit la
+   rangée se replie d'elle-même en deux ou quatre, au lieu de forcer
+   des vignettes de trente pixels. */
+#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px}
+.nv{
+  background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;
+  padding:6px 6px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
+}
+.nv .nvt{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--gris);
+  display:flex;justify-content:space-between;align-items:baseline}
+.nv .nvt b{color:var(--or);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:0}
+.nv canvas{width:100%;height:52px;display:block;border-radius:8px;background:#241733}
+.nvs{
+  width:100%;min-width:0;appearance:none;-webkit-appearance:none;
+  background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 7px center;
+  border:1px solid rgba(255,255,255,.16);border-radius:9px;color:var(--texte);
+  font:700 13px/1 inherit;padding:7px 20px 7px 8px;cursor:pointer;
+}
+.nvs:focus{outline:none;border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.25)}
 .barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px}
 .barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:7px;display:flex;justify-content:space-between}
 /* Trois types de troupe et non plus deux : à gap 7 les vignettes
@@ -517,7 +540,41 @@ select.champ{cursor:pointer}
 #totalTroupes b{color:var(--or);font-size:16px}
 
 
-#lancer{width:100%;font-size:19px;padding:16px;margin:4px 0 8px;border-radius:16px;letter-spacing:1px}
+/* Le bouton vit maintenant DANS la carte des navettes : la marge du
+   haut le décolle du total de la flotte, pas du bord de l'écran. */
+#lancer{width:100%;font-size:19px;padding:16px;margin:12px 0 0;border-radius:16px;letter-spacing:1px}
+#btReprendre{width:100%;margin:12px 0 0}
+#btReprendre + #lancer{margin-top:8px}
+
+/* ---- LE PANNEAU D'ADMINISTRATION ---- */
+/* SOUS l'éditeur de maps (35), jamais au-dessus : « Administration des
+   maps » s'ouvre par-dessus le panneau, et le refermer redépose le
+   joueur exactement là d'où il est parti. */
+#adminP{
+  position:fixed;inset:0;z-index:34;display:none;
+  background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
+  align-items:center;justify-content:center;padding:16px;
+  overscroll-behavior:contain;
+}
+#adminP.on{display:flex}
+.admBoite{
+  width:min(560px,100%);max-height:min(88vh,760px);display:flex;flex-direction:column;
+  background:#1a1024;border:1px solid rgba(255,255,255,.12);border-radius:18px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);overflow:hidden;
+}
+.admHaut{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);background:#22143010;
+}
+.admTitre{font:800 15px/1 inherit;letter-spacing:.6px;color:var(--braise)}
+.admCorps{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch}
+.admCorps h3{
+  font:700 11px/1 inherit;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--gris);margin:0 0 8px;display:flex;align-items:center;gap:8px;
+}
+.admCorps h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.45),transparent)}
+.admCorps h3:not(:first-child){margin-top:20px}
+.admNote{font-size:13px;color:var(--gris);line-height:1.5}
 #avertPseudo{display:none;margin-top:8px;text-align:center;font-size:13px;font-weight:700;color:#ffb45c}
 #avertPseudo.on{display:block}
 #pseudo.manque{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.25)}
@@ -827,23 +884,20 @@ select.champ{cursor:pointer}
       </div>
     </div>
 
+    <!-- LA FLOTTE, ET LE DÉPART JUSTE EN DESSOUS. Les huit navettes
+         tenaient sur deux rangées de vignettes hautes, et le bouton
+         DÉBARQUER se retrouvait à un écran et demi plus bas, derrière
+         le plan de défense. On choisit son type dans un menu, la
+         rangée tient sur une ligne, et le bouton est là où le regard
+         finit sa course. -->
     <div class="carteP">
       <h2>Composition des huit navettes</h2>
       <div id="barges"></div>
       <div id="totalTroupes"></div>
+      <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
+      <button id="lancer" class="bt pri">DÉBARQUER</button>
+      <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     </div>
-
-    <div class="carteP">
-      <h2>Plan de défense</h2>
-      <div id="planResume">Défenses d'origine — la carte que tout le monde connaît.</div>
-      <div class="ligne" style="margin-top:8px">
-        <button id="btPlan" class="bt">🗺 Administration des maps</button>
-      </div>
-    </div>
-
-    <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
-    <button id="lancer" class="bt pri">DÉBARQUER</button>
-    <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
@@ -853,6 +907,35 @@ select.champ{cursor:pointer}
       <button id="btAdmin" class="bt ptt" title="Réglages réservés, protégés par mot de passe">⚙ Administration</button>
     </div>
     <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+  </div>
+</div>
+
+<!-- ==================== ADMINISTRATION ====================
+     Tout ce qui était réservé vit désormais derrière la même porte :
+     le plan de défense des six cartes et les réglages du salon. Le
+     résumé des plans occupait un bloc entier de l'accueil alors qu'il
+     ne parle qu'à celui qui a le mot de passe.
+     Frère de #brief comme #plan, et pour la même raison. -->
+<div id="adminP">
+  <div class="admBoite">
+    <div class="admHaut">
+      <div class="admTitre">⚙ Administration</div>
+      <button id="btAdminFerme" class="bt ptt">Fermer</button>
+    </div>
+    <div class="admCorps">
+      <h3>Plan de défense</h3>
+      <div id="planResume">Défenses d'origine — la carte que tout le monde connaît.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btPlan" class="bt">🗺 Administration des maps</button>
+      </div>
+      <h3>Réglages du salon</h3>
+      <div class="admNote">Le nombre de joueurs connectés qu'il faut pour lancer
+        « Mily dans la jungle », et le bonus de PV de ses défenses.
+        Ils valent pour tout le salon.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminReglages" class="bt">🌿 Régler la jungle</button>
+      </div>
+    </div>
   </div>
 </div>
 
