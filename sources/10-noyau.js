@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.26";
+var VERSION = "v0.27";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -541,6 +541,37 @@ var IDX_JUNGLE = (function(){
   return -1;
 })();
 function carteSpeciale(i){ return !!(CARTES[i] && CARTES[i].special); }
+
+/* ================================================================
+   UNE ÎLE EST-ELLE ORAGEUSE ?
+
+   Cette question paraît triviale, et elle a pourtant coûté une jungle
+   ensoleillée à un joueur qui attendait l'orage.
+
+   LE DÉFAUT. Tout l'orage — la nappe d'ombres, la brume, le voile
+   d'air, les nuages, la pluie, la foudre, le son — était conditionné à
+   `jeu.geysers.length`, en cinq endroits. Le raccourci se comprenait :
+   seule la jungle a des geysers, donc « il y a des geysers » voulait
+   dire « on est dans la jungle ». Sauf que le tableau des geysers est
+   le résultat d'un TIRAGE AU SORT : sources/10-noyau.js demande
+   vingt-deux ouvertures, s'accorde deux cents essais pour chacune, et
+   si toutes butent sur une case occupée elle rend un tableau vide —
+   sans repli, sans message, sans erreur. Mesuré : avec un plan
+   suffisamment dense, zéro geyser sur vingt-deux demandés.
+
+   Autrement dit, l'orage de la jungle dépendait d'une loterie de
+   placement. Un plan enregistré dans le salon remplace le plan gravé
+   (voir planDeCarte), et le plan gravé est le seul à réserver les
+   clairières où un geyser tient ; il suffisait donc d'un plan un peu
+   trop chargé pour que la carte événement perde son ciel.
+
+   LA CORRECTION. Un orage n'est pas une propriété d'un tableau, c'est
+   une propriété de l'ÎLE. On le lit donc sur le biome, qui ne dépend
+   ni du plan, ni du tirage, ni du réseau, ni de rien que le joueur
+   puisse changer. Et le jour où une deuxième île de jungle arrive,
+   elle a son orage sans qu'on ait à y penser.
+   ================================================================ */
+function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle"); }
 
 /* Le message de victoire nomme celui qui a le plus contribué à faire
    tomber le Brasier, et change avec le thème de l'île. */
@@ -1406,6 +1437,39 @@ function peupleLaJungle(c, al){
       if(trop) continue;
       c.geysers.push({ gx:gx, gy:gy, sommeil:dodo });
       pris = 1;
+    }
+  }
+  /* LE REPLI — pour qu'un semis vide ne passe plus jamais inaperçu.
+     La boucle ci-dessus n'a aucun filet : vingt-deux ouvertures
+     demandées, deux cents essais chacune, et si toutes butent sur une
+     case occupée elle rend un tableau VIDE, en silence. Mesuré : avec
+     un plan assez dense, zéro sur vingt-deux. Une jungle sans geyser
+     n'est plus une jungle — et jusqu'à la version précédente elle y
+     perdait aussi tout son orage, puisque le ciel se lisait sur ce
+     tableau.
+
+     Ce repli ne teste plus que la FORME DE L'ÎLE et le dégagement du
+     Brasier : deux choses qu'aucun plan ne peut boucher. Il accepte de
+     poser un geyser au pied d'une tourelle, ce que la boucle normale
+     refuse — c'est moins joli, et c'est infiniment mieux que rien.
+
+     IL NE CONSOMME AUCUN TIRAGE quand tout va bien, et c'est la
+     condition pour qu'il existe : le test vient avant la boucle, donc
+     sur les six cartes d'aujourd'hui — vingt et un geysers sur le plan
+     gravé — il ne s'exécute pas du tout, et pas une pousse, pas une
+     bête, pas un arbre ne change de place. */
+  if(!c.geysers.length){
+    for(i = 0; i < EQ.JUNGLE_GEYSERS; i++){
+      var rx = 8 + al() * (PLAGE_X0 - 14), ry = 5 + al() * (GH - 10);
+      var rdodo = al() * 14;
+      if(!dansLIle(rx, ry)) continue;
+      if(Math.hypot(rx - QG_GX, ry - QG_GY) < 18) continue;
+      var voisin = 0;
+      for(var w = 0; w < c.geysers.length; w++){
+        if(Math.hypot(c.geysers[w].gx - rx, c.geysers[w].gy - ry) < 6){ voisin = 1; break; }
+      }
+      if(voisin) continue;
+      c.geysers.push({ gx:rx, gy:ry, sommeil:rdodo });
     }
   }
 

@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -980,6 +980,92 @@ G("4. Déterminisme de la génération de carte");
      joueur qui frappe deux fois plus fort ne doit pas pouvoir inscrire
      un point de dégât de plus que ce qu'il a réellement retiré.
      ================================================================ */
+  /* ================================================================
+     3b bis. L'ORAGE APPARTIENT À L'ÎLE, PAS À UN TIRAGE AU SORT
+
+     Un joueur a signalé une jungle ENSOLEILLÉE : canopée vert vif,
+     sable clair, deux nuages blancs, aucun éclair. Mesuré sur sa
+     capture contre deux témoins rendus au même cadrage — luminance de
+     la bande de terrain 83,9 chez lui, 82,3 avec l'orage coupé, 53,4
+     avec l'orage correct : son client rendait la branche BEAU TEMPS.
+
+     La cause n'était ni la taille de son écran, ni sa définition, ni
+     un garde-fou de rendu, ni une exception avalée — les quatre ont
+     été réfutées par capture. C'était le COUPLAGE : tout l'orage se
+     lisait sur `jeu.geysers.length`, or ce tableau est le résultat
+     d'un tirage au sort qui peut rendre zéro sans un mot.
+
+     Ces vérifications gravent les deux moitiés de la correction : la
+     météo se lit sur le biome, et une jungle a toujours des geysers.
+     ================================================================ */
+  G("3b bis. L'orage tient à l'île, pas au tirage");
+  (function(){
+    ok("la jungle est orageuse", N.carteOrageuse(N.IDX_JUNGLE) === true);
+    ok("aucune des cinq îles ordinaires ne l'est", (function(){
+      for(var i = 0; i < N.CARTES.length; i++)
+        if(i !== N.IDX_JUNGLE && N.carteOrageuse(i)) return false;
+      return true;
+    })());
+    ok("un index hors carte ne fait pas d'orage",
+       N.carteOrageuse(-1) === false && N.carteOrageuse(999) === false);
+
+    /* LE PLAN QUI ÉTEIGNAIT LE CIEL. On sature toutes les zones de
+       défenses : la boucle normale ne trouve plus une seule case
+       libre. Avant le repli, ce plan rendait ZÉRO geyser — et donc
+       une jungle ensoleillée. */
+    var sature = (function(){
+      var z = [], n = 0;
+      /* on lit la taille du plan gravé pour saturer exactement autant
+         de zones, sans avoir à connaître la géométrie de l'éditeur */
+      var grave = N.decodePlan(N.planJungle());
+      for(n = 0; n < grave.length; n++) z.push(N.faitZone(1, 5, 1));
+      return N.encodePlan(z);
+    })();
+
+    ok("un plan saturé ne laisse plus la jungle sans geyser", (function(){
+      var c = N.genereCarte("MILY", N.IDX_JUNGLE, sature, 0);
+      return c.geysers.length > 0;
+    })(), "repli");
+    ok("le repli garde les geysers loin du Brasier", (function(){
+      var c = N.genereCarte("MILY", N.IDX_JUNGLE, sature, 0);
+      for(var i = 0; i < c.geysers.length; i++)
+        if(Math.hypot(c.geysers[i].gx - N.QG_GX, c.geysers[i].gy - N.QG_GY) < 18) return false;
+      return true;
+    })());
+    ok("et ne les empile pas les uns sur les autres", (function(){
+      var c = N.genereCarte("MILY", N.IDX_JUNGLE, sature, 0);
+      for(var i = 0; i < c.geysers.length; i++)
+        for(var j = i + 1; j < c.geysers.length; j++)
+          if(Math.hypot(c.geysers[i].gx - c.geysers[j].gx,
+                        c.geysers[i].gy - c.geysers[j].gy) < 6) return false;
+      return true;
+    })());
+
+    /* LE POINT LE PLUS IMPORTANT DU GROUPE. Le repli ne doit RIEN
+       coûter quand tout va bien : le plan gravé donne ses vingt et un
+       geysers, donc le repli ne s'exécute pas, donc pas un tirage n'est
+       consommé et aucune carte existante ne se redessine. C'est cette
+       vérification qui autorise à toucher au générateur. */
+    ok("le plan gravé garde ses geysers à l'identique", (function(){
+      var c = N.genereCarte("MILY", N.IDX_JUNGLE, N.planDeCarte(N.IDX_JUNGLE, null), 0);
+      return c.geysers.length === 21;
+    })(), "21 comme avant");
+    ok("et la carte entière est inchangée, empreinte comprise", (function(){
+      var a = N.genereCarte("MILY", N.IDX_JUNGLE, N.planDeCarte(N.IDX_JUNGLE, null), 0);
+      var b = N.genereCarte("MILY", N.IDX_JUNGLE, N.planDeCarte(N.IDX_JUNGLE, null), 0);
+      return N.empreinteCarte(a) === N.empreinteCarte(b)
+          && a.batiments.length === 2158 && a.creatures.length === 777;
+    })());
+    ok("les cinq îles ordinaires n'ont toujours aucun geyser", (function(){
+      for(var i = 0; i < N.CARTES.length; i++){
+        if(i === N.IDX_JUNGLE) continue;
+        var c = N.genereCarte("MILY", i, N.planDeCarte(i, null), 0);
+        if((c.geysers || []).length !== 0) return false;
+      }
+      return true;
+    })());
+  })();
+
   G("3c bis. Les bornes d'un score");
   (function(){
     /* --- la borne du jeu, sur la file partagée du Brasier --- */

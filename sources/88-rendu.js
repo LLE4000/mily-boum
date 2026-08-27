@@ -1976,7 +1976,7 @@ function rendu(tps, dt){
   dessineZonesSol(ctx, tps);
   /* La brume rampe AU SOL, donc sous les objets ; le ciel d'orage
      assombrit le terrain avant qu'on y pose quoi que ce soit. */
-  if(jeu.geysers.length){
+  if(carteOrageuse(jeu.index)){
     repereEcran(ctx);
     dessineCielOrage(ctx, tps);
     dessineBrumeSol(ctx, tps);
@@ -2142,7 +2142,7 @@ function rendu(tps, dt){
      depuis les autres, par filet de sécurité. Les appeler ici les
      remet dans le bon ordre ; les filets se désarment d'eux-mêmes,
      chacun refusant de repeindre deux fois le même instant. */
-  if(jeu.geysers.length){
+  if(carteOrageuse(jeu.index)){
     repereEcran(ctx);
     dessineVoileOrage(ctx, tps);
     dessineNuagesJungle(ctx, tps);

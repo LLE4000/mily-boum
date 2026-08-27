@@ -90,7 +90,7 @@ function boucle(maintenant){
      Même condition que le rendu de ce ciel, vingt lignes plus bas
      dans 88-rendu.js : la présence de geysers, c'est-à-dire la
      jungle. */
-  if(jeu.geysers && jeu.geysers.length) majMeteoJungle(dt, tempsGlobal);
+  if(carteOrageuse(jeu.index)) majMeteoJungle(dt, tempsGlobal);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);

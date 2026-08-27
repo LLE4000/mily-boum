@@ -120,7 +120,9 @@ function nouvelleCarte(index, pvConnu){
        information — celle qui dit où la foudre va tomber.
        Leur vitesse est le DOUBLE de celle d'une troupe : on ne
        distance pas un orage, on ne peut que sortir de son chemin. */
-    nuages:fabriqueNuages(carte.geysers && carte.geysers.length ? 1 : 0),
+    /* le ciel se lit sur l'ÎLE, pas sur le tirage des geysers :
+       voir carteOrageuse dans 10-noyau.js */
+    nuages:fabriqueNuages(carteOrageuse(index) ? 1 : 0),
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -2751,7 +2753,11 @@ function majNuages(dt){
 }
 
 function majJungle(dt){
-  if(!jeu.geysers.length) return;
+  /* la vie de la jungle — geysers ET foudre — appartient à l'île,
+     pas au tableau des geysers : un semis vide ne doit pas éteindre
+     l'orage. La boucle des geysers plus bas tourne à vide sans se
+     plaindre si le tableau est vide, c'est exactement ce qu'il faut. */
+  if(!carteOrageuse(jeu.index)) return;
   var i;
 
   /* --- LES GEYSERS ---
