@@ -28,6 +28,7 @@ try{
     "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
+    "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
@@ -813,6 +814,79 @@ G("4. Déterminisme de la génération de carte");
     ok("un instantané fusionné avec lui-même ne force RIEN", (function(){
       var a = N.fusionneMonde(m1, m2);
       return N.memeMonde(a, N.fusionneMonde(a, a));
+    })());
+  })();
+
+  /* ================================================================
+     3d. LE PODIUM GELÉ D'UNE ÎLE
+
+     Il ne s'écrivait JAMAIS. sacreChampion calculait bien le Top 3 de
+     la bataille, puis le passait dans le littéral remis à poseJungle
+     — qui recopie `ch` ET `t3` depuis son SECOND argument par-dessus
+     ce qu'il reçoit. Le champion, posé sur jg avant l'appel,
+     survivait ; le podium, non. Résultat : top3Salon() rendait null
+     pour les six îles, seule la carte en cours affichait un
+     classement (le vivant), et la phrase de victoire — qui ne
+     s'affiche que sous un podium gelé — était injoignable.
+
+     Ce groupe grave le contrat de poseJungle, celui que l'appelant
+     doit respecter, et la conservation du podium à la fusion.
+     ================================================================ */
+  G("3d. Le podium gelé d'une île");
+  (function(){
+    var pod = [{ nom:"Roro", g:1800000 }, { nom:"Lu", g:900000 }, { nom:"Ana", g:400000 }];
+
+    ok("inscrire un podium le rend relisable", (function(){
+      var t = N.inscritTop3("", 0, pod);
+      var r = N.top3DeCarte(t, 0);
+      return r && r.length === 3 && r[0].nom === "Roro" && r[0].g === 1800000
+          && r[2].nom === "Ana";
+    })());
+    ok("chaque île garde le sien", (function(){
+      var t = N.inscritTop3(N.inscritTop3("", 0, pod), 2, [{ nom:"Johan", g:70 }]);
+      return N.top3DeCarte(t, 0)[0].nom === "Roro"
+          && N.top3DeCarte(t, 2)[0].nom === "Johan"
+          && N.top3DeCarte(t, 1) === null;
+    })());
+
+    /* LE CONTRAT DE poseJungle, et c'est lui qui a été enfreint :
+       `ch` et `t3` viennent du SECOND argument, toujours. Un appelant
+       qui les met dans le premier écrit dans le vide. */
+    ok("poseJungle prend ch et t3 de son SECOND argument", (function(){
+      var o = { v:1, cy:0, c:0, pv:10, ch:"depuis-le-litteral", t3:"depuis-le-litteral" };
+      var j = { je:0, jf:0, jd:"", jq:0, jt:0, jm:1, jmn:0, jb:0,
+                ch:"depuis-jg", t3:"depuis-jg" };
+      var r = N.poseJungle(o, j);
+      return r.ch === "depuis-jg" && r.t3 === "depuis-jg";
+    })());
+    ok("donc un podium passé dans le littéral est PERDU", (function(){
+      var j = { je:0, jf:0, jd:"", jq:0, jt:0, jm:1, jmn:0, jb:0, ch:"", t3:"" };
+      var r = N.poseJungle({ v:1, cy:0, c:0, pv:10, t3:N.inscritTop3("", 0, pod) }, j);
+      return N.top3DeCarte(r.t3, 0) === null;      // exactement l'ancien défaut
+    })());
+    ok("et posé sur jg, il arrive", (function(){
+      var j = { je:0, jf:0, jd:"", jq:0, jt:0, jm:1, jmn:0, jb:0, ch:"" };
+      j.t3 = N.inscritTop3("", 0, pod);
+      var r = N.poseJungle({ v:1, cy:0, c:0, pv:10 }, j);
+      return N.top3DeCarte(r.t3, 0)[0].nom === "Roro";
+    })());
+
+    /* Le podium voyage dans l'instantané et survit à la fusion, y
+       compris quand l'autre camp est plus avancé. */
+    ok("le podium traverse la fusion des instantanés", (function(){
+      var a = N.mondeVide(0, 1000, 0), b = N.mondeVide(1, 1000, 0);
+      a.t3 = N.inscritTop3("", 0, pod);
+      var f1 = N.fusionneMonde(a, b), f2 = N.fusionneMonde(b, a);
+      return N.top3DeCarte(f1.t3, 0)[0].nom === "Roro"
+          && N.top3DeCarte(f2.t3, 0)[0].nom === "Roro";
+    })());
+    ok("deux podiums d'îles différentes se rejoignent", (function(){
+      var a = N.mondeVide(0, 1000, 0), b = N.mondeVide(0, 1000, 0);
+      a.t3 = N.inscritTop3("", 0, pod);
+      b.t3 = N.inscritTop3("", 3, [{ nom:"Gégé", g:5 }]);
+      var f = N.fusionneMonde(a, b);
+      return N.top3DeCarte(f.t3, 0)[0].nom === "Roro"
+          && N.top3DeCarte(f.t3, 3)[0].nom === "Gégé";
     })());
   })();
 

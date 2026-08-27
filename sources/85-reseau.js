@@ -117,6 +117,14 @@ function gardeMesDegats(){
    entre deux appels, jeu.degatsMoi continue de monter tout seul. */
 function repliMesDegats(){
   if(!monNom) return;
+  /* LA PRÉVISUALISATION NE COMPTE PAS. Elle promet « ni dégâts, ni
+     champion, ni progression, ni chrono », et elle tenait la promesse
+     partout SAUF ici : le cumul local, lui, était rangé comme celui
+     d'une vraie partie, puis publié à la seconde suivante. Tester une
+     île verrouillée gonflait donc son Top 3 pour tout le salon, et
+     durablement, puisque le cumul part dans le stockage du navigateur.
+     On sort avant d'écrire quoi que ce soit — ni mémoire, ni disque. */
+  if(modeApercu) return;
   chargeMesDegats();
   if(!jeu) return;
   var d = Math.round(jeu.degatsMoi || 0) - degatsReplies;
@@ -547,6 +555,10 @@ function termineExpedition(champion){
   jg.jt = Date.now();
   jg.jd = ""; jg.jq = 0;
   jg.ch = inscritChampion(jg.ch, IDX_JUNGLE, champion);
+  /* La jungle grave son podium comme les autres îles : c'est la même
+     promesse, et elle n'avait tout simplement pas été tenue ici. */
+  jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), IDX_JUNGLE,
+                      classementDepuis(totalParJoueurCarte(scoresAJour(), IDX_JUNGLE)).slice(0, 3));
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
@@ -579,11 +591,20 @@ function sacreChampion(index, nom){
      pas le total des joueurs. Ce sont deux classements différents, et
      c'est celui de la bataille qu'on grave. */
   var podium = classementDepuis(totalParJoueurCarte(scoresAJour(), index));
-  var t3 = inscritTop3((m.t3 || ""), index, podium.slice(0, 3));
+  /* LE PODIUM SE POSE SUR jg, EXACTEMENT COMME LE CHAMPION DEUX LIGNES
+     PLUS HAUT — et jamais dans le littéral. poseJungle recopie `ch` ET
+     `t3` depuis son second argument par-dessus ce qu'il reçoit : passer
+     le podium dans l'objet revenait à l'écrire pour se le faire effacer
+     dans la foulée. Le champion, lui, survivait ; le podium, non. Rien
+     n'a donc jamais été gravé dans t3, et top3Salon() rendait null pour
+     les six îles : seule la carte en cours montrait un classement, le
+     vivant, et la phrase de victoire — qui ne s'affiche que sur un
+     podium gelé — était injoignable. */
+  jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), index, podium.slice(0, 3));
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0, t3:t3 }, jg);
+                       tg:tirageSalon | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
@@ -700,9 +721,19 @@ function remetSalonAZero(){
      rejoue jamais deux fois la même île. Le PLAN, lui, survit : la
      remise à zéro efface la guerre, pas le dessin. */
   tirageSalon = (tirageSalon | 0) + 1;
-  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+  /* LES CHAMPIONS ET LES PODIUMS TRAVERSENT LA REMISE À ZÉRO.
+     Elle efface la GUERRE — les destructions, la vie du Brasier, le
+     tableau des dégâts —, pas la mémoire de qui a pris quoi. C'est
+     même précisément ce que « Derniers champions » veut dire sur une
+     vignette verrouillée : une île prise lors d'un cycle précédent.
+     Les reconstruire sans `ch` ni `t3` effaçait cet historique à
+     chaque remise à zéro, localement d'abord, puis chez tout le monde
+     à la première publication. */
+  var av = monde || {};
+  monde = { v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon };
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
+            ch:av.ch || "", t3:av.t3 || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;

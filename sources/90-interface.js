@@ -1103,7 +1103,12 @@ function phraseTop3(i){
 }
 function blocTop3(i){
   var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
-  var enCours = (i === carteSalon) && !carteSpeciale(i);
+  /* La jungle est « en cours » elle aussi, mais elle ne passe jamais
+     par carteSalon : c'est un événement, pas une étape de la campagne.
+     Sans ce second cas, l'expédition en cours n'avait pas de podium
+     vivant alors que c'est exactement le moment où on le regarde. */
+  var enCours = (i === carteSalon && !carteSpeciale(i))
+             || (carteSpeciale(i) && typeof jungleEnCours === "function" && jungleEnCours(monde));
   var liste = fige, titre;
   /* Tant que l'île est en cours, on montre le classement VIVANT de
      cette bataille — il bouge, et c'est ce qu'on vient regarder. */
@@ -1571,8 +1576,12 @@ function quitteApercuAdmin(){
   modeApercu = false;
   $("hud").classList.remove("apercu");
   /* Les dégâts du test ne doivent pas hanter le classement local :
-     on efface la mémoire de la partie d'essai. */
+     on efface la mémoire de la partie d'essai. Le marqueur du cumul
+     part avec elle — la prochaine vraie partie repart d'un compteur
+     propre, sinon son premier coup passerait pour un retour en
+     arrière et ne serait jamais rangé. */
   scoresSalon = {};
+  degatsReplies = 0;
   jeu = null;
   signatureBarges = null;
   quitteVersBriefing();
