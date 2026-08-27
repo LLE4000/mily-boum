@@ -9,6 +9,7 @@ function demarre(){
   miniCv = $("mini");
   miniCtx = miniCv.getContext("2d");
   monId = idStable();
+  monSeau = faitMonSeau();       // le seau du compteur de score, propre à cet appareil
   ajuste();
   /* Le doigt et la rotation d'abord, le décor ensuite : ces écouteurs
      tenaient derrière construitBriefing(), si bien qu'une vignette d'île

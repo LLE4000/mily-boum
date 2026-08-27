@@ -657,30 +657,35 @@ var podiumHtml = null;
    lisent tous les trois ICI : sinon ils se contrediraient.
    --------------------------------------------------------------- */
 function classementSalon(){
-  var par = {};
-  function pose(nom, g, moi, present){
-    if(!nom || nom === "?" || !(g > 0)) return;
-    var e = par[nom];
-    if(!e) e = par[nom] = { nom:nom, g:0, moi:0, present:0 };
-    if(g > e.g) e.g = g;
-    if(moi) e.moi = 1;
-    if(present) e.present = 1;
+  /* LA SOURCE DE VÉRITÉ est le tableau partagé, mes propres seaux
+     rafraîchis au passage : c'est ce que scoresAJour() fabrique. Le
+     total d'un joueur y est la SOMME de ses seaux, plus le maximum
+     d'aucun d'eux — c'est toute la correction. */
+  var par = totalParJoueur(typeof scoresAJour === "function"
+                           ? scoresAJour() : decodeScores(monde && monde.s));
+  /* Les messages d'état arrivent quatre fois plus souvent que
+     l'instantané : ils servent à ANIMER le classement entre deux
+     publications, jamais à le contredire. Leur nombre est un total,
+     qui ne fait que monter. */
+  var id;
+  for(id in scoresSalon){
+    var e = scoresSalon[id];
+    if(!e.nom || e.nom === "?") continue;
+    if(e.g > (par[e.nom] || 0)) par[e.nom] = e.g;
   }
-  if(jeu) pose(monNom, jeu.degatsMoi, 1, 1);
-  for(var id in scoresSalon){
-    var e2 = scoresSalon[id];
-    pose(e2.nom, e2.g, 0, autresJoueurs[id] ? 1 : 0);
+  /* qui est encore là, pour la petite prise ⏻ */
+  var present = {};
+  if(monNom) present[monNom] = 1;
+  for(id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(j && j.nom && j.nom !== "?") present[j.nom] = 1;
+    if(scoresSalon[id] && scoresSalon[id].nom) present[scoresSalon[id].nom] = 1;
   }
-  var partages = decodeScores(monde && monde.s);
-  for(var nm in partages) pose(nm, partages[nm], 0, 0);
-
-  var l = [], k;
-  for(k in par){
-    l.push({ nom:par[k].nom, g:par[k].g, moi:par[k].moi, absent:par[k].present ? 0 : 1 });
+  var l = classementDepuis(par);
+  for(var i = 0; i < l.length; i++){
+    l[i].moi = (l[i].nom === monNom) ? 1 : 0;
+    l[i].absent = present[l[i].nom] ? 0 : 1;
   }
-  /* à score égal, l'ordre alphabétique : deux appareils doivent afficher
-     le même classement, jamais deux ordres différents */
-  l.sort(function(a, b){ return b.g - a.g || (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0); });
   return l;
 }
 

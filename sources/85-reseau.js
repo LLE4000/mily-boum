@@ -36,9 +36,110 @@ function noteScore(id, nom, degats){
   var e = scoresSalon[id];
   if(!e) e = scoresSalon[id] = { nom:"?", g:0 };
   if(nom) e.nom = nom;
-  /* les dégâts ne redescendent jamais : un joueur qui se reconnecte
-     repart à zéro de son côté, on ne va pas effacer ce qu'il a fait */
+  /* Ce registre-ci ne sert qu'à ANIMER le classement entre deux
+     instantanés : les messages d'état arrivent toutes les 420 ms, le
+     monde partagé toutes les deux secondes. Le nombre reçu est
+     désormais le TOTAL de l'expéditeur, qui ne fait que monter — le
+     maximum y est donc juste. La vérité, elle, est dans monde.s. */
   if(typeof degats === "number" && degats > e.g) e.g = degats;
+}
+
+/* ================================================================
+   MES DÉGÂTS À MOI — le seau de cet appareil
+
+   LE DÉFAUT QUE CECI CORRIGE. Ce qui partait sur le réseau était
+   `jeu.degatsMoi`, remis à zéro à chaque île et à chaque rechargement
+   de page, et toute la chaîne en prenait le MAXIMUM. Un joueur à
+   302 475 restait donc figé à 302 475 : sur l'île suivante il
+   repartait de zéro et il lui aurait fallu refaire 302 475 en une
+   seule partie pour gagner un point. Plus il jouait, plus son propre
+   record devenait un mur.
+
+   CE QU'ON GARDE MAINTENANT. Un cumul par carte, pour CE pseudo sur
+   CET appareil, qui ne redescend jamais et survit à la fermeture de
+   la page. C'est le « seau » du compteur réparti : on n'écrit que le
+   sien, on ne touche jamais à celui d'un autre, et le total d'un
+   joueur est la somme de ses seaux.
+
+   La clé de rangement porte le salon, le numéro de campagne et le
+   pseudo. Le numéro de campagne compte : une remise à zéro du salon
+   efface la guerre, donc les scores avec — et un joueur qui revient
+   après ne doit pas réinjecter un vieux total dans une campagne
+   neuve.
+   ================================================================ */
+var monSeau = "";
+var mesDegats = {};            // { index de carte -> dégâts cumulés }
+var degatsAvantCarte = 0;      // ce que la carte en cours portait déjà
+var cleDegatsChargee = "";
+
+function faitMonSeau(){
+  /* Quatre caractères tirés de l'identifiant stable de l'appareil.
+     Deux appareils différents ne doivent pas partager de seau, sinon
+     leurs contributions s'écraseraient au lieu de s'additionner. */
+  var h = graineTexte(monId || "?") >>> 0;
+  var alpha = "abcdefghijklmnopqrstuvwxyz0123456789", s = "";
+  for(var i = 0; i < 4; i++){ s += alpha.charAt(h % 36); h = (h / 36) | 0; }
+  return s;
+}
+function cleMesDegats(){
+  return "milyboum:deg:" + CODE_SALON + ":" + (cycleSalon | 0) + ":" + (monNom || "");
+}
+function chargeMesDegats(){
+  var c = cleMesDegats();
+  if(c === cleDegatsChargee) return;
+  cleDegatsChargee = c;
+  mesDegats = {};
+  try{
+    var o = JSON.parse(localStorage.getItem(c) || "{}");
+    if(o && typeof o === "object"){
+      for(var k in o) if(o[k] > 0) mesDegats[k | 0] = Math.round(o[k]);
+    }
+  }catch(e){}
+  degatsAvantCarte = (jeu && mesDegats[jeu.index]) || 0;
+}
+function gardeMesDegats(){
+  try{ localStorage.setItem(cleMesDegats(), JSON.stringify(mesDegats)); }catch(e){}
+}
+/* Replie les dégâts de la partie en cours dans le cumul. Appelée avant
+   chaque publication et à chaque changement de carte : entre deux
+   appels, `jeu.degatsMoi` continue de monter tout seul. */
+function repliMesDegats(){
+  if(!monNom) return;
+  chargeMesDegats();
+  if(!jeu) return;
+  var v = degatsAvantCarte + Math.round(jeu.degatsMoi || 0);
+  if(v > (mesDegats[jeu.index] || 0)){
+    mesDegats[jeu.index] = v;
+    gardeMesDegats();
+  }
+}
+/* Une nouvelle île commence : ce qu'on avait fait sur la précédente est
+   déjà rangé, et le compteur de partie repart de zéro par-dessus ce
+   que cette île-ci portait déjà. */
+function ouvreCarteScore(index){
+  repliMesDegats();
+  chargeMesDegats();
+  degatsAvantCarte = mesDegats[index | 0] || 0;
+}
+/* Mon total, toutes îles confondues, sur cet appareil. */
+function monTotalLocal(){
+  var s = 0, k;
+  for(k in mesDegats) s += mesDegats[k];
+  if(jeu) s += Math.max(0, degatsAvantCarte + Math.round(jeu.degatsMoi || 0)
+                           - (mesDegats[jeu.index] || 0));
+  return s;
+}
+/* Le tableau partagé, MES seaux remplacés par leur valeur locale —
+   plus fraîche que celle qui a été publiée il y a deux secondes. */
+function scoresAJour(){
+  var t = decodeScores(monde && monde.s), k;
+  if(!monNom) return t;
+  repliMesDegats();
+  for(k in mesDegats){
+    var c = cleScore(monNom, monSeau, k | 0);
+    if(!t[c] || mesDegats[k] > t[c]) t[c] = mesDegats[k];
+  }
+  return t;
 }
 var PERIODE_MONDE = 2.0;     // s minimum entre deux instantanés
 
@@ -257,18 +358,11 @@ function mondeCourant(){
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
    dégâts, plus tout ce que le registre a retenu des autres. */
+/* CE QU'ON PUBLIE : le tableau du salon tel qu'on le connaît, nos
+   propres seaux rafraîchis. On ne touche JAMAIS au seau d'un autre —
+   c'est ce qui rend deux publications simultanées inoffensives. */
 function tableauScores(){
-  var t = {}, id;
-  for(id in scoresSalon){
-    var e = scoresSalon[id];
-    if(!e.nom || e.nom === "?" || !e.g) continue;
-    if(!t[e.nom] || e.g > t[e.nom]) t[e.nom] = e.g;
-  }
-  if(monNom && jeu && jeu.degatsMoi > 0){
-    var g = Math.round(jeu.degatsMoi);
-    if(!t[monNom] || g > t[monNom]) t[monNom] = g;
-  }
-  return encodeScores(t);
+  return encodeScores(scoresAJour());
 }
 
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
@@ -915,7 +1009,12 @@ function majReseau(dt){
         p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
                 (u.t === "mec" ? 2 : 0) + (u.droite ? 1 : 0)]);
       }
-      var msg = { t:"etat", nom:monNom, n:n, g:jeu.degatsMoi, p:p };
+      /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
+         en cours : c'est un total qui ne fait que monter, donc le
+         maximum qu'en prend le destinataire est juste. Envoyer les
+         dégâts de partie, c'était envoyer un nombre qui repart à zéro
+         à chaque île — et c'est ce qui figeait les scores. */
+      var msg = { t:"etat", nom:monNom, n:n, g:Math.round(monTotalLocal()), p:p };
       if(jeu.mort && jeu.fantome){
         msg.m = 1;
         msg.f = [Math.round(jeu.fantome.gx * 10) / 10, Math.round(jeu.fantome.gy * 10) / 10];

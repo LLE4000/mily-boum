@@ -22,6 +22,11 @@ function nouvelleCarte(index, pvConnu){
      celui du salon. L'éditeur de défenses ne touche donc jamais à la
      carte événement — sa densité est une décision de conception, pas
      un réglage de partie. */
+  /* Le compteur de score change d'île AVANT que jeu.degatsMoi ne
+     reparte à zéro : ce qu'on a fait sur la précédente est replié
+     dans le cumul, et le nouveau départ se pose par-dessus ce que
+     CETTE île portait déjà. */
+  if(typeof ouvreCarteScore === "function") ouvreCarteScore(index);
   carte = genereCarte(CODE_SALON, index, planDeCarte(index, planSalon), tirageSalon);
   jeu = {
     index:index,

@@ -29,6 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
+    "cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "encodePlans","decodePlans","planCarte","faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
@@ -499,50 +500,218 @@ G("4. Déterminisme de la génération de carte");
      N.zoneDePlan(N.GW * 2, N.GH * 2) === N.NB_ZONES - 1 &&
      N.zoneDePlan(-50, -50) === 0);
 
-  /* ---- LE TABLEAU DES DÉGÂTS PARTAGÉ ----
-     « Roro a fait 3 M de dégâts et il n'est plus là car il s'est
-     déconnecté. » Le score appartient au salon : il voyage dans
-     l'instantané retenu et ne redescend jamais. */
-  G("3c. Le classement survit aux déconnexions");
+  /* ================================================================
+     3c. LE SCORE — un compteur réparti, plus un maximum
+
+     LE DÉFAUT, constaté en jeu : « j'attaque, la santé du QG descend,
+     mais mon score reste fixé. » Le score était le PLUS GRAND nombre
+     de dégâts jamais vu pour un pseudo, et le nombre publié était
+     `jeu.degatsMoi`, remis à zéro à chaque île et à chaque
+     rechargement. Toute la chaîne prenait ensuite le maximum. Un
+     joueur à 302 475 était donc figé à 302 475 : sur l'île suivante il
+     repartait de zéro, et il lui aurait fallu refaire 302 475 EN UNE
+     SEULE PARTIE pour gagner un point. Plus il jouait, plus son propre
+     record devenait un mur.
+
+     La correction range chaque contribution sous « pseudo · seau ·
+     carte », le seau étant l'appareil. La fusion garde le maximum PAR
+     SEAU — donc toujours monotone, commutative, associative,
+     idempotente — et le total est la SOMME des seaux.
+     ================================================================ */
+  G("3c. Le score s'additionne et survit aux déconnexions");
   (function(){
-    ok("aller-retour d'encodage", (function(){
-      var t = N.decodeScores(N.encodeScores({ Roro:3000000, Lu:12, Karim:450 }));
+    function T(o){ return N.encodeScores(o); }
+    function D(s){ return N.decodeScores(s); }
+    function tot(s){ return N.totalParJoueur(D(s)); }
+    function carte(s, i){ return N.totalParJoueurCarte(D(s), i); }
+    var k = N.cleScore;
+
+    /* --- l'aller-retour --- */
+    var base = {};
+    base[k("Roro", "aa11", 0)] = 3000000;
+    base[k("Lu", "bb22", 0)] = 12;
+    base[k("Karim", "cc33", 1)] = 450;
+    var ch = T(base);
+    ok("aller-retour d'encodage (" + ch.length + " car.)", (function(){
+      var t = tot(ch);
       return t.Roro === 3000000 && t.Lu === 12 && t.Karim === 450;
     })());
-    ok("le classement est trié, meilleur d'abord",
-       N.encodeScores({ Lu:12, Roro:3000000, Karim:450 }).indexOf("Roro:3000000") === 0);
-    ok("deux appareils encodent la MÊME chaîne",
-       N.encodeScores({ Lu:12, Roro:900 }) === N.encodeScores({ Roro:900, Lu:12 }));
-    /* le cœur du problème : Roro se déconnecte, son score doit rester */
-    var avecRoro = N.encodeScores({ Roro:3000000, Lu:120000 });
-    var sansRoro = N.encodeScores({ Lu:250000 });
-    var apres = N.decodeScores(N.fusionneScores(avecRoro, sansRoro));
+    ok("deux appareils encodent la MÊME chaîne", (function(){
+      var a = {}, b = {};
+      a[k("Lu", "x1", 0)] = 12; a[k("Roro", "y2", 0)] = 900;
+      b[k("Roro", "y2", 0)] = 900; b[k("Lu", "x1", 0)] = 12;
+      return T(a) === T(b);
+    })());
+    /* L'ordre encodé ne doit PAS suivre le score : sinon la chaîne
+       change de forme au moindre coup de hache et deux clients se
+       republient sans fin alors que rien de neuf n'est arrivé. */
+    ok("l'ordre encodé ne dépend pas des scores", (function(){
+      var a = {}, b = {};
+      a[k("Ana", "s1", 0)] = 10;  a[k("Zoe", "s1", 0)] = 99;
+      b[k("Ana", "s1", 0)] = 99;  b[k("Zoe", "s1", 0)] = 10;
+      return T(a).indexOf("Ana") === 0 && T(b).indexOf("Ana") === 0;
+    })());
+
+    /* --- LE TEST DEMANDÉ, ÉTAPE PAR ÉTAPE ---
+       1. Roro arrive. 2. Score 0. 3. Il fait 100 000. 4. On voit
+       100 000. 5. Il ferme la page. 6. Plus personne. 7. D'autres
+       arrivent. 8. Il revient. 9. Même pseudo. 10. Il retrouve
+       100 000. 11. Il refait 50 000. 12. Total 150 000. 13. Tout le
+       monde voit 150 000. */
+    (function(){
+      var monde = "";                                   // 1-2 : salon vierge
+      var seauRoro = "r0r0";
+      monde = N.fusionneScores(monde, (function(){       // 3-4
+        var o = {}; o[k("Roro", seauRoro, 0)] = 100000; return T(o);
+      })());
+      ok("étape 4 — Roro voit ses 100 000", tot(monde).Roro === 100000,
+         "" + tot(monde).Roro);
+
+      /* 5-7 : Roro ferme la page, d'autres joueurs jouent */
+      monde = N.fusionneScores(monde, (function(){
+        var o = {}; o[k("Sophie", "s0ph", 0)] = 40000; return T(o);
+      })());
+      ok("étape 7 — pendant son absence son score tient bon",
+         tot(monde).Roro === 100000 && tot(monde).Sophie === 40000);
+
+      /* 8-10 : il revient, MÊME pseudo, MÊME appareil. Son seau
+         reprend là où il en était — c'est ce que le client garde
+         localement, et l'instantané le lui redonne de toute façon. */
+      ok("étape 10 — il retrouve ses 100 000 en revenant",
+         N.totalParJoueur(D(monde)).Roro === 100000);
+
+      /* 11-12 : il refait 50 000. Son seau monte à 150 000. C'EST ICI
+         que l'ancien système se bloquait : 50 000 < 100 000, donc le
+         maximum jetait tout. */
+      monde = N.fusionneScores(monde, (function(){
+        var o = {}; o[k("Roro", seauRoro, 1)] = 50000; return T(o);
+      })());
+      ok("étape 12 — son total passe bien à 150 000", tot(monde).Roro === 150000,
+         "" + tot(monde).Roro);
+
+      /* 13 : un autre client, qui n'a rien vu de tout ça, lit la même
+         chose dans l'instantané */
+      var ailleurs = N.fusionneScores("", monde);
+      ok("étape 13 — tous les joueurs voient 150 000",
+         N.totalParJoueur(D(ailleurs)).Roro === 150000);
+
+      /* et le point qui bloquait vraiment : de PETITS coups successifs
+         doivent tous compter, même très en dessous du record */
+      var seau = 50000;                       // son seau sur la carte 1
+      for(var i = 0; i < 5; i++){
+        seau += 1000;
+        var o = {}; o[k("Roro", seauRoro, 1)] = seau;
+        monde = N.fusionneScores(monde, T(o));
+      }
+      ok("cinq petits coups de 1 000 montent bien à 155 000",
+         tot(monde).Roro === 155000, "" + tot(monde).Roro);
+    })();
+
+    /* --- DEUX APPAREILS, MÊME PSEUDO : rien n'est écrasé --- */
+    (function(){
+      var a = {}, b = {};
+      a[k("Roro", "tel", 0)] = 800000;                 // son téléphone
+      b[k("Roro", "tab", 0)] = 300000;                 // sa tablette
+      var m = N.fusionneScores(T(a), T(b));
+      ok("deux appareils sous le même pseudo s'ADDITIONNENT",
+         tot(m).Roro === 1100000, "" + tot(m).Roro);
+      ok("et ils ne font qu'UNE ligne au classement",
+         N.classementDepuis(tot(m)).length === 1);
+      /* le cas que le maximum perdait : les deux jouent en même temps */
+      var a2 = {}, b2 = {};
+      a2[k("Roro", "tel", 0)] = 900000;
+      b2[k("Roro", "tab", 0)] = 350000;
+      var m2 = N.fusionneScores(N.fusionneScores(m, T(a2)), T(b2));
+      ok("deux écritures simultanées ne s'écrasent pas",
+         tot(m2).Roro === 1250000, "" + tot(m2).Roro);
+    })();
+
+    /* --- LES PROPRIÉTÉS DE FUSION, qui rendent tout ça sûr --- */
+    var avecRoro = (function(){ var o = {};
+      o[k("Roro", "aa", 0)] = 3000000; o[k("Lu", "bb", 0)] = 120000; return T(o); })();
+    var sansRoro = (function(){ var o = {}; o[k("Lu", "bb", 0)] = 250000; return T(o); })();
+    var apres = tot(N.fusionneScores(avecRoro, sansRoro));
     ok("un joueur déconnecté garde son score", apres.Roro === 3000000, "" + apres.Roro);
     ok("et celui qui joue encore voit le sien monter", apres.Lu === 250000, "" + apres.Lu);
-    ok("un score ne redescend jamais",
-       N.decodeScores(N.fusionneScores(avecRoro, N.encodeScores({ Roro:5 }))).Roro === 3000000);
+    ok("un seau ne redescend jamais", (function(){
+      var o = {}; o[k("Roro", "aa", 0)] = 5;
+      return tot(N.fusionneScores(avecRoro, T(o))).Roro === 3000000;
+    })());
     ok("la fusion est commutative",
        N.fusionneScores(avecRoro, sansRoro) === N.fusionneScores(sansRoro, avecRoro));
-    ok("la fusion est idempotente",
-       N.fusionneScores(avecRoro, avecRoro) === avecRoro);
+    ok("la fusion est associative", (function(){
+      var c = (function(){ var o = {}; o[k("Ana", "cc", 1)] = 77; return T(o); })();
+      return N.fusionneScores(N.fusionneScores(avecRoro, sansRoro), c) ===
+             N.fusionneScores(avecRoro, N.fusionneScores(sansRoro, c));
+    })());
+    ok("la fusion est idempotente", N.fusionneScores(avecRoro, avecRoro) === avecRoro);
     ok("fusionner avec rien ne perd rien",
        N.fusionneScores(avecRoro, "") === avecRoro && N.fusionneScores("", avecRoro) === avecRoro);
-    /* un pseudo hostile ne doit pas pouvoir casser le format */
-    var sale = N.decodeScores(N.encodeScores({ "a|b:c":700 }));
-    ok("les séparateurs sont retirés des pseudos", sale.abc === 700, JSON.stringify(sale));
+
+    /* --- LE CLASSEMENT PAR CARTE, l'autre moitié du besoin --- */
+    (function(){
+      var o = {};
+      o[k("Roro", "aa", 0)] = 900000;   o[k("Roro", "aa", 1)] = 100000;
+      o[k("Lucien", "bb", 0)] = 400000; o[k("Lucien", "bb", 1)] = 700000;
+      o[k("Sophie", "cc", 0)] = 250000;
+      var s = T(o);
+      var t = tot(s);
+      ok("le total additionne toutes les cartes",
+         t.Roro === 1000000 && t.Lucien === 1100000 && t.Sophie === 250000);
+      var c0 = carte(s, 0), c1 = carte(s, 1);
+      ok("la carte 0 a son propre classement",
+         N.classementDepuis(c0).map(function(e){ return e.nom; }).join(",") === "Roro,Lucien,Sophie",
+         JSON.stringify(N.classementDepuis(c0)));
+      ok("et la carte 1 un AUTRE classement",
+         N.classementDepuis(c1).map(function(e){ return e.nom; }).join(",") === "Lucien,Roro",
+         JSON.stringify(N.classementDepuis(c1)));
+      ok("une carte jamais jouée n'a de classement pour personne",
+         Object.keys(carte(s, 4)).length === 0);
+    })();
+
+    /* --- LA COMPATIBILITÉ : les salons en cours sont pleins d'entrées
+       à l'ancien format. On ne jette pas des dégâts déjà gagnés. --- */
+    (function(){
+      var ancien = "Roro:1820693|Lu:302475";
+      var t = tot(ancien);
+      ok("un ancien classement se relit sans perte",
+         t.Roro === 1820693 && t.Lu === 302475, JSON.stringify(t));
+      /* et il continue de monter, par le nouveau chemin */
+      var o = {}; o[k("Lu", "z9", 1)] = 200000;
+      var m = N.fusionneScores(ancien, T(o));
+      ok("et un ancien score continue de s'additionner",
+         tot(m).Lu === 502475, "" + tot(m).Lu);
+      ok("mais l'ancien ne se réclame d'aucune carte",
+         Object.keys(carte(ancien, 0)).length === 0);
+    })();
+
+    /* --- ROBUSTESSE --- */
+    var sale = tot(T((function(){ var o = {}; o["a|b:c:dd:0"] = 700; return o; })()));
+    /* « a|b » devient « ab », et « c » est lu comme le seau : le format
+       reste intact quoi qu'on lui donne. */
+    ok("les séparateurs sont retirés des pseudos", sale.ab === 700, JSON.stringify(sale));
     ok("une chaîne pourrie ne renvoie rien de faux",
        Object.keys(N.decodeScores("n'importe quoi|::|x:")).length === 0);
-    ok("le tableau est borné", N.encodeScores((function(){
-      var t = {}; for(var i = 0; i < 40; i++) t["j" + i] = 1000 - i; return t;
-    })()).split("|").length === N.SCORES_GARDES, "" + N.SCORES_GARDES);
-    /* et il voyage vraiment dans l'instantané */
+    ok("le tableau est borné", (function(){
+      var t = {};
+      for(var i = 0; i < 200; i++) t[k("j" + i, "s" + i, 0)] = 1000 - i;
+      return T(t).split("|").length === N.SCORES_GARDES;
+    })(), "" + N.SCORES_GARDES);
+    ok("et quand il coupe, il garde les plus GROSSES contributions", (function(){
+      var t = {};
+      for(var i = 0; i < 200; i++) t[k("j" + i, "s0", 0)] = i + 1;
+      var res = tot(T(t));
+      return res.j199 === 200 && res.j0 === undefined;
+    })());
+
+    /* --- ET ÇA VOYAGE VRAIMENT DANS L'INSTANTANÉ --- */
     var m1 = N.mondeVide(0, 1000, 0), m2 = N.mondeVide(0, 1000, 0);
     m1.s = avecRoro; m2.s = sansRoro;
     var mf = N.fusionneMonde(m1, m2);
     ok("l'instantané du salon transporte le classement",
-       N.decodeScores(mf.s).Roro === 3000000 && N.decodeScores(mf.s).Lu === 250000);
-    ok("un classement différent force une republication",
-       !N.memeMonde(m1, m2));
+       N.totalParJoueur(N.decodeScores(mf.s)).Roro === 3000000 &&
+       N.totalParJoueur(N.decodeScores(mf.s)).Lu === 250000);
+    ok("un classement différent force une republication", !N.memeMonde(m1, m2));
   })();
 
   /* ---- LE MIRADOR ----
