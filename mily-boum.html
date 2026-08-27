@@ -1223,7 +1223,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.31";
+var VERSION = "v0.32";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1239,8 +1239,11 @@ var EQ = {
   ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
   ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
 
-  /* Nova : une seule charge par vie, jamais cumulable */
+  /* Nova : une seule charge par vie, jamais cumulable… tant qu'on n'a
+     pas débloqué la SUPER Nova. Passé trois millions de dégâts sur
+     l'île, la charge passe à cinq — voir novaParVie(). */
   NOVA_PAR_VIE         : 1,
+  NOVA_SUPER_PAR_VIE   : 5,
 
   /* Débarquement */
   NB_BARGES            : 8,
@@ -1787,6 +1790,28 @@ var PALIERS_PUISSANCE = [
    cent soixante-dix mille de Brasier : elle se débloque exactement au
    moment où l'on attaque le Brasier. */
 var PALIER_SUPERNOVA = 4;             // l'indice de la ligne « 3 000 000 »
+
+/* ================================================================
+   COMBIEN DE NOVAS PAR VIE.
+
+   Une, tant qu'on n'a pas débloqué la SUPER Nova ; CINQ ensuite. Le
+   même palier commande donc deux choses : la Nova change de calibre,
+   et l'on en reçoit cinq au lieu d'une. C'est volontairement le même
+   seuil : deux récompenses au même endroit se retiennent, deux seuils
+   voisins se confondent.
+
+   POURQUOI CINQ NE CASSE RIEN. Une super Nova retire 66 000 points au
+   Brasier (50 000 au cœur, 16 000 au souffle) ; cinq en retirent
+   330 000. Sur la plage (quinze millions) c'est deux pour cent de la
+   forteresse par vie, sur la jungle (soixante millions) un demi. Et
+   une vie ne se rejoue pas à volonté : il faut avoir perdu ses huit
+   navettes ET toutes ses troupes pour en recevoir une neuve. Le
+   bombardement à distance reste donc un ornement, jamais une
+   stratégie — c'était la crainte à écarter, et les chiffres l'écartent.
+   ================================================================ */
+function novaParVie(palier){
+  return (palier | 0) >= PALIER_SUPERNOVA ? EQ.NOVA_SUPER_PAR_VIE : EQ.NOVA_PAR_VIE;
+}
 
 /* L'indice du palier atteint. On parcourt du haut vers le bas : la
    table est courte et cette écriture rend le plafond gratuit. */
@@ -23929,7 +23954,13 @@ function nouvelleCarte(index, pvConnu){
        voir carteOrageuse dans 10-noyau.js */
     nuages:fabriqueNuages(carteOrageuse(index) ? 1 : 0),
     navettes:[],
-    energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
+    /* On démarre à UNE Nova sans regarder le palier : majPuissance()
+       tourne dès la première image de la partie, lit le cumul déjà
+       gagné sur cette île et crédite les quatre autres si la super
+       Nova est acquise. Un seul chemin, donc — celui qui sert aussi au
+       joueur qui franchit le seuil en pleine partie. */
+    energie:EQ.ENERGIE_DEPART,
+    novaDispo:EQ.NOVA_PAR_VIE, novaPlafond:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
     messageTweety:0,
     /* Les trois chats de Mily : qui a tué lequel, et la riposte en cours. */
@@ -26153,15 +26184,17 @@ function lanceEruption(){
 /* ---------------------------------------------------------------
    Capacités
    --------------------------------------------------------------- */
-/* La Nova ne se paie pas en Énergie : on en a UNE par vie, point.
-   C'est ce qui la garde rare, et ce qui rend son emploi mémorable. */
+/* La Nova ne se paie pas en Énergie : elle se paie en CHARGES. Une par
+   vie tant que la super Nova n'est pas acquise, cinq ensuite. C'est ce
+   compteur-là qui la garde rare et rend son emploi mémorable — jamais
+   le prix. */
 function capaciteDisponible(m){
   if(m === "nova") return jeu.novaDispo > 0;
   return jeu.energie >= coutActuel(m, jeu.usages);
 }
 function armeCapacite(m){
   if(!capaciteDisponible(m)){
-    message(m === "nova" ? "Nova déjà employée : il faut une nouvelle vie."
+    message(m === "nova" ? "Plus de Nova : il faut une nouvelle vie."
                          : "Pas assez d'Énergie pour " + COUT[m].nom + ".");
     return;
   }
@@ -26173,7 +26206,7 @@ function utiliseCapacite(m, gx, gy){
   if(!capaciteDisponible(m)){
     jeu.capArmee = null;
     majMenu();
-    message(m === "nova" ? "Nova déjà employée pendant cette vie."
+    message(m === "nova" ? "Plus de Nova pendant cette vie."
                          : "Plus assez d'Énergie : " + COUT[m].nom + " désarmée.");
     return;
   }
@@ -26425,7 +26458,10 @@ function majMort(dt){
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
-    jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
+    /* une vie neuve, des Novas neuves — une, ou cinq si la super Nova
+       est acquise sur cette île */
+    jeu.novaDispo = novaParVie(jeu.palier);
+    jeu.novaPlafond = jeu.novaDispo;
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
        renchérit le suivant ; après trois ou quatre morts, la note était
        telle qu'on ne pouvait plus rien lancer du tout. Le compteur
@@ -26433,7 +26469,8 @@ function majMort(dt){
     for(var cu in jeu.usages) jeu.usages[cu] = 0;
     montreBandeauFantome(false);
     majBarres();
-    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, Nova rechargée.");
+    message("Flotte neuve ! +" + EQ.ENERGIE_BONUS_RENFORT + " d'Énergie, "
+          + (jeu.novaDispo > 1 ? jeu.novaDispo + " Novas rechargées." : "Nova rechargée."));
     son.renfort();
   }
 }
@@ -26677,7 +26714,35 @@ function majPuissance(){
     if(p > 0 && typeof message === "function")
       message("Palier " + p + " — tes troupes frappent à "
             + Math.round(jeu.puissance * 100) + " %"
-            + (p === PALIER_SUPERNOVA ? " — et ta Nova est devenue une SUPER Nova." : "."));
+            + (p === PALIER_SUPERNOVA
+               ? " — et ta Nova devient une SUPER Nova, cinq fois par vie."
+               : "."));
+  }
+  /* LE CRÉDIT DE NOVAS, HORS DU TEST DE CHANGEMENT DE PALIER.
+     Il doit s'appliquer aussi quand le palier ne bouge PAS de l'image
+     — c'est le cas du joueur qui avait déjà passé les trois millions
+     avant cette version : son palier est le bon dès la première image,
+     rien ne « change », et pourtant il lui manque quatre charges. La
+     comparaison au PLAFOND DÉJÀ ACCORDÉ est ce qui rend l'opération
+     idempotente : on ne crédite que ce qui n'a jamais été accordé.
+
+     Et l'on remonte à PLEIN, sans retirer les Novas déjà tirées : le
+     seuil se franchit une seule fois par île (le cumul ne fait que
+     monter), donc rien à gagner à le franchir « proprement ». Celui
+     qui avait dépensé sa charge en arrivant à trois millions serait
+     sinon puni de s'en être servi. */
+  var n = novaParVie(jeu.palier);
+  /* « | 0 » des deux côtés : une partie reprise d'un état plus ancien
+     n'a pas ces champs, et « n > undefined » est faux — le crédit ne
+     serait alors JAMAIS accordé, silencieusement. */
+  if(n > (jeu.novaPlafond | 0)){
+    jeu.novaPlafond = n;
+    if((jeu.novaDispo | 0) < n){
+      jeu.novaDispo = n;
+      if(typeof demandeMajBarres === "function") demandeMajBarres();
+      if(typeof message === "function")
+        message("SUPER Nova : tu en as " + n + " par vie, à toi de jouer.");
+    }
   }
 }
 

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.31";
+var VERSION = "v0.32";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -25,8 +25,11 @@ var EQ = {
   ENERGIE_PAR_CREATURE : 2,     // gain par créature abattue
   ENERGIE_BONUS_RENFORT: 90,    // bonus quand la flotte revient après la mort
 
-  /* Nova : une seule charge par vie, jamais cumulable */
+  /* Nova : une seule charge par vie, jamais cumulable… tant qu'on n'a
+     pas débloqué la SUPER Nova. Passé trois millions de dégâts sur
+     l'île, la charge passe à cinq — voir novaParVie(). */
   NOVA_PAR_VIE         : 1,
+  NOVA_SUPER_PAR_VIE   : 5,
 
   /* Débarquement */
   NB_BARGES            : 8,
@@ -573,6 +576,28 @@ var PALIERS_PUISSANCE = [
    cent soixante-dix mille de Brasier : elle se débloque exactement au
    moment où l'on attaque le Brasier. */
 var PALIER_SUPERNOVA = 4;             // l'indice de la ligne « 3 000 000 »
+
+/* ================================================================
+   COMBIEN DE NOVAS PAR VIE.
+
+   Une, tant qu'on n'a pas débloqué la SUPER Nova ; CINQ ensuite. Le
+   même palier commande donc deux choses : la Nova change de calibre,
+   et l'on en reçoit cinq au lieu d'une. C'est volontairement le même
+   seuil : deux récompenses au même endroit se retiennent, deux seuils
+   voisins se confondent.
+
+   POURQUOI CINQ NE CASSE RIEN. Une super Nova retire 66 000 points au
+   Brasier (50 000 au cœur, 16 000 au souffle) ; cinq en retirent
+   330 000. Sur la plage (quinze millions) c'est deux pour cent de la
+   forteresse par vie, sur la jungle (soixante millions) un demi. Et
+   une vie ne se rejoue pas à volonté : il faut avoir perdu ses huit
+   navettes ET toutes ses troupes pour en recevoir une neuve. Le
+   bombardement à distance reste donc un ornement, jamais une
+   stratégie — c'était la crainte à écarter, et les chiffres l'écartent.
+   ================================================================ */
+function novaParVie(palier){
+  return (palier | 0) >= PALIER_SUPERNOVA ? EQ.NOVA_SUPER_PAR_VIE : EQ.NOVA_PAR_VIE;
+}
 
 /* L'indice du palier atteint. On parcourt du haut vers le bas : la
    table est courte et cette écriture rend le plafond gratuit. */

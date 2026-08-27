@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","novaParVie",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -1121,6 +1121,58 @@ G("4. Déterminisme de la génération de carte");
       for(var i = 0; i < c.batiments.length; i++) pv += c.batiments[i].pvMax;
       return pv < 3000000 && pv > 2000000;
     })(), "elle arrive avec le Brasier");
+
+    /* CINQ NOVAS AVEC LA SUPER NOVA. Le même palier commande les deux :
+       la Nova change de calibre ET l'on en reçoit cinq au lieu d'une. */
+    ok("une seule Nova par vie avant le seuil",
+       N.novaParVie(0) === 1 && N.novaParVie(N.PALIER_SUPERNOVA - 1) === 1,
+       "" + N.novaParVie(N.PALIER_SUPERNOVA - 1));
+    ok("cinq dès le palier de la super Nova",
+       N.novaParVie(N.PALIER_SUPERNOVA) === 5, "" + N.novaParVie(N.PALIER_SUPERNOVA));
+    ok("et cinq jusqu'au plafond, jamais plus", (function(){
+      for(var i = N.PALIER_SUPERNOVA; i < N.PALIERS_PUISSANCE.length; i++)
+        if(N.novaParVie(i) !== 5) return false;
+      return true;
+    })());
+    ok("la charge ne redescend jamais quand le palier monte", (function(){
+      for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++)
+        if(N.novaParVie(i) < N.novaParVie(i - 1)) return false;
+      return true;
+    })());
+    ok("le seuil des cinq Novas est EXACTEMENT celui de la super Nova",
+       N.novaParVie(N.PALIER_SUPERNOVA) > N.novaParVie(N.PALIER_SUPERNOVA - 1));
+    ok("un palier absurde ne rend jamais undefined",
+       N.novaParVie(-3) === 1 && N.novaParVie(999) === 5 && N.novaParVie(NaN) === 1);
+    /* CE QUE CINQ NOVAS RETIRENT VRAIMENT, contre ce que pèse une
+       forteresse. C'est le calcul qui dit si le bombardement à distance
+       peut remplacer le débarquement — la crainte à écarter. Le cœur ET
+       le souffle touchent le Brasier : il est dans les deux rayons. */
+    (function(){
+      var C = N.CAP.nova;
+      var parNova = C.degatsSuper + C.degatsSouffleSuper;
+      var parVie = parNova * N.novaParVie(N.PALIER_SUPERNOVA);
+      ok("une super Nova retire " + parNova + " au Brasier", parNova === 66000, "" + parNova);
+      ok("cinq en retirent " + parVie + " par vie", parVie === 330000, "" + parVie);
+      var pirePart = 0, nomPire = "";
+      for(var i = 0; i < N.CARTES.length; i++){
+        var part = parVie / N.CARTES[i].pvQG;
+        if(part > pirePart){ pirePart = part; nomPire = N.CARTES[i].nom; }
+      }
+      ok("même sur la plus petite île (" + nomPire + ") cela ne fait que "
+         + (pirePart * 100).toFixed(1) + " % de la forteresse par vie",
+         pirePart < 0.03, (pirePart * 100).toFixed(2) + " %");
+      ok("il faudrait " + Math.ceil(1 / pirePart)
+         + " vies entières pour l'abattre au seul bombardement",
+         Math.ceil(1 / pirePart) > 30, "" + Math.ceil(1 / pirePart));
+      /* Et une vie ne se rejoue pas à volonté : il faut avoir perdu ses
+         huit navettes ET toutes ses troupes. */
+      ok("une vie coûte les huit navettes entières", N.EQ.NB_BARGES === 8);
+    })();
+    /* LES ALLIÉS NE PAIENT PAS LA MONTÉE EN GAMME. Le cœur allié garde
+       ses dégâts et son rayon d'origine : cinq fois plus de Novas, ce
+       n'est pas cinq fois plus de risque par tir. */
+    ok("le cœur allié reste à " + N.CAP.nova.degats + " sur " + N.CAP.nova.rayon + " cases",
+       N.CAP.nova.degats < N.UNI.commando.pv && N.CAP.nova.degats < N.CAP.nova.degatsSuper / 100);
 
     /* TROIS ÉTATS VISUELS POUR DOUZE PALIERS. */
     ok("l'aura est muette au palier zéro", N.auraPuissance(0) === 0);
