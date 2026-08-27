@@ -995,6 +995,33 @@ G("4. Déterminisme de la génération de carte");
       return N.top3DeCarte(f1.t3, 0)[0].nom === "Roro"
           && N.top3DeCarte(f2.t3, 0)[0].nom === "Roro";
     })());
+    /* ================================================================
+       LE CHAMPION D'UNE ÎLE N'EST PAS LE PREMIER DU SALON
+
+       Deux classements coexistent, et il faut lire le bon :
+         totalParJoueur      — la CARRIÈRE, toutes îles confondues ;
+         totalParJoueurCarte — ce qu'on a fait SUR CETTE ÎLE-LÀ.
+       Le sacre lisait le premier. Celui qui avait le plus gros cumul du
+       salon était donc couronné même sans avoir tiré un coup ici,
+       pendant que le Top 3 de la même vignette comptait bien par carte.
+       ================================================================ */
+    ok("le champion d'une île est celui qui l'a prise, pas le premier du salon", (function(){
+      var t = {};
+      /* Roro : une énorme carrière, mais rien sur l'île 2.
+         Johan : n'a joué que l'île 2, et c'est lui qui l'a prise. */
+      t[N.cleScore("ro01", 0)] = { n:"Roro",  g:40000000 };
+      t[N.cleScore("ro01", 1)] = { n:"Roro",  g:30000000 };
+      t[N.cleScore("jo02", 2)] = { n:"Johan", g:26000000 };
+      var carriere = N.classementDepuis(N.totalParJoueur(t));
+      var surLIle  = N.classementDepuis(N.totalParJoueurCarte(t, 2));
+      return carriere[0].nom === "Roro" && surLIle[0].nom === "Johan";
+    })(), "carrière → Roro, île 2 → Johan");
+    ok("et une île où personne n'a frappé ne sacre personne", (function(){
+      var t = {};
+      t[N.cleScore("ro01", 0)] = { n:"Roro", g:40000000 };
+      return N.classementDepuis(N.totalParJoueurCarte(t, 3)).length === 0;
+    })());
+
     ok("deux podiums d'îles différentes se rejoignent", (function(){
       var a = N.mondeVide(0, 1000, 0), b = N.mondeVide(0, 1000, 0);
       a.t3 = N.inscritTop3("", 0, pod);

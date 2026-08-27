@@ -2435,13 +2435,32 @@ function majMort(dt){
 /* Qui a le plus contribué ? Le classement local vaut ce que valent les
    messages reçus, mais c'est la même information que le TOP DÉGÂTS que
    tout le monde a sous les yeux depuis le début de la partie. */
+/* LE CHAMPION D'UNE ÎLE EST CELUI QUI A LE PLUS FRAPPÉ SUR CETTE ÎLE.
+
+   Il lisait le classement du SALON, c'est-à-dire le total de CARRIÈRE,
+   toutes îles confondues. Celui qui avait le plus gros cumul du salon
+   était donc sacré même s'il n'avait pas tiré un coup ici — pendant
+   que le Top 3, sur la même vignette, comptait bien par carte. Les
+   deux se contredisaient à quinze pixels l'un de l'autre.
+
+   Il lit maintenant la même chose que ce Top 3 : totalParJoueurCarte.
+   Rien n'est recalculé, rien n'est migré, aucun score ne bouge — on
+   change seulement QUEL NOM on lit dans une table qui existait déjà.
+
+   Le repli sur le classement de carrière n'est pas décoratif : sur une
+   île où personne n'a encore de contribution enregistrée — le tableau
+   partagé n'est publié que toutes les deux secondes —, mieux vaut
+   sacrer quelqu'un du salon que « Anonyme ». */
 function championDeLaPartie(){
-  /* Le sacre lit le MÊME classement que le podium et le bilan. Il lisait
-     autrefois autresJoueurs, où un joueur déconnecté n'existe plus :
-     celui qui avait fait le gros du travail pouvait donc se voir voler
-     la première place en partant deux minutes avant la fin. */
-  var l = (typeof classementSalon === "function") ? classementSalon() : null;
-  if(l && l.length) return { nom:l[0].nom, g:l[0].g, moi:l[0].moi };
+  var par = (typeof totalParJoueurCarte === "function" && typeof scoresAJour === "function")
+            ? totalParJoueurCarte(scoresAJour(), jeu.index) : null;
+  var l = par ? classementDepuis(par) : null;
+  if(l && l.length){
+    return { nom:l[0].nom, g:l[0].g, moi:(l[0].nom === monNom) ? 1 : 0 };
+  }
+  /* Personne sur cette île : on retombe sur le salon, puis sur soi. */
+  var s = (typeof classementSalon === "function") ? classementSalon() : null;
+  if(s && s.length) return { nom:s[0].nom, g:s[0].g, moi:s[0].moi };
   return { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
 }
 
