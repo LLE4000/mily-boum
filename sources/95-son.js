@@ -90,8 +90,8 @@ var son = {
     s.start(t); s.stop(t + duree + 0.05);
   },
 
-  tirMeuf:function(){ this.bip("square", 880, 420, 0.075, 0.055); },
-  coupMec:function(){ this.bip("sawtooth", 150, 62, 0.13, 0.10); },
+  tirFurie:function(){ this.bip("square", 880, 420, 0.075, 0.055); },
+  coupCommando:function(){ this.bip("sawtooth", 150, 62, 0.13, 0.10); },
   /* Le lancer de l'Ogre : un souffle grave qui monte, l'effort d'un
      bras énorme. L'impact, lui, descend d'un coup — c'est de la masse
      qui s'arrête, pas une déflagration. */

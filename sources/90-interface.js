@@ -898,10 +898,10 @@ function dessineLogo(){
 }
 
 function construitBriefing(){
-  /* barges par défaut : que des Meufs */
+  /* barges par défaut : que des Furies */
   compoBarges = [];
   for(var i = 0; i < EQ.NB_BARGES; i++)
-    compoBarges.push({ type:"meuf", n:placesNavette("meuf") });
+    compoBarges.push({ type:"furie", n:placesNavette("furie") });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
@@ -1033,9 +1033,9 @@ function majBargesBrief(){
       var i2 = +this.getAttribute("data-i");
       if(!UNI[this.value]) return;
       compoBarges[i2].type = this.value;
-      /* L'effectif suit le type, TOUJOURS au complet : douze Meufs,
-         quinze Mecs, un Ogre. L'ancien « min(max, n) » gardait le 1 de
-         l'Ogre quand on revenait aux Meufs — une navette qui partait
+      /* L'effectif suit le type, TOUJOURS au complet : douze Furies,
+         quinze Commandos, un Ogre. L'ancien « min(max, n) » gardait le 1 de
+         l'Ogre quand on revenait aux Furies — une navette qui partait
          avec une seule passagère. On n'en choisit pas le nombre. */
       compoBarges[i2].n = placesNavette(compoBarges[i2].type);
       majBargesBrief(); sauvegarde();
@@ -1047,7 +1047,7 @@ function majBargesBrief(){
   var det = TYPES_TROUPE.map(function(t2){ return nommeTroupes(t2, cpt[t2] || 0); }).join(", ");
   $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
-/* « 1 Ogre », « 12 Meufs » : le pluriel suit l'effectif, pas le type.
+/* « 1 Ogre », « 12 Furies » : le pluriel suit l'effectif, pas le type.
    « 1 Ogres » sur la seule navette qui n'en embarque qu'un aurait été
    la plus visible des fautes. */
 function nommeTroupes(type, n){

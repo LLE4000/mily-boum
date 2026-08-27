@@ -45,9 +45,9 @@ function vignettePortrait(c, h){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — buste trois quarts, longue chevelure, fusil sur l'épaule
+   LA FURIE — buste trois quarts, longue chevelure, fusil sur l'épaule
    --------------------------------------------------------------- */
-function portraitMeuf(c){
+function portraitFurie(c){
   var P = C_PORTRAIT, H = 84;
   fondPortrait(c, H);
   c.save();
@@ -258,9 +258,9 @@ function portraitMeuf(c){
 }
 
 /* ---------------------------------------------------------------
-   LE MEC — buste très large, casque, barbe, gilet tactique
+   LE COMMANDO — buste très large, casque, barbe, gilet tactique
    --------------------------------------------------------------- */
-function portraitMec(c){
+function portraitCommando(c){
   var P = C_PORTRAIT, H = 84;
   fondPortrait(c, H);
   c.save();
@@ -431,7 +431,7 @@ function portraitMec(c){
   vignettePortrait(c, H);
 }
 
-var PORTRAITS = { meuf:{ f:portraitMeuf, h:84 }, mec:{ f:portraitMec, h:84 } };
+var PORTRAITS = { furie:{ f:portraitFurie, h:84 }, commando:{ f:portraitCommando, h:84 } };
 
 /* Dessine le portrait dans un rectangle de largeur donnée. */
 function dessinePortrait(c, cle, x, y, larg){

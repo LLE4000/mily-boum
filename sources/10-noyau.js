@@ -31,8 +31,8 @@ var EQ = {
   /* Débarquement */
   NB_BARGES            : 8,
   /* Plafond absolu d'une navette. La capacité réelle dépend du type
-     embarqué (UNI[t].places) : une Meuf et son gros fusil tiennent
-     moins nombreuses qu'un Mec. */
+     embarqué (UNI[t].places) : une Furie et son gros fusil tiennent
+     moins nombreuses qu'un Commando. */
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
@@ -95,7 +95,7 @@ var EQ = {
   ECLAIR_RAYON_NAPPE   : 7.5,   // cases — jusqu'où le courant se diffuse
   ECLAIR_NAPPE_DUREE   : 2.6,   // secondes d'expansion
   ECLAIR_NAPPE_DEGATS  : 260,   // dégâts au passage du front
-  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Meuf
+  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Furie
      avance à 1,62 case par seconde ; l'orage à 3,24. On ne distance
      donc pas un nuage — on ne peut que sortir de son chemin, et c'est
      ce qui en fait une menace plutôt qu'un décor. */
@@ -357,25 +357,25 @@ var NB_REACTEURS = 5;
    L'île fait cent trois cases de la plage au Brasier ; à l'ancienne
    allure la traversée seule mangeait la partie. */
 var UNI = {
-  meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.62, rayon:0.34, places:12 },
-  mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 },
+  furie   :{ nom:"Furie",    role:"tireuse à distance",  pv:110, portee:5.0, arret:4.75,
+             degats:54,  cadence:1300, vitesse:1.62,  rayon:0.34, places:12 },
+  commando:{ nom:"Commando", role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
+             degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 },
 
   /* ------------------------------------------------------------
      L'OGRE. Une navette n'en embarque qu'UN SEUL, et cet ogre doit
-     valoir la barge de douze Meufs qu'il remplace.
+     valoir la barge de douze Furies qu'il remplace.
 
-     Douze Meufs : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
+     Douze Furies : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
      chacune, donc 498,5 dégâts/s pour la barge entière. L'Ogre lance
      506 par hache toutes les 850 ms, soit 595,3 dégâts/s.
 
      IL FRAPPE DÉSORMAIS 19 % PLUS FORT QUE SA BARGE, et c'est voulu.
-     La hache était à 440, soit 3,8 % de mieux que les douze Meufs — un
+     La hache était à 440, soit 3,8 % de mieux que les douze Furies — un
      match nul, sur le papier. Sur le terrain il perdait : il traverse
      l'île SEUL, il encaisse cinq fois les roquettes du Frelon, et le
      mirador l'abat d'une balle. Une barge de douze, elle, perd trois
-     Meufs et continue. La stricte égalité des dégâts par seconde ne
+     Furies et continue. La stricte égalité des dégâts par seconde ne
      tenait donc pas compte de ce qu'il paie pour arriver à portée.
      Les quinze pour cent de plus achètent exactement ça.
 
@@ -383,19 +383,19 @@ var UNI = {
      casse le rapport. La cadence est volontairement courte : il doit
      mitrailler le bâtiment de haches, pas poser une hache toutes les
      cinq secondes.
-     Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Meuf,
+     Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Furie,
      jamais immortel.
      Faiblesse : il encaisse CINQ FOIS les dégâts d'un lance-roquettes
      (le Frelon). C'est sa contrepartie assumée — un ogre lâché seul
      sous une batterie de missiles fond à vue d'œil.
-     Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Meuf,
+     Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Furie,
      malgré sa masse : son animation est lourde, pas son déplacement.
      ------------------------------------------------------------ */
   /* rayon : c'est l'ENCOMBREMENT, l'écart que deux unités s'imposent
      l'une à l'autre. Il ne joue sur rien d'autre — bloque() teste un
      point, pas un disque, donc il n'empêche pas de passer entre deux
      bâtiments. À 0,72 trois ogres se chevauchaient presque entièrement :
-     leur corps fait trois fois celui d'une Meuf et déborde largement de
+     leur corps fait trois fois celui d'une Furie et déborde largement de
      l'écart qui convient à une petite troupe. */
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
@@ -410,7 +410,7 @@ var UNI = {
             avec une gerbe, et il n'a nulle part où se mettre à couvert. */
          vuln:{ precision:5, mortier:2 } }
 };
-var TYPES_TROUPE = ["meuf", "mec", "ogre"];
+var TYPES_TROUPE = ["furie", "commando", "ogre"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },

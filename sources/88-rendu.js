@@ -712,7 +712,7 @@ function dessineEffet(c, e, tps){
 /* ---------------------------------------------------------------
    LA HACHE DE L'OGRE
    Une hache de guerre, pas une hachette : elle est lancée par un bras
-   trois fois plus gros que celui d'une Meuf et elle doit peser en
+   trois fois plus gros que celui d'une Furie et elle doit peser en
    conséquence à l'écran. Le tracé est sorti dans sa propre fonction
    parce qu'il sert deux fois — le fer lui-même, et les fantômes de la
    traînée.
@@ -900,7 +900,7 @@ function dessineProjectile(c, p, tps){
       return;
     }
 
-    /* --- roquette de Meuf (roquetteJ) : rendu court et vif --- */
+    /* --- roquette de Furie (roquetteJ) : rendu court et vif --- */
     var d = vecteurEcran(p.ang || 0);
     c.save();
     c.translate(hx, hy);

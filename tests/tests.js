@@ -908,10 +908,10 @@ G("4. Déterminisme de la génération de carte");
        M.portee + " contre " + N.DEF.bobine.portee);
     /* et la porte de sortie : au contact, il ne voit plus rien */
     ok("il est aveugle de près", M.porteeMin >= 3.5, "portée mini " + M.porteeMin);
-    ok("le Mec passe sous sa portée mini", N.UNI.mec.arret < M.porteeMin,
-       N.UNI.mec.arret + " < " + M.porteeMin);
-    ok("la Meuf, elle, est dans son champ",
-       N.UNI.meuf.arret > M.porteeMin && N.UNI.meuf.arret < M.portee);
+    ok("le Commando passe sous sa portée mini", N.UNI.commando.arret < M.porteeMin,
+       N.UNI.commando.arret + " < " + M.porteeMin);
+    ok("la Furie, elle, est dans son champ",
+       N.UNI.furie.arret > M.porteeMin && N.UNI.furie.arret < M.portee);
     ok("et l'Ogre aussi — c'est le but",
        O.arret > M.porteeMin && O.arret < M.portee,
        "ogre à " + O.arret + ", mirador " + M.porteeMin + "–" + M.portee);
@@ -921,10 +921,10 @@ G("4. Déterminisme de la génération de carte");
        M.degats * O.vuln.precision >= O.pv,
        M.degats + " × " + O.vuln.precision + " = " + (M.degats * O.vuln.precision)
        + " contre " + O.pv + " PV");
-    ok("mais elle ne one-shot pas une Meuf", M.degats < N.UNI.meuf.pv,
-       M.degats + " < " + N.UNI.meuf.pv);
-    ok("et il en faut beaucoup pour un Mec", N.UNI.mec.pv / M.degats >= 5,
-       Math.ceil(N.UNI.mec.pv / M.degats) + " balles");
+    ok("mais elle ne one-shot pas une Furie", M.degats < N.UNI.furie.pv,
+       M.degats + " < " + N.UNI.furie.pv);
+    ok("et il en faut beaucoup pour un Commando", N.UNI.commando.pv / M.degats >= 5,
+       Math.ceil(N.UNI.commando.pv / M.degats) + " balles");
     /* le nombre : « il en faut beaucoup » */
     var m0 = N.genereCarte("MILY", 0);
     var nbMir = m0.batiments.filter(function(b){ return b.t === "mirador"; }).length;
@@ -963,7 +963,7 @@ G("4. Déterminisme de la génération de carte");
        P.portee + " cases");
     ok("il reste aveugle de près", P.porteeMin === 2.6, "" + P.porteeMin);
     ok("le corps à corps passe toujours dessous",
-       N.UNI.mec.arret < P.porteeMin, N.UNI.mec.arret + " < " + P.porteeMin);
+       N.UNI.commando.arret < P.porteeMin, N.UNI.commando.arret + " < " + P.porteeMin);
     ok("c'est bien un mortier", P.mortier === 1);
     ok("il fait double dégât sur l'Ogre", O.vuln.mortier === 2);
     ok("un obus ne tue pas l'Ogre d'un coup", P.degats * O.vuln.mortier < O.pv,
@@ -973,11 +973,11 @@ G("4. Déterminisme de la génération de carte");
 
   /* ---- L'OGRE ----
      Une navette n'en embarque QU'UN, et cet ogre doit valoir la barge
-     de douze Meufs qu'il remplace. Ces deux règles sont le contrat de
+     de douze Furies qu'il remplace. Ces deux règles sont le contrat de
      la troupe : elles se vérifient en chiffres, ici, et non à l'œil. */
   G("4b. L'Ogre");
   (function(){
-    var M = N.UNI.meuf, O = N.UNI.ogre;
+    var M = N.UNI.furie, O = N.UNI.ogre;
     ok("l'Ogre existe et s'appelle Ogre", !!O && O.nom === "Ogre");
     if(!O) return;
     ok("il est proposé au briefing", N.TYPES_TROUPE.indexOf("ogre") >= 0);
@@ -987,13 +987,13 @@ G("4. Déterminisme de la génération de carte");
     ok("une navette n'embarque qu'UN Ogre", N.placesNavette("ogre") === 1,
        "" + N.placesNavette("ogre"));
     ok("l'ancien plafond de 12/15 ne s'applique pas à lui",
-       N.placesNavette("ogre") < N.placesNavette("meuf") &&
-       N.placesNavette("ogre") < N.placesNavette("mec"));
+       N.placesNavette("ogre") < N.placesNavette("furie") &&
+       N.placesNavette("ogre") < N.placesNavette("commando"));
     ok("l'Ogre ne gonfle pas la flotte maximale",
-       N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("mec"),
+       N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("commando"),
        "" + N.flotteMaximum());
     /* PUISSANCE — les deux valeurs se règlent ENSEMBLE.
-       Il frappe volontairement PLUS FORT que la barge de douze Meufs
+       Il frappe volontairement PLUS FORT que la barge de douze Furies
        qu'il remplace : la stricte égalité des dégâts par seconde ne
        tenait pas compte de ce qu'il paie pour arriver à portée — il
        traverse l'île seul, encaisse cinq fois les roquettes du Frelon
@@ -1003,18 +1003,18 @@ G("4. Déterminisme de la génération de carte");
     var dpsM = M.degats / (M.cadence / 1000);
     var dpsO = O.degats / (O.cadence / 1000);
     var r = dpsO / (dpsM * 12);
-    ok("1 Ogre frappe un peu plus fort que les 12 Meufs d'une barge (×"
+    ok("1 Ogre frappe un peu plus fort que les 12 Furies d'une barge (×"
        + r.toFixed(3) + ")",
        r >= 1.10 && r <= 1.30, dpsO.toFixed(1) + " contre " + (dpsM * 12).toFixed(1));
     ok("mais jamais comme deux barges", r < 2);
-    ok("il n'a surtout pas la puissance d'UNE Meuf",
-       dpsO > dpsM * 10, "×" + (dpsO / dpsM).toFixed(1) + " une Meuf");
+    ok("il n'a surtout pas la puissance d'UNE Furie",
+       dpsO > dpsM * 10, "×" + (dpsO / dpsM).toFixed(1) + " une Furie");
     ok("sa cadence reste dynamique (moins d'une seconde)", O.cadence < 1000, O.cadence + " ms");
     /* Résistance et faiblesse. */
-    ok("santé = celle d'une Meuf × 1,5", O.pv === Math.round(M.pv * 1.5), O.pv + " / " + M.pv);
+    ok("santé = celle d'une Furie × 1,5", O.pv === Math.round(M.pv * 1.5), O.pv + " / " + M.pv);
     ok("il encaisse 5× les armes de précision", O.vuln.precision === 5, "" + O.vuln.precision);
     ok("et 2× les obus de mortier", O.vuln.mortier === 2, "" + O.vuln.mortier);
-    ok("aucune autre troupe n'a de faiblesse", !M.vuln && !N.UNI.mec.vuln);
+    ok("aucune autre troupe n'a de faiblesse", !M.vuln && !N.UNI.commando.vuln);
     ok("et aucune défense n'en a non plus",
        Object.keys(N.DEF).every(function(t){ return !N.DEF[t].vuln; }));
     /* Chaque faiblesse doit avoir une arme qui la déclenche, sinon
@@ -1027,11 +1027,11 @@ G("4. Déterminisme de la génération de carte");
     ok("chaque faiblesse a bien une défense qui la porte",
        Object.keys(O.vuln).every(function(a){ return armes[a]; }),
        Object.keys(O.vuln).join(","));
-    /* Vitesse : 10 % au-dessus de la Meuf, malgré la masse. */
-    ok("vitesse = celle d'une Meuf × 1,10",
+    /* Vitesse : 10 % au-dessus de la Furie, malgré la masse. */
+    ok("vitesse = celle d'une Furie × 1,10",
        Math.abs(O.vitesse / M.vitesse - 1.10) < 1e-6,
        O.vitesse + " / " + M.vitesse + " = ×" + (O.vitesse / M.vitesse).toFixed(4));
-    ok("il est bien plus rapide qu'une Meuf, pas plus lent", O.vitesse > M.vitesse);
+    ok("il est bien plus rapide qu'une Furie, pas plus lent", O.vitesse > M.vitesse);
     /* Il tire de loin : il ne doit jamais venir se coller au bâtiment. */
     ok("il s'arrête loin de sa cible pour lancer", O.arret > 3, "" + O.arret);
     ok("son arrêt reste sous sa portée", O.arret < O.portee, O.arret + " < " + O.portee);
@@ -1040,12 +1040,12 @@ G("4. Déterminisme de la génération de carte");
        n'empêche pas de passer entre deux bâtiments. Deux ogres doivent
        se tenir à bonne distance — ils se chevauchaient presque
        entièrement, trois corps pour la place d'un. */
-    ok("il est plus encombrant que le Mec", O.rayon > N.UNI.mec.rayon,
-       O.rayon + " > " + N.UNI.mec.rayon);
+    ok("il est plus encombrant que le Commando", O.rayon > N.UNI.commando.rayon,
+       O.rayon + " > " + N.UNI.commando.rayon);
     ok("deux Ogres se tiennent à plus du double de l'écart d'avant",
        O.rayon * 2 >= 2 * (0.72 * 2) * 0.95, "écart " + (O.rayon * 2) + " cases");
     ok("son encombrement suit sa taille",
-       O.rayon / N.UNI.meuf.rayon > 3, "×" + (O.rayon / N.UNI.meuf.rayon).toFixed(2) + " une Meuf");
+       O.rayon / N.UNI.furie.rayon > 3, "×" + (O.rayon / N.UNI.furie.rayon).toFixed(2) + " une Furie");
     /* La fenêtre de recherche de voisins doit pouvoir contenir la plus
        grosse paire, sinon deux ogres ne se voient pas et se traversent. */
     var maille = N.EQ.SEPARATION_MAILLE;
@@ -1908,9 +1908,9 @@ G("4. Déterminisme de la génération de carte");
      a épargné. */
   ok("la peine retire 90 % des PV", N.EQ.VENG_PERTE === 0.9);
   (function(){
-    var pv = N.UNI.meuf.pv;
+    var pv = N.UNI.furie.pv;
     var reste = pv * (1 - N.EQ.VENG_PERTE);
-    ok("une Meuf frappée survit à " + Math.round(reste) + " PV", reste >= 5);
+    ok("une Furie frappée survit à " + Math.round(reste) + " PV", reste >= 5);
     ok("et les braises lui laissent " + (reste / N.EQ.VENG_BRAISE_DPS).toFixed(1)
        + " s pour dégager",
        reste / N.EQ.VENG_BRAISE_DPS > 1.0,
@@ -2109,12 +2109,12 @@ G("7. Budget mémoire");
    ================================================================ */
 G("8. Cohérence des règles de jeu");
 (function(){
-  ok("la crible (5,15) dépasse l'arrêt de la Meuf (4,75)",
-     N.DEF.crible.portee > N.UNI.meuf.arret);
+  ok("la crible (5,15) dépasse l'arrêt de la Furie (4,75)",
+     N.DEF.crible.portee > N.UNI.furie.arret);
   ok("… mais de justesse : moins d'une demi-case",
-     N.DEF.crible.portee - N.UNI.meuf.arret < 0.5);
-  ok("le lance-chalumeau (5,6) dépasse la portée de la Meuf (5,0)",
-     N.DEF.chalumeau.portee > N.UNI.meuf.portee);
+     N.DEF.crible.portee - N.UNI.furie.arret < 0.5);
+  ok("le lance-chalumeau (5,6) dépasse la portée de la Furie (5,0)",
+     N.DEF.chalumeau.portee > N.UNI.furie.portee);
   ok("le pilon est aveugle de près (portée mini 2,6)", N.DEF.pilon.porteeMin === 2.6);
 
   /* précision dégressive */
@@ -2229,7 +2229,7 @@ G("8. Cohérence des règles de jeu");
     ok("l'éventail laisse toujours de la marge pour entrer en portée (pire cas "
        + pire.toFixed(2) + " case : " + detail + ")", pire > 0.3, pire.toFixed(3));
     ok("et il est bien plafonné, pas seulement pour la plus grosse cible",
-       Math.min(N.rayonFormation() * 0.55, (N.UNI.mec.arret + 0.3) * 0.7) < N.UNI.mec.arret + 0.3);
+       Math.min(N.rayonFormation() * 0.55, (N.UNI.commando.arret + 0.3) * 0.7) < N.UNI.commando.arret + 0.3);
   })();
 
   /* ---- CHAQUE ÎLE DOIT AVOIR SA PALETTE ----
@@ -2336,7 +2336,7 @@ G("8. Cohérence des règles de jeu");
     ok("Tweety est inoffensif", N.CRE.tweety.degats === 0 && N.CRE.tweety.portee === 0);
     ok("Tweety fuit et vole", N.CRE.tweety.fuit === 1 && N.CRE.tweety.vole === 1);
     ok("Tweety est plus rapide que les deux types de troupe",
-       N.CRE.tweety.vitesse > N.UNI.meuf.vitesse && N.CRE.tweety.vitesse > N.UNI.mec.vitesse);
+       N.CRE.tweety.vitesse > N.UNI.furie.vitesse && N.CRE.tweety.vitesse > N.UNI.commando.vitesse);
     for(var i = 0; i < 3; i++){
       var m = N.genereCarte("MILY", i);
       var n = m.creatures.filter(function(k){ return k.t === "tweety"; }).length;
@@ -2382,7 +2382,7 @@ G("8. Cohérence des règles de jeu");
 
   /* traversée */
   var cases = (N.GW - 4) - N.QG_GX;
-  var couv = N.CAP.balise.duree * N.UNI.meuf.vitesse;
+  var couv = N.CAP.balise.duree * N.UNI.furie.vitesse;
   /* 30 s × 1,62 case/s. La valeur est épinglée exprès : elle dit ce
      qu'une Balise achète réellement, et elle doit bouger sciemment. */
   ok(N.CAP.balise.duree + " s de Balise couvrent " + couv.toFixed(0) + " cases",
@@ -2391,18 +2391,18 @@ G("8. Cohérence des règles de jeu");
      Math.ceil(cases / couv) <= 6);
   ok("la version est au format vX.YY", /^v\d+\.\d{2}$/.test(N.VERSION), N.VERSION);
   ok("huit navettes par vie", N.EQ.NB_BARGES === 8);
-  ok("douze Meufs par navette au maximum", N.placesNavette("meuf") === 12);
-  ok("quinze Mecs par navette au maximum", N.placesNavette("mec") === 15);
-  ok("une vie plafonne à " + N.flotteMaximum() + " unités (8 × 15 Mecs)",
+  ok("douze Furies par navette au maximum", N.placesNavette("furie") === 12);
+  ok("quinze Commandos par navette au maximum", N.placesNavette("commando") === 15);
+  ok("une vie plafonne à " + N.flotteMaximum() + " unités (8 × 15 Commandos)",
      N.flotteMaximum() === 120);
-  ok("une flotte entière de Meufs fait 96 unités",
-     N.EQ.NB_BARGES * N.placesNavette("meuf") === 96);
+  ok("une flotte entière de Furies fait 96 unités",
+     N.EQ.NB_BARGES * N.placesNavette("furie") === 96);
   ok("aucun type ne dépasse le plafond absolu d'une navette",
      Object.keys(N.UNI).every(function(t){
        return N.placesNavette(t) <= N.EQ.PLACES_PAR_BARGE;
      }));
   /* le Brasier : objectif collectif */
-  var dpsSolo = 100 * (N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000));
+  var dpsSolo = 100 * (N.UNI.furie.degats / (N.UNI.furie.cadence / 1000));
   var soloMin = N.CARTES[0].pvQG / dpsSolo / 60;
   ok("île 1 : " + soloMin.toFixed(0) + " min en solo sans opposition (≈ 60)",
      soloMin >= 45 && soloMin <= 90, soloMin.toFixed(1));
@@ -2410,7 +2410,7 @@ G("8. Cohérence des règles de jeu");
   ok("les défenses restent tendres devant le Brasier",
      N.DEF.frelon.pv * 400 < N.CARTES[0].pvQG / 10);
   ok("une quinzaine de tireuses démonte un Crible en moins de 4 s",
-     N.DEF.crible.pv / (8 * N.UNI.meuf.degats / (N.UNI.meuf.cadence / 1000)) < 4);
+     N.DEF.crible.pv / (8 * N.UNI.furie.degats / (N.UNI.furie.cadence / 1000)) < 4);
 })();
 
 /* ================================================================

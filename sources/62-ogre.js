@@ -1,6 +1,6 @@
 /* ================================================================
    L'OGRE — la troupe lourde du joueur
-   Trois fois la taille de la Meuf, et surtout : rien à voir avec elle.
+   Trois fois la taille de la Furie, et surtout : rien à voir avec elle.
    Proportions de brute et non d'humain agrandi — épaules deux fois et
    demie plus larges que la tête, taille serrée, trapèzes qui montent
    plus haut que le crâne, bras longs plantés loin du tronc, tête en
@@ -31,7 +31,7 @@ var C_OGRE = {
 
 /* ---------------------------------------------------------------
    La démarche.
-   Il avance 10 % plus vite qu'une Meuf : hors de question qu'il ait
+   Il avance 10 % plus vite qu'une Furie : hors de question qu'il ait
    l'air de traîner. Le poids ne vient donc pas de la lenteur mais de
    l'amplitude — d'immenses enjambées — et de la sécheresse du poser :
    le corps monte doucement quand les jambes se croisent, puis TOMBE

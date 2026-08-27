@@ -1101,8 +1101,8 @@ function majUnites(dt){
     /* --- SOUS BROUILLARD : postée, muette ---------------------------
        Tant que l'unité est dans la fumée, elle est cachée. Elle
        continue d'avancer et de se placer normalement — jusqu'à SA
-       propre portée, celle de son type : 4,75 case pour une Meuf,
-       1,70 pour un Mec, jamais une distance générique — puis elle
+       propre portée, celle de son type : 4,75 case pour une Furie,
+       1,70 pour un Commando, jamais une distance générique — puis elle
        s'arrête et se tait. Elle ne tire pas, elle n'engage pas, et
        les défenses ne la voient pas (cf. masquee(), côté défense et
        côté créature). C'est tout l'intérêt de la fumée : venir se
@@ -1138,7 +1138,7 @@ function majUnites(dt){
         if(db > f.arret){
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
-          u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
+          u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
         }else{
           u.phase += dt * 1.5;
           u.prochainTir -= dt * 1000;
@@ -1226,11 +1226,11 @@ function majUnites(dt){
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       /* Cadence du cycle de marche, en radians par seconde. Elle dit le
          NOMBRE de pas, pas la vitesse : l'Ogre avance plus vite qu'une
-         Meuf (1,782 contre 1,62) tout en faisant deux fois moins de pas
+         Furie (1,782 contre 1,62) tout en faisant deux fois moins de pas
          pour la même distance. C'est exactement ça, une enjambée — et
          c'est pour ça qu'il ne faut surtout pas ralentir son cycle en
          croyant ralentir le personnage. */
-      u.phase += dt * (u.t === "ogre" ? 4.1 : (u.t === "mec" ? 6.2 : 8.6));
+      u.phase += dt * (u.t === "ogre" ? 4.1 : (u.t === "commando" ? 6.2 : 8.6));
     }else{
       /* Arrivée à SA portée (f.arret, propre au type). Elle tire —
          sauf si la fumée la couvre, auquel cas elle se tient prête
@@ -1305,7 +1305,7 @@ function tireUnite(u, but, c){
     /* La hache part de l'ÉPAULE, pas du nombril, et déjà un peu devant
        lui : lâchée au centre de l'unité, elle traversait visiblement
        son propre torse à l'image du lancer. La hauteur suit l'échelle
-       du personnage — trente unités conviennent à une Meuf, pas à un
+       du personnage — trente unités conviennent à une Furie, pas à un
        ogre qui en fait trois fois plus. */
     var ech = f.ech || 1;
     var ax = u.gx + (but.gx - u.gx) / dh * 0.55 * ech;
@@ -1325,17 +1325,17 @@ function tireUnite(u, but, c){
     if(son.hache) son.hache();
     return;
   }
-  if(u.t === "meuf"){
+  if(u.t === "furie"){
     jeu.projectiles.push({
       t:"roquetteJ", gx:u.gx, gy:u.gy - 0.2, vx:0, vy:0, cible:c, but:but,
       degats:f.degats, vit:11, age:0
     });
-    son.tirMeuf();
+    son.tirFurie();
   }else{
     /* corps à corps : impact immédiat */
     appliqueDegatsCible(c, f.degats, but);
     jeu.effets.push({ t:"coup", gx:but.gx, gy:but.gy, age:0, duree:0.22 });
-    son.coupMec();
+    son.coupCommando();
   }
 }
 /* L'IMPACT D'UNE HACHE. Quatre cents kilos d'acier lancés par un ogre :

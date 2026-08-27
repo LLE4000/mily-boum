@@ -483,13 +483,20 @@ select.champ{cursor:pointer}
    quatre-vingt-quatre pixels de haut : le choix se fait dans un menu
    déroulant, qui tient sur une ligne et ne demande pas de place pour
    ses deux options non retenues.
-   `auto-fit` et non huit colonnes en dur : sur un téléphone étroit la
-   rangée se replie d'elle-même en deux ou quatre, au lieu de forcer
-   des vignettes de trente pixels. */
-#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px}
+   HUIT COLONNES EN DUR, et non `auto-fit`. auto-fit compte les
+   colonnes que la largeur permet, pas celles qu'il y a d'objets : à
+   1 400 px il en fabriquait NEUF pour huit navettes — une colonne
+   vide en bout de rangée — et en dessous de 841 px il repliait en
+   7 + 1, une rangée bancale d'une seule vignette. Trois paliers
+   explicites font mieux le travail : huit sur une ligne tant qu'elles
+   tiennent, puis 4 + 4, puis 2 par 2 sur un téléphone étroit. Jamais
+   de rangée orpheline. */
+#barges{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}
+@media (max-width:1000px){ #barges{grid-template-columns:repeat(4,1fr)} }
+@media (max-width:430px){ #barges{grid-template-columns:repeat(2,1fr)} }
 .nv{
   background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;
-  padding:6px 6px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
+  padding:6px 4px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
 }
 .nv .nvt{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--gris);
   display:flex;justify-content:space-between;align-items:baseline}
@@ -497,9 +504,13 @@ select.champ{cursor:pointer}
 .nv canvas{width:100%;height:52px;display:block;border-radius:8px;background:#241733}
 .nvs{
   width:100%;min-width:0;appearance:none;-webkit-appearance:none;
-  background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 7px center;
+  background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 4px center;
   border:1px solid rgba(255,255,255,.16);border-radius:9px;color:var(--texte);
-  font:700 13px/1 inherit;padding:7px 20px 7px 8px;cursor:pointer;
+  /* « Commando » fait huit lettres là où « Meuf » en faisait quatre :
+     à 13 px et 20 px de gouttière pour la flèche, il rendait
+     « Command ». Police et gouttière recalées sur le PLUS LONG des
+     trois noms, pas sur le plus court. */
+  font-weight:700;font-size:11px;line-height:1;font-family:inherit;padding:7px 13px 7px 5px;cursor:pointer;
 }
 .nvs:focus{outline:none;border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.25)}
 #totalTroupes{text-align:center;margin-top:10px;font-size:13px;color:var(--gris)}
@@ -532,10 +543,10 @@ select.champ{cursor:pointer}
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);background:#22143010;
 }
-.admTitre{font:800 15px/1 inherit;letter-spacing:.6px;color:var(--braise)}
+.admTitre{font-weight:800;font-size:15px;line-height:1;font-family:inherit;letter-spacing:.6px;color:var(--braise)}
 .admCorps{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch}
 .admCorps h3{
-  font:700 11px/1 inherit;letter-spacing:1.4px;text-transform:uppercase;
+  font-weight:700;font-size:11px;line-height:1;font-family:inherit;letter-spacing:1.4px;text-transform:uppercase;
   color:var(--gris);margin:0 0 8px;display:flex;align-items:center;gap:8px;
 }
 .admCorps h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.45),transparent)}
@@ -651,7 +662,7 @@ select.champ{cursor:pointer}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
 #listeBarges{display:flex;gap:5px;flex-wrap:wrap}
 /* LES NAVETTES EN PORTRAITS.
-   Le visage dit le type de troupe mieux qu'un mot : « Mec » et « Meuf »
+   Le visage dit le type de troupe mieux qu'un mot : « Commando » et « Furie »
    écrits en neuf pixels sur une tablette étaient à peu près
    indéchiffrables, et les trois lettres mangeaient la moitié de la
    tuile. On garde donc EXACTEMENT la même emprise — 46 px de large —
@@ -699,7 +710,7 @@ select.champ{cursor:pointer}
 .cap .nm{font-size:9.5px;letter-spacing:.2px;color:#d8cce2;text-align:center;line-height:1}
 .cap .cx{
   position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
-  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 11px/20px inherit;
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font-weight:800;font-size:11px;line-height:20px;font-family:inherit;
   text-align:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
 }
 .cap.arme{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 18px rgba(255,138,30,.3)}
@@ -1074,8 +1085,8 @@ var EQ = {
   /* Débarquement */
   NB_BARGES            : 8,
   /* Plafond absolu d'une navette. La capacité réelle dépend du type
-     embarqué (UNI[t].places) : une Meuf et son gros fusil tiennent
-     moins nombreuses qu'un Mec. */
+     embarqué (UNI[t].places) : une Furie et son gros fusil tiennent
+     moins nombreuses qu'un Commando. */
   PLACES_PAR_BARGE     : 15,
 
   /* Mort / renaissance */
@@ -1138,7 +1149,7 @@ var EQ = {
   ECLAIR_RAYON_NAPPE   : 7.5,   // cases — jusqu'où le courant se diffuse
   ECLAIR_NAPPE_DUREE   : 2.6,   // secondes d'expansion
   ECLAIR_NAPPE_DEGATS  : 260,   // dégâts au passage du front
-  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Meuf
+  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Furie
      avance à 1,62 case par seconde ; l'orage à 3,24. On ne distance
      donc pas un nuage — on ne peut que sortir de son chemin, et c'est
      ce qui en fait une menace plutôt qu'un décor. */
@@ -1400,25 +1411,25 @@ var NB_REACTEURS = 5;
    L'île fait cent trois cases de la plage au Brasier ; à l'ancienne
    allure la traversée seule mangeait la partie. */
 var UNI = {
-  meuf:{ nom:"Meuf", role:"tireuse à distance", pv:110, portee:5.0, arret:4.75,
-         degats:54,  cadence:1300, vitesse:1.62, rayon:0.34, places:12 },
-  mec :{ nom:"Mec",  role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
-         degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 },
+  furie   :{ nom:"Furie",    role:"tireuse à distance",  pv:110, portee:5.0, arret:4.75,
+             degats:54,  cadence:1300, vitesse:1.62,  rayon:0.34, places:12 },
+  commando:{ nom:"Commando", role:"cogneur au contact", pv:560, portee:1.9, arret:1.70,
+             degats:100, cadence:1600, vitesse:1.008, rayon:0.42, places:15 },
 
   /* ------------------------------------------------------------
      L'OGRE. Une navette n'en embarque qu'UN SEUL, et cet ogre doit
-     valoir la barge de douze Meufs qu'il remplace.
+     valoir la barge de douze Furies qu'il remplace.
 
-     Douze Meufs : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
+     Douze Furies : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
      chacune, donc 498,5 dégâts/s pour la barge entière. L'Ogre lance
      506 par hache toutes les 850 ms, soit 595,3 dégâts/s.
 
      IL FRAPPE DÉSORMAIS 19 % PLUS FORT QUE SA BARGE, et c'est voulu.
-     La hache était à 440, soit 3,8 % de mieux que les douze Meufs — un
+     La hache était à 440, soit 3,8 % de mieux que les douze Furies — un
      match nul, sur le papier. Sur le terrain il perdait : il traverse
      l'île SEUL, il encaisse cinq fois les roquettes du Frelon, et le
      mirador l'abat d'une balle. Une barge de douze, elle, perd trois
-     Meufs et continue. La stricte égalité des dégâts par seconde ne
+     Furies et continue. La stricte égalité des dégâts par seconde ne
      tenait donc pas compte de ce qu'il paie pour arriver à portée.
      Les quinze pour cent de plus achètent exactement ça.
 
@@ -1426,19 +1437,19 @@ var UNI = {
      casse le rapport. La cadence est volontairement courte : il doit
      mitrailler le bâtiment de haches, pas poser une hache toutes les
      cinq secondes.
-     Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Meuf,
+     Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Furie,
      jamais immortel.
      Faiblesse : il encaisse CINQ FOIS les dégâts d'un lance-roquettes
      (le Frelon). C'est sa contrepartie assumée — un ogre lâché seul
      sous une batterie de missiles fond à vue d'œil.
-     Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Meuf,
+     Vitesse : 1,62 × 1,10 = 1,782. Il est plus RAPIDE qu'une Furie,
      malgré sa masse : son animation est lourde, pas son déplacement.
      ------------------------------------------------------------ */
   /* rayon : c'est l'ENCOMBREMENT, l'écart que deux unités s'imposent
      l'une à l'autre. Il ne joue sur rien d'autre — bloque() teste un
      point, pas un disque, donc il n'empêche pas de passer entre deux
      bâtiments. À 0,72 trois ogres se chevauchaient presque entièrement :
-     leur corps fait trois fois celui d'une Meuf et déborde largement de
+     leur corps fait trois fois celui d'une Furie et déborde largement de
      l'écart qui convient à une petite troupe. */
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
@@ -1453,7 +1464,7 @@ var UNI = {
             avec une gerbe, et il n'a nulle part où se mettre à couvert. */
          vuln:{ precision:5, mortier:2 } }
 };
-var TYPES_TROUPE = ["meuf", "mec", "ogre"];
+var TYPES_TROUPE = ["furie", "commando", "ogre"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },
@@ -6327,7 +6338,7 @@ function dessineSol(c, vue){
        redevenir opaques ; en un seul blit, 0,72 reste 0,72 et on
        devine toujours ce qu'il y a dessous.
      — entre 0 et −40 en local — la bande où vivent les troupes
-       (Meuf ≈ 36) et les socles de tourelles (Crible 57) — rien
+       (Furie ≈ 36) et les socles de tourelles (Crible 57) — rien
        d'opaque que le tronc, et le tronc y reste étroit. Les
        contreforts s'évasent, mais ils s'évasent BAS, et les racines
        traçantes rampent sur une ellipse écrasée au lieu de suivre
@@ -18347,9 +18358,9 @@ function vignettePortrait(c, h){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — buste trois quarts, longue chevelure, fusil sur l'épaule
+   LA FURIE — buste trois quarts, longue chevelure, fusil sur l'épaule
    --------------------------------------------------------------- */
-function portraitMeuf(c){
+function portraitFurie(c){
   var P = C_PORTRAIT, H = 84;
   fondPortrait(c, H);
   c.save();
@@ -18560,9 +18571,9 @@ function portraitMeuf(c){
 }
 
 /* ---------------------------------------------------------------
-   LE MEC — buste très large, casque, barbe, gilet tactique
+   LE COMMANDO — buste très large, casque, barbe, gilet tactique
    --------------------------------------------------------------- */
-function portraitMec(c){
+function portraitCommando(c){
   var P = C_PORTRAIT, H = 84;
   fondPortrait(c, H);
   c.save();
@@ -18733,7 +18744,7 @@ function portraitMec(c){
   vignettePortrait(c, H);
 }
 
-var PORTRAITS = { meuf:{ f:portraitMeuf, h:84 }, mec:{ f:portraitMec, h:84 } };
+var PORTRAITS = { furie:{ f:portraitFurie, h:84 }, commando:{ f:portraitCommando, h:84 } };
 
 /* Dessine le portrait dans un rectangle de largeur donnée. */
 function dessinePortrait(c, cle, x, y, larg){
@@ -18758,15 +18769,15 @@ function dessinePortrait(c, cle, x, y, larg){
 
 /* ===== 60-unites.js ===== */
 /* ================================================================
-   LES UNITÉS DU JOUEUR — la Meuf et le Mec
+   LES UNITÉS DU JOUEUR — la Furie et le Commando
    Dessinées en vecteur, repère local : les pieds sont en (0,0),
    l'unité monte vers les y négatifs. Lumière en haut à gauche.
    ================================================================ */
 
 /* Palettes relevées sur les références :
-   la Meuf porte un ensemble blanc et noir sous un plastron sombre,
-   le Mec un gilet tactique olive sur un tee-shirt sombre. */
-var C_MEUF = {
+   la Furie porte un ensemble blanc et noir sous un plastron sombre,
+   le Commando un gilet tactique olive sur un tee-shirt sombre. */
+var C_FURIE = {
   cheveux:"#151119", cheveux2:"#3a3147", reflet:"#6a5a86",
   peau:"#f4e0ca", peauO:"#d6b493",
   tenue:"#f2ede4", tenueO:"#c9c1b4",
@@ -18775,7 +18786,7 @@ var C_MEUF = {
   arme:"#34353c", armeC:"#60626c", armeO:"#17181c", lueur:"#7de6ff",
   botte:"#1d1d24", pantalon:"#27272e", accent:"#c8a24a"
 };
-var C_MEC = {
+var C_COMMANDO = {
   peau:"#dfb083", peauO:"#b7845a", ombreM:"#96683f",
   barbe:"#6d4f2e", cheveux:"#a8834c",
   tee:"#2c2c30", teeO:"#191a1c",
@@ -18812,11 +18823,11 @@ function pose(phase, ampleur){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — silhouette fine, longue chevelure noire, gros fusil
+   LA FURIE — silhouette fine, longue chevelure noire, gros fusil
    coiffure : 0 longue lâchée, 1 queue haute, 2 chignon
    --------------------------------------------------------------- */
-function dessineMeuf(c, phase, coiffure, tir){
-  var C = C_MEUF;
+function dessineFurie(c, phase, coiffure, tir){
+  var C = C_FURIE;
   var p = pose(phase, 4.0);
   var yb = -p.rebond;
   var sw = Math.sin(phase + 1.9) * 1.2;      /* balancement des cheveux */
@@ -18895,7 +18906,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(0, -13.4, 4.3, 2.5, 0, 0, 6.2832); c.fill();
 
   /* --- buste en sablier : haut clair, taille marquée --- */
-  c.fillStyle = degCache(c, "v2MeufTop", function(){
+  c.fillStyle = degCache(c, "v2FurieTop", function(){
     var g = c.createLinearGradient(-6, -25, 6, -14);
     g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, C.tenue); g.addColorStop(1, C.tenueO);
     return g;
@@ -18911,7 +18922,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.closePath(); c.fill();
 
   /* --- plastron sombre, cintré --- */
-  c.fillStyle = degCache(c, "v2MeufPlastron", function(){
+  c.fillStyle = degCache(c, "v2FuriePlastron", function(){
     var g = c.createLinearGradient(-5, -23, 5, -15);
     g.addColorStop(0, C.plastronC); g.addColorStop(0.45, C.plastron); g.addColorStop(1, C.plastronO);
     return g;
@@ -18973,7 +18984,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.moveTo(-8.0, -1.9); c.lineTo(-12.6, -2.7); c.lineTo(-12.8, 2.9); c.lineTo(-8.0, 2.1);
   c.closePath(); c.fill();
   /* carcasse */
-  c.fillStyle = degCache(c, "v2MeufFusil", function(){
+  c.fillStyle = degCache(c, "v2FurieFusil", function(){
     var g = c.createLinearGradient(0, -2.4, 0, 2.6);
     g.addColorStop(0, C.armeC); g.addColorStop(0.45, C.arme); g.addColorStop(1, C.armeO);
     return g;
@@ -19018,7 +19029,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(17.3, 0, 1.0, 1.9, 0, 0, 6.2832); c.fill();
   c.save();
   c.globalCompositeOperation = "lighter";
-  c.fillStyle = degCache(c, "v2MeufLueur" + (tir ? 1 : 0), function(){
+  c.fillStyle = degCache(c, "v2FurieLueur" + (tir ? 1 : 0), function(){
     var g = c.createRadialGradient(17.3, 0, 0.4, 17.3, 0, tir ? 10 : 3.6);
     g.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.5));
     g.addColorStop(1, rgba(C.lueur, 0));
@@ -19045,7 +19056,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.fillStyle = C.cheveux;
   c.beginPath(); c.ellipse(-0.1, -0.3, 4.5, 4.7, 0, 0, 6.2832); c.fill();
   /* visage fin */
-  c.fillStyle = degCache(c, "v2MeufVisage", function(){
+  c.fillStyle = degCache(c, "v2FurieVisage", function(){
     var g = c.createRadialGradient(-1.2, -1.4, 0.5, 0, 0, 4.4);
     g.addColorStop(0, ecl(C.peau, 1.05)); g.addColorStop(1, C.peauO);
     return g;
@@ -19115,10 +19126,10 @@ function dessineMeuf(c, phase, coiffure, tir){
 }
 
 /* ---------------------------------------------------------------
-   LE MEC — grand, épais, casqué, gilet tactique et fusil
+   LE COMMANDO — grand, épais, casqué, gilet tactique et fusil
    --------------------------------------------------------------- */
-function dessineMec(c, phase, variante, tir){
-  var C = C_MEC;
+function dessineCommando(c, phase, variante, tir){
+  var C = C_COMMANDO;
   var p = pose(phase, 5.4);
   var yb = -p.rebond * 0.7;
 
@@ -19149,7 +19160,7 @@ function dessineMec(c, phase, variante, tir){
   c.rotate(p.incl * 0.6);
 
   /* --- torse en V : épaules très larges, tee moulant --- */
-  c.fillStyle = degCache(c, "v2MecTee", function(){
+  c.fillStyle = degCache(c, "v2CommandoTee", function(){
     var g = c.createLinearGradient(-10, -29, 10, -16);
     g.addColorStop(0, ecl(C.tee, 1.35)); g.addColorStop(0.5, C.tee); g.addColorStop(1, C.teeO);
     return g;
@@ -19169,7 +19180,7 @@ function dessineMec(c, phase, variante, tir){
   c.stroke();
 
   /* --- gilet pare-balles à CHARGEURS --- */
-  c.fillStyle = degCache(c, "v2MecGilet", function(){
+  c.fillStyle = degCache(c, "v2CommandoGilet", function(){
     var g = c.createLinearGradient(-8, -27, 8, -16);
     g.addColorStop(0, C.giletC); g.addColorStop(0.5, C.gilet); g.addColorStop(1, C.giletO);
     return g;
@@ -19241,7 +19252,7 @@ function dessineMec(c, phase, variante, tir){
   c.fillStyle = C.armeO;
   c.fillRect(-9.8, -1.6, 3.0, 4.2);
   /* carcasse trapue */
-  c.fillStyle = degCache(c, "v2MecArme", function(){
+  c.fillStyle = degCache(c, "v2CommandoArme", function(){
     var g = c.createLinearGradient(0, -2.4, 0, 2.6);
     g.addColorStop(0, ecl(C.armeC, 1.15)); g.addColorStop(0.4, C.arme); g.addColorStop(1, C.armeO);
     return g;
@@ -19275,7 +19286,7 @@ function dessineMec(c, phase, variante, tir){
   if(tir){
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.fillStyle = degCache(c, "v2MecBouche", function(){
+    c.fillStyle = degCache(c, "v2CommandoBouche", function(){
       var g = c.createRadialGradient(12.0, 0, 0.4, 12.0, 0, 9);
       g.addColorStop(0, "rgba(255,232,170,.95)");
       g.addColorStop(1, "rgba(255,120,30,0)");
@@ -19308,7 +19319,7 @@ function dessineMec(c, phase, variante, tir){
   /* --- tête : mâchoire carrée, barbe, casque à jugulaire --- */
   c.save();
   c.translate(0.4, -32.6);
-  c.fillStyle = degCache(c, "v2MecVisage", function(){
+  c.fillStyle = degCache(c, "v2CommandoVisage", function(){
     var g = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.2);
     g.addColorStop(0, ecl(C.peau, 1.07)); g.addColorStop(1, C.peauO);
     return g;
@@ -19363,7 +19374,7 @@ function dessineMec(c, phase, variante, tir){
   c.strokeStyle = rgba(C.ombreM, 0.6); c.lineWidth = 0.6;
   c.beginPath(); c.moveTo(0.1, -0.4); c.lineTo(0.3, 1.2); c.stroke();
   /* casque solide, bord net */
-  c.fillStyle = degCache(c, "v2MecCasque", function(){
+  c.fillStyle = degCache(c, "v2CommandoCasque", function(){
     var g = c.createLinearGradient(-5, -8, 5, -2);
     g.addColorStop(0, C.casqueC); g.addColorStop(0.55, C.casque); g.addColorStop(1, C.casqueO);
     return g;
@@ -19412,10 +19423,10 @@ function dessineUnite(c, type, phase, variante, tir){
   /* L'Ogre vit dans son propre fichier (62-ogre.js) : il est trois fois
      plus grand que les deux autres et n'a rien en commun avec eux. Le
      garde-fou typeof le rend optionnel — si un jour on retire le
-     fichier, le jeu tombe sur la Meuf au lieu de planter. */
+     fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
-  if(type === "mec") dessineMec(c, phase, variante, tir);
-  else dessineMeuf(c, phase, variante, tir);
+  if(type === "commando") dessineCommando(c, phase, variante, tir);
+  else dessineFurie(c, phase, variante, tir);
 }
 
 /* ---------------------------------------------------------------
@@ -19424,12 +19435,12 @@ function dessineUnite(c, type, phase, variante, tir){
    seule fois au niveau des pixels. Pas de ctx.filter : trop lent.
    --------------------------------------------------------------- */
 /* La planche doit contenir l'OGRE, qui monte trois fois plus haut
-   qu'une Meuf : dimensionnée sur les petits, elle lui coupait la tête
+   qu'une Furie : dimensionnée sur les petits, elle lui coupait la tête
    et les épaules. L'origine descend d'autant. */
 var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["meuf", "mec", "ogre"];
+var VIG_TYPES = ["furie", "commando", "ogre"];
 
 function construitVignettesGrises(){
   vignettes = [];
@@ -19556,7 +19567,7 @@ function dessineFantome(c, f, tps){
 /* ===== 62-ogre.js ===== */
 /* ================================================================
    L'OGRE — la troupe lourde du joueur
-   Trois fois la taille de la Meuf, et surtout : rien à voir avec elle.
+   Trois fois la taille de la Furie, et surtout : rien à voir avec elle.
    Proportions de brute et non d'humain agrandi — épaules deux fois et
    demie plus larges que la tête, taille serrée, trapèzes qui montent
    plus haut que le crâne, bras longs plantés loin du tronc, tête en
@@ -19587,7 +19598,7 @@ var C_OGRE = {
 
 /* ---------------------------------------------------------------
    La démarche.
-   Il avance 10 % plus vite qu'une Meuf : hors de question qu'il ait
+   Il avance 10 % plus vite qu'une Furie : hors de question qu'il ait
    l'air de traîner. Le poids ne vient donc pas de la lenteur mais de
    l'amplitude — d'immenses enjambées — et de la sécheresse du poser :
    le corps monte doucement quand les jambes se croisent, puis TOMBE
@@ -23777,8 +23788,8 @@ function majUnites(dt){
     /* --- SOUS BROUILLARD : postée, muette ---------------------------
        Tant que l'unité est dans la fumée, elle est cachée. Elle
        continue d'avancer et de se placer normalement — jusqu'à SA
-       propre portée, celle de son type : 4,75 case pour une Meuf,
-       1,70 pour un Mec, jamais une distance générique — puis elle
+       propre portée, celle de son type : 4,75 case pour une Furie,
+       1,70 pour un Commando, jamais une distance générique — puis elle
        s'arrête et se tait. Elle ne tire pas, elle n'engage pas, et
        les défenses ne la voient pas (cf. masquee(), côté défense et
        côté créature). C'est tout l'intérêt de la fumée : venir se
@@ -23814,7 +23825,7 @@ function majUnites(dt){
         if(db > f.arret){
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
-          u.phase += dt * (u.t === "mec" ? 6.2 : 8.6);
+          u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
         }else{
           u.phase += dt * 1.5;
           u.prochainTir -= dt * 1000;
@@ -23902,11 +23913,11 @@ function majUnites(dt){
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       /* Cadence du cycle de marche, en radians par seconde. Elle dit le
          NOMBRE de pas, pas la vitesse : l'Ogre avance plus vite qu'une
-         Meuf (1,782 contre 1,62) tout en faisant deux fois moins de pas
+         Furie (1,782 contre 1,62) tout en faisant deux fois moins de pas
          pour la même distance. C'est exactement ça, une enjambée — et
          c'est pour ça qu'il ne faut surtout pas ralentir son cycle en
          croyant ralentir le personnage. */
-      u.phase += dt * (u.t === "ogre" ? 4.1 : (u.t === "mec" ? 6.2 : 8.6));
+      u.phase += dt * (u.t === "ogre" ? 4.1 : (u.t === "commando" ? 6.2 : 8.6));
     }else{
       /* Arrivée à SA portée (f.arret, propre au type). Elle tire —
          sauf si la fumée la couvre, auquel cas elle se tient prête
@@ -23981,7 +23992,7 @@ function tireUnite(u, but, c){
     /* La hache part de l'ÉPAULE, pas du nombril, et déjà un peu devant
        lui : lâchée au centre de l'unité, elle traversait visiblement
        son propre torse à l'image du lancer. La hauteur suit l'échelle
-       du personnage — trente unités conviennent à une Meuf, pas à un
+       du personnage — trente unités conviennent à une Furie, pas à un
        ogre qui en fait trois fois plus. */
     var ech = f.ech || 1;
     var ax = u.gx + (but.gx - u.gx) / dh * 0.55 * ech;
@@ -24001,17 +24012,17 @@ function tireUnite(u, but, c){
     if(son.hache) son.hache();
     return;
   }
-  if(u.t === "meuf"){
+  if(u.t === "furie"){
     jeu.projectiles.push({
       t:"roquetteJ", gx:u.gx, gy:u.gy - 0.2, vx:0, vy:0, cible:c, but:but,
       degats:f.degats, vit:11, age:0
     });
-    son.tirMeuf();
+    son.tirFurie();
   }else{
     /* corps à corps : impact immédiat */
     appliqueDegatsCible(c, f.degats, but);
     jeu.effets.push({ t:"coup", gx:but.gx, gy:but.gy, age:0, duree:0.22 });
-    son.coupMec();
+    son.coupCommando();
   }
 }
 /* L'IMPACT D'UNE HACHE. Quatre cents kilos d'acier lancés par un ogre :
@@ -26459,12 +26470,12 @@ function majUnitesDistantes(j, p){
   for(i = 0; i < p.length; i++){
     var e = p[i];
     if(!j.unites[i]){
-      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"meuf", droite:true, phase:Math.random() * 6 };
+      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"furie", droite:true, phase:Math.random() * 6 };
     }
     var u = j.unites[i];
     u.cx = e[0]; u.cy = e[1];
     var code = e[2] | 0;
-    u.type = (code & 2) ? "mec" : "meuf";
+    u.type = (code & 2) ? "commando" : "furie";
     u.droite = !!(code & 1);
   }
   j.unites.length = p.length;
@@ -26480,7 +26491,7 @@ function interpoleDistants(dt){
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }
       var k = Math.min(1, dt * 5);
       u.gx += dx * k; u.gy += dy * k;
-      if(d > 0.02) u.phase += dt * (u.type === "mec" ? 6.2 : 8.6);
+      if(d > 0.02) u.phase += dt * (u.type === "commando" ? 6.2 : 8.6);
     }
   }
 }
@@ -26519,7 +26530,7 @@ function majReseau(dt){
       for(var i = 0; i < n && p.length < EQ.UNITES_DIFFUSEES; i += pas){
         var u = jeu.unites[i];
         p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
-                (u.t === "mec" ? 2 : 0) + (u.droite ? 1 : 0)]);
+                (u.t === "commando" ? 2 : 0) + (u.droite ? 1 : 0)]);
       }
       /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
          en cours : c'est un total qui ne fait que monter, donc le
@@ -29442,7 +29453,7 @@ function dessineEffet(c, e, tps){
 /* ---------------------------------------------------------------
    LA HACHE DE L'OGRE
    Une hache de guerre, pas une hachette : elle est lancée par un bras
-   trois fois plus gros que celui d'une Meuf et elle doit peser en
+   trois fois plus gros que celui d'une Furie et elle doit peser en
    conséquence à l'écran. Le tracé est sorti dans sa propre fonction
    parce qu'il sert deux fois — le fer lui-même, et les fantômes de la
    traînée.
@@ -29630,7 +29641,7 @@ function dessineProjectile(c, p, tps){
       return;
     }
 
-    /* --- roquette de Meuf (roquetteJ) : rendu court et vif --- */
+    /* --- roquette de Furie (roquetteJ) : rendu court et vif --- */
     var d = vecteurEcran(p.ang || 0);
     c.save();
     c.translate(hx, hy);
@@ -32328,10 +32339,10 @@ function dessineLogo(){
 }
 
 function construitBriefing(){
-  /* barges par défaut : que des Meufs */
+  /* barges par défaut : que des Furies */
   compoBarges = [];
   for(var i = 0; i < EQ.NB_BARGES; i++)
-    compoBarges.push({ type:"meuf", n:placesNavette("meuf") });
+    compoBarges.push({ type:"furie", n:placesNavette("furie") });
   var sauv = null;
   try{ sauv = JSON.parse(localStorage.getItem("milyboum") || "null"); }catch(e){}
   if(sauv){
@@ -32463,9 +32474,9 @@ function majBargesBrief(){
       var i2 = +this.getAttribute("data-i");
       if(!UNI[this.value]) return;
       compoBarges[i2].type = this.value;
-      /* L'effectif suit le type, TOUJOURS au complet : douze Meufs,
-         quinze Mecs, un Ogre. L'ancien « min(max, n) » gardait le 1 de
-         l'Ogre quand on revenait aux Meufs — une navette qui partait
+      /* L'effectif suit le type, TOUJOURS au complet : douze Furies,
+         quinze Commandos, un Ogre. L'ancien « min(max, n) » gardait le 1 de
+         l'Ogre quand on revenait aux Furies — une navette qui partait
          avec une seule passagère. On n'en choisit pas le nombre. */
       compoBarges[i2].n = placesNavette(compoBarges[i2].type);
       majBargesBrief(); sauvegarde();
@@ -32477,7 +32488,7 @@ function majBargesBrief(){
   var det = TYPES_TROUPE.map(function(t2){ return nommeTroupes(t2, cpt[t2] || 0); }).join(", ");
   $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
 }
-/* « 1 Ogre », « 12 Meufs » : le pluriel suit l'effectif, pas le type.
+/* « 1 Ogre », « 12 Furies » : le pluriel suit l'effectif, pas le type.
    « 1 Ogres » sur la seule navette qui n'en embarque qu'un aurait été
    la plus visible des fautes. */
 function nommeTroupes(type, n){
@@ -33346,8 +33357,8 @@ var son = {
     s.start(t); s.stop(t + duree + 0.05);
   },
 
-  tirMeuf:function(){ this.bip("square", 880, 420, 0.075, 0.055); },
-  coupMec:function(){ this.bip("sawtooth", 150, 62, 0.13, 0.10); },
+  tirFurie:function(){ this.bip("square", 880, 420, 0.075, 0.055); },
+  coupCommando:function(){ this.bip("sawtooth", 150, 62, 0.13, 0.10); },
   /* Le lancer de l'Ogre : un souffle grave qui monte, l'effort d'un
      bras énorme. L'impact, lui, descend d'un coup — c'est de la masse
      qui s'arrête, pas une déflagration. */

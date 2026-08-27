@@ -1,13 +1,13 @@
 /* ================================================================
-   LES UNITÉS DU JOUEUR — la Meuf et le Mec
+   LES UNITÉS DU JOUEUR — la Furie et le Commando
    Dessinées en vecteur, repère local : les pieds sont en (0,0),
    l'unité monte vers les y négatifs. Lumière en haut à gauche.
    ================================================================ */
 
 /* Palettes relevées sur les références :
-   la Meuf porte un ensemble blanc et noir sous un plastron sombre,
-   le Mec un gilet tactique olive sur un tee-shirt sombre. */
-var C_MEUF = {
+   la Furie porte un ensemble blanc et noir sous un plastron sombre,
+   le Commando un gilet tactique olive sur un tee-shirt sombre. */
+var C_FURIE = {
   cheveux:"#151119", cheveux2:"#3a3147", reflet:"#6a5a86",
   peau:"#f4e0ca", peauO:"#d6b493",
   tenue:"#f2ede4", tenueO:"#c9c1b4",
@@ -16,7 +16,7 @@ var C_MEUF = {
   arme:"#34353c", armeC:"#60626c", armeO:"#17181c", lueur:"#7de6ff",
   botte:"#1d1d24", pantalon:"#27272e", accent:"#c8a24a"
 };
-var C_MEC = {
+var C_COMMANDO = {
   peau:"#dfb083", peauO:"#b7845a", ombreM:"#96683f",
   barbe:"#6d4f2e", cheveux:"#a8834c",
   tee:"#2c2c30", teeO:"#191a1c",
@@ -53,11 +53,11 @@ function pose(phase, ampleur){
 }
 
 /* ---------------------------------------------------------------
-   LA MEUF — silhouette fine, longue chevelure noire, gros fusil
+   LA FURIE — silhouette fine, longue chevelure noire, gros fusil
    coiffure : 0 longue lâchée, 1 queue haute, 2 chignon
    --------------------------------------------------------------- */
-function dessineMeuf(c, phase, coiffure, tir){
-  var C = C_MEUF;
+function dessineFurie(c, phase, coiffure, tir){
+  var C = C_FURIE;
   var p = pose(phase, 4.0);
   var yb = -p.rebond;
   var sw = Math.sin(phase + 1.9) * 1.2;      /* balancement des cheveux */
@@ -136,7 +136,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(0, -13.4, 4.3, 2.5, 0, 0, 6.2832); c.fill();
 
   /* --- buste en sablier : haut clair, taille marquée --- */
-  c.fillStyle = degCache(c, "v2MeufTop", function(){
+  c.fillStyle = degCache(c, "v2FurieTop", function(){
     var g = c.createLinearGradient(-6, -25, 6, -14);
     g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, C.tenue); g.addColorStop(1, C.tenueO);
     return g;
@@ -152,7 +152,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.closePath(); c.fill();
 
   /* --- plastron sombre, cintré --- */
-  c.fillStyle = degCache(c, "v2MeufPlastron", function(){
+  c.fillStyle = degCache(c, "v2FuriePlastron", function(){
     var g = c.createLinearGradient(-5, -23, 5, -15);
     g.addColorStop(0, C.plastronC); g.addColorStop(0.45, C.plastron); g.addColorStop(1, C.plastronO);
     return g;
@@ -214,7 +214,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.moveTo(-8.0, -1.9); c.lineTo(-12.6, -2.7); c.lineTo(-12.8, 2.9); c.lineTo(-8.0, 2.1);
   c.closePath(); c.fill();
   /* carcasse */
-  c.fillStyle = degCache(c, "v2MeufFusil", function(){
+  c.fillStyle = degCache(c, "v2FurieFusil", function(){
     var g = c.createLinearGradient(0, -2.4, 0, 2.6);
     g.addColorStop(0, C.armeC); g.addColorStop(0.45, C.arme); g.addColorStop(1, C.armeO);
     return g;
@@ -259,7 +259,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.beginPath(); c.ellipse(17.3, 0, 1.0, 1.9, 0, 0, 6.2832); c.fill();
   c.save();
   c.globalCompositeOperation = "lighter";
-  c.fillStyle = degCache(c, "v2MeufLueur" + (tir ? 1 : 0), function(){
+  c.fillStyle = degCache(c, "v2FurieLueur" + (tir ? 1 : 0), function(){
     var g = c.createRadialGradient(17.3, 0, 0.4, 17.3, 0, tir ? 10 : 3.6);
     g.addColorStop(0, rgba(C.lueur, tir ? 0.95 : 0.5));
     g.addColorStop(1, rgba(C.lueur, 0));
@@ -286,7 +286,7 @@ function dessineMeuf(c, phase, coiffure, tir){
   c.fillStyle = C.cheveux;
   c.beginPath(); c.ellipse(-0.1, -0.3, 4.5, 4.7, 0, 0, 6.2832); c.fill();
   /* visage fin */
-  c.fillStyle = degCache(c, "v2MeufVisage", function(){
+  c.fillStyle = degCache(c, "v2FurieVisage", function(){
     var g = c.createRadialGradient(-1.2, -1.4, 0.5, 0, 0, 4.4);
     g.addColorStop(0, ecl(C.peau, 1.05)); g.addColorStop(1, C.peauO);
     return g;
@@ -356,10 +356,10 @@ function dessineMeuf(c, phase, coiffure, tir){
 }
 
 /* ---------------------------------------------------------------
-   LE MEC — grand, épais, casqué, gilet tactique et fusil
+   LE COMMANDO — grand, épais, casqué, gilet tactique et fusil
    --------------------------------------------------------------- */
-function dessineMec(c, phase, variante, tir){
-  var C = C_MEC;
+function dessineCommando(c, phase, variante, tir){
+  var C = C_COMMANDO;
   var p = pose(phase, 5.4);
   var yb = -p.rebond * 0.7;
 
@@ -390,7 +390,7 @@ function dessineMec(c, phase, variante, tir){
   c.rotate(p.incl * 0.6);
 
   /* --- torse en V : épaules très larges, tee moulant --- */
-  c.fillStyle = degCache(c, "v2MecTee", function(){
+  c.fillStyle = degCache(c, "v2CommandoTee", function(){
     var g = c.createLinearGradient(-10, -29, 10, -16);
     g.addColorStop(0, ecl(C.tee, 1.35)); g.addColorStop(0.5, C.tee); g.addColorStop(1, C.teeO);
     return g;
@@ -410,7 +410,7 @@ function dessineMec(c, phase, variante, tir){
   c.stroke();
 
   /* --- gilet pare-balles à CHARGEURS --- */
-  c.fillStyle = degCache(c, "v2MecGilet", function(){
+  c.fillStyle = degCache(c, "v2CommandoGilet", function(){
     var g = c.createLinearGradient(-8, -27, 8, -16);
     g.addColorStop(0, C.giletC); g.addColorStop(0.5, C.gilet); g.addColorStop(1, C.giletO);
     return g;
@@ -482,7 +482,7 @@ function dessineMec(c, phase, variante, tir){
   c.fillStyle = C.armeO;
   c.fillRect(-9.8, -1.6, 3.0, 4.2);
   /* carcasse trapue */
-  c.fillStyle = degCache(c, "v2MecArme", function(){
+  c.fillStyle = degCache(c, "v2CommandoArme", function(){
     var g = c.createLinearGradient(0, -2.4, 0, 2.6);
     g.addColorStop(0, ecl(C.armeC, 1.15)); g.addColorStop(0.4, C.arme); g.addColorStop(1, C.armeO);
     return g;
@@ -516,7 +516,7 @@ function dessineMec(c, phase, variante, tir){
   if(tir){
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.fillStyle = degCache(c, "v2MecBouche", function(){
+    c.fillStyle = degCache(c, "v2CommandoBouche", function(){
       var g = c.createRadialGradient(12.0, 0, 0.4, 12.0, 0, 9);
       g.addColorStop(0, "rgba(255,232,170,.95)");
       g.addColorStop(1, "rgba(255,120,30,0)");
@@ -549,7 +549,7 @@ function dessineMec(c, phase, variante, tir){
   /* --- tête : mâchoire carrée, barbe, casque à jugulaire --- */
   c.save();
   c.translate(0.4, -32.6);
-  c.fillStyle = degCache(c, "v2MecVisage", function(){
+  c.fillStyle = degCache(c, "v2CommandoVisage", function(){
     var g = c.createRadialGradient(-1.6, -1.6, 0.5, 0, 0, 5.2);
     g.addColorStop(0, ecl(C.peau, 1.07)); g.addColorStop(1, C.peauO);
     return g;
@@ -604,7 +604,7 @@ function dessineMec(c, phase, variante, tir){
   c.strokeStyle = rgba(C.ombreM, 0.6); c.lineWidth = 0.6;
   c.beginPath(); c.moveTo(0.1, -0.4); c.lineTo(0.3, 1.2); c.stroke();
   /* casque solide, bord net */
-  c.fillStyle = degCache(c, "v2MecCasque", function(){
+  c.fillStyle = degCache(c, "v2CommandoCasque", function(){
     var g = c.createLinearGradient(-5, -8, 5, -2);
     g.addColorStop(0, C.casqueC); g.addColorStop(0.55, C.casque); g.addColorStop(1, C.casqueO);
     return g;
@@ -653,10 +653,10 @@ function dessineUnite(c, type, phase, variante, tir){
   /* L'Ogre vit dans son propre fichier (62-ogre.js) : il est trois fois
      plus grand que les deux autres et n'a rien en commun avec eux. Le
      garde-fou typeof le rend optionnel — si un jour on retire le
-     fichier, le jeu tombe sur la Meuf au lieu de planter. */
+     fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
-  if(type === "mec") dessineMec(c, phase, variante, tir);
-  else dessineMeuf(c, phase, variante, tir);
+  if(type === "commando") dessineCommando(c, phase, variante, tir);
+  else dessineFurie(c, phase, variante, tir);
 }
 
 /* ---------------------------------------------------------------
@@ -665,12 +665,12 @@ function dessineUnite(c, type, phase, variante, tir){
    seule fois au niveau des pixels. Pas de ctx.filter : trop lent.
    --------------------------------------------------------------- */
 /* La planche doit contenir l'OGRE, qui monte trois fois plus haut
-   qu'une Meuf : dimensionnée sur les petits, elle lui coupait la tête
+   qu'une Furie : dimensionnée sur les petits, elle lui coupait la tête
    et les épaules. L'origine descend d'autant. */
 var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["meuf", "mec", "ogre"];
+var VIG_TYPES = ["furie", "commando", "ogre"];
 
 function construitVignettesGrises(){
   vignettes = [];

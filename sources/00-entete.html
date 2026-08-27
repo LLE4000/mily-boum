@@ -483,13 +483,20 @@ select.champ{cursor:pointer}
    quatre-vingt-quatre pixels de haut : le choix se fait dans un menu
    déroulant, qui tient sur une ligne et ne demande pas de place pour
    ses deux options non retenues.
-   `auto-fit` et non huit colonnes en dur : sur un téléphone étroit la
-   rangée se replie d'elle-même en deux ou quatre, au lieu de forcer
-   des vignettes de trente pixels. */
-#barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px}
+   HUIT COLONNES EN DUR, et non `auto-fit`. auto-fit compte les
+   colonnes que la largeur permet, pas celles qu'il y a d'objets : à
+   1 400 px il en fabriquait NEUF pour huit navettes — une colonne
+   vide en bout de rangée — et en dessous de 841 px il repliait en
+   7 + 1, une rangée bancale d'une seule vignette. Trois paliers
+   explicites font mieux le travail : huit sur une ligne tant qu'elles
+   tiennent, puis 4 + 4, puis 2 par 2 sur un téléphone étroit. Jamais
+   de rangée orpheline. */
+#barges{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}
+@media (max-width:1000px){ #barges{grid-template-columns:repeat(4,1fr)} }
+@media (max-width:430px){ #barges{grid-template-columns:repeat(2,1fr)} }
 .nv{
   background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;
-  padding:6px 6px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
+  padding:6px 4px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
 }
 .nv .nvt{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--gris);
   display:flex;justify-content:space-between;align-items:baseline}
@@ -497,9 +504,13 @@ select.champ{cursor:pointer}
 .nv canvas{width:100%;height:52px;display:block;border-radius:8px;background:#241733}
 .nvs{
   width:100%;min-width:0;appearance:none;-webkit-appearance:none;
-  background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 7px center;
+  background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 4px center;
   border:1px solid rgba(255,255,255,.16);border-radius:9px;color:var(--texte);
-  font:700 13px/1 inherit;padding:7px 20px 7px 8px;cursor:pointer;
+  /* « Commando » fait huit lettres là où « Meuf » en faisait quatre :
+     à 13 px et 20 px de gouttière pour la flèche, il rendait
+     « Command ». Police et gouttière recalées sur le PLUS LONG des
+     trois noms, pas sur le plus court. */
+  font-weight:700;font-size:11px;line-height:1;font-family:inherit;padding:7px 13px 7px 5px;cursor:pointer;
 }
 .nvs:focus{outline:none;border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.25)}
 #totalTroupes{text-align:center;margin-top:10px;font-size:13px;color:var(--gris)}
@@ -532,10 +543,10 @@ select.champ{cursor:pointer}
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);background:#22143010;
 }
-.admTitre{font:800 15px/1 inherit;letter-spacing:.6px;color:var(--braise)}
+.admTitre{font-weight:800;font-size:15px;line-height:1;font-family:inherit;letter-spacing:.6px;color:var(--braise)}
 .admCorps{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch}
 .admCorps h3{
-  font:700 11px/1 inherit;letter-spacing:1.4px;text-transform:uppercase;
+  font-weight:700;font-size:11px;line-height:1;font-family:inherit;letter-spacing:1.4px;text-transform:uppercase;
   color:var(--gris);margin:0 0 8px;display:flex;align-items:center;gap:8px;
 }
 .admCorps h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.45),transparent)}
@@ -651,7 +662,7 @@ select.champ{cursor:pointer}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
 #listeBarges{display:flex;gap:5px;flex-wrap:wrap}
 /* LES NAVETTES EN PORTRAITS.
-   Le visage dit le type de troupe mieux qu'un mot : « Mec » et « Meuf »
+   Le visage dit le type de troupe mieux qu'un mot : « Commando » et « Furie »
    écrits en neuf pixels sur une tablette étaient à peu près
    indéchiffrables, et les trois lettres mangeaient la moitié de la
    tuile. On garde donc EXACTEMENT la même emprise — 46 px de large —
@@ -699,7 +710,7 @@ select.champ{cursor:pointer}
 .cap .nm{font-size:9.5px;letter-spacing:.2px;color:#d8cce2;text-align:center;line-height:1}
 .cap .cx{
   position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
-  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 11px/20px inherit;
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font-weight:800;font-size:11px;line-height:20px;font-family:inherit;
   text-align:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
 }
 .cap.arme{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 18px rgba(255,138,30,.3)}

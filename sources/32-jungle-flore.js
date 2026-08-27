@@ -36,7 +36,7 @@
        redevenir opaques ; en un seul blit, 0,72 reste 0,72 et on
        devine toujours ce qu'il y a dessous.
      — entre 0 et −40 en local — la bande où vivent les troupes
-       (Meuf ≈ 36) et les socles de tourelles (Crible 57) — rien
+       (Furie ≈ 36) et les socles de tourelles (Crible 57) — rien
        d'opaque que le tronc, et le tronc y reste étroit. Les
        contreforts s'évasent, mais ils s'évasent BAS, et les racines
        traçantes rampent sur une ellipse écrasée au lieu de suivre

@@ -1019,12 +1019,12 @@ function majUnitesDistantes(j, p){
   for(i = 0; i < p.length; i++){
     var e = p[i];
     if(!j.unites[i]){
-      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"meuf", droite:true, phase:Math.random() * 6 };
+      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"furie", droite:true, phase:Math.random() * 6 };
     }
     var u = j.unites[i];
     u.cx = e[0]; u.cy = e[1];
     var code = e[2] | 0;
-    u.type = (code & 2) ? "mec" : "meuf";
+    u.type = (code & 2) ? "commando" : "furie";
     u.droite = !!(code & 1);
   }
   j.unites.length = p.length;
@@ -1040,7 +1040,7 @@ function interpoleDistants(dt){
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }
       var k = Math.min(1, dt * 5);
       u.gx += dx * k; u.gy += dy * k;
-      if(d > 0.02) u.phase += dt * (u.type === "mec" ? 6.2 : 8.6);
+      if(d > 0.02) u.phase += dt * (u.type === "commando" ? 6.2 : 8.6);
     }
   }
 }
@@ -1079,7 +1079,7 @@ function majReseau(dt){
       for(var i = 0; i < n && p.length < EQ.UNITES_DIFFUSEES; i += pas){
         var u = jeu.unites[i];
         p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
-                (u.t === "mec" ? 2 : 0) + (u.droite ? 1 : 0)]);
+                (u.t === "commando" ? 2 : 0) + (u.droite ? 1 : 0)]);
       }
       /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
          en cours : c'est un total qui ne fait que monter, donc le
