@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -1064,6 +1064,86 @@ G("4. Déterminisme de la génération de carte");
       }
       return true;
     })());
+  })();
+
+  /* ================================================================
+     3b ter. LA MONTÉE EN PUISSANCE
+
+     Le joueur l'a spécifiée au mot près, et deux de ces mots sont des
+     pièges qu'il faut graver :
+
+       « ce n'est pas cinq pour cent PLUS dix pour cent, c'est ce qu'on
+         avait en base plus dix pour cent » — les paliers sont des
+         valeurs ABSOLUES lues dans une table, pas une accumulation ;
+       « on retombe à zéro à la map suivante, on a cent pour cent de
+         nos dégâts, on n'est pas deux cent pour cent » — le compteur
+         est indexé par carte, donc la remise à zéro est acquise par
+         construction, mais rien ne le dit si on ne l'écrit pas.
+     ================================================================ */
+  G("3b ter. La montée en puissance");
+  (function(){
+    ok("à zéro dégât, on frappe à 100 %", N.multPuissance(0) === 1);
+    ok("un score négatif ou absurde ne donne pas de bonus",
+       N.multPuissance(-500000) === 1 && N.multPuissance(NaN) === 1);
+    ok("500 k donne 105 %", N.multPuissance(500000) === 1.05);
+    ok("1 M donne 110 %, PAS 115 %", N.multPuissance(1000000) === 1.10);
+    ok("2 M donne 120 %", N.multPuissance(2000000) === 1.20);
+    ok("3 M donne 130 %", N.multPuissance(3000000) === 1.30);
+    ok("juste sous un palier, on garde le précédent",
+       N.multPuissance(999999) === 1.05 && N.multPuissance(2999999) === 1.20);
+    ok("10 M plafonne à 200 %", N.multPuissance(10000000) === 2);
+    ok("et rien ne dépasse le plafond, même très loin",
+       N.multPuissance(50000000) === 2 && N.multPuissance(1e12) === 2);
+
+    /* LA TABLE EST ABSOLUE, ET ON LE PROUVE : si les paliers
+       s'accumulaient, 3 M vaudrait 1,05 × 1,10 × 1,20 × 1,30 = 1,80.
+       Il vaut 1,30. */
+    ok("les paliers ne s'accumulent pas", (function(){
+      var cumul = 1;
+      for(var i = 1; i <= 4; i++) cumul *= N.PALIERS_PUISSANCE[i].mult;
+      return Math.abs(cumul - 1.8018) < 0.001 && N.multPuissance(3000000) === 1.30;
+    })(), "1,30 et non 1,80");
+    ok("la table monte sans redescendre", (function(){
+      for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++){
+        if(N.PALIERS_PUISSANCE[i].seuil <= N.PALIERS_PUISSANCE[i-1].seuil) return false;
+        if(N.PALIERS_PUISSANCE[i].mult  <= N.PALIERS_PUISSANCE[i-1].mult)  return false;
+      }
+      return true;
+    })());
+
+    /* LA SUPER NOVA arrive à trois millions, c'est-à-dire après toute
+       la carte : c'est ce qui la cale sur l'attaque du Brasier. */
+    ok("la super Nova se débloque à 3 M",
+       N.PALIERS_PUISSANCE[N.PALIER_SUPERNOVA].seuil === 3000000);
+    ok("3 M, c'est plus que toutes les défenses de la jungle", (function(){
+      var c = N.genereCarte("MILY", N.IDX_JUNGLE, N.planDeCarte(N.IDX_JUNGLE, null), 0);
+      var pv = 0;
+      for(var i = 0; i < c.batiments.length; i++) pv += c.batiments[i].pvMax;
+      return pv < 3000000 && pv > 2000000;
+    })(), "elle arrive avec le Brasier");
+
+    /* TROIS ÉTATS VISUELS POUR DOUZE PALIERS. */
+    ok("l'aura est muette au palier zéro", N.auraPuissance(0) === 0);
+    ok("les trois états couvrent toute la table", (function(){
+      var vus = {};
+      for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++) vus[N.auraPuissance(i)] = 1;
+      return vus[1] && vus[2] && vus[3] && !vus[0];
+    })());
+    ok("l'aura ne redescend jamais quand le palier monte", (function(){
+      for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++)
+        if(N.auraPuissance(i) < N.auraPuissance(i - 1)) return false;
+      return true;
+    })());
+    ok("le plafond porte l'enveloppe",
+       N.auraPuissance(N.PALIERS_PUISSANCE.length - 1) === 3);
+
+    /* LE GAIN RÉEL SUR LE BRASIER — la raison d'être de tout ceci. */
+    ok("la corvée du Brasier est divisée par presque deux", (function(){
+      var reste = 60000000, s = 1000000, travail = 0, pas = 10000;
+      while(reste > 0){ travail += pas / N.multPuissance(s); s += pas; reste -= pas; }
+      /* 60 M de Brasier ne coûtent plus que ~31,7 M de travail */
+      return travail < 33000000 && travail > 30000000;
+    })(), "≈ 47 % de moins");
   })();
 
   G("3c bis. Les bornes d'un score");

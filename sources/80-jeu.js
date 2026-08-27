@@ -135,6 +135,11 @@ function nouvelleCarte(index, pvConnu){
     bargeSel:0,
     capArmee:null,
     degatsMoi:0,
+    /* LA MONTÉE EN PUISSANCE, relue une fois par image et non à chaque
+       coup : trois cents tirs par seconde n'ont pas à reparcourir la
+       table des paliers. `puissance` multiplie ce que les troupes
+       infligent, `palier` sert au visuel et part sur le réseau. */
+    puissance:1, palier:0,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -1428,7 +1433,16 @@ function impactHache(gx, gy){
   jeu.secousse = Math.min(6, jeu.secousse + 1.5);
   if(son.impactHache) son.impactHache();
 }
+/* LE POINT UNIQUE OÙ UNE TROUPE INFLIGE SES DÉGÂTS — et donc le seul
+   endroit où la montée en puissance s'applique.
+   Ses trois appelants sont tous des tirs de troupe : le corps à corps,
+   le projectile, la roquette. Ce qui NE passe pas par ici et ne doit
+   surtout pas être multiplié : la foudre et les geysers, qui vont
+   droit à abimeBatiment par degatsZoneEnnemis, et les capacités, que
+   le joueur a explicitement voulu laisser hors du bonus. Mettre le
+   multiplicateur dans abimeBatiment aurait multiplié l'orage. */
 function appliqueDegatsCible(c, d, but){
+  d *= jeu.puissance;
   if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
   if(c.k === "bat") abimeBatiment(c.o, d);
   else if(c.k === "cre") abimeCreature(c.o, d);
@@ -2358,16 +2372,27 @@ function lanceCapacite(m, gx, gy, distante){
 /* --------------- Nova : le champignon --------------- */
 function explosionNova(gx, gy, distante){
   var C = CAP.nova;
+  /* LA SUPER NOVA, à partir de trois millions de dégâts sur l'île.
+     Elle change trois choses côté ENNEMI — les dégâts du cœur, ceux du
+     souffle, et le rayon — et RIEN côté allié. Le rayon allié reste
+     lui aussi celui d'origine : une troupe qui était hors de portée
+     avant ne doit pas se mettre à mourir parce que le joueur a
+     progressé. Sans cette dissymétrie, la super Nova tuerait tout le
+     débarquement à chaque emploi. */
+  var sup = jeu.palier >= PALIER_SUPERNOVA;
+  var ech = sup ? C.echSuper : 1;
+  var rC = C.rayon * ech, rS = C.rayonSouffle * ech;
   if(!distante){
     /* cœur : tout ce qui traîne dedans prend cher, alliés compris */
-    degatsZoneEnnemis(gx, gy, C.rayon, C.degats);
+    degatsZoneEnnemis(gx, gy, rC, sup ? C.degatsSuper : C.degats);
     degatsZone(gx, gy, C.rayon, C.degats);
     /* souffle : plus large, beaucoup plus doux */
-    degatsZoneEnnemis(gx, gy, C.rayonSouffle, C.degatsSouffle);
+    degatsZoneEnnemis(gx, gy, rS, sup ? C.degatsSouffleSuper : C.degatsSouffle);
     degatsZone(gx, gy, C.rayonSouffle, C.degatsSouffle);
   }
-  jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0, duree:3.2, r:C.rayon });
-  jeu.crateres.push({ gx:gx, gy:gy, r:C.rayon * 0.75 });
+  jeu.effets.push({ t:"nova", gx:gx, gy:gy, age:0,
+                    duree:sup ? 4.2 : 3.2, r:rC, sup:sup ? 1 : 0 });
+  jeu.crateres.push({ gx:gx, gy:gy, r:rC * 0.75 });
   if(jeu.crateres.length > 160) jeu.crateres.shift();
   jeu.secousse = 22;
   son.boum(1.9);
@@ -2679,8 +2704,41 @@ function ajouteDebris(F, n, force){
 /* ---------------------------------------------------------------
    Boucle de simulation
    --------------------------------------------------------------- */
+/* CE QUE J'AI FAIT SUR CETTE ÎLE, à l'instant même.
+   Deux morceaux, et il faut les deux :
+     — `mesDegats[carte]`, le cumul déjà rangé, qui survit à une
+       déconnexion (il est écrit dans le stockage local avec le numéro
+       de campagne) et qui repart de zéro à l'île suivante puisqu'il
+       est indexé PAR CARTE. Le cahier des charges de la montée en
+       puissance décrivait exactement le comportement de ce compteur-là,
+       qui existait déjà ;
+     — ce que la partie en cours a fait depuis le dernier rangement,
+       soit jeu.degatsMoi moins la part déjà repliée. Sans lui, le
+       palier ne bougerait qu'aux replis, toutes les quelques secondes,
+       et l'on verrait l'aura sauter au lieu de monter. */
+function degatsMaCarte(){
+  var range = (typeof mesDegats !== "undefined" && mesDegats)
+              ? (mesDegats[jeu.index] || 0) : 0;
+  var vif = (jeu.degatsMoi | 0) - ((typeof degatsReplies === "number") ? degatsReplies : 0);
+  if(!(vif > 0)) vif = 0;
+  return range + vif;
+}
+function majPuissance(){
+  var p = palierPuissance(degatsMaCarte());
+  if(p !== jeu.palier){
+    jeu.palier = p;
+    jeu.puissance = PALIERS_PUISSANCE[p].mult;
+    /* on ne fête que la montée, et une seule fois par palier */
+    if(p > 0 && typeof message === "function")
+      message("Palier " + p + " — tes troupes frappent à "
+            + Math.round(jeu.puissance * 100) + " %"
+            + (p === PALIER_SUPERNOVA ? " — et ta Nova est devenue une SUPER Nova." : "."));
+  }
+}
+
 function majJeu(dt){
   jeu.tps += dt;
+  majPuissance();
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);

@@ -469,11 +469,37 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "nova"){
+    /* ================================================================
+       LA NOVA — LE CHAMPIGNON, ET LES ANNEAUX QUI S'EN DÉGAGENT.
+
+       Le joueur voulait « le champignon, plus de l'anneau autour ». Il
+       y en a trois maintenant, et chacun raconte autre chose :
+
+         1. L'ANNEAU DE CONDENSATION, celui qu'on voit sur les vraies
+            images d'essais nucléaires. L'onde de choc détend l'air, la
+            vapeur d'eau y condense un instant, et il en sort un tore
+            blanc qui enfle autour de la boule de feu puis s'évapore.
+            C'est LUI la plus belle image d'une explosion, et il ne
+            coûte qu'une ellipse.
+         2. LES DEUX ANNEAUX DE SOUFFLE AU SOL, échelonnés : le premier
+            file, le second le suit de loin, plus large et plus pâle.
+            Un seul anneau se lit comme un cercle qu'on dessine ; deux
+            décalés se lisent comme une onde qui se propage.
+         3. LA COLLERETTE, au pied du chapeau, qui monte AVEC lui. Sur
+            un champignon réel c'est la couche d'air humide entraînée
+            par la colonne. Sans elle, la tête flotte au-dessus du
+            pied ; avec elle, les deux ne font qu'un objet.
+
+       Toute la dépense reste en ellipses et en bouffées pré-existantes :
+       une Nova par vie, quatre secondes, quelques dizaines de tracés.
+       ================================================================ */
     var a2 = 1 - t;
+    var sup = e.sup ? 1 : 0;
     c.save();
-    /* flash */
-    if(t < 0.16){
-      c.fillStyle = "rgba(255,255,245," + (1 - t / 0.16) * 0.9 + ")";
+    /* flash — plus long et plus large quand c'est une super Nova */
+    var dFlash = sup ? 0.24 : 0.16;
+    if(t < dFlash){
+      c.fillStyle = "rgba(255,255,245," + (1 - t / dFlash) * (sup ? 0.96 : 0.9) + ")";
       c.fillRect(-W, -H, W * 3, H * 3);
     }
     c.globalCompositeOperation = "lighter";
@@ -481,18 +507,55 @@ function dessineEffet(c, e, tps){
     var rb = e.r * RX * z * (0.4 + Math.min(1, t * 3) * 1.5);
     var gb2 = c.createRadialGradient(p.x, p.y - rb * 0.45, rb * 0.08, p.x, p.y - rb * 0.45, rb);
     gb2.addColorStop(0, "rgba(255,255,235," + (0.95 * a2) + ")");
-    gb2.addColorStop(0.28, "rgba(255,196,80," + (0.85 * a2) + ")");
+    /* la super Nova a un cœur plus BLEU : c'est ce qui dit, sans un
+       mot, que ce n'est plus la même arme */
+    gb2.addColorStop(0.28, sup ? "rgba(198,226,255," + (0.88 * a2) + ")"
+                               : "rgba(255,196,80," + (0.85 * a2) + ")");
     gb2.addColorStop(0.62, "rgba(238,86,24," + (0.5 * a2) + ")");
     gb2.addColorStop(1, "rgba(120,20,8,0)");
     c.fillStyle = gb2;
     c.beginPath(); c.arc(p.x, p.y - rb * 0.45, rb, 0, 6.2832); c.fill();
-    /* anneau de souffle au sol */
+
+    /* ---- 1. L'ANNEAU DE CONDENSATION ----
+       Il naît à la taille de la boule de feu, la double en une demi-
+       seconde et s'efface. Il est peint en ROND et non en ellipse
+       écrasée : c'est un objet vertical dans l'air, pas une marque au
+       sol — et c'est ce contraste avec les anneaux du sol qui donne du
+       volume à l'ensemble. */
+    var tw = t / 0.42;
+    if(tw < 1){
+      var rw = rb * (1.0 + tw * 1.35);
+      var aw = (1 - tw) * (1 - tw) * 0.55;
+      c.strokeStyle = "rgba(226,240,255," + aw + ")";
+      c.lineWidth = Math.max(1.5, rb * 0.16 * (1 - tw * 0.5));
+      c.beginPath();
+      c.ellipse(p.x, p.y - rb * 0.45, rw, rw * 0.82, 0, 0, 6.2832);
+      c.stroke();
+      /* un second liseré, plus fin et plus froid, juste derrière */
+      c.strokeStyle = "rgba(180,214,255," + (aw * 0.5) + ")";
+      c.lineWidth = Math.max(1, rb * 0.06);
+      c.beginPath();
+      c.ellipse(p.x, p.y - rb * 0.45, rw * 1.14, rw * 0.94, 0, 0, 6.2832);
+      c.stroke();
+    }
+
+    /* ---- 2. LES DEUX ANNEAUX DE SOUFFLE AU SOL ---- */
     var rr2 = e.r * RX * z * (0.5 + t * 3.2);
     c.strokeStyle = "rgba(255,236,190," + (0.55 * a2) + ")";
     c.lineWidth = (10 - t * 8) * z;
     c.beginPath(); c.ellipse(p.x, p.y, rr2, rr2 / 2, 0, 0, 6.2832); c.stroke();
+    /* le second part plus tard, va plus loin, et s'éteint plus vite :
+       c'est le décalage entre les deux qui fait la propagation */
+    var t2b = t - 0.14;
+    if(t2b > 0){
+      var rr3 = e.r * RX * z * (0.5 + t2b * 4.4);
+      c.strokeStyle = "rgba(255,214,150," + (0.30 * (1 - t2b) * (1 - t2b)) + ")";
+      c.lineWidth = Math.max(1, (6 - t2b * 5) * z);
+      c.beginPath(); c.ellipse(p.x, p.y, rr3, rr3 / 2, 0, 0, 6.2832); c.stroke();
+    }
     c.restore();
-    /* le champignon */
+
+    /* ---- 3. LE CHAMPIGNON, ET SA COLLERETTE ---- */
     c.save();
     c.globalAlpha = Math.min(1, a2 * 1.4);
     var mt = Math.min(1, t * 1.5);
@@ -508,6 +571,19 @@ function dessineEffet(c, e, tps){
     }
     bouffee(c, p.x, yc - 8 * z, (22 + mt * 34) * z, 0.5, "#8a7264");
     c.restore();
+    /* la collerette : un anneau clair au pied du chapeau, qui monte
+       avec lui. Additive et discrète — c'est un liant, pas un effet. */
+    if(mt > 0.12){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var rcol = (30 + mt * 52) * z;
+      c.strokeStyle = "rgba(255,232,196," + (0.30 * a2 * mt) + ")";
+      c.lineWidth = Math.max(1.2, 5 * z * (1 - mt * 0.4));
+      c.beginPath();
+      c.ellipse(p.x, yc + 12 * z, rcol, rcol * 0.34, 0, 0, 6.2832);
+      c.stroke();
+      c.restore();
+    }
   }else if(e.t === "baliseLancee"){
     c.save();
     c.globalCompositeOperation = "lighter";
@@ -2093,6 +2169,10 @@ function rendu(tps, dt){
       pile.push({ d:jeu.qg.gx + jeu.qg.gy, k:8, o:jeu.qg });
   }
 
+  /* L'AURA DE PUISSANCE, AVANT LA PILE — donc au SOL, sous tout le
+     monde, comme une ombre. Voir dessineAuras. */
+  dessineAuras(ctx, tps);
+
   pile.sort(function(a, b2){ return a.d - b2.d; });
   for(i = 0; i < pile.length; i++){
     var it = pile[i];
@@ -2724,4 +2804,251 @@ function majMinicarte(tps){
     if(n === 0) miniCtx.moveTo(e.x, e.y); else miniCtx.lineTo(e.x, e.y);
   });
   miniCtx.closePath(); miniCtx.stroke();
+}
+
+/* ================================================================
+   L'AURA DE PUISSANCE
+
+   Ce qu'elle doit dire : ce combattant-là frappe plus fort que les
+   autres, et de plus en plus fort. Ce qu'elle ne doit surtout pas
+   faire : coûter une image par seconde à une tablette qui en rend
+   déjà treize.
+
+   TROIS ÉTATS, PAS DOUZE. auraPuissance() ramène les douze paliers à
+   trois marches, parce qu'au zoom de jeu personne ne distingue ×1,40
+   de ×1,50 :
+     1  un anneau d'énergie posé au sol, discret ;
+     2  l'anneau se resserre et se double d'une braise ;
+     3  l'enveloppe — la braise monte autour de la troupe et un second
+        anneau tourne.
+
+   ELLE EST DIMENSIONNÉE SUR LA TROUPE, jamais sur une constante.
+   L'Ogre a un rayon de 1,6 et une échelle de 3, la Furie un rayon de
+   0,34 : à taille fixe, l'un porterait un bracelet et l'autre
+   disparaîtrait dans un soleil. Le rayon de l'anneau est donc
+   « rayon × 2,2 + 0,35 », ce qui donne 1,1 case pour une Furie, 1,3
+   pour un Commando et 3,9 pour un Ogre — le rapport de leurs tailles,
+   et pas davantage.
+
+   LE PRIX, ET LA SEULE FAÇON DE LE TENIR. Ce fichier a déjà payé la
+   leçon deux fois : lueurRapide, avec son save + composite + restore
+   à CHAQUE appel, coûtait 2,4 ms par image pour une vingtaine de
+   points, et douze sprites doux passent de 0,99 ms à 5,16 ms si le
+   lissage reste actif. Ce ne sont pas les pixels qui coûtent, ce sont
+   les changements d'état.
+   D'où la forme de cette fonction : UN save, UN passage en additif, et
+   ensuite tout est GROUPÉ PAR ÉTAT — un seul beginPath/stroke pour
+   tous les anneaux d'un même état, un seul globalAlpha pour toutes les
+   braises. Cent vingt troupes coûtent alors trois tracés, pas trois
+   cents.
+
+   Elle est peinte AVANT la pile triée, donc au sol et sous tout le
+   monde : c'est une marque sur la terre, comme une ombre, pas un halo
+   collé devant les sprites.
+   ================================================================ */
+/* ================================================================
+   TROIS SPRITES, ET UN SEUL BLIT PAR TROUPE.
+
+   La première écriture peignait tout en direct : une ellipse tracée
+   par troupe pour l'anneau, un disque additif pour la braise, trois
+   arcs pour l'anneau tournant du plafond. C'était juste, c'était joli,
+   et c'était INJOUABLE — mesuré au banc, cent vingt troupes :
+
+       aucun palier   0,01 ms
+       état 1         8,92 ms
+       état 2        17,40 ms
+       état 3        33,31 ms
+
+   Trente-trois millisecondes sur un budget d'image qui en fait
+   soixante : l'aura à elle seule coupait le jeu en deux. La cause
+   n'est pas le nombre de troupes, c'est la SURFACE : un anneau tracé
+   se paie au pixel de contour, et cent vingt anneaux de soixante
+   pixels de rayon sur deux d'épaisseur, cela fait cent mille pixels
+   fondus par image, à comparer aux sept mille de toute la pluie.
+
+   La réponse est celle que ce fichier applique partout ailleurs : on
+   PRÉ-REND. Trois sprites, un par état, dessinés une fois pour toutes
+   à la construction, puis blittés à l'échelle voulue — lissage coupé,
+   destination arrondie. Le fichier météo a la mesure : douze sprites
+   doux coûtent 0,99 ms lissage coupé contre 5,16 ms lissage actif.
+   Cent vingt petits blits tiennent largement sous la milliseconde.
+
+   Ce qu'on perd : l'anneau du plafond ne tourne plus. Ce qu'on garde :
+   la respiration, qui passe par globalAlpha — UNE affectation pour
+   les cent vingt troupes d'un même état, pas une par troupe.
+   ================================================================ */
+var auraSprites = null;
+function spritesAura(){
+  if(auraSprites) return auraSprites;
+  auraSprites = [null];
+  /* La tuile est au rapport 2:1 de la projection : l'anneau y est
+     déjà couché, on n'a donc rien à écraser au moment de peindre. */
+  var T = 128, Hh = 64;
+  for(var e = 1; e <= 3; e++){
+    var cv = nouveauCanvas(T, Hh);
+    var g = cv.getContext("2d");
+    var teinte = AURA_TEINTE[e];
+    var cx = T / 2, cy = Hh / 2;
+    /* le rayon utile est laissé un peu en dedans du bord : un dégradé
+       qui touche le bord de sa tuile fait une couture visible quand on
+       l'agrandit */
+    var R = T * 0.42, Rv = Hh * 0.42;
+
+    /* LA BRAISE, d'abord et dessous : un dégradé radial écrasé. Elle
+       n'existe qu'à partir de l'état 2 — au premier palier on veut une
+       marque au sol discrète, pas une lueur. */
+    if(e >= 2){
+      g.save();
+      g.translate(cx, cy);
+      g.scale(1, Hh / T);
+      var gr = g.createRadialGradient(0, 0, 1, 0, 0, R * (e === 3 ? 1.18 : 0.98));
+      gr.addColorStop(0, "rgba(" + teinte + "," + (e === 3 ? 0.62 : 0.42) + ")");
+      gr.addColorStop(0.55, "rgba(" + teinte + "," + (e === 3 ? 0.30 : 0.18) + ")");
+      gr.addColorStop(1, "rgba(" + teinte + ",0)");
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(0, 0, R * 1.2, 0, 6.2832); g.fill();
+      g.restore();
+    }
+
+    /* L'ANNEAU. C'est lui la marque : un trait net, posé au sol. */
+    /* L'ANNEAU EST PEINT DEUX FOIS : un halo large et sourd, puis un
+       trait net par-dessus. C'est ce qui le fait tenir sous le voile
+       d'orage de la jungle, qui passe APRÈS lui et le rabotait de
+       moitié — un simple trait s'y noyait. */
+    g.strokeStyle = "rgba(" + teinte + ",0.22)";
+    g.lineWidth = e === 1 ? 8 : 12;
+    g.beginPath(); g.ellipse(cx, cy, R, Rv, 0, 0, 6.2832); g.stroke();
+    g.strokeStyle = "rgba(" + teinte + "," + (e === 1 ? 0.85 : 1) + ")";
+    g.lineWidth = e === 1 ? 3.0 : 4.4;
+    g.beginPath(); g.ellipse(cx, cy, R, Rv, 0, 0, 6.2832); g.stroke();
+
+    /* AU PLAFOND, un second anneau au-dehors, en pointillé : c'est ce
+       qui distingue « très fort » de « fort » d'un coup d'œil, et il
+       ne coûte rien puisqu'il est peint une seule fois. */
+    if(e === 3){
+      /* DOUZE ÉCLATS COURTS au lieu de six longs : à six, l'anneau
+         extérieur se lisait comme six morceaux cassés ; à douze il se
+         lit comme une couronne. */
+      g.strokeStyle = "rgba(" + teinte + ",0.55)";
+      g.lineWidth = 2.4;
+      for(var k = 0; k < 12; k++){
+        var a0 = k * 0.5236 + 0.12;
+        g.beginPath();
+        g.ellipse(cx, cy, R * 1.30, Rv * 1.30, 0, a0, a0 + 0.30);
+        g.stroke();
+      }
+      /* L'ENVELOPPE. Trois bâtons verticaux avaient été essayés ici :
+         à l'image ce sont des TRAITS, et le joueur a déjà dit ce qu'il
+         pensait des traits verticaux sur cette carte. On les remplace
+         par une remontée FONDUE — un dégradé qui s'élève de l'anneau
+         et s'éteint, sans un seul bord. C'est la seule chose de
+         l'aura qui sorte du plan du sol, et donc la seule qui dise
+         « ça l'enveloppe » plutôt que « c'est posé dessous ». */
+      var gm = g.createLinearGradient(0, cy + Rv * 0.2, 0, cy - Rv * 1.5);
+      gm.addColorStop(0, "rgba(" + teinte + ",0.34)");
+      gm.addColorStop(0.45, "rgba(" + teinte + ",0.13)");
+      gm.addColorStop(1, "rgba(" + teinte + ",0)");
+      g.save();
+      g.beginPath();
+      g.ellipse(cx, cy - Rv * 0.45, R * 0.72, Rv * 1.5, 0, 0, 6.2832);
+      g.clip();
+      g.fillStyle = gm;
+      g.fillRect(0, 0, T, Hh);
+      g.restore();
+    }
+    auraSprites.push(cv);
+  }
+  return auraSprites;
+}
+
+/* Le rayon au sol d'une troupe, en cases. */
+/* LE RAYON AU SOL D'UNE TROUPE, en cases — et il est SERRÉ.
+   Le premier réglage, « rayon × 2,2 + 0,35 », donnait 3,9 cases pour
+   un Ogre, soit cent pixels au zoom de jeu : c'est de là que venait
+   l'essentiel du prix, et à l'image l'Ogre traînait une soucoupe.
+   « 0,55 + rayon × 0,9 » donne 0,86 case pour une Furie, 0,93 pour un
+   Commando et 1,99 pour un Ogre : le rapport de leurs tailles est
+   respecté — l'Ogre reste deux fois plus large — pour un quart de la
+   surface. */
+function rayonAura(type){
+  var u = UNI[type] || UNI.commando;
+  return 0.55 + u.rayon * 0.9;
+}
+
+/* Tableaux de MODULE : cette fonction tourne soixante fois par
+   seconde, elle n'a pas le droit d'allouer. Trois listes, une par
+   état, chacune en x/y/rayon à plat. */
+var auraX = [[], [], [], []], auraY = [[], [], [], []], auraR = [[], [], [], []];
+var AURA_TEINTE = ["", "255,168,64", "255,124,40", "168,214,255"];
+
+function dessineAuras(c, tps){
+  var e, k, n, i;
+  for(e = 1; e <= 3; e++){ auraX[e].length = 0; auraY[e].length = 0; auraR[e].length = 0; }
+  var z = cam.z;
+  /* en dessous de ce zoom l'anneau d'une Furie fait deux pixels : on
+     ne peint plus que le plafond, qui a de gros anneaux */
+  var seuil = z < 0.3 ? 3 : 1;
+
+  /* MES troupes */
+  var mien = auraPuissance(jeu.palier | 0);
+  if(mien >= seuil && jeu.unites){
+    for(i = 0; i < jeu.unites.length; i++){
+      var u = jeu.unites[i];
+      var p = versEcran(cam, u.gx, u.gy);
+      if(p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
+      auraX[mien].push(p.x); auraY[mien].push(p.y);
+      auraR[mien].push(rayonAura(u.type || u.t) * RX * z);
+    }
+  }
+  /* CELLES DES AUTRES, chacune à SON palier : le bonus est individuel,
+     et cela doit se voir. Un client d'une version précédente n'envoie
+     pas le champ, son palier vaut zéro, et ses troupes restent nues —
+     exactement l'état d'avant. */
+  for(var idj in autresJoueurs){
+    var j = autresJoueurs[idj];
+    var ea = auraPuissance(j.palier | 0);
+    if(ea < seuil) continue;
+    for(k = 0; k < j.unites.length; k++){
+      var g2 = j.unites[k];
+      var p2 = versEcran(cam, g2.gx, g2.gy);
+      if(p2.x < -60 || p2.x > W + 60 || p2.y < -60 || p2.y > H + 60) continue;
+      auraX[ea].push(p2.x); auraY[ea].push(p2.y);
+      auraR[ea].push(rayonAura(g2.type) * RX * z);
+    }
+  }
+  if(!auraX[1].length && !auraX[2].length && !auraX[3].length) return;
+
+  var sp = spritesAura();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  /* LISSAGE COUPÉ : le sprite est agrandi, et un agrandissement filtré
+     coûte cinq fois le prix. Sur un dégradé aussi doux, l'escalier ne
+     se voit pas. */
+  c.imageSmoothingEnabled = false;
+  /* LA RESPIRATION, commune à tous : une aura d'intensité fixe passe
+     pour un décalque, une aura qui bat passe pour de l'énergie. Elle
+     est portée par globalAlpha, donc UNE affectation par état et non
+     une par troupe — c'est toute la différence entre une milliseconde
+     et trente. */
+  var bat = 0.78 + 0.22 * Math.sin(tps * 3.4);
+
+  for(e = 1; e <= 3; e++){
+    n = auraX[e].length;
+    if(!n) continue;
+    /* Montée franche : le voile d'orage de la jungle passe APRÈS
+       l'aura et lui reprend un tiers de sa force. Ce qu'il reprend,
+       on le rend ici. */
+    c.globalAlpha = (e === 1 ? 0.80 : e === 2 ? 0.92 : 1) * bat;
+    var img = sp[e];
+    for(i = 0; i < n; i++){
+      /* destination ARRONDIE : sans cela, un sprite agrandi non filtré
+         grouille quand la troupe se déplace d'une fraction de pixel */
+      var w2 = Math.round(auraR[e][i] * 2.38);
+      if(w2 < 6) continue;
+      var h2 = Math.round(w2 * 0.5);
+      c.drawImage(img, Math.round(auraX[e][i] - w2 / 2),
+                       Math.round(auraY[e][i] - h2 / 2), w2, h2);
+    }
+  }
+  c.restore();
 }

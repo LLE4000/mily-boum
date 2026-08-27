@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.27";
+var VERSION = "v0.28";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -481,8 +481,109 @@ function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] |
 
 /* Effets. La Nova est spectaculaire mais raisonnable : c'est le grand
    flash et le champignon qui font le spectacle, pas les chiffres. */
+/* ================================================================
+   LA MONTÉE EN PUISSANCE
+
+   Ce qu'elle sert. La fin d'une île, c'est le Brasier : soixante
+   millions de points de vie sur la jungle, quand toutes les défenses
+   réunies n'en font que deux millions sept. Le joueur qui reste seul
+   à la fin y passe des heures — mesuré, environ six heures quarante de
+   jeu continu à la puissance de feu d'un débarquement complet. La
+   montée en puissance divise cette corvée par DEUX : la même corvée
+   revient à trente et un millions de travail au lieu de soixante,
+   quarante-sept pour cent de moins.
+
+   LES PALIERS SONT DES VALEURS ABSOLUES, PAS UNE ACCUMULATION.
+   À cinq cent mille on frappe à 105 % de sa base. À un million, 110 %
+   — et non 105 plus 10. À deux millions 120 %, à trois millions 130 %,
+   et ainsi de suite jusqu'à DEUX FOIS PLUS FORT à dix millions, où
+   l'on plafonne. C'est une table qu'on lit, pas une somme qu'on
+   empile.
+
+   Le premier palier est à cinq cent mille et non à un million, et ce
+   n'est pas un détail : un million demande près de quarante minutes de
+   jeu utile, et un joueur qui vient d'arriver ne verrait jamais la
+   moindre flamme. À cinq cent mille il en voit une avant d'avoir eu le
+   temps de s'ennuyer.
+
+   OÙ PASSE LE TEMPS, sur les soixante millions du Brasier : dix-neuf
+   pour cent entre ×1,10 et ×1,90, et QUATRE-VINGTS POUR CENT au
+   plafond. Le plafond n'est donc pas une décoration de fin de courbe,
+   c'est la valeur à laquelle on joue presque tout le temps — d'où
+   l'importance de ne pas le monter au-delà de deux.
+
+   LE SEUIL EST FIXE et non indexé sur la taille de l'île, à dessein :
+   il s'auto-équilibre. Sur la jungle (soixante millions) on gagne
+   quarante-sept pour cent, sur la plage (quinze millions) trente-neuf.
+   Plus la corvée est longue, plus l'aide est forte.
+
+   CE QUE LE BONUS NE TOUCHE PAS : les capacités. Il ne multiplie que
+   ce que les TROUPES infligent. La Nova, elle, a son propre saut —
+   voir PALIER_SUPERNOVA.
+   ================================================================ */
+var PALIERS_PUISSANCE = [
+  { seuil:        0, mult:1.00 },
+  { seuil:   500000, mult:1.05 },
+  { seuil:  1000000, mult:1.10 },
+  { seuil:  2000000, mult:1.20 },
+  { seuil:  3000000, mult:1.30 },
+  { seuil:  4000000, mult:1.40 },
+  { seuil:  5000000, mult:1.50 },
+  { seuil:  6000000, mult:1.60 },
+  { seuil:  7000000, mult:1.70 },
+  { seuil:  8000000, mult:1.80 },
+  { seuil:  9000000, mult:1.90 },
+  { seuil: 10000000, mult:2.00 }      // plafond : deux fois plus fort
+];
+/* Le palier à partir duquel la Nova devient une SUPER Nova. Trois
+   millions, c'est-à-dire toute la carte (deux millions sept) plus deux
+   cent soixante-dix mille de Brasier : elle se débloque exactement au
+   moment où l'on attaque le Brasier. */
+var PALIER_SUPERNOVA = 4;             // l'indice de la ligne « 3 000 000 »
+
+/* L'indice du palier atteint. On parcourt du haut vers le bas : la
+   table est courte et cette écriture rend le plafond gratuit. */
+function palierPuissance(degatsCarte){
+  var d = degatsCarte > 0 ? degatsCarte : 0;
+  for(var i = PALIERS_PUISSANCE.length - 1; i > 0; i--)
+    if(d >= PALIERS_PUISSANCE[i].seuil) return i;
+  return 0;
+}
+function multPuissance(degatsCarte){
+  return PALIERS_PUISSANCE[palierPuissance(degatsCarte)].mult;
+}
+/* Trois ÉTATS VISUELS seulement, pour douze paliers. Au zoom de jeu
+   personne ne distingue ×1,40 de ×1,50 ; trois marches franches se
+   lisent, onze nuances ne se lisent pas.
+     0  rien
+     1  un anneau d'énergie au sol            (×1,05 à ×1,30)
+     2  l'anneau se resserre, des étincelles  (×1,40 à ×1,70)
+     3  l'enveloppe                           (×1,80 à ×2,00) */
+function auraPuissance(palier){
+  if(palier <= 0) return 0;
+  if(palier <= 4) return 1;
+  if(palier <= 8) return 2;
+  return 3;
+}
+
 var CAP = {
-  nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45 },
+  /* La Nova ordinaire est spectaculaire mais raisonnable : c'est le
+     grand flash et le champignon qui font le spectacle, pas les
+     chiffres. La SUPER Nova, elle, arrive à trois millions et assume :
+     cinquante mille au cœur, rayon triplé.
+     Cinquante mille et non cent mille, et c'est le joueur qui a
+     tranché : une vague de cent vingt Commandos au contact sort quatre
+     cent cinquante mille : à cinquante mille la Nova pèse onze pour
+     cent d'une vague, elle accompagne le débarquement au lieu de le
+     remplacer.
+     LES DÉGÂTS ALLIÉS NE SONT PAS MULTIPLIÉS, et le rayon allié non
+     plus. La Nova frappe ses propres troupes — « alliés compris »,
+     dit le code depuis toujours. À cinquante mille sur treize cases,
+     elle tuerait tout le débarquement d'un coup, et comme c'est la
+     mort de la flotte qui met fin à la vie, le joueur s'interromprait
+     lui-même : la super Nova serait STRICTEMENT PIRE que l'ordinaire. */
+  nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45,
+               degatsSuper:50000, degatsSouffleSuper:16000, echSuper:3 },
   poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
   brouillard:{ rayon:4.2, duree:20.0 },
   salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },

@@ -1099,6 +1099,9 @@ function recoit(txt){
     j.g = m.g | 0;
     j.nom = m.nom ? m.nom.substr(0, 14) : j.nom;
     j.seau = m.sq ? nettoieSeau(m.sq) : (j.seau || "");
+    /* borné à la table : un palier reçu hors de ses clous ne doit pas
+       aller chercher une ligne qui n'existe pas */
+    j.palier = borne(m.pu | 0, 0, PALIERS_PUISSANCE.length - 1);
     noteScore(m.id, j.nom, j.g, j.seau);
     majUnitesDistantes(j, m.p || []);
     if(m.m && m.f){
@@ -1267,8 +1270,14 @@ function majReseau(dt){
          nom, encore dans le tableau, et le nouveau, apporté par ce
          message-ci. Un champ inconnu est ignoré par les versions
          précédentes, donc l'ajout ne casse rien. */
+      /* `pu` : le palier de puissance, pour que les autres voient
+         l'aura autour de mes troupes et non des unités nues. Un entier
+         de plus, ajouté à la FIN comme `sq` avant lui : les versions
+         précédentes ignorent un champ inconnu, donc un salon mixte ne
+         casse pas — elles dessineront simplement des troupes sans
+         aura, ce qui était l'état d'avant. */
       var msg = { t:"etat", nom:monNom, sq:monSeau, n:n,
-                  g:Math.round(monTotalLocal()), p:p };
+                  g:Math.round(monTotalLocal()), p:p, pu:jeu.palier | 0 };
       if(jeu.mort && jeu.fantome){
         msg.m = 1;
         msg.f = [Math.round(jeu.fantome.gx * 10) / 10, Math.round(jeu.fantome.gy * 10) / 10];
