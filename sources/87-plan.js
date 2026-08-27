@@ -34,6 +34,44 @@ var planZones = null;        // le brouillon en cours d'édition
 var planPile = [];           // historique, pour « Annuler »
 var planOutil = 1;           // indice dans TYPES_PLAN (0 = pinceau neutre)
 var planDensite = 2;         // indice dans DENSITES
+
+/* ---------------------------------------------------------------
+   LE COMPAS
+
+   Le pinceau ne sait peindre que des carrés de huit cases : on ne
+   trace pas un anneau avec, ni une ligne en travers de l'île, ni un
+   massif qui se vide vers ses bords. Les formes vivent à côté de lui,
+   dans la même carte et dans la même chaîne enregistrée, et passent
+   PAR-DESSUS lui — la dernière posée l'emporte, comme une pile de
+   calques.
+   --------------------------------------------------------------- */
+var planMode = 0;            // 0 = pinceau, 1 = formes
+var planFormes = [];         // les formes de la carte en cours d'édition
+var planOutilForme = -1;     // -1 = sélectionner, 0..4 = la forme à tracer
+var planSel = -1;            // la forme sélectionnée, -1 si aucune
+var planTrace = null;        // { f, x0, y0 } pendant qu'on tire une forme
+var planPoly = null;         // les sommets d'un polygone en cours de pose
+var planPoignee = -1;        // la poignée qu'on est en train de tirer
+/* Un geste n'entre qu'une fois dans l'historique, même s'il envoie
+   cent événements de glissé. */
+var planDejaEmpile = 0;
+/* LE DÉCALAGE DE PRISE. On attrape rarement une poignée en plein
+   centre, et jamais une grande forme en son milieu : sans ce
+   décalage, saisir un cercle près de son bord le TÉLÉPORTE, son
+   centre venant se coller sous le doigt. On retient donc l'écart au
+   moment de la prise et on le rejoue à chaque glissé — la forme suit
+   le doigt au lieu de sauter dedans. */
+var planPriseDx = 0, planPriseDy = 0;
+/* Sous le doigt, une poignée doit être ATTRAPABLE. Ces deux nombres
+   sont en pixels CSS — ceux du doigt — et non en pixels du canevas :
+   sur une tablette à deux pixels par point, les compter dans le
+   canevas les aurait rendus deux fois plus petits que prévu, soit
+   cinq points de rayon. C'est la différence entre un outil qu'on
+   utilise et un outil qu'on subit. */
+var R_POIGNEE_CSS = 13, PRISE_POIGNEE_CSS = 24;
+var planDpr = 1;
+function rPoignee(){ return R_POIGNEE_CSS * planDpr; }
+function prisePoignee(){ return PRISE_POIGNEE_CSS * planDpr; }
 /* Le pinceau à cellules n'est PAS un type : il pose sa couche par
    -dessus les défenses. C'est un interrupteur à part, et quand il est
    allumé le doigt ne peint plus que ça. */
@@ -109,8 +147,7 @@ function ouvrePlan(ou){
   construitPalettePlan();
   construitOngletsCartes();
   ajustePlanCv();
-  majPanneauPlan();
-  dessinePlan();
+  basculeModePlan(planMode);      // reconstruit les deux outillages et redessine
 }
 /* Charge dans l'éditeur le plan de la carte courante. Le plan du salon
    fait foi ; à défaut le brouillon gardé sur cet appareil POUR CETTE
@@ -119,24 +156,41 @@ function ouvrePlan(ou){
 function chargeCarteDansEditeur(){
   var dep = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
   if(!dep && carteSpeciale(planCarteIdx)) dep = planJungle();
-  planZones = dep ? decodePlan(dep) : planVide();
+  chargeChaineDansEditeur(dep);
   planPile = [];
+}
+/* Une chaîne de plan → l'éditeur. Un seul endroit sait la couper en
+   deux : le quadrillage d'un côté, les formes de l'autre. Tout ce qui
+   charge un plan — le salon, le brouillon, l'historique, la copie
+   d'une autre carte — passe par ici, faute de quoi il en manquerait
+   toujours une moitié quelque part. */
+function chargeChaineDansEditeur(s){
+  planZones = partieQuadrillage(s) ? decodePlan(partieQuadrillage(s)) : planVide();
+  planFormes = decodeFormes(partieFormes(s));
+  planSel = planFormes.length ? 0 : -1;
+  planTrace = null; planPoly = null; planPoignee = -1;
   planApercuSale = true;
+}
+/* Et la chaîne que l'éditeur produit. Symétrique de la précédente,
+   et pour la même raison. */
+function chainePlanCourante(){
+  return encodePlanComplet(planZones, planFormes);
 }
 /* Passer d'une carte à l'autre sans quitter l'éditeur. C'est ce qui
    permet de les COMPARER, et donc de vérifier qu'elles ont bien des
    identités différentes. */
 function choisitCartePlan(i){
   if(i === planCarteIdx) return;
-  var enCours = encodePlan(planZones);
+  var enCours = chainePlanCourante();
   var gardee = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
-  if(enCours !== gardee && zonesPeintes(planZones) &&
+  if(enCours !== gardee && (zonesPeintes(planZones) || planFormes.length) &&
      !confirm("La carte « " + CARTES[planCarteIdx].nom + " » a des modifications\n"
             + "qui ne sont pas enregistrées. Les abandonner ?")) return;
   planCarteIdx = i | 0;
   chargeCarteDansEditeur();
   construitOngletsCartes();
   ajustePlanCv();
+  construitListeFormes(); construitFicheForme();
   majPanneauPlan();
   dessinePlan();
 }
@@ -222,6 +276,170 @@ function choisitDensitePlan(i){
   majPanneauPlan();
 }
 
+/* =================================================================
+   LES PANNEAUX DU COMPAS
+   ================================================================= */
+var ICONE_FORME = ["◯", "◎", "▭", "╱", "⬠"];
+
+function basculeModePlan(m){
+  planMode = m | 0;
+  planTrace = null; planPoly = null; planPoignee = -1;
+  $("planBlocPinceau").style.display = planMode ? "none" : "";
+  $("planBlocFormes").style.display  = planMode ? "" : "none";
+  var e = $("planModes").querySelectorAll("[data-mode]"), i;
+  for(i = 0; i < e.length; i++) e[i].classList.toggle("on", (+e[i].getAttribute("data-mode")) === planMode);
+  construitOutilsFormes();
+  construitListeFormes();
+  construitFicheForme();
+  majPanneauPlan();
+  dessinePlan();
+}
+function construitOutilsFormes(){
+  var e = $("planFormesOutils");
+  if(!e) return;
+  var h = '<div class="pz' + (planOutilForme < 0 ? " on" : "") + '" data-forme="-1">'
+        + '<i style="background:#5adc8c"></i>Sélectionner</div>', i;
+  for(i = 0; i < FORMES_PLAN.length; i++){
+    h += '<div class="pz' + (i === planOutilForme ? " on" : "") + '" data-forme="' + i + '" '
+       + 'title="' + FORMES_PLAN[i].desc + '">' + ICONE_FORME[i] + " "
+       + FORMES_PLAN[i].nom + '</div>';
+  }
+  h += '<div class="pz" data-suggere="1"><i style="background:#ffd84a"></i>Suggestions</div>';
+  e.innerHTML = h;
+}
+/* Un résumé lisible d'une forme : ce qu'elle est, où elle est, et de
+   quoi elle est faite. Il tient sur une ligne parce que la liste doit
+   rester survolable d'un coup d'œil. */
+function resumeForme(F){
+  var G = F.G, g;
+  switch(F.f){
+    case 0: g = "r " + Math.round(G[2]) + " en " + Math.round(G[0]) + "," + Math.round(G[1]); break;
+    case 1: g = Math.round(Math.min(G[2], G[3])) + "→" + Math.round(Math.max(G[2], G[3])); break;
+    case 2: g = Math.round(G[2]) + "×" + Math.round(G[3]); break;
+    case 3: g = "long " + Math.round(Math.hypot(G[2] - G[0], G[3] - G[1]))
+              + ", ép. " + Math.round(G[4]); break;
+    default: g = (G.length >> 1) + " sommets";
+  }
+  return g;
+}
+function construitListeFormes(){
+  var e = $("planListe");
+  if(!e) return;
+  if(!planFormes.length){
+    e.innerHTML = '<div class="planAide">Aucune forme. Choisis un outil ci-dessus '
+      + 'et <b>tire sur la carte</b>. Les formes passent par-dessus le pinceau : '
+      + 'la dernière posée est celle qu\'on voit.</div>';
+    return;
+  }
+  var h = "", i, j;
+  /* la dernière posée en tête : c'est elle qui recouvre les autres */
+  for(i = planFormes.length - 1; i >= 0; i--){
+    var F = planFormes[i], pastilles = "";
+    for(j = 0; j < F.C.length; j++){
+      pastilles += '<s style="background:' + coulOutilPlan(F.C[j][0]) + '"></s>';
+    }
+    if(!F.C.length && F.k === 1) pastilles = '<s style="background:' + COUL_PLAN.cellule + '"></s>';
+    h += '<div class="pfo' + (i === planSel ? " on" : "") + '" data-forme-i="' + i + '">'
+       + '<span class="g">' + ICONE_FORME[F.f] + '</span>'
+       + '<span class="n"><b>' + FORMES_PLAN[F.f].nom + '</b> '
+       + '<span class="g">' + resumeForme(F) + '</span></span>'
+       + '<em>' + pastilles + '</em>'
+       + '<button class="pfa" data-monte="' + i + '" title="Passer devant">▲</button>'
+       + '<button class="pfa" data-dup="' + i + '" title="Dupliquer">⧉</button>'
+       + '<button class="pfa danger" data-sup="' + i + '" title="Supprimer">✕</button>'
+       + '</div>';
+  }
+  e.innerHTML = h;
+}
+/* La fiche de la forme sélectionnée : sa composition, sa densité, sa
+   répartition, sa couche, et sa graine. Tout ce qu'une zone du
+   quadrillage ne pouvait pas porter. */
+function construitFicheForme(){
+  var e = $("planFiche");
+  if(!e) return;
+  var F = planFormes[planSel];
+  if(!F){
+    e.innerHTML = '<div class="planAide">Touche une forme sur la carte ou dans la '
+      + 'liste pour la régler.</div>';
+    return;
+  }
+  var h = '<div class="tt">Composition</div>', i;
+  if(!F.C.length){
+    h += '<div class="planAide">Aucun type imposé : la génération décide, '
+       + 'et la forme ne règle que la densité'
+       + (F.k ? ' et la récolte' : '') + '.</div>';
+  }
+  for(i = 0; i < F.C.length; i++){
+    h += '<div class="pcp"><i style="background:' + coulOutilPlan(F.C[i][0]) + '"></i>'
+       + '<span class="nm">' + echappe(nomOutilPlan(F.C[i][0])) + '</span>'
+       + '<button class="pfa" data-melmoins="' + i + '">−</button>'
+       + '<span class="pc">' + Math.round(partDuMelange(F, i) * 100) + ' %</span>'
+       + '<button class="pfa" data-melplus="' + i + '">+</button>'
+       + '<button class="pfa danger" data-melsup="' + i + '">✕</button></div>';
+  }
+  h += '<button class="bt ptt" id="btMelAjoute">+ Ajouter « '
+     + echappe(nomOutilPlan(planOutil)) + ' »</button>';
+
+  h += '<div class="tt">Répartition</div><select id="selRep">';
+  for(i = 0; i < REPARTITIONS.length; i++)
+    h += '<option value="' + i + '"' + (i === F.r ? " selected" : "") + '>'
+       + REPARTITIONS[i].nom + '</option>';
+  h += '</select><div class="planAide">' + REPARTITIONS[F.r].desc + '</div>';
+
+  h += '<div class="tt">Densité</div><select id="selDens">';
+  for(i = 0; i < DENSITES.length; i++)
+    h += '<option value="' + i + '"' + (i === F.d ? " selected" : "") + '>'
+       + DENSITES[i].nom + '</option>';
+  h += '</select>';
+
+  h += '<div class="tt">Couche</div><select id="selCouche">';
+  for(i = 0; i < COUCHES_PLAN.length; i++)
+    h += '<option value="' + i + '"' + (i === F.k ? " selected" : "") + '>'
+       + COUCHES_PLAN[i] + '</option>';
+  h += '</select>';
+  if(F.k){
+    h += '<div class="planAide">La récolte se sème par zones de ' + PAS_ZONE
+       + ' cases : une forme plus petite que ça n\'en portera pas.</div>';
+  }
+
+  h += '<div class="tt">Tirage</div><div class="rg">'
+     + '<button class="pfa" id="btFixe">' + (F.x ? "🔒" : "🎲") + '</button>'
+     + '<span class="planAide" style="flex:1">'
+     + (F.x ? "Figée : cette forme se rejoue à l'identique à chaque partie (graine n°"
+              + F.g + ")."
+            : "Libre : elle se retire au sort à chaque remise à zéro, comme le reste "
+              + "de la carte.")
+     + '</span>'
+     + '<button class="pfa" id="btGraine" title="Une autre variante de cette forme">🎲+</button>'
+     + '</div>';
+  e.innerHTML = h;
+}
+/* Toute modification d'une forme passe par ici : l'aperçu se salit, la
+   table de fraction d'aire s'oublie, les panneaux se refont. */
+function formeModifiee(){
+  formeChangee(planFormes[planSel]);
+  planApercuSale = true;
+  construitListeFormes(); construitFicheForme();
+  dessinePlan(); majPanneauPlan();
+}
+function poussePile(){
+  planPile.push({ z:planZones.slice(), f:copieFormes(planFormes) });
+  if(planPile.length > 40) planPile.shift();
+}
+function copieFormes(l){
+  var o = [], i;
+  for(i = 0; i < l.length; i++){
+    var F = l[i];
+    o.push({ f:F.f, k:F.k, d:F.d, r:F.r, x:F.x, g:F.g,
+             G:F.G.slice(), C:F.C.map(function(p){ return [p[0], p[1]]; }) });
+  }
+  return o;
+}
+function choisitForme(i){
+  planSel = (i === planSel) ? planSel : i;
+  construitListeFormes(); construitFicheForme(); dessinePlan();
+}
+
 /* ---------------------------------------------------------------
    Le canevas : la carte à plat, une couleur par défense
    --------------------------------------------------------------- */
@@ -230,6 +448,7 @@ function ajustePlanCv(){
   if(!planCv) return;
   var r = planCv.getBoundingClientRect();
   var dpr = Math.min(2, window.devicePixelRatio || 1);
+  planDpr = dpr;
   planCv.width  = Math.max(2, Math.round(r.width  * dpr));
   planCv.height = Math.max(2, Math.round(r.height * dpr));
   planCtx = planCv.getContext("2d");
@@ -253,7 +472,7 @@ function apercuPlan(){
     /* La carte ÉDITÉE, et pas la première : sans cet index, l'aperçu
        montrait toujours la plage quelle que soit l'île choisie, et
        comparer deux cartes devenait impossible. */
-    planApercu = genereCarte(CODE_SALON, planCarteIdx, encodePlan(planZones), planGraine);
+    planApercu = genereCarte(CODE_SALON, planCarteIdx, chainePlanCourante(), planGraine);
     planApercuSale = false;
   }
   return planApercu;
@@ -357,6 +576,10 @@ function dessinePlan(){
     c.fill();
   }
 
+  /* les formes, PAR-DESSUS les défenses : c'est l'ordre dans lequel
+     elles agissent, l'éditeur doit le montrer tel quel */
+  dessineFormes(c, e, ox, oy);
+
   /* le Brasier */
   var qx = ox + QG_GX * e, qy = oy + QG_GY * e;
   var g = c.createRadialGradient(qx, qy, 0, qx, qy, 26 * e);
@@ -368,6 +591,383 @@ function dessinePlan(){
   c.beginPath(); c.arc(qx, qy, 4.2 * e, 0, 6.2832); c.fill();
   c.strokeStyle = "#ffe0a0"; c.lineWidth = Math.max(1.4, e * 0.3);
   c.beginPath(); c.arc(qx, qy, 5.6 * e, 0, 6.2832); c.stroke();
+}
+
+/* ---------------------------------------------------------------
+   LES FORMES, DESSINÉES
+   Le contour dit la géométrie, le remplissage dit la composition —
+   des bandes obliques aux couleurs du mélange, dans les proportions
+   demandées. On lit donc « 70 % de Frelons » sans avoir à ouvrir la
+   fiche, et sans avoir à compter les points de l'aperçu.
+   --------------------------------------------------------------- */
+function cheminForme(c, F, e, ox, oy){
+  var G = F.G, i, n;
+  c.beginPath();
+  switch(F.f){
+    case 0: c.arc(ox + G[0] * e, oy + G[1] * e, Math.max(1, G[2] * e), 0, 6.2832); break;
+    case 1:
+      c.arc(ox + G[0] * e, oy + G[1] * e, Math.max(1, Math.max(G[2], G[3]) * e), 0, 6.2832);
+      /* le trou, en sens inverse : la règle du pair-impair le creuse */
+      c.moveTo(ox + (G[0] + Math.min(G[2], G[3])) * e, oy + G[1] * e);
+      c.arc(ox + G[0] * e, oy + G[1] * e, Math.max(0.5, Math.min(G[2], G[3]) * e),
+            0, 6.2832, true);
+      break;
+    case 2: c.rect(ox + G[0] * e, oy + G[1] * e, G[2] * e, G[3] * e); break;
+    case 3:
+      var dx = G[2] - G[0], dy = G[3] - G[1], ln = Math.hypot(dx, dy) || 1;
+      var nx = -dy / ln * G[4] * 0.5, ny = dx / ln * G[4] * 0.5;
+      c.moveTo(ox + (G[0] + nx) * e, oy + (G[1] + ny) * e);
+      c.lineTo(ox + (G[2] + nx) * e, oy + (G[3] + ny) * e);
+      c.lineTo(ox + (G[2] - nx) * e, oy + (G[3] - ny) * e);
+      c.lineTo(ox + (G[0] - nx) * e, oy + (G[1] - ny) * e);
+      c.closePath();
+      break;
+    case 4:
+      n = G.length >> 1;
+      for(i = 0; i < n; i++){
+        var px = ox + G[i * 2] * e, py = oy + G[i * 2 + 1] * e;
+        if(i) c.lineTo(px, py); else c.moveTo(px, py);
+      }
+      c.closePath();
+      break;
+  }
+}
+function dessineFormes(c, e, ox, oy){
+  if(!planFormes.length && !planPoly) return;
+  var i, j;
+  /* Bornées à l'île. Le Brasier est à neuf cases du bord ouest : un
+     anneau autour de lui déborde forcément, et sans ce cadrage il
+     peignait le fond noir hors carte — on lisait une intention là où
+     le générateur ne pose rien. */
+  c.save();
+  c.beginPath();
+  c.rect(ox, oy, GW * e, GH * e);
+  c.clip();
+  for(i = 0; i < planFormes.length; i++){
+    var F = planFormes[i], choisie = (i === planSel && planMode === 1);
+    c.save();
+    cheminForme(c, F, e, ox, oy);
+    c.clip("evenodd");
+    /* le mélange, en bandes obliques proportionnelles */
+    var B = boiteForme(F);
+    var x0 = ox + B.x0 * e, y0 = oy + B.y0 * e;
+    var lg = (B.x1 - B.x0) * e, ht = (B.y1 - B.y0) * e;
+    /* Un voile sombre d'abord : les six biomes n'ont pas le même sol,
+       et un mélange de Pilons olive sur le sable de la plage ne se
+       voyait tout simplement pas. Le voile donne à toutes les formes
+       le même fond, donc la même lisibilité partout. */
+    c.globalAlpha = 0.22; c.fillStyle = "#0b0713";
+    c.fillRect(x0, y0, lg, ht);
+    var som = sommeMelange(F);
+    if(som > 0){
+      var pas = Math.max(7, Math.min(22, (lg + ht) / 14)), t = 0;
+      for(j = 0; j < F.C.length; j++){
+        var part = F.C[j][1] / som;
+        c.fillStyle = coulOutilPlan(F.C[j][0]);
+        c.globalAlpha = TYPES_PLAN[F.C[j][0]] === "vide" ? 0.34 : 0.26;
+        /* une bande par type, répétée le long de la diagonale */
+        for(var d0 = -ht; d0 < lg + ht; d0 += pas){
+          c.beginPath();
+          c.moveTo(x0 + d0 + pas * t, y0);
+          c.lineTo(x0 + d0 + pas * (t + part), y0);
+          c.lineTo(x0 + d0 + pas * (t + part) - ht, y0 + ht);
+          c.lineTo(x0 + d0 + pas * t - ht, y0 + ht);
+          c.closePath(); c.fill();
+        }
+        t += part;
+      }
+    }else{
+      c.globalAlpha = 0.16;
+      c.fillStyle = F.k ? COUL_PLAN.cellule : "#8f86a0";
+      c.fillRect(x0, y0, lg, ht);
+    }
+    c.restore();
+
+    /* le contour */
+    c.save();
+    cheminForme(c, F, e, ox, oy);
+    c.strokeStyle = choisie ? "#8ff0b4" : "rgba(160,235,190,.55)";
+    c.lineWidth = choisie ? Math.max(2, e * 0.30) : Math.max(1.2, e * 0.18);
+    if(!choisie) c.setLineDash([e * 1.4, e * 1.0]);
+    c.stroke();
+    c.restore();
+
+    /* la couche « cellules » se signale par un liseré jaune */
+    if(F.k){
+      c.save();
+      cheminForme(c, F, e, ox, oy);
+      c.strokeStyle = COUL_PLAN.cellule;
+      c.globalAlpha = 0.75;
+      c.lineWidth = Math.max(1, e * 0.12);
+      c.setLineDash([e * 0.7, e * 1.3]);
+      c.stroke();
+      c.restore();
+    }
+
+    /* les poignées, seulement sur la forme choisie : sinon la carte
+       disparaît sous les pastilles */
+    if(choisie){
+      var P = poigneesForme(F);
+      for(j = 0; j < P.length; j++){
+        var hx = ox + P[j].x * e, hy = oy + P[j].y * e;
+        c.beginPath(); c.arc(hx, hy, rPoignee(), 0, 6.2832);
+        c.fillStyle = P[j].id === "c" ? "#ffd84a" : "#8ff0b4";
+        c.globalAlpha = 0.92; c.fill(); c.globalAlpha = 1;
+        c.strokeStyle = "#0d1a14"; c.lineWidth = 2.2; c.stroke();
+      }
+    }
+  }
+  /* le polygone en cours de pose : ses sommets et le fil qui les joint */
+  if(planPoly && planPoly.length >= 2){
+    c.save();
+    c.strokeStyle = "#ffd84a"; c.lineWidth = 2.4; c.setLineDash([6, 5]);
+    c.beginPath();
+    for(i = 0; i * 2 + 1 < planPoly.length; i++){
+      var qx2 = ox + planPoly[i * 2] * e, qy2 = oy + planPoly[i * 2 + 1] * e;
+      if(i) c.lineTo(qx2, qy2); else c.moveTo(qx2, qy2);
+    }
+    c.stroke();
+    c.setLineDash([]);
+    for(i = 0; i * 2 + 1 < planPoly.length; i++){
+      c.beginPath();
+      c.arc(ox + planPoly[i * 2] * e, oy + planPoly[i * 2 + 1] * e, rPoignee() * 0.8, 0, 6.2832);
+      c.fillStyle = "#ffd84a"; c.fill();
+      c.strokeStyle = "#0d1a14"; c.lineWidth = 2; c.stroke();
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
+/* =================================================================
+   LE COMPAS — tracer, attraper, régler
+
+   Trois gestes et pas un de plus, parce qu'on dessine au doigt :
+     — un outil choisi, on TIRE sur la carte : la forme naît ;
+     — sans outil, on TOUCHE une forme : elle se sélectionne ;
+     — sélectionnée, elle montre ses poignées : on les TIRE.
+   Le polygone est le seul à sortir de là — il se pose sommet par
+   sommet, et se ferme quand on le dit.
+   ================================================================= */
+
+/* Les poignées d'une forme, en coordonnées de carte. L'identifiant
+   dit ce que la poignée commande ; bougePoignee est le seul endroit
+   qui sache le traduire. « c » déplace la forme entière. */
+function poigneesForme(F){
+  var G = F.G, l = [], i, n, C;
+  switch(F.f){
+    case 0:
+      l.push({ id:"c", x:G[0], y:G[1] });
+      l.push({ id:"r", x:G[0] + G[2], y:G[1] });
+      break;
+    case 1:
+      l.push({ id:"c", x:G[0], y:G[1] });
+      l.push({ id:"r0", x:G[0] + Math.min(G[2], G[3]), y:G[1] });
+      l.push({ id:"r1", x:G[0] + Math.max(G[2], G[3]), y:G[1] });
+      break;
+    case 2:
+      l.push({ id:"c", x:G[0] + G[2] / 2, y:G[1] + G[3] / 2 });
+      l.push({ id:"a", x:G[0], y:G[1] });
+      l.push({ id:"b", x:G[0] + G[2], y:G[1] + G[3] });
+      break;
+    case 3:
+      l.push({ id:"c", x:(G[0] + G[2]) / 2, y:(G[1] + G[3]) / 2 });
+      l.push({ id:"a", x:G[0], y:G[1] });
+      l.push({ id:"b", x:G[2], y:G[3] });
+      /* la poignée d'épaisseur se place perpendiculairement au milieu :
+         c'est là qu'on va la chercher instinctivement */
+      var dx = G[2] - G[0], dy = G[3] - G[1], ln = Math.hypot(dx, dy) || 1;
+      l.push({ id:"e", x:(G[0] + G[2]) / 2 - dy / ln * G[4] * 0.5,
+                       y:(G[1] + G[3]) / 2 + dx / ln * G[4] * 0.5 });
+      break;
+    case 4:
+      C = centreForme(F);
+      l.push({ id:"c", x:C.x, y:C.y });
+      n = G.length >> 1;
+      for(i = 0; i < n; i++) l.push({ id:"p" + i, x:G[i * 2], y:G[i * 2 + 1] });
+      break;
+  }
+  return l;
+}
+function bougePoignee(F, id, gx, gy){
+  var G = F.G, i, n, C, dx, dy;
+  if(id === "c"){
+    C = centreForme(F);
+    dx = gx - C.x; dy = gy - C.y;
+    if(F.f === 0 || F.f === 1){ G[0] += dx; G[1] += dy; }
+    else if(F.f === 2){ G[0] += dx; G[1] += dy; }
+    else if(F.f === 3){ G[0] += dx; G[1] += dy; G[2] += dx; G[3] += dy; }
+    else { n = G.length >> 1;
+           for(i = 0; i < n; i++){ G[i * 2] += dx; G[i * 2 + 1] += dy; } }
+    formeChangee(F);
+    return;
+  }
+  switch(F.f){
+    case 0: G[2] = Math.max(1.5, Math.hypot(gx - G[0], gy - G[1])); break;
+    case 1:
+      var d = Math.max(0.5, Math.hypot(gx - G[0], gy - G[1]));
+      if(id === "r0") G[2] = Math.min(d, G[3] - 1);
+      else            G[3] = Math.max(d, G[2] + 1);
+      break;
+    case 2:
+      if(id === "a"){ G[2] += G[0] - gx; G[3] += G[1] - gy; G[0] = gx; G[1] = gy; }
+      else          { G[2] = gx - G[0];  G[3] = gy - G[1]; }
+      if(G[2] < 2){ G[2] = 2; } if(G[3] < 2){ G[3] = 2; }
+      break;
+    case 3:
+      if(id === "a"){ G[0] = gx; G[1] = gy; }
+      else if(id === "b"){ G[2] = gx; G[3] = gy; }
+      else {
+        var mx = (G[0] + G[2]) / 2, my = (G[1] + G[3]) / 2;
+        G[4] = Math.max(1.5, Math.hypot(gx - mx, gy - my) * 2);
+      }
+      break;
+    case 4:
+      i = parseInt(id.substr(1), 10);
+      if(i >= 0 && i * 2 + 1 < G.length){ G[i * 2] = gx; G[i * 2 + 1] = gy; }
+      break;
+  }
+  formeChangee(F);
+}
+/* La poignée sous le doigt, en pixels : c'est la tolérance à l'écran
+   qui compte, pas la distance en cases — au dézoom, deux sommets
+   voisins tombent sur le même pixel. */
+function poigneeAuPoint(F, gx, gy){
+  if(!F) return -1;
+  var l = poigneesForme(F), i, meilleure = -1, pire = prisePoignee();
+  for(i = 0; i < l.length; i++){
+    var d = Math.hypot((l[i].x - gx) * planEch, (l[i].y - gy) * planEch);
+    if(d < pire){ pire = d; meilleure = i; }
+  }
+  return meilleure;
+}
+/* La forme sous le doigt : la dernière posée d'abord, comme à la
+   génération. Toucher une pile rend donc celle qu'on voit. */
+function formeAuPoint(gx, gy){
+  for(var i = planFormes.length - 1; i >= 0; i--)
+    if(formeContient(planFormes[i], gx, gy)) return i;
+  return -1;
+}
+
+/* Une forme neuve prend l'outil et la densité courants : on vient de
+   les choisir, ce serait absurde de les redemander. */
+function formeNeuve(f, gx, gy){
+  var C = planOutil ? [[planOutil, 100]] : [];
+  return { f:f, k:0, d:planDensite, r:0, x:0, g:(planFormes.length * 37) % 997,
+           G:geoDepart(f, gx, gy), C:C };
+}
+function geoDepart(f, gx, gy){
+  switch(f){
+    case 0: return [gx, gy, 2];
+    case 1: return [gx, gy, 1, 2];
+    case 2: return [gx, gy, 2, 2];
+    case 3: return [gx, gy, gx + 2, gy, 6];
+    case 4: return [gx, gy, gx + 2, gy, gx + 2, gy + 2];
+  }
+  return [gx, gy, 2];
+}
+/* Ce que le glissé fabrique pendant qu'on tire. Le rayon intérieur de
+   l'anneau suit l'extérieur à 55 % : une couronne, pas un disque
+   presque plein. */
+function tireForme(F, x0, y0, gx, gy){
+  var G = F.G, d = Math.hypot(gx - x0, gy - y0);
+  switch(F.f){
+    case 0: G[0] = x0; G[1] = y0; G[2] = Math.max(1.5, d); break;
+    case 1: G[0] = x0; G[1] = y0; G[3] = Math.max(2.5, d); G[2] = G[3] * 0.55; break;
+    case 2: G[0] = Math.min(x0, gx); G[1] = Math.min(y0, gy);
+            G[2] = Math.max(2, Math.abs(gx - x0)); G[3] = Math.max(2, Math.abs(gy - y0));
+            break;
+    case 3: G[0] = x0; G[1] = y0; G[2] = gx; G[3] = gy; break;
+  }
+  formeChangee(F);
+}
+
+/* --- LE MÉLANGE ---
+   Les parts sont gardées en interne, les pourcentages en sont déduits.
+   Régler l'un rééchelonne les autres : le total fait toujours cent, et
+   le joueur n'a jamais à faire l'arithmétique. */
+function sommeMelange(F){
+  var s = 0, i;
+  for(i = 0; i < F.C.length; i++) s += F.C[i][1];
+  return s;
+}
+function partDuMelange(F, i){
+  var s = sommeMelange(F);
+  return s > 0 ? F.C[i][1] / s : 0;
+}
+function ajouteAuMelange(F, t){
+  var i;
+  for(i = 0; i < F.C.length; i++) if(F.C[i][0] === t) return;
+  if(F.C.length >= 6) return;                    // au-delà, plus personne ne lit
+  F.C.push([t, sommeMelange(F) ? sommeMelange(F) / Math.max(1, F.C.length) : 100]);
+}
+function retireDuMelange(F, i){ F.C.splice(i, 1); }
+/* Décale la PART AFFICHÉE de cette entrée de « pas », en laissant aux
+   autres leur proportion relative. La formule vient de p = w/(w+r). */
+function regleMelange(F, i, pas){
+  var s = sommeMelange(F);
+  if(s <= 0 || F.C.length < 2){ F.C[i][1] = 100; return; }
+  var p = F.C[i][1] / s, reste = s - F.C[i][1];
+  var but = Math.min(0.95, Math.max(0.05, Math.round((p + pas) * 20) / 20));
+  F.C[i][1] = reste * but / (1 - but);
+}
+
+function decaleForme(F, dx, dy){
+  var G = F.G, i, n;
+  switch(F.f){
+    case 0: case 1: case 2: G[0] += dx; G[1] += dy; break;
+    case 3: G[0] += dx; G[1] += dy; G[2] += dx; G[3] += dy; break;
+    case 4: n = G.length >> 1;
+            for(i = 0; i < n; i++){ G[i * 2] += dx; G[i * 2 + 1] += dy; }
+            break;
+  }
+  formeChangee(F);
+}
+
+/* --- LES FORMES SUGGÉRÉES ---
+   Un point de départ par carte, pas un décor imposé : on les pose, on
+   les tire, on les jette. C'est ce qui manque le plus quand on ouvre
+   un outil de dessin devant une île vide. */
+function formesSuggerees(i){
+  var qx = QG_GX, qy = QG_GY, mil = PLAGE_X0 / 2;
+  var l = [
+    { nom:"Anneau de Frelons autour du Brasier",
+      F:{ f:1, k:0, d:3, r:0, x:0, g:11, G:[qx, qy, 14, 30], C:[[3, 70], [4, 30]] } },
+    { nom:"Bastion au cœur de l'île",
+      F:{ f:0, k:0, d:4, r:4, x:0, g:23, G:[mil, GH / 2, 26],
+          C:[[5, 45], [3, 30], [2, 25]] } },
+    { nom:"Mur de Pilons devant la plage",
+      F:{ f:2, k:0, d:3, r:1, x:0, g:31, G:[PLAGE_X0 - 26, 8, 20, GH - 16],
+          C:[[4, 60], [1, 40]] } },
+    { nom:"Couloir dégagé jusqu'au Brasier",
+      F:{ f:3, k:0, d:0, r:0, x:0, g:43, G:[PLAGE_X0 - 4, GH / 2, qx + 12, qy, 12],
+          C:[[8, 100]] } },
+    { nom:"Champ de récolte au sud",
+      F:{ f:0, k:1, d:0, r:0, x:0, g:53, G:[mil, GH - 26, 22], C:[] } },
+    { nom:"Couronne de récolte sous le feu",
+      F:{ f:1, k:2, d:3, r:0, x:0, g:61, G:[qx, qy, 34, 48], C:[[3, 50], [5, 50]] } }
+  ];
+  return l;
+}
+function proposeFormes(){
+  var l = formesSuggerees(planCarteIdx), i, txt = [];
+  for(i = 0; i < l.length; i++) txt.push((i + 1) + " = " + l[i].nom);
+  var rep = prompt("FORMES SUGGÉRÉES pour « " + CARTES[planCarteIdx].nom + " »\n\n"
+    + txt.join("\n") + "\n\n"
+    + "Elle s'ajoute par-dessus ce qui existe, et reste modifiable :\n"
+    + "tu peux la tirer, la régler, ou la supprimer.\n\n"
+    + "Numéro de la forme à poser :");
+  if(rep === null) return;
+  var k = parseInt(rep, 10) - 1;
+  if(!(k >= 0) || k >= l.length){ message2("Numéro inconnu — rien n'a été posé."); return; }
+  poussePile();
+  planFormes.push(copieFormes([l[k].F])[0]);
+  planSel = planFormes.length - 1;
+  planOutilForme = -1;
+  planApercuSale = true;
+  construitOutilsFormes(); construitListeFormes(); construitFicheForme();
+  dessinePlan(); majPanneauPlan();
+  message2("« " + l[k].nom + " » posée. Tire ses poignées pour l'ajuster.");
 }
 
 /* ---------------------------------------------------------------
@@ -391,6 +991,127 @@ function peintZoneEn(sx, sy){
   planApercuSale = true;
   return true;
 }
+/* ---------------------------------------------------------------
+   LES TROIS GESTES DU COMPAS
+   Un seul point d'entrée par phase du geste — début, glissé, fin —
+   et c'est l'état courant qui décide de ce qu'il veut dire. Le
+   polygone est le seul cas où le début suffit : il pose un sommet et
+   attend le suivant.
+   --------------------------------------------------------------- */
+function debutForme(sx, sy){
+  var g = planVersCase(sx, sy);
+  if(g.gx < 0 || g.gy < 0 || g.gx >= GW || g.gy >= GH) return;
+
+  /* 1. une poignée de la forme choisie a la priorité sur tout le
+        reste : on vient de la voir, on la vise */
+  if(planSel >= 0 && planOutilForme < 0){
+    var ph = poigneeAuPoint(planFormes[planSel], g.gx, g.gy);
+    if(ph >= 0){
+      poussePile(); planDejaEmpile = 1; planPoignee = ph;
+      var PP = poigneesForme(planFormes[planSel])[ph];
+      planPriseDx = PP.x - g.gx; planPriseDy = PP.y - g.gy;
+      return;
+    }
+  }
+  /* 2. le polygone se pose sommet par sommet */
+  if(planOutilForme === 4){
+    if(!planPoly){ poussePile(); planPoly = []; }
+    planPoly.push(g.gx, g.gy);
+    /* revenir sur le premier sommet ferme le contour — le geste que
+       tout le monde essaie en premier */
+    if(planPoly.length >= 8 &&
+       Math.hypot((g.gx - planPoly[0]) * planEch, (g.gy - planPoly[1]) * planEch) < prisePoignee()){
+      planPoly.length -= 2;
+      fermePolygone();
+      return;
+    }
+    dessinePlan(); majPanneauPlan();
+    return;
+  }
+  /* 3. un outil de forme : on tire une forme neuve */
+  if(planOutilForme >= 0){
+    poussePile();
+    var F = formeNeuve(planOutilForme, g.gx, g.gy);
+    planFormes.push(F);
+    planSel = planFormes.length - 1;
+    planTrace = { x0:g.gx, y0:g.gy };
+    planApercuSale = true;
+    construitListeFormes(); construitFicheForme();
+    dessinePlan();
+    return;
+  }
+  /* 4. sinon, on sélectionne ce qu'on touche. Sélectionner ne modifie
+        rien : pas d'entrée d'historique — sauf si le doigt glisse
+        ensuite, et c'est bougeForme qui l'empile alors. */
+  var i = formeAuPoint(g.gx, g.gy);
+  planSel = i;
+  planPoignee = -1; planDejaEmpile = 0; planPriseDx = 0; planPriseDy = 0;
+  if(i >= 0){
+    /* le centre : toucher-glisser déplace la forme, sans la faire
+       sauter sous le doigt */
+    planPoignee = 0;
+    var C0 = poigneesForme(planFormes[i])[0];
+    planPriseDx = C0.x - g.gx; planPriseDy = C0.y - g.gy;
+  }
+  construitListeFormes(); construitFicheForme(); dessinePlan(); majPanneauPlan();
+}
+function bougeForme(sx, sy){
+  var g = planVersCase(sx, sy);
+  if(planTrace && planOutilForme >= 0 && planOutilForme !== 4){
+    tireForme(planFormes[planSel], planTrace.x0, planTrace.y0, g.gx, g.gy);
+    planApercuSale = true;
+    dessinePlan();
+    return;
+  }
+  if(planPoignee >= 0 && planSel >= 0){
+    /* Le glissé qui suit une simple sélection : c'est LUI qui modifie,
+       donc c'est lui qui empile, et une seule fois pour tout le
+       geste. */
+    if(!planDejaEmpile){ poussePile(); planDejaEmpile = 1; }
+    var F = planFormes[planSel];
+    var P = poigneesForme(F);
+    if(P[planPoignee])
+      bougePoignee(F, P[planPoignee].id, g.gx + planPriseDx, g.gy + planPriseDy);
+    planApercuSale = true;
+    dessinePlan();
+  }
+}
+function finForme(){
+  /* Une forme qu'on a seulement effleurée n'en est pas une : elle
+     serait invisible et impossible à rattraper. On la retire plutôt
+     que de laisser un point mort dans la liste. */
+  if(planTrace && planSel >= 0){
+    var F = planFormes[planSel], B = boiteForme(F);
+    if((B.x1 - B.x0) < 2 && (B.y1 - B.y0) < 2){
+      planFormes.splice(planSel, 1);
+      planSel = -1;
+      message2("Forme trop petite — tire un peu plus loin pour la tracer.");
+    }
+  }
+  planTrace = null; planPoignee = -1; planDejaEmpile = 0;
+  planPriseDx = 0; planPriseDy = 0;
+  planApercuSale = true;
+  construitListeFormes(); construitFicheForme();
+  dessinePlan(); majPanneauPlan();
+}
+function fermePolygone(){
+  if(!planPoly || planPoly.length < 6){
+    planPoly = null;
+    message2("Un polygone demande au moins trois sommets.");
+    dessinePlan();
+    return;
+  }
+  var F = formeNeuve(4, 0, 0);
+  F.G = planPoly.slice();
+  planFormes.push(F);
+  planSel = planFormes.length - 1;
+  planPoly = null;
+  planOutilForme = -1;
+  planApercuSale = true;
+  construitOutilsFormes(); construitListeFormes(); construitFicheForme();
+  dessinePlan(); majPanneauPlan();
+}
+
 function installePlan(){
   var cv = $("planCv");
   if(!cv) return;
@@ -399,23 +1120,30 @@ function installePlan(){
     if(planDoigt !== null) return;
     var t = ev.changedTouches ? ev.changedTouches[0] : ev;
     planDoigt = ev.changedTouches ? t.identifier : "souris";
-    /* une entrée d'historique par TRAIT, pas par zone : « Annuler »
-       doit défaire le geste, pas le pixel */
-    planPile.push(planZones.slice());
-    if(planPile.length > 40) planPile.shift();
-    if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
+    /* Une entrée d'historique par TRAIT, pas par zone : « Annuler »
+       doit défaire le geste, pas le pixel. Au compas c'est debutForme
+       qui empile, et seulement quand le geste modifie vraiment quelque
+       chose : sans ça, chaque simple sélection consommerait une place
+       et « Annuler » ne remonterait plus nulle part. */
+    if(planMode) debutForme(t.clientX, t.clientY);
+    else{
+      poussePile();
+      if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
+    }
     ev.preventDefault();
   }
   function bouge(ev){
     if(planDoigt === null) return;
     var t = ev.changedTouches ? ev.changedTouches[0] : ev;
     if(ev.changedTouches && t.identifier !== planDoigt) return;
-    if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
+    if(planMode) bougeForme(t.clientX, t.clientY);
+    else if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
     ev.preventDefault();
   }
   function fin(ev){
     if(planDoigt === null) return;
     planDoigt = null;
+    if(planMode) finForme();
     ev.preventDefault();
   }
   cv.addEventListener("touchstart", debut, { passive:false });
@@ -435,6 +1163,96 @@ function installePlan(){
   $("planDensites").addEventListener("click", function(ev){
     var e = ev.target.closest ? ev.target.closest("[data-dens]") : null;
     if(e) choisitDensitePlan(+e.getAttribute("data-dens"));
+  });
+
+  /* --- LE COMPAS : ses panneaux --- */
+  $("planModes").addEventListener("click", function(ev){
+    var e = ev.target.closest ? ev.target.closest("[data-mode]") : null;
+    if(e) basculeModePlan(+e.getAttribute("data-mode"));
+  });
+  $("planFormesOutils").addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    if(ev.target.closest("[data-suggere]")){ proposeFormes(); return; }
+    var e = ev.target.closest("[data-forme]");
+    if(!e) return;
+    /* changer d'outil abandonne un polygone commencé : le laisser en
+       suspens serait un piège, on ne le verrait plus */
+    if(planPoly && +e.getAttribute("data-forme") !== 4) planPoly = null;
+    planOutilForme = +e.getAttribute("data-forme");
+    construitOutilsFormes();
+    majPanneauPlan();
+    dessinePlan();
+  });
+  $("planListe").addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    var b;
+    if((b = ev.target.closest("[data-sup]"))){
+      poussePile();
+      var i = +b.getAttribute("data-sup");
+      planFormes.splice(i, 1);
+      if(planSel >= planFormes.length) planSel = planFormes.length - 1;
+      planApercuSale = true;
+      construitListeFormes(); construitFicheForme(); dessinePlan(); majPanneauPlan();
+      return;
+    }
+    if((b = ev.target.closest("[data-dup]"))){
+      poussePile();
+      var j = +b.getAttribute("data-dup");
+      var co = copieFormes([planFormes[j]])[0];
+      /* décalée de quelques cases : deux formes superposées à
+         l'identique sont indiscernables et impossibles à attraper */
+      decaleForme(co, 6, 6);
+      co.g = (co.g + 101) % 997;
+      planFormes.push(co);
+      planSel = planFormes.length - 1;
+      planApercuSale = true;
+      construitListeFormes(); construitFicheForme(); dessinePlan(); majPanneauPlan();
+      return;
+    }
+    if((b = ev.target.closest("[data-monte]"))){
+      poussePile();
+      var k = +b.getAttribute("data-monte");
+      if(k < planFormes.length - 1){
+        var t = planFormes[k]; planFormes[k] = planFormes[k + 1]; planFormes[k + 1] = t;
+        planSel = k + 1;
+      }
+      planApercuSale = true;
+      construitListeFormes(); construitFicheForme(); dessinePlan(); majPanneauPlan();
+      return;
+    }
+    if((b = ev.target.closest("[data-forme-i]"))) choisitForme(+b.getAttribute("data-forme-i"));
+  });
+  $("planFiche").addEventListener("click", function(ev){
+    var F = planFormes[planSel];
+    if(!F || !ev.target.closest) return;
+    var b;
+    if((b = ev.target.closest("[data-melmoins]"))){
+      poussePile(); regleMelange(F, +b.getAttribute("data-melmoins"), -0.05); formeModifiee(); return;
+    }
+    if((b = ev.target.closest("[data-melplus]"))){
+      poussePile(); regleMelange(F, +b.getAttribute("data-melplus"), 0.05); formeModifiee(); return;
+    }
+    if((b = ev.target.closest("[data-melsup]"))){
+      poussePile(); retireDuMelange(F, +b.getAttribute("data-melsup")); formeModifiee(); return;
+    }
+    if(ev.target.closest("#btMelAjoute")){
+      poussePile(); ajouteAuMelange(F, planOutil); formeModifiee(); return;
+    }
+    if(ev.target.closest("#btFixe")){
+      poussePile(); F.x = F.x ? 0 : 1; formeModifiee(); return;
+    }
+    if(ev.target.closest("#btGraine")){
+      poussePile(); F.g = (F.g + 17) % 997; F.x = 1; formeModifiee(); return;
+    }
+  });
+  $("planFiche").addEventListener("change", function(ev){
+    var F = planFormes[planSel];
+    if(!F || !ev.target.id) return;
+    poussePile();
+    if(ev.target.id === "selRep")    F.r = +ev.target.value;
+    if(ev.target.id === "selDens")   F.d = +ev.target.value;
+    if(ev.target.id === "selCouche") F.k = +ev.target.value;
+    formeModifiee();
   });
   /* L'ENTRÉE DE L'ADMINISTRATION. Elle est protégée : l'éditeur écrit
      désormais le plan de six cartes, et une fausse manœuvre d'un
@@ -456,13 +1274,15 @@ function installePlan(){
   $("btPlanFerme").addEventListener("click", fermePlan);
   $("btPlanAnnule").addEventListener("click", function(){
     if(!planPile.length) return;
-    planZones = planPile.pop();
+    var av = planPile.pop();
+    planZones = av.z; planFormes = av.f;
+    if(planSel >= planFormes.length) planSel = planFormes.length - 1;
     planApercuSale = true;
     dessinePlan(); majPanneauPlan();
   });
   $("btPlanVide").addEventListener("click", function(){
-    planPile.push(planZones.slice());
-    planZones = planVide();
+    poussePile();
+    planZones = planVide(); planFormes = []; planSel = -1;
     planApercuSale = true;
     dessinePlan(); majPanneauPlan();
   });
@@ -470,7 +1290,7 @@ function installePlan(){
      pour le salon. Le brouillon attend simplement dans ce navigateur
      et se retrouve à la prochaine ouverture de l'éditeur. */
   $("btPlanDefaut").addEventListener("click", function(){
-    var ch = encodePlan(planZones);
+    var ch = chainePlanCourante();
     if(!ch){
       alert("Rien à garder : la carte est vierge.\n\n"
           + "Peins au moins une zone, puis réessaie.");
@@ -516,7 +1336,8 @@ function comptePlan(){
     if(t === "cellule"){ cel++; continue; }
     par[t] = (par[t] || 0) + 1; n++;
   }
-  return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones) };
+  return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
+           formes:planFormes.length };
 }
 /* La fiche d'une défense, telle qu'on la lit avant de la poser :
    ce qu'elle est, puis les seuls chiffres qui changent une décision —
@@ -550,9 +1371,19 @@ function majPanneauPlan(){
   $("planTitre").textContent = "Plan — " + CARTES[planCarteIdx].nom;
   $("planCompte").innerHTML =
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
-    + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
+    + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES
+    + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
+    + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
     + "<b>" + c.cellules + "</b> cellules à récolter";
+
+  /* En mode compas, l'aide parle de ce qu'on est en train de faire :
+     l'outil choisi, ou la forme qu'on règle. */
+  if(planMode){
+    majInfoForme();
+    majAvertPlan(c);
+    return;
+  }
 
   var outil = TYPES_PLAN[planOutil];
   $("planInfo").innerHTML = planCellules
@@ -568,21 +1399,61 @@ function majPanneauPlan(){
       : "<b>Pinceau neutre</b><br>La zone repasse en défenses d'origine, "
         + "celles que la génération aurait posées toute seule.";
 
-  /* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
-     de la rendre infernale. On lui dit seulement ce qu'il fait. */
-  /* Depuis les tourelles gelées et la résolution adaptative, une carte
-     saturée reste jouable : le jeu gèle les tourelles au repos et
-     baisse la définition au besoin. On prévient encore — un petit
-     téléphone n'est pas une tablette — mais on ne condamne plus. */
+  majAvertPlan(c);
+}
+/* Un avertissement, jamais un blocage : c'est sa carte, il a le droit
+   de la rendre infernale. On lui dit seulement ce qu'il fait.
+   Depuis les tourelles gelées et la résolution adaptative, une carte
+   saturée reste jouable : le jeu gèle les tourelles au repos et baisse
+   la définition au besoin. On prévient encore — un petit téléphone
+   n'est pas une tablette — mais on ne condamne plus. */
+function majAvertPlan(c){
   var a = "";
   if(c.total + c.cellules > 4500) a = "Carte gigantesque : les petits téléphones baisseront la définition.";
   else if(c.total > 1600) a = "Carte très chargée : la partie sera longue.";
   else if(c.total < 120) a = "Très peu de défenses : la partie sera courte.";
   $("planAvert").textContent = a;
 }
+/* L'aide du compas. Elle dit d'abord ce que le geste en cours va
+   faire — c'est ce qu'on cherche quand on hésite le doigt en l'air —
+   puis, une forme sélectionnée, ce qu'elle est. */
+function majInfoForme(){
+  var e = $("planInfo"), F = planFormes[planSel];
+  if(planPoly){
+    e.innerHTML = "<b>Polygone</b><br>Touche la carte pour poser un sommet. "
+      + ((planPoly.length >> 1) < 3
+          ? "Il en faut au moins trois."
+          : "Reviens sur le premier sommet pour fermer le contour.")
+      + " <i>" + (planPoly.length >> 1) + " posé"
+      + ((planPoly.length >> 1) > 1 ? "s" : "") + ".</i>";
+    return;
+  }
+  if(planOutilForme >= 0){
+    e.innerHTML = "<b>" + FORMES_PLAN[planOutilForme].nom + "</b><br>"
+      + (planOutilForme === 4
+          ? "Touche la carte sommet par sommet."
+          : "Tire sur la carte pour la tracer — " + FORMES_PLAN[planOutilForme].desc + ".")
+      + "<br>Elle naîtra en <i>" + echappe(nomOutilPlan(planOutil)) + "</i>, "
+      + "densité <i>" + DENSITES[planDensite].nom + "</i>.";
+    return;
+  }
+  if(!F){
+    e.innerHTML = "<b>Sélectionner</b><br>Touche une forme pour la régler, "
+      + "puis tire ses poignées : la <i>jaune</i> la déplace, les "
+      + "<i>vertes</i> la redimensionnent.";
+    return;
+  }
+  var m = [], i;
+  for(i = 0; i < F.C.length; i++)
+    m.push(Math.round(partDuMelange(F, i) * 100) + " % " + nomOutilPlan(F.C[i][0]).toLowerCase());
+  e.innerHTML = "<b>" + FORMES_PLAN[F.f].nom + "</b> — " + resumeForme(F)
+    + "<br>" + (m.length ? m.join(", ") : "défenses d'origine")
+    + "<br><i>" + REPARTITIONS[F.r].nom + ", " + DENSITES[F.d].nom
+    + (F.k ? ", " + COUCHES_PLAN[F.k].toLowerCase() : "") + "</i>";
+}
 
 function validePlan(){
-  var chaine = encodePlan(planZones);
+  var chaine = chainePlanCourante();
   var nom = CARTES[planCarteIdx].nom;
   if(chaine === planCarte(planSalon, planCarteIdx)){
     alert("« " + nom + " » a déjà exactement ce plan. Rien n'a changé.");
@@ -627,8 +1498,8 @@ function restaurePlanCarte(){
     alert("« " + CARTES[planCarteIdx].nom + " » n'a aucune version enregistrée.");
     return;
   }
-  planPile.push(planZones.slice());
-  planZones = decodePlan(src);
+  poussePile();
+  chargeChaineDansEditeur(src);
   planApercuSale = true;
   dessinePlan(); majPanneauPlan();
 }
@@ -641,10 +1512,10 @@ function reculePlanCarte(){
         + "et il n'y en a " + (h.length ? "qu'un" : "aucun") + " pour l'instant.");
     return;
   }
-  var i = h.indexOf(encodePlan(planZones));
+  var i = h.indexOf(chainePlanCourante());
   var suiv = (i >= 0 && i + 1 < h.length) ? i + 1 : 1;
-  planPile.push(planZones.slice());
-  planZones = decodePlan(h[suiv]);
+  poussePile();
+  chargeChaineDansEditeur(h[suiv]);
   planApercuSale = true;
   dessinePlan(); majPanneauPlan();
   message2("Version " + (suiv + 1) + " sur " + h.length + " — la plus ancienne gardée est la n°" + h.length);
@@ -660,7 +1531,7 @@ function reinitialisePlanCarte(){
   if(mot === null) return;
   if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a été touché."); return; }
   enregistrePlanCarte(planCarteIdx, "");
-  planZones = carteSpeciale(planCarteIdx) ? decodePlan(planJungle()) : planVide();
+  chargeChaineDansEditeur(carteSpeciale(planCarteIdx) ? planJungle() : "");
   planPile = [];
   planApercuSale = true;
   majMondes(); rafraichitPlan(); construitOngletsCartes();
@@ -686,8 +1557,8 @@ function dupliquePlanCarte(){
   var src = parseInt(rep, 10);
   var ch = planCarte(planSalon, src);
   if(!ch){ alert("Cette carte n'a pas de plan enregistré."); return; }
-  planPile.push(planZones.slice());
-  planZones = decodePlan(ch);
+  poussePile();
+  chargeChaineDansEditeur(ch);
   planApercuSale = true;
   dessinePlan(); majPanneauPlan();
   message2("Plan de « " + CARTES[src].nom + " » copié. Il reste à l'enregistrer.");
@@ -707,16 +1578,31 @@ function rafraichitPlan(){
   var t = decodePlans(planSalon), l = [], i, k;
   for(i = 0; i < CARTES.length; i++){
     if(!t[i]) continue;
-    var z = decodePlan(t[i]), n = zonesPeintes(z), par = {}, j;
+    var q = partieQuadrillage(t[i]);
+    var z = q ? decodePlan(q) : planVide();
+    var n = zonesPeintes(z), par = {}, j;
     for(j = 0; j < NB_ZONES; j++){
       var ty = zoneType(z[j]);
       if(ty) par[TYPES_PLAN[ty]] = (par[TYPES_PLAN[ty]] || 0) + 1;
       if(zoneChamp(z[j])) par.cellule = (par.cellule || 0) + 1;
     }
+    /* les formes comptent aussi, et leurs mélanges avec elles */
+    var fs = decodeFormes(partieFormes(t[i])), jf, jc;
+    for(jf = 0; jf < fs.length; jf++){
+      for(jc = 0; jc < fs[jf].C.length; jc++){
+        var tf = TYPES_PLAN[fs[jf].C[jc][0]];
+        if(tf && tf !== "auto") par[tf] = (par[tf] || 0) + 1;
+      }
+      if(fs[jf].k) par.cellule = (par.cellule || 0) + 1;
+    }
     var noms = [];
     for(k in par) noms.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
-    l.push("<b>" + echappe(CARTES[i].nom) + "</b> — " + n + " zone"
-         + (n > 1 ? "s" : "") + " : " + (noms.length ? noms.join(", ") : "gommées"));
+    var quoi = [];
+    if(n)         quoi.push(n + " zone" + (n > 1 ? "s" : ""));
+    if(fs.length) quoi.push(fs.length + " forme" + (fs.length > 1 ? "s" : ""));
+    l.push("<b>" + echappe(CARTES[i].nom) + "</b> — "
+         + (quoi.length ? quoi.join(", ") : "vierge") + " : "
+         + (noms.length ? noms.join(", ") : "gommées"));
   }
   if(!l.length){
     e.textContent = "Chaque carte a ses défenses d'origine. Aucune n'a encore été dessinée.";

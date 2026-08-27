@@ -35,7 +35,12 @@ try{
     "encodeChats","decodeChats","fusionneChats","ESPECES_PROTEGEES",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere",
-    "boiteMonde","zoomAjuste","zoomPlancher","MARGE_MONDE"
+    "boiteMonde","zoomAjuste","zoomPlancher","MARGE_MONDE",
+    "FORMES_PLAN","COUCHES_PLAN","REPARTITIONS","MARQUE_FORMES","formeContient","dansPolygone",
+    "centreForme","paramForme","longForme","bruitForme","typeDeForme","sautModuleForme",
+    "encodeFormes","decodeFormes","encodePlanComplet","partieQuadrillage","partieFormes",
+    "litPlan","planEn","formeSous","planEstVide","selForme","placeDansMelange",
+    "boiteForme","tableForme","fractionAire","formeChangee","parametreRange","SEAUX_FORME"
   ].join(",") + "};")();
 }catch(e){
   console.error("Le bloc NOYAU n'est pas évaluable : " + e.message);
@@ -832,6 +837,306 @@ G("4. Déterminisme de la génération de carte");
     ok("un paquet vide, nul ou pourri ne donne aucun plan",
        N.planCarte("", 0) === "" && N.planCarte(null, 0) === "" &&
        N.planCarte("|||", 2) === "");
+  })();
+
+  /* ================================================================
+     5f. LES ZONES VECTORIELLES — dessiner au compas
+
+     Le pinceau ne sait peindre que des carrés de huit cases. Une forme
+     porte une géométrie continue, un MÉLANGE de types avec ses
+     pourcentages, une façon de le répartir et sa propre graine.
+
+     Ce que ces vérifications gardent, dans l'ordre d'importance :
+       1. un plan SANS forme donne toujours la carte d'avant, bit pour
+          bit — sinon tous les salons en cours sautent ;
+       2. une forme ne consomme AUCUN tirage du générateur, donc en
+          ajouter une ne rebat pas l'île derrière elle ;
+       3. les pourcentages demandés sont ceux qu'on obtient, quelle
+          que soit la répartition choisie.
+     ================================================================ */
+  G("5f. Les zones vectorielles — le compas");
+  (function(){
+    /* --- l'encodage --- */
+    var F1 = { f:1, k:0, d:3, r:4, x:0, g:0, G:[76, 68, 18, 34], C:[[3, 60], [4, 40]] };
+    var F2 = { f:0, k:2, d:5, r:1, x:1, g:77, G:[30, 30, 12], C:[[5, 100]] };
+    var ch = N.encodeFormes([F1, F2]);
+    ok("une forme s'écrit en clair (" + ch.length + " car.)",
+       ch === "1,0,3,4,0,0,76.68.18.34,3.60.4.40;0,2,5,1,1,77,30.30.12,5.100", ch);
+    var r = N.decodeFormes(ch);
+    ok("aller-retour sans perte", N.encodeFormes(r) === ch);
+    ok("deux formes relues, dans l'ordre où on les a posées",
+       r.length === 2 && r[0].f === 1 && r[1].f === 0 && r[1].g === 77 && r[1].x === 1);
+
+    /* défensif : une chaîne pourrie se jette, elle ne se devine pas */
+    ok("une chaîne illisible ne rend aucune forme",
+       N.decodeFormes("n'importe quoi").length === 0 &&
+       N.decodeFormes(";;;").length === 0 &&
+       N.decodeFormes(null).length === 0);
+    ok("une forme au mauvais nombre de points est jetée, les saines restent",
+       N.decodeFormes("0,0,0,0,0,0,1.2,3.100;0,0,0,0,0,0,5.5.5,3.100").length === 1);
+    ok("un type inconnu dans le mélange est ignoré",
+       N.decodeFormes("0,0,0,0,0,0,5.5.5,99.50.3.50")[0].C.length === 1);
+
+    /* --- la chaîne complète : quadrillage PUIS formes --- */
+    var z = N.planVide();
+    z[40] = N.faitZone(3, 3, 0);
+    var complet = N.encodePlanComplet(z, [F1]);
+    ok("la marque des formes ne peut pas sortir de l'alphabet des bits",
+       N.ALPHA_BITS.indexOf(N.MARQUE_FORMES) < 0 && N.MARQUE_FORMES !== "~" &&
+       N.MARQUE_FORMES !== ":" && N.MARQUE_FORMES !== "|");
+    ok("on retrouve les deux moitiés séparément",
+       N.partieQuadrillage(complet) === N.encodePlan(z) &&
+       N.partieFormes(complet) === N.encodeFormes([F1]));
+    ok("un plan sans forme n'écrit pas la marque",
+       N.encodePlanComplet(z, []).indexOf(N.MARQUE_FORMES) < 0);
+    ok("un vieux plan sans marque se lit comme un quadrillage entier",
+       N.partieQuadrillage(N.encodePlan(z)) === N.encodePlan(z) &&
+       N.partieFormes(N.encodePlan(z)) === "");
+    /* le paquet des six cartes doit survivre à tout ça */
+    var paq2 = N.encodePlans({ 0:complet, 3:N.encodePlan(z) });
+    ok("une carte à formes voyage dans le paquet des six",
+       N.planCarte(paq2, 0) === complet && N.planCarte(paq2, 3) === N.encodePlan(z));
+
+    /* --- la géométrie --- */
+    var cer = { f:0, G:[50, 50, 10] };
+    ok("le cercle contient son centre et pas le dehors",
+       N.formeContient(cer, 50, 50) && N.formeContient(cer, 59, 50) &&
+       !N.formeContient(cer, 61, 50));
+    var ann = { f:1, G:[50, 50, 5, 10] };
+    ok("l'anneau est creux",
+       !N.formeContient(ann, 50, 50) && N.formeContient(ann, 57, 50) &&
+       !N.formeContient(ann, 62, 50));
+    var rec = { f:2, G:[10, 20, 30, 40] };
+    ok("le rectangle tient dans ses bords",
+       N.formeContient(rec, 11, 21) && N.formeContient(rec, 39, 59) &&
+       !N.formeContient(rec, 41, 30) && !N.formeContient(rec, 20, 61));
+    var lig = { f:3, G:[10, 10, 50, 10, 6] };
+    ok("la ligne a une épaisseur, et s'arrête à ses bouts",
+       N.formeContient(lig, 30, 12) && !N.formeContient(lig, 30, 14) &&
+       !N.formeContient(lig, 56, 10));
+    var pol = { f:4, G:[10, 10, 40, 10, 40, 40, 10, 40] };
+    ok("le polygone se remplit correctement",
+       N.formeContient(pol, 25, 25) && !N.formeContient(pol, 5, 25) &&
+       !N.formeContient(pol, 45, 25));
+    var tri = { f:4, G:[0, 0, 20, 0, 10, 20] };
+    ok("un triangle aussi",
+       N.formeContient(tri, 10, 5) && !N.formeContient(tri, 2, 15));
+    ok("une forme sans géométrie ne contient rien",
+       !N.formeContient({ f:0, G:null }, 0, 0) &&
+       !N.dansPolygone([0, 0, 1, 1], 0.5, 0.5));
+
+    /* --- LE POINT CRITIQUE : une forme ne consomme aucun tirage --- */
+    var vierge = N.empreinteCarte(N.genereCarte("MILY", 1, "", 0));
+    var avecZ  = N.encodePlan(z);
+    ok("un plan à quadrillage seul donne EXACTEMENT la carte d'avant",
+       N.empreinteCarte(N.genereCarte("MILY", 1, avecZ, 0)) ===
+       N.empreinteCarte(N.genereCarte("MILY", 1, N.encodePlanComplet(z, []), 0)));
+    /* UNE FORME POSÉE DANS UN COIN NE CHANGE RIEN À L'AUTRE BOUT.
+       On compare deux plans qui ne diffèrent QUE par cette forme —
+       jamais un plan à une carte sans plan : le générateur a deux
+       branches, et celle qui a un plan consomme les mêmes tirages
+       qu'elle garde le nœud ou non. C'est justement ce qui rend un
+       coup de pinceau local. */
+    var socle = { f:2, k:0, d:2, r:0, x:1, g:9, G:[60, 10, 40, 60], C:[[5, 100]] };
+    var coin  = { f:0, k:0, d:3, r:0, x:1, g:1, G:[20, 20, 8], C:[[3, 100]] };
+    var A = N.genereCarte("MILY", 1, N.encodePlanComplet(N.planVide(), [socle, coin]), 0);
+    var B = N.genereCarte("MILY", 1, N.encodePlanComplet(N.planVide(), [socle]), 0);
+    var loin = function(m){
+      return m.batiments.filter(function(b){
+        return !b.sup && b.t !== "cellule" && b.t !== "mirador" && b.t !== "reacteur" &&
+               Math.hypot(b.gx - 20, b.gy - 20) > 14;
+      }).map(function(b){ return b.t + "@" + b.gx.toFixed(3) + "," + b.gy.toFixed(3); }).join("|");
+    };
+    ok("hors de la forme, pas une défense n'a bougé d'un millième de case",
+       loin(A) === loin(B));
+    ok("mais dedans, la forme a bien imposé son type",
+       A.batiments.filter(function(b){
+         return b.t === "frelon" && Math.hypot(b.gx - 20, b.gy - 20) <= 8;
+       }).length > 0);
+
+    /* --- les proportions --- */
+    /* On échantillonne le mélange sur une grille fine, pour toutes les
+       répartitions : aucune n'a le droit de trahir les pourcentages. */
+    function mesure(rep){
+      var F = { f:2, k:0, d:0, r:rep, x:1, g:5, G:[0, 0, 100, 100],
+                C:[[3, 70], [4, 30]] };
+      var n = { }, i, j, tot = 0;
+      for(i = 0; i < 100; i++) for(j = 0; j < 100; j++){
+        var t = N.typeDeForme(F, i, j, 0);
+        n[t] = (n[t] || 0) + 1; tot++;
+      }
+      return (n[3] || 0) / tot;
+    }
+    var mauvaises = [];
+    for(var rp = 0; rp < N.REPARTITIONS.length; rp++){
+      var p = mesure(rp);
+      if(Math.abs(p - 0.70) > 0.045) mauvaises.push(N.REPARTITIONS[rp].nom + " " + p.toFixed(3));
+    }
+    ok("les sept répartitions tiennent le 70 / 30 demandé", mauvaises.length === 0,
+       mauvaises.join(", "));
+
+    /* LE PIÈGE DE LA FRACTION D'AIRE, gardé pour de bon.
+       « 70 % au cœur » rangé d'après le RAYON donnait 38 % — soit
+       π·0,7²/4, la surface d'un disque de sept dixièmes de rayon dans
+       un carré. Le curseur du joueur aurait menti d'un facteur deux.
+       La table mesurée sur la forme est ce qui l'en empêche. */
+    var disq = { f:0, k:0, d:0, r:4, x:1, g:1, G:[0, 0, 50], C:[[3, 70], [4, 30]] };
+    ok("sur un disque, la moitié du rayon ne fait que le quart de l'aire",
+       Math.abs(N.fractionAire(disq, 0.5) - 0.25) < 0.03,
+       N.fractionAire(disq, 0.5).toFixed(3));
+    ok("et la table est monotone de 0 à 1",
+       N.fractionAire(disq, 0) < 0.02 && Math.abs(N.fractionAire(disq, 1) - 1) < 0.02 &&
+       N.fractionAire(disq, 0.3) < N.fractionAire(disq, 0.7));
+    /* la preuve sur le mélange lui-même, disque cette fois */
+    (function(){
+      var n3 = 0, tot = 0, i, j;
+      for(i = -50; i <= 50; i += 2) for(j = -50; j <= 50; j += 2){
+        if(!N.formeContient(disq, i, j)) continue;
+        if(N.typeDeForme(disq, i, j, 0) === 3) n3++;
+        tot++;
+      }
+      ok("un disque concentré au cœur tient aussi le 70 / 30 ("
+         + (n3 / tot * 100).toFixed(1) + " %)", Math.abs(n3 / tot - 0.70) < 0.05);
+    })();
+    ok("la table se recalcule quand la forme change",
+       (function(){
+         var F = { f:0, r:4, G:[0, 0, 10] };
+         N.tableForme(F);
+         var avant = F._q;
+         F.G = [0, 0, 40]; N.formeChangee(F);
+         return F._q === null && N.tableForme(F) !== avant;
+       })());
+
+    /* et l'harmonieux mérite son nom : moins de paquets que le hasard */
+    function plusLongPaquet(rep){
+      var F = { f:2, k:0, d:0, r:rep, x:1, g:5, G:[0, 0, 100, 100], C:[[3, 50], [4, 50]] };
+      var pire = 0, i, j, suite = 0, av = -1;
+      for(j = 0; j < 60; j++){
+        suite = 0; av = -1;
+        for(i = 0; i < 60; i++){
+          var t = N.typeDeForme(F, i, j, 0);
+          suite = (t === av) ? suite + 1 : 1; av = t;
+          if(suite > pire) pire = suite;
+        }
+      }
+      return pire;
+    }
+    var pqHasard = plusLongPaquet(0), pqHarm = plusLongPaquet(1);
+    ok("« harmonieux » fait des paquets plus courts que « au hasard » ("
+       + pqHarm + " contre " + pqHasard + ")", pqHarm < pqHasard);
+
+    /* --- concentré : la densité varie vraiment --- */
+    var coeur = { f:0, k:0, d:3, r:4, x:1, g:0, G:[50, 50, 30], C:[[3, 100]] };
+    ok("« cœur » saute davantage de nœuds au bord qu'au centre",
+       N.sautModuleForme(coeur, 50, 50) < N.sautModuleForme(coeur, 50, 75) - 0.2,
+       N.sautModuleForme(coeur, 50, 50).toFixed(3) + " au centre, " +
+       N.sautModuleForme(coeur, 50, 75).toFixed(3) + " au bord");
+    var pour = { f:0, k:0, d:3, r:5, x:1, g:0, G:[50, 50, 30], C:[[3, 100]] };
+    ok("« pourtour » fait exactement l'inverse",
+       N.sautModuleForme(pour, 50, 50) > N.sautModuleForme(pour, 50, 75) + 0.2);
+    ok("une répartition sans concentration ne touche pas à la densité",
+       N.sautModuleForme({ f:0, d:3, r:0, G:[50, 50, 30] }, 50, 50) ===
+       N.sautModuleForme({ f:0, d:3, r:0, G:[50, 50, 30] }, 50, 75));
+
+    /* --- la graine propre --- */
+    var fixe  = { f:2, k:0, d:0, r:0, x:1, g:3, G:[0, 0, 40, 40], C:[[3, 50], [4, 50]] };
+    var libre = { f:2, k:0, d:0, r:0, x:0, g:3, G:[0, 0, 40, 40], C:[[3, 50], [4, 50]] };
+    function motif(F, tir){
+      var s = "", i;
+      for(i = 0; i < 200; i++) s += N.typeDeForme(F, i % 40, (i / 40) | 0, tir);
+      return s;
+    }
+    ok("une forme FIXE se rejoue à l'identique d'un tirage à l'autre",
+       motif(fixe, 0) === motif(fixe, 7) && motif(fixe, 0) === motif(fixe, 128));
+    ok("une forme libre suit le tirage du salon",
+       motif(libre, 0) !== motif(libre, 7));
+    ok("mais reste stable à tirage égal", motif(libre, 7) === motif(libre, 7));
+
+    /* --- la pile de calques : la dernière posée gagne --- */
+    var bas  = { f:2, k:0, d:0, r:0, x:1, g:0, G:[0, 0, 100, 100], C:[[3, 100]] };
+    var haut = { f:0, k:0, d:0, r:0, x:1, g:0, G:[50, 50, 10], C:[[4, 100]] };
+    var Pp = N.litPlan(N.encodePlanComplet(N.planVide(), [bas, haut]), 0);
+    ok("la forme du dessus l'emporte sur celle du dessous",
+       N.TYPES_PLAN[N.planEn(Pp, 50, 50).t] === "pilon" &&
+       N.TYPES_PLAN[N.planEn(Pp, 10, 10).t] === "frelon");
+    ok("et hors de tout, on retombe sur « auto »",
+       N.planEn(Pp, 130, 10).t === 0);
+
+    /* --- les formes l'emportent sur le pinceau, jamais l'inverse --- */
+    var zz = N.planVide(), q;
+    for(q = 0; q < N.NB_ZONES; q++) zz[q] = N.faitZone(5, 2, 0);       // tout en Bobines
+    var mixte = N.litPlan(N.encodePlanComplet(zz, [haut]), 0);
+    ok("une forme recouvre le quadrillage peint dessous",
+       N.TYPES_PLAN[N.planEn(mixte, 50, 50).t] === "pilon" &&
+       N.TYPES_PLAN[N.planEn(mixte, 10, 10).t] === "bobine");
+
+    /* --- les couches --- */
+    var cel = { f:0, k:1, d:0, r:0, x:1, g:0, G:[50, 50, 10], C:[[4, 100]] };
+    var Pc = N.litPlan(N.encodePlanComplet(zz, [cel]), 0);
+    ok("la couche « cellules » sème sans toucher aux défenses",
+       N.planEn(Pc, 50, 50).ch === 1 &&
+       N.TYPES_PLAN[N.planEn(Pc, 50, 50).t] === "bobine");
+    var deux2 = { f:0, k:2, d:0, r:0, x:1, g:0, G:[50, 50, 10], C:[[4, 100]] };
+    var Pd = N.litPlan(N.encodePlanComplet(zz, [deux2]), 0);
+    ok("la couche « les deux » fait les deux",
+       N.planEn(Pd, 50, 50).ch === 1 &&
+       N.TYPES_PLAN[N.planEn(Pd, 50, 50).t] === "pilon");
+
+    /* --- et la preuve sur la carte générée --- */
+    var anneau = { f:1, k:0, d:3, r:0, x:1, g:0, G:[N.QG_GX, N.QG_GY, 16, 30],
+                   C:[[3, 100]] };
+    var M = N.genereCarte("MILY", 1, N.encodePlanComplet(N.planVide(), [anneau]), 0);
+    var dans = 0, dehors = 0;
+    M.batiments.forEach(function(b){
+      if(b.t !== "frelon") return;
+      var dd = Math.hypot(b.gx - N.QG_GX, b.gy - N.QG_GY);
+      if(dd >= 16 && dd <= 30) dans++; else dehors++;
+    });
+    ok("un anneau de Frelons autour du Brasier en pose " + dans + " dedans",
+       dans > 40, dans + " dedans, " + dehors + " ailleurs (la génération en met aussi)");
+
+    /* --- LA GOMME FORTE TIENT SA PROMESSE, JUSQU'À LA DERNIÈRE CELLULE ---
+       Elle annonce « plus rien ne pousse ici : ni défense, ni renfort,
+       ni mirador, ni champ de cellules ». Une grappe de récolte est
+       pourtant semée en spirale sur près de quatre cases : décidée au
+       seul centre de sa zone, elle débordait dans le couloir voisin.
+       Mesuré avant correction : vingt-neuf cellules dans un couloir
+       censé être nu. */
+    (function(){
+      var champ   = { f:2, k:2, d:2, r:1, x:1, g:5, G:[90, 20, 30, 90], C:[[5, 100]] };
+      var couloir = { f:3, k:0, d:0, r:0, x:1, g:3, G:[136, 68, 20, 68, 11], C:[[8, 100]] };
+      var M2 = N.genereCarte("MILY", 1,
+                 N.encodePlanComplet(N.planVide(), [champ, couloir]), 0);
+      /* LE SEUL SURVIVANT LÉGITIME : la cellule électrique du bouclier.
+         Le briefing annonce « PROTÉGÉ — 5 cellules électriques », et
+         l'une des cinq est posée au milieu exact de l'île. C'est une
+         règle du jeu, pas un décor : aucun plan ne doit pouvoir en
+         effacer une, sans quoi le bouclier promis au joueur
+         dépendrait de l'endroit où l'admin a passé la gomme. */
+      var dedans = M2.batiments.filter(function(b){
+        return b.t !== "reacteur" && N.formeContient(couloir, b.gx, b.gy);
+      });
+      var quoi = {};
+      dedans.forEach(function(b){ quoi[b.t] = (quoi[b.t] || 0) + 1; });
+      ok("un couloir gommé reste NU, cellules comprises", dedans.length === 0,
+         dedans.length + " intrus : " + JSON.stringify(quoi));
+      ok("mais la gomme n'emporte JAMAIS les cinq cellules du bouclier",
+         M2.batiments.filter(function(b){ return b.t === "reacteur"; }).length === 5);
+      /* et le champ, lui, a bien été semé — sinon la vérification
+         d'au-dessus passerait pour de mauvaises raisons */
+      ok("pendant que le champ voisin sème bien sa récolte",
+         M2.batiments.filter(function(b){ return b.t === "cellule"; }).length > 200);
+    })();
+
+    /* --- un plan de formes seules EST un plan --- */
+    ok("des formes sans une seule zone peinte suffisent à faire un plan",
+       N.litPlan(N.encodePlanComplet(N.planVide(), [anneau]), 0) !== null);
+    ok("un plan totalement vide n'est pas un plan",
+       N.litPlan(N.encodePlanComplet(N.planVide(), []), 0) === null &&
+       N.litPlan("", 0) === null);
+    ok("planEstVide dit vrai quand il n'y a rien",
+       N.planEstVide(null) &&
+       !N.planEstVide(N.litPlan(N.encodePlanComplet(N.planVide(), [anneau]), 0)));
   })();
 
   G("5d. Mily dans la jungle — la carte événement");

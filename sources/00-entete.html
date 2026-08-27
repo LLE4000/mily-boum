@@ -129,6 +129,45 @@ select.champ{cursor:pointer}
 }
 .pz i{width:11px;height:11px;border-radius:3px;flex:none}
 .pz.on{border-color:var(--braise);background:#2c1c34;box-shadow:0 0 0 2px rgba(255,138,30,.22)}
+#planBlocPinceau,#planBlocFormes{display:flex;flex-direction:column;gap:10px}
+
+/* ---- LA LISTE DES FORMES ----
+   Une ligne par forme, la dernière posée en haut : c'est elle qui
+   recouvre les autres, et l'œil attend de la trouver au sommet de la
+   pile. Les boutons de rangement sont à droite, larges au doigt. */
+#planListe{display:flex;flex-direction:column;gap:4px;max-height:30vh;overflow-y:auto}
+.pfo{
+  display:flex;align-items:center;gap:6px;cursor:pointer;
+  background:#1d1428;border:1px solid rgba(255,168,72,.18);border-radius:9px;
+  padding:5px 7px;font-size:12px;color:var(--texte);
+}
+.pfo.on{border-color:#5adc8c;background:#12301f;box-shadow:0 0 0 2px rgba(90,220,140,.20)}
+.pfo .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pfo .g{font-size:10px;color:var(--gris);flex:none}
+.pfo b{font-weight:600;color:#cfe9d8}
+.pfo em{font-style:normal;display:flex;gap:2px;flex:none}
+.pfo em s{width:9px;height:9px;border-radius:2px;text-decoration:none;display:block}
+.pfa{
+  flex:none;width:26px;height:26px;border-radius:7px;border:1px solid rgba(255,168,72,.22);
+  background:#241a30;color:var(--texte);font-size:13px;line-height:1;cursor:pointer;padding:0;
+}
+.pfa:active{background:#3a2a4a}
+.pfa.danger{color:#ff8a9a;border-color:rgba(255,90,110,.35)}
+
+/* ---- LA FICHE DE LA FORME SÉLECTIONNÉE ---- */
+#planFiche{display:flex;flex-direction:column;gap:8px}
+#planFiche .tt{font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--braise)}
+#planFiche select{
+  width:100%;background:#1d1428;color:var(--texte);font-size:12.5px;
+  border:1px solid rgba(255,168,72,.22);border-radius:8px;padding:6px 7px;
+}
+#planFiche .rg{display:flex;align-items:center;gap:6px}
+.pcp{display:flex;align-items:center;gap:5px;font-size:12px}
+.pcp i{width:11px;height:11px;border-radius:3px;flex:none}
+.pcp .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcp .pc{width:40px;text-align:right;font-variant-numeric:tabular-nums;color:var(--or)}
+.planAide{font-size:11.5px;color:var(--gris);line-height:1.4}
+.planAide b{color:#8ff0b4}
 /* En portrait l'outillage passe SOUS la carte : sur un téléphone tenu
    droit, une colonne de 280 px ne laisserait presque rien à peindre. */
 @media (max-aspect-ratio:1/1){
@@ -674,10 +713,29 @@ select.champ{cursor:pointer}
   <div id="planCorps">
     <div id="planScene"><canvas id="planCv"></canvas></div>
     <div id="planOutils">
+      <!-- DEUX FAÇONS DE DESSINER, et elles cohabitent sur la même
+           carte : le pinceau peint des zones de huit cases, le compas
+           trace des formes continues. Les formes passent PAR-DESSUS. -->
+      <div class="pzs" id="planModes">
+        <div class="pz on" data-mode="0"><i style="background:#8f86a0"></i>Pinceau</div>
+        <div class="pz" data-mode="1"><i style="background:#5adc8c"></i>Formes</div>
+      </div>
       <div id="planInfo">Choisis une défense, puis peins la carte au doigt.</div>
-      <div class="pzs" id="planPalette"></div>
-      <div id="planSousTitre">Densité de remplissage</div>
-      <div class="pzs" id="planDensites"></div>
+
+      <!-- ---- LE PINCEAU ---- -->
+      <div id="planBlocPinceau">
+        <div class="pzs" id="planPalette"></div>
+        <div id="planSousTitre">Densité de remplissage</div>
+        <div class="pzs" id="planDensites"></div>
+      </div>
+
+      <!-- ---- LE COMPAS ---- -->
+      <div id="planBlocFormes" style="display:none">
+        <div class="pzs" id="planFormesOutils"></div>
+        <div id="planListe"></div>
+        <div id="planFiche"></div>
+      </div>
+
       <div id="planCompte"></div>
       <div class="ligne">
         <button id="btPlanAnnule" class="bt ptt">↶ Annuler</button>

@@ -588,7 +588,7 @@ function dessineLueursVegetation(c, tps){
    ait besoin de circuler sur le réseau.
    ================================================================ */
 var MET_NUAGE   = "18,32,34";       // le ventre du nuage, presque noir
-var MET_NUAGE_H = "150,174,166";    // sa crête, qui prend ce qui reste de jour
+var MET_NUAGE_H = "176,198,188";    // sa crête, qui prend ce qui reste de jour
 /* La hauteur de la couche, en unités locales — la même pour les trois.
    Un ciel d'orage est une NAPPE : trois nuages à trois altitudes
    différentes se liraient comme trois objets sans rapport. C'est aussi
@@ -613,51 +613,84 @@ function spritesNuage(){
     var cv = nouveauCanvas(512, 256);
     var g = cv.getContext("2d");
     var al = prng(0x4E51 + v * 977);
-    var n = 10 + ((al() * 5) | 0), i;
+    var n = 13 + ((al() * 5) | 0), i;
 
-    /* LA VIRGA — le rideau de pluie qui pend sous le ventre. C'est la
-       signature d'un nuage d'orage, et c'est ce qui relie la masse du
-       ciel à la pluie qui tombe partout ailleurs. Peint EN PREMIER :
-       il doit passer derrière le ventre, pas devant. */
+    /* 1. LA MASSE. Des lobes très opaques qui se recouvrent largement :
+       ce qu'on cherche, c'est une SILHOUETTE franche à bords mous, pas
+       un brouillard. Le premier essai empilait des lobes translucides
+       et donnait une nappe grise indistincte des ombres du sol. */
+    for(i = 0; i < n; i++){
+      var x = 74 + al() * 364, r = 62 + al() * 96;
+      var y = 148 + (al() - 0.5) * 40;
+      g.globalAlpha = 0.62 + al() * 0.38;
+      g.drawImage(db, x - r, y - r * 0.62, r * 2, r * 1.24);
+    }
+    /* le dessous, plus lourd et plus déchiqueté : c'est le ventre d'un
+       nuage de pluie, il pend */
+    for(i = 0; i < 5; i++){
+      var xb = 110 + al() * 292, rb = 40 + al() * 54;
+      g.globalAlpha = 0.55 + al() * 0.35;
+      g.drawImage(db, xb - rb, 176 + al() * 16 - rb * 0.5, rb * 2, rb * 0.9);
+    }
+
+    /* 2. LE LISERÉ DU DESSUS, fabriqué par SOUSTRACTION.
+       C'est LE point de tout ce sprite, et les deux essais précédents
+       s'y sont cassé les dents. Un nuage rendu par un dégradé clair
+       vers le haut donne une nappe pâle qui, posée sur une jungle
+       sombre, se lit comme de la brume — jamais comme un objet. Ce qui
+       fait un objet, c'est un BORD.
+       On recopie donc la masse sur un canevas à part, on lui SOUSTRAIT
+       la même masse décalée de douze pixels vers le bas, et il ne
+       reste que la bande du haut — le contour supérieur exact de la
+       silhouette, épais et mou comme il faut. Peint en clair par
+       dessus, c'est le dessus d'un nuage qui prend ce qui reste de
+       jour, et la masse en dessous peut rester franchement noire. */
+    var lis = nouveauCanvas(512, 256);
+    var gl2 = lis.getContext("2d");
+    gl2.drawImage(cv, 0, 0);
+    gl2.globalCompositeOperation = "destination-out";
+    gl2.drawImage(cv, 0, 12);
+    gl2.globalCompositeOperation = "source-in";
+    gl2.fillStyle = "rgba(" + MET_NUAGE_H + ",1)";
+    gl2.fillRect(0, 0, 512, 256);
+
+    /* un peu de jour AU-DESSUS de la ligne médiane, dans la silhouette
+       et nulle part ailleurs : « source-atop » interdit à ce qu'on
+       peint de déborder de ce qui est déjà là */
+    g.globalCompositeOperation = "source-atop";
+    g.globalAlpha = 1;
+    var gl = g.createLinearGradient(0, 58, 0, 156);
+    gl.addColorStop(0, "rgba(" + MET_NUAGE_H + ",0.26)");
+    gl.addColorStop(1, "rgba(" + MET_NUAGE_H + ",0)");
+    g.fillStyle = gl;
+    g.fillRect(0, 0, 512, 256);
+    /* quelques bosses éclairées : sans elles, le dessus est un dégradé
+       trop propre et le nuage retombe à un objet lisse */
+    for(i = 0; i < 6; i++){
+      var x3 = 120 + al() * 272, r3 = 30 + al() * 44;
+      g.globalAlpha = 0.11 + al() * 0.15;
+      g.drawImage(dh, x3 - r3, 78 + (al() - 0.5) * 36 - r3 * 0.55, r3 * 2, r3 * 1.05);
+    }
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 0.60;
+    g.drawImage(lis, 0, 0);
+
+    /* 3. LA VIRGA — le rideau de pluie qui pend sous le ventre. C'est
+       la signature d'un nuage d'orage, et c'est ce qui relie la masse
+       du ciel à la pluie qui tombe partout ailleurs. Elle DÉBORDE du
+       nuage vers le bas : on repasse donc en source-over. */
+    g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     g.lineCap = "butt";
-    g.strokeStyle = "rgba(" + MET_PLUIE + ",0.10)";
-    g.lineWidth = 2.2;
+    g.strokeStyle = "rgba(" + MET_PLUIE + ",0.085)";
+    g.lineWidth = 2.4;
     g.beginPath();
-    for(i = 0; i < 26; i++){
-      var vx = 96 + al() * 320;
-      var vy = 150 + al() * 20;
+    for(i = 0; i < 30; i++){
+      var vx = 104 + al() * 304, vy = 172 + al() * 18;
       g.moveTo(vx, vy);
-      g.lineTo(vx + 9, vy + 42 + al() * 52);
+      g.lineTo(vx + 10, vy + 34 + al() * 44);
     }
     g.stroke();
-
-    /* le ventre : des lobes bas, larges, franchement écrasés */
-    for(i = 0; i < n; i++){
-      var x = 62 + al() * 388, r = 56 + al() * 104;
-      var y = 156 + (al() - 0.5) * 34;
-      g.globalAlpha = 0.42 + al() * 0.44;
-      g.drawImage(db, x - r, y - r * 0.58, r * 2, r * 1.16);
-    }
-    /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
-       et rien d'autre qui donne le volume : sans lui, un nuage n'est
-       qu'une tache sombre, et une tache sombre posée sur une jungle
-       déjà pleine d'ombres ne se lit plus du tout — c'était le défaut
-       du premier essai, où l'on ne distinguait plus les nuages de la
-       nappe d'ombres au sol. */
-    for(i = 0; i < n - 2; i++){
-      var x2 = 92 + al() * 328, r2 = 40 + al() * 64;
-      g.globalAlpha = 0.20 + al() * 0.26;
-      g.drawImage(dh, x2 - r2, 84 + (al() - 0.5) * 26 - r2 * 0.55, r2 * 2, r2 * 1.05);
-    }
-    /* deux ou trois bourgeons tout en haut : la tête d'un cumulus qui
-       monte. Ils cassent la ligne d'horizon du nuage, sans quoi la
-       silhouette reste un ovale. */
-    for(i = 0; i < 3; i++){
-      var x3 = 150 + al() * 212, r3 = 34 + al() * 40;
-      g.globalAlpha = 0.16 + al() * 0.20;
-      g.drawImage(dh, x3 - r3, 46 + al() * 22 - r3 * 0.5, r3 * 2, r3 * 1.0);
-    }
     metSpNuages.push(cv);
   }
   return metSpNuages;
@@ -727,7 +760,7 @@ function dessineNuagesJungle(c, tps){
     var x = Math.round(p.x - w / 2);
     var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = 0.46;
+    c.globalAlpha = 0.58;
     c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();

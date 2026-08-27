@@ -594,8 +594,10 @@ function genereCarte(codeSalon, index, plan, tirage){
      chaîne corrompue — ou un plan que le joueur vient de tout gommer —
      aurait donné une carte différente de la carte d'origine tout en
      n'exprimant aucune intention. */
-  var zones = (plan && typeof plan === "string" && plan.length) ? decodePlan(plan) : null;
-  if(zones && !zonesPeintes(zones)) zones = null;
+  /* P porte TOUT ce que le plan sait dire : le quadrillage peint au
+     doigt et les formes tracées au compas. genereCarte ne les
+     distingue plus — il pose une question, planEn répond. */
+  var P = (plan && typeof plan === "string" && plan.length) ? litPlan(plan, tirage) : null;
   var c = {
     index:index, graine:gr, nom:fic.nom, biome:fic.biome, tirage:tirage,
     batiments:[], rochers:[], decors:[], creatures:[],
@@ -626,14 +628,13 @@ function genereCarte(codeSalon, index, plan, tirage){
          en saute ici, et quel type on y pose. Elle ne décide RIEN
          d'autre — la position, le jitter et l'orientation restent
          tirés comme avant. */
-      var z  = zones ? zones[zoneDePlan(lx, ly)] : 0;
-      var zt = zoneType(z), zd = zoneDens(z);
-      var saut = zd ? DENSITES[zd].saut : 0.28;
+      var Q = P ? planEn(P, lx, ly) : null;
+      var saut = Q ? Q.saut : 0.28;
       var dx = lx - QG_GX, dy = ly - QG_GY;
       var d = Math.hypot(dx, dy);
       var tAuto, rSaut, gx, gy, ang;
 
-      if(zones){
+      if(P){
         /* AVEC PLAN : chaque nœud consomme le MÊME nombre de tirages,
            qu'on le garde ou qu'on le saute. C'est ce qui fait qu'un
            coup de pinceau ne change que ce qu'il touche. Court-circuiter
@@ -663,7 +664,7 @@ function genereCarte(codeSalon, index, plan, tirage){
         ang = al() * 6.2832;
       }
 
-      var t = zt ? TYPES_PLAN[zt] : tAuto;
+      var t = (Q && Q.t) ? TYPES_PLAN[Q.t] : tAuto;
       /* LA GOMME FORTE. Le test vient APRÈS tous les tirages : on
          consomme la séquence puis on jette le résultat, sinon effacer
          une zone rebattrait toute l'île derrière elle. */
@@ -690,7 +691,7 @@ function genereCarte(codeSalon, index, plan, tirage){
       /* La gomme forte emporte aussi les champs. Comme partout, on
          décide APRÈS avoir consommé les tirages du champ : seule la
          pose est annulée, jamais la séquence. */
-      var champVide = zones && zoneEstVide(zones[zoneDePlan(fx, fy)]);
+      var champVide = P ? planEn(P, fx, fy).vide : 0;
       if(!champVide) c.champs.push({ gx:fx, gy:fy, n:n });
       var fc = DEF.cellule;
       for(var k = 0; k < n; k++){
@@ -701,6 +702,13 @@ function genereCarte(codeSalon, index, plan, tirage){
         if(bx < 4 || bx > PLAGE_X0 - 2 || by < 3 || by > GH - 4) continue;
         var angc = al() * 6.2832;
         if(champVide) continue;
+        /* CELLULE PAR CELLULE, et pas seulement au centre du champ.
+           Une grappe est semée en spirale sur près de trois cases :
+           décidée au seul centre, elle débordait dans la zone voisine
+           et la gomme forte n'y pouvait rien. Mesuré : vingt-neuf
+           cellules dans un couloir censé être nu. Le test vient après
+           tous les tirages, comme partout. */
+        if(P && planEn(P, bx, by).vide) continue;
         c.batiments.push({
           t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
           ang:angc, vivant:1, n:c.batiments.length
@@ -846,15 +854,14 @@ function genereCarte(codeSalon, index, plan, tirage){
      hasard. */
   for(var sx = 8.5; sx <= PLAGE_X0 - 5; sx += 5){
     for(var sy = 5.5; sy <= GH - 6; sy += 5){
-      var zs  = zones ? zones[zoneDePlan(sx, sy)] : 0;
-      var zts = zoneType(zs), zds = zoneDens(zs);
+      var Qs = P ? planEn(P, sx, sy) : null;
       /* La proportion gardée suit celle de la zone : un secteur
          clairsemé reçoit un renfort clairsemé, un secteur saturé un
          renfort saturé. 0,1486 est le rapport qui donne +15 % du
          quadrillage d'origine, lequel en garde 72 %.
          « Surchargé » court-circuite ce rapport et remplit aussi
          l'entre-deux : c'est là que la carte double de densité. */
-      var sautSup = sautRenfort(zds);
+      var sautSup = Qs ? Qs.sautSup : sautRenfort(0);
       /* Tirages consommés que le nœud soit gardé ou non : un coup de
          pinceau ne doit décaler la séquence de personne d'autre. */
       var rs  = al();
@@ -867,7 +874,7 @@ function genereCarte(codeSalon, index, plan, tirage){
                             : tirePondere(al, bandeLoin);
       if(rs < sautSup) continue;
       if(Math.abs(sx - QG_GX) <= 10 && Math.abs(sy - QG_GY) <= 10) continue;
-      var ts = zts ? TYPES_PLAN[zts] : tAutoS;
+      var ts = (Qs && Qs.t) ? TYPES_PLAN[Qs.t] : tAutoS;
       if(ts === "vide") continue;                    // la gomme forte
       var fs = DEF[ts];
       c.batiments.push({
@@ -904,7 +911,7 @@ function genereCarte(codeSalon, index, plan, tirage){
       if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
       /* la gomme forte vaut aussi pour les miradors — c'est même son
          intérêt principal, ce sont eux qui verrouillent le terrain */
-      if(zones && zoneEstVide(zones[zoneDePlan(gxm, gym)])) continue;
+      if(P && planEn(P, gxm, gym).vide) continue;
       /* on ne le plante pas dans un bâtiment déjà posé */
       var placeLibre = 1;
       for(var jm = 0; jm < c.batiments.length; jm++){
@@ -949,12 +956,17 @@ function genereCarte(codeSalon, index, plan, tirage){
      En toute fin de fonction, après les chats : ces tirages-là
      dépendent du plan, et le plan ne doit décaler ni les bâtiments
      (leur indice porte le bitmap des destructions) ni les bestioles. */
-  if(zones){
+  if(P){
     var fcp = DEF.cellule;
     for(var zi = 0; zi < NB_ZONES; zi++){
-      if(!zoneChamp(zones[zi])) continue;
       var zcx = ((zi % ZONES_L) + 0.5) * PAS_ZONE;
       var zcy = (((zi / ZONES_L) | 0) + 0.5) * PAS_ZONE;
+      /* Le pinceau à cellules ET les formes en couche « cellules »
+         passent par la même question : on demande au plan, au centre
+         de la zone, s'il veut de la récolte ici. Les champs restent
+         donc calés sur le quadrillage — une forme plus petite qu'une
+         zone n'en sèmera pas, et l'éditeur le dit. */
+      if(!planEn(P, zcx, zcy).ch) continue;
       if(Math.hypot(zcx - QG_GX, zcy - QG_GY) < 12) continue;
       c.champs.push({ gx:zcx, gy:zcy, n:NB_CELL_PEINTES });
       for(var kp = 0; kp < NB_CELL_PEINTES; kp++){
@@ -965,6 +977,9 @@ function genereCarte(codeSalon, index, plan, tirage){
         var bxp = zcx + Math.cos(ap) * rp, byp = zcy + Math.sin(ap) * rp * 0.92;
         var angp = al() * 6.2832;
         if(bxp < 4 || bxp > PLAGE_X0 - 2 || byp < 3 || byp > GH - 4) continue;
+        /* même raison qu'au-dessus, et ici la grappe est plus large
+           encore : quatre cases de rayon */
+        if(planEn(P, bxp, byp).vide) continue;
         c.batiments.push({
           t:"cellule", gx:bxp, gy:byp, pv:fcp.pv, pvMax:fcp.pv, e:fcp.emprise,
           ang:angp, vivant:1, n:c.batiments.length
@@ -1778,6 +1793,465 @@ function planDeCarte(index, paquetSalon){
     return planCarte(paquetSalon, index) || planJungle();
   }
   return planCarte(paquetSalon, index);
+}
+
+/* ================================================================
+   LES ZONES VECTORIELLES — dessiner au compas, plus seulement au doigt
+
+   LE PINCEAU NE SUFFIT PLUS. Peindre des carrés de huit cases donne
+   des cartes en escalier : on ne sait pas tracer un anneau de Frelons
+   autour du Brasier, ni une ligne de Pilons en travers de l'île, ni
+   un massif qui se vide vers ses bords. Le quadrillage n'est pas un
+   défaut de l'éditeur, c'est la limite de son MODÈLE — un octet par
+   zone ne peut porter qu'un type et une densité.
+
+   CE QU'UNE FORME PORTE, ET QUE LA ZONE NE POUVAIT PAS :
+     — une géométrie continue, au dixième de case et non au bloc de
+       huit ;
+     — une COMPOSITION : « 60 % de Frelons, 30 % de Pilons, 10 % de
+       rien », là où la zone ne connaissait qu'un seul type ;
+     — une RÉPARTITION : le même mélange semé au hasard, ou étalé au
+       plus égal, ou en damier, ou concentré au cœur ;
+     — sa propre graine, pour qu'un massif reste identique d'une
+       partie à l'autre pendant que le reste de l'île se rejoue.
+
+   COMMENT ELLE COHABITE AVEC LE PINCEAU. Les formes sont une couche
+   AU-DESSUS du quadrillage, pas à sa place. Pour un point donné on
+   demande d'abord aux formes — la dernière posée l'emporte — et à
+   défaut on retombe sur la zone peinte, et à défaut sur « auto ».
+   Un plan sans forme se comporte donc exactement comme avant, au bit
+   près : c'est la seule façon de ne pas casser les salons en cours.
+
+   LA RÈGLE QUI COMMANDE TOUT LE RESTE : une forme ne consomme AUCUN
+   tirage du générateur. Tout ce qu'elle décide — quel type ici,
+   quelle densité là — sort d'un hachage de la position. Sans ça,
+   ajouter un cercle dans un coin rebattrait toute l'île derrière lui,
+   et l'éditeur deviendrait inutilisable : on ne dessine pas quand
+   chaque trait redessine le reste.
+   ================================================================ */
+
+/* L'ordre est GRAVÉ, comme celui des types : il est encodé dans les
+   plans qui circulent entre les joueurs. On ajoute à la fin. */
+var FORMES_PLAN = [
+  { nom:"Cercle",    n:3, desc:"centre et rayon" },
+  { nom:"Anneau",    n:4, desc:"centre, rayon intérieur et extérieur" },
+  { nom:"Rectangle", n:4, desc:"coin, largeur et hauteur" },
+  { nom:"Ligne",     n:5, desc:"deux bouts et une épaisseur" },
+  { nom:"Polygone",  n:0, desc:"autant de sommets qu'on veut" }
+];
+/* Sur quoi la forme agit. Le champ de cellules se pose PAR-DESSUS les
+   défenses, il ne les remplace pas — d'où le troisième choix. */
+var COUCHES_PLAN = ["Défenses", "Cellules", "Les deux"];
+
+/* Les répartitions. Toutes respectent les pourcentages demandés :
+   elles ne changent pas les PROPORTIONS, elles changent la façon dont
+   le mélange se pose sur le terrain. */
+var REPARTITIONS = [
+  { nom:"Au hasard",  desc:"tiré au sort case par case. Il se forme des paquets, et c'est ce qui fait l'air naturel." },
+  { nom:"Harmonieux", desc:"étalé au plus égal : chaque type est partout, jamais en paquet. La suite R2, la même qui sème les étoiles sans grumeaux." },
+  { nom:"Damier",     desc:"alterné en diagonale, maille par maille. Un mélange serré, parfaitement régulier." },
+  { nom:"Bandes",     desc:"en bandes parallèles, du nord au sud." },
+  { nom:"Cœur",       desc:"les premiers de la liste au centre, les derniers au bord — et ça se vide en s'éloignant." },
+  { nom:"Pourtour",   desc:"l'inverse : le vide au milieu, la couronne dense." },
+  { nom:"Dégradé",    desc:"on passe du premier au dernier d'un bout à l'autre de la forme." }
+];
+
+/* La marque qui sépare le quadrillage des formes dans une chaîne de
+   plan. Ni « ~ » (la version du plan), ni « : » ou « | » (le paquet
+   des six cartes), ni un caractère d'ALPHA_BITS : elle ne peut donc
+   apparaître nulle part ailleurs par accident. */
+var MARQUE_FORMES = "*";
+
+/* ----------------------------------------------------------------
+   LE HACHAGE DE POSITION
+   Ce qui remplace le tirage aléatoire à l'intérieur d'une forme. Deux
+   propriétés, et les deux sont vitales :
+     — il ne consomme rien de la séquence du générateur ;
+     — il rend toujours la même chose au même endroit, donc une forme
+       se redessine à l'identique tant qu'on n'y touche pas.
+   ---------------------------------------------------------------- */
+function bruitForme(gx, gy, sel){
+  var x = Math.round(gx * 4), y = Math.round(gy * 4);
+  var h = ((x * 73856093) ^ (y * 19349663) ^ ((sel | 0) * 83492791)) >>> 0;
+  h ^= h >>> 13; h = (h * 1274126177) >>> 0; h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/* ----------------------------------------------------------------
+   GÉOMÉTRIE
+   formeContient dit si un point est dedans. paramForme rend 0 au cœur
+   et 1 au bord — c'est lui qui porte « concentré ». longForme rend 0
+   à un bout et 1 à l'autre, pour le dégradé.
+   ---------------------------------------------------------------- */
+function formeContient(F, gx, gy){
+  var G = F.G;
+  if(!G) return false;
+  switch(F.f){
+    case 0: return Math.hypot(gx - G[0], gy - G[1]) <= G[2];
+    case 1: var dA = Math.hypot(gx - G[0], gy - G[1]);
+            return dA >= Math.min(G[2], G[3]) && dA <= Math.max(G[2], G[3]);
+    case 2: return gx >= G[0] && gx <= G[0] + G[2] && gy >= G[1] && gy <= G[1] + G[3];
+    case 3: return distSegmentPlan(gx, gy, G[0], G[1], G[2], G[3]) <= G[4] * 0.5;
+    case 4: return dansPolygone(G, gx, gy);
+  }
+  return false;
+}
+function distSegmentPlan(px, py, x1, y1, x2, y2){
+  var dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+  if(l2 < 1e-9) return Math.hypot(px - x1, py - y1);
+  var t = ((px - x1) * dx + (py - y1) * dy) / l2;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+/* Lancer de rayon horizontal, la méthode de parité. Un sommet posé
+   exactement sur la ligne du rayon ne compte qu'une fois grâce à la
+   comparaison asymétrique sur y. */
+function dansPolygone(G, px, py){
+  var n = G.length >> 1;
+  if(n < 3) return false;
+  var dedans = false, i, j;
+  for(i = 0, j = n - 1; i < n; j = i++){
+    var xi = G[i * 2], yi = G[i * 2 + 1], xj = G[j * 2], yj = G[j * 2 + 1];
+    if((yi > py) !== (yj > py) &&
+       px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi) dedans = !dedans;
+  }
+  return dedans;
+}
+/* Le centre d'une forme, et sa demi-étendue : de quoi normaliser une
+   position sans refaire un cas par forme partout. */
+function centreForme(F){
+  var G = F.G, i, sx = 0, sy = 0, n;
+  switch(F.f){
+    case 0: case 1: return { x:G[0], y:G[1], r:Math.max(G[2], G[3] || 0) || 1 };
+    case 2: return { x:G[0] + G[2] / 2, y:G[1] + G[3] / 2,
+                     r:Math.max(Math.abs(G[2]), Math.abs(G[3])) / 2 || 1 };
+    case 3: return { x:(G[0] + G[2]) / 2, y:(G[1] + G[3]) / 2,
+                     r:Math.max(Math.hypot(G[2] - G[0], G[3] - G[1]) / 2, G[4] / 2) || 1 };
+    case 4:
+      n = G.length >> 1;
+      for(i = 0; i < n; i++){ sx += G[i * 2]; sy += G[i * 2 + 1]; }
+      var cx = sx / n, cy = sy / n, r = 1;
+      for(i = 0; i < n; i++) r = Math.max(r, Math.hypot(G[i * 2] - cx, G[i * 2 + 1] - cy));
+      return { x:cx, y:cy, r:r };
+  }
+  return { x:0, y:0, r:1 };
+}
+/* 0 au cœur, 1 au bord. L'anneau est le seul cas où « le cœur » n'est
+   pas le centre géométrique : c'est le milieu de la couronne. */
+function paramForme(F, gx, gy){
+  var G = F.G, C;
+  if(F.f === 1){
+    var r0 = Math.min(G[2], G[3]), r1 = Math.max(G[2], G[3]);
+    var d = Math.hypot(gx - G[0], gy - G[1]);
+    var mi = (r0 + r1) / 2, dm = (r1 - r0) / 2 || 1;
+    return Math.min(1, Math.abs(d - mi) / dm);
+  }
+  C = centreForme(F);
+  return Math.min(1, Math.hypot(gx - C.x, gy - C.y) / C.r);
+}
+/* 0 à un bout, 1 à l'autre. Pour une ligne c'est sa longueur ; pour
+   tout le reste, l'axe le plus long de la boîte. */
+function longForme(F, gx, gy){
+  var G = F.G;
+  if(F.f === 3){
+    var dx = G[2] - G[0], dy = G[3] - G[1], l2 = dx * dx + dy * dy;
+    if(l2 < 1e-9) return 0;
+    return Math.min(1, Math.max(0, ((gx - G[0]) * dx + (gy - G[1]) * dy) / l2));
+  }
+  var C = centreForme(F);
+  if(F.f === 2 && Math.abs(G[3]) > Math.abs(G[2])){
+    return Math.min(1, Math.max(0, (gy - G[1]) / (G[3] || 1)));
+  }
+  return Math.min(1, Math.max(0, (gx - (C.x - C.r)) / (C.r * 2)));
+}
+
+/* ----------------------------------------------------------------
+   CE QUE LA FORME DÉCIDE EN UN POINT
+   ---------------------------------------------------------------- */
+/* ----------------------------------------------------------------
+   LA FRACTION D'AIRE — ce qui fait qu'un 70 / 30 concentré donne bien
+   soixante-dix pour cent.
+
+   LE PIÈGE, et il est joli : paramForme rend une fraction de RAYON, et
+   sur un disque la moitié du rayon ne couvre que le quart de la
+   surface. Ranger « les 70 premiers pour cent au cœur » d'après le
+   rayon donnait donc 38 % de Frelons pour 70 % demandés — mesuré, et
+   c'est exactement π·0,7² / 4 sur un carré. Le joueur aurait réglé un
+   curseur sur 70 et obtenu 38 : le curseur aurait menti.
+
+   La correction n'a pas de forme close pour un polygone quelconque, et
+   n'en a pas besoin : on MESURE la forme une fois — seize cents points
+   sur sa boîte — et la table qui en sort convertit une distance en
+   fraction de surface. Elle dort sur la forme, donc une carte de mille
+   nœuds ne la calcule qu'une fois. L'éditeur l'efface dès qu'il touche
+   à la géométrie, sinon elle mentirait à son tour.
+   ---------------------------------------------------------------- */
+var SEAUX_FORME = 64;
+function boiteForme(F){
+  var G = F.G, i, n, x0, y0, x1, y1, R, e;
+  switch(F.f){
+    case 0: return { x0:G[0] - G[2], y0:G[1] - G[2], x1:G[0] + G[2], y1:G[1] + G[2] };
+    case 1: R = Math.max(G[2], G[3]);
+            return { x0:G[0] - R, y0:G[1] - R, x1:G[0] + R, y1:G[1] + R };
+    case 2: return { x0:Math.min(G[0], G[0] + G[2]), y0:Math.min(G[1], G[1] + G[3]),
+                     x1:Math.max(G[0], G[0] + G[2]), y1:Math.max(G[1], G[1] + G[3]) };
+    case 3: e = G[4] * 0.5;
+            return { x0:Math.min(G[0], G[2]) - e, y0:Math.min(G[1], G[3]) - e,
+                     x1:Math.max(G[0], G[2]) + e, y1:Math.max(G[1], G[3]) + e };
+    case 4: n = G.length >> 1; x0 = y0 = 1e9; x1 = y1 = -1e9;
+            for(i = 0; i < n; i++){
+              x0 = Math.min(x0, G[i * 2]); x1 = Math.max(x1, G[i * 2]);
+              y0 = Math.min(y0, G[i * 2 + 1]); y1 = Math.max(y1, G[i * 2 + 1]);
+            }
+            return { x0:x0, y0:y0, x1:x1, y1:y1 };
+  }
+  return { x0:0, y0:0, x1:1, y1:1 };
+}
+/* Le paramètre que la répartition choisie fait varier : la distance au
+   cœur, ou la position le long de l'axe. */
+function parametreRange(F, gx, gy){
+  if(F.r === 6) return longForme(F, gx, gy);
+  if(F.r === 5) return 1 - paramForme(F, gx, gy);
+  return paramForme(F, gx, gy);
+}
+function tableForme(F){
+  if(F._q) return F._q;
+  var B = boiteForme(F), M = 40, h = [], i, j, k, tot = 0;
+  for(i = 0; i < SEAUX_FORME; i++) h.push(0);
+  for(i = 0; i < M; i++) for(j = 0; j < M; j++){
+    var gx = B.x0 + (B.x1 - B.x0) * (i + 0.5) / M;
+    var gy = B.y0 + (B.y1 - B.y0) * (j + 0.5) / M;
+    if(!formeContient(F, gx, gy)) continue;
+    k = Math.floor(parametreRange(F, gx, gy) * SEAUX_FORME);
+    h[k < 0 ? 0 : (k >= SEAUX_FORME ? SEAUX_FORME - 1 : k)]++;
+    tot++;
+  }
+  var c = [], cum = 0;
+  for(i = 0; i < SEAUX_FORME; i++){
+    cum += h[i];
+    c.push(tot ? cum / tot : (i + 1) / SEAUX_FORME);
+  }
+  F._q = c;
+  return c;
+}
+function fractionAire(F, p){
+  var c = tableForme(F);
+  var e = p * SEAUX_FORME;
+  var k = Math.floor(e);
+  if(k < 0) k = 0; else if(k >= SEAUX_FORME) k = SEAUX_FORME - 1;
+  var bas = k ? c[k - 1] : 0;
+  return bas + (c[k] - bas) * Math.min(1, Math.max(0, e - k));
+}
+/* À appeler dès qu'on touche à la géométrie ou à la répartition d'une
+   forme : la table mesurée ne vaut plus rien. */
+function formeChangee(F){ if(F) F._q = null; return F; }
+
+/* La position dans le mélange, entre 0 et 1. C'est ELLE qui porte la
+   répartition ; la conversion en type est la même pour toutes, si
+   bien qu'aucun mode ne peut trahir les pourcentages demandés. */
+function placeDansMelange(F, gx, gy, sel){
+  var t, b = bruitForme(gx, gy, sel), i, j;
+  switch(F.r){
+    case 1:   /* harmonieux — la suite R2, du nombre plastique. Elle
+                 couvre le plan sans grumeau ni alignement, ce qu'aucun
+                 tirage au sort ne sait faire. */
+      t = (gx * 0.7548776662 + gy * 0.5698402909 + sel * 0.1010101);
+      return t - Math.floor(t);
+    case 2:   /* damier — la diagonale, hachée par un pas premier avec
+                 cent pour que deux voisines ne tombent jamais dans la
+                 même bande */
+      i = Math.round(gx) + Math.round(gy);
+      return (((i * 37) % 100) + 0.5) / 100;
+    case 3:   /* bandes */
+      j = Math.round(gy);
+      return (((j * 37) % 100) + 0.5) / 100;
+    /* Les trois qui suivent rangent les types selon la POSITION, et
+       passent donc par la fraction d'aire : sans elle, le curseur des
+       pourcentages mentirait. Un peu de bruit par-dessus, pour que la
+       frontière entre deux types ne soit pas un cercle tracé au
+       compas — symétrique, donc sans effet sur les proportions. */
+    case 4:   /* cœur — les premiers au centre */
+    case 5:   /* pourtour — l'inverse */
+    case 6:   /* dégradé — d'un bout à l'autre */
+      return Math.min(0.999, Math.max(0,
+        fractionAire(F, parametreRange(F, gx, gy)) + (b - 0.5) * 0.10));
+  }
+  return b;                                   /* 0 — au hasard */
+}
+/* La graine qui sert le hachage. Une forme « fixe » garde la sienne
+   d'une partie à l'autre ; les autres suivent le tirage du salon, donc
+   se rejouent différemment à chaque remise à zéro — c'est l'esprit du
+   plan : une recette, pas un calque. */
+function selForme(F, tirage){
+  return F.x ? (F.g | 0) : ((F.g | 0) + (tirage | 0) * 7919);
+}
+/* Le type posé en un point : la bande du mélange où tombe la place. */
+function typeDeForme(F, gx, gy, tirage){
+  var C = F.C;
+  if(!C || !C.length) return 0;                       // rien de dit : « auto »
+  if(C.length === 1) return C[0][0];
+  var u = placeDansMelange(F, gx, gy, selForme(F, tirage));
+  var somme = 0, i;
+  for(i = 0; i < C.length; i++) somme += C[i][1];
+  if(somme <= 0) return C[0][0];
+  var seuil = u * somme, cum = 0;
+  for(i = 0; i < C.length; i++){
+    cum += C[i][1];
+    if(seuil < cum) return C[i][0];
+  }
+  return C[C.length - 1][0];
+}
+/* La proportion de nœuds sautés. « Cœur » et « Pourtour » ne font pas
+   que trier les types : ils font aussi VARIER la densité, sinon le mot
+   « concentré » ne voudrait rien dire. */
+function sautDeForme(F){
+  var D = DENSITES[F.d] || DENSITES[0];
+  return D.saut;
+}
+function sautModuleForme(F, gx, gy){
+  var s = sautDeForme(F);
+  if(F.r !== 4 && F.r !== 5) return s;
+  var t = paramForme(F, gx, gy);
+  var k = (F.r === 4) ? t : (1 - t);
+  return s + (1 - s) * Math.pow(k, 1.6) * 0.85;
+}
+
+/* ----------------------------------------------------------------
+   ENCODAGE
+   Champs positionnels séparés par des virgules, formes séparées par
+   des points-virgules, listes séparées par des points. Aucun de ces
+   trois caractères n'appartient à ALPHA_BITS ni aux séparateurs du
+   paquet des six cartes : une chaîne de formes ne peut donc jamais
+   être confondue avec autre chose.
+
+     forme , couche , densité , répartition , fixe , graine ,
+     géométrie , composition
+
+   Exemple : « 1,0,3,4,0,0,76.68.18.34,3.60.4.40 » — un anneau de
+   rayons 18 à 34 autour du Brasier, saturé, concentré au cœur,
+   soixante pour cent de Frelons et quarante de Pilons.
+   ---------------------------------------------------------------- */
+function entierPlan(v){
+  var n = Math.round(+v);
+  if(!isFinite(n)) return 0;
+  return n < -9999 ? -9999 : (n > 9999 ? 9999 : n);
+}
+function encodeFormes(l){
+  if(!l || !l.length) return "";
+  var out = [], i, j;
+  for(i = 0; i < l.length; i++){
+    var F = l[i], G = [], C = [];
+    for(j = 0; j < F.G.length; j++) G.push(entierPlan(F.G[j]));
+    for(j = 0; j < F.C.length; j++) C.push((F.C[j][0] | 0) + "." + entierPlan(F.C[j][1]));
+    out.push([F.f | 0, F.k | 0, F.d | 0, F.r | 0, F.x ? 1 : 0, entierPlan(F.g),
+              G.join("."), C.join(".")].join(","));
+  }
+  return out.join(";");
+}
+/* Défensif de bout en bout : une forme illisible est jetée, pas
+   devinée. Le mode dégradé du plan reste la carte d'aujourd'hui. */
+function decodeFormes(s){
+  var l = [];
+  if(!s || typeof s !== "string") return l;
+  var p = s.split(";"), i, j;
+  for(i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var ch = p[i].split(",");
+    if(ch.length < 8) continue;
+    var f = parseInt(ch[0], 10) | 0;
+    if(!(f >= 0) || f >= FORMES_PLAN.length) continue;
+    var G = [], gs = ch[6].split(".");
+    for(j = 0; j < gs.length; j++){
+      var v = parseFloat(gs[j]);
+      if(!isFinite(v)) { G = []; break; }
+      G.push(v);
+    }
+    var att = FORMES_PLAN[f].n;
+    if(att ? G.length !== att : (G.length < 6 || G.length & 1)) continue;
+    var C = [], cs = ch[7] ? ch[7].split(".") : [];
+    for(j = 0; j + 1 < cs.length; j += 2){
+      var t = parseInt(cs[j], 10), pc = parseFloat(cs[j + 1]);
+      if(!(t >= 0) || t >= TYPES_PLAN.length || !isFinite(pc) || pc <= 0) continue;
+      C.push([t, pc]);
+    }
+    var d = parseInt(ch[2], 10) | 0, r = parseInt(ch[3], 10) | 0, k = parseInt(ch[1], 10) | 0;
+    l.push({
+      f:f, k:(k >= 0 && k < COUCHES_PLAN.length) ? k : 0,
+      d:(d >= 0 && d < DENSITES.length) ? d : 0,
+      r:(r >= 0 && r < REPARTITIONS.length) ? r : 0,
+      x:parseInt(ch[4], 10) ? 1 : 0, g:parseInt(ch[5], 10) | 0,
+      G:G, C:C
+    });
+  }
+  return l;
+}
+/* Une chaîne de plan complète : le quadrillage, puis les formes. */
+function encodePlanComplet(zones, formes){
+  var a = encodePlan(zones), b = encodeFormes(formes);
+  return b ? (a + MARQUE_FORMES + b) : a;
+}
+function partieQuadrillage(s){
+  if(typeof s !== "string") return "";
+  var i = s.indexOf(MARQUE_FORMES);
+  return i < 0 ? s : s.substr(0, i);
+}
+function partieFormes(s){
+  if(typeof s !== "string") return "";
+  var i = s.indexOf(MARQUE_FORMES);
+  return i < 0 ? "" : s.substr(i + 1);
+}
+
+/* ----------------------------------------------------------------
+   LA LECTURE DU PLAN PAR LE GÉNÉRATEUR
+   Un seul objet, un seul point d'interrogation. genereCarte ne sait
+   plus si la réponse vient d'un cercle ou d'un coup de pinceau — et
+   c'est exactement ce qu'on veut : le jour où l'on ajoutera une
+   troisième façon de décrire une carte, elle entrera ici.
+   ---------------------------------------------------------------- */
+function litPlan(chaine, tirage){
+  var q = partieQuadrillage(chaine);
+  var zones = (q && q.length) ? decodePlan(q) : null;
+  if(zones && !zonesPeintes(zones)) zones = null;
+  var formes = decodeFormes(partieFormes(chaine));
+  if(!zones && !formes.length) return null;      // aucune intention : carte d'origine
+  return { zones:zones, formes:formes, tirage:tirage | 0 };
+}
+/* La dernière forme posée l'emporte : c'est l'ordre d'une pile de
+   calques, celui que l'œil attend quand on empile des dessins. */
+function formeSous(P, gx, gy){
+  var l = P.formes, i;
+  for(i = l.length - 1; i >= 0; i--) if(formeContient(l[i], gx, gy)) return l[i];
+  return null;
+}
+/* CE QUE LE PLAN DIT D'UN POINT. Cinq endroits de genereCarte posent
+   cette question ; ils la posent tous ici.
+     t       indice dans TYPES_PLAN, 0 pour « laisse la génération
+             décider »
+     ch      1 si l'on veut un champ de cellules
+     saut    proportion de nœuds sautés par le quadrillage principal
+     sautSup la même chose pour la passe de renfort */
+function planEn(P, gx, gy){
+  var zr = (P.zones ? P.zones[zoneDePlan(gx, gy)] : 0) || 0;
+  var t = zoneType(zr), d = zoneDens(zr), ch = zoneChamp(zr);
+  var F = P.formes.length ? formeSous(P, gx, gy) : null;
+  if(F){
+    /* La couche décide de ce que la forme touche. « Cellules » ne
+       remplace rien : elle ajoute sa couche et laisse les défenses au
+       quadrillage, exactement comme le pinceau à cellules. */
+    if(F.k !== 1){
+      t = typeDeForme(F, gx, gy, P.tirage);
+      return { t:t, ch:(F.k === 2 ? 1 : ch), vide:(TYPES_PLAN[t] === "vide") ? 1 : 0,
+               saut:sautModuleForme(F, gx, gy), sautSup:sautRenfort(F.d) };
+    }
+    ch = 1;
+  }
+  return { t:t, ch:ch, vide:(TYPES_PLAN[t] === "vide") ? 1 : 0,
+           saut:d ? DENSITES[d].saut : 0.28, sautSup:sautRenfort(d) };
+}
+/* Combien de formes, et combien de zones : de quoi dire à l'éditeur
+   si un plan est vide sans avoir à le regarder en détail. */
+function planEstVide(P){
+  return !P || (!P.formes.length && (!P.zones || !zonesPeintes(P.zones)));
 }
 
 function mondeVide(index, pvMax, cycle){

@@ -1534,7 +1534,8 @@ var PAL_COCHON = [
     taches:["#3f2a1c"],
     clair:"#fdf6e8", clairO:"#dccdb2",
     oreille:"#b9713a", oreilleI:"#d59468",
-    nez:"#d0968b", patte:"#a75f24", cerne:"rgba(255,246,230,.55)" },
+    nez:"#d0968b", patte:"#a75f24", patteO:"#78441a", oreilleO:"#8c562c",
+    cerne:"rgba(255,246,230,.55)" },
   { /* 1 — NOIR ET BLANC (la pie hollandaise). Le contraste maximal du
        lot : à z = 0,5 il ne reste que deux pâtés sombres sur un corps
        clair, et ça suffit à la reconnaître. */
@@ -1542,7 +1543,8 @@ var PAL_COCHON = [
     taches:["#272230"],
     clair:"#fffdf7", clairO:"#dad2c2",
     oreille:"#332d3a", oreilleI:"#7d6d77",
-    nez:"#8d7f88", patte:"#b6ac9c", cerne:"rgba(246,242,232,.72)" },
+    nez:"#8d7f88", patte:"#b6ac9c", patteO:"#837c70", oreilleO:"#26222c",
+    cerne:"rgba(246,242,232,.72)" },
   { /* 2 — TRICOLORE. Deux couleurs de taches au lieu d'une, posées aux
        deux bouts : c'est la seule du lot qui n'est pas symétrique en
        valeur, et de loin ça se lit comme un individu « à part ». */
@@ -1550,7 +1552,8 @@ var PAL_COCHON = [
     taches:["#c9761f", "#241f2a"],
     clair:"#fffdf7", clairO:"#dad2c2",
     oreille:"#a56b3c", oreilleI:"#c78d63",
-    nez:"#c48d84", patte:"#b0a696", cerne:"rgba(248,242,230,.68)" }
+    nez:"#c48d84", patte:"#b0a696", patteO:"#7e776c", oreilleO:"#7d512d",
+    cerne:"rgba(248,242,230,.68)" }
 ];
 
 /* ---- LA DÉMARCHE -------------------------------------------------
@@ -1724,6 +1727,37 @@ function dessineCochon(c, k, tps){
   /* Oreilles rabattues : à la ruée, en fuite, et pendant la pétrification. */
   var pli = Math.max(elan * 0.8, fig ? 1 : (fuit ? 0.55 : 0));
 
+  /* ---- CE QU'ON NE DESSINE PAS QUAND LA CAMÉRA RECULE ----
+     Mesuré au banc, dans le vrai jeu : à z = 0,6 il y a deux cent
+     soixante-onze bêtes à l'écran dont cinquante cochons, et la faune
+     entière prend douze millisecondes sur l'image. À ce zoom-là un
+     cochon fait huit pixels de haut : ses vibrisses sont épaisses de
+     deux dixièmes de pixel, sa bouche autant, et le liseré de volume
+     un pixel et demi. Trois détails qui ne peignent RIEN et coûtent
+     trois tracés et deux traits sur vingt-quatre — compté à
+     l'instrumentation du contexte : vingt-quatre beginPath par cochon
+     à z = 1,7, vingt et un à z = 0,6.
+     On les éteint donc, chacun à son propre seuil, pris là où il cesse
+     d'être visible. Même raisonnement que fauneDisques() : ce n'est pas
+     une économie de principe, c'est l'observation qu'en dessous d'une
+     certaine taille on paie un tracé pour rien.
+     Deux précautions, l'une et l'autre trouvées à la planche de
+     contrôle où les deux côtés du seuil sont agrandis au plus proche :
+     — LE SEUIL SE PREND SUR cam.z SEUL, jamais sur cam.z × la taille de
+       l'individu. Sinon, dans une grappe, le gros cochon gardait ses
+       vibrisses pendant que son petit voisin les perdait : l'élagage,
+       invisible quand toute la grappe bascule ensemble, devenait une
+       différence VISIBLE entre deux bêtes côte à côte.
+     — LES TRAITS S'ÉTEIGNENT EN FONDU, ils ne sont pas coupés net. Un
+       couperet sur des traits fins fait « clignoter » les vibrisses au
+       moment précis où le joueur tourne la molette, et un scintillement
+       attire l'œil bien plus que le détail lui-même. Les deux fondus
+       finissent à zéro : au-delà, on ne dessine plus rien du tout, et
+       c'est là qu'est l'économie. */
+  var z = (typeof cam !== "undefined" && cam && cam.z) ? cam.z : 1;
+  var fin = z > 0.92 ? 1 : (z < 0.62 ? 0 : (z - 0.62) / 0.30);   /* traits fins */
+  var vol = z > 0.75 ? 1 : (z < 0.48 ? 0 : (z - 0.48) / 0.27);   /* liseré de volume */
+
   c.save();
   c.scale(ech, ech);
 
@@ -1766,7 +1800,11 @@ function dessineCochon(c, k, tps){
      lieu de les déplacer, parce qu'un pied net qui saute d'une image à
      l'autre scintille, là où un pied étiré donne la vitesse. */
   var bat = Math.sin(tps * 27 + ph * 2.2) * elan;
-  c.fillStyle = ecl(P.patte, 0.72);
+  /* Les deux tons du fond sont PRÉ-CALCULÉS dans la palette et non
+     tirés d'un ecl() : à cinquante cochons à l'écran, ce sont cent
+     analyses d'hexadécimal par image pour deux couleurs qui ne
+     changent jamais. C'est la leçon de chatBoudin, appliquée ici. */
+  c.fillStyle = P.patteO;
   c.beginPath();
   c.ellipse(-4.8 - bat * 1.5, -1.45, 1.60 + elan * 1.5, 1.32, -0.12, 0, 6.2832);
   c.ellipse(5.2 + bat * 1.5, -1.45, 1.55 + elan * 1.5, 1.28, 0.10, 0, 6.2832);
@@ -1778,7 +1816,7 @@ function dessineCochon(c, k, tps){
      précisément ce lobe qui dit « il y a une deuxième oreille » sans
      coller un pavillon de lapin au-dessus du crâne. */
   cochonOreille(c, 7.2 + e * 0.6, -12.0 - t * 0.8, 2.05 - pli * 0.6,
-                2.05 + pli * 0.30, ecl(P.oreille, 0.76), 0);
+                2.05 + pli * 0.30, P.oreilleO, 0);
 
   /* ---- le corps ---- */
   c.fillStyle = degCache(c, "cochonCorps" + teinte, function(){
@@ -1859,10 +1897,14 @@ function dessineCochon(c, k, tps){
   c.closePath(); c.fill();
   c.restore();
 
-  chatVolume(c, function(cc){ cochonCorps(cc, t, d, e); },
-                function(cc){ cochonDos(cc, t, d, e); },
-                function(cc){ cochonVentre(cc, e); },
-                "rgba(255,250,236,.30)", "rgba(52,38,28,.26)");
+  if(vol > 0.03){
+    c.globalAlpha = vol;
+    chatVolume(c, function(cc){ cochonCorps(cc, t, d, e); },
+                  function(cc){ cochonDos(cc, t, d, e); },
+                  function(cc){ cochonVentre(cc, e); },
+                  "rgba(255,250,236,.30)", "rgba(52,38,28,.26)");
+    c.globalAlpha = 1;
+  }
 
   /* ---- les deux pieds de devant, même tracé unique ---- */
   c.fillStyle = P.patte;
@@ -1876,7 +1918,7 @@ function dessineCochon(c, k, tps){
      réelle, et c'est aussi ce qui donne son épaisseur à la tête de
      trois quarts. */
   cochonOreille(c, 6.9 + e, -10.8 - t * 0.8, 2.7 - pli * 0.85,
-                0.62 + pli * 0.80, P.oreille, P.oreilleI);
+                0.62 + pli * 0.80, P.oreille, fin > 0.4 ? P.oreilleI : 0);
 
   /* ---- LE VISAGE ----
      Pas de repère à part : les traits se posent directement dans le
@@ -1912,10 +1954,14 @@ function dessineCochon(c, k, tps){
      c'est le cri d'alarme — un cochon d'Inde qui détale COUINE, et
      sans cette bouche il avait seulement l'air de rouler. */
   if(fuit || fig){
+    /* La gueule ouverte, elle, reste à TOUS les zooms : c'est une tache
+       sombre sur la face claire, donc elle peint encore à huit pixels,
+       et c'est le seul signe que la bête crie. */
     c.fillStyle = "#5e3038";
     c.beginPath(); c.ellipse(nx - 0.6, ny + 1.9, 0.9, 0.65 + renifle * 0.25, -0.24, 0, 6.2832); c.fill();
-  }else{
-    c.strokeStyle = "rgba(78,54,48,.5)"; c.lineWidth = 0.36; c.lineCap = "round";
+  }else if(fin > 0.03){
+    c.strokeStyle = "rgba(78,54,48," + (0.5 * fin).toFixed(2) + ")";
+    c.lineWidth = 0.36; c.lineCap = "round";
     c.beginPath();
     c.moveTo(nx - 0.1, ny + 0.9); c.lineTo(nx - 0.4, ny + 1.6);
     c.moveTo(nx - 0.4, ny + 1.6); c.quadraticCurveTo(nx - 1.2, ny + 1.9, nx - 1.7, ny + 1.3);
@@ -1928,7 +1974,9 @@ function dessineCochon(c, k, tps){
      tiennent dans UN seul tracé : à trente bêtes à l'écran, six
      beginPath de plus par bête n'étaient pas défendables pour un
      détail que le zoom de jeu avale à moitié. */
-  c.strokeStyle = "rgba(255,250,240,.42)"; c.lineWidth = 0.32; c.lineCap = "round";
+  if(fin > 0.03){
+  c.strokeStyle = "rgba(255,250,240," + (0.42 * fin).toFixed(2) + ")";
+  c.lineWidth = 0.32; c.lineCap = "round";
   c.beginPath();
   for(var w = -1; w <= 1; w++){
     var vy = ny + 0.8 + w * 0.45, vo = w * 2.0 + renifle * 0.45;
@@ -1938,6 +1986,7 @@ function dessineCochon(c, k, tps){
     c.quadraticCurveTo(nx - 3.2, vy + vo * 0.4 + 0.7, nx - 5.2, vy + vo * 0.9 + 1.3);
   }
   c.stroke();
+  }
 
   c.restore();
   c.restore();
