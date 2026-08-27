@@ -1661,8 +1661,6 @@ function reacMontant(o, k, z){
   var r = reacRayonMat(z);
   return { x:o.x + Math.cos(a) * r * RX, y:o.y - z + Math.sin(a) * r * RY };
 }
-/* Angle écran d'un contrefort (le même que celui du montant de rang k) */
-function reacAngleBorne(i){ return i * 1.5708 + 0.7854; }
 
 SOCLES.reacteur = function(c){
   var o = iso(0, 0);

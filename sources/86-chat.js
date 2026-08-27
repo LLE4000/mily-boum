@@ -82,7 +82,7 @@ function ouvreChat(){
   chatNonLus = 0;
   $("chat").classList.add("on");
   majBoutonChat();
-  dessineChat();
+  dessineFilChat();
   /* On ne prend PAS le clavier de force : sur tablette, ouvrir le chat
      pour lire ne doit pas faire monter un clavier qui mange la moitié
      de l'écran. C'est le joueur qui touche le champ quand il veut
@@ -139,12 +139,39 @@ function demandeDessinChat(){
   if(chatARedessiner) return;
   chatARedessiner = 1;
   var quand = window.requestAnimationFrame || function(f){ return setTimeout(f, 16); };
-  quand(function(){ chatARedessiner = 0; dessineChat(); });
+  quand(function(){ chatARedessiner = 0; dessineFilChat(); });
 }
 /* Une ligne du jeu, pas d'un joueur. */
 function chatSysteme(txt){ ajouteAuChat("", txt, 0, 1); }
 
-function dessineChat(){
+/* LE FIL, ET SURTOUT PAS « dessineChat ».
+
+   Ce nom-là appartient déjà au CHAT DE MILY — Gribouille — sculpté
+   dans 72-chats.js. Or l'assembleur concatène les vingt-sept morceaux
+   dans UN SEUL <script>, par ordre alphabétique : « 86 » vient après
+   « 72 », la seconde déclaration écrasait donc la première pour tout
+   le fichier.
+
+   Les dégâts étaient doubles, et invisibles à la lecture de l'un ou
+   l'autre fichier pris seul :
+
+     — GRIBOUILLE N'ÉTAIT PLUS JAMAIS DESSINÉ. Les créatures sont
+       résolues par convention de nom (dessinDeCreature, 70-creatures.js :
+       « dessine » + le type), donc window.dessineChat — c'est-à-dire
+       ce panneau — était appelé à sa place, avec trois arguments qu'il
+       ignorait. Croquette et Praline, eux, allaient bien : leurs
+       fonctions s'appellent dessineChaton et dessineChatte.
+
+     — ET LE FIL DE DISCUSSION ÉTAIT RECONSTRUIT À CHAQUE IMAGE, tout
+       le innerHTML, tant qu'un Gribouille était à l'écran. Mesuré :
+       118 reconstructions en 118 images, exactement une par image —
+       alors que tout ce fichier est bâti autour de la promesse
+       inverse (chatARedessiner, plus haut : « une seule
+       reconstruction par image, AU PLUS »).
+
+   Le chat de Mily ne peut pas céder son nom, c'est lui que la
+   convention va chercher. C'est donc le fil qui change. */
+function dessineFilChat(){
   var e = $("chatL");
   if(!e) return;
   if(!chatFil.length){
@@ -200,7 +227,12 @@ function envoieChat(){
      doit jamais pouvoir faire tomber la partie. */
   var t = Date.now();
   if(t - chatDernier < CHAT_REPOS){
-    chatSysteme("Doucement — un message par seconde, pas plus. "
+    /* La cadence annoncée est celle du code, pas une approximation :
+       le message disait « une par seconde » alors que CHAT_REPOS en
+       vaut 1,2 — qui comptait jusqu'à un et réessayait se faisait
+       refuser une seconde fois sans comprendre. */
+    chatSysteme("Doucement — un message toutes les "
+              + (CHAT_REPOS / 1000).toFixed(1).replace(".", ",") + " s, pas plus. "
               + "Le relais du salon est partagé avec la partie.");
     return;
   }
@@ -258,7 +290,7 @@ function ignoreAuChat(id, nom){
   chatSourds[id] = nom;
   gardeSourds();
   chatSysteme(nom + " ne sera plus affiché.");
-  dessineChat();
+  dessineFilChat();
 }
 function nbSourds(){
   var n = 0, k;
@@ -273,7 +305,7 @@ function rendLOreille(){
   chatSourds = {};
   gardeSourds();
   chatSysteme("Tout le monde est réaffiché.");
-  dessineChat();
+  dessineFilChat();
 }
 
 /* ---------------------------------------------------------------
@@ -323,5 +355,5 @@ function installeChat(){
                          { passive:nom === "touchmove" || nom === "wheel" });
     });
   majBoutonChat();
-  dessineChat();
+  dessineFilChat();
 }

@@ -728,12 +728,24 @@ function remetSalonAZero(){
      vignette verrouillée : une île prise lors d'un cycle précédent.
      Les reconstruire sans `ch` ni `t3` effaçait cet historique à
      chaque remise à zéro, localement d'abord, puis chez tout le monde
-     à la première publication. */
+     à la première publication.
+
+     ET IL FAUT REPOSER TOUTE LA JUNGLE AVEC.
+     Le littéral ne portait AUCUN de ses champs — ni je/jf/jd/jq (l'état
+     de l'expédition), ni jt (le verrou de 48 h que lit jungleEnCours),
+     ni jm/jb (le minimum de joueurs et le bonus de PV, deux réglages
+     d'administrateur). Ils partaient tous à la première publication,
+     en message RETENU : une remise à zéro rouvrait la jungle et
+     rendait au salon les réglages d'usine, sans que personne l'ait
+     demandé. poseJungle les recopie depuis jungleCourante(), qui les
+     lit sur l'instantané d'avant — c'est exactement à ça qu'il sert. */
   var av = monde || {};
-  monde = { v:(av.v | 0) + 1, cy:cycleSalon, c:0,
+  var jg = jungleCourante();
+  jg.ch = av.ch || "";
+  jg.t3 = av.t3 || "";
+  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
-            ch:av.ch || "", t3:av.t3 || "" };
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;

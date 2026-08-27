@@ -41,7 +41,6 @@ function degCache(c, cle, fabrique){
   if(!g){ g = fabrique(); cacheDeg[cle] = g; }
   return g;
 }
-function videCacheDegrades(){ cacheDeg = {}; }
 
 /* Cycle de marche : renvoie les décalages des membres */
 function pose(phase, ampleur){

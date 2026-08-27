@@ -77,6 +77,19 @@ function boucle(maintenant){
      est repeint dans la même image : le changement est invisible. */
   gouverneResolution(dt);
   majFaune(dt);
+  /* L'ORAGE S'ENTEND, MAINTENANT. majMeteoJungle porte toute
+     l'ambiance sonore de la jungle — la nappe de pluie, le vent, les
+     grondements lointains calés sur les lueurs du ciel, le
+     froissement du feuillage — et son propre commentaire disait « à
+     appeler une fois par image sur la carte jungle ». Personne ne
+     l'appelait : la fonction, et avec elle ambianceJungle.demarre,
+     grondementJungle et froissementJungle qui n'ont pas d'autre
+     appelant, étaient du code mort depuis leur écriture. On jouait un
+     orage muet.
+     Même condition que le rendu de ce ciel, vingt lignes plus bas
+     dans 88-rendu.js : la présence de geysers, c'est-à-dire la
+     jungle. */
+  if(jeu.geysers && jeu.geysers.length) majMeteoJungle(dt, tempsGlobal);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);

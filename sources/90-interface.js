@@ -1677,6 +1677,11 @@ function finExpeditionLocale(){
 function quitteVersBriefing(){
   enJeu = false;
   bilanActif = false;
+  /* La pluie et le vent de la jungle ne suivent pas jusqu'au menu.
+     La boucle cesse de battre l'ambiance dès qu'on n'est plus en jeu,
+     mais les oscillateurs, eux, continueraient tout seuls : c'est un
+     son qui se coupe, pas un son qui s'oublie. */
+  if(typeof ambianceJungle !== "undefined") ambianceJungle.arrete();
   $("bilan").classList.remove("on");
   $("hud").classList.remove("on");
   $("hud").classList.remove("fin");

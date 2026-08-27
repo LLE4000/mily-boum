@@ -119,8 +119,11 @@ select.champ{cursor:pointer}
 #planSousTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise)}
 .pzs{display:flex;flex-wrap:wrap;gap:6px}
 /* Classe .pz et non .pt : les vignettes de troupes du briefing
-   occupent déjà .pt, sont définies plus bas, et leur flex:1 écrasait
-   ces tuiles-ci jusqu'à réduire les noms à une seule lettre. */
+   occupaient .pt, et leur flex:1 écrasait ces tuiles-ci jusqu'à
+   réduire les noms à une seule lettre. Ces vignettes-là n'existent
+   plus — la flotte tient sur une ligne de menus déroulants — mais le
+   nom reste : le renommer ne rendrait rien de plus lisible et
+   toucherait à un panneau qui, lui, marche. */
 .pz{
   display:flex;align-items:center;gap:6px;cursor:pointer;flex:0 0 auto;
   white-space:nowrap;
@@ -499,43 +502,6 @@ select.champ{cursor:pointer}
   font:700 13px/1 inherit;padding:7px 20px 7px 8px;cursor:pointer;
 }
 .nvs:focus{outline:none;border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.25)}
-.barge{background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px}
-.barge .tt{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);margin-bottom:7px;display:flex;justify-content:space-between}
-/* Trois types de troupe et non plus deux : à gap 7 les vignettes
-   devenaient trop étroites pour leur intitulé, qui passait à la ligne
-   et mangeait le portrait. */
-.choixT{display:flex;gap:5px;margin-bottom:8px}
-.pt{
-  flex:1;position:relative;border-radius:11px;overflow:hidden;cursor:pointer;
-  border:2px solid rgba(255,255,255,.10);background:#241733;padding:0;
-  transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
-}
-.pt canvas{width:100%;height:84px;display:block}
-.pt .nm{
-  position:absolute;left:0;right:0;bottom:0;font:700 11px/1.1 inherit;text-align:center;
-  background:linear-gradient(180deg,rgba(10,5,14,0),rgba(10,5,14,.88));padding:14px 0 4px;color:#e8dcf0;
-}
-.pt .role{display:block;font-weight:400;font-size:8.5px;line-height:1.15;color:#b9abc6;letter-spacing:0}
-.pt:active{transform:scale(.97)}
-.pt.on{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.30),0 6px 16px rgba(0,0,0,.5)}
-.pt.on .nm{color:var(--braise)}
-.pt.on::after{
-  content:"✔";position:absolute;top:5px;right:6px;width:19px;height:19px;border-radius:50%;
-  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font:800 12px/19px inherit;text-align:center;
-}
-.rangee{display:flex;align-items:center;gap:6px;margin:4px 0}
-.rangee .lab{flex:1;font-size:13px;display:flex;align-items:center;gap:6px}
-.pion{width:12px;height:12px;border-radius:3px;flex:none}
-.pion.f{background:linear-gradient(180deg,#54e2ce,#2fb9a8)}
-.pion.m{background:linear-gradient(180deg,#8fa65c,#5b6b3a)}
-.pion.o{background:linear-gradient(180deg,#c8663a,#7a2f18)}
-/* L'Ogre n'a qu'une place : les boutons +/− n'ont rien à régler, on
-   dit simplement combien il y en a et on n'invite pas à en ajouter. */
-.rangee .unSeul{color:var(--or);font-weight:700;font-size:12px;letter-spacing:.4px}
-.compt{min-width:24px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
-.mini{width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:#2a1a38;
-  color:var(--texte);font:700 16px/1 inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.mini:active{filter:brightness(1.3)}
 #totalTroupes{text-align:center;margin-top:10px;font-size:13px;color:var(--gris)}
 #totalTroupes b{color:var(--or);font-size:16px}
 
@@ -778,7 +744,6 @@ select.champ{cursor:pointer}
   background:linear-gradient(180deg,#ffe6a8,#ff8a1e 55%,#e0431a);
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 2px 0 rgba(0,0,0,.55));margin-bottom:6px}
-#bilanSs{display:none}
 #bilanLi{text-align:left;font-size:14px;max-height:26vh;overflow-y:auto}
 #bilanLi .r{display:flex;gap:8px;padding:5px 8px;border-radius:9px}
 #bilanLi .r:nth-child(odd){background:rgba(255,255,255,.05)}
@@ -1068,7 +1033,6 @@ select.champ{cursor:pointer}
 <!-- ============================ BILAN ============================ -->
 <div id="bilan"><div id="bilanIn">
   <div id="bilanTi">Top dégâts</div>
-  <div id="bilanSs">la gardienne a décollé</div>
   <div class="bloc" id="bilanLi"></div>
   <div id="bilanTps">Île suivante dans <b id="bilanC">8</b> s</div>
 </div></div>
