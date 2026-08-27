@@ -3457,8 +3457,61 @@ function mondeValide(m){
    retirés des pseudos à l'encodage, ce qui suffit : un pseudo fait au
    plus quatorze caractères et n'a pas d'autre structure à préserver.
    ---------------------------------------------------------------- */
-var SCORES_GARDES = 60;         // entrées gardées dans l'instantané
+/* ----------------------------------------------------------------
+   LE PLAFOND DU TABLEAU — EN OCTETS, ET PAR APPAREIL
+
+   Il était de SOIXANTE ENTRÉES, et c'était deux erreurs en une.
+
+   La première : une entrée n'est pas un joueur, c'est un joueur SUR
+   UNE ÎLE. Six îles, soixante entrées : le salon ne tenait que DIX
+   appareils. Au onzième, un joueur entier disparaissait du tableau
+   retenu — et n'y revenait jamais s'il avait fermé son navigateur,
+   puisque plus personne ne republiait sa part.
+
+   La seconde : la coupe triait les ENTRÉES une à une et sortait les
+   plus petites. Le joueur régulier, celui qui étale ses dégâts sur
+   les six îles, présentait six petits nombres là où un joueur d'un
+   soir en présentait un gros : il se faisait sortir six fois plus
+   facilement, alors que son TOTAL était le plus gros du salon. Mesuré :
+   6 000 000 de dégâts affichés 1 000 000, pendant qu'un joueur à
+   1 500 001 restait intact.
+
+   On coupe donc désormais PAR APPAREIL et EN OCTETS :
+     — on somme les dégâts par seau, on trie les SEAUX par ce total,
+       et l'on garde des seaux ENTIERS. Un appareil est là tout
+       entier, ou pas du tout : jamais amputé de certaines de ses îles.
+     — le budget est une taille, pas un compte. Huit kilo-octets
+       portent une soixantaine d'appareils sur six îles, là où
+       soixante entrées n'en portaient que dix. L'instantané complet
+       pesait deux kilo-octets et MQTT 3.1.1 en admet 268 millions :
+       la contrainte n'a jamais été le transport.
+
+   Ce que ce plafond ne peut pas faire, et il faut le dire : aucune
+   borne ne rend la fusion parfaitement monotone. Un message borné ne
+   peut pas porter un tableau non borné. Ce qu'on peut faire, c'est
+   le placer assez haut pour qu'un salon réel ne l'atteigne jamais, et
+   couper d'une manière stable et compréhensible quand il l'atteint.
+   Un joueur coupé qui est encore connecté revient de lui-même : son
+   propre appareil réinjecte sa part à chaque publication.
+   ---------------------------------------------------------------- */
+var SCORES_OCTETS = 8192;       // budget du tableau dans l'instantané
+var SCORES_GARDES = 512;        // garde-fou dur, très au-dessus du budget
 var MARQUE_SCORES = "~";        // en tête : format « seau », par opposition à l'ancien
+
+/* La taille réelle d'une chaîne une fois transmise. Les pseudos ne
+   sont pas de l'ASCII : « Gégé » pèse six octets pour quatre signes,
+   et un plafond compté en caractères mentirait d'autant. */
+function octetsUtf8(s){
+  var n = 0, i, c;
+  for(i = 0; i < s.length; i++){
+    c = s.charCodeAt(i);
+    if(c < 0x80) n += 1;
+    else if(c < 0x800) n += 2;
+    else if(c >= 0xD800 && c < 0xDC00){ n += 4; i++; }   // paire de substitution
+    else n += 3;
+  }
+  return n;
+}
 
 /* ----------------------------------------------------------------
    LE SCORE — L'IDENTITÉ EST L'APPAREIL, LE PSEUDO N'EST QU'UNE
@@ -3536,16 +3589,44 @@ function encodeScores(tab){
   l.sort(function(a, b){
     return (a.s < b.s ? -1 : a.s > b.s ? 1 : 0) || (a.c - b.c);
   });
-  if(l.length > SCORES_GARDES){
-    var gros = l.slice().sort(function(a, b){ return b.g - a.g; }).slice(0, SCORES_GARDES);
-    var garde = {};
-    gros.forEach(function(e){ garde[e.s + ":" + e.c] = 1; });
-    l = l.filter(function(e){ return garde[e.s + ":" + e.c]; });
+  function morceau(e){ return e.s + ":" + e.n + ":" + e.c + ":" + e.g; }
+  /* LA COUPE, PAR APPAREIL ET EN OCTETS. On somme par seau, on classe
+     les seaux par total, et l'on en garde autant que le budget en
+     porte — ENTIERS. L'ordre de départage à total égal est le nom du
+     seau : deux clients au même état doivent couper au même endroit,
+     sinon ils se republient l'un l'autre sans fin. */
+  var cout = {}, total = {}, nb = {}, seaux = [], k2, poids = 0;
+  for(var i2 = 0; i2 < l.length; i2++){
+    var s2 = l[i2].s, o2 = octetsUtf8(morceau(l[i2])) + 1;   // +1 pour le « | »
+    if(cout[s2] === undefined){ cout[s2] = 0; total[s2] = 0; nb[s2] = 0; seaux.push(s2); }
+    cout[s2] += o2; total[s2] += l[i2].g; nb[s2]++;
+    poids += o2;
+  }
+  if(poids > SCORES_OCTETS || l.length > SCORES_GARDES){
+    seaux.sort(function(a, b){
+      return (total[b] - total[a]) || (a < b ? -1 : a > b ? 1 : 0);
+    });
+    /* Les DEUX bornes valent en même temps : le budget d'octets pour
+       le transport, le garde-fou d'entrées pour n'avoir jamais à
+       parcourir un tableau démesuré. Un seau qui ne rentre pas dans
+       l'une ou l'autre est sauté, et l'on continue : un gros seau ne
+       doit pas condamner les suivants, qui tiennent peut-être. */
+    var garde = {}, octets = SCORES_OCTETS, places = SCORES_GARDES, pris = 0;
+    for(k2 = 0; k2 < seaux.length; k2++){
+      var sq = seaux[k2];
+      if(cout[sq] > octets || nb[sq] > places) continue;
+      garde[sq] = 1;
+      octets -= cout[sq];
+      places -= nb[sq];
+      pris++;
+    }
+    /* Un seul appareil dont la part dépasse à elle seule le budget :
+       on le garde quand même, plutôt que de publier un tableau vide. */
+    if(!pris) garde[seaux[0]] = 1;
+    l = l.filter(function(e){ return garde[e.s]; });
   }
   if(!l.length) return "";
-  return MARQUE_SCORES + l.map(function(e){
-    return e.s + ":" + e.n + ":" + e.c + ":" + e.g;
-  }).join("|");
+  return MARQUE_SCORES + l.map(morceau).join("|");
 }
 function decodeScores(s){
   var out = {};

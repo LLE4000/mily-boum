@@ -29,7 +29,7 @@ try{
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
-    "cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
+    "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "encodePlans","decodePlans","planCarte","faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
@@ -689,17 +689,79 @@ G("4. Déterminisme de la génération de carte");
                                un("g2", "Geant", 0, 3000000000));
       return tot(m).Geant === 6000000000;
     })());
-    ok("le tableau est borné", (function(){
-      var t = {};
-      for(var i = 0; i < 300; i++) t[N.cleScore("s" + i, 0)] = { n:"j" + i, g:1000 - i };
-      return T(t).split("|").length === N.SCORES_GARDES;
-    })(), "" + N.SCORES_GARDES);
-    ok("et quand il coupe, il garde les plus GROSSES contributions", (function(){
-      var t = {};
-      for(var i = 0; i < 300; i++) t[N.cleScore("s" + i, 0)] = { n:"j" + i, g:i + 1 };
+    /* ================================================================
+       LE PLAFOND DU TABLEAU — EN OCTETS, ET PAR APPAREIL
+
+       Il était de soixante ENTRÉES. Or une entrée n'est pas un joueur,
+       c'est un joueur SUR UNE ÎLE : six îles, soixante entrées, le
+       salon ne tenait que DIX appareils. Et la coupe triait les
+       entrées une à une, si bien que le joueur régulier — celui qui
+       étale ses dégâts sur les six îles — présentait six petits
+       nombres là où un joueur d'un soir en présentait un gros, et se
+       faisait sortir alors que son TOTAL était le plus gros du salon.
+       ================================================================ */
+    /* Un seau ne fait que QUATRE caractères : « s1000 » et « s1001 »
+       sont le MÊME appareil une fois nettoyés. Les essais qui suivent
+       ont besoin d appareils vraiment distincts. */
+    function seauN(i){ var v = i.toString(36); return "0000".substr(v.length) + v; }
+    ok("le tableau est borné en octets", (function(){
+      var t = {}, a, c;
+      for(a = 0; a < 200; a++)
+        for(c = 0; c < 6; c++) t[N.cleScore(seauN(a), c)] = { n:"j" + a, g:1000 + a };
+      return N.octetsUtf8(T(t)) <= N.SCORES_OCTETS;
+    })(), "budget " + N.SCORES_OCTETS + " o");
+    ok("et il porte largement plus de dix appareils sur six îles", (function(){
+      var t = {}, a, c;
+      for(a = 0; a < 68; a++)
+        for(c = 0; c < 6; c++) t[N.cleScore(seauN(a + 100), c)] = { n:"J" + a, g:100000 + a };
+      return Object.keys(tot(T(t))).length === 68;
+    })(), "68 appareils attendus");
+    ok("le marathonien des six îles ne se fait plus sortir", (function(){
+      var t = {}, i, c;
+      /* cinquante-neuf coups uniques plus gros que CHAQUE contribution
+         du marathonien, mais tous plus petits que son total */
+      for(i = 0; i < 59; i++) t[N.cleScore(seauN(i + 5000), 0)] = { n:"Court" + i, g:1500001 };
+      for(c = 0; c < 6; c++) t[N.cleScore("mara", c)] = { n:"Marathon", g:1000000 };
       var r = tot(T(t));
-      return r.j299 === 300 && r.j0 === undefined;
+      return r.Marathon === 6000000 && r.Court0 === 1500001;
     })());
+    ok("et quand il coupe, il coupe des appareils ENTIERS", (function(){
+      var t = {}, a, c;
+      for(a = 0; a < 300; a++)
+        for(c = 0; c < 6; c++) t[N.cleScore(seauN(a + 1000), c)] = { n:"j" + a, g:a + 1 };
+      var d = D(T(t)), vus = {}, k;
+      for(k in d) vus[k.split(":")[0]] = (vus[k.split(":")[0]] || 0) + 1;
+      /* tout appareil retenu l'est avec ses SIX îles, jamais amputé */
+      for(k in vus) if(vus[k] !== 6) return false;
+      return Object.keys(vus).length > 0 && Object.keys(vus).length < 300;
+    })());
+    ok("la coupe garde les plus gros TOTAUX, pas les plus grosses entrées", (function(){
+      var t = {}, a, c;
+      for(a = 0; a < 300; a++)
+        for(c = 0; c < 6; c++) t[N.cleScore(seauN(a + 1000), c)] = { n:"j" + a, g:a + 1 };
+      var r = tot(T(t));
+      return r.j299 === 300 * 6 && r.j0 === undefined;
+    })());
+    ok("une coupe ne dépend pas de l'ordre d'insertion", (function(){
+      var x = {}, y = {}, a, c;
+      for(a = 0; a < 200; a++)
+        for(c = 0; c < 6; c++) x[N.cleScore(seauN(a + 1000), c)] = { n:"j" + a, g:(a + 1) * 7 };
+      for(a = 199; a >= 0; a--)
+        for(c = 5; c >= 0; c--) y[N.cleScore(seauN(a + 1000), c)] = { n:"j" + a, g:(a + 1) * 7 };
+      return T(x) === T(y);
+    })());
+    ok("et elle reste idempotente : recouper ne recoupe rien", (function(){
+      var t = {}, a, c;
+      for(a = 0; a < 200; a++)
+        for(c = 0; c < 6; c++) t[N.cleScore(seauN(a + 1000), c)] = { n:"j" + a, g:(a + 1) * 7 };
+      var u = T(t);
+      return N.fusionneScores(u, u) === u && T(D(u)) === u;
+    })());
+    /* Les pseudos ne sont pas de l'ASCII : un plafond compté en
+       caractères mentirait de deux octets par « é ». */
+    ok("le poids se compte en octets, pas en signes",
+       N.octetsUtf8("Gégé") === 6 && N.octetsUtf8("Roro") === 4 && N.octetsUtf8("💕") === 4,
+       N.octetsUtf8("Gégé") + "/" + N.octetsUtf8("💕"));
 
     /* --- ET ÇA VOYAGE DANS L'INSTANTANÉ --- */
     var m1 = N.mondeVide(0, 1000, 0), m2 = N.mondeVide(0, 1000, 0);
