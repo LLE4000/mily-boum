@@ -200,9 +200,16 @@ function envoie(obj){
    du Brasier, quand c'est lui qui est en expédition. */
 function jungleCourante(){
   var m = monde || {};
+  /* Le bonus du SALON fait foi : genereCarte le lit au moment de
+     bâtir la carte, et deux joueurs qui n'auraient pas le même
+     verraient deux jungles différentes. On le repose à chaque
+     lecture de l'instantané. */
+  poseBonusPvJungle(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS);
   var o = { je:m.je | 0, jf:m.jf | 0, jd:m.jd || "", jq:m.jq | 0,
             jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
-            jmn:m.jmn | 0, ch:m.ch || "" };
+            jmn:m.jmn | 0,
+            jb:(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS),
+            ch:m.ch || "" };
   if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
     var bits = [], i;
     for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
@@ -333,6 +340,7 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
+  if(m.jb !== undefined) poseBonusPvJungle(m.jb | 0);
   if(m.g && !jeu.tueurGege){
     jeu.tueurGege = String(m.g).substr(0, 14);
     tueGegeLocale();
@@ -470,10 +478,11 @@ function minJoueursJungle(){
 }
 /* Le réglage administrateur : on incrémente son numéro pour que la
    fusion sache lequel est le plus récent. */
-function regleMinJoueurs(n){
+function regleMinJoueurs(n, pv){
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   var jg = jungleCourante();
   jg.jm = borne(n | 0, 1, 60);
+  if(typeof pv === "number" && isFinite(pv)) jg.jb = borne(Math.round(pv), 0, 900);
   jg.jmn = (jg.jmn | 0) + 1;
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",

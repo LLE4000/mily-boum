@@ -79,8 +79,27 @@ var EQ = {
      Celle-ci ne sert qu'au tout premier salon, avant tout réglage. */
   JUNGLE_MIN_JOUEURS   : 7,
   JUNGLE_ATTENTE_H     : 48,    // heures de verrou après une victoire
-  JUNGLE_ECLAIR        : 30,    // secondes entre deux impacts de foudre
+  JUNGLE_ECLAIR        : 15,    // secondes entre deux impacts de foudre
   JUNGLE_GEYSERS       : 22,    // ouvertures de feu sur l'île
+  /* LE DURCISSEMENT DE LA CARTE ÉVÉNEMENT.
+     Les défenses de la jungle sont plus dures et frappent plus fort
+     que partout ailleurs — mais le Brasier, lui, garde EXACTEMENT sa
+     vie : c'est une carte plus défendue, pas une carte plus longue.
+     Le bonus de PV vit dans l'instantané partagé et se règle depuis
+     le panneau administrateur ; celui-ci n'est que son défaut. */
+  JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
+  JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
+  /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
+     courant court sur la terre mouillée en s'élargissant. */
+  ECLAIR_RAYON_TUE     : 1.6,   // cases — au point d'impact, c'est mortel
+  ECLAIR_RAYON_NAPPE   : 7.5,   // cases — jusqu'où le courant se diffuse
+  ECLAIR_NAPPE_DUREE   : 2.6,   // secondes d'expansion
+  ECLAIR_NAPPE_DEGATS  : 260,   // dégâts au passage du front
+  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Meuf
+     avance à 1,62 case par seconde ; l'orage à 3,24. On ne distance
+     donc pas un nuage — on ne peut que sortir de son chemin, et c'est
+     ce qui en fait une menace plutôt qu'un décor. */
+  NUAGE_VITESSE        : 3.24,
 
   /* Réglages fins demandés */
   MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
@@ -382,6 +401,10 @@ CRE.koala    = { nom:"Koala",    pv:140, detection:6.5,  portee:0, degats:0, cad
 CRE.bourdon  = { nom:"Bourdon",  pv:30,  detection:6.0,  portee:0, degats:0, cadence:0, vitesse:3.10, rayon:0.16, fuit:1, vole:1 };
 CRE.papillon = { nom:"Papillon", pv:20,  detection:7.5,  portee:0, degats:0, cadence:0, vitesse:2.40, rayon:0.14, fuit:1, vole:1 };
 CRE.luciole  = { nom:"Luciole",  pv:15,  detection:5.0,  portee:0, degats:0, cadence:0, vitesse:1.60, rayon:0.10, fuit:1, vole:1 };
+/* Le cochon d'Inde : la bestiole comique de la carte. Il vit en
+   troupeau serré et détale par accélérations paniquées — c'est sa
+   détection courte qui produit ça, il ne part qu'au dernier moment. */
+CRE.cochon   = { nom:"Cochon d'Inde", pv:40, detection:4.5, portee:0, degats:0, cadence:0, vitesse:2.20, rayon:0.18, fuit:1 };
 
 /* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
@@ -544,6 +567,19 @@ function genereCarte(codeSalon, index, plan, tirage){
   var bandeProche = [["frelon",0.38],["bobine",0.34],["pilon",0.18],["cuve",0.10]];
   var bandeMoy    = [["pilon",0.26],["bobine",0.45],["crible",0.19],["silo",0.10]];
   var bandeLoin   = [["crible",0.42],["chalumeau",0.20],["pilon",0.22],["silo",0.16]];
+  /* LA JUNGLE TIRE DE PLUS LOIN ET PLUS FORT.
+     Ses trois bandes basculent vers les armes à longue portée — le
+     Frelon et son missile, le Pilon et son obus. Le Crible et le
+     Chalumeau, qui ne portent qu'à cinq cases, laissent la place : sur
+     une carte où l'on doit traverser mille défenses, ce sont les tirs
+     lointains qui font la pression, pas ceux qu'on ne subit qu'au
+     contact. Les stocks inertes (cuve, silo) disparaissent presque :
+     ils ne tirent pas, et ici chaque emplacement doit menacer. */
+  if(fic.biome === "jungle"){
+    bandeProche = [["frelon",0.46],["bobine",0.24],["pilon",0.26],["cuve",0.04]];
+    bandeMoy    = [["frelon",0.30],["pilon",0.36],["bobine",0.24],["crible",0.10]];
+    bandeLoin   = [["pilon",0.40],["frelon",0.26],["crible",0.22],["chalumeau",0.12]];
+  }
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
     for(var ly = 3; ly <= GH - 4; ly += 5){
@@ -904,7 +940,54 @@ function genereCarte(codeSalon, index, plan, tirage){
      donc les voir TOUS. Ces tirages ne concernent qu'une carte sur
      six ; les faire plus tôt décalerait la séquence des cinq autres. */
   if(CARTES[index] && CARTES[index].biome === "jungle") peupleLaJungle(c, al);
+
+  /* --- LE DURCISSEMENT DE LA JUNGLE ---
+     Les défenses y sont plus dures qu'ailleurs. On applique le bonus
+     ICI, en une seule passe finale sur le tableau complet, plutôt qu'à
+     chaque endroit qui pose un bâtiment : il y en a cinq — quadrillage,
+     renfort, cellules électriques, miradors, champs de cellules — et
+     en oublier un donnerait une carte au durcissement inégal, très
+     difficile à voir et impossible à expliquer.
+
+     Trois exceptions, et elles comptent :
+       — la CELLULE ÉLECTRIQUE du bouclier garde ses 200 000 PV, qui
+         sont un chiffre annoncé au joueur dans le briefing ;
+       — la cellule à récolter garde les siens, sinon la récolte
+         devient deux fois plus lente sur la seule carte où elle est
+         partout ;
+       — le Brasier n'est pas dans ce tableau, donc sa vie ne bouge
+         pas. C'était la demande expresse : une carte mieux défendue,
+         pas une carte plus longue. */
+  if(CARTES[index] && CARTES[index].biome === "jungle" && bonusPvJungle > 0){
+    var kpv = 1 + bonusPvJungle / 100;
+    for(var ib = 0; ib < c.batiments.length; ib++){
+      var bb = c.batiments[ib];
+      if(bb.t === "cellule" || bb.t === "reacteur") continue;
+      bb.pvMax = Math.round(bb.pvMax * kpv);
+      bb.pv = bb.pvMax;
+    }
+  }
   return c;
+}
+
+/* Le bonus de PV en vigueur. C'est une variable et non une constante :
+   il vit dans l'instantané partagé, se règle depuis le panneau
+   administrateur, et genereCarte() doit lire la valeur du salon — pas
+   celle qui était vraie au chargement de la page. Le réseau la pose
+   par poseBonusPvJungle() à chaque instantané reçu. */
+var bonusPvJungle = EQ.JUNGLE_PV_BONUS;
+function poseBonusPvJungle(p){
+  var v = (typeof p === "number" && isFinite(p)) ? p : EQ.JUNGLE_PV_BONUS;
+  bonusPvJungle = borne(Math.round(v), 0, 900);
+  return bonusPvJungle;
+}
+/* Le multiplicateur de DÉGÂTS des défenses de la jungle. Il ne peut
+   pas être appliqué à la génération comme les PV : les dégâts sont
+   lus dans DEF au moment du tir, et DEF est partagé par les six
+   cartes. On le lit donc au coup par coup, à l'unique endroit où une
+   défense décide de ce qu'elle inflige. */
+function multDegatsDefense(){
+  return (jeu && jeu.index === IDX_JUNGLE) ? 1 + EQ.JUNGLE_DEG_BONUS / 100 : 1;
 }
 
 /* ----------------------------------------------------------------
@@ -1036,6 +1119,64 @@ function peupleLaJungle(c, al){
     }
   }
 
+  /* --- LA FORÊT DU POURTOUR ---
+     Au-delà de la ceinture rocheuse, l'île donnait sur un vert plat.
+     On y plante une vraie masse forestière, pour que la zone de combat
+     paraisse perdue au milieu d'une immense jungle qui continue au
+     loin.
+
+     Trois choses la rendent presque gratuite :
+       — elle n'entre JAMAIS dans la logique de jeu. Ce sont des
+         objets de décor, dans le même index spatial que le reste :
+         hors champ, ils ne coûtent pas une instruction ;
+       — elle réutilise les MÊMES sprites d'arbres que l'intérieur, à
+         d'autres échelles. Zéro pixel de mémoire en plus ;
+       — sa densité DÉCROÎT vers l'extérieur et ses tailles varient par
+         rang. C'est ce dégradé qui donne la profondeur : la première
+         rangée est nette et haute, les suivantes se tassent et se
+         fondent dans la brume.
+
+     Elle déborde largement de la grille jouable : les arbres les plus
+     lointains sont posés bien au-delà, là où le sol pré-calculé
+     s'arrête, et c'est exactement ce qu'on veut voir quand on dézoome
+     au maximum.
+
+     Les effectifs et les échelles sont réglés ENSEMBLE, à la mesure :
+     un arbre lointain coûte exactement le même blit qu'un arbre
+     proche, donc la seule façon de payer moins est d'en poser moins —
+     et de compenser en les grossissant, pour que la masse reste la
+     même à l'œil. Les rangs lointains sont donc peu nombreux et
+     grands ; c'est la lisière, celle qu'on regarde vraiment, qui garde
+     de la variété.
+     Premier jet à 5 707 arbres : 77 ms d'image à pleine vue. */
+  var RANGS_FORET = [
+    { d0:1.5,  d1:9,   n:1300, ech:[1.05, 1.40] },   // lisière : haute et nette
+    { d0:8,    d1:20,  n:800,  ech:[1.10, 1.55] },
+    { d0:18,   d1:34,  n:450,  ech:[1.30, 1.90] },   // au loin : peu et gros
+    { d0:30,   d1:52,  n:260,  ech:[1.60, 2.40] }
+  ];
+  for(var ir = 0; ir < RANGS_FORET.length; ir++){
+    var R = RANGS_FORET[ir];
+    for(var ka = 0; ka < R.n; ka++){
+      /* On tire un point dans la couronne qui entoure l'île : d'abord
+         un côté, puis une profondeur dans ce rang. */
+      var cote = (al() * 4) | 0;
+      var prof = R.d0 + al() * (R.d1 - R.d0);
+      var lon, fx2, fy2;
+      if(cote === 0){ lon = -R.d1 + al() * (GW + 2 * R.d1); fx2 = lon; fy2 = -prof; }
+      else if(cote === 1){ lon = -R.d1 + al() * (GW + 2 * R.d1); fx2 = lon; fy2 = GH - 1 + prof; }
+      else if(cote === 2){ lon = -R.d1 + al() * (GH + 2 * R.d1); fx2 = -prof; fy2 = lon; }
+      else { lon = -R.d1 + al() * (GH + 2 * R.d1); fx2 = PLAGE_X0 - 1 + prof; fy2 = lon; }
+      var v2 = al(), s2 = al();
+      /* La plage de débarquement à l'est doit rester dégagée : c'est
+         par là qu'on arrive, et un mur d'arbres devant la mer serait
+         un contresens. */
+      if(fx2 > PLAGE_X0 - 3 && fy2 > -4 && fy2 < GH + 3) continue;
+      c.flore.push({ gx:fx2, gy:fy2, fam:"arbre", v:v2, s:s2,
+                     ech:R.ech[0] + (R.ech[1] - R.ech[0]) * s2, fond:1 });
+    }
+  }
+
   /* --- LES GEYSERS DE FEU ---
      Répartis « intelligemment dans certaines zones » : en foyers, pas
      uniformément. C'est semeGeysers qui s'en charge ; on ne lui donne
@@ -1063,23 +1204,46 @@ function peupleLaJungle(c, al){
      assise à manger — une jungle où tout le monde marche est une
      jungle en fuite. */
   var BESTIOLES = [
-    { t:"panda",    n:34 },
-    { t:"singe",    n:22 },
-    { t:"koala",    n:16 },
-    { t:"bourdon",  n:26 },
-    { t:"papillon", n:30 },
-    { t:"luciole",  n:44 }
+    { t:"panda",    n:110, gr:3 },
+    { t:"singe",    n:80,  gr:4 },
+    { t:"koala",    n:55,  gr:2 },
+    { t:"cochon",   n:130, gr:6 },
+    { t:"bourdon",  n:80,  gr:3 },
+    { t:"papillon", n:95,  gr:4 },
+    { t:"luciole",  n:150, gr:7 }
   ];
   for(i = 0; i < BESTIOLES.length; i++){
     var B = BESTIOLES[i];
-    for(var j = 0; j < B.n; j++){
-      for(var t2 = 0; t2 < 60; t2++){
-        var bx = 6 + al() * (PLAGE_X0 - 12), by = 4 + al() * (GH - 8);
-        if(Math.hypot(bx - QG_GX, by - QG_GY) < 15) continue;
-        if(!libre(bx, by)) continue;
-        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:0,
-                           assis:(B.t === "panda" && al() < 0.5) ? 1 : 0 });
-        break;
+    /* On compte les bêtes RÉELLEMENT posées, avec un budget d'essais
+       pour ne jamais boucler sans fin sur une carte qui n'aurait plus
+       de place. Compter les essais au lieu des poses donnait des
+       effectifs très en dessous de la consigne : sur une carte
+       saturée, un groupe sur trois tombe au pied du Brasier ou dans
+       une tourelle. */
+    var pose = 0, essais = B.n * 12;
+    while(pose < B.n && essais-- > 0){
+      /* EN PETITS GROUPES, jamais un par un. Une jungle habitée, ce
+         n'est pas une bestiole tous les vingt mètres : c'est une
+         famille de cochons d'Inde qui détale ensemble, une bande de
+         singes dans le même arbre, un nuage de lucioles au-dessus de
+         la même flaque. Le semis uniforme donnait des bêtes solitaires
+         qu'on ne remarquait jamais ; le groupe, lui, fait une SCÈNE. */
+      var nb = 1 + ((al() * B.gr) | 0);
+      var cx2 = 6 + al() * (PLAGE_X0 - 12), cy2 = 4 + al() * (GH - 8);
+      if(Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15) continue;
+      for(var g2 = 0; g2 < nb && pose < B.n; g2++){
+        var bx = cx2 + (al() - 0.5) * 3.4;
+        var by = cy2 + (al() - 0.5) * 3.4;
+        var teinte = (al() * 3) | 0;
+        var assis = (B.t === "panda" && al() < 0.5) ? 1 : 0;
+        /* libreBas et non libre : une bête se faufile entre les
+           tourelles comme les fougères, elle ne cache rien. Avec la
+           contrainte des grands arbres, la carte saturée en rejetait
+           quatre-vingt-treize pour cent et il ne restait que huit
+           pandas pour toute une jungle. */
+        if(!libreBas(bx, by)) continue;
+        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:teinte, assis:assis });
+        pose++;
       }
     }
   }
@@ -1516,7 +1680,8 @@ function planDeCarte(index, planSalon){
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
            p:"", pn:0, tg:0, s:"", k:"",
-           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"" };
+           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"",
+           jb:EQ.JUNGLE_PV_BONUS };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1761,6 +1926,11 @@ function fusionneJungle(a, b){
        le verrou en republiant un vieil instantané. */
     jt : Math.max(msMonde(a.jt), msMonde(b.jt)),
     jm : mj.jm, jmn : mj.jmn,
+    /* Le bonus de PV suit le MÊME numéro de réglage que le minimum de
+       joueurs : ils se règlent au même endroit, dans le même panneau,
+       donc ils voyagent ensemble. Un seul compteur à tenir. */
+    jb : (mj.jmn === (b.jmn | 0) && b.jb !== undefined) ? (b.jb | 0)
+       : (a.jb !== undefined ? (a.jb | 0) : EQ.JUNGLE_PV_BONUS),
     ch : fusionneChampions(a.ch, b.ch)
   };
   /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
@@ -1781,7 +1951,7 @@ function fusionneJungle(a, b){
 /* Recopie les champs de la jungle dans un instantané fusionné. */
 function poseJungle(o, j){
   o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
-  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.ch = j.ch;
+  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch;
   return o;
 }
 
@@ -1829,7 +1999,8 @@ function memeJungle(m, j){
   return (m.je | 0) === j.je && (m.jf | 0) === j.jf &&
          (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
          msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
-         (m.jmn | 0) === j.jmn && (m.ch || "") === j.ch;
+         (m.jmn | 0) === j.jmn && (m.jb | 0) === (j.jb | 0) &&
+         (m.ch || "") === j.ch;
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -1846,7 +2017,8 @@ function memeMonde(a, b){
          (a.je | 0) === (b.je | 0) && (a.jf | 0) === (b.jf | 0) &&
          (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
          msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
-         (a.jmn | 0) === (b.jmn | 0) && (a.ch || "") === (b.ch || "");
+         (a.jmn | 0) === (b.jmn | 0) && (a.jb | 0) === (b.jb | 0) &&
+         (a.ch || "") === (b.ch || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */

@@ -1266,9 +1266,26 @@ function construitSol(carteC){
    ================================================================ */
 var indexDecor = null, ID_PAS = 8, ID_W = 0, ID_H = 0, ID_X0 = -8, ID_Y0 = -8;
 function construitIndexDecor(carteC){
-  ID_X0 = -8; ID_Y0 = -8;
-  ID_W = Math.ceil((GW + 16) / ID_PAS);
-  ID_H = Math.ceil((GH + 16) / ID_PAS);
+  /* LES BORNES DE L'INDEX SUIVENT CE QU'IL CONTIENT.
+     Elles étaient figées à huit cases autour de la grille jouable, ce
+     qui suffisait tant que rien ne poussait au-delà. La forêt du
+     pourtour de la jungle s'étend, elle, jusqu'à cinquante cases
+     dehors : avec des bornes figées, `range` aurait entassé ses sept
+     mille arbres dans la seule rangée de cases du bord — et
+     `decorVisible` les aurait TOUS empilés dès que la caméra regarde
+     ce bord. Exactement le contraire de ce que fait un index.
+     On mesure donc l'étendue réelle avant de le construire. */
+  var marge = 8;
+  if(carteC.flore){
+    for(var kf = 0; kf < carteC.flore.length; kf++){
+      var f0 = carteC.flore[kf];
+      var dx0 = Math.max(-f0.gx, f0.gx - GW, -f0.gy, f0.gy - GH);
+      if(dx0 + 4 > marge) marge = Math.ceil(dx0) + 4;
+    }
+  }
+  ID_X0 = -marge; ID_Y0 = -marge;
+  ID_W = Math.ceil((GW + 2 * marge) / ID_PAS);
+  ID_H = Math.ceil((GH + 2 * marge) / ID_PAS);
   indexDecor = [];
   for(var k = 0; k < ID_W * ID_H; k++) indexDecor.push([]);
   function range(gx, gy, obj){
@@ -1286,8 +1303,21 @@ function construitIndexDecor(carteC){
      tombent dans les cases visibles sont empilées. tk vaut 2 pour
      qu'elles passent par dessineFloreMonde et non par les sprites de
      décor ordinaires. */
-  if(carteC.flore) carteC.flore.forEach(function(f){
-    range(f.gx, f.gy, { k:9, tk:2, o:f, d:f.gx + f.gy });
+  if(carteC.flore) carteC.flore.forEach(function(f, i){
+    /* LE NIVEAU DE DÉTAIL, décidé UNE FOIS ici et jamais recalculé.
+       Deux nombres par pousse :
+         `haute` — un arbre ou une liane se voit de partout, une
+           fougère de trente unités ne fait plus huit pixels à l'écran
+           quand on regarde l'île entière ;
+         `q` — un quart tiré de son rang, 0 à 3. Il sert à ÉCLAIRCIR
+           progressivement le tapis au lieu de le supprimer d'un coup :
+           à mi-zoom on n'en garde qu'une sur deux, plus loin une sur
+           quatre. L'œil ne voit pas la différence sur un tapis, mais
+           la machine dessine deux fois moins.
+       Mesuré : 12 124 objets par image à z 0,16, soit 106 ms. C'est le
+       poste le plus cher de toute la carte, loin devant les défenses. */
+    var haute = (f.fam === "arbre" || f.fam === "liane") ? 1 : 0;
+    range(f.gx, f.gy, { k:9, tk:2, o:f, d:f.gx + f.gy, haute:haute, q:i & 3 });
   });
   construitSpritesDecor(carteC.biome);
   if(carteC.flore && carteC.flore.length && typeof construitSpritesFlore === "function")
@@ -1307,10 +1337,28 @@ function decorVisible(vue, sortie){
   var x1 = borne(Math.floor((gx1 - ID_X0) / ID_PAS), 0, ID_W - 1);
   var y0 = borne(Math.floor((gy0 - ID_Y0) / ID_PAS), 0, ID_H - 1);
   var y1 = borne(Math.floor((gy1 - ID_Y0) / ID_PAS), 0, ID_H - 1);
+  /* LE SEUIL DU TAPIS. Une pousse de sous-bois fait une cinquantaine
+     d'unités locales : à z 0,16 elle mesure huit pixels à l'écran et
+     ne raconte plus rien, mais elle coûte son blit comme les autres.
+     On garde donc tout au-dessus de 0,55 — la distance à laquelle on
+     joue —, la moitié entre 0,30 et 0,55, le quart entre 0,18 et 0,30,
+     et plus rien en dessous, où seuls les grands arbres portent
+     encore l'image. Le tirage se fait sur le quart figé à la
+     construction, jamais au hasard : une pousse qui apparaîtrait et
+     disparaîtrait au fil du zoom se verrait immédiatement. */
+  var z = cam.z, seuil;
+  if(z >= 0.55) seuil = 4;                 // tout
+  else if(z >= 0.30) seuil = 2;            // une sur deux
+  else if(z >= 0.18) seuil = 1;            // une sur quatre
+  else seuil = 0;                          // que les arbres
   for(var j = y0; j <= y1; j++){
     for(var i = x0; i <= x1; i++){
       var t = indexDecor[j * ID_W + i];
-      for(var k = 0; k < t.length; k++) sortie.push(t[k]);
+      for(var k = 0; k < t.length; k++){
+        var it = t[k];
+        if(it.tk === 2 && !it.haute && it.q >= seuil) continue;
+        sortie.push(it);
+      }
     }
   }
 }

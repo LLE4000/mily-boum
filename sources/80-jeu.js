@@ -55,6 +55,26 @@ function nouvelleCarte(index, pvConnu){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
     eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
+    /* TROIS NUAGES D'ORAGE, et ils vont vite.
+       Trois, parce qu'un ciel couvert n'est plus une menace : c'est un
+       décor. Trois masses qu'on peut suivre du regard, c'est une
+       information — celle qui dit où la foudre va tomber.
+       Leur vitesse est le DOUBLE de celle d'une troupe : on ne
+       distance pas un orage, on ne peut que sortir de son chemin. */
+    nuages:(carte.geysers && carte.geysers.length)
+      ? Array.apply(null, Array(3)).map(function(_, i){
+          return { gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
+                   r:10 + Math.random() * 6,
+                   cap:Math.random() * 6.2832,
+                   /* le cap voulu, vers lequel le vrai cap glisse :
+                      c'est cette inertie qui donne une dérive erratique
+                      plutôt qu'un zigzag mécanique */
+                   capBut:Math.random() * 6.2832,
+                   vire:1 + Math.random() * 3,
+                   v:EQ.NUAGE_VITESSE * (0.85 + Math.random() * 0.3),
+                   ph:i * 2.3 };
+        })
+      : [],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -1462,6 +1482,23 @@ function chercheCibleDefense(b, f){
   return meilleur;
 }
 function tireDefense(b, f, c, d, tps){
+  /* LE BONUS DE DÉGÂTS DE LA JUNGLE, appliqué ICI et nulle part
+     ailleurs. Toutes les défenses du jeu passent par cette fonction,
+     et toutes lisent leurs dégâts dans `f` : on substitue donc une
+     fiche majorée le temps du tir, plutôt que d'aller multiplier les
+     douze endroits où `f.degats` est lu — obus, roquette, balle,
+     flamme, arc, chacun avec sa propre trajectoire. Une seule ligne
+     à relire pour savoir ce que frappe une défense de la jungle. */
+  var kd = multDegatsDefense();
+  if(kd !== 1){
+    /* Object.create et non une copie : la fiche majorée hérite de tous
+       les autres champs — portée, cadence, zone, vitesse du projectile
+       — sans qu'on ait à les recopier, donc sans risque d'en oublier
+       un le jour où DEF en gagne un nouveau. */
+    var fj = Object.create(f);
+    fj.degats = Math.round(f.degats * kd);
+    f = fj;
+  }
   b.flash = 1;
   if(b.t === "crible"){
     b.recul = 1;
@@ -2589,28 +2626,119 @@ function majJungle(dt){
     }
   }
 
+  /* --- LES NUAGES D'ORAGE ---
+     Ils dérivent lentement au-dessus de l'île, et c'est d'EUX que
+     tombe la foudre. Sans eux, l'éclair sortait de nulle part : le
+     joueur ne pouvait pas comprendre pourquoi il tombait là, et encore
+     moins l'anticiper. Avec eux, une masse sombre qui passe au-dessus
+     de ses troupes devient une raison de les déplacer. */
+  for(i = 0; i < jeu.nuages.length; i++){
+    var nu = jeu.nuages[i];
+    /* UNE DÉRIVE ERRATIQUE, pas un zigzag. Le nuage se choisit un
+       nouveau cap de temps en temps, et son cap réel GLISSE vers
+       celui-là au lieu d'y sauter. C'est cette inertie qui donne une
+       trajectoire de nuage — de longues courbes molles, imprévisibles
+       mais jamais saccadées. Un changement de cap instantané aurait
+       donné un insecte, pas un orage. */
+    nu.vire -= dt;
+    if(nu.vire <= 0){
+      nu.vire = 2.5 + Math.random() * 5;
+      nu.capBut = Math.random() * 6.2832;
+    }
+    /* on tourne par le plus court chemin, sinon un cap qui passe par
+       zéro fait faire un tour complet au nuage */
+    var ec = ((nu.capBut - nu.cap + 9.4248) % 6.2832) - 3.1416;
+    nu.cap += borne(ec, -0.55 * dt, 0.55 * dt);
+    nu.gx += Math.cos(nu.cap) * nu.v * dt;
+    nu.gy += Math.sin(nu.cap) * nu.v * dt;
+    /* Ils font le tour : sorti d'un bord, un nuage rentre par l'autre.
+       Sans ce recyclage, les trois finissaient par dériver au large et
+       le ciel se vidait au bout de quelques minutes. */
+    if(nu.gx < -22) nu.gx = PLAGE_X0 + 20;
+    if(nu.gx > PLAGE_X0 + 22) nu.gx = -20;
+    if(nu.gy < -22) nu.gy = GH + 20;
+    if(nu.gy > GH + 22) nu.gy = -20;
+  }
+
   /* --- LA FOUDRE ---
-     Un impact toutes les trente secondes environ. Le point est tiré
-     dans les terres, jamais sur le Brasier — un éclair qui frapperait
+     Un impact toutes les quinze secondes. Le point n'est pas tiré au
+     hasard sur la carte : il tombe SOUS UN NUAGE, avec un peu de
+     dérive. Jamais sur le Brasier — un éclair qui frapperait
      l'objectif ferait croire à un dégât qui n'existe pas. */
   jeu.prochainEclair -= dt;
   if(jeu.prochainEclair <= 0){
-    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.75 + Math.random() * 0.5);
+    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.72 + Math.random() * 0.56);
+    var nu2 = jeu.nuages[(Math.random() * jeu.nuages.length) | 0];
     var ex, ey, essais = 0;
     do{
-      ex = 6 + Math.random() * (PLAGE_X0 - 12);
-      ey = 4 + Math.random() * (GH - 8);
+      var an = Math.random() * 6.2832, ra = Math.sqrt(Math.random()) * 5.5;
+      ex = borne(nu2.gx + Math.cos(an) * ra, 5, PLAGE_X0 - 4);
+      ey = borne(nu2.gy + Math.sin(an) * ra, 4, GH - 5);
     }while(Math.hypot(ex - jeu.qg.gx, ey - jeu.qg.gy) < 20 && ++essais < 20);
-    jeu.eclairs.push({ gx:ex, gy:ey, age:0, duree:2.4 });
+    jeu.eclairs.push({ gx:ex, gy:ey, age:0, duree:EQ.ECLAIR_NAPPE_DUREE + 0.9,
+                       cx:nu2.gx, cy:nu2.gy, front:0, puni:0 });
     if(son.foudre) son.foudre();
-    jeu.secousse = Math.min(5, jeu.secousse + 1.6);
+    jeu.secousse = Math.min(6, jeu.secousse + 2.2);
     /* les bêtes détalent : c'est ce qui rend la jungle habitée plutôt
        que décorée */
-    if(typeof effraieFaune === "function") effraieFaune(ex, ey, 22, jeu.tps);
+    if(typeof effraieFaune === "function") effraieFaune(ex, ey, 26, jeu.tps);
   }
+
+  /* --- L'IMPACT, PUIS LE COURANT QUI COURT SUR LA TERRE ---
+     Deux effets distincts, et c'est voulu :
+       — au POINT D'IMPACT, c'est mortel. Une troupe touchée par la
+         foudre meurt, elle n'est pas blessée. C'est ce qui rend
+         l'orage vraiment dangereux plutôt que gênant ;
+       — puis le courant se DIFFUSE sur la terre mouillée, en cercle
+         qui s'élargit. Le front frappe fort mais une seule fois par
+         unité : sans ce marquage, une troupe restée sur place aurait
+         encaissé la nappe à chaque image et le rayon de mort aurait
+         valu sept cases au lieu de deux. */
   for(i = jeu.eclairs.length - 1; i >= 0; i--){
-    jeu.eclairs[i].age += dt;
-    if(jeu.eclairs[i].age > jeu.eclairs[i].duree) jeu.eclairs.splice(i, 1);
+    var e2 = jeu.eclairs[i];
+    var avant = e2.front;
+    e2.age += dt;
+    if(!e2.puni){
+      e2.puni = 1;
+      foudroieAuSol(e2.gx, e2.gy);
+    }
+    /* le front avance en racine du temps : très vite au départ, il
+       ralentit — c'est ainsi que se propage une décharge dans un sol
+       conducteur, et c'est aussi ce qui laisse une chance de fuir */
+    var t2 = borne(e2.age / EQ.ECLAIR_NAPPE_DUREE, 0, 1);
+    e2.front = Math.sqrt(t2) * EQ.ECLAIR_RAYON_NAPPE;
+    if(e2.front > avant) nappeElectrique(e2, avant, e2.front);
+    if(e2.age > e2.duree) jeu.eclairs.splice(i, 1);
+  }
+}
+
+/* Le coup de foudre lui-même : ce qu'il touche meurt. */
+function foudroieAuSol(gx, gy){
+  var t = [];
+  unitesAutour(gx, gy, EQ.ECLAIR_RAYON_TUE, t);
+  for(var i = 0; i < t.length; i++){
+    var u = t[i];
+    if(u.pv <= 0) continue;
+    if(Math.hypot(u.gx - gx, u.gy - gy) > EQ.ECLAIR_RAYON_TUE) continue;
+    toucheUnite(u, u.pv + 1);          // la foudre ne blesse pas, elle tue
+  }
+  degatsZoneEnnemis(gx, gy, EQ.ECLAIR_RAYON_TUE, EQ.ECLAIR_NAPPE_DEGATS * 2);
+  jeu.crateres.push({ gx:gx, gy:gy, r:1.1 });
+  jeu.effets.push({ t:"onde", gx:gx, gy:gy, age:0, duree:0.45, r:1.4 });
+}
+/* Le courant qui s'élargit. On ne frappe QUE la couronne franchie
+   depuis l'image précédente : une unité est donc touchée une fois,
+   au passage du front, et pas tant qu'elle reste dedans. */
+function nappeElectrique(e, r0, r1){
+  var t = [];
+  unitesAutour(e.gx, e.gy, r1, t);
+  for(var i = 0; i < t.length; i++){
+    var u = t[i];
+    if(u.pv <= 0 || u.zappe === e) continue;
+    var d = Math.hypot(u.gx - e.gx, u.gy - e.gy);
+    if(d > r1 || d <= r0) continue;
+    u.zappe = e;                        // marqué par CET éclair, une fois
+    toucheUnite(u, EQ.ECLAIR_NAPPE_DEGATS);
   }
 }
 /* Le centre de l'écran, en cases — sert à ne pas jouer le son d'un

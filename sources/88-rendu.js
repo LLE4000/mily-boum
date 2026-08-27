@@ -2005,10 +2005,22 @@ function rendu(tps, dt){
     if(!visible(vueL, pl.gx, pl.gy)) continue;
     pile.push({ d:pl.gx + pl.gy, k:10, o:pl });
   }
+  /* LE SEUIL DES BESTIOLES. La jungle en porte près de huit cents, et
+     à z 0,16 une luciole de quatre unités locales fait moins d'un
+     pixel : elle coûte son dessin complet pour ne rien montrer.
+     Mesuré : 85 ms d'image rien que pour elles à cette distance, le
+     poste le plus cher devant les défenses.
+     Les insectes tombent les premiers — ils sont les plus petits et
+     les plus nombreux —, les mammifères tiennent plus longtemps, et
+     les créatures hostiles ne tombent JAMAIS : un sanglier qui charge
+     doit se voir, quel que soit le zoom. */
+  var zc = cam.z;
   for(i = 0; i < jeu.creatures.length; i++){
     var k2 = jeu.creatures[i];
     if(k2.pv <= 0) continue;
     if(!visible(vueL, k2.gx, k2.gy)) continue;
+    if(zc < 0.34 && CRE[k2.t].vole && CRE[k2.t].fuit) continue;
+    if(zc < 0.22 && CRE[k2.t].fuit && !CRE[k2.t].protege) continue;
     pile.push({ d:k2.gx + k2.gy, k:2, o:k2 });
   }
   /* unités grises des autres joueurs */

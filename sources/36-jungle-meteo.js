@@ -1,35 +1,51 @@
 /* ================================================================
    MILY DANS LA JUNGLE — LA MÉTÉO
    Un orage tropical permanent, et un impact de foudre toutes les
-   trente secondes. Quarante éclairs dans une partie de vingt minutes :
-   c'est ce chiffre-là qui commande tout le fichier. Un effet qu'on
-   subit quarante fois n'a pas le droit d'agresser, si spectaculaire
-   soit-il. D'où trois règles que rien ne renégocie ici :
+   QUINZE secondes. Quatre-vingts éclairs dans une partie de vingt
+   minutes : c'est ce chiffre-là qui commande tout le fichier. Un effet
+   qu'on subit quatre-vingts fois n'a pas le droit d'agresser, si
+   spectaculaire soit-il. D'où trois règles que rien ne renégocie :
 
-     1. le voile plein écran de l'éclair plafonne à 0,32 d'alpha et
-        il est retombé sous 0,02 en 140 ms ;
+     1. le voile plein écran de l'éclair plafonne à 0,23 d'alpha et
+        il est retombé sous 0,01 en 120 ms. Il a été BAISSÉ de 0,32 à
+        0,23 le jour où la cadence a doublé : ce qu'on gagne en
+        fréquence, on le rend en douceur ;
      2. la pluie est un rideau PÂLE — trois couches, 270 traits fins,
         jamais un mur d'eau : on doit lire un combat au travers ;
      3. pluie + brume + ciel tiennent sous 2 ms par image, à plein
         écran, à toutes les images de la partie.
 
-   Quatre couches, appelées depuis le rendu en repère ÉCRAN
-   (repereEcran déjà fait) :
+   Les couches, dans l'ordre où le rendu doit les empiler. Toutes en
+   repère ÉCRAN (repereEcran déjà fait) :
 
-     dessineCielOrage    la LUMIÈRE de la carte : teinte verte
-                         d'orage, flaques de clarté et d'ombre qui
-                         dérivent avec les nuages, vignette, lueurs
-                         des roulements derrière la couche de nuages.
-                         C'est elle qui rend l'île belle au dézoom,
-                         quand plus aucun détail ne porte.
+   SOUS les entités — ce qui se passe AU SOL :
+     dessineCielOrage    la nappe d'ombres et de trouées de lumière
+                         qui dérive avec les nuages, plus l'ombre
+                         portée des petits nuages. C'est elle qui rend
+                         l'île belle au dézoom, quand plus aucun
+                         détail ne porte.
      dessineBrumeSol     une haleine pâle collée au sol, ancrée au
                          MONDE : elle suit la caméra, elle ne colle
                          pas à l'écran.
+
+   PAR-DESSUS la carte — ce qui se passe DANS L'AIR :
+     dessineNuagesJungle les petits nuages qui se baladent. Ce sont
+                         eux qui donnent la CAUSE : la foudre part de
+                         l'un d'eux, jamais de nulle part.
+     dessineVoileOrage   la lumière de l'air entre la caméra et la
+                         carte : teinte d'orage, vignette, lueur des
+                         roulements lointains.
+     dessineLueursVegetation  les points chauds dans les feuillages.
+     dessineEclairJungle l'événement, en cinq temps : le nuage
+                         s'allume, l'éclair descend, il frappe, LE
+                         COURANT SE DIFFUSE AU SOL, ça fume.
      dessinePluieJungle  le rideau (écran) + les éclaboussures
                          (monde, elles marquent le sol).
-     dessineEclairJungle l'événement, en quatre temps : le ciel
-                         blanchit, l'éclair descend, il frappe,
-                         il fume.
+
+   Les deux couches d'AIR ont un filet de sécurité : si le rendu ne les
+   appelle pas explicitement, dessineLueursVegetation puis
+   dessinePluieJungle s'en chargent. Un garde-fou sur `tps` fait qu'on
+   ne les peint jamais deux fois dans la même image.
 
    ----------------------------------------------------------------
    CE QUI DICTE TOUTE L'ARCHITECTURE DU FICHIER : LE FILTRAGE.
@@ -325,18 +341,24 @@ function bornesGrille(pasEcran, marge){
    deux impacts, et non devant une carte verte qui attend son effet.
    Rare, faible, et toujours en haut de l'écran — un voile plein cadre
    toutes les sept secondes ne servirait qu'à fatiguer. */
+/* Le cycle a été ALLONGÉ de 6,7 à 9,5 s et le tirage resserré quand la
+   foudre est passée à un impact toutes les quinze secondes : entre les
+   vrais coups et les lueurs lointaines, le ciel finissait par gronder
+   sans arrêt, et un orage permanent ne fait plus peur à personne. */
+var MET_ROULEMENT = 9.5;
 function roulementJungle(tps){
-  var n = Math.floor(tps / 6.7);
+  var n = Math.floor(tps / MET_ROULEMENT);
   var f = bruitStable(n, 1);
-  if(f < 0.42) return 0;                      // un cycle sur deux, rien
-  var d = tps - n * 6.7 - (0.4 + bruitStable(n, 0) * 5.2);
+  if(f < 0.55) return 0;                      // moins d'un cycle sur deux
+  var d = tps - n * MET_ROULEMENT - (0.4 + bruitStable(n, 0) * 7.4);
   if(d < 0 || d > 0.7) return 0;
   /* deux claquements : un vrai éclair lointain se réamorce */
   return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
 }
 
-/* LES OMBRES DE NUAGES, sur le SOL. Appelée tôt, sous les entités :
-   c'est bien de l'ombre portée sur la terre, elle n'a rien à faire
+/* TOUT CE QUI SE PASSE AU SOL : la nappe d'ombres et de trouées de
+   lumière, puis l'ombre portée des petits nuages. Appelée tôt, sous
+   les entités — c'est de l'ombre sur la terre, elle n'a rien à faire
    par-dessus les troupes. */
 function dessineCielOrage(c, tps){
   var e = dpr;
@@ -350,6 +372,10 @@ function dessineCielOrage(c, tps){
   nappeMeteo(c, motifMeteo(c, "nuages", T),
              (cam.px * 0.85 + secX + tps * 6.5) * e,
              (cam.py * 0.85 + secY + tps * 2.2) * e);
+  /* Les ombres portées des petits nuages, par-dessus la nappe : c'est
+     ce qui rattache les masses du ciel au sol qu'elles survolent.
+     Sans elles, les nuages flottent comme des autocollants. */
+  dessineOmbresNuages(c, tps);
 }
 
 /* ---------------------------------------------------------------
@@ -430,8 +456,9 @@ var MET_COUCHES_PLUIE = [
 ];
 
 function dessinePluieJungle(c, tps){
-  /* filet de sécurité : voir dessineVoileOrage. La pluie tombe DANS
-     l'air voilé, donc le voile passe avant elle. */
+  /* filets de sécurité : voir dessineVoileOrage. La pluie tombe DANS
+     l'air voilé et SOUS les nuages, donc les deux passent avant elle. */
+  dessineNuagesJungle(c, tps);
   dessineVoileOrage(c, tps);
   var z = cam.z;
   var pente = ventJungle(tps);
@@ -509,9 +536,12 @@ function dessinePluieJungle(c, tps){
    ================================================================ */
 function dessineLueursVegetation(c, tps){
   /* C'est la PREMIÈRE des couches empilées par-dessus la carte, donc
-     le meilleur endroit pour le filet de sécurité du voile : ainsi
-     l'éclair, qui vient ensuite, perce le voile au lieu d'être posé
-     dessous. Voir dessineVoileOrage. */
+     le meilleur endroit pour les filets de sécurité : ainsi l'éclair,
+     qui vient ensuite, perce le voile au lieu d'être posé dessous, et
+     il part d'un nuage déjà peint. Voir dessineVoileOrage et
+     dessineNuagesJungle — les deux ont un garde-fou sur `tps`, donc
+     un appel explicite du rendu les rend ici inopérants. */
+  dessineNuagesJungle(c, tps);
   dessineVoileOrage(c, tps);
   var z = cam.z;
   if(z < 0.18) return;
@@ -537,15 +567,215 @@ function dessineLueursVegetation(c, tps){
 }
 
 /* ================================================================
-   5. L'ÉCLAIR
+   5. LES PETITS NUAGES
+   Ils ne sont pas décoratifs : ils sont la CAUSE. Un éclair qui tombe
+   d'un ciel vide n'est qu'un effet posé sur la carte ; le même éclair
+   parti d'un nuage qu'on regardait dériver depuis vingt secondes est
+   un événement. C'est tout ce que cette section sert à fabriquer —
+   un préavis, et un point de départ.
+   Ils restent DISCRETS : une ombre portée au sol, une masse sombre
+   au-dessus. Jamais un plafond, jamais quelque chose qui cache le jeu.
+   ================================================================ */
+var MET_NUAGE  = "22,36,38";        // le ventre du nuage, presque noir
+var MET_NUAGE_H = "104,130,124";    // sa crête, qui prend ce qui reste de jour
+var JUNGLE_NUAGES = 9;              // combien dérivent au-dessus de l'île
+
+/* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
+   une dizaine de dégradés par image et par nuage ; celui-ci coûte un
+   seul blit. Le rapport 2:1 de la tuile est celui de la projection :
+   un nuage vu de trois quarts est un objet couché. */
+var metSpNuages = null;
+function spritesNuage(){
+  if(metSpNuages) return metSpNuages;
+  metSpNuages = [];
+  var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
+  for(var v = 0; v < 4; v++){
+    var cv = nouveauCanvas(256, 128);
+    var g = cv.getContext("2d");
+    var al = prng(0x4E51 + v * 977);
+    var n = 8 + ((al() * 4) | 0), i;
+    /* le ventre : des lobes bas, larges, franchement écrasés */
+    for(i = 0; i < n; i++){
+      var x = 34 + al() * 188, r = 30 + al() * 54;
+      var y = 78 + (al() - 0.5) * 20;
+      g.globalAlpha = 0.30 + al() * 0.36;
+      g.drawImage(db, x - r, y - r * 0.60, r * 2, r * 1.20);
+    }
+    /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
+       et rien d'autre qui donne le volume : sans lui, un nuage n'est
+       qu'une tache grise, et une tache grise sur une jungle verte se
+       lit comme une salissure d'écran. */
+    for(i = 0; i < n - 3; i++){
+      var x2 = 52 + al() * 152, r2 = 20 + al() * 32;
+      g.globalAlpha = 0.11 + al() * 0.15;
+      g.drawImage(dh, x2 - r2, 46 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.1);
+    }
+    metSpNuages.push(cv);
+  }
+  return metSpNuages;
+}
+
+/* UN NUAGE, en coordonnées MONDE comme une défense :
+     gx, gy   le point du sol qu'il survole — donc où tombe son ombre
+     h        sa hauteur au-dessus du sol, en unités locales
+     r        son demi-diamètre au sol, en cases
+     v        la variante de silhouette (0..3)
+     gx0, vx  sa position de départ et sa dérive, en cases par seconde
+   La liste est PUBLIQUE : la boucle de jeu peut la remplir, la vider,
+   ou déplacer les nuages elle-même. */
+var nuagesJungle = [];
+
+function nouveauNuageJungle(gx, gy, graine){
+  var al = prng((graine | 0) || 1);
+  return {
+    gx:gx, gy:gy, gx0:gx, gy0:gy,
+    r:7 + al() * 8,
+    h:250 + al() * 170,
+    v:(al() * 4) | 0,
+    op:0.60 + al() * 0.40,
+    vx:0.24 + al() * 0.18,
+    vy:0.08 + al() * 0.09
+  };
+}
+
+/* Un semis reproductible : deux joueurs d'un même salon doivent voir
+   le même ciel, sinon la foudre ne part pas du même endroit chez l'un
+   et chez l'autre. */
+function peupleNuagesJungle(nb, graine){
+  var al = prng((graine | 0) || 0x51A9E1);
+  nuagesJungle.length = 0;
+  for(var i = 0; i < nb; i++)
+    nuagesJungle.push(nouveauNuageJungle(al() * GW, al() * GH, (al() * 1e9) | 0));
+  return nuagesJungle;
+}
+
+/* LA DÉRIVE, calculée à partir de tps et de RIEN D'AUTRE.
+   Pas d'accumulation « gx += vx*dt » : deux clients qui n'ont pas
+   exactement le même nombre d'images finiraient avec deux ciels
+   différents, donc deux éclairs partant de deux endroits. Ici la
+   position est une FONCTION du temps, elle est identique partout.
+   Ils sortent par un bord et rentrent par l'autre — la carte est
+   bouclée pour eux, ce qui évite d'en créer et d'en détruire. */
+var MET_NUAGE_MARGE = 22;
+var metNuagesMaj = -1;
+function majNuagesJungle(tps){
+  if(tps === metNuagesMaj) return nuagesJungle;
+  metNuagesMaj = tps;
+  if(!nuagesJungle.length) peupleNuagesJungle(JUNGLE_NUAGES, 0x51A9E1);
+  var m = MET_NUAGE_MARGE, LX = GW + m * 2, LY = GH + m * 2;
+  for(var i = 0; i < nuagesJungle.length; i++){
+    var u = nuagesJungle[i];
+    u.gx = ((u.gx0 + u.vx * tps) % LX + LX) % LX - m;
+    u.gy = ((u.gy0 + u.vy * tps) % LY + LY) % LY - m;
+  }
+  return nuagesJungle;
+}
+
+/* Le nuage le plus proche d'un point. C'est de lui que partira
+   l'éclair : la boucle de jeu peut s'en servir pour choisir où frapper
+   (tirer un nuage, puis un point sous lui) plutôt que l'inverse. */
+function nuageAuDessus(gx, gy){
+  var meilleur = null, d2 = 1e18;
+  for(var i = 0; i < nuagesJungle.length; i++){
+    var u = nuagesJungle[i];
+    var d = (u.gx - gx) * (u.gx - gx) + (u.gy - gy) * (u.gy - gy);
+    if(d < d2){ d2 = d; meilleur = u; }
+  }
+  return meilleur;
+}
+
+/* L'OMBRE PORTÉE. Elle vit avec les ombres de nuages du sol, donc
+   SOUS les entités : c'est de l'ombre sur la terre, elle n'a rien à
+   faire par-dessus les troupes. Appelée depuis dessineCielOrage. */
+function dessineOmbresNuages(c, tps){
+  var z = cam.z;
+  var d = disqueMeteo(MET_OMBRE);
+  var nu = majNuagesJungle(tps);
+  c.save();
+  c.imageSmoothingEnabled = false;
+  for(var i = 0; i < nu.length; i++){
+    var u = nu[i];
+    var p = versEcran(cam, u.gx, u.gy);
+    var rx = u.r * RX * z * 1.15, ry = u.r * RY * z * 1.15;
+    if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
+    c.globalAlpha = 0.20 * u.op;
+    c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
+  }
+  c.restore();
+}
+
+/* LA MASSE, en l'air, par-dessus la carte.
+   Lissage COUPÉ : la silhouette est agrandie d'un facteur trois ou
+   quatre, et un agrandissement filtré coûte cinq fois le prix — 5,2 ms
+   contre 1,0 ms pour douze sprites, mesuré. Sur un dégradé aussi doux
+   l'escalier ne se voit pas. */
+var metNuagesDessin = -1;
+function dessineNuagesJungle(c, tps){
+  if(tps === metNuagesDessin) return;
+  metNuagesDessin = tps;
+  var z = cam.z, sp = spritesNuage();
+  var nu = majNuagesJungle(tps);
+  c.save();
+  c.imageSmoothingEnabled = false;
+  for(var i = 0; i < nu.length; i++){
+    var u = nu[i];
+    var p = versEcran(cam, u.gx, u.gy);
+    /* respiration très lente : un nuage figé se lit comme un autocollant */
+    var souffle = 1 + Math.sin(tps * 0.13 + u.gx0) * 0.06;
+    var w = u.r * RX * 2 * z * souffle, hh = w * 0.5;
+    var x = p.x - w / 2, y = p.y - u.h * z - hh * 0.55;
+    if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
+    c.globalAlpha = 0.36 * u.op;
+    c.drawImage(sp[u.v], x, y, w, hh);
+  }
+  c.restore();
+}
+
+/* ================================================================
+   6. L'ÉCLAIR
+   Le joueur a demandé « quelque chose de précis qui tape le sol » —
+   pas un gros trait spectaculaire, un TRAIT NET. Le fichier a donc
+   été retourné dans ce sens : le canal est deux fois plus fin qu'au
+   premier jet, son zigzag s'annule aux deux bouts (il part du nuage,
+   il arrive sur le point visé, il ne cherche jamais sa cible), et
+   toute la dépense est passée dans ce qui vient APRÈS — la nappe de
+   courant qui se diffuse au sol.
    ================================================================ */
 
 /* La chronologie, en secondes depuis e.age = 0. Elle NE dépend PAS de
-   e.duree : c'est la durée du coup de foudre lui-même, et elle est la
-   même qu'on laisse la trace fumante deux secondes ou six. e.duree ne
-   pilote que la queue — fumée et brûlure au sol. */
-var EC_DESC = 0.13;      // le temps que l'éclair met à descendre
-var EC_VIE  = 0.30;      // ce qu'il vit encore après avoir touché
+   e.duree : c'est la durée du coup de foudre lui-même, la même qu'on
+   laisse la trace fumante deux secondes ou six. */
+var EC_DESC = 0.11;      // le temps que l'éclair met à descendre
+var EC_VIE  = 0.28;      // ce qu'il vit encore après avoir touché
+
+/* ---------------------------------------------------------------
+   LE CONTRAT AVEC LA BOUCLE DE JEU
+   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Ces
+   deux nombres sont tout ce qu'il faut pour le calculer, et le rendu
+   les lit exactement comme le fera la boucle — c'est la seule façon
+   que ce qu'on voit et ce qui tue soient le même cercle.
+   (À reprendre dans EQ tels quels : JUNGLE_FOUDRE_RAYON /
+    JUNGLE_FOUDRE_DUREE.)
+   --------------------------------------------------------------- */
+var JUNGLE_FOUDRE_RAYON = 7.0;    // cases : rayon FINAL de la nappe
+var JUNGLE_FOUDRE_DUREE = 2.6;    // secondes pour l'atteindre
+/* Conséquence directe : un éclair doit VIVRE au moins
+   EC_DESC + JUNGLE_FOUDRE_DUREE + le fondu de queue, soit 3,4 s. En
+   dessous, la boucle retire l'objet de jeu.eclairs pendant que la
+   nappe est encore en train de s'étendre, et elle disparaît d'un coup
+   au milieu de sa course. */
+var JUNGLE_FOUDRE_VIE = 3.4;      // e.duree recommandé
+
+/* Le front avance en RACINE du temps : très vite au premier dixième
+   de seconde, puis il s'essouffle. Une décharge qui s'étalerait à
+   vitesse constante aurait l'air d'un cercle de sélection ; celle-ci
+   a l'air de se diffuser dans la terre, ce qui est le propos. */
+function frontFoudre(age){
+  return Math.sqrt(borne((age - EC_DESC) / JUNGLE_FOUDRE_DUREE, 0, 1));
+}
+/* Le rayon courant de la nappe, EN CASES. C'est cette fonction que la
+   boucle doit appeler pour savoir qui est dedans. */
+function rayonFoudre(e){ return frontFoudre(e.age) * JUNGLE_FOUDRE_RAYON; }
 
 /* L'intensité du canal. Un éclair ne s'éteint pas d'un coup : il se
    réamorce deux fois. Ces deux bosses sont ce qui distingue un éclair
@@ -555,59 +785,65 @@ function eclatEclair(t){
   if(t < EC_DESC) return 0.20 + 0.42 * (t / EC_DESC);
   var u = t - EC_DESC;
   if(u > EC_VIE) return 0;
-  return Math.min(1, Math.exp(-u * 10.5)
-                   + Math.exp(-Math.abs(u - 0.082) * 48) * 0.52
-                   + Math.exp(-Math.abs(u - 0.163) * 58) * 0.30);
+  return Math.min(1, Math.exp(-u * 11)
+                   + Math.exp(-Math.abs(u - 0.076) * 52) * 0.50
+                   + Math.exp(-Math.abs(u - 0.152) * 62) * 0.28);
 }
 
-/* LE VOILE PLEIN ÉCRAN — la valeur la plus surveillée du fichier,
-   puisqu'on la subit quarante fois par partie. Deux composantes : un
-   halo centré sur l'impact (0,22 à son cœur) et un fond uniforme
-   (0,10). Soit 0,32 au maximum, et seulement au point de chute.
-   La décroissance est une exponentielle de constante 42 ms : à 140 ms
-   il reste 3,5 % du pic, c'est-à-dire rien. */
+/* LE VOILE PLEIN ÉCRAN — la valeur la plus surveillée du fichier.
+   Elle a été BAISSÉE quand la cadence est passée de trente à quinze
+   secondes : quatre-vingts flashs dans une partie de vingt minutes au
+   lieu de quarante, il fallait rendre la moitié de ce qu'on avait
+   pris. Halo 0,16 au point de chute, fond uniforme 0,07, soit 0,23 au
+   maximum — contre 0,32 avant, et un plafond de 0,35 au contrat.
+   La décroissance est une exponentielle de constante 38 ms : à 120 ms
+   il reste 4 % du pic, c'est-à-dire rien. */
+var EC_VOILE_HALO = 0.16;
+var EC_VOILE_FOND = 0.07;
 function voileEclair(t){
   if(t < 0) return 0;
-  if(t < EC_DESC) return 0.05 * (t / EC_DESC);   // le ciel blanchit AVANT
-  return Math.exp(-(t - EC_DESC) / 0.042);
+  if(t < EC_DESC) return 0.045 * (t / EC_DESC);   // le nuage blanchit AVANT
+  return Math.exp(-(t - EC_DESC) / 0.038);
 }
 
 /* Le TRAJET, en coordonnées normalisées : x est un écart latéral en
-   fraction de la hauteur de chute, y va de 0 (le ciel) à 1 (le sol).
+   fraction de la hauteur de chute, y va de 0 (le nuage) à 1 (le sol).
    Construit UNE fois par impact et rangé sur l'objet : la caméra peut
    se déplacer, zoomer, dézoomer, l'éclair garde exactement la même
-   forme. C'est indispensable — un éclair retiré au hasard à chaque
-   image grésille, et le grésillement est précisément ce qui rend un
-   effet fatigant. */
+   forme. Un éclair retiré au hasard à chaque image grésille, et le
+   grésillement est précisément ce qui rend un effet fatigant. */
 function trajetFoudre(graine){
   var al = prng(graine || 7);
-  var N = 15;
-  var x0 = (al() - 0.5) * 0.46;         // il ne tombe jamais à la verticale
-  var p = [x0, 0];
+  var N = 17;
+  var p = [0, 0];
   for(var k = 1; k <= N; k++){
     var f = k / N;
-    /* le zigzag s'apaise en descendant : le canal se resserre sur son
-       point d'arrivée, sinon l'éclair rate visiblement sa cible */
-    var amp = 0.115 * (1 - f * 0.82);
-    p.push(x0 * (1 - f) * (1 - f) + (al() - 0.5) * 2 * amp);
-    p.push(f + (al() - 0.5) * 0.022);
+    /* Le zigzag s'annule AUX DEUX BOUTS. Au premier jet il partait
+       d'un grand écart latéral qui se résorbait en descendant : ça
+       faisait un éclair qui « cherchait » sa cible, exactement le
+       contraire de la précision demandée. Une cloche de sinus donne
+       un canal qui sort droit du nuage et arrive droit sur le point. */
+    var amp = 0.045 * Math.sin(f * Math.PI);
+    p.push((al() - 0.5) * 2 * amp);
+    p.push(f + (al() - 0.5) * 0.018);
   }
   p[p.length - 2] = 0; p[p.length - 1] = 1;
   /* Les ramifications partent vers le bas et vers l'extérieur, et
      meurent en l'air. Une branche qui toucherait le sol ferait deux
      impacts : il n'y en a qu'un, et c'est celui que le joueur doit
-     regarder. */
+     regarder. Deux seulement, et courtes — au-delà, le canal cesse
+     d'être « précis » et redevient un buisson. */
   var br = [];
-  for(var b = 0; b < 3; b++){
-    var d0 = 2 + ((al() * 9) | 0);
+  for(var b = 0; b < 2; b++){
+    var d0 = 3 + ((al() * 8) | 0);
     if(d0 * 2 + 1 >= p.length) continue;
     var bx = p[d0 * 2], by = p[d0 * 2 + 1];
     var sens = al() < 0.5 ? -1 : 1;
     var q = [bx, by];
-    var nb = 3 + ((al() * 3) | 0);
+    var nb = 2 + ((al() * 3) | 0);
     for(var m = 1; m <= nb; m++){
-      bx += sens * (0.035 + al() * 0.075);
-      by += 0.025 + al() * 0.055;
+      bx += sens * (0.022 + al() * 0.048);
+      by += 0.020 + al() * 0.042;
       q.push(bx); q.push(Math.min(1, by));
     }
     br.push(q);
@@ -618,13 +854,15 @@ function trajetFoudre(graine){
 /* Quatre passes, de la plus large à la plus fine — le procédé des
    rayons de Mily (74-vengeance.js). En additif, c'est la PROPORTION
    qui fait tout : un noyau blanc trop épais et l'éclair devient une
-   barre fluo. Le blanc ne fait donc qu'un quart de la largeur, et les
-   trois quarts de l'énergie sont bleus. */
+   barre fluo. Le halo bleu a été RESSERRÉ (4,6 → 2,9 fois la largeur)
+   pour obtenir le trait net demandé : ce qu'on enlève en étalement,
+   on le rend en opacité, si bien que l'éclair reste aussi visible
+   tout en étant deux fois moins gros. */
 var PASSES_FOUDRE = [
-  { l:4.6,  col:MET_E_HALO, a:0.20 },
-  { l:2.10, col:MET_E_BLEU, a:0.34 },
-  { l:0.82, col:MET_E_PALE, a:0.56 },
-  { l:0.26, col:MET_E_VIF,  a:0.95 }
+  { l:2.9,  col:MET_E_HALO, a:0.26 },
+  { l:1.55, col:MET_E_BLEU, a:0.40 },
+  { l:0.70, col:MET_E_PALE, a:0.62 },
+  { l:0.28, col:MET_E_VIF,  a:0.97 }
 ];
 function traitFoudre(c, xs, ys, n, larg, I){
   c.lineCap = "round";
@@ -640,13 +878,69 @@ function traitFoudre(c, xs, ys, n, larg, I){
   }
 }
 
+/* ---------------------------------------------------------------
+   LA NAPPE — le dégât qui se diffuse au sol.
+   Trois choses, et l'ordre compte : la flaque déjà parcourue (faible,
+   elle dit où le courant EST passé), le front qui avance (vif, c'est
+   lui qu'on regarde), et les filaments (c'est eux qui font
+   « électrique » plutôt qu'« onde de choc »).
+   Les filaments grésillent sur place — c'est le seul endroit du
+   fichier où le grésillement est voulu, parce que c'est ce que fait
+   un arc électrique. Ils restent déterministes : le tremblement vient
+   de sinus de tps, jamais de Math.random.
+   --------------------------------------------------------------- */
+function dessineNappeFoudre(c, e, ti, tps){
+  var u = borne(ti / JUNGLE_FOUDRE_DUREE, 0, 1);
+  if(u >= 1) return;
+  var f = Math.sqrt(u);
+  var z = cam.z;
+  var p = versEcran(cam, e.gx, e.gy);
+  var R = JUNGLE_FOUDRE_RAYON * f;
+  var rx = R * RX * z, ry = R * RY * z;
+  if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) return;
+  /* elle s'éteint en s'élargissant : l'énergie se dilue */
+  var vie = (1 - u) * (1 - u);
+  var gr = ((e.gx * 977 + e.gy * 31) | 0);
+
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.13 * vie) + ")";
+  c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.fill();
+
+  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.28 + 0.55 * vie) * (1 - u) + ")";
+  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.55));
+  c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.stroke();
+
+  /* Les dix filaments sont tracés en DEUX passes seulement, chacune un
+     unique beginPath/stroke : vingt polylignes coûteraient vingt
+     appels à stroke, et c'est stroke qui coûte, pas les pixels. */
+  var k, s;
+  for(var q = 0; q < 2; q++){
+    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.16 + 0.46 * vie) + ")"
+                      : "rgba(" + MET_E_BLEU + "," + (0.20 * vie) + ")";
+    c.lineWidth = q ? Math.max(0.9, 1.4 * z) : Math.max(1.8, 4.6 * z);
+    c.beginPath();
+    for(k = 0; k < 10; k++){
+      var a0 = k / 10 * 6.2832 + bruitStable(gr + k, 0) * 0.62;
+      c.moveTo(p.x, p.y);
+      for(s = 1; s <= 4; s++){
+        var fr = R * s / 4;
+        var a = a0 + Math.sin(tps * 11 + k * 2.1 + s * 1.7) * 0.17 * s * 0.25;
+        c.lineTo(p.x + Math.cos(a) * fr * RX * z, p.y + Math.sin(a) * fr * RY * z);
+      }
+    }
+    c.stroke();
+  }
+  c.restore();
+}
+
 /* Tableaux réutilisés : projeter le trajet ne doit rien allouer. */
 var metXs = [], metYs = [];
 
 function dessineEclairJungle(c, e, tps){
   var t = e.age;
   var z = cam.z;
-  /* Fondu de queue : la fumée et la brûlure s'éteignent AVEC e.duree,
+  /* Fondu de queue : la fumée et la braise s'éteignent AVEC e.duree,
      jamais d'un coup. */
   var queue = borne((e.duree - t) / 0.7, 0, 1);
   if(queue <= 0) return;
@@ -658,37 +952,47 @@ function dessineEclairJungle(c, e, tps){
   var vo = voileEclair(t);
   var k;
 
-  /* ---- 1 & 2. LE CIEL BLANCHIT, PUIS L'ÉCLAIR DESCEND ---- */
-  /* Le sommet est TOUJOURS au-dessus du bord haut de l'écran : quel
-     que soit le zoom, l'éclair traverse tout le cadre. C'est ce qui le
-     rend spectaculaire sans coûter un pixel de plus. */
-  var yCiel = -Math.max(70, H * 0.12);
-  var haut = p.y - yCiel;
+  /* ---- 1 & 2. LE NUAGE S'ALLUME, PUIS L'ÉCLAIR DESCEND ---- */
+  /* L'ORIGINE. On la cherche une fois, et on garde le NUAGE, pas sa
+     position : il dérive pendant les deux secondes que dure l'effet,
+     et le pied de l'éclair doit rester accroché à lui. Sans nuage
+     (liste vide), on retombe sur le haut de l'écran — l'éclair
+     traverse alors tout le cadre, ce qui reste correct. */
+  if(e.nuage === undefined) e.nuage = nuageAuDessus(e.gx, e.gy) || null;
+  var ox, oy;
+  if(e.nuage){
+    var pn = versEcran(cam, e.nuage.gx, e.nuage.gy);
+    ox = pn.x; oy = pn.y - e.nuage.h * z;
+  }else{
+    ox = p.x; oy = -Math.max(70, H * 0.12);
+  }
+  var haut = p.y - oy;
 
-  if(I > 0.004 && haut > 60){
-    /* l'annonce : la couche de nuages s'allume au-dessus de l'impact,
-       une fraction de seconde avant que quoi que ce soit ne tombe */
-    if(t < EC_DESC + 0.06){
-      var vl = voilesOrage(c);
-      c.save();
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.globalCompositeOperation = "lighter";
-      c.globalAlpha = borne(t / EC_DESC, 0, 1) * 0.15;
-      c.drawImage(vl.ciel, 0, 0);
-      c.restore();
-    }
+  if(I > 0.004 && haut > 40){
+    /* L'ANNONCE. Au premier jet c'était un dégradé sur toute la
+       largeur de l'écran ; maintenant qu'il y a un nuage, c'est LUI
+       qui s'allume. C'est plus précis, plus joli, moins cher, et ça
+       dit au joueur d'où le coup va partir. */
+    var pre = borne(t / EC_DESC, 0, 1);
+    if(t < EC_DESC + 0.09 && e.nuage)
+      lueurRapide(c, ox, oy + e.nuage.h * z * 0.05,
+                  e.nuage.r * RX * z * 1.2, "#cfe0ff",
+                  0.55 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
-       dans l'air, il est aussi gros de près que de loin. */
-    var larg = 2.4 + 6.6 * I;
+       dans l'air, il est aussi gros de près que de loin. Elle a été
+       divisée par deux par rapport au premier jet — « pas trop large,
+       quelque chose de précis ». */
+    var larg = 1.3 + 3.1 * I;
     var f = t < EC_DESC ? t / EC_DESC : 1;
     var nb = Math.max(2, Math.min(tr.n, Math.ceil(f * tr.n)));
 
     c.save();
     c.globalCompositeOperation = "lighter";
     for(k = 0; k < nb; k++){
-      metXs[k] = p.x + tr.p[k * 2] * haut;
-      metYs[k] = yCiel + tr.p[k * 2 + 1] * haut;
+      var fy = tr.p[k * 2 + 1];
+      metXs[k] = ox + (p.x - ox) * fy + tr.p[k * 2] * haut;
+      metYs[k] = oy + haut * fy;
     }
     /* le dernier point est interpolé, sinon l'éclair descend par
        marches de sept pixels et on voit la construction */
@@ -696,8 +1000,9 @@ function dessineEclairJungle(c, e, tps){
       var av = (nb - 1) * 2, ap = nb * 2;
       var y0 = tr.p[av + 1], y1 = tr.p[ap + 1];
       var g0 = borne((f - y0) / Math.max(0.0001, y1 - y0), 0, 1);
-      metXs[nb] = p.x + (tr.p[av] + (tr.p[ap] - tr.p[av]) * g0) * haut;
-      metYs[nb] = yCiel + (y0 + (y1 - y0) * g0) * haut;
+      var yy = y0 + (y1 - y0) * g0;
+      metXs[nb] = ox + (p.x - ox) * yy + (tr.p[av] + (tr.p[ap] - tr.p[av]) * g0) * haut;
+      metYs[nb] = oy + haut * yy;
       nb++;
     }
     traitFoudre(c, metXs, metYs, nb, larg, I);
@@ -709,10 +1014,11 @@ function dessineEclairJungle(c, e, tps){
       if(q[1] > f) continue;
       var m = q.length >> 1;
       for(var s = 0; s < m; s++){
-        metXs[s] = p.x + q[s * 2] * haut;
-        metYs[s] = yCiel + q[s * 2 + 1] * haut;
+        var fb = q[s * 2 + 1];
+        metXs[s] = ox + (p.x - ox) * fb + q[s * 2] * haut;
+        metYs[s] = oy + haut * fb;
       }
-      traitFoudre(c, metXs, metYs, m, larg * 0.55, I * 0.72);
+      traitFoudre(c, metXs, metYs, m, larg * 0.5, I * 0.66);
     }
     c.restore();
   }
@@ -726,20 +1032,22 @@ function dessineEclairJungle(c, e, tps){
        qui allume les arbres AUTOUR du point de chute, plutôt que
        d'aplatir l'écran entier d'un coup de blanc */
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.globalAlpha = vo * 0.22;
+    c.globalAlpha = vo * EC_VOILE_HALO;
     c.drawImage(ha, Math.round((p.x + secX) * dpr - ha.width / 2),
                     Math.round((p.y + secY) * dpr - ha.height / 2));
     /* le fond uniforme, faible : sans lui, le halo se lirait comme un
        projecteur braqué sur un coin de la carte */
     c.globalAlpha = 1;
-    c.fillStyle = "rgba(" + MET_FLASH + "," + (vo * 0.10) + ")";
+    c.fillStyle = "rgba(" + MET_FLASH + "," + (vo * EC_VOILE_FOND) + ")";
     c.fillRect(0, 0, c.canvas.width, c.canvas.height);
     c.restore();
   }
 
-  /* ---- 3. L'IMPACT AU SOL ---- */
+  /* ---- 3. L'IMPACT AU SOL, PUIS LA NAPPE ---- */
   var ti = t - EC_DESC;
   if(ti < 0) return;
+
+  dessineNappeFoudre(c, e, ti, tps);
 
   c.save();
   /* Le cœur blanc. C'est LUI qui donne la violence du coup, et il ne
@@ -748,21 +1056,8 @@ function dessineEclairJungle(c, e, tps){
      fort, c'est ce chiffre-là qu'on monte, jamais celui du voile. */
   var ec = Math.exp(-ti * 10);
   if(ec > 0.01)
-    lueurRapide(c, p.x, p.y - 8 * z, (46 + 104 * z) * (0.55 + ec * 1.0),
+    lueurRapide(c, p.x, p.y - 8 * z, (40 + 92 * z) * (0.55 + ec * 1.0),
                 "#e6f0ff", 0.86 * ec);
-  /* l'anneau de souffle, en ellipse isométrique : c'est lui qui dit
-     que le coup a touché LE SOL et pas l'air */
-  if(ti < 0.62){
-    var ao = ti / 0.62;
-    c.globalCompositeOperation = "lighter";
-    c.strokeStyle = "rgba(" + MET_E_PALE + "," + ((1 - ao) * (1 - ao) * 0.72) + ")";
-    c.lineWidth = Math.max(1.2, 5.5 * z * (1 - ao));
-    c.beginPath();
-    c.ellipse(p.x, p.y, RX * z * (0.5 + ao * 3.9), RY * z * (0.5 + ao * 3.9),
-              0, 0, 6.2832);
-    c.stroke();
-    c.globalCompositeOperation = "source-over";
-  }
   /* LA BRÛLURE. Premier essai : un disque noir. Sur une terre de
      jungle déjà presque noire, il ne se voyait tout simplement pas.
      Ce qui se voit, c'est la BRAISE — la terre est restée chaude, et
@@ -775,8 +1070,8 @@ function dessineEclairJungle(c, e, tps){
     c.ellipse(p.x, p.y, RX * z * 0.80, RY * z * 0.80, 0, 0, 6.2832);
     c.fill();
     c.globalAlpha = 1;
-    var br = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
-    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * br);
+    var brz = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
+    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * brz);
   }
   c.restore();
 
@@ -792,15 +1087,15 @@ function dessineEclairJungle(c, e, tps){
       var vy = -(40 + al() * 110);
       var du = 0.35 + al() * 0.5;
       if(ti > du) continue;
-      var u = ti / du;
+      var uu2 = ti / du;
       var ex = p.x + Math.cos(ang) * vit * ti * z;
       var ey = p.y + Math.sin(ang) * vit * 0.5 * ti * z + (vy * ti + 340 * ti * ti) * z;
       /* elles refroidissent : blanches au départ, orange à la fin */
-      c.strokeStyle = "rgba(" + (u < 0.35 ? MET_E_PALE : MET_ETINC) + ","
-                    + ((1 - u) * (1 - u) * 0.95) + ")";
+      c.strokeStyle = "rgba(" + (uu2 < 0.35 ? MET_E_PALE : MET_ETINC) + ","
+                    + ((1 - uu2) * (1 - uu2) * 0.95) + ")";
       /* plancher d'un pixel et demi : au dézoom, une étincelle plus
          fine qu'un pixel s'efface complètement au lieu de pâlir */
-      c.lineWidth = Math.max(1.5, 2.4 * z * (1 - u));
+      c.lineWidth = Math.max(1.5, 2.4 * z * (1 - uu2));
       c.beginPath();
       c.moveTo(ex, ey);
       c.lineTo(ex - Math.cos(ang) * 11 * z, ey - Math.sin(ang) * 5.5 * z);
@@ -813,7 +1108,7 @@ function dessineEclairJungle(c, e, tps){
   if(ti > 0.10){
     var sp = spriteFumee();
     c.save();
-    /* lissage COUPÉ : ces cinq bouffées sont agrandies de 96 à
+    /* lissage COUPÉ : ces six bouffées sont agrandies de 96 à
        plusieurs centaines de pixels, et un agrandissement filtré coûte
        cinq fois le prix. Sur un dégradé aussi doux, l'escalier ne se
        voit pas — vérifié à l'écran. */
@@ -837,7 +1132,7 @@ function dessineEclairJungle(c, e, tps){
 }
 
 /* ================================================================
-   6. LE SON DE L'ORAGE
+   7. LE SON DE L'ORAGE
    Le contrat ne prévoyait pas de point d'entrée sonore ; on l'ajoute
    ici plutôt que de toucher à 95-son.js. Tout est synthétisé, comme
    le reste du jeu.
@@ -848,47 +1143,90 @@ function dessineEclairJungle(c, e, tps){
    elles ne le lisent qu'au moment de l'appel, quand il est là.
    ================================================================ */
 
-/* LE TONNERRE. Un vrai coup de tonnerre n'est pas une explosion :
-   c'est un CLAQUEMENT sec suivi d'un grondement qui roule et met
-   plusieurs secondes à mourir. Et il arrive APRÈS l'éclair — ce
-   retard est ce qui donne la distance. On le passe donc en argument :
-   0 pour un impact sur la carte, une à trois secondes pour un
-   roulement au loin. */
+/* LE TONNERRE, deuxième version — le joueur trouvait le premier trop
+   discret, et il avait raison : c'était un « boum » filtré de plus, et
+   le jeu en a déjà treize.
+   Ce qui fait un GRAND tonnerre ne se règle pas au volume. Un son
+   qu'on monte devient fatigant en trois minutes ; un son qu'on
+   ALLONGE et qu'on CREUSE devient un ciel. Trois choses, donc, et
+   c'est leur superposition qui fait la masse :
+
+     1. LE CLAQUEMENT — court, large, et déjà sourd : l'air a mangé les
+        aigus en route, un tonnerre n'a presque pas d'aigus.
+     2. LE CORPS QUI ROULE — un second bruit, très bas, dont le gain
+        ONDULE sur un oscillateur lent. C'est cette ondulation qu'on
+        entend comme un roulement ; sans elle il ne reste qu'un souffle
+        qui décroît, et un souffle qui décroît n'est pas un orage.
+     3. LE SUB — deux sinus voisins (31 et 44 Hz) qui battent l'un
+        contre l'autre. Le battement fait respirer la basse, et c'est
+        lui qui donne la sensation de MASSE au-dessus de la tête.
+
+   Six secondes pour un impact proche, dont cinq APRÈS le claquement.
+   C'est la traîne qui fait peur, pas l'attaque.
+   Le retard est ce qui donne la distance : 0 pour un impact sur la
+   carte, une à trois secondes pour un roulement au loin. */
 function tonnerreJungle(force, retard){
   if(typeof son === "undefined" || !son.ok()) return;
   force = force === undefined ? 1 : force;
   var ac = son.ac, t = ac.currentTime + (retard || 0);
-  var duree = 2.2 + force * 2.6;
+  var duree = 3.2 + force * 3.2;
 
-  /* le claquement : bruit large dans un passe-bas qui s'effondre */
+  /* --- 1. LE CLAQUEMENT --- */
   var s = ac.createBufferSource();
   s.buffer = son.bruit; s.loop = true;
   var f = ac.createBiquadFilter();
-  f.type = "lowpass"; f.Q.value = 0.7;
-  f.frequency.setValueAtTime(3200 * (0.4 + force * 0.7), t);
-  f.frequency.exponentialRampToValueAtTime(70, t + duree);
+  f.type = "lowpass"; f.Q.value = 1.6;      // un peu de résonance : ça « craque »
+  f.frequency.setValueAtTime(2600 * (0.35 + force * 0.75), t);
+  f.frequency.exponentialRampToValueAtTime(160, t + 0.9);
+  f.frequency.exponentialRampToValueAtTime(58, t + duree);
   var g = ac.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.30 * force, t + 0.010);
-  /* le palier à 0,30 s, puis la longue traîne : c'est CE roulement qui
-     fait l'orage. Sans lui on n'a qu'un « boum » de plus, et le jeu en
-     a déjà treize. */
-  g.gain.exponentialRampToValueAtTime(0.10 * force, t + 0.30);
+  g.gain.linearRampToValueAtTime(0.30 * force, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.11 * force, t + 0.35);
   g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
   s.connect(f); f.connect(g); g.connect(son.maitre);
   s.start(t); s.stop(t + duree + 0.1);
 
-  /* le sub : la pression dans la poitrine */
-  var o = ac.createOscillator();
-  o.type = "sine";
-  o.frequency.setValueAtTime(64 * (0.8 + force * 0.4), t);
-  o.frequency.exponentialRampToValueAtTime(21, t + duree * 0.6);
+  /* --- 2. LE CORPS QUI ROULE --- */
+  var s2 = ac.createBufferSource();
+  s2.buffer = son.bruit; s2.loop = true;
+  s2.playbackRate.value = 0.55;              // le bruit lui-même descend d'une octave
+  var f2 = ac.createBiquadFilter();
+  f2.type = "lowpass"; f2.Q.value = 3.2;
+  f2.frequency.setValueAtTime(420, t);
+  f2.frequency.exponentialRampToValueAtTime(90, t + duree);
   var g2 = ac.createGain();
   g2.gain.setValueAtTime(0.0001, t);
-  g2.gain.linearRampToValueAtTime(0.26 * force, t + 0.02);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + duree * 0.75);
-  o.connect(g2); g2.connect(son.maitre);
-  o.start(t); o.stop(t + duree);
+  g2.gain.linearRampToValueAtTime(0.20 * force, t + 0.28);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+  /* l'ondulation : deux fréquences non harmoniques, pour que le
+     roulement ne batte jamais deux fois pareil */
+  var lfo = ac.createOscillator();
+  lfo.type = "sine"; lfo.frequency.value = 1.7;
+  var lg = ac.createGain(); lg.gain.value = 0.11 * force;
+  var lfo2 = ac.createOscillator();
+  lfo2.type = "sine"; lfo2.frequency.value = 0.63;
+  var lg2 = ac.createGain(); lg2.gain.value = 0.07 * force;
+  lfo.connect(lg); lg.connect(g2.gain);
+  lfo2.connect(lg2); lg2.connect(g2.gain);
+  s2.connect(f2); f2.connect(g2); g2.connect(son.maitre);
+  s2.start(t); s2.stop(t + duree + 0.1);
+  lfo.start(t); lfo.stop(t + duree + 0.1);
+  lfo2.start(t); lfo2.stop(t + duree + 0.1);
+
+  /* --- 3. LE SUB, EN BATTEMENT --- */
+  for(var i = 0; i < 2; i++){
+    var o = ac.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime((i ? 44 : 31) * (0.9 + force * 0.25), t);
+    o.frequency.exponentialRampToValueAtTime(i ? 26 : 19, t + duree * 0.8);
+    var go = ac.createGain();
+    go.gain.setValueAtTime(0.0001, t);
+    go.gain.linearRampToValueAtTime((i ? 0.10 : 0.17) * force, t + 0.05);
+    go.gain.exponentialRampToValueAtTime(0.0001, t + duree * 0.85);
+    o.connect(go); go.connect(son.maitre);
+    o.start(t); o.stop(t + duree);
+  }
 }
 
 /* Le grondement lointain, entre deux impacts. Plus sourd, plus long,
@@ -1002,7 +1340,7 @@ function majMeteoJungle(dt, tps){
   greffeSonJungle();
   if(typeof son === "undefined" || !son.ok()) return;
   ambianceJungle.demarre();
-  var n = Math.floor(tps / 6.7);
+  var n = Math.floor(tps / MET_ROULEMENT);
   if(n !== metDernierRoulement && roulementJungle(tps) > 0.05){
     metDernierRoulement = n;
     grondementJungle();

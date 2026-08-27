@@ -1777,6 +1777,24 @@ function dessineFloreMonde(c, o){
   if(!sp) return;
   var p = versEcran(cam, o.gx, o.gy);
   var z = cam.z;
+  /* `o.ech` : la forêt du pourtour rejoue les MÊMES sprites à d'autres
+     tailles, ce qui lui coûte zéro pixel de mémoire — c'est ce dégradé
+     d'échelles, du plus haut en lisière au plus tassé au loin, qui
+     donne la profondeur. Les plantes de l'intérieur n'en portent pas
+     et gardent leur taille de gravure. */
+  var e = o.ech || 1;
+  if(e !== 1) z *= e;
+  /* `o.fond` : un arbre du pourtour est LOIN, et l'atmosphère mange
+     toujours le contraste avec la distance. Sans ce voile, la forêt
+     lointaine sautait au premier plan et l'île paraissait posée sur
+     un papier peint. */
+  if(o.fond){
+    c.save();
+    c.globalAlpha = 0.86;
+    c.drawImage(sp.cv, p.x - sp.ex * z, p.y - sp.ey * z, sp.w * z, sp.h * z);
+    c.restore();
+    return;
+  }
   c.drawImage(sp.cv, p.x - sp.ex * z, p.y - sp.ey * z, sp.w * z, sp.h * z);
 }
 

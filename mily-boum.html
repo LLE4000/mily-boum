@@ -218,6 +218,14 @@ select.champ{cursor:pointer}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;color:#0a2416;font-weight:700;
   background:linear-gradient(180deg,#8ff0b4,#39c47c)}
+/* Les pastilles de durcissement : ce qui rend cette carte plus dure
+   que les cinq autres, en trois chiffres qu'on lit d'un coup d'œil. */
+.monde.evt .durci{display:flex;gap:6px;padding:0 10px 8px;flex-wrap:wrap}
+.dz{font:800 10.5px/1 'Trebuchet MS','Segoe UI',sans-serif;letter-spacing:.3px;
+  padding:5px 8px;border-radius:7px;border:1px solid;white-space:nowrap}
+.dz.pv{color:#ffb4a2;background:rgba(80,20,14,.5);border-color:rgba(255,120,90,.4)}
+.dz.dg{color:#ffd08a;background:rgba(78,44,6,.5);border-color:rgba(255,170,60,.4)}
+.dz.or{color:#a8c8ff;background:rgba(18,32,68,.5);border-color:rgba(120,170,255,.38)}
 .monde.evt .jauge{display:flex;align-items:center;gap:10px;padding:0 10px 9px;flex-wrap:wrap}
 .monde.evt .cpt{font-size:22px;font-weight:900;color:#8ff0b4;font-variant-numeric:tabular-nums}
 .monde.evt .cpt small{font-size:13px;font-weight:700;color:#6d8f7c}
@@ -800,8 +808,27 @@ var EQ = {
      Celle-ci ne sert qu'au tout premier salon, avant tout réglage. */
   JUNGLE_MIN_JOUEURS   : 7,
   JUNGLE_ATTENTE_H     : 48,    // heures de verrou après une victoire
-  JUNGLE_ECLAIR        : 30,    // secondes entre deux impacts de foudre
+  JUNGLE_ECLAIR        : 15,    // secondes entre deux impacts de foudre
   JUNGLE_GEYSERS       : 22,    // ouvertures de feu sur l'île
+  /* LE DURCISSEMENT DE LA CARTE ÉVÉNEMENT.
+     Les défenses de la jungle sont plus dures et frappent plus fort
+     que partout ailleurs — mais le Brasier, lui, garde EXACTEMENT sa
+     vie : c'est une carte plus défendue, pas une carte plus longue.
+     Le bonus de PV vit dans l'instantané partagé et se règle depuis
+     le panneau administrateur ; celui-ci n'est que son défaut. */
+  JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
+  JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
+  /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
+     courant court sur la terre mouillée en s'élargissant. */
+  ECLAIR_RAYON_TUE     : 1.6,   // cases — au point d'impact, c'est mortel
+  ECLAIR_RAYON_NAPPE   : 7.5,   // cases — jusqu'où le courant se diffuse
+  ECLAIR_NAPPE_DUREE   : 2.6,   // secondes d'expansion
+  ECLAIR_NAPPE_DEGATS  : 260,   // dégâts au passage du front
+  /* La vitesse des nuages : le DOUBLE de celle d'une troupe. La Meuf
+     avance à 1,62 case par seconde ; l'orage à 3,24. On ne distance
+     donc pas un nuage — on ne peut que sortir de son chemin, et c'est
+     ce qui en fait une menace plutôt qu'un décor. */
+  NUAGE_VITESSE        : 3.24,
 
   /* Réglages fins demandés */
   MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
@@ -1103,6 +1130,10 @@ CRE.koala    = { nom:"Koala",    pv:140, detection:6.5,  portee:0, degats:0, cad
 CRE.bourdon  = { nom:"Bourdon",  pv:30,  detection:6.0,  portee:0, degats:0, cadence:0, vitesse:3.10, rayon:0.16, fuit:1, vole:1 };
 CRE.papillon = { nom:"Papillon", pv:20,  detection:7.5,  portee:0, degats:0, cadence:0, vitesse:2.40, rayon:0.14, fuit:1, vole:1 };
 CRE.luciole  = { nom:"Luciole",  pv:15,  detection:5.0,  portee:0, degats:0, cadence:0, vitesse:1.60, rayon:0.10, fuit:1, vole:1 };
+/* Le cochon d'Inde : la bestiole comique de la carte. Il vit en
+   troupeau serré et détale par accélérations paniquées — c'est sa
+   détection courte qui produit ça, il ne part qu'au dernier moment. */
+CRE.cochon   = { nom:"Cochon d'Inde", pv:40, detection:4.5, portee:0, degats:0, cadence:0, vitesse:2.20, rayon:0.18, fuit:1 };
 
 /* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
@@ -1265,6 +1296,19 @@ function genereCarte(codeSalon, index, plan, tirage){
   var bandeProche = [["frelon",0.38],["bobine",0.34],["pilon",0.18],["cuve",0.10]];
   var bandeMoy    = [["pilon",0.26],["bobine",0.45],["crible",0.19],["silo",0.10]];
   var bandeLoin   = [["crible",0.42],["chalumeau",0.20],["pilon",0.22],["silo",0.16]];
+  /* LA JUNGLE TIRE DE PLUS LOIN ET PLUS FORT.
+     Ses trois bandes basculent vers les armes à longue portée — le
+     Frelon et son missile, le Pilon et son obus. Le Crible et le
+     Chalumeau, qui ne portent qu'à cinq cases, laissent la place : sur
+     une carte où l'on doit traverser mille défenses, ce sont les tirs
+     lointains qui font la pression, pas ceux qu'on ne subit qu'au
+     contact. Les stocks inertes (cuve, silo) disparaissent presque :
+     ils ne tirent pas, et ici chaque emplacement doit menacer. */
+  if(fic.biome === "jungle"){
+    bandeProche = [["frelon",0.46],["bobine",0.24],["pilon",0.26],["cuve",0.04]];
+    bandeMoy    = [["frelon",0.30],["pilon",0.36],["bobine",0.24],["crible",0.10]];
+    bandeLoin   = [["pilon",0.40],["frelon",0.26],["crible",0.22],["chalumeau",0.12]];
+  }
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
     for(var ly = 3; ly <= GH - 4; ly += 5){
@@ -1625,7 +1669,54 @@ function genereCarte(codeSalon, index, plan, tirage){
      donc les voir TOUS. Ces tirages ne concernent qu'une carte sur
      six ; les faire plus tôt décalerait la séquence des cinq autres. */
   if(CARTES[index] && CARTES[index].biome === "jungle") peupleLaJungle(c, al);
+
+  /* --- LE DURCISSEMENT DE LA JUNGLE ---
+     Les défenses y sont plus dures qu'ailleurs. On applique le bonus
+     ICI, en une seule passe finale sur le tableau complet, plutôt qu'à
+     chaque endroit qui pose un bâtiment : il y en a cinq — quadrillage,
+     renfort, cellules électriques, miradors, champs de cellules — et
+     en oublier un donnerait une carte au durcissement inégal, très
+     difficile à voir et impossible à expliquer.
+
+     Trois exceptions, et elles comptent :
+       — la CELLULE ÉLECTRIQUE du bouclier garde ses 200 000 PV, qui
+         sont un chiffre annoncé au joueur dans le briefing ;
+       — la cellule à récolter garde les siens, sinon la récolte
+         devient deux fois plus lente sur la seule carte où elle est
+         partout ;
+       — le Brasier n'est pas dans ce tableau, donc sa vie ne bouge
+         pas. C'était la demande expresse : une carte mieux défendue,
+         pas une carte plus longue. */
+  if(CARTES[index] && CARTES[index].biome === "jungle" && bonusPvJungle > 0){
+    var kpv = 1 + bonusPvJungle / 100;
+    for(var ib = 0; ib < c.batiments.length; ib++){
+      var bb = c.batiments[ib];
+      if(bb.t === "cellule" || bb.t === "reacteur") continue;
+      bb.pvMax = Math.round(bb.pvMax * kpv);
+      bb.pv = bb.pvMax;
+    }
+  }
   return c;
+}
+
+/* Le bonus de PV en vigueur. C'est une variable et non une constante :
+   il vit dans l'instantané partagé, se règle depuis le panneau
+   administrateur, et genereCarte() doit lire la valeur du salon — pas
+   celle qui était vraie au chargement de la page. Le réseau la pose
+   par poseBonusPvJungle() à chaque instantané reçu. */
+var bonusPvJungle = EQ.JUNGLE_PV_BONUS;
+function poseBonusPvJungle(p){
+  var v = (typeof p === "number" && isFinite(p)) ? p : EQ.JUNGLE_PV_BONUS;
+  bonusPvJungle = borne(Math.round(v), 0, 900);
+  return bonusPvJungle;
+}
+/* Le multiplicateur de DÉGÂTS des défenses de la jungle. Il ne peut
+   pas être appliqué à la génération comme les PV : les dégâts sont
+   lus dans DEF au moment du tir, et DEF est partagé par les six
+   cartes. On le lit donc au coup par coup, à l'unique endroit où une
+   défense décide de ce qu'elle inflige. */
+function multDegatsDefense(){
+  return (jeu && jeu.index === IDX_JUNGLE) ? 1 + EQ.JUNGLE_DEG_BONUS / 100 : 1;
 }
 
 /* ----------------------------------------------------------------
@@ -1757,6 +1848,64 @@ function peupleLaJungle(c, al){
     }
   }
 
+  /* --- LA FORÊT DU POURTOUR ---
+     Au-delà de la ceinture rocheuse, l'île donnait sur un vert plat.
+     On y plante une vraie masse forestière, pour que la zone de combat
+     paraisse perdue au milieu d'une immense jungle qui continue au
+     loin.
+
+     Trois choses la rendent presque gratuite :
+       — elle n'entre JAMAIS dans la logique de jeu. Ce sont des
+         objets de décor, dans le même index spatial que le reste :
+         hors champ, ils ne coûtent pas une instruction ;
+       — elle réutilise les MÊMES sprites d'arbres que l'intérieur, à
+         d'autres échelles. Zéro pixel de mémoire en plus ;
+       — sa densité DÉCROÎT vers l'extérieur et ses tailles varient par
+         rang. C'est ce dégradé qui donne la profondeur : la première
+         rangée est nette et haute, les suivantes se tassent et se
+         fondent dans la brume.
+
+     Elle déborde largement de la grille jouable : les arbres les plus
+     lointains sont posés bien au-delà, là où le sol pré-calculé
+     s'arrête, et c'est exactement ce qu'on veut voir quand on dézoome
+     au maximum.
+
+     Les effectifs et les échelles sont réglés ENSEMBLE, à la mesure :
+     un arbre lointain coûte exactement le même blit qu'un arbre
+     proche, donc la seule façon de payer moins est d'en poser moins —
+     et de compenser en les grossissant, pour que la masse reste la
+     même à l'œil. Les rangs lointains sont donc peu nombreux et
+     grands ; c'est la lisière, celle qu'on regarde vraiment, qui garde
+     de la variété.
+     Premier jet à 5 707 arbres : 77 ms d'image à pleine vue. */
+  var RANGS_FORET = [
+    { d0:1.5,  d1:9,   n:1300, ech:[1.05, 1.40] },   // lisière : haute et nette
+    { d0:8,    d1:20,  n:800,  ech:[1.10, 1.55] },
+    { d0:18,   d1:34,  n:450,  ech:[1.30, 1.90] },   // au loin : peu et gros
+    { d0:30,   d1:52,  n:260,  ech:[1.60, 2.40] }
+  ];
+  for(var ir = 0; ir < RANGS_FORET.length; ir++){
+    var R = RANGS_FORET[ir];
+    for(var ka = 0; ka < R.n; ka++){
+      /* On tire un point dans la couronne qui entoure l'île : d'abord
+         un côté, puis une profondeur dans ce rang. */
+      var cote = (al() * 4) | 0;
+      var prof = R.d0 + al() * (R.d1 - R.d0);
+      var lon, fx2, fy2;
+      if(cote === 0){ lon = -R.d1 + al() * (GW + 2 * R.d1); fx2 = lon; fy2 = -prof; }
+      else if(cote === 1){ lon = -R.d1 + al() * (GW + 2 * R.d1); fx2 = lon; fy2 = GH - 1 + prof; }
+      else if(cote === 2){ lon = -R.d1 + al() * (GH + 2 * R.d1); fx2 = -prof; fy2 = lon; }
+      else { lon = -R.d1 + al() * (GH + 2 * R.d1); fx2 = PLAGE_X0 - 1 + prof; fy2 = lon; }
+      var v2 = al(), s2 = al();
+      /* La plage de débarquement à l'est doit rester dégagée : c'est
+         par là qu'on arrive, et un mur d'arbres devant la mer serait
+         un contresens. */
+      if(fx2 > PLAGE_X0 - 3 && fy2 > -4 && fy2 < GH + 3) continue;
+      c.flore.push({ gx:fx2, gy:fy2, fam:"arbre", v:v2, s:s2,
+                     ech:R.ech[0] + (R.ech[1] - R.ech[0]) * s2, fond:1 });
+    }
+  }
+
   /* --- LES GEYSERS DE FEU ---
      Répartis « intelligemment dans certaines zones » : en foyers, pas
      uniformément. C'est semeGeysers qui s'en charge ; on ne lui donne
@@ -1784,23 +1933,46 @@ function peupleLaJungle(c, al){
      assise à manger — une jungle où tout le monde marche est une
      jungle en fuite. */
   var BESTIOLES = [
-    { t:"panda",    n:34 },
-    { t:"singe",    n:22 },
-    { t:"koala",    n:16 },
-    { t:"bourdon",  n:26 },
-    { t:"papillon", n:30 },
-    { t:"luciole",  n:44 }
+    { t:"panda",    n:110, gr:3 },
+    { t:"singe",    n:80,  gr:4 },
+    { t:"koala",    n:55,  gr:2 },
+    { t:"cochon",   n:130, gr:6 },
+    { t:"bourdon",  n:80,  gr:3 },
+    { t:"papillon", n:95,  gr:4 },
+    { t:"luciole",  n:150, gr:7 }
   ];
   for(i = 0; i < BESTIOLES.length; i++){
     var B = BESTIOLES[i];
-    for(var j = 0; j < B.n; j++){
-      for(var t2 = 0; t2 < 60; t2++){
-        var bx = 6 + al() * (PLAGE_X0 - 12), by = 4 + al() * (GH - 8);
-        if(Math.hypot(bx - QG_GX, by - QG_GY) < 15) continue;
-        if(!libre(bx, by)) continue;
-        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:0,
-                           assis:(B.t === "panda" && al() < 0.5) ? 1 : 0 });
-        break;
+    /* On compte les bêtes RÉELLEMENT posées, avec un budget d'essais
+       pour ne jamais boucler sans fin sur une carte qui n'aurait plus
+       de place. Compter les essais au lieu des poses donnait des
+       effectifs très en dessous de la consigne : sur une carte
+       saturée, un groupe sur trois tombe au pied du Brasier ou dans
+       une tourelle. */
+    var pose = 0, essais = B.n * 12;
+    while(pose < B.n && essais-- > 0){
+      /* EN PETITS GROUPES, jamais un par un. Une jungle habitée, ce
+         n'est pas une bestiole tous les vingt mètres : c'est une
+         famille de cochons d'Inde qui détale ensemble, une bande de
+         singes dans le même arbre, un nuage de lucioles au-dessus de
+         la même flaque. Le semis uniforme donnait des bêtes solitaires
+         qu'on ne remarquait jamais ; le groupe, lui, fait une SCÈNE. */
+      var nb = 1 + ((al() * B.gr) | 0);
+      var cx2 = 6 + al() * (PLAGE_X0 - 12), cy2 = 4 + al() * (GH - 8);
+      if(Math.hypot(cx2 - QG_GX, cy2 - QG_GY) < 15) continue;
+      for(var g2 = 0; g2 < nb && pose < B.n; g2++){
+        var bx = cx2 + (al() - 0.5) * 3.4;
+        var by = cy2 + (al() - 0.5) * 3.4;
+        var teinte = (al() * 3) | 0;
+        var assis = (B.t === "panda" && al() < 0.5) ? 1 : 0;
+        /* libreBas et non libre : une bête se faufile entre les
+           tourelles comme les fougères, elle ne cache rien. Avec la
+           contrainte des grands arbres, la carte saturée en rejetait
+           quatre-vingt-treize pour cent et il ne restait que huit
+           pandas pour toute une jungle. */
+        if(!libreBas(bx, by)) continue;
+        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:teinte, assis:assis });
+        pose++;
       }
     }
   }
@@ -2237,7 +2409,8 @@ function planDeCarte(index, planSalon){
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
            p:"", pn:0, tg:0, s:"", k:"",
-           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"" };
+           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"",
+           jb:EQ.JUNGLE_PV_BONUS };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -2482,6 +2655,11 @@ function fusionneJungle(a, b){
        le verrou en republiant un vieil instantané. */
     jt : Math.max(msMonde(a.jt), msMonde(b.jt)),
     jm : mj.jm, jmn : mj.jmn,
+    /* Le bonus de PV suit le MÊME numéro de réglage que le minimum de
+       joueurs : ils se règlent au même endroit, dans le même panneau,
+       donc ils voyagent ensemble. Un seul compteur à tenir. */
+    jb : (mj.jmn === (b.jmn | 0) && b.jb !== undefined) ? (b.jb | 0)
+       : (a.jb !== undefined ? (a.jb | 0) : EQ.JUNGLE_PV_BONUS),
     ch : fusionneChampions(a.ch, b.ch)
   };
   /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
@@ -2502,7 +2680,7 @@ function fusionneJungle(a, b){
 /* Recopie les champs de la jungle dans un instantané fusionné. */
 function poseJungle(o, j){
   o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
-  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.ch = j.ch;
+  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch;
   return o;
 }
 
@@ -2550,7 +2728,8 @@ function memeJungle(m, j){
   return (m.je | 0) === j.je && (m.jf | 0) === j.jf &&
          (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
          msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
-         (m.jmn | 0) === j.jmn && (m.ch || "") === j.ch;
+         (m.jmn | 0) === j.jmn && (m.jb | 0) === (j.jb | 0) &&
+         (m.ch || "") === j.ch;
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -2567,7 +2746,8 @@ function memeMonde(a, b){
          (a.je | 0) === (b.je | 0) && (a.jf | 0) === (b.jf | 0) &&
          (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
          msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
-         (a.jmn | 0) === (b.jmn | 0) && (a.ch || "") === (b.ch || "");
+         (a.jmn | 0) === (b.jmn | 0) && (a.jb | 0) === (b.jb | 0) &&
+         (a.ch || "") === (b.ch || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
@@ -4296,9 +4476,26 @@ function construitSol(carteC){
    ================================================================ */
 var indexDecor = null, ID_PAS = 8, ID_W = 0, ID_H = 0, ID_X0 = -8, ID_Y0 = -8;
 function construitIndexDecor(carteC){
-  ID_X0 = -8; ID_Y0 = -8;
-  ID_W = Math.ceil((GW + 16) / ID_PAS);
-  ID_H = Math.ceil((GH + 16) / ID_PAS);
+  /* LES BORNES DE L'INDEX SUIVENT CE QU'IL CONTIENT.
+     Elles étaient figées à huit cases autour de la grille jouable, ce
+     qui suffisait tant que rien ne poussait au-delà. La forêt du
+     pourtour de la jungle s'étend, elle, jusqu'à cinquante cases
+     dehors : avec des bornes figées, `range` aurait entassé ses sept
+     mille arbres dans la seule rangée de cases du bord — et
+     `decorVisible` les aurait TOUS empilés dès que la caméra regarde
+     ce bord. Exactement le contraire de ce que fait un index.
+     On mesure donc l'étendue réelle avant de le construire. */
+  var marge = 8;
+  if(carteC.flore){
+    for(var kf = 0; kf < carteC.flore.length; kf++){
+      var f0 = carteC.flore[kf];
+      var dx0 = Math.max(-f0.gx, f0.gx - GW, -f0.gy, f0.gy - GH);
+      if(dx0 + 4 > marge) marge = Math.ceil(dx0) + 4;
+    }
+  }
+  ID_X0 = -marge; ID_Y0 = -marge;
+  ID_W = Math.ceil((GW + 2 * marge) / ID_PAS);
+  ID_H = Math.ceil((GH + 2 * marge) / ID_PAS);
   indexDecor = [];
   for(var k = 0; k < ID_W * ID_H; k++) indexDecor.push([]);
   function range(gx, gy, obj){
@@ -4316,8 +4513,21 @@ function construitIndexDecor(carteC){
      tombent dans les cases visibles sont empilées. tk vaut 2 pour
      qu'elles passent par dessineFloreMonde et non par les sprites de
      décor ordinaires. */
-  if(carteC.flore) carteC.flore.forEach(function(f){
-    range(f.gx, f.gy, { k:9, tk:2, o:f, d:f.gx + f.gy });
+  if(carteC.flore) carteC.flore.forEach(function(f, i){
+    /* LE NIVEAU DE DÉTAIL, décidé UNE FOIS ici et jamais recalculé.
+       Deux nombres par pousse :
+         `haute` — un arbre ou une liane se voit de partout, une
+           fougère de trente unités ne fait plus huit pixels à l'écran
+           quand on regarde l'île entière ;
+         `q` — un quart tiré de son rang, 0 à 3. Il sert à ÉCLAIRCIR
+           progressivement le tapis au lieu de le supprimer d'un coup :
+           à mi-zoom on n'en garde qu'une sur deux, plus loin une sur
+           quatre. L'œil ne voit pas la différence sur un tapis, mais
+           la machine dessine deux fois moins.
+       Mesuré : 12 124 objets par image à z 0,16, soit 106 ms. C'est le
+       poste le plus cher de toute la carte, loin devant les défenses. */
+    var haute = (f.fam === "arbre" || f.fam === "liane") ? 1 : 0;
+    range(f.gx, f.gy, { k:9, tk:2, o:f, d:f.gx + f.gy, haute:haute, q:i & 3 });
   });
   construitSpritesDecor(carteC.biome);
   if(carteC.flore && carteC.flore.length && typeof construitSpritesFlore === "function")
@@ -4337,10 +4547,28 @@ function decorVisible(vue, sortie){
   var x1 = borne(Math.floor((gx1 - ID_X0) / ID_PAS), 0, ID_W - 1);
   var y0 = borne(Math.floor((gy0 - ID_Y0) / ID_PAS), 0, ID_H - 1);
   var y1 = borne(Math.floor((gy1 - ID_Y0) / ID_PAS), 0, ID_H - 1);
+  /* LE SEUIL DU TAPIS. Une pousse de sous-bois fait une cinquantaine
+     d'unités locales : à z 0,16 elle mesure huit pixels à l'écran et
+     ne raconte plus rien, mais elle coûte son blit comme les autres.
+     On garde donc tout au-dessus de 0,55 — la distance à laquelle on
+     joue —, la moitié entre 0,30 et 0,55, le quart entre 0,18 et 0,30,
+     et plus rien en dessous, où seuls les grands arbres portent
+     encore l'image. Le tirage se fait sur le quart figé à la
+     construction, jamais au hasard : une pousse qui apparaîtrait et
+     disparaîtrait au fil du zoom se verrait immédiatement. */
+  var z = cam.z, seuil;
+  if(z >= 0.55) seuil = 4;                 // tout
+  else if(z >= 0.30) seuil = 2;            // une sur deux
+  else if(z >= 0.18) seuil = 1;            // une sur quatre
+  else seuil = 0;                          // que les arbres
   for(var j = y0; j <= y1; j++){
     for(var i = x0; i <= x1; i++){
       var t = indexDecor[j * ID_W + i];
-      for(var k = 0; k < t.length; k++) sortie.push(t[k]);
+      for(var k = 0; k < t.length; k++){
+        var it = t[k];
+        if(it.tk === 2 && !it.haute && it.q >= seuil) continue;
+        sortie.push(it);
+      }
     }
   }
 }
@@ -6497,6 +6725,24 @@ function dessineFloreMonde(c, o){
   if(!sp) return;
   var p = versEcran(cam, o.gx, o.gy);
   var z = cam.z;
+  /* `o.ech` : la forêt du pourtour rejoue les MÊMES sprites à d'autres
+     tailles, ce qui lui coûte zéro pixel de mémoire — c'est ce dégradé
+     d'échelles, du plus haut en lisière au plus tassé au loin, qui
+     donne la profondeur. Les plantes de l'intérieur n'en portent pas
+     et gardent leur taille de gravure. */
+  var e = o.ech || 1;
+  if(e !== 1) z *= e;
+  /* `o.fond` : un arbre du pourtour est LOIN, et l'atmosphère mange
+     toujours le contraste avec la distance. Sans ce voile, la forêt
+     lointaine sautait au premier plan et l'île paraissait posée sur
+     un papier peint. */
+  if(o.fond){
+    c.save();
+    c.globalAlpha = 0.86;
+    c.drawImage(sp.cv, p.x - sp.ex * z, p.y - sp.ey * z, sp.w * z, sp.h * z);
+    c.restore();
+    return;
+  }
   c.drawImage(sp.cv, p.x - sp.ex * z, p.y - sp.ey * z, sp.w * z, sp.h * z);
 }
 
@@ -7853,39 +8099,507 @@ function dessineLuciole(c, k, tps){
   lueurRapide(c, x - 2.9, y + 0.4, 4.2 + feu * 2.6, PAL_LUCIOLE.coeur, 0.32 + feu * 0.68);
 }
 
+/* ================================================================
+   LE COCHON D'INDE — la septième, et la comique
+   ================================================================
+   « Je veux beaucoup plus d'animaux, et un peu exagérés. » C'est cette
+   bête-là qui porte la demande : les six autres habitent la jungle,
+   celle-ci la fait sourire. Trois choses la définissent, et aucune
+   n'est une question de couleur.
+
+   1. PAS DE COU. La tête est le BOUT du corps, pas une pièce posée
+      dessus. Le premier essai reprenait le schéma des six autres — un
+      torse, puis un crâne translaté par-dessus — et il en sortait un
+      lapin sans oreilles : on VOYAIT la couture. Le corps est donc un
+      tracé UNIQUE, du croupion au nez, et les yeux se posent dedans.
+   2. PAS DE QUEUE, et des pattes ridicules. Un cochon d'Inde de profil,
+      c'est un pain rond posé au ras du sol. Les pattes ne sont pas
+      dessinées : seuls quatre petits pieds dépassent sous le ventre,
+      et c'est exactement ce qu'on voit d'un vrai.
+   3. IL NE MARCHE PAS. Il est immobile, puis il n'est plus là. Sa
+      démarche est une suite de ruées de trois dixièmes de seconde
+      séparées par des arrêts NETS — et de temps en temps, sans raison
+      ni prévenance, un saut sur place. C'est là qu'est le comique, et
+      c'est courseCochon() qui le fabrique, sans le moindre hasard.
+
+   Hauteur mesurée au balayage d'alphas : 13,9 unités pour un individu
+   de taille moyenne (le bourdon fait 9, le koala 23, Gégé 20).
+
+   ---- POURQUOI TROIS ROBES ----
+   Le poseur les sème en GRAPPES SERRÉES, cinq ou six côte à côte. À ce
+   régime, une espèce d'une seule couleur n'est plus un troupeau, c'est
+   un motif de papier peint. Le cochon d'Inde est bicolore par nature :
+   on tire donc parti de ce que la bête a déjà. k.teinte donne la robe
+   (0 roux et blanc, 1 noir et blanc, 2 tricolore) et k.n redistribue
+   les taches, la taille et le rythme des ruées. Deux voisins ne
+   partagent alors ni la silhouette, ni la valeur, ni l'instant où ils
+   détalent — et c'est cette dernière qui fait le plus de travail.
+   ================================================================ */
+
+/* Les trois robes. Ce qui les sépare n'est PAS la teinte des poils :
+   c'est la répartition des valeurs. La rousse est une masse chaude
+   moyenne éclaircie au ventre ; la pie noire est blanche avec deux
+   blocs presque noirs ; la tricolore est blanche avec un bloc chaud
+   d'un côté et un bloc sombre de l'autre. Sur la terre de jungle
+   (#2e4428) les trois se lisent, et surtout elles ne se lisent pas
+   pareil — c'est tout ce qu'on leur demande dans une grappe. */
+var PAL_COCHON = [
+  { /* 0 — ROUX ET BLANC. La seule des trois qui soit chaude en masse :
+       dans une grappe, c'est elle qui accroche l'œil en premier. */
+    dosC:"#f2ab60", dos:"#dd8c3c", flanc:"#bd6d20", ventre:"#f0dcb4",
+    taches:["#3f2a1c"],
+    clair:"#fdf6e8", clairO:"#dccdb2",
+    oreille:"#b9713a", oreilleI:"#d59468",
+    nez:"#d0968b", patte:"#a75f24", cerne:"rgba(255,246,230,.55)" },
+  { /* 1 — NOIR ET BLANC (la pie hollandaise). Le contraste maximal du
+       lot : à z = 0,5 il ne reste que deux pâtés sombres sur un corps
+       clair, et ça suffit à la reconnaître. */
+    dosC:"#fffdf7", dos:"#f2ebdd", flanc:"#d8d0c0", ventre:"#fffdf7",
+    taches:["#272230"],
+    clair:"#fffdf7", clairO:"#dad2c2",
+    oreille:"#332d3a", oreilleI:"#7d6d77",
+    nez:"#8d7f88", patte:"#cdc4b4", cerne:"rgba(246,242,232,.72)" },
+  { /* 2 — TRICOLORE. Deux couleurs de taches au lieu d'une, posées aux
+       deux bouts : c'est la seule du lot qui n'est pas symétrique en
+       valeur, et de loin ça se lit comme un individu « à part ». */
+    dosC:"#fffcf2", dos:"#efe7d8", flanc:"#d5ccbb", ventre:"#fffdf7",
+    taches:["#c9761f", "#241f2a"],
+    clair:"#fffdf7", clairO:"#dad2c2",
+    oreille:"#a56b3c", oreilleI:"#c78d63",
+    nez:"#c48d84", patte:"#c6bdad", cerne:"rgba(248,242,230,.68)" }
+];
+
+/* Haché d'individu. Le semis pose k.n = l'indice dans la liste des
+   créatures : deux bêtes d'une même grappe ont donc des n qui SE
+   SUIVENT, et un simple n % 4 les aurait rangées en file indienne de
+   motifs. Un sinus haché casse la suite, et reste évidemment
+   reproductible d'une image à l'autre. */
+function cochonTirage(n, sel){
+  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
+  return a - Math.floor(a);
+}
+
+/* ---- LA DÉMARCHE -------------------------------------------------
+   Le cœur de la bête. Un cochon d'Inde ne se déplace pas d'un point à
+   un autre : il reste planté, puis il RUE pendant trois dixièmes de
+   seconde, puis il se plante de nouveau. Même construction que le vol
+   du bourdon — une suite de segments, un haché par segment, aucun
+   hasard — mais l'objectif est inverse : le bourdon doit avoir l'air
+   de flotter, celui-ci d'avoir peur.
+
+   Renvoie :
+     elan   0..1, l'intensité de la ruée. Il tombe à zéro D'UN COUP à la
+            fin du sprint : c'est ce zéro brutal qui fait l'arrêt net.
+     av     le décalage local vers l'avant, lui CONTINU — sinon la bête
+            se téléporterait à chaque changement de segment. Le corps
+            part devant ses pieds, puis se rassoit sur sa croupe au
+            freinage, ce qui est exactement ce que fait l'animal.
+     saut   la hauteur du bond sur place. Un segment sur six environ,
+            au repos seulement : c'est le « popcorn », le petit saut
+            vertical sans raison. C'est LE gag de l'espèce, et il ne
+            marche que s'il reste rare.
+     gel    1 pendant les arrêts, pour que le reste du dessin sache
+            qu'il ne doit plus rien bouger du tout. */
+function courseCochon(tps, ph, n, fuit){
+  /* En fuite les segments sont deux fois plus courts ET le sprint en
+     occupe presque tout : il ne reste qu'un souffle entre deux ruées. */
+  var seg = tps * (fuit ? 1.85 : 0.78) + ph * 0.61;
+  var i = Math.floor(seg), u = seg - i;
+  var d = cochonTirage(i, n);
+  var pop = (!fuit && d > 0.83) ? 1 : 0;
+  var dur = pop ? 0.30 : (fuit ? 0.66 + d * 0.22 : 0.17 + d * 0.23);
+  var elan = 0, saut = 0;
+  if(u < dur){
+    var w = u / dur;
+    /* Créneau arrondi : la puissance 0,3 sur un sinus redresse les deux
+       flancs presque à la verticale. Un sinus nu donnait une ruée qui
+       s'installe et se retire mollement — un cochon d'Inde qui démarre
+       en fondu, ça n'existe pas. */
+    elan = Math.pow(Math.sin(w * 3.1416), 0.3);
+    if(pop) saut = Math.sin(w * 3.1416) * 3.6;
+  }
+  /* Le rappel déborde du sprint : le corps continue sur son erre puis
+     revient sur ses pieds. Le pulse vaut zéro aux deux bouts, donc
+     aucune cassure au changement de segment. */
+  var tot = dur + 0.18;
+  var av = u < tot ? Math.sin(u / tot * 3.1416) : 0;
+  av *= pop ? 0.7 : (fuit ? 4.2 : 2.6);
+  return { elan:elan, av:av, saut:saut, gel:elan < 0.02 ? 1 : 0, pop:pop };
+}
+
+/* LE CORPS ENTIER, tête comprise, en un seul tracé.
+   Quatre choses s'y jouent, et aucune n'est négociable :
+   — LE CROUPION EST UN DEMI-CERCLE. Premier essai, effilé comme une
+     croupe de chat : on obtenait une limace. Un cochon d'Inde s'arrête
+     NET à l'arrière, comme un pain coupé.
+   — LE POINT HAUT EST SUR LA HANCHE, pas au milieu du dos. C'est ce
+     qui empêche le dos de se lire comme un seul long arc — deuxième
+     essai — et donc la bête de se lire comme une saucisse.
+   — IL Y A UN CREUX DE NUQUE D'UN POINT ET DEMI. Pas un cou : un
+     simple cran. Sans lui, la tête n'existe pas et il ne reste qu'une
+     forme avec des yeux dessus ; avec lui, on lit une tête soudée aux
+     épaules, ce qui est exactement l'animal.
+   — LE FRONT TOMBE D'UN COUP sur un nez COURT. C'est la CHUTE du
+     front, pas la longueur du museau, qui dit rongeur.
+   « t » relève le nez (reniflement, tête haute à l'arrêt), « d »
+   bombe le dos (il s'arrondit à la poussée), « e » étire le corps. */
+function cochonCorps(c, t, d, e){
+  c.beginPath();
+  c.moveTo(-8.8 - e, -2.6);
+  c.quadraticCurveTo(-12.2 - e, -3.4, -12.0 - e, -7.4 - d * 0.4);    /* croupion */
+  c.quadraticCurveTo(-11.8 - e, -12.0 - d, -6.6 - e, -12.6 - d);     /* la hanche : le point haut */
+  c.quadraticCurveTo(-1.6, -13.2 - d, 2.0 + e * 0.4, -11.9 - d * 0.5);/* le dos */
+  c.quadraticCurveTo(3.6 + e, -9.9, 5.6 + e, -11.6 - t * 0.7);       /* le creux de nuque */
+  c.quadraticCurveTo(8.6 + e, -12.9 - t, 10.6 + e, -9.8 - t);        /* le dôme du crâne */
+  c.quadraticCurveTo(12.0 + e, -7.4 - t * 0.8, 11.2 + e, -5.6 - t * 0.6);/* le front tombe, nez court */
+  c.quadraticCurveTo(10.6 + e, -4.2 - t * 0.3, 8.4 + e, -3.4);       /* lèvre et menton */
+  c.quadraticCurveTo(6.0 + e, -2.8, 2.2, -2.4);
+  c.quadraticCurveTo(-3.0, -2.1, -8.8 - e, -2.6);                    /* le ventre, au ras du sol */
+  c.closePath();
+}
+function cochonDos(c, t, d, e){
+  c.beginPath();
+  c.moveTo(-12.1 - e, -6.6);
+  c.quadraticCurveTo(-11.8 - e, -12.0 - d, -6.6 - e, -12.6 - d);
+  c.quadraticCurveTo(-1.6, -13.2 - d, 2.0 + e * 0.4, -11.9 - d * 0.5);
+  c.quadraticCurveTo(3.6 + e, -9.9, 5.6 + e, -11.6 - t * 0.7);
+  c.quadraticCurveTo(8.6 + e, -12.9 - t, 10.6 + e, -9.8 - t);
+}
+function cochonVentre(c, e){
+  c.beginPath();
+  c.moveTo(8.6 + e, -3.2);
+  c.quadraticCurveTo(6.0 + e, -2.5, 2.2, -2.1);
+  c.quadraticCurveTo(-3.0, -1.8, -9.0 - e, -2.4);
+}
+
+/* L'OREILLE EN PÉTALE — la seule chose qui sorte de la silhouette,
+   donc la seule qui sauve le contour dans une grappe où six corps se
+   chevauchent. Un cochon d'Inde ne porte pas ses oreilles droites :
+   elles PENDENT sur le côté du crâne, molles et un peu froissées, et
+   elles sont grandes — un bon tiers de la hauteur de la tête. Dressées
+   et petites (premier essai), la bête devenait un lapereau, et de
+   toute façon on ne les voyait plus au-dessus du dos.
+   Le pétale est tracé PENDANT vers le +y depuis son attache : « ang »
+   n'a donc plus qu'à le balancer d'avant en arrière, θ = 0 étant
+   « pend tout droit » et θ croissant le couchant vers la croupe. */
+function cochonOreille(c, x, y, r, ang, ext, intr){
+  c.save();
+  c.translate(x, y); c.rotate(ang);
+  c.fillStyle = ext;
+  c.beginPath();
+  c.moveTo(-r * 0.34, 0);
+  c.quadraticCurveTo(-r * 0.86, r * 0.72, -r * 0.50, r * 1.34);   /* bord arrière */
+  c.quadraticCurveTo(-r * 0.10, r * 1.80, r * 0.46, r * 1.44);    /* le lobe, arrondi */
+  c.quadraticCurveTo(r * 0.96, r * 1.04, r * 0.80, r * 0.34);     /* bord avant */
+  c.quadraticCurveTo(r * 0.66, -r * 0.22, -r * 0.34, 0);          /* l'attache, étroite */
+  c.closePath(); c.fill();
+  if(intr){
+    /* Le pavillon, écrêté par l'oreille : posé libre, il débordait du
+       bord et plantait une écharde claire à côté de la tête. Il reste
+       PETIT — large, il transformait l'oreille en coquillage rose. */
+    c.save(); c.clip();
+    c.fillStyle = intr;
+    c.beginPath(); c.ellipse(r * 0.06, r * 0.94, r * 0.28, r * 0.44, -0.16, 0, 6.2832); c.fill();
+    c.restore();
+  }
+  c.restore();
+}
+
+function dessineCochon(c, k, tps){
+  var teinte = k.teinte | 0; if(teinte > 2 || teinte < 0) teinte = 0;
+  var P = PAL_COCHON[teinte];
+  var ph = k.ph || 0, n = k.n || 0;
+  var fuit = k.etat === "fuite";
+  var sur = fauneSursaut(k, tps);
+  /* LA RÉACTION À L'EXPLOSION EST L'INVERSE DE CELLE DES SIX AUTRES.
+     Le singe détale, le panda galope, le koala grimpe — le cochon
+     d'Inde se PÉTRIFIE. C'est le vrai réflexe de l'animal, et sur une
+     carte où tout part en courant d'un coup, la seule bête qui devient
+     une pierre est celle qu'on remarque. Tout mouvement est donc coupé
+     tant que le sursaut dure. */
+  var fig = sur > 0.10;
+  var m = courseCochon(tps, ph, n, fuit);
+  var elan = fig ? 0 : m.elan;
+  var av = fig ? m.av * 0.15 : m.av;
+  var saut = fig ? 0 : m.saut;
+
+  /* La taille : de 0,86 à 1,08. Une grappe de six bêtes du même gabarit
+     reste un motif imprimé, quelles que soient les robes ; deux jeunes
+     au milieu de quatre adultes, et c'est une portée. */
+  var ech = 0.86 + cochonTirage(n, 3) * 0.22;
+  var motif = (cochonTirage(n, 1) * 4) | 0;
+
+  /* Le reniflement. Un cochon d'Inde à l'arrêt n'est jamais tout à fait
+     immobile : le nez bat à sept coups par seconde, et RIEN d'autre ne
+     bouge. C'est ce contraste — un corps de pierre et un nez qui
+     vibre — qui le rend vivant à l'arrêt, là où les six autres espèces
+     comptent sur leur démarche. Pétrifié, il bat deux fois plus vite. */
+  var renifle = m.gel ? Math.sin(tps * (fig ? 15.0 : 7.4) + ph * 3.1) * 0.5 + 0.5 : 0;
+  /* Il cligne très peu : dix-huit secondes de période, contre trois ou
+     quatre pour le reste du bestiaire. Un cochon d'Inde dort les yeux
+     ouverts, et c'est ce regard fixe qui fait la moitié de son air
+     ahuri. */
+  var ouv = (fuit || fig) ? 1 : fauneClin(tps, ph, 18.0);
+  var lacet = (fuit || fig) ? -0.16 : Math.sin(tps * 0.31 + ph * 1.7) * 0.26;
+  var respi = (m.gel && !fig) ? Math.sin(tps * 1.9 + ph) * 0.3 : 0;
+  /* Oreilles rabattues : à la ruée, en fuite, et pendant la pétrification. */
+  var pli = Math.max(elan * 0.8, fig ? 1 : (fuit ? 0.55 : 0));
+
+  c.save();
+  c.scale(ech, ech);
+
+  /* L'ombre reste au sol pendant le bond : c'est elle qui dit qu'il
+     saute VERTICALEMENT et qu'il n'a pas simplement grandi. */
+  ombreFaune(c, -0.4, 9.2, 2.8, saut * 0.30, 0.28);
+
+  c.save();
+  c.translate(av, -saut);
+  /* Nez en avant à la ruée : le cochon d'Inde court le ventre à terre,
+     la tête la première. Pétrifié, il s'aplatit au contraire. */
+  c.rotate(elan * 0.09 - saut * 0.03);
+  if(fig) c.scale(1 + sur * 0.09, 1 - sur * 0.14);
+  else if(elan > 0) c.scale(1 + elan * 0.07, 1 - elan * 0.05);
+
+  var t = renifle * 0.35 - elan * 1.0;      /* le nez : haut à l'arrêt, bas à la ruée */
+  var d = respi + elan * 0.8;               /* le dos se bombe quand il pousse */
+  var e = elan * 0.9;                       /* et le corps s'étire */
+
+  /* ---- les deux pieds du fond, plus sombres ----
+     Ce ne sont PAS des pattes : quatre boutons qui dépassent sous le
+     ventre, et c'est tout ce qu'on voit d'un vrai animal. Les deux
+     pieds d'un même plan tiennent dans UN tracé — le remplissage prend
+     tous les sous-chemins d'un coup, et à trente bêtes à l'écran deux
+     beginPath économisés par bête ne sont pas rien.
+     À la ruée ils battent trop vite pour être suivis : on les ÉTALE au
+     lieu de les déplacer, parce qu'un pied net qui saute d'une image à
+     l'autre scintille, là où un pied étiré donne la vitesse. */
+  var bat = Math.sin(tps * 27 + ph * 2.2) * elan;
+  c.fillStyle = ecl(P.patte, 0.72);
+  c.beginPath();
+  c.ellipse(-4.8 - bat * 1.5, -1.15, 1.60 + elan * 1.5, 1.18, -0.12, 0, 6.2832);
+  c.ellipse(5.6 + bat * 1.5, -1.15, 1.55 + elan * 1.5, 1.14, 0.10, 0, 6.2832);
+  c.fill();
+
+  /* ---- l'oreille du fond ----
+     Elle est COUCHÉE EN ARRIÈRE sur la nuque, pas dressée : de ce
+     côté-là on ne voit qu'un lobe qui dépasse du dos, et c'est
+     précisément ce lobe qui dit « il y a une deuxième oreille » sans
+     coller un pavillon de lapin au-dessus du crâne. */
+  cochonOreille(c, 7.2 + e * 0.6, -12.0 - t * 0.8, 2.05 - pli * 0.6,
+                2.05 + pli * 0.30, ecl(P.oreille, 0.76), 0);
+
+  /* ---- le corps ---- */
+  c.fillStyle = degCache(c, "cochonCorps" + teinte, function(){
+    var g = c.createLinearGradient(0, -13.4, 0, -1.6);
+    g.addColorStop(0, PAL_COCHON[teinte].dosC);
+    g.addColorStop(0.44, PAL_COCHON[teinte].dos);
+    g.addColorStop(0.78, PAL_COCHON[teinte].flanc);
+    g.addColorStop(1, PAL_COCHON[teinte].ventre);
+    return g;
+  });
+  cochonCorps(c, t, d, e); c.fill();
+
+  /* ---- LES TACHES ----
+     Quatre motifs tirés de k.n : croupe, capuchon, les deux (la pie
+     « hollandaise », ceinturée de blanc), ou une selle au milieu du
+     dos. C'est ce qui empêche six bêtes de la même robe de se lire
+     comme six exemplaires du même dessin, et ça ne coûte que deux
+     remplissages écrêtés.
+     Les taches ne sont PAS des ellipses : un bord de poil ondule, et
+     l'ellipse du premier essai se lisait comme un autocollant appliqué
+     sur la bête. Trois quadratiques suffisent à casser la régularité,
+     au même prix. */
+  c.save();
+  cochonCorps(c, t, d, e); c.clip();
+  var tA = P.taches[0], tB = P.taches[P.taches.length - 1];
+  if(motif === 0 || motif === 2){
+    c.fillStyle = tA;
+    c.beginPath();
+    c.moveTo(-13.5 - e, -13.5);
+    c.quadraticCurveTo(-3.0, -14.0, -2.4, -8.2);
+    c.quadraticCurveTo(-2.0, -3.4, -7.6, -1.0);
+    c.quadraticCurveTo(-14.5 - e, -1.4, -14.5 - e, -7.2);
+    c.closePath(); c.fill();
+  }
+  if(motif === 1 || motif === 2){
+    /* Le capuchon prend la tête ET l'épaule, et s'arrête DERRIÈRE
+       l'œil proche. Poussé jusqu'au nez, il noyait les deux yeux dans
+       le noir et la bête perdait purement et simplement son visage ;
+       arrêté au crâne, il faisait un bonnet posé sur un corps blanc,
+       donc deux animaux. Entre les deux, c'est la marque hollandaise,
+       et c'est celle qui existe vraiment. */
+    c.fillStyle = tB;
+    c.beginPath();
+    c.moveTo(1.6, -14.0);
+    c.quadraticCurveTo(8.6 + e, -14.2, 9.4 + e, -8.6);
+    c.quadraticCurveTo(9.8 + e, -3.8, 4.6 + e, -1.2);
+    c.quadraticCurveTo(0.8, -1.0, 1.0, -6.6);
+    c.closePath(); c.fill();
+  }
+  if(motif === 3){
+    c.fillStyle = tA;
+    c.beginPath();
+    c.moveTo(-7.2 - e, -14.0);
+    c.quadraticCurveTo(1.4, -14.4, 2.8, -9.4);
+    c.quadraticCurveTo(3.6, -4.6, -2.4, -4.0);
+    c.quadraticCurveTo(-8.4 - e, -4.6, -8.2 - e, -9.8);
+    c.closePath(); c.fill();
+  }
+  /* LA FACE CLAIRE. Elle n'est pas décorative : c'est la règle de la
+     maison — deux points sombres sur une face CLAIRE. Sur un capuchon
+     noir, deux yeux noirs ne sont plus rien du tout et la bête perd
+     son visage. Le vrai cochon d'Inde porte d'ailleurs presque
+     toujours cette liste claire sur le chanfrein.
+     Son bord arrière passe DERRIÈRE l'œil proche et DEVANT le
+     lointain : l'œil de devant tombe donc sur le clair et se lit tout
+     seul, celui du fond reste sur la robe et n'a plus qu'à s'appuyer
+     sur son cerne. C'est ce décalage — un œil sur le blanc, l'autre
+     sur la couleur — qui fait tourner la tête aux trois quarts sans
+     rien redessiner. Sa LARGEUR varie d'un individu à l'autre, une
+     raison de plus de la tirer de k.n. */
+  var bl = cochonTirage(n, 5) * 1.4;
+  c.fillStyle = P.clair;
+  c.beginPath();
+  c.moveTo(11.4 + e, -9.8 - t * 0.8);
+  c.quadraticCurveTo(8.6 + e - bl, -9.4, 7.4 + e - bl, -6.4);   /* le bord arrière */
+  c.quadraticCurveTo(6.6 + e - bl, -3.2, 9.8 + e, -2.9);        /* la joue et le menton */
+  c.quadraticCurveTo(12.4 + e, -3.4, 12.2 + e, -6.6);           /* le bord avant, contre le nez */
+  c.closePath(); c.fill();
+  c.restore();
+
+  chatVolume(c, function(cc){ cochonCorps(cc, t, d, e); },
+                function(cc){ cochonDos(cc, t, d, e); },
+                function(cc){ cochonVentre(cc, e); },
+                "rgba(255,250,236,.30)", "rgba(52,38,28,.26)");
+
+  /* ---- les deux pieds de devant, même tracé unique ---- */
+  c.fillStyle = P.patte;
+  c.beginPath();
+  c.ellipse(-3.0 + bat * 1.5, -1.1, 1.70 + elan * 1.6, 1.30, -0.12, 0, 6.2832);
+  c.ellipse(7.2 + e - bat * 1.5, -1.1, 1.62 + elan * 1.6, 1.24, 0.10, 0, 6.2832);
+  c.fill();
+
+  /* ---- l'oreille proche, par-dessus la joue ----
+     Plantée DERRIÈRE l'œil et pendant sur la joue : c'est sa place
+     réelle, et c'est aussi ce qui donne son épaisseur à la tête de
+     trois quarts. */
+  cochonOreille(c, 6.9 + e, -10.8 - t * 0.8, 2.7 - pli * 0.85,
+                0.62 + pli * 0.80, P.oreille, P.oreilleI);
+
+  /* ---- LE VISAGE ----
+     Pas de repère à part : les traits se posent directement dans le
+     bout du corps, décalés par « lacet ». C'est la contrepartie de la
+     tête soudée — et le prix est nul, puisqu'il n'y a aucun crâne à
+     redessiner. */
+  var lx = lacet * 1.5;
+
+  /* Les deux yeux. Ronds, presque tout en pupille, plantés HAUT ET SUR
+     LE CÔTÉ du chanfrein : c'est la place d'un œil d'animal de proie,
+     et c'est elle qui donne l'air perpétuellement effaré. Le lointain
+     est plus petit ET plus haut — la tête tourne sans être redessinée.
+     Les deux gardent un cerne pâle : sur le capuchon noir, sans lui,
+     il ne reste rien du tout à cet endroit. */
+  var lo = 0.84 + lacet * 0.34;
+  var ry = (fuit || fig) ? 1.20 : 1.06;
+  oeilFaune(c, 7.3 + e + lx, -9.9 - t * 0.8, ry * lo, ouv, P.cerne, lacet);
+  oeilFaune(c, 10.2 + e + lx * 0.8, -8.0 - t * 0.8, ry, ouv, P.cerne, lacet);
+
+  /* Le nez. PETIT — c'est un des rares endroits où il ne faut pas
+     exagérer : gros, il tirait la bête vers le lapin. Il monte et
+     descend au rythme du reniflement. */
+  var nx = 11.4 + e + lx, ny = -5.6 - t * 0.7 - renifle * 0.4;
+  c.fillStyle = P.nez;
+  c.beginPath();
+  c.moveTo(nx - 0.90, ny - 0.40);
+  c.quadraticCurveTo(nx + 0.05, ny - 1.00, nx + 0.90, ny - 0.30);
+  c.quadraticCurveTo(nx + 0.60, ny + 0.66, nx - 0.05, ny + 0.76);
+  c.quadraticCurveTo(nx - 0.70, ny + 0.62, nx - 0.90, ny - 0.40);
+  c.closePath(); c.fill();
+
+  /* La bouche en Y, sous le nez : la lèvre fendue du rongeur. Ouverte,
+     c'est le cri d'alarme — un cochon d'Inde qui détale COUINE, et
+     sans cette bouche il avait seulement l'air de rouler. */
+  if(fuit || fig){
+    c.fillStyle = "#5e3038";
+    c.beginPath(); c.ellipse(nx - 0.6, ny + 1.9, 0.9, 0.65 + renifle * 0.25, -0.24, 0, 6.2832); c.fill();
+  }else{
+    c.strokeStyle = "rgba(78,54,48,.5)"; c.lineWidth = 0.36; c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(nx - 0.1, ny + 0.9); c.lineTo(nx - 0.4, ny + 1.6);
+    c.moveTo(nx - 0.4, ny + 1.6); c.quadraticCurveTo(nx - 1.2, ny + 1.9, nx - 1.7, ny + 1.3);
+    c.moveTo(nx - 0.4, ny + 1.6); c.quadraticCurveTo(nx + 0.4, ny + 1.9, nx + 0.8, ny + 1.2);
+    c.stroke();
+  }
+
+  /* Les vibrisses, longues et courbes — un cochon d'Inde en a d'aussi
+     larges que lui, et elles battent avec le nez. Les six brins
+     tiennent dans UN seul tracé : à trente bêtes à l'écran, six
+     beginPath de plus par bête n'étaient pas défendables pour un
+     détail que le zoom de jeu avale à moitié. */
+  c.strokeStyle = "rgba(255,250,240,.42)"; c.lineWidth = 0.32; c.lineCap = "round";
+  c.beginPath();
+  for(var w = -1; w <= 1; w++){
+    var vy = ny + 0.8 + w * 0.45, vo = w * 2.0 + renifle * 0.45;
+    c.moveTo(nx - 0.3, vy);
+    c.quadraticCurveTo(nx + 2.6, vy + vo * 0.3, nx + 4.8, vy + vo);
+    c.moveTo(nx - 0.9, vy + 0.1);
+    c.quadraticCurveTo(nx - 3.2, vy + vo * 0.4 + 0.7, nx - 5.2, vy + vo * 0.9 + 1.3);
+  }
+  c.stroke();
+
+  c.restore();
+  c.restore();
+}
+
 /* ===== 36-jungle-meteo.js ===== */
 /* ================================================================
    MILY DANS LA JUNGLE — LA MÉTÉO
    Un orage tropical permanent, et un impact de foudre toutes les
-   trente secondes. Quarante éclairs dans une partie de vingt minutes :
-   c'est ce chiffre-là qui commande tout le fichier. Un effet qu'on
-   subit quarante fois n'a pas le droit d'agresser, si spectaculaire
-   soit-il. D'où trois règles que rien ne renégocie ici :
+   QUINZE secondes. Quatre-vingts éclairs dans une partie de vingt
+   minutes : c'est ce chiffre-là qui commande tout le fichier. Un effet
+   qu'on subit quatre-vingts fois n'a pas le droit d'agresser, si
+   spectaculaire soit-il. D'où trois règles que rien ne renégocie :
 
-     1. le voile plein écran de l'éclair plafonne à 0,32 d'alpha et
-        il est retombé sous 0,02 en 140 ms ;
+     1. le voile plein écran de l'éclair plafonne à 0,23 d'alpha et
+        il est retombé sous 0,01 en 120 ms. Il a été BAISSÉ de 0,32 à
+        0,23 le jour où la cadence a doublé : ce qu'on gagne en
+        fréquence, on le rend en douceur ;
      2. la pluie est un rideau PÂLE — trois couches, 270 traits fins,
         jamais un mur d'eau : on doit lire un combat au travers ;
      3. pluie + brume + ciel tiennent sous 2 ms par image, à plein
         écran, à toutes les images de la partie.
 
-   Quatre couches, appelées depuis le rendu en repère ÉCRAN
-   (repereEcran déjà fait) :
+   Les couches, dans l'ordre où le rendu doit les empiler. Toutes en
+   repère ÉCRAN (repereEcran déjà fait) :
 
-     dessineCielOrage    la LUMIÈRE de la carte : teinte verte
-                         d'orage, flaques de clarté et d'ombre qui
-                         dérivent avec les nuages, vignette, lueurs
-                         des roulements derrière la couche de nuages.
-                         C'est elle qui rend l'île belle au dézoom,
-                         quand plus aucun détail ne porte.
+   SOUS les entités — ce qui se passe AU SOL :
+     dessineCielOrage    la nappe d'ombres et de trouées de lumière
+                         qui dérive avec les nuages, plus l'ombre
+                         portée des petits nuages. C'est elle qui rend
+                         l'île belle au dézoom, quand plus aucun
+                         détail ne porte.
      dessineBrumeSol     une haleine pâle collée au sol, ancrée au
                          MONDE : elle suit la caméra, elle ne colle
                          pas à l'écran.
+
+   PAR-DESSUS la carte — ce qui se passe DANS L'AIR :
+     dessineNuagesJungle les petits nuages qui se baladent. Ce sont
+                         eux qui donnent la CAUSE : la foudre part de
+                         l'un d'eux, jamais de nulle part.
+     dessineVoileOrage   la lumière de l'air entre la caméra et la
+                         carte : teinte d'orage, vignette, lueur des
+                         roulements lointains.
+     dessineLueursVegetation  les points chauds dans les feuillages.
+     dessineEclairJungle l'événement, en cinq temps : le nuage
+                         s'allume, l'éclair descend, il frappe, LE
+                         COURANT SE DIFFUSE AU SOL, ça fume.
      dessinePluieJungle  le rideau (écran) + les éclaboussures
                          (monde, elles marquent le sol).
-     dessineEclairJungle l'événement, en quatre temps : le ciel
-                         blanchit, l'éclair descend, il frappe,
-                         il fume.
+
+   Les deux couches d'AIR ont un filet de sécurité : si le rendu ne les
+   appelle pas explicitement, dessineLueursVegetation puis
+   dessinePluieJungle s'en chargent. Un garde-fou sur `tps` fait qu'on
+   ne les peint jamais deux fois dans la même image.
 
    ----------------------------------------------------------------
    CE QUI DICTE TOUTE L'ARCHITECTURE DU FICHIER : LE FILTRAGE.
@@ -8181,18 +8895,24 @@ function bornesGrille(pasEcran, marge){
    deux impacts, et non devant une carte verte qui attend son effet.
    Rare, faible, et toujours en haut de l'écran — un voile plein cadre
    toutes les sept secondes ne servirait qu'à fatiguer. */
+/* Le cycle a été ALLONGÉ de 6,7 à 9,5 s et le tirage resserré quand la
+   foudre est passée à un impact toutes les quinze secondes : entre les
+   vrais coups et les lueurs lointaines, le ciel finissait par gronder
+   sans arrêt, et un orage permanent ne fait plus peur à personne. */
+var MET_ROULEMENT = 9.5;
 function roulementJungle(tps){
-  var n = Math.floor(tps / 6.7);
+  var n = Math.floor(tps / MET_ROULEMENT);
   var f = bruitStable(n, 1);
-  if(f < 0.42) return 0;                      // un cycle sur deux, rien
-  var d = tps - n * 6.7 - (0.4 + bruitStable(n, 0) * 5.2);
+  if(f < 0.55) return 0;                      // moins d'un cycle sur deux
+  var d = tps - n * MET_ROULEMENT - (0.4 + bruitStable(n, 0) * 7.4);
   if(d < 0 || d > 0.7) return 0;
   /* deux claquements : un vrai éclair lointain se réamorce */
   return Math.exp(-d * 6.5) * (0.62 + 0.38 * Math.sin(d * 44)) * (0.35 + f * 0.65);
 }
 
-/* LES OMBRES DE NUAGES, sur le SOL. Appelée tôt, sous les entités :
-   c'est bien de l'ombre portée sur la terre, elle n'a rien à faire
+/* TOUT CE QUI SE PASSE AU SOL : la nappe d'ombres et de trouées de
+   lumière, puis l'ombre portée des petits nuages. Appelée tôt, sous
+   les entités — c'est de l'ombre sur la terre, elle n'a rien à faire
    par-dessus les troupes. */
 function dessineCielOrage(c, tps){
   var e = dpr;
@@ -8206,6 +8926,10 @@ function dessineCielOrage(c, tps){
   nappeMeteo(c, motifMeteo(c, "nuages", T),
              (cam.px * 0.85 + secX + tps * 6.5) * e,
              (cam.py * 0.85 + secY + tps * 2.2) * e);
+  /* Les ombres portées des petits nuages, par-dessus la nappe : c'est
+     ce qui rattache les masses du ciel au sol qu'elles survolent.
+     Sans elles, les nuages flottent comme des autocollants. */
+  dessineOmbresNuages(c, tps);
 }
 
 /* ---------------------------------------------------------------
@@ -8286,6 +9010,10 @@ var MET_COUCHES_PLUIE = [
 ];
 
 function dessinePluieJungle(c, tps){
+  /* filets de sécurité : voir dessineVoileOrage. La pluie tombe DANS
+     l'air voilé et SOUS les nuages, donc les deux passent avant elle. */
+  dessineNuagesJungle(c, tps);
+  dessineVoileOrage(c, tps);
   var z = cam.z;
   var pente = ventJungle(tps);
   /* Les gouttes rétrécissent au dézoom. Sinon, quand on prend toute
@@ -8361,6 +9089,14 @@ function dessinePluieJungle(c, tps){
    pixels de côté, mesurés à 0,05 ms les quarante.
    ================================================================ */
 function dessineLueursVegetation(c, tps){
+  /* C'est la PREMIÈRE des couches empilées par-dessus la carte, donc
+     le meilleur endroit pour les filets de sécurité : ainsi l'éclair,
+     qui vient ensuite, perce le voile au lieu d'être posé dessous, et
+     il part d'un nuage déjà peint. Voir dessineVoileOrage et
+     dessineNuagesJungle — les deux ont un garde-fou sur `tps`, donc
+     un appel explicite du rendu les rend ici inopérants. */
+  dessineNuagesJungle(c, tps);
+  dessineVoileOrage(c, tps);
   var z = cam.z;
   if(z < 0.18) return;
   var g = bornesGrille(170, 60);
@@ -8385,15 +9121,215 @@ function dessineLueursVegetation(c, tps){
 }
 
 /* ================================================================
-   5. L'ÉCLAIR
+   5. LES PETITS NUAGES
+   Ils ne sont pas décoratifs : ils sont la CAUSE. Un éclair qui tombe
+   d'un ciel vide n'est qu'un effet posé sur la carte ; le même éclair
+   parti d'un nuage qu'on regardait dériver depuis vingt secondes est
+   un événement. C'est tout ce que cette section sert à fabriquer —
+   un préavis, et un point de départ.
+   Ils restent DISCRETS : une ombre portée au sol, une masse sombre
+   au-dessus. Jamais un plafond, jamais quelque chose qui cache le jeu.
+   ================================================================ */
+var MET_NUAGE  = "22,36,38";        // le ventre du nuage, presque noir
+var MET_NUAGE_H = "104,130,124";    // sa crête, qui prend ce qui reste de jour
+var JUNGLE_NUAGES = 9;              // combien dérivent au-dessus de l'île
+
+/* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
+   une dizaine de dégradés par image et par nuage ; celui-ci coûte un
+   seul blit. Le rapport 2:1 de la tuile est celui de la projection :
+   un nuage vu de trois quarts est un objet couché. */
+var metSpNuages = null;
+function spritesNuage(){
+  if(metSpNuages) return metSpNuages;
+  metSpNuages = [];
+  var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
+  for(var v = 0; v < 4; v++){
+    var cv = nouveauCanvas(256, 128);
+    var g = cv.getContext("2d");
+    var al = prng(0x4E51 + v * 977);
+    var n = 8 + ((al() * 4) | 0), i;
+    /* le ventre : des lobes bas, larges, franchement écrasés */
+    for(i = 0; i < n; i++){
+      var x = 34 + al() * 188, r = 30 + al() * 54;
+      var y = 78 + (al() - 0.5) * 20;
+      g.globalAlpha = 0.30 + al() * 0.36;
+      g.drawImage(db, x - r, y - r * 0.60, r * 2, r * 1.20);
+    }
+    /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
+       et rien d'autre qui donne le volume : sans lui, un nuage n'est
+       qu'une tache grise, et une tache grise sur une jungle verte se
+       lit comme une salissure d'écran. */
+    for(i = 0; i < n - 3; i++){
+      var x2 = 52 + al() * 152, r2 = 20 + al() * 32;
+      g.globalAlpha = 0.11 + al() * 0.15;
+      g.drawImage(dh, x2 - r2, 46 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.1);
+    }
+    metSpNuages.push(cv);
+  }
+  return metSpNuages;
+}
+
+/* UN NUAGE, en coordonnées MONDE comme une défense :
+     gx, gy   le point du sol qu'il survole — donc où tombe son ombre
+     h        sa hauteur au-dessus du sol, en unités locales
+     r        son demi-diamètre au sol, en cases
+     v        la variante de silhouette (0..3)
+     gx0, vx  sa position de départ et sa dérive, en cases par seconde
+   La liste est PUBLIQUE : la boucle de jeu peut la remplir, la vider,
+   ou déplacer les nuages elle-même. */
+var nuagesJungle = [];
+
+function nouveauNuageJungle(gx, gy, graine){
+  var al = prng((graine | 0) || 1);
+  return {
+    gx:gx, gy:gy, gx0:gx, gy0:gy,
+    r:7 + al() * 8,
+    h:250 + al() * 170,
+    v:(al() * 4) | 0,
+    op:0.60 + al() * 0.40,
+    vx:0.24 + al() * 0.18,
+    vy:0.08 + al() * 0.09
+  };
+}
+
+/* Un semis reproductible : deux joueurs d'un même salon doivent voir
+   le même ciel, sinon la foudre ne part pas du même endroit chez l'un
+   et chez l'autre. */
+function peupleNuagesJungle(nb, graine){
+  var al = prng((graine | 0) || 0x51A9E1);
+  nuagesJungle.length = 0;
+  for(var i = 0; i < nb; i++)
+    nuagesJungle.push(nouveauNuageJungle(al() * GW, al() * GH, (al() * 1e9) | 0));
+  return nuagesJungle;
+}
+
+/* LA DÉRIVE, calculée à partir de tps et de RIEN D'AUTRE.
+   Pas d'accumulation « gx += vx*dt » : deux clients qui n'ont pas
+   exactement le même nombre d'images finiraient avec deux ciels
+   différents, donc deux éclairs partant de deux endroits. Ici la
+   position est une FONCTION du temps, elle est identique partout.
+   Ils sortent par un bord et rentrent par l'autre — la carte est
+   bouclée pour eux, ce qui évite d'en créer et d'en détruire. */
+var MET_NUAGE_MARGE = 22;
+var metNuagesMaj = -1;
+function majNuagesJungle(tps){
+  if(tps === metNuagesMaj) return nuagesJungle;
+  metNuagesMaj = tps;
+  if(!nuagesJungle.length) peupleNuagesJungle(JUNGLE_NUAGES, 0x51A9E1);
+  var m = MET_NUAGE_MARGE, LX = GW + m * 2, LY = GH + m * 2;
+  for(var i = 0; i < nuagesJungle.length; i++){
+    var u = nuagesJungle[i];
+    u.gx = ((u.gx0 + u.vx * tps) % LX + LX) % LX - m;
+    u.gy = ((u.gy0 + u.vy * tps) % LY + LY) % LY - m;
+  }
+  return nuagesJungle;
+}
+
+/* Le nuage le plus proche d'un point. C'est de lui que partira
+   l'éclair : la boucle de jeu peut s'en servir pour choisir où frapper
+   (tirer un nuage, puis un point sous lui) plutôt que l'inverse. */
+function nuageAuDessus(gx, gy){
+  var meilleur = null, d2 = 1e18;
+  for(var i = 0; i < nuagesJungle.length; i++){
+    var u = nuagesJungle[i];
+    var d = (u.gx - gx) * (u.gx - gx) + (u.gy - gy) * (u.gy - gy);
+    if(d < d2){ d2 = d; meilleur = u; }
+  }
+  return meilleur;
+}
+
+/* L'OMBRE PORTÉE. Elle vit avec les ombres de nuages du sol, donc
+   SOUS les entités : c'est de l'ombre sur la terre, elle n'a rien à
+   faire par-dessus les troupes. Appelée depuis dessineCielOrage. */
+function dessineOmbresNuages(c, tps){
+  var z = cam.z;
+  var d = disqueMeteo(MET_OMBRE);
+  var nu = majNuagesJungle(tps);
+  c.save();
+  c.imageSmoothingEnabled = false;
+  for(var i = 0; i < nu.length; i++){
+    var u = nu[i];
+    var p = versEcran(cam, u.gx, u.gy);
+    var rx = u.r * RX * z * 1.15, ry = u.r * RY * z * 1.15;
+    if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
+    c.globalAlpha = 0.20 * u.op;
+    c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
+  }
+  c.restore();
+}
+
+/* LA MASSE, en l'air, par-dessus la carte.
+   Lissage COUPÉ : la silhouette est agrandie d'un facteur trois ou
+   quatre, et un agrandissement filtré coûte cinq fois le prix — 5,2 ms
+   contre 1,0 ms pour douze sprites, mesuré. Sur un dégradé aussi doux
+   l'escalier ne se voit pas. */
+var metNuagesDessin = -1;
+function dessineNuagesJungle(c, tps){
+  if(tps === metNuagesDessin) return;
+  metNuagesDessin = tps;
+  var z = cam.z, sp = spritesNuage();
+  var nu = majNuagesJungle(tps);
+  c.save();
+  c.imageSmoothingEnabled = false;
+  for(var i = 0; i < nu.length; i++){
+    var u = nu[i];
+    var p = versEcran(cam, u.gx, u.gy);
+    /* respiration très lente : un nuage figé se lit comme un autocollant */
+    var souffle = 1 + Math.sin(tps * 0.13 + u.gx0) * 0.06;
+    var w = u.r * RX * 2 * z * souffle, hh = w * 0.5;
+    var x = p.x - w / 2, y = p.y - u.h * z - hh * 0.55;
+    if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
+    c.globalAlpha = 0.36 * u.op;
+    c.drawImage(sp[u.v], x, y, w, hh);
+  }
+  c.restore();
+}
+
+/* ================================================================
+   6. L'ÉCLAIR
+   Le joueur a demandé « quelque chose de précis qui tape le sol » —
+   pas un gros trait spectaculaire, un TRAIT NET. Le fichier a donc
+   été retourné dans ce sens : le canal est deux fois plus fin qu'au
+   premier jet, son zigzag s'annule aux deux bouts (il part du nuage,
+   il arrive sur le point visé, il ne cherche jamais sa cible), et
+   toute la dépense est passée dans ce qui vient APRÈS — la nappe de
+   courant qui se diffuse au sol.
    ================================================================ */
 
 /* La chronologie, en secondes depuis e.age = 0. Elle NE dépend PAS de
-   e.duree : c'est la durée du coup de foudre lui-même, et elle est la
-   même qu'on laisse la trace fumante deux secondes ou six. e.duree ne
-   pilote que la queue — fumée et brûlure au sol. */
-var EC_DESC = 0.13;      // le temps que l'éclair met à descendre
-var EC_VIE  = 0.30;      // ce qu'il vit encore après avoir touché
+   e.duree : c'est la durée du coup de foudre lui-même, la même qu'on
+   laisse la trace fumante deux secondes ou six. */
+var EC_DESC = 0.11;      // le temps que l'éclair met à descendre
+var EC_VIE  = 0.28;      // ce qu'il vit encore après avoir touché
+
+/* ---------------------------------------------------------------
+   LE CONTRAT AVEC LA BOUCLE DE JEU
+   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Ces
+   deux nombres sont tout ce qu'il faut pour le calculer, et le rendu
+   les lit exactement comme le fera la boucle — c'est la seule façon
+   que ce qu'on voit et ce qui tue soient le même cercle.
+   (À reprendre dans EQ tels quels : JUNGLE_FOUDRE_RAYON /
+    JUNGLE_FOUDRE_DUREE.)
+   --------------------------------------------------------------- */
+var JUNGLE_FOUDRE_RAYON = 7.0;    // cases : rayon FINAL de la nappe
+var JUNGLE_FOUDRE_DUREE = 2.6;    // secondes pour l'atteindre
+/* Conséquence directe : un éclair doit VIVRE au moins
+   EC_DESC + JUNGLE_FOUDRE_DUREE + le fondu de queue, soit 3,4 s. En
+   dessous, la boucle retire l'objet de jeu.eclairs pendant que la
+   nappe est encore en train de s'étendre, et elle disparaît d'un coup
+   au milieu de sa course. */
+var JUNGLE_FOUDRE_VIE = 3.4;      // e.duree recommandé
+
+/* Le front avance en RACINE du temps : très vite au premier dixième
+   de seconde, puis il s'essouffle. Une décharge qui s'étalerait à
+   vitesse constante aurait l'air d'un cercle de sélection ; celle-ci
+   a l'air de se diffuser dans la terre, ce qui est le propos. */
+function frontFoudre(age){
+  return Math.sqrt(borne((age - EC_DESC) / JUNGLE_FOUDRE_DUREE, 0, 1));
+}
+/* Le rayon courant de la nappe, EN CASES. C'est cette fonction que la
+   boucle doit appeler pour savoir qui est dedans. */
+function rayonFoudre(e){ return frontFoudre(e.age) * JUNGLE_FOUDRE_RAYON; }
 
 /* L'intensité du canal. Un éclair ne s'éteint pas d'un coup : il se
    réamorce deux fois. Ces deux bosses sont ce qui distingue un éclair
@@ -8403,59 +9339,65 @@ function eclatEclair(t){
   if(t < EC_DESC) return 0.20 + 0.42 * (t / EC_DESC);
   var u = t - EC_DESC;
   if(u > EC_VIE) return 0;
-  return Math.min(1, Math.exp(-u * 10.5)
-                   + Math.exp(-Math.abs(u - 0.082) * 48) * 0.52
-                   + Math.exp(-Math.abs(u - 0.163) * 58) * 0.30);
+  return Math.min(1, Math.exp(-u * 11)
+                   + Math.exp(-Math.abs(u - 0.076) * 52) * 0.50
+                   + Math.exp(-Math.abs(u - 0.152) * 62) * 0.28);
 }
 
-/* LE VOILE PLEIN ÉCRAN — la valeur la plus surveillée du fichier,
-   puisqu'on la subit quarante fois par partie. Deux composantes : un
-   halo centré sur l'impact (0,22 à son cœur) et un fond uniforme
-   (0,10). Soit 0,32 au maximum, et seulement au point de chute.
-   La décroissance est une exponentielle de constante 42 ms : à 140 ms
-   il reste 3,5 % du pic, c'est-à-dire rien. */
+/* LE VOILE PLEIN ÉCRAN — la valeur la plus surveillée du fichier.
+   Elle a été BAISSÉE quand la cadence est passée de trente à quinze
+   secondes : quatre-vingts flashs dans une partie de vingt minutes au
+   lieu de quarante, il fallait rendre la moitié de ce qu'on avait
+   pris. Halo 0,16 au point de chute, fond uniforme 0,07, soit 0,23 au
+   maximum — contre 0,32 avant, et un plafond de 0,35 au contrat.
+   La décroissance est une exponentielle de constante 38 ms : à 120 ms
+   il reste 4 % du pic, c'est-à-dire rien. */
+var EC_VOILE_HALO = 0.16;
+var EC_VOILE_FOND = 0.07;
 function voileEclair(t){
   if(t < 0) return 0;
-  if(t < EC_DESC) return 0.05 * (t / EC_DESC);   // le ciel blanchit AVANT
-  return Math.exp(-(t - EC_DESC) / 0.042);
+  if(t < EC_DESC) return 0.045 * (t / EC_DESC);   // le nuage blanchit AVANT
+  return Math.exp(-(t - EC_DESC) / 0.038);
 }
 
 /* Le TRAJET, en coordonnées normalisées : x est un écart latéral en
-   fraction de la hauteur de chute, y va de 0 (le ciel) à 1 (le sol).
+   fraction de la hauteur de chute, y va de 0 (le nuage) à 1 (le sol).
    Construit UNE fois par impact et rangé sur l'objet : la caméra peut
    se déplacer, zoomer, dézoomer, l'éclair garde exactement la même
-   forme. C'est indispensable — un éclair retiré au hasard à chaque
-   image grésille, et le grésillement est précisément ce qui rend un
-   effet fatigant. */
+   forme. Un éclair retiré au hasard à chaque image grésille, et le
+   grésillement est précisément ce qui rend un effet fatigant. */
 function trajetFoudre(graine){
   var al = prng(graine || 7);
-  var N = 15;
-  var x0 = (al() - 0.5) * 0.46;         // il ne tombe jamais à la verticale
-  var p = [x0, 0];
+  var N = 17;
+  var p = [0, 0];
   for(var k = 1; k <= N; k++){
     var f = k / N;
-    /* le zigzag s'apaise en descendant : le canal se resserre sur son
-       point d'arrivée, sinon l'éclair rate visiblement sa cible */
-    var amp = 0.115 * (1 - f * 0.82);
-    p.push(x0 * (1 - f) * (1 - f) + (al() - 0.5) * 2 * amp);
-    p.push(f + (al() - 0.5) * 0.022);
+    /* Le zigzag s'annule AUX DEUX BOUTS. Au premier jet il partait
+       d'un grand écart latéral qui se résorbait en descendant : ça
+       faisait un éclair qui « cherchait » sa cible, exactement le
+       contraire de la précision demandée. Une cloche de sinus donne
+       un canal qui sort droit du nuage et arrive droit sur le point. */
+    var amp = 0.045 * Math.sin(f * Math.PI);
+    p.push((al() - 0.5) * 2 * amp);
+    p.push(f + (al() - 0.5) * 0.018);
   }
   p[p.length - 2] = 0; p[p.length - 1] = 1;
   /* Les ramifications partent vers le bas et vers l'extérieur, et
      meurent en l'air. Une branche qui toucherait le sol ferait deux
      impacts : il n'y en a qu'un, et c'est celui que le joueur doit
-     regarder. */
+     regarder. Deux seulement, et courtes — au-delà, le canal cesse
+     d'être « précis » et redevient un buisson. */
   var br = [];
-  for(var b = 0; b < 3; b++){
-    var d0 = 2 + ((al() * 9) | 0);
+  for(var b = 0; b < 2; b++){
+    var d0 = 3 + ((al() * 8) | 0);
     if(d0 * 2 + 1 >= p.length) continue;
     var bx = p[d0 * 2], by = p[d0 * 2 + 1];
     var sens = al() < 0.5 ? -1 : 1;
     var q = [bx, by];
-    var nb = 3 + ((al() * 3) | 0);
+    var nb = 2 + ((al() * 3) | 0);
     for(var m = 1; m <= nb; m++){
-      bx += sens * (0.035 + al() * 0.075);
-      by += 0.025 + al() * 0.055;
+      bx += sens * (0.022 + al() * 0.048);
+      by += 0.020 + al() * 0.042;
       q.push(bx); q.push(Math.min(1, by));
     }
     br.push(q);
@@ -8466,13 +9408,15 @@ function trajetFoudre(graine){
 /* Quatre passes, de la plus large à la plus fine — le procédé des
    rayons de Mily (74-vengeance.js). En additif, c'est la PROPORTION
    qui fait tout : un noyau blanc trop épais et l'éclair devient une
-   barre fluo. Le blanc ne fait donc qu'un quart de la largeur, et les
-   trois quarts de l'énergie sont bleus. */
+   barre fluo. Le halo bleu a été RESSERRÉ (4,6 → 2,9 fois la largeur)
+   pour obtenir le trait net demandé : ce qu'on enlève en étalement,
+   on le rend en opacité, si bien que l'éclair reste aussi visible
+   tout en étant deux fois moins gros. */
 var PASSES_FOUDRE = [
-  { l:4.6,  col:MET_E_HALO, a:0.20 },
-  { l:2.10, col:MET_E_BLEU, a:0.34 },
-  { l:0.82, col:MET_E_PALE, a:0.56 },
-  { l:0.26, col:MET_E_VIF,  a:0.95 }
+  { l:2.9,  col:MET_E_HALO, a:0.26 },
+  { l:1.55, col:MET_E_BLEU, a:0.40 },
+  { l:0.70, col:MET_E_PALE, a:0.62 },
+  { l:0.28, col:MET_E_VIF,  a:0.97 }
 ];
 function traitFoudre(c, xs, ys, n, larg, I){
   c.lineCap = "round";
@@ -8488,13 +9432,69 @@ function traitFoudre(c, xs, ys, n, larg, I){
   }
 }
 
+/* ---------------------------------------------------------------
+   LA NAPPE — le dégât qui se diffuse au sol.
+   Trois choses, et l'ordre compte : la flaque déjà parcourue (faible,
+   elle dit où le courant EST passé), le front qui avance (vif, c'est
+   lui qu'on regarde), et les filaments (c'est eux qui font
+   « électrique » plutôt qu'« onde de choc »).
+   Les filaments grésillent sur place — c'est le seul endroit du
+   fichier où le grésillement est voulu, parce que c'est ce que fait
+   un arc électrique. Ils restent déterministes : le tremblement vient
+   de sinus de tps, jamais de Math.random.
+   --------------------------------------------------------------- */
+function dessineNappeFoudre(c, e, ti, tps){
+  var u = borne(ti / JUNGLE_FOUDRE_DUREE, 0, 1);
+  if(u >= 1) return;
+  var f = Math.sqrt(u);
+  var z = cam.z;
+  var p = versEcran(cam, e.gx, e.gy);
+  var R = JUNGLE_FOUDRE_RAYON * f;
+  var rx = R * RX * z, ry = R * RY * z;
+  if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) return;
+  /* elle s'éteint en s'élargissant : l'énergie se dilue */
+  var vie = (1 - u) * (1 - u);
+  var gr = ((e.gx * 977 + e.gy * 31) | 0);
+
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = "rgba(" + MET_E_HALO + "," + (0.13 * vie) + ")";
+  c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.fill();
+
+  c.strokeStyle = "rgba(" + MET_E_PALE + "," + (0.28 + 0.55 * vie) * (1 - u) + ")";
+  c.lineWidth = Math.max(1.3, 4.4 * z * (1 - u * 0.55));
+  c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.2832); c.stroke();
+
+  /* Les dix filaments sont tracés en DEUX passes seulement, chacune un
+     unique beginPath/stroke : vingt polylignes coûteraient vingt
+     appels à stroke, et c'est stroke qui coûte, pas les pixels. */
+  var k, s;
+  for(var q = 0; q < 2; q++){
+    c.strokeStyle = q ? "rgba(" + MET_E_PALE + "," + (0.16 + 0.46 * vie) + ")"
+                      : "rgba(" + MET_E_BLEU + "," + (0.20 * vie) + ")";
+    c.lineWidth = q ? Math.max(0.9, 1.4 * z) : Math.max(1.8, 4.6 * z);
+    c.beginPath();
+    for(k = 0; k < 10; k++){
+      var a0 = k / 10 * 6.2832 + bruitStable(gr + k, 0) * 0.62;
+      c.moveTo(p.x, p.y);
+      for(s = 1; s <= 4; s++){
+        var fr = R * s / 4;
+        var a = a0 + Math.sin(tps * 11 + k * 2.1 + s * 1.7) * 0.17 * s * 0.25;
+        c.lineTo(p.x + Math.cos(a) * fr * RX * z, p.y + Math.sin(a) * fr * RY * z);
+      }
+    }
+    c.stroke();
+  }
+  c.restore();
+}
+
 /* Tableaux réutilisés : projeter le trajet ne doit rien allouer. */
 var metXs = [], metYs = [];
 
 function dessineEclairJungle(c, e, tps){
   var t = e.age;
   var z = cam.z;
-  /* Fondu de queue : la fumée et la brûlure s'éteignent AVEC e.duree,
+  /* Fondu de queue : la fumée et la braise s'éteignent AVEC e.duree,
      jamais d'un coup. */
   var queue = borne((e.duree - t) / 0.7, 0, 1);
   if(queue <= 0) return;
@@ -8506,37 +9506,47 @@ function dessineEclairJungle(c, e, tps){
   var vo = voileEclair(t);
   var k;
 
-  /* ---- 1 & 2. LE CIEL BLANCHIT, PUIS L'ÉCLAIR DESCEND ---- */
-  /* Le sommet est TOUJOURS au-dessus du bord haut de l'écran : quel
-     que soit le zoom, l'éclair traverse tout le cadre. C'est ce qui le
-     rend spectaculaire sans coûter un pixel de plus. */
-  var yCiel = -Math.max(70, H * 0.12);
-  var haut = p.y - yCiel;
+  /* ---- 1 & 2. LE NUAGE S'ALLUME, PUIS L'ÉCLAIR DESCEND ---- */
+  /* L'ORIGINE. On la cherche une fois, et on garde le NUAGE, pas sa
+     position : il dérive pendant les deux secondes que dure l'effet,
+     et le pied de l'éclair doit rester accroché à lui. Sans nuage
+     (liste vide), on retombe sur le haut de l'écran — l'éclair
+     traverse alors tout le cadre, ce qui reste correct. */
+  if(e.nuage === undefined) e.nuage = nuageAuDessus(e.gx, e.gy) || null;
+  var ox, oy;
+  if(e.nuage){
+    var pn = versEcran(cam, e.nuage.gx, e.nuage.gy);
+    ox = pn.x; oy = pn.y - e.nuage.h * z;
+  }else{
+    ox = p.x; oy = -Math.max(70, H * 0.12);
+  }
+  var haut = p.y - oy;
 
-  if(I > 0.004 && haut > 60){
-    /* l'annonce : la couche de nuages s'allume au-dessus de l'impact,
-       une fraction de seconde avant que quoi que ce soit ne tombe */
-    if(t < EC_DESC + 0.06){
-      var vl = voilesOrage(c);
-      c.save();
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.globalCompositeOperation = "lighter";
-      c.globalAlpha = borne(t / EC_DESC, 0, 1) * 0.15;
-      c.drawImage(vl.ciel, 0, 0);
-      c.restore();
-    }
+  if(I > 0.004 && haut > 40){
+    /* L'ANNONCE. Au premier jet c'était un dégradé sur toute la
+       largeur de l'écran ; maintenant qu'il y a un nuage, c'est LUI
+       qui s'allume. C'est plus précis, plus joli, moins cher, et ça
+       dit au joueur d'où le coup va partir. */
+    var pre = borne(t / EC_DESC, 0, 1);
+    if(t < EC_DESC + 0.09 && e.nuage)
+      lueurRapide(c, ox, oy + e.nuage.h * z * 0.05,
+                  e.nuage.r * RX * z * 1.2, "#cfe0ff",
+                  0.55 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
-       dans l'air, il est aussi gros de près que de loin. */
-    var larg = 2.4 + 6.6 * I;
+       dans l'air, il est aussi gros de près que de loin. Elle a été
+       divisée par deux par rapport au premier jet — « pas trop large,
+       quelque chose de précis ». */
+    var larg = 1.3 + 3.1 * I;
     var f = t < EC_DESC ? t / EC_DESC : 1;
     var nb = Math.max(2, Math.min(tr.n, Math.ceil(f * tr.n)));
 
     c.save();
     c.globalCompositeOperation = "lighter";
     for(k = 0; k < nb; k++){
-      metXs[k] = p.x + tr.p[k * 2] * haut;
-      metYs[k] = yCiel + tr.p[k * 2 + 1] * haut;
+      var fy = tr.p[k * 2 + 1];
+      metXs[k] = ox + (p.x - ox) * fy + tr.p[k * 2] * haut;
+      metYs[k] = oy + haut * fy;
     }
     /* le dernier point est interpolé, sinon l'éclair descend par
        marches de sept pixels et on voit la construction */
@@ -8544,8 +9554,9 @@ function dessineEclairJungle(c, e, tps){
       var av = (nb - 1) * 2, ap = nb * 2;
       var y0 = tr.p[av + 1], y1 = tr.p[ap + 1];
       var g0 = borne((f - y0) / Math.max(0.0001, y1 - y0), 0, 1);
-      metXs[nb] = p.x + (tr.p[av] + (tr.p[ap] - tr.p[av]) * g0) * haut;
-      metYs[nb] = yCiel + (y0 + (y1 - y0) * g0) * haut;
+      var yy = y0 + (y1 - y0) * g0;
+      metXs[nb] = ox + (p.x - ox) * yy + (tr.p[av] + (tr.p[ap] - tr.p[av]) * g0) * haut;
+      metYs[nb] = oy + haut * yy;
       nb++;
     }
     traitFoudre(c, metXs, metYs, nb, larg, I);
@@ -8557,10 +9568,11 @@ function dessineEclairJungle(c, e, tps){
       if(q[1] > f) continue;
       var m = q.length >> 1;
       for(var s = 0; s < m; s++){
-        metXs[s] = p.x + q[s * 2] * haut;
-        metYs[s] = yCiel + q[s * 2 + 1] * haut;
+        var fb = q[s * 2 + 1];
+        metXs[s] = ox + (p.x - ox) * fb + q[s * 2] * haut;
+        metYs[s] = oy + haut * fb;
       }
-      traitFoudre(c, metXs, metYs, m, larg * 0.55, I * 0.72);
+      traitFoudre(c, metXs, metYs, m, larg * 0.5, I * 0.66);
     }
     c.restore();
   }
@@ -8574,20 +9586,22 @@ function dessineEclairJungle(c, e, tps){
        qui allume les arbres AUTOUR du point de chute, plutôt que
        d'aplatir l'écran entier d'un coup de blanc */
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.globalAlpha = vo * 0.22;
+    c.globalAlpha = vo * EC_VOILE_HALO;
     c.drawImage(ha, Math.round((p.x + secX) * dpr - ha.width / 2),
                     Math.round((p.y + secY) * dpr - ha.height / 2));
     /* le fond uniforme, faible : sans lui, le halo se lirait comme un
        projecteur braqué sur un coin de la carte */
     c.globalAlpha = 1;
-    c.fillStyle = "rgba(" + MET_FLASH + "," + (vo * 0.10) + ")";
+    c.fillStyle = "rgba(" + MET_FLASH + "," + (vo * EC_VOILE_FOND) + ")";
     c.fillRect(0, 0, c.canvas.width, c.canvas.height);
     c.restore();
   }
 
-  /* ---- 3. L'IMPACT AU SOL ---- */
+  /* ---- 3. L'IMPACT AU SOL, PUIS LA NAPPE ---- */
   var ti = t - EC_DESC;
   if(ti < 0) return;
+
+  dessineNappeFoudre(c, e, ti, tps);
 
   c.save();
   /* Le cœur blanc. C'est LUI qui donne la violence du coup, et il ne
@@ -8596,21 +9610,8 @@ function dessineEclairJungle(c, e, tps){
      fort, c'est ce chiffre-là qu'on monte, jamais celui du voile. */
   var ec = Math.exp(-ti * 10);
   if(ec > 0.01)
-    lueurRapide(c, p.x, p.y - 8 * z, (46 + 104 * z) * (0.55 + ec * 1.0),
+    lueurRapide(c, p.x, p.y - 8 * z, (40 + 92 * z) * (0.55 + ec * 1.0),
                 "#e6f0ff", 0.86 * ec);
-  /* l'anneau de souffle, en ellipse isométrique : c'est lui qui dit
-     que le coup a touché LE SOL et pas l'air */
-  if(ti < 0.62){
-    var ao = ti / 0.62;
-    c.globalCompositeOperation = "lighter";
-    c.strokeStyle = "rgba(" + MET_E_PALE + "," + ((1 - ao) * (1 - ao) * 0.72) + ")";
-    c.lineWidth = Math.max(1.2, 5.5 * z * (1 - ao));
-    c.beginPath();
-    c.ellipse(p.x, p.y, RX * z * (0.5 + ao * 3.9), RY * z * (0.5 + ao * 3.9),
-              0, 0, 6.2832);
-    c.stroke();
-    c.globalCompositeOperation = "source-over";
-  }
   /* LA BRÛLURE. Premier essai : un disque noir. Sur une terre de
      jungle déjà presque noire, il ne se voyait tout simplement pas.
      Ce qui se voit, c'est la BRAISE — la terre est restée chaude, et
@@ -8623,8 +9624,8 @@ function dessineEclairJungle(c, e, tps){
     c.ellipse(p.x, p.y, RX * z * 0.80, RY * z * 0.80, 0, 0, 6.2832);
     c.fill();
     c.globalAlpha = 1;
-    var br = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
-    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * br);
+    var brz = queue * Math.exp(-ti * 0.9) * (0.72 + 0.28 * Math.sin(tps * 6.3 + e.gx));
+    lueurRapide(c, p.x, p.y, RX * z * 0.62, "#ff9640", 0.34 * brz);
   }
   c.restore();
 
@@ -8640,15 +9641,15 @@ function dessineEclairJungle(c, e, tps){
       var vy = -(40 + al() * 110);
       var du = 0.35 + al() * 0.5;
       if(ti > du) continue;
-      var u = ti / du;
+      var uu2 = ti / du;
       var ex = p.x + Math.cos(ang) * vit * ti * z;
       var ey = p.y + Math.sin(ang) * vit * 0.5 * ti * z + (vy * ti + 340 * ti * ti) * z;
       /* elles refroidissent : blanches au départ, orange à la fin */
-      c.strokeStyle = "rgba(" + (u < 0.35 ? MET_E_PALE : MET_ETINC) + ","
-                    + ((1 - u) * (1 - u) * 0.95) + ")";
+      c.strokeStyle = "rgba(" + (uu2 < 0.35 ? MET_E_PALE : MET_ETINC) + ","
+                    + ((1 - uu2) * (1 - uu2) * 0.95) + ")";
       /* plancher d'un pixel et demi : au dézoom, une étincelle plus
          fine qu'un pixel s'efface complètement au lieu de pâlir */
-      c.lineWidth = Math.max(1.5, 2.4 * z * (1 - u));
+      c.lineWidth = Math.max(1.5, 2.4 * z * (1 - uu2));
       c.beginPath();
       c.moveTo(ex, ey);
       c.lineTo(ex - Math.cos(ang) * 11 * z, ey - Math.sin(ang) * 5.5 * z);
@@ -8661,7 +9662,7 @@ function dessineEclairJungle(c, e, tps){
   if(ti > 0.10){
     var sp = spriteFumee();
     c.save();
-    /* lissage COUPÉ : ces cinq bouffées sont agrandies de 96 à
+    /* lissage COUPÉ : ces six bouffées sont agrandies de 96 à
        plusieurs centaines de pixels, et un agrandissement filtré coûte
        cinq fois le prix. Sur un dégradé aussi doux, l'escalier ne se
        voit pas — vérifié à l'écran. */
@@ -8685,7 +9686,7 @@ function dessineEclairJungle(c, e, tps){
 }
 
 /* ================================================================
-   6. LE SON DE L'ORAGE
+   7. LE SON DE L'ORAGE
    Le contrat ne prévoyait pas de point d'entrée sonore ; on l'ajoute
    ici plutôt que de toucher à 95-son.js. Tout est synthétisé, comme
    le reste du jeu.
@@ -8696,47 +9697,90 @@ function dessineEclairJungle(c, e, tps){
    elles ne le lisent qu'au moment de l'appel, quand il est là.
    ================================================================ */
 
-/* LE TONNERRE. Un vrai coup de tonnerre n'est pas une explosion :
-   c'est un CLAQUEMENT sec suivi d'un grondement qui roule et met
-   plusieurs secondes à mourir. Et il arrive APRÈS l'éclair — ce
-   retard est ce qui donne la distance. On le passe donc en argument :
-   0 pour un impact sur la carte, une à trois secondes pour un
-   roulement au loin. */
+/* LE TONNERRE, deuxième version — le joueur trouvait le premier trop
+   discret, et il avait raison : c'était un « boum » filtré de plus, et
+   le jeu en a déjà treize.
+   Ce qui fait un GRAND tonnerre ne se règle pas au volume. Un son
+   qu'on monte devient fatigant en trois minutes ; un son qu'on
+   ALLONGE et qu'on CREUSE devient un ciel. Trois choses, donc, et
+   c'est leur superposition qui fait la masse :
+
+     1. LE CLAQUEMENT — court, large, et déjà sourd : l'air a mangé les
+        aigus en route, un tonnerre n'a presque pas d'aigus.
+     2. LE CORPS QUI ROULE — un second bruit, très bas, dont le gain
+        ONDULE sur un oscillateur lent. C'est cette ondulation qu'on
+        entend comme un roulement ; sans elle il ne reste qu'un souffle
+        qui décroît, et un souffle qui décroît n'est pas un orage.
+     3. LE SUB — deux sinus voisins (31 et 44 Hz) qui battent l'un
+        contre l'autre. Le battement fait respirer la basse, et c'est
+        lui qui donne la sensation de MASSE au-dessus de la tête.
+
+   Six secondes pour un impact proche, dont cinq APRÈS le claquement.
+   C'est la traîne qui fait peur, pas l'attaque.
+   Le retard est ce qui donne la distance : 0 pour un impact sur la
+   carte, une à trois secondes pour un roulement au loin. */
 function tonnerreJungle(force, retard){
   if(typeof son === "undefined" || !son.ok()) return;
   force = force === undefined ? 1 : force;
   var ac = son.ac, t = ac.currentTime + (retard || 0);
-  var duree = 2.2 + force * 2.6;
+  var duree = 3.2 + force * 3.2;
 
-  /* le claquement : bruit large dans un passe-bas qui s'effondre */
+  /* --- 1. LE CLAQUEMENT --- */
   var s = ac.createBufferSource();
   s.buffer = son.bruit; s.loop = true;
   var f = ac.createBiquadFilter();
-  f.type = "lowpass"; f.Q.value = 0.7;
-  f.frequency.setValueAtTime(3200 * (0.4 + force * 0.7), t);
-  f.frequency.exponentialRampToValueAtTime(70, t + duree);
+  f.type = "lowpass"; f.Q.value = 1.6;      // un peu de résonance : ça « craque »
+  f.frequency.setValueAtTime(2600 * (0.35 + force * 0.75), t);
+  f.frequency.exponentialRampToValueAtTime(160, t + 0.9);
+  f.frequency.exponentialRampToValueAtTime(58, t + duree);
   var g = ac.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.30 * force, t + 0.010);
-  /* le palier à 0,30 s, puis la longue traîne : c'est CE roulement qui
-     fait l'orage. Sans lui on n'a qu'un « boum » de plus, et le jeu en
-     a déjà treize. */
-  g.gain.exponentialRampToValueAtTime(0.10 * force, t + 0.30);
+  g.gain.linearRampToValueAtTime(0.30 * force, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.11 * force, t + 0.35);
   g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
   s.connect(f); f.connect(g); g.connect(son.maitre);
   s.start(t); s.stop(t + duree + 0.1);
 
-  /* le sub : la pression dans la poitrine */
-  var o = ac.createOscillator();
-  o.type = "sine";
-  o.frequency.setValueAtTime(64 * (0.8 + force * 0.4), t);
-  o.frequency.exponentialRampToValueAtTime(21, t + duree * 0.6);
+  /* --- 2. LE CORPS QUI ROULE --- */
+  var s2 = ac.createBufferSource();
+  s2.buffer = son.bruit; s2.loop = true;
+  s2.playbackRate.value = 0.55;              // le bruit lui-même descend d'une octave
+  var f2 = ac.createBiquadFilter();
+  f2.type = "lowpass"; f2.Q.value = 3.2;
+  f2.frequency.setValueAtTime(420, t);
+  f2.frequency.exponentialRampToValueAtTime(90, t + duree);
   var g2 = ac.createGain();
   g2.gain.setValueAtTime(0.0001, t);
-  g2.gain.linearRampToValueAtTime(0.26 * force, t + 0.02);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + duree * 0.75);
-  o.connect(g2); g2.connect(son.maitre);
-  o.start(t); o.stop(t + duree);
+  g2.gain.linearRampToValueAtTime(0.20 * force, t + 0.28);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+  /* l'ondulation : deux fréquences non harmoniques, pour que le
+     roulement ne batte jamais deux fois pareil */
+  var lfo = ac.createOscillator();
+  lfo.type = "sine"; lfo.frequency.value = 1.7;
+  var lg = ac.createGain(); lg.gain.value = 0.11 * force;
+  var lfo2 = ac.createOscillator();
+  lfo2.type = "sine"; lfo2.frequency.value = 0.63;
+  var lg2 = ac.createGain(); lg2.gain.value = 0.07 * force;
+  lfo.connect(lg); lg.connect(g2.gain);
+  lfo2.connect(lg2); lg2.connect(g2.gain);
+  s2.connect(f2); f2.connect(g2); g2.connect(son.maitre);
+  s2.start(t); s2.stop(t + duree + 0.1);
+  lfo.start(t); lfo.stop(t + duree + 0.1);
+  lfo2.start(t); lfo2.stop(t + duree + 0.1);
+
+  /* --- 3. LE SUB, EN BATTEMENT --- */
+  for(var i = 0; i < 2; i++){
+    var o = ac.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime((i ? 44 : 31) * (0.9 + force * 0.25), t);
+    o.frequency.exponentialRampToValueAtTime(i ? 26 : 19, t + duree * 0.8);
+    var go = ac.createGain();
+    go.gain.setValueAtTime(0.0001, t);
+    go.gain.linearRampToValueAtTime((i ? 0.10 : 0.17) * force, t + 0.05);
+    go.gain.exponentialRampToValueAtTime(0.0001, t + duree * 0.85);
+    o.connect(go); go.connect(son.maitre);
+    o.start(t); o.stop(t + duree);
+  }
 }
 
 /* Le grondement lointain, entre deux impacts. Plus sourd, plus long,
@@ -8850,7 +9894,7 @@ function majMeteoJungle(dt, tps){
   greffeSonJungle();
   if(typeof son === "undefined" || !son.ok()) return;
   ambianceJungle.demarre();
-  var n = Math.floor(tps / 6.7);
+  var n = Math.floor(tps / MET_ROULEMENT);
   if(n !== metDernierRoulement && roulementJungle(tps) > 0.05){
     metDernierRoulement = n;
     grondementJungle();
@@ -20020,6 +21064,26 @@ function nouvelleCarte(index, pvConnu){
       return nouveauGeyser(g.gx, g.gy, g.sommeil);
     }),
     eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
+    /* TROIS NUAGES D'ORAGE, et ils vont vite.
+       Trois, parce qu'un ciel couvert n'est plus une menace : c'est un
+       décor. Trois masses qu'on peut suivre du regard, c'est une
+       information — celle qui dit où la foudre va tomber.
+       Leur vitesse est le DOUBLE de celle d'une troupe : on ne
+       distance pas un orage, on ne peut que sortir de son chemin. */
+    nuages:(carte.geysers && carte.geysers.length)
+      ? Array.apply(null, Array(3)).map(function(_, i){
+          return { gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
+                   r:10 + Math.random() * 6,
+                   cap:Math.random() * 6.2832,
+                   /* le cap voulu, vers lequel le vrai cap glisse :
+                      c'est cette inertie qui donne une dérive erratique
+                      plutôt qu'un zigzag mécanique */
+                   capBut:Math.random() * 6.2832,
+                   vire:1 + Math.random() * 3,
+                   v:EQ.NUAGE_VITESSE * (0.85 + Math.random() * 0.3),
+                   ph:i * 2.3 };
+        })
+      : [],
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -21427,6 +22491,23 @@ function chercheCibleDefense(b, f){
   return meilleur;
 }
 function tireDefense(b, f, c, d, tps){
+  /* LE BONUS DE DÉGÂTS DE LA JUNGLE, appliqué ICI et nulle part
+     ailleurs. Toutes les défenses du jeu passent par cette fonction,
+     et toutes lisent leurs dégâts dans `f` : on substitue donc une
+     fiche majorée le temps du tir, plutôt que d'aller multiplier les
+     douze endroits où `f.degats` est lu — obus, roquette, balle,
+     flamme, arc, chacun avec sa propre trajectoire. Une seule ligne
+     à relire pour savoir ce que frappe une défense de la jungle. */
+  var kd = multDegatsDefense();
+  if(kd !== 1){
+    /* Object.create et non une copie : la fiche majorée hérite de tous
+       les autres champs — portée, cadence, zone, vitesse du projectile
+       — sans qu'on ait à les recopier, donc sans risque d'en oublier
+       un le jour où DEF en gagne un nouveau. */
+    var fj = Object.create(f);
+    fj.degats = Math.round(f.degats * kd);
+    f = fj;
+  }
   b.flash = 1;
   if(b.t === "crible"){
     b.recul = 1;
@@ -22554,28 +23635,119 @@ function majJungle(dt){
     }
   }
 
+  /* --- LES NUAGES D'ORAGE ---
+     Ils dérivent lentement au-dessus de l'île, et c'est d'EUX que
+     tombe la foudre. Sans eux, l'éclair sortait de nulle part : le
+     joueur ne pouvait pas comprendre pourquoi il tombait là, et encore
+     moins l'anticiper. Avec eux, une masse sombre qui passe au-dessus
+     de ses troupes devient une raison de les déplacer. */
+  for(i = 0; i < jeu.nuages.length; i++){
+    var nu = jeu.nuages[i];
+    /* UNE DÉRIVE ERRATIQUE, pas un zigzag. Le nuage se choisit un
+       nouveau cap de temps en temps, et son cap réel GLISSE vers
+       celui-là au lieu d'y sauter. C'est cette inertie qui donne une
+       trajectoire de nuage — de longues courbes molles, imprévisibles
+       mais jamais saccadées. Un changement de cap instantané aurait
+       donné un insecte, pas un orage. */
+    nu.vire -= dt;
+    if(nu.vire <= 0){
+      nu.vire = 2.5 + Math.random() * 5;
+      nu.capBut = Math.random() * 6.2832;
+    }
+    /* on tourne par le plus court chemin, sinon un cap qui passe par
+       zéro fait faire un tour complet au nuage */
+    var ec = ((nu.capBut - nu.cap + 9.4248) % 6.2832) - 3.1416;
+    nu.cap += borne(ec, -0.55 * dt, 0.55 * dt);
+    nu.gx += Math.cos(nu.cap) * nu.v * dt;
+    nu.gy += Math.sin(nu.cap) * nu.v * dt;
+    /* Ils font le tour : sorti d'un bord, un nuage rentre par l'autre.
+       Sans ce recyclage, les trois finissaient par dériver au large et
+       le ciel se vidait au bout de quelques minutes. */
+    if(nu.gx < -22) nu.gx = PLAGE_X0 + 20;
+    if(nu.gx > PLAGE_X0 + 22) nu.gx = -20;
+    if(nu.gy < -22) nu.gy = GH + 20;
+    if(nu.gy > GH + 22) nu.gy = -20;
+  }
+
   /* --- LA FOUDRE ---
-     Un impact toutes les trente secondes environ. Le point est tiré
-     dans les terres, jamais sur le Brasier — un éclair qui frapperait
+     Un impact toutes les quinze secondes. Le point n'est pas tiré au
+     hasard sur la carte : il tombe SOUS UN NUAGE, avec un peu de
+     dérive. Jamais sur le Brasier — un éclair qui frapperait
      l'objectif ferait croire à un dégât qui n'existe pas. */
   jeu.prochainEclair -= dt;
   if(jeu.prochainEclair <= 0){
-    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.75 + Math.random() * 0.5);
+    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.72 + Math.random() * 0.56);
+    var nu2 = jeu.nuages[(Math.random() * jeu.nuages.length) | 0];
     var ex, ey, essais = 0;
     do{
-      ex = 6 + Math.random() * (PLAGE_X0 - 12);
-      ey = 4 + Math.random() * (GH - 8);
+      var an = Math.random() * 6.2832, ra = Math.sqrt(Math.random()) * 5.5;
+      ex = borne(nu2.gx + Math.cos(an) * ra, 5, PLAGE_X0 - 4);
+      ey = borne(nu2.gy + Math.sin(an) * ra, 4, GH - 5);
     }while(Math.hypot(ex - jeu.qg.gx, ey - jeu.qg.gy) < 20 && ++essais < 20);
-    jeu.eclairs.push({ gx:ex, gy:ey, age:0, duree:2.4 });
+    jeu.eclairs.push({ gx:ex, gy:ey, age:0, duree:EQ.ECLAIR_NAPPE_DUREE + 0.9,
+                       cx:nu2.gx, cy:nu2.gy, front:0, puni:0 });
     if(son.foudre) son.foudre();
-    jeu.secousse = Math.min(5, jeu.secousse + 1.6);
+    jeu.secousse = Math.min(6, jeu.secousse + 2.2);
     /* les bêtes détalent : c'est ce qui rend la jungle habitée plutôt
        que décorée */
-    if(typeof effraieFaune === "function") effraieFaune(ex, ey, 22, jeu.tps);
+    if(typeof effraieFaune === "function") effraieFaune(ex, ey, 26, jeu.tps);
   }
+
+  /* --- L'IMPACT, PUIS LE COURANT QUI COURT SUR LA TERRE ---
+     Deux effets distincts, et c'est voulu :
+       — au POINT D'IMPACT, c'est mortel. Une troupe touchée par la
+         foudre meurt, elle n'est pas blessée. C'est ce qui rend
+         l'orage vraiment dangereux plutôt que gênant ;
+       — puis le courant se DIFFUSE sur la terre mouillée, en cercle
+         qui s'élargit. Le front frappe fort mais une seule fois par
+         unité : sans ce marquage, une troupe restée sur place aurait
+         encaissé la nappe à chaque image et le rayon de mort aurait
+         valu sept cases au lieu de deux. */
   for(i = jeu.eclairs.length - 1; i >= 0; i--){
-    jeu.eclairs[i].age += dt;
-    if(jeu.eclairs[i].age > jeu.eclairs[i].duree) jeu.eclairs.splice(i, 1);
+    var e2 = jeu.eclairs[i];
+    var avant = e2.front;
+    e2.age += dt;
+    if(!e2.puni){
+      e2.puni = 1;
+      foudroieAuSol(e2.gx, e2.gy);
+    }
+    /* le front avance en racine du temps : très vite au départ, il
+       ralentit — c'est ainsi que se propage une décharge dans un sol
+       conducteur, et c'est aussi ce qui laisse une chance de fuir */
+    var t2 = borne(e2.age / EQ.ECLAIR_NAPPE_DUREE, 0, 1);
+    e2.front = Math.sqrt(t2) * EQ.ECLAIR_RAYON_NAPPE;
+    if(e2.front > avant) nappeElectrique(e2, avant, e2.front);
+    if(e2.age > e2.duree) jeu.eclairs.splice(i, 1);
+  }
+}
+
+/* Le coup de foudre lui-même : ce qu'il touche meurt. */
+function foudroieAuSol(gx, gy){
+  var t = [];
+  unitesAutour(gx, gy, EQ.ECLAIR_RAYON_TUE, t);
+  for(var i = 0; i < t.length; i++){
+    var u = t[i];
+    if(u.pv <= 0) continue;
+    if(Math.hypot(u.gx - gx, u.gy - gy) > EQ.ECLAIR_RAYON_TUE) continue;
+    toucheUnite(u, u.pv + 1);          // la foudre ne blesse pas, elle tue
+  }
+  degatsZoneEnnemis(gx, gy, EQ.ECLAIR_RAYON_TUE, EQ.ECLAIR_NAPPE_DEGATS * 2);
+  jeu.crateres.push({ gx:gx, gy:gy, r:1.1 });
+  jeu.effets.push({ t:"onde", gx:gx, gy:gy, age:0, duree:0.45, r:1.4 });
+}
+/* Le courant qui s'élargit. On ne frappe QUE la couronne franchie
+   depuis l'image précédente : une unité est donc touchée une fois,
+   au passage du front, et pas tant qu'elle reste dedans. */
+function nappeElectrique(e, r0, r1){
+  var t = [];
+  unitesAutour(e.gx, e.gy, r1, t);
+  for(var i = 0; i < t.length; i++){
+    var u = t[i];
+    if(u.pv <= 0 || u.zappe === e) continue;
+    var d = Math.hypot(u.gx - e.gx, u.gy - e.gy);
+    if(d > r1 || d <= r0) continue;
+    u.zappe = e;                        // marqué par CET éclair, une fois
+    toucheUnite(u, EQ.ECLAIR_NAPPE_DEGATS);
   }
 }
 /* Le centre de l'écran, en cases — sert à ne pas jouer le son d'un
@@ -22794,9 +23966,16 @@ function envoie(obj){
    du Brasier, quand c'est lui qui est en expédition. */
 function jungleCourante(){
   var m = monde || {};
+  /* Le bonus du SALON fait foi : genereCarte le lit au moment de
+     bâtir la carte, et deux joueurs qui n'auraient pas le même
+     verraient deux jungles différentes. On le repose à chaque
+     lecture de l'instantané. */
+  poseBonusPvJungle(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS);
   var o = { je:m.je | 0, jf:m.jf | 0, jd:m.jd || "", jq:m.jq | 0,
             jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
-            jmn:m.jmn | 0, ch:m.ch || "" };
+            jmn:m.jmn | 0,
+            jb:(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS),
+            ch:m.ch || "" };
   if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
     var bits = [], i;
     for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
@@ -22927,6 +24106,7 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
+  if(m.jb !== undefined) poseBonusPvJungle(m.jb | 0);
   if(m.g && !jeu.tueurGege){
     jeu.tueurGege = String(m.g).substr(0, 14);
     tueGegeLocale();
@@ -23064,10 +24244,11 @@ function minJoueursJungle(){
 }
 /* Le réglage administrateur : on incrémente son numéro pour que la
    fusion sache lequel est le plus récent. */
-function regleMinJoueurs(n){
+function regleMinJoueurs(n, pv){
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   var jg = jungleCourante();
   jg.jm = borne(n | 0, 1, 60);
+  if(typeof pv === "number" && isFinite(pv)) jg.jb = borne(Math.round(pv), 0, 900);
   jg.jmn = (jg.jmn | 0) + 1;
   monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
@@ -25997,10 +27178,22 @@ function rendu(tps, dt){
     if(!visible(vueL, pl.gx, pl.gy)) continue;
     pile.push({ d:pl.gx + pl.gy, k:10, o:pl });
   }
+  /* LE SEUIL DES BESTIOLES. La jungle en porte près de huit cents, et
+     à z 0,16 une luciole de quatre unités locales fait moins d'un
+     pixel : elle coûte son dessin complet pour ne rien montrer.
+     Mesuré : 85 ms d'image rien que pour elles à cette distance, le
+     poste le plus cher devant les défenses.
+     Les insectes tombent les premiers — ils sont les plus petits et
+     les plus nombreux —, les mammifères tiennent plus longtemps, et
+     les créatures hostiles ne tombent JAMAIS : un sanglier qui charge
+     doit se voir, quel que soit le zoom. */
+  var zc = cam.z;
   for(i = 0; i < jeu.creatures.length; i++){
     var k2 = jeu.creatures[i];
     if(k2.pv <= 0) continue;
     if(!visible(vueL, k2.gx, k2.gy)) continue;
+    if(zc < 0.34 && CRE[k2.t].vole && CRE[k2.t].fuit) continue;
+    if(zc < 0.22 && CRE[k2.t].fuit && !CRE[k2.t].protege) continue;
     pile.push({ d:k2.gx + k2.gy, k:2, o:k2 });
   }
   /* unités grises des autres joueurs */
@@ -27783,6 +28976,15 @@ function vignetteEvenement(i){
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV — événement multijoueur</span></div>'
+       /* Le joueur doit savoir CE QUI L'ATTEND avant d'appuyer, et le
+          savoir en une seconde. Deux pastilles, deux chiffres, pas une
+          phrase : ce sont les seuls réglages qui rendent cette carte
+          plus dure que les cinq autres. */
+       + '<div class="durci">'
+       +   '<span class="dz pv">Défenses +' + bonusPvJungle + '% PV</span>'
+       +   '<span class="dz dg">+' + EQ.JUNGLE_DEG_BONUS + '% dégâts</span>'
+       +   '<span class="dz or">⛈ Orage &amp; foudre</span>'
+       + '</div>'
        + '<div class="jauge">'
        +   '<span class="cpt">' + n + '<small>/' + mini + '</small></span>'
        +   '<span class="msg">' + msg + '</span>'
@@ -28200,7 +29402,7 @@ function installeAdmin(){
     }
     var actuel = minJoueursJungle();
     var rep = prompt(
-      "RÉGLAGES DU SALON\n\n"
+      "RÉGLAGES DU SALON — 1 sur 2\n\n"
       + "Nombre minimum de joueurs connectés pour lancer\n"
       + "« Mily dans la jungle ».\n\n"
       + "Valeur actuelle : " + actuel + " joueurs.\n"
@@ -28212,14 +29414,35 @@ function installeAdmin(){
       alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
       return;
     }
-    var pose = regleMinJoueurs(n);
+    /* Le second réglage : la dureté des défenses de la jungle. Il vit
+       dans le même panneau et voyage avec le même numéro, parce qu'on
+       les règle ensemble — l'un dit qui peut entrer, l'autre ce qu'on
+       y trouve. */
+    var repPv = prompt(
+      "RÉGLAGES DU SALON — 2 sur 2\n\n"
+      + "Bonus de PV des défenses sur « Mily dans la jungle ».\n"
+      + "Le Brasier, lui, garde exactement sa vie.\n\n"
+      + "Valeur actuelle : +" + bonusPvJungle + " %.\n"
+      + "Par défaut : +" + EQ.JUNGLE_PV_BONUS + " % (leur vie est doublée).\n\n"
+      + "Entre un pourcentage entre 0 et 900 :", "" + bonusPvJungle);
+    if(repPv === null) return;
+    var pv = parseInt(repPv, 10);
+    if(!(pv >= 0 && pv <= 900)){
+      alert("Il faut un pourcentage entre 0 et 900. Rien n'a été changé.");
+      return;
+    }
+    var pose = regleMinJoueurs(n, pv);
     evtEtat = "";
     majMondes();
-    alert("Réglage enregistré : il faut désormais " + pose + " joueur"
-        + (pose > 1 ? "s" : "") + " connecté" + (pose > 1 ? "s" : "")
-        + "\npour lancer la jungle.\n\n"
-        + "Ce réglage vaut pour TOUT LE SALON et survit à la fermeture\n"
-        + "du navigateur : il voyage dans l'instantané partagé.");
+    alert("Réglages enregistrés.\n\n"
+        + "• " + pose + " joueur" + (pose > 1 ? "s" : "") + " connecté"
+        + (pose > 1 ? "s" : "") + " pour lancer la jungle\n"
+        + "• défenses à +" + bonusPvJungle + " % de PV\n\n"
+        + "Ils valent pour TOUT LE SALON et survivent à la fermeture du\n"
+        + "navigateur : ils voyagent dans l'instantané partagé.\n\n"
+        + "Le changement de PV prend effet à la prochaine expédition —\n"
+        + "une jungle en cours garde la dureté avec laquelle elle a été\n"
+        + "bâtie.");
   });
 }
 

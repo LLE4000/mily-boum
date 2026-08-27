@@ -1115,6 +1115,15 @@ function vignetteEvenement(i){
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV — événement multijoueur</span></div>'
+       /* Le joueur doit savoir CE QUI L'ATTEND avant d'appuyer, et le
+          savoir en une seconde. Deux pastilles, deux chiffres, pas une
+          phrase : ce sont les seuls réglages qui rendent cette carte
+          plus dure que les cinq autres. */
+       + '<div class="durci">'
+       +   '<span class="dz pv">Défenses +' + bonusPvJungle + '% PV</span>'
+       +   '<span class="dz dg">+' + EQ.JUNGLE_DEG_BONUS + '% dégâts</span>'
+       +   '<span class="dz or">⛈ Orage &amp; foudre</span>'
+       + '</div>'
        + '<div class="jauge">'
        +   '<span class="cpt">' + n + '<small>/' + mini + '</small></span>'
        +   '<span class="msg">' + msg + '</span>'
@@ -1532,7 +1541,7 @@ function installeAdmin(){
     }
     var actuel = minJoueursJungle();
     var rep = prompt(
-      "RÉGLAGES DU SALON\n\n"
+      "RÉGLAGES DU SALON — 1 sur 2\n\n"
       + "Nombre minimum de joueurs connectés pour lancer\n"
       + "« Mily dans la jungle ».\n\n"
       + "Valeur actuelle : " + actuel + " joueurs.\n"
@@ -1544,14 +1553,35 @@ function installeAdmin(){
       alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
       return;
     }
-    var pose = regleMinJoueurs(n);
+    /* Le second réglage : la dureté des défenses de la jungle. Il vit
+       dans le même panneau et voyage avec le même numéro, parce qu'on
+       les règle ensemble — l'un dit qui peut entrer, l'autre ce qu'on
+       y trouve. */
+    var repPv = prompt(
+      "RÉGLAGES DU SALON — 2 sur 2\n\n"
+      + "Bonus de PV des défenses sur « Mily dans la jungle ».\n"
+      + "Le Brasier, lui, garde exactement sa vie.\n\n"
+      + "Valeur actuelle : +" + bonusPvJungle + " %.\n"
+      + "Par défaut : +" + EQ.JUNGLE_PV_BONUS + " % (leur vie est doublée).\n\n"
+      + "Entre un pourcentage entre 0 et 900 :", "" + bonusPvJungle);
+    if(repPv === null) return;
+    var pv = parseInt(repPv, 10);
+    if(!(pv >= 0 && pv <= 900)){
+      alert("Il faut un pourcentage entre 0 et 900. Rien n'a été changé.");
+      return;
+    }
+    var pose = regleMinJoueurs(n, pv);
     evtEtat = "";
     majMondes();
-    alert("Réglage enregistré : il faut désormais " + pose + " joueur"
-        + (pose > 1 ? "s" : "") + " connecté" + (pose > 1 ? "s" : "")
-        + "\npour lancer la jungle.\n\n"
-        + "Ce réglage vaut pour TOUT LE SALON et survit à la fermeture\n"
-        + "du navigateur : il voyage dans l'instantané partagé.");
+    alert("Réglages enregistrés.\n\n"
+        + "• " + pose + " joueur" + (pose > 1 ? "s" : "") + " connecté"
+        + (pose > 1 ? "s" : "") + " pour lancer la jungle\n"
+        + "• défenses à +" + bonusPvJungle + " % de PV\n\n"
+        + "Ils valent pour TOUT LE SALON et survivent à la fermeture du\n"
+        + "navigateur : ils voyagent dans l'instantané partagé.\n\n"
+        + "Le changement de PV prend effet à la prochaine expédition —\n"
+        + "une jungle en cours garde la dureté avec laquelle elle a été\n"
+        + "bâtie.");
   });
 }
 

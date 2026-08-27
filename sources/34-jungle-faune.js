@@ -1341,3 +1341,455 @@ function dessineLuciole(c, k, tps){
      n'était qu'une tache verte molle. */
   lueurRapide(c, x - 2.9, y + 0.4, 4.2 + feu * 2.6, PAL_LUCIOLE.coeur, 0.32 + feu * 0.68);
 }
+
+/* ================================================================
+   LE COCHON D'INDE — la septième, et la comique
+   ================================================================
+   « Je veux beaucoup plus d'animaux, et un peu exagérés. » C'est cette
+   bête-là qui porte la demande : les six autres habitent la jungle,
+   celle-ci la fait sourire. Trois choses la définissent, et aucune
+   n'est une question de couleur.
+
+   1. PAS DE COU. La tête est le BOUT du corps, pas une pièce posée
+      dessus. Le premier essai reprenait le schéma des six autres — un
+      torse, puis un crâne translaté par-dessus — et il en sortait un
+      lapin sans oreilles : on VOYAIT la couture. Le corps est donc un
+      tracé UNIQUE, du croupion au nez, et les yeux se posent dedans.
+   2. PAS DE QUEUE, et des pattes ridicules. Un cochon d'Inde de profil,
+      c'est un pain rond posé au ras du sol. Les pattes ne sont pas
+      dessinées : seuls quatre petits pieds dépassent sous le ventre,
+      et c'est exactement ce qu'on voit d'un vrai.
+   3. IL NE MARCHE PAS. Il est immobile, puis il n'est plus là. Sa
+      démarche est une suite de ruées de trois dixièmes de seconde
+      séparées par des arrêts NETS — et de temps en temps, sans raison
+      ni prévenance, un saut sur place. C'est là qu'est le comique, et
+      c'est courseCochon() qui le fabrique, sans le moindre hasard.
+
+   Hauteur mesurée au balayage d'alphas : 13,9 unités pour un individu
+   de taille moyenne (le bourdon fait 9, le koala 23, Gégé 20).
+
+   ---- POURQUOI TROIS ROBES ----
+   Le poseur les sème en GRAPPES SERRÉES, cinq ou six côte à côte. À ce
+   régime, une espèce d'une seule couleur n'est plus un troupeau, c'est
+   un motif de papier peint. Le cochon d'Inde est bicolore par nature :
+   on tire donc parti de ce que la bête a déjà. k.teinte donne la robe
+   (0 roux et blanc, 1 noir et blanc, 2 tricolore) et k.n redistribue
+   les taches, la taille et le rythme des ruées. Deux voisins ne
+   partagent alors ni la silhouette, ni la valeur, ni l'instant où ils
+   détalent — et c'est cette dernière qui fait le plus de travail.
+   ================================================================ */
+
+/* Les trois robes. Ce qui les sépare n'est PAS la teinte des poils :
+   c'est la répartition des valeurs. La rousse est une masse chaude
+   moyenne éclaircie au ventre ; la pie noire est blanche avec deux
+   blocs presque noirs ; la tricolore est blanche avec un bloc chaud
+   d'un côté et un bloc sombre de l'autre. Sur la terre de jungle
+   (#2e4428) les trois se lisent, et surtout elles ne se lisent pas
+   pareil — c'est tout ce qu'on leur demande dans une grappe. */
+var PAL_COCHON = [
+  { /* 0 — ROUX ET BLANC. La seule des trois qui soit chaude en masse :
+       dans une grappe, c'est elle qui accroche l'œil en premier. */
+    dosC:"#f2ab60", dos:"#dd8c3c", flanc:"#bd6d20", ventre:"#f0dcb4",
+    taches:["#3f2a1c"],
+    clair:"#fdf6e8", clairO:"#dccdb2",
+    oreille:"#b9713a", oreilleI:"#d59468",
+    nez:"#d0968b", patte:"#a75f24", cerne:"rgba(255,246,230,.55)" },
+  { /* 1 — NOIR ET BLANC (la pie hollandaise). Le contraste maximal du
+       lot : à z = 0,5 il ne reste que deux pâtés sombres sur un corps
+       clair, et ça suffit à la reconnaître. */
+    dosC:"#fffdf7", dos:"#f2ebdd", flanc:"#d8d0c0", ventre:"#fffdf7",
+    taches:["#272230"],
+    clair:"#fffdf7", clairO:"#dad2c2",
+    oreille:"#332d3a", oreilleI:"#7d6d77",
+    nez:"#8d7f88", patte:"#cdc4b4", cerne:"rgba(246,242,232,.72)" },
+  { /* 2 — TRICOLORE. Deux couleurs de taches au lieu d'une, posées aux
+       deux bouts : c'est la seule du lot qui n'est pas symétrique en
+       valeur, et de loin ça se lit comme un individu « à part ». */
+    dosC:"#fffcf2", dos:"#efe7d8", flanc:"#d5ccbb", ventre:"#fffdf7",
+    taches:["#c9761f", "#241f2a"],
+    clair:"#fffdf7", clairO:"#dad2c2",
+    oreille:"#a56b3c", oreilleI:"#c78d63",
+    nez:"#c48d84", patte:"#c6bdad", cerne:"rgba(248,242,230,.68)" }
+];
+
+/* Haché d'individu. Le semis pose k.n = l'indice dans la liste des
+   créatures : deux bêtes d'une même grappe ont donc des n qui SE
+   SUIVENT, et un simple n % 4 les aurait rangées en file indienne de
+   motifs. Un sinus haché casse la suite, et reste évidemment
+   reproductible d'une image à l'autre. */
+function cochonTirage(n, sel){
+  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
+  return a - Math.floor(a);
+}
+
+/* ---- LA DÉMARCHE -------------------------------------------------
+   Le cœur de la bête. Un cochon d'Inde ne se déplace pas d'un point à
+   un autre : il reste planté, puis il RUE pendant trois dixièmes de
+   seconde, puis il se plante de nouveau. Même construction que le vol
+   du bourdon — une suite de segments, un haché par segment, aucun
+   hasard — mais l'objectif est inverse : le bourdon doit avoir l'air
+   de flotter, celui-ci d'avoir peur.
+
+   Renvoie :
+     elan   0..1, l'intensité de la ruée. Il tombe à zéro D'UN COUP à la
+            fin du sprint : c'est ce zéro brutal qui fait l'arrêt net.
+     av     le décalage local vers l'avant, lui CONTINU — sinon la bête
+            se téléporterait à chaque changement de segment. Le corps
+            part devant ses pieds, puis se rassoit sur sa croupe au
+            freinage, ce qui est exactement ce que fait l'animal.
+     saut   la hauteur du bond sur place. Un segment sur six environ,
+            au repos seulement : c'est le « popcorn », le petit saut
+            vertical sans raison. C'est LE gag de l'espèce, et il ne
+            marche que s'il reste rare.
+     gel    1 pendant les arrêts, pour que le reste du dessin sache
+            qu'il ne doit plus rien bouger du tout. */
+function courseCochon(tps, ph, n, fuit){
+  /* En fuite les segments sont deux fois plus courts ET le sprint en
+     occupe presque tout : il ne reste qu'un souffle entre deux ruées. */
+  var seg = tps * (fuit ? 1.85 : 0.78) + ph * 0.61;
+  var i = Math.floor(seg), u = seg - i;
+  var d = cochonTirage(i, n);
+  var pop = (!fuit && d > 0.83) ? 1 : 0;
+  var dur = pop ? 0.30 : (fuit ? 0.66 + d * 0.22 : 0.17 + d * 0.23);
+  var elan = 0, saut = 0;
+  if(u < dur){
+    var w = u / dur;
+    /* Créneau arrondi : la puissance 0,3 sur un sinus redresse les deux
+       flancs presque à la verticale. Un sinus nu donnait une ruée qui
+       s'installe et se retire mollement — un cochon d'Inde qui démarre
+       en fondu, ça n'existe pas. */
+    elan = Math.pow(Math.sin(w * 3.1416), 0.3);
+    if(pop) saut = Math.sin(w * 3.1416) * 3.6;
+  }
+  /* Le rappel déborde du sprint : le corps continue sur son erre puis
+     revient sur ses pieds. Le pulse vaut zéro aux deux bouts, donc
+     aucune cassure au changement de segment. */
+  var tot = dur + 0.18;
+  var av = u < tot ? Math.sin(u / tot * 3.1416) : 0;
+  av *= pop ? 0.7 : (fuit ? 4.2 : 2.6);
+  return { elan:elan, av:av, saut:saut, gel:elan < 0.02 ? 1 : 0, pop:pop };
+}
+
+/* LE CORPS ENTIER, tête comprise, en un seul tracé.
+   Quatre choses s'y jouent, et aucune n'est négociable :
+   — LE CROUPION EST UN DEMI-CERCLE. Premier essai, effilé comme une
+     croupe de chat : on obtenait une limace. Un cochon d'Inde s'arrête
+     NET à l'arrière, comme un pain coupé.
+   — LE POINT HAUT EST SUR LA HANCHE, pas au milieu du dos. C'est ce
+     qui empêche le dos de se lire comme un seul long arc — deuxième
+     essai — et donc la bête de se lire comme une saucisse.
+   — IL Y A UN CREUX DE NUQUE D'UN POINT ET DEMI. Pas un cou : un
+     simple cran. Sans lui, la tête n'existe pas et il ne reste qu'une
+     forme avec des yeux dessus ; avec lui, on lit une tête soudée aux
+     épaules, ce qui est exactement l'animal.
+   — LE FRONT TOMBE D'UN COUP sur un nez COURT. C'est la CHUTE du
+     front, pas la longueur du museau, qui dit rongeur.
+   « t » relève le nez (reniflement, tête haute à l'arrêt), « d »
+   bombe le dos (il s'arrondit à la poussée), « e » étire le corps. */
+function cochonCorps(c, t, d, e){
+  c.beginPath();
+  c.moveTo(-8.8 - e, -2.6);
+  c.quadraticCurveTo(-12.2 - e, -3.4, -12.0 - e, -7.4 - d * 0.4);    /* croupion */
+  c.quadraticCurveTo(-11.8 - e, -12.0 - d, -6.6 - e, -12.6 - d);     /* la hanche : le point haut */
+  c.quadraticCurveTo(-1.6, -13.2 - d, 2.0 + e * 0.4, -11.9 - d * 0.5);/* le dos */
+  c.quadraticCurveTo(3.6 + e, -9.9, 5.6 + e, -11.6 - t * 0.7);       /* le creux de nuque */
+  c.quadraticCurveTo(8.6 + e, -12.9 - t, 10.6 + e, -9.8 - t);        /* le dôme du crâne */
+  c.quadraticCurveTo(12.0 + e, -7.4 - t * 0.8, 11.2 + e, -5.6 - t * 0.6);/* le front tombe, nez court */
+  c.quadraticCurveTo(10.6 + e, -4.2 - t * 0.3, 8.4 + e, -3.4);       /* lèvre et menton */
+  c.quadraticCurveTo(6.0 + e, -2.8, 2.2, -2.4);
+  c.quadraticCurveTo(-3.0, -2.1, -8.8 - e, -2.6);                    /* le ventre, au ras du sol */
+  c.closePath();
+}
+function cochonDos(c, t, d, e){
+  c.beginPath();
+  c.moveTo(-12.1 - e, -6.6);
+  c.quadraticCurveTo(-11.8 - e, -12.0 - d, -6.6 - e, -12.6 - d);
+  c.quadraticCurveTo(-1.6, -13.2 - d, 2.0 + e * 0.4, -11.9 - d * 0.5);
+  c.quadraticCurveTo(3.6 + e, -9.9, 5.6 + e, -11.6 - t * 0.7);
+  c.quadraticCurveTo(8.6 + e, -12.9 - t, 10.6 + e, -9.8 - t);
+}
+function cochonVentre(c, e){
+  c.beginPath();
+  c.moveTo(8.6 + e, -3.2);
+  c.quadraticCurveTo(6.0 + e, -2.5, 2.2, -2.1);
+  c.quadraticCurveTo(-3.0, -1.8, -9.0 - e, -2.4);
+}
+
+/* L'OREILLE EN PÉTALE — la seule chose qui sorte de la silhouette,
+   donc la seule qui sauve le contour dans une grappe où six corps se
+   chevauchent. Un cochon d'Inde ne porte pas ses oreilles droites :
+   elles PENDENT sur le côté du crâne, molles et un peu froissées, et
+   elles sont grandes — un bon tiers de la hauteur de la tête. Dressées
+   et petites (premier essai), la bête devenait un lapereau, et de
+   toute façon on ne les voyait plus au-dessus du dos.
+   Le pétale est tracé PENDANT vers le +y depuis son attache : « ang »
+   n'a donc plus qu'à le balancer d'avant en arrière, θ = 0 étant
+   « pend tout droit » et θ croissant le couchant vers la croupe. */
+function cochonOreille(c, x, y, r, ang, ext, intr){
+  c.save();
+  c.translate(x, y); c.rotate(ang);
+  c.fillStyle = ext;
+  c.beginPath();
+  c.moveTo(-r * 0.34, 0);
+  c.quadraticCurveTo(-r * 0.86, r * 0.72, -r * 0.50, r * 1.34);   /* bord arrière */
+  c.quadraticCurveTo(-r * 0.10, r * 1.80, r * 0.46, r * 1.44);    /* le lobe, arrondi */
+  c.quadraticCurveTo(r * 0.96, r * 1.04, r * 0.80, r * 0.34);     /* bord avant */
+  c.quadraticCurveTo(r * 0.66, -r * 0.22, -r * 0.34, 0);          /* l'attache, étroite */
+  c.closePath(); c.fill();
+  if(intr){
+    /* Le pavillon, écrêté par l'oreille : posé libre, il débordait du
+       bord et plantait une écharde claire à côté de la tête. Il reste
+       PETIT — large, il transformait l'oreille en coquillage rose. */
+    c.save(); c.clip();
+    c.fillStyle = intr;
+    c.beginPath(); c.ellipse(r * 0.06, r * 0.94, r * 0.28, r * 0.44, -0.16, 0, 6.2832); c.fill();
+    c.restore();
+  }
+  c.restore();
+}
+
+function dessineCochon(c, k, tps){
+  var teinte = k.teinte | 0; if(teinte > 2 || teinte < 0) teinte = 0;
+  var P = PAL_COCHON[teinte];
+  var ph = k.ph || 0, n = k.n || 0;
+  var fuit = k.etat === "fuite";
+  var sur = fauneSursaut(k, tps);
+  /* LA RÉACTION À L'EXPLOSION EST L'INVERSE DE CELLE DES SIX AUTRES.
+     Le singe détale, le panda galope, le koala grimpe — le cochon
+     d'Inde se PÉTRIFIE. C'est le vrai réflexe de l'animal, et sur une
+     carte où tout part en courant d'un coup, la seule bête qui devient
+     une pierre est celle qu'on remarque. Tout mouvement est donc coupé
+     tant que le sursaut dure. */
+  var fig = sur > 0.10;
+  var m = courseCochon(tps, ph, n, fuit);
+  var elan = fig ? 0 : m.elan;
+  var av = fig ? m.av * 0.15 : m.av;
+  var saut = fig ? 0 : m.saut;
+
+  /* La taille : de 0,86 à 1,08. Une grappe de six bêtes du même gabarit
+     reste un motif imprimé, quelles que soient les robes ; deux jeunes
+     au milieu de quatre adultes, et c'est une portée. */
+  var ech = 0.86 + cochonTirage(n, 3) * 0.22;
+  var motif = (cochonTirage(n, 1) * 4) | 0;
+
+  /* Le reniflement. Un cochon d'Inde à l'arrêt n'est jamais tout à fait
+     immobile : le nez bat à sept coups par seconde, et RIEN d'autre ne
+     bouge. C'est ce contraste — un corps de pierre et un nez qui
+     vibre — qui le rend vivant à l'arrêt, là où les six autres espèces
+     comptent sur leur démarche. Pétrifié, il bat deux fois plus vite. */
+  var renifle = m.gel ? Math.sin(tps * (fig ? 15.0 : 7.4) + ph * 3.1) * 0.5 + 0.5 : 0;
+  /* Il cligne très peu : dix-huit secondes de période, contre trois ou
+     quatre pour le reste du bestiaire. Un cochon d'Inde dort les yeux
+     ouverts, et c'est ce regard fixe qui fait la moitié de son air
+     ahuri. */
+  var ouv = (fuit || fig) ? 1 : fauneClin(tps, ph, 18.0);
+  var lacet = (fuit || fig) ? -0.16 : Math.sin(tps * 0.31 + ph * 1.7) * 0.26;
+  var respi = (m.gel && !fig) ? Math.sin(tps * 1.9 + ph) * 0.3 : 0;
+  /* Oreilles rabattues : à la ruée, en fuite, et pendant la pétrification. */
+  var pli = Math.max(elan * 0.8, fig ? 1 : (fuit ? 0.55 : 0));
+
+  c.save();
+  c.scale(ech, ech);
+
+  /* L'ombre reste au sol pendant le bond : c'est elle qui dit qu'il
+     saute VERTICALEMENT et qu'il n'a pas simplement grandi. */
+  ombreFaune(c, -0.4, 9.2, 2.8, saut * 0.30, 0.28);
+
+  c.save();
+  c.translate(av, -saut);
+  /* Nez en avant à la ruée : le cochon d'Inde court le ventre à terre,
+     la tête la première. Pétrifié, il s'aplatit au contraire. */
+  c.rotate(elan * 0.09 - saut * 0.03);
+  if(fig) c.scale(1 + sur * 0.09, 1 - sur * 0.14);
+  else if(elan > 0) c.scale(1 + elan * 0.07, 1 - elan * 0.05);
+
+  var t = renifle * 0.35 - elan * 1.0;      /* le nez : haut à l'arrêt, bas à la ruée */
+  var d = respi + elan * 0.8;               /* le dos se bombe quand il pousse */
+  var e = elan * 0.9;                       /* et le corps s'étire */
+
+  /* ---- les deux pieds du fond, plus sombres ----
+     Ce ne sont PAS des pattes : quatre boutons qui dépassent sous le
+     ventre, et c'est tout ce qu'on voit d'un vrai animal. Les deux
+     pieds d'un même plan tiennent dans UN tracé — le remplissage prend
+     tous les sous-chemins d'un coup, et à trente bêtes à l'écran deux
+     beginPath économisés par bête ne sont pas rien.
+     À la ruée ils battent trop vite pour être suivis : on les ÉTALE au
+     lieu de les déplacer, parce qu'un pied net qui saute d'une image à
+     l'autre scintille, là où un pied étiré donne la vitesse. */
+  var bat = Math.sin(tps * 27 + ph * 2.2) * elan;
+  c.fillStyle = ecl(P.patte, 0.72);
+  c.beginPath();
+  c.ellipse(-4.8 - bat * 1.5, -1.15, 1.60 + elan * 1.5, 1.18, -0.12, 0, 6.2832);
+  c.ellipse(5.6 + bat * 1.5, -1.15, 1.55 + elan * 1.5, 1.14, 0.10, 0, 6.2832);
+  c.fill();
+
+  /* ---- l'oreille du fond ----
+     Elle est COUCHÉE EN ARRIÈRE sur la nuque, pas dressée : de ce
+     côté-là on ne voit qu'un lobe qui dépasse du dos, et c'est
+     précisément ce lobe qui dit « il y a une deuxième oreille » sans
+     coller un pavillon de lapin au-dessus du crâne. */
+  cochonOreille(c, 7.2 + e * 0.6, -12.0 - t * 0.8, 2.05 - pli * 0.6,
+                2.05 + pli * 0.30, ecl(P.oreille, 0.76), 0);
+
+  /* ---- le corps ---- */
+  c.fillStyle = degCache(c, "cochonCorps" + teinte, function(){
+    var g = c.createLinearGradient(0, -13.4, 0, -1.6);
+    g.addColorStop(0, PAL_COCHON[teinte].dosC);
+    g.addColorStop(0.44, PAL_COCHON[teinte].dos);
+    g.addColorStop(0.78, PAL_COCHON[teinte].flanc);
+    g.addColorStop(1, PAL_COCHON[teinte].ventre);
+    return g;
+  });
+  cochonCorps(c, t, d, e); c.fill();
+
+  /* ---- LES TACHES ----
+     Quatre motifs tirés de k.n : croupe, capuchon, les deux (la pie
+     « hollandaise », ceinturée de blanc), ou une selle au milieu du
+     dos. C'est ce qui empêche six bêtes de la même robe de se lire
+     comme six exemplaires du même dessin, et ça ne coûte que deux
+     remplissages écrêtés.
+     Les taches ne sont PAS des ellipses : un bord de poil ondule, et
+     l'ellipse du premier essai se lisait comme un autocollant appliqué
+     sur la bête. Trois quadratiques suffisent à casser la régularité,
+     au même prix. */
+  c.save();
+  cochonCorps(c, t, d, e); c.clip();
+  var tA = P.taches[0], tB = P.taches[P.taches.length - 1];
+  if(motif === 0 || motif === 2){
+    c.fillStyle = tA;
+    c.beginPath();
+    c.moveTo(-13.5 - e, -13.5);
+    c.quadraticCurveTo(-3.0, -14.0, -2.4, -8.2);
+    c.quadraticCurveTo(-2.0, -3.4, -7.6, -1.0);
+    c.quadraticCurveTo(-14.5 - e, -1.4, -14.5 - e, -7.2);
+    c.closePath(); c.fill();
+  }
+  if(motif === 1 || motif === 2){
+    /* Le capuchon prend la tête ET l'épaule, et s'arrête DERRIÈRE
+       l'œil proche. Poussé jusqu'au nez, il noyait les deux yeux dans
+       le noir et la bête perdait purement et simplement son visage ;
+       arrêté au crâne, il faisait un bonnet posé sur un corps blanc,
+       donc deux animaux. Entre les deux, c'est la marque hollandaise,
+       et c'est celle qui existe vraiment. */
+    c.fillStyle = tB;
+    c.beginPath();
+    c.moveTo(1.6, -14.0);
+    c.quadraticCurveTo(8.6 + e, -14.2, 9.4 + e, -8.6);
+    c.quadraticCurveTo(9.8 + e, -3.8, 4.6 + e, -1.2);
+    c.quadraticCurveTo(0.8, -1.0, 1.0, -6.6);
+    c.closePath(); c.fill();
+  }
+  if(motif === 3){
+    c.fillStyle = tA;
+    c.beginPath();
+    c.moveTo(-7.2 - e, -14.0);
+    c.quadraticCurveTo(1.4, -14.4, 2.8, -9.4);
+    c.quadraticCurveTo(3.6, -4.6, -2.4, -4.0);
+    c.quadraticCurveTo(-8.4 - e, -4.6, -8.2 - e, -9.8);
+    c.closePath(); c.fill();
+  }
+  /* LA FACE CLAIRE. Elle n'est pas décorative : c'est la règle de la
+     maison — deux points sombres sur une face CLAIRE. Sur un capuchon
+     noir, deux yeux noirs ne sont plus rien du tout et la bête perd
+     son visage. Le vrai cochon d'Inde porte d'ailleurs presque
+     toujours cette liste claire sur le chanfrein.
+     Son bord arrière passe DERRIÈRE l'œil proche et DEVANT le
+     lointain : l'œil de devant tombe donc sur le clair et se lit tout
+     seul, celui du fond reste sur la robe et n'a plus qu'à s'appuyer
+     sur son cerne. C'est ce décalage — un œil sur le blanc, l'autre
+     sur la couleur — qui fait tourner la tête aux trois quarts sans
+     rien redessiner. Sa LARGEUR varie d'un individu à l'autre, une
+     raison de plus de la tirer de k.n. */
+  var bl = cochonTirage(n, 5) * 1.4;
+  c.fillStyle = P.clair;
+  c.beginPath();
+  c.moveTo(11.4 + e, -9.8 - t * 0.8);
+  c.quadraticCurveTo(8.6 + e - bl, -9.4, 7.4 + e - bl, -6.4);   /* le bord arrière */
+  c.quadraticCurveTo(6.6 + e - bl, -3.2, 9.8 + e, -2.9);        /* la joue et le menton */
+  c.quadraticCurveTo(12.4 + e, -3.4, 12.2 + e, -6.6);           /* le bord avant, contre le nez */
+  c.closePath(); c.fill();
+  c.restore();
+
+  chatVolume(c, function(cc){ cochonCorps(cc, t, d, e); },
+                function(cc){ cochonDos(cc, t, d, e); },
+                function(cc){ cochonVentre(cc, e); },
+                "rgba(255,250,236,.30)", "rgba(52,38,28,.26)");
+
+  /* ---- les deux pieds de devant, même tracé unique ---- */
+  c.fillStyle = P.patte;
+  c.beginPath();
+  c.ellipse(-3.0 + bat * 1.5, -1.1, 1.70 + elan * 1.6, 1.30, -0.12, 0, 6.2832);
+  c.ellipse(7.2 + e - bat * 1.5, -1.1, 1.62 + elan * 1.6, 1.24, 0.10, 0, 6.2832);
+  c.fill();
+
+  /* ---- l'oreille proche, par-dessus la joue ----
+     Plantée DERRIÈRE l'œil et pendant sur la joue : c'est sa place
+     réelle, et c'est aussi ce qui donne son épaisseur à la tête de
+     trois quarts. */
+  cochonOreille(c, 6.9 + e, -10.8 - t * 0.8, 2.7 - pli * 0.85,
+                0.62 + pli * 0.80, P.oreille, P.oreilleI);
+
+  /* ---- LE VISAGE ----
+     Pas de repère à part : les traits se posent directement dans le
+     bout du corps, décalés par « lacet ». C'est la contrepartie de la
+     tête soudée — et le prix est nul, puisqu'il n'y a aucun crâne à
+     redessiner. */
+  var lx = lacet * 1.5;
+
+  /* Les deux yeux. Ronds, presque tout en pupille, plantés HAUT ET SUR
+     LE CÔTÉ du chanfrein : c'est la place d'un œil d'animal de proie,
+     et c'est elle qui donne l'air perpétuellement effaré. Le lointain
+     est plus petit ET plus haut — la tête tourne sans être redessinée.
+     Les deux gardent un cerne pâle : sur le capuchon noir, sans lui,
+     il ne reste rien du tout à cet endroit. */
+  var lo = 0.84 + lacet * 0.34;
+  var ry = (fuit || fig) ? 1.20 : 1.06;
+  oeilFaune(c, 7.3 + e + lx, -9.9 - t * 0.8, ry * lo, ouv, P.cerne, lacet);
+  oeilFaune(c, 10.2 + e + lx * 0.8, -8.0 - t * 0.8, ry, ouv, P.cerne, lacet);
+
+  /* Le nez. PETIT — c'est un des rares endroits où il ne faut pas
+     exagérer : gros, il tirait la bête vers le lapin. Il monte et
+     descend au rythme du reniflement. */
+  var nx = 11.4 + e + lx, ny = -5.6 - t * 0.7 - renifle * 0.4;
+  c.fillStyle = P.nez;
+  c.beginPath();
+  c.moveTo(nx - 0.90, ny - 0.40);
+  c.quadraticCurveTo(nx + 0.05, ny - 1.00, nx + 0.90, ny - 0.30);
+  c.quadraticCurveTo(nx + 0.60, ny + 0.66, nx - 0.05, ny + 0.76);
+  c.quadraticCurveTo(nx - 0.70, ny + 0.62, nx - 0.90, ny - 0.40);
+  c.closePath(); c.fill();
+
+  /* La bouche en Y, sous le nez : la lèvre fendue du rongeur. Ouverte,
+     c'est le cri d'alarme — un cochon d'Inde qui détale COUINE, et
+     sans cette bouche il avait seulement l'air de rouler. */
+  if(fuit || fig){
+    c.fillStyle = "#5e3038";
+    c.beginPath(); c.ellipse(nx - 0.6, ny + 1.9, 0.9, 0.65 + renifle * 0.25, -0.24, 0, 6.2832); c.fill();
+  }else{
+    c.strokeStyle = "rgba(78,54,48,.5)"; c.lineWidth = 0.36; c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(nx - 0.1, ny + 0.9); c.lineTo(nx - 0.4, ny + 1.6);
+    c.moveTo(nx - 0.4, ny + 1.6); c.quadraticCurveTo(nx - 1.2, ny + 1.9, nx - 1.7, ny + 1.3);
+    c.moveTo(nx - 0.4, ny + 1.6); c.quadraticCurveTo(nx + 0.4, ny + 1.9, nx + 0.8, ny + 1.2);
+    c.stroke();
+  }
+
+  /* Les vibrisses, longues et courbes — un cochon d'Inde en a d'aussi
+     larges que lui, et elles battent avec le nez. Les six brins
+     tiennent dans UN seul tracé : à trente bêtes à l'écran, six
+     beginPath de plus par bête n'étaient pas défendables pour un
+     détail que le zoom de jeu avale à moitié. */
+  c.strokeStyle = "rgba(255,250,240,.42)"; c.lineWidth = 0.32; c.lineCap = "round";
+  c.beginPath();
+  for(var w = -1; w <= 1; w++){
+    var vy = ny + 0.8 + w * 0.45, vo = w * 2.0 + renifle * 0.45;
+    c.moveTo(nx - 0.3, vy);
+    c.quadraticCurveTo(nx + 2.6, vy + vo * 0.3, nx + 4.8, vy + vo);
+    c.moveTo(nx - 0.9, vy + 0.1);
+    c.quadraticCurveTo(nx - 3.2, vy + vo * 0.4 + 0.7, nx - 5.2, vy + vo * 0.9 + 1.3);
+  }
+  c.stroke();
+
+  c.restore();
+  c.restore();
+}
