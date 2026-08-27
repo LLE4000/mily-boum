@@ -31,7 +31,7 @@ try{
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
-    "faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
+    "encodePlans","decodePlans","planCarte","faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
     "encodeChats","decodeChats","fusionneChats","ESPECES_PROTEGEES",
     "chaineMqtt","paquetConnect","paquetSubscribe","paquetPublish","paquetPing",
     "paquetDeconnexion","DecodeurMqtt","litPublish","FileDegats","mitraTouche","ZMIN","ZMAX","coutActuel","tirePondere"
@@ -702,6 +702,71 @@ G("4. Déterminisme de la génération de carte");
        égalité-là qui garantit qu'un salon en cours ne voit rien bouger. */
     ok("les " + restant.length + " bâtiments d'origine gardent leur indice",
        restant.every(function(x, k){ return x.n === k; }));
+  })();
+
+  G("5e. Chaque carte a SON plan, et lui seul");
+  /* LE DÉFAUT QUE CES VÉRIFICATIONS GARDENT. Le salon ne portait
+     qu'une chaîne de plan, servie à toutes les îles : peindre la plage
+     repeignait la forêt, la campagne, la soirée hippie et le Sud.
+     Mesuré à l'époque : 377, 393, 379, 390 et 384 Frelons sur les cinq
+     cartes pour un plan destiné à la première. */
+  (function(){
+    var z = N.planVide(), i;
+    for(i = 0; i < N.NB_ZONES; i++) if((i % N.ZONES_L) < 9) z[i] = N.faitZone(3, 3, 0);
+    var plage = N.encodePlan(z);
+    var paquet = N.encodePlans({ 0:plage });
+
+    ok("le paquet ne rend son plan qu'à la carte qui l'a",
+       N.planCarte(paquet, 0) === plage && N.planCarte(paquet, 1) === "" &&
+       N.planCarte(paquet, 4) === "");
+    ok("planDeCarte suit le paquet, île par île",
+       N.planDeCarte(0, paquet) === plage && N.planDeCarte(1, paquet) === "" &&
+       N.planDeCarte(3, paquet) === "");
+
+    /* LA PREUVE, sur les cartes elles-mêmes : la plage change, les
+       quatre autres sont bit pour bit celles d'avant. */
+    var vierge = [], peinte = [], k;
+    for(k = 0; k < N.NB_CARTES_NORMALES; k++){
+      vierge.push(N.empreinteCarte(N.genereCarte("MILY", k, "", 0)));
+      peinte.push(N.empreinteCarte(N.genereCarte("MILY", k, N.planDeCarte(k, paquet), 0)));
+    }
+    ok("peindre la plage change bien la plage", vierge[0] !== peinte[0]);
+    var intactes = "";
+    for(k = 1; k < N.NB_CARTES_NORMALES; k++)
+      if(vierge[k] !== peinte[k]) intactes += N.CARTES[k].nom + " ";
+    ok("et ne touche AUCUNE des quatre autres", intactes === "", intactes);
+
+    /* et le compte de Frelons, qui est ce qui se voyait */
+    function frelons(idx, paq){
+      return N.genereCarte("MILY", idx, N.planDeCarte(idx, paq), 0)
+              .batiments.filter(function(b){ return b.t === "frelon"; }).length;
+    }
+    var f0 = frelons(0, paquet), f1 = frelons(1, paquet);
+    ok("la plage se remplit de Frelons (" + f0 + ") mais pas la forêt (" + f1 + ")",
+       f0 > 300 && f1 < 60, f0 + " vs " + f1);
+
+    /* deux cartes éditées séparément ne se mélangent pas */
+    var z2 = N.planVide();
+    for(i = 0; i < N.NB_ZONES; i++) if((i % N.ZONES_L) >= 9) z2[i] = N.faitZone(5, 3, 0);
+    var deux = N.encodePlans({ 0:plage, 3:N.encodePlan(z2) });
+    ok("deux cartes éditées gardent chacune la sienne",
+       N.planCarte(deux, 0) === plage && N.planCarte(deux, 3) === N.encodePlan(z2) &&
+       N.planCarte(deux, 1) === "" && N.planCarte(deux, 4) === "");
+    ok("aller-retour du paquet",
+       N.encodePlans(N.decodePlans(deux)) === deux);
+    ok("l'ordre des cartes dans le paquet est stable",
+       N.encodePlans({ 3:"b", 0:"a" }) === N.encodePlans({ 0:"a", 3:"b" }));
+
+    /* LA COMPATIBILITÉ : un ancien plan global revient à la carte 0 */
+    var t = N.decodePlans(plage);
+    ok("un ancien plan global est rendu à la première île",
+       t[0] === plage && t[1] === undefined);
+    ok("et les quatre autres retrouvent leur carte d'origine",
+       N.empreinteCarte(N.genereCarte("MILY", 2, N.planDeCarte(2, plage), 0)) === vierge[2]);
+
+    ok("un paquet vide, nul ou pourri ne donne aucun plan",
+       N.planCarte("", 0) === "" && N.planCarte(null, 0) === "" &&
+       N.planCarte("|||", 2) === "");
   })();
 
   G("5d. Mily dans la jungle — la carte événement");

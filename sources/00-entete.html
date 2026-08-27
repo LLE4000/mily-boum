@@ -185,6 +185,27 @@ select.champ{cursor:pointer}
 }
 #hud.apercu #bandeauApercu{display:block}
 
+/* ---- LES ONGLETS DE CARTES DE L'ÉDITEUR ----
+   Six onglets qui défilent horizontalement : sur une tablette tenue en
+   portrait, ils ne tiennent pas sur une ligne, et les empiler mangerait
+   la place du plan. Le défilement au doigt est la seule réponse qui
+   garde le plan aussi grand que possible. */
+#planCartes{
+  display:flex;gap:5px;padding:6px 10px;overflow-x:auto;flex:0 0 auto;
+  border-bottom:1px solid rgba(255,255,255,.08);-webkit-overflow-scrolling:touch;
+}
+#planCartes::-webkit-scrollbar{height:0}
+.poc{
+  flex:0 0 auto;padding:7px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;
+  font:700 12px/1 'Trebuchet MS','Segoe UI',sans-serif;color:#b9abc6;
+  background:#1d1229;border:1px solid rgba(255,255,255,.10);
+}
+.poc i{font-style:normal;color:var(--braise);margin-left:5px;font-size:9px}
+.poc.on{color:#fff;border-color:var(--braise);background:linear-gradient(180deg,#4a2a12,#2a1608)}
+.poc.evt{color:#8ff0b4;border-color:rgba(90,220,140,.3)}
+.poc.evt.on{color:#bfffd6;border-color:#5adc8c;background:linear-gradient(180deg,#0d3a22,#06180e)}
+.bt.danger{color:#ffb0a2;border-color:rgba(230,80,60,.4)}
+
 /* cartes du monde */
 .mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .monde{
@@ -620,7 +641,7 @@ select.champ{cursor:pointer}
       <h2>Plan de défense</h2>
       <div id="planResume">Défenses d'origine — la carte que tout le monde connaît.</div>
       <div class="ligne" style="margin-top:8px">
-        <button id="btPlan" class="bt">🗺 Voir la carte de haut</button>
+        <button id="btPlan" class="bt">🗺 Administration des maps</button>
       </div>
     </div>
 
@@ -647,6 +668,9 @@ select.champ{cursor:pointer}
     <div id="planTitre">Plan de défense</div>
     <button id="btPlanFerme" class="bt ptt">✕ Fermer</button>
   </div>
+  <!-- Les six cartes, en onglets : c'est ici qu'on passe de l'une à
+       l'autre pour COMPARER leurs identités. -->
+  <div id="planCartes"></div>
   <div id="planCorps">
     <div id="planScene"><canvas id="planCv"></canvas></div>
     <div id="planOutils">
@@ -657,13 +681,21 @@ select.champ{cursor:pointer}
       <div id="planCompte"></div>
       <div class="ligne">
         <button id="btPlanAnnule" class="bt ptt">↶ Annuler</button>
-        <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
+        <button id="btPlanRegen" class="bt ptt" title="Une autre réalisation du MÊME plan : mêmes zones, mêmes proportions, autres positions">🎲 Régénérer</button>
       </div>
       <div class="ligne">
-        <button id="btPlanDefaut" class="bt ptt">★ Garder par défaut</button>
-        <button id="btPlanOubli" class="bt ptt">Oublier</button>
+        <button id="btPlanRestaure" class="bt ptt" title="Revenir à la dernière version enregistrée de cette carte">↺ Version enregistrée</button>
+        <button id="btPlanRecule" class="bt ptt" title="Reculer d'un cran dans les trois dernières versions">◀ Antérieure</button>
       </div>
-      <button id="btPlanValide" class="bt pri">Valider pour tout le salon</button>
+      <div class="ligne">
+        <button id="btPlanDefaut" class="bt ptt">★ Brouillon</button>
+        <button id="btPlanDup" class="bt ptt" title="Copier ici le plan d'une autre carte">⧉ Copier d'une autre</button>
+      </div>
+      <div class="ligne">
+        <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
+        <button id="btPlanRaz" class="bt ptt danger" title="Efface le plan de CETTE carte pour tout le salon">⌫ Réinitialiser</button>
+      </div>
+      <button id="btPlanValide" class="bt pri">Enregistrer cette carte</button>
       <div id="planAvert"></div>
     </div>
   </div>

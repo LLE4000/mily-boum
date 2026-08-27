@@ -1670,11 +1670,75 @@ function planJungle(){
   planJungleCache = encodePlan(z);
   return planJungleCache;
 }
+/* ----------------------------------------------------------------
+   UN PLAN PAR CARTE
+
+   LE DÉFAUT QUE CECI CORRIGE. Le salon ne portait qu'UNE chaîne de
+   plan, et genereCarte la recevait quel que soit l'index de l'île.
+   Peindre la plage repeignait donc aussi la forêt, la campagne, la
+   soirée hippie et le Sud — mesuré : un plan « Frelon saturé » sur la
+   moitié gauche donnait 377, 393, 379, 390 et 384 Frelons sur les cinq
+   cartes. Les cinq îles n'avaient pas d'identité : elles avaient le
+   même plan sous cinq décors.
+
+   LE PAQUET. Une seule chaîne porte désormais tous les plans, indexés
+   par carte : « 0:~AAA|3:~BBB ». Seules les cartes réellement éditées
+   y figurent, donc une campagne où l'on n'a touché qu'à la plage ne
+   coûte pas plus qu'avant. Les deux séparateurs sont sûrs : l'alphabet
+   d'encodeBits ne contient ni « : » ni « | », et la marque de version
+   des plans est « ~ ».
+
+   LA COMPATIBILITÉ. Un ancien plan global — une chaîne sans « : » —
+   est relu comme le plan de la CARTE 0. C'est la lecture la moins
+   surprenante : le joueur qui avait peint son plan pensait peindre la
+   première île, et c'est ce qu'il obtient. Les quatre autres
+   retrouvent leur carte d'origine du même coup.
+   ---------------------------------------------------------------- */
+function encodePlans(tab){
+  var l = [], k;
+  for(k in tab){
+    var s = tab[k];
+    if(!s || typeof s !== "string") continue;
+    l.push((k | 0) + ":" + s);
+  }
+  /* tri par index : deux clients au même état doivent produire
+     exactement la même chaîne, sinon ils se republieraient l'un
+     l'autre sans fin */
+  l.sort(function(a, b){ return parseInt(a, 10) - parseInt(b, 10); });
+  return l.join("|");
+}
+function decodePlans(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  /* Un ancien plan global n'a pas de « index: » en tête. On le rend à
+     la carte 0, celle que son auteur croyait peindre. */
+  if(s.indexOf(":") < 0){ out[0] = s; return out; }
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var j = p[i].indexOf(":");
+    if(j <= 0) continue;
+    var idx = parseInt(p[i].substr(0, j), 10);
+    var ch = p[i].substr(j + 1);
+    if(!(idx >= 0) || !ch) continue;
+    out[idx] = ch;
+  }
+  return out;
+}
+/* Le plan d'UNE carte, tiré du paquet du salon. */
+function planCarte(paquet, index){
+  var t = decodePlans(paquet);
+  return t[index] || "";
+}
 /* Le plan que joue une carte donnée : le sien s'il est gravé (la
-   jungle), celui du salon sinon. Un seul endroit décide. */
-function planDeCarte(index, planSalon){
-  if(CARTES[index] && CARTES[index].biome === "jungle") return planJungle();
-  return planSalon;
+   jungle), le sien dans le paquet du salon sinon. Un seul endroit
+   décide, et il ne regarde plus JAMAIS le plan d'une autre île. */
+function planDeCarte(index, paquetSalon){
+  if(CARTES[index] && CARTES[index].biome === "jungle"){
+    /* La jungle porte un plan gravé, mais il reste éditable : un plan
+       enregistré pour elle l'emporte sur celui du code. */
+    return planCarte(paquetSalon, index) || planJungle();
+  }
+  return planCarte(paquetSalon, index);
 }
 
 function mondeVide(index, pvMax, cycle){

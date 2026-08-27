@@ -26,6 +26,10 @@ var COUL_PLAN = {
   cellule  : "#ffd84a"
 };
 
+/* LA CARTE EN COURS D'ÉDITION. C'est la variable qui manquait : sans
+   elle, l'éditeur ne savait pas sur quelle île il travaillait, et le
+   plan qu'il produisait était servi aux cinq. */
+var planCarteIdx = 0;
 var planZones = null;        // le brouillon en cours d'édition
 var planPile = [];           // historique, pour « Annuler »
 var planOutil = 1;           // indice dans TYPES_PLAN (0 = pinceau neutre)
@@ -44,37 +48,118 @@ var planCellules = 0;
    carte qu'on impose.
    --------------------------------------------------------------- */
 var CLE_PLAN_DEFAUT = "milyboum.plan";
-function planDefaut(){
-  try{ return localStorage.getItem(CLE_PLAN_DEFAUT) || ""; }catch(e){ return ""; }
+function planDefaut(i){
+  try{ return localStorage.getItem(CLE_PLAN_DEFAUT + "." + (i | 0)) || ""; }catch(e){ return ""; }
 }
-function gardePlanDefaut(s){
+function gardePlanDefaut(s, i){
   try{
-    if(s) localStorage.setItem(CLE_PLAN_DEFAUT, s);
-    else localStorage.removeItem(CLE_PLAN_DEFAUT);
+    var c = CLE_PLAN_DEFAUT + "." + (i | 0);
+    if(s) localStorage.setItem(c, s);
+    else localStorage.removeItem(c);
     return true;
   }catch(e){ return false; }
+}
+
+/* ---------------------------------------------------------------
+   L'HISTORIQUE LÉGER — trois versions par carte
+
+   Pas un système de versions : trois photos, la dernière enregistrée
+   en tête. C'est ce qu'il faut pour rattraper une mauvaise
+   modification, et rien de plus. Local à cet appareil, comme le
+   brouillon : c'est le carnet de bord du créateur, pas l'état du
+   salon.
+   --------------------------------------------------------------- */
+var VERSIONS_GARDEES = 3;
+function historiquePlan(i){
+  try{
+    var t = JSON.parse(localStorage.getItem(CLE_PLAN_DEFAUT + ".h." + (i | 0)) || "[]");
+    return (t instanceof Array) ? t : [];
+  }catch(e){ return []; }
+}
+function pousseHistoriquePlan(i, chaine){
+  var h = historiquePlan(i);
+  /* Enregistrer deux fois la même chose ne doit pas consommer une
+     place de l'historique : on n'y garderait plus rien d'utile. */
+  if(h.length && h[0] === chaine) return h;
+  h.unshift(chaine);
+  h = h.slice(0, VERSIONS_GARDEES);
+  try{ localStorage.setItem(CLE_PLAN_DEFAUT + ".h." + (i | 0), JSON.stringify(h)); }catch(e){}
+  return h;
 }
 var planCv = null, planCtx = null;
 var planEch = 1, planOx = 0, planOy = 0;   // carte → pixels du canevas
 var planApercu = null;       // carte générée pour l'aperçu
+/* LA GRAINE DE L'APERÇU. Le bouton « Régénérer » ne change QUE ce
+   nombre : les zones, les densités et les proportions restent les
+   mêmes, seule la réalisation change. C'est exactement la distinction
+   entre le modèle enregistré et la partie qu'on en tire. */
+var planGraine = 0;
 var planApercuSale = true;
 var planDoigt = null;        // identifiant du doigt qui peint
 
 /* ---------------------------------------------------------------
    Ouverture / fermeture
    --------------------------------------------------------------- */
-function ouvrePlan(){
-  /* Le plan du salon fait foi ; à défaut, le brouillon gardé sur cet
-     appareil ; à défaut, une carte vierge. */
-  var dep = planSalon || planDefaut();
-  planZones = dep ? decodePlan(dep) : planVide();
-  planPile = [];
-  planApercuSale = true;
+/* `ou` : l'index de la carte à éditer. Par défaut, celle que le salon
+   joue en ce moment — c'est celle qu'on vient de regarder. */
+function ouvrePlan(ou){
+  planCarteIdx = (typeof ou === "number") ? ou : carteSalon;
+  chargeCarteDansEditeur();
   $("plan").classList.add("on");
   construitPalettePlan();
+  construitOngletsCartes();
   ajustePlanCv();
   majPanneauPlan();
   dessinePlan();
+}
+/* Charge dans l'éditeur le plan de la carte courante. Le plan du salon
+   fait foi ; à défaut le brouillon gardé sur cet appareil POUR CETTE
+   CARTE ; à défaut, pour la jungle, son plan gravé ; à défaut, une
+   carte vierge. */
+function chargeCarteDansEditeur(){
+  var dep = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
+  if(!dep && carteSpeciale(planCarteIdx)) dep = planJungle();
+  planZones = dep ? decodePlan(dep) : planVide();
+  planPile = [];
+  planApercuSale = true;
+}
+/* Passer d'une carte à l'autre sans quitter l'éditeur. C'est ce qui
+   permet de les COMPARER, et donc de vérifier qu'elles ont bien des
+   identités différentes. */
+function choisitCartePlan(i){
+  if(i === planCarteIdx) return;
+  var enCours = encodePlan(planZones);
+  var gardee = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
+  if(enCours !== gardee && zonesPeintes(planZones) &&
+     !confirm("La carte « " + CARTES[planCarteIdx].nom + " » a des modifications\n"
+            + "qui ne sont pas enregistrées. Les abandonner ?")) return;
+  planCarteIdx = i | 0;
+  chargeCarteDansEditeur();
+  construitOngletsCartes();
+  ajustePlanCv();
+  majPanneauPlan();
+  dessinePlan();
+}
+/* Les onglets des six cartes, en tête de l'éditeur. */
+function construitOngletsCartes(){
+  var e = $("planCartes");
+  if(!e) return;
+  var h = "";
+  for(var i = 0; i < CARTES.length; i++){
+    var edite = !!planCarte(planSalon, i);
+    h += '<div class="poc' + (i === planCarteIdx ? " on" : "")
+       + (carteSpeciale(i) ? " evt" : "") + '" data-carte="' + i + '">'
+       + echappe(CARTES[i].nom.replace(/^Mily /, ""))
+       + (edite ? '<i title="cette carte a son propre plan enregistré">●</i>' : "")
+       + '</div>';
+  }
+  e.innerHTML = h;
+  var els = e.querySelectorAll("[data-carte]");
+  for(var k = 0; k < els.length; k++){
+    els[k].addEventListener("click", function(){
+      choisitCartePlan(+this.getAttribute("data-carte"));
+    });
+  }
 }
 function fermePlan(){
   $("plan").classList.remove("on");
@@ -165,7 +250,10 @@ function planVersCase(sx, sy){
    image pendant qu'un doigt glisse. */
 function apercuPlan(){
   if(planApercuSale || !planApercu){
-    planApercu = genereCarte(CODE_SALON, 0, encodePlan(planZones), tirageSalon);
+    /* La carte ÉDITÉE, et pas la première : sans cet index, l'aperçu
+       montrait toujours la plage quelle que soit l'île choisie, et
+       comparer deux cartes devenait impossible. */
+    planApercu = genereCarte(CODE_SALON, planCarteIdx, encodePlan(planZones), planGraine);
     planApercuSale = false;
   }
   return planApercu;
@@ -176,10 +264,13 @@ function dessinePlan(){
   var c = planCtx, e = planEch, ox = planOx, oy = planOy;
   var m = apercuPlan();
 
-  c.fillStyle = "#0d1a14"; c.fillRect(0, 0, planCv.width, planCv.height);
-  /* le sol : terre, puis la plage de débarquement à l'est */
-  c.fillStyle = "#5c7a43"; c.fillRect(ox, oy, PLAGE_X0 * e, GH * e);
-  c.fillStyle = "#ddc697"; c.fillRect(ox + PLAGE_X0 * e, oy, (GW - PLAGE_X0) * e, GH * e);
+  /* Le fond prend les couleurs du BIOME de la carte éditée : c'est ce
+     qui permet de reconnaître d'un coup d'œil sur laquelle on
+     travaille, et de comparer deux identités sans se tromper. */
+  var bio = BIOMES[CARTES[planCarteIdx].biome] || BIOMES.plage;
+  c.fillStyle = bio.ciel; c.fillRect(0, 0, planCv.width, planCv.height);
+  c.fillStyle = bio.sol1; c.fillRect(ox, oy, PLAGE_X0 * e, GH * e);
+  c.fillStyle = bio.sable; c.fillRect(ox + PLAGE_X0 * e, oy, (GW - PLAGE_X0) * e, GH * e);
   /* la ceinture rocheuse, infranchissable */
   c.fillStyle = "rgba(58,52,68,.5)";
   c.fillRect(ox, oy, LARGEUR_ROCHE * e, GH * e);
@@ -345,7 +436,23 @@ function installePlan(){
     var e = ev.target.closest ? ev.target.closest("[data-dens]") : null;
     if(e) choisitDensitePlan(+e.getAttribute("data-dens"));
   });
-  $("btPlan").addEventListener("click", ouvrePlan);
+  /* L'ENTRÉE DE L'ADMINISTRATION. Elle est protégée : l'éditeur écrit
+     désormais le plan de six cartes, et une fausse manœuvre d'un
+     joueur de passage y coûterait beaucoup plus cher qu'avant. La
+     porte demande donc le mot de passe, et non plus seulement la
+     validation. */
+  $("btPlan").addEventListener("click", function(){
+    var mot = prompt("ADMINISTRATION DES MAPS\n\n"
+      + "Six cartes, chacune avec son plan indépendant.\n"
+      + "Tu peux les parcourir, les prévisualiser, les éditer.\n\n"
+      + "Mot de passe administrateur :");
+    if(mot === null) return;
+    if(!motAdminValide(mot)){
+      alert("Mot de passe incorrect.");
+      return;
+    }
+    ouvrePlan(carteSalon);
+  });
   $("btPlanFerme").addEventListener("click", fermePlan);
   $("btPlanAnnule").addEventListener("click", function(){
     if(!planPile.length) return;
@@ -369,21 +476,30 @@ function installePlan(){
           + "Peins au moins une zone, puis réessaie.");
       return;
     }
-    if(!gardePlanDefaut(ch)){
+    if(!gardePlanDefaut(ch, planCarteIdx)){
       alert("Impossible d'écrire dans ce navigateur (mode privé ?).");
       return;
     }
-    alert("Plan gardé comme brouillon par défaut sur cet appareil.\n\n"
-        + "Il te sera proposé à chaque ouverture de l'éditeur, tant que le\n"
-        + "salon n'a pas son propre plan. Ça ne change RIEN pour les autres\n"
-        + "joueurs — pour ça, il faut « Valider pour tout le salon ».");
+    alert("Brouillon de « " + CARTES[planCarteIdx].nom + " » gardé sur cet appareil.\n\n"
+        + "Il te sera reproposé à l'ouverture de l'éditeur tant que le salon\n"
+        + "n'a pas son propre plan pour CETTE carte. Ça ne change RIEN pour\n"
+        + "les autres cartes, ni pour les autres\n"
+        + "joueurs — pour ça, il faut « Enregistrer cette carte ».");
   });
-  $("btPlanOubli").addEventListener("click", function(){
-    if(!planDefaut()){ alert("Aucun plan par défaut gardé sur cet appareil."); return; }
-    if(!confirm("Oublier le plan par défaut de cet appareil ?")) return;
-    gardePlanDefaut("");
-    alert("Oublié.");
+  $("btPlanRegen").addEventListener("click", function(){
+    /* Une AUTRE réalisation du même plan. Les zones, les densités et
+       les proportions ne bougent pas — seule la graine change. C'est
+       exactement la distinction entre le modèle qu'on enregistre et la
+       partie qu'on en tire. */
+    planGraine = (planGraine + 1) % 1000;
+    planApercuSale = true;
+    dessinePlan(); majPanneauPlan();
+    message2("Variante n°" + planGraine + " du même plan. Les zones n'ont pas bougé.");
   });
+  $("btPlanRestaure").addEventListener("click", restaurePlanCarte);
+  $("btPlanRecule").addEventListener("click", reculePlanCarte);
+  $("btPlanDup").addEventListener("click", dupliquePlanCarte);
+  $("btPlanRaz").addEventListener("click", reinitialisePlanCarte);
   $("btPlanValide").addEventListener("click", validePlan);
   window.addEventListener("resize", function(){
     if($("plan").classList.contains("on")){ ajustePlanCv(); dessinePlan(); }
@@ -431,6 +547,7 @@ function majPanneauPlan(){
   var c = comptePlan(), s = [], t;
   for(t in c.par) s.push(c.par[t] + " " + DEF[t].nom.toLowerCase());
   s.sort(function(a, b){ return parseInt(b, 10) - parseInt(a, 10); });
+  $("planTitre").textContent = "Plan — " + CARTES[planCarteIdx].nom;
   $("planCompte").innerHTML =
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
@@ -466,23 +583,27 @@ function majPanneauPlan(){
 
 function validePlan(){
   var chaine = encodePlan(planZones);
-  if(chaine === planSalon){
-    alert("Ce plan est déjà celui du salon. Rien n'a changé.");
+  var nom = CARTES[planCarteIdx].nom;
+  if(chaine === planCarte(planSalon, planCarteIdx)){
+    alert("« " + nom + " » a déjà exactement ce plan. Rien n'a changé.");
     return;
   }
-  var mot = prompt("Mot de passe pour changer le plan du salon :");
+  var mot = prompt("Mot de passe pour enregistrer le plan de\n« " + nom + " » :");
   if(mot === null) return;
   if(!motAdminValide(mot)){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
-  if(!confirm("Appliquer ce plan À TOUT LE SALON ?\n\n"
-            + "• les défenses sont retirées au sort selon tes zones\n"
-            + "• l'île repart intacte, pour tout le monde\n"
+  if(!confirm("Enregistrer ce plan pour « " + nom + " » ?\n\n"
+            + "• cette carte seule est concernée — les cinq autres\n"
+            + "  gardent exactement le plan qu'elles ont\n"
+            + "• les défenses y sont retirées au sort selon tes zones\n"
+            + "• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;
 
-  enregistrePlan(chaine);
+  pousseHistoriquePlan(planCarteIdx, chaine);
+  enregistrePlanCarte(planCarteIdx, chaine);
   if(enJeu){
     nouvelleCarte(carteSalon);
     if(typeof construitFondMini === "function") construitFondMini();
@@ -490,8 +611,92 @@ function validePlan(){
   }
   majMondes();
   rafraichitPlan();
-  fermePlan();
-  alert("Plan appliqué. Tout le salon joue désormais cette carte.");
+  construitOngletsCartes();
+  majPanneauPlan();
+  alert("Plan de « " + nom + " » enregistré pour tout le salon.\n\n"
+      + "Les autres cartes n'ont pas bougé.");
+}
+
+/* --- LES BOUTONS DE SÉCURITÉ --- */
+/* Revenir à la dernière version enregistrée pour CETTE carte. */
+function restaurePlanCarte(){
+  var g = planCarte(planSalon, planCarteIdx);
+  var h = historiquePlan(planCarteIdx);
+  var src = g || (h.length ? h[0] : "");
+  if(!src){
+    alert("« " + CARTES[planCarteIdx].nom + " » n'a aucune version enregistrée.");
+    return;
+  }
+  planPile.push(planZones.slice());
+  planZones = decodePlan(src);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+}
+/* Reculer d'un cran dans les trois versions gardées. */
+function reculePlanCarte(){
+  var h = historiquePlan(planCarteIdx);
+  if(h.length < 2){
+    alert("Pas de version antérieure gardée pour cette carte.\n\n"
+        + "L'historique retient les " + VERSIONS_GARDEES + " derniers enregistrements,\n"
+        + "et il n'y en a " + (h.length ? "qu'un" : "aucun") + " pour l'instant.");
+    return;
+  }
+  var i = h.indexOf(encodePlan(planZones));
+  var suiv = (i >= 0 && i + 1 < h.length) ? i + 1 : 1;
+  planPile.push(planZones.slice());
+  planZones = decodePlan(h[suiv]);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+  message2("Version " + (suiv + 1) + " sur " + h.length + " — la plus ancienne gardée est la n°" + h.length);
+}
+/* Rendre CETTE carte à sa génération d'origine. */
+function reinitialisePlanCarte(){
+  var nom = CARTES[planCarteIdx].nom;
+  if(!confirm("RÉINITIALISER « " + nom + " » ?\n\n"
+            + "Son plan est effacé et elle retrouve sa carte d'origine.\n"
+            + "Les cinq autres ne sont pas touchées.\n\n"
+            + "Cette action est définitive pour le salon.")) return;
+  var mot = prompt("Mot de passe pour réinitialiser « " + nom + " » :");
+  if(mot === null) return;
+  if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a été touché."); return; }
+  enregistrePlanCarte(planCarteIdx, "");
+  planZones = carteSpeciale(planCarteIdx) ? decodePlan(planJungle()) : planVide();
+  planPile = [];
+  planApercuSale = true;
+  majMondes(); rafraichitPlan(); construitOngletsCartes();
+  dessinePlan(); majPanneauPlan();
+  alert("« " + nom + " » est revenue à sa carte d'origine.");
+}
+/* Copier le plan d'une autre carte sur celle-ci. */
+function dupliquePlanCarte(){
+  var l = [], i;
+  for(i = 0; i < CARTES.length; i++){
+    if(i === planCarteIdx) continue;
+    if(!planCarte(planSalon, i)) continue;
+    l.push(i + " = " + CARTES[i].nom);
+  }
+  if(!l.length){
+    alert("Aucune autre carte n'a de plan enregistré à copier.");
+    return;
+  }
+  var rep = prompt("Copier le plan d'une autre carte SUR « "
+    + CARTES[planCarteIdx].nom + " » ?\n\n" + l.join("\n")
+    + "\n\nEntre le numéro de la carte à copier :");
+  if(rep === null) return;
+  var src = parseInt(rep, 10);
+  var ch = planCarte(planSalon, src);
+  if(!ch){ alert("Cette carte n'a pas de plan enregistré."); return; }
+  planPile.push(planZones.slice());
+  planZones = decodePlan(ch);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+  message2("Plan de « " + CARTES[src].nom + " » copié. Il reste à l'enregistrer.");
+}
+/* Un mot dans le bandeau d'avertissement de l'éditeur : plus discret
+   qu'une fenêtre, et il disparaît au prochain rafraîchissement. */
+function message2(s){
+  var e = $("planAvert");
+  if(e) e.textContent = s;
 }
 
 /* Le résumé du briefing, rafraîchi quand le plan change — ici ou
@@ -499,19 +704,28 @@ function validePlan(){
 function rafraichitPlan(){
   var e = $("planResume");
   if(!e) return;
-  if(!planSalon){
-    e.textContent = "Défenses d'origine — la carte que tout le monde connaît.";
+  var t = decodePlans(planSalon), l = [], i, k;
+  for(i = 0; i < CARTES.length; i++){
+    if(!t[i]) continue;
+    var z = decodePlan(t[i]), n = zonesPeintes(z), par = {}, j;
+    for(j = 0; j < NB_ZONES; j++){
+      var ty = zoneType(z[j]);
+      if(ty) par[TYPES_PLAN[ty]] = (par[TYPES_PLAN[ty]] || 0) + 1;
+      if(zoneChamp(z[j])) par.cellule = (par.cellule || 0) + 1;
+    }
+    var noms = [];
+    for(k in par) noms.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
+    l.push("<b>" + echappe(CARTES[i].nom) + "</b> — " + n + " zone"
+         + (n > 1 ? "s" : "") + " : " + (noms.length ? noms.join(", ") : "gommées"));
+  }
+  if(!l.length){
+    e.textContent = "Chaque carte a ses défenses d'origine. Aucune n'a encore été dessinée.";
     return;
   }
-  var z = decodePlan(planSalon), n = zonesPeintes(z), par = {}, i;
-  for(i = 0; i < NB_ZONES; i++){
-    var t = zoneType(z[i]);
-    if(t) par[TYPES_PLAN[t]] = (par[TYPES_PLAN[t]] || 0) + 1;
-    if(zoneChamp(z[i])) par.cellule = (par.cellule || 0) + 1;
-  }
-  var s = [];
-  for(var k in par) s.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
-  e.textContent = n + " zone" + (n > 1 ? "s" : "") + " peinte" + (n > 1 ? "s" : "")
-    + " sur " + NB_ZONES + " — " + (s.length ? s.join(", ") : "gommées")
-    + ". Tirage n°" + tirageSalon + ".";
+  /* On liste CARTE PAR CARTE. Un résumé global ne dirait plus rien
+     depuis que chacune a son plan — et c'est précisément l'ancienne
+     confusion qu'on vient de corriger. */
+  e.innerHTML = l.join("<br>") + "<br><span style=\"color:#8f86a0\">Les "
+    + (CARTES.length - l.length) + " autres gardent leur carte d'origine. Tirage n°"
+    + tirageSalon + ".</span>";
 }

@@ -185,6 +185,27 @@ select.champ{cursor:pointer}
 }
 #hud.apercu #bandeauApercu{display:block}
 
+/* ---- LES ONGLETS DE CARTES DE L'ÉDITEUR ----
+   Six onglets qui défilent horizontalement : sur une tablette tenue en
+   portrait, ils ne tiennent pas sur une ligne, et les empiler mangerait
+   la place du plan. Le défilement au doigt est la seule réponse qui
+   garde le plan aussi grand que possible. */
+#planCartes{
+  display:flex;gap:5px;padding:6px 10px;overflow-x:auto;flex:0 0 auto;
+  border-bottom:1px solid rgba(255,255,255,.08);-webkit-overflow-scrolling:touch;
+}
+#planCartes::-webkit-scrollbar{height:0}
+.poc{
+  flex:0 0 auto;padding:7px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;
+  font:700 12px/1 'Trebuchet MS','Segoe UI',sans-serif;color:#b9abc6;
+  background:#1d1229;border:1px solid rgba(255,255,255,.10);
+}
+.poc i{font-style:normal;color:var(--braise);margin-left:5px;font-size:9px}
+.poc.on{color:#fff;border-color:var(--braise);background:linear-gradient(180deg,#4a2a12,#2a1608)}
+.poc.evt{color:#8ff0b4;border-color:rgba(90,220,140,.3)}
+.poc.evt.on{color:#bfffd6;border-color:#5adc8c;background:linear-gradient(180deg,#0d3a22,#06180e)}
+.bt.danger{color:#ffb0a2;border-color:rgba(230,80,60,.4)}
+
 /* cartes du monde */
 .mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .monde{
@@ -620,7 +641,7 @@ select.champ{cursor:pointer}
       <h2>Plan de défense</h2>
       <div id="planResume">Défenses d'origine — la carte que tout le monde connaît.</div>
       <div class="ligne" style="margin-top:8px">
-        <button id="btPlan" class="bt">🗺 Voir la carte de haut</button>
+        <button id="btPlan" class="bt">🗺 Administration des maps</button>
       </div>
     </div>
 
@@ -647,6 +668,9 @@ select.champ{cursor:pointer}
     <div id="planTitre">Plan de défense</div>
     <button id="btPlanFerme" class="bt ptt">✕ Fermer</button>
   </div>
+  <!-- Les six cartes, en onglets : c'est ici qu'on passe de l'une à
+       l'autre pour COMPARER leurs identités. -->
+  <div id="planCartes"></div>
   <div id="planCorps">
     <div id="planScene"><canvas id="planCv"></canvas></div>
     <div id="planOutils">
@@ -657,13 +681,21 @@ select.champ{cursor:pointer}
       <div id="planCompte"></div>
       <div class="ligne">
         <button id="btPlanAnnule" class="bt ptt">↶ Annuler</button>
-        <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
+        <button id="btPlanRegen" class="bt ptt" title="Une autre réalisation du MÊME plan : mêmes zones, mêmes proportions, autres positions">🎲 Régénérer</button>
       </div>
       <div class="ligne">
-        <button id="btPlanDefaut" class="bt ptt">★ Garder par défaut</button>
-        <button id="btPlanOubli" class="bt ptt">Oublier</button>
+        <button id="btPlanRestaure" class="bt ptt" title="Revenir à la dernière version enregistrée de cette carte">↺ Version enregistrée</button>
+        <button id="btPlanRecule" class="bt ptt" title="Reculer d'un cran dans les trois dernières versions">◀ Antérieure</button>
       </div>
-      <button id="btPlanValide" class="bt pri">Valider pour tout le salon</button>
+      <div class="ligne">
+        <button id="btPlanDefaut" class="bt ptt">★ Brouillon</button>
+        <button id="btPlanDup" class="bt ptt" title="Copier ici le plan d'une autre carte">⧉ Copier d'une autre</button>
+      </div>
+      <div class="ligne">
+        <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
+        <button id="btPlanRaz" class="bt ptt danger" title="Efface le plan de CETTE carte pour tout le salon">⌫ Réinitialiser</button>
+      </div>
+      <button id="btPlanValide" class="bt pri">Enregistrer cette carte</button>
       <div id="planAvert"></div>
     </div>
   </div>
@@ -2399,11 +2431,75 @@ function planJungle(){
   planJungleCache = encodePlan(z);
   return planJungleCache;
 }
+/* ----------------------------------------------------------------
+   UN PLAN PAR CARTE
+
+   LE DÉFAUT QUE CECI CORRIGE. Le salon ne portait qu'UNE chaîne de
+   plan, et genereCarte la recevait quel que soit l'index de l'île.
+   Peindre la plage repeignait donc aussi la forêt, la campagne, la
+   soirée hippie et le Sud — mesuré : un plan « Frelon saturé » sur la
+   moitié gauche donnait 377, 393, 379, 390 et 384 Frelons sur les cinq
+   cartes. Les cinq îles n'avaient pas d'identité : elles avaient le
+   même plan sous cinq décors.
+
+   LE PAQUET. Une seule chaîne porte désormais tous les plans, indexés
+   par carte : « 0:~AAA|3:~BBB ». Seules les cartes réellement éditées
+   y figurent, donc une campagne où l'on n'a touché qu'à la plage ne
+   coûte pas plus qu'avant. Les deux séparateurs sont sûrs : l'alphabet
+   d'encodeBits ne contient ni « : » ni « | », et la marque de version
+   des plans est « ~ ».
+
+   LA COMPATIBILITÉ. Un ancien plan global — une chaîne sans « : » —
+   est relu comme le plan de la CARTE 0. C'est la lecture la moins
+   surprenante : le joueur qui avait peint son plan pensait peindre la
+   première île, et c'est ce qu'il obtient. Les quatre autres
+   retrouvent leur carte d'origine du même coup.
+   ---------------------------------------------------------------- */
+function encodePlans(tab){
+  var l = [], k;
+  for(k in tab){
+    var s = tab[k];
+    if(!s || typeof s !== "string") continue;
+    l.push((k | 0) + ":" + s);
+  }
+  /* tri par index : deux clients au même état doivent produire
+     exactement la même chaîne, sinon ils se republieraient l'un
+     l'autre sans fin */
+  l.sort(function(a, b){ return parseInt(a, 10) - parseInt(b, 10); });
+  return l.join("|");
+}
+function decodePlans(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  /* Un ancien plan global n'a pas de « index: » en tête. On le rend à
+     la carte 0, celle que son auteur croyait peindre. */
+  if(s.indexOf(":") < 0){ out[0] = s; return out; }
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var j = p[i].indexOf(":");
+    if(j <= 0) continue;
+    var idx = parseInt(p[i].substr(0, j), 10);
+    var ch = p[i].substr(j + 1);
+    if(!(idx >= 0) || !ch) continue;
+    out[idx] = ch;
+  }
+  return out;
+}
+/* Le plan d'UNE carte, tiré du paquet du salon. */
+function planCarte(paquet, index){
+  var t = decodePlans(paquet);
+  return t[index] || "";
+}
 /* Le plan que joue une carte donnée : le sien s'il est gravé (la
-   jungle), celui du salon sinon. Un seul endroit décide. */
-function planDeCarte(index, planSalon){
-  if(CARTES[index] && CARTES[index].biome === "jungle") return planJungle();
-  return planSalon;
+   jungle), le sien dans le paquet du salon sinon. Un seul endroit
+   décide, et il ne regarde plus JAMAIS le plan d'une autre île. */
+function planDeCarte(index, paquetSalon){
+  if(CARTES[index] && CARTES[index].biome === "jungle"){
+    /* La jungle porte un plan gravé, mais il reste éditable : un plan
+       enregistré pour elle l'emporte sur celui du code. */
+    return planCarte(paquetSalon, index) || planJungle();
+  }
+  return planCarte(paquetSalon, index);
 }
 
 function mondeVide(index, pvMax, cycle){
@@ -6824,12 +6920,38 @@ var FAUNE_JUNGLE = ["singe", "panda", "koala", "bourdon", "papillon", "luciole"]
 
 /* Singe. Doré franc — la seule chose chaude et saturée qui bouge au
    sol. Le premier essai était brun-olive « réaliste » : sur la terre de
-   jungle, il disparaissait aussi bien qu'un caillou. */
+   jungle, il disparaissait aussi bien qu'un caillou.
+
+   TROIS ROBES, ajoutées après coup et pour une raison mesurée : à
+   quatre-vingts singes semés, dix voisins de la même couleur se
+   lisaient comme dix décalques. Elles ne sont pas trois nuances de
+   doré — ce serait ne rien changer à dix pas — mais TROIS VALEURS :
+   le doré du milieu, un roux nettement plus sombre, et un vieux mâle
+   argenté qui monte plus haut que tout le reste de la carte. C'est
+   exactement le raisonnement des trois chats de Mily, et c'est le seul
+   qui survive au dézoom.
+   PAL_SINGE reste la robe dorée : c'est elle que le reste du fichier
+   nomme, et elle n'a pas bougé d'un point. */
 var PAL_SINGE = {
   dos:"#c89453", flanc:"#9d7038", ventreO:"#6b4c28", cape:"#4a3520",
   face:"#f4d7ae", faceO:"#cfa87c", museau:"#fbecd2",
   main:"#3b2a1a", nez:"#7a4c39", chair:"#cd8d74", dents:"#f6f0e2"
 };
+var PAL_SINGE_ROBES = [
+  PAL_SINGE,
+  { /* 1 — roux sombre. Le seul du lot qui joue contre le fond plutôt
+       qu'avec : sa face claire fait alors tout le travail, ce qui est
+       exactement pourquoi elle est encore plus pâle que celle du doré. */
+    dos:"#b06a34", flanc:"#8a4e22", ventreO:"#5a3316", cape:"#3a2413",
+    face:"#eec39a", faceO:"#c1926a", museau:"#f9e2c2",
+    main:"#33210f", nez:"#6d3f2c", chair:"#c47a62", dents:"#f6f0e2" },
+  { /* 2 — vieux mâle argenté. Valeur haute, saturation presque nulle :
+       posé au milieu de deux dorés, on le prend tout de suite pour un
+       autre animal, ce qui est précisément le but. */
+    dos:"#cec4a8", flanc:"#a3987d", ventreO:"#6f6754", cape:"#4b4638",
+    face:"#f8eeda", faceO:"#cfc4ac", museau:"#fefaf0",
+    main:"#3a352c", nez:"#7d5a4b", chair:"#c69a8c", dents:"#f6f0e2" }
+];
 
 /* Panda. Le blanc n'est pas blanc : tiré vers le crème, sinon il fait
    un trou dans l'image. Et le noir n'est pas noir : #231f28 garde un
@@ -6852,6 +6974,29 @@ var PAL_KOALA = {
   touffe:"#f6f6f4", touffeO:"#c3c8cf",
   nez:"#2b262e", nezC:"#544c58", griffe:"#2e2930", face:"#c8ced6"
 };
+/* Trois robes, pour la même raison que chez le singe : à cinquante-cinq
+   koalas posés au pied des troncs, tous du même gris, on ne voyait plus
+   qu'un motif. Elles restent toutes FROIDES — c'est la seule espèce
+   froide du bestiaire et c'est ce qui l'empêche d'être prise pour un
+   singe — mais elles s'étagent franchement en valeur : le gris bleuté
+   du milieu, un gris-brun plus sombre, et un koala presque blanc.
+   Le nez reste noir dans les trois : c'est la moitié de sa
+   reconnaissance, il n'y a rien à y varier. */
+var PAL_KOALA_ROBES = [
+  PAL_KOALA,
+  { /* 1 — gris brun, le plus sombre. Contre un tronc il disparaîtrait
+       sans son plastron, qui est donc le plus contrasté des trois. */
+    dos:"#9a8f7e", flanc:"#7b7161", ombre:"#565042",
+    ventre:"#f4eee0", ventreO:"#ccc4b2",
+    touffe:"#faf6ea", touffeO:"#c9c2b0",
+    nez:"#2b2620", nezC:"#544c44", griffe:"#2e2924", face:"#cec5b4" },
+  { /* 2 — presque blanc. Le plus visible du lot, et de loin : c'est
+       lui qu'on repère en premier dans une rangée de troncs. */
+    dos:"#c8cfd9", flanc:"#a7aeba", ombre:"#7d8490",
+    ventre:"#fbfdff", ventreO:"#d8dee6",
+    touffe:"#ffffff", touffeO:"#d6dae0",
+    nez:"#2b262e", nezC:"#5b535f", griffe:"#332e36", face:"#e2e7ee" }
+];
 
 /* Bourdon. Le jaune est mis très haut et le noir très bas : à 9 unités
    il ne reste que le rythme des bandes, et c'est ce rythme-là qui dit
@@ -6900,6 +7045,27 @@ function fauneFenetre(tps, ph, periode, duree){
   var p = (tps + ph * 3.71) % periode;
   if(p < 0 || p > duree) return 0;
   return Math.sin(p / duree * 3.1416);
+}
+
+/* ---- HACHÉ D'INDIVIDU -------------------------------------------
+   « Je ne vois pas encore assez d'animaux. » Le poseur a triplé les
+   effectifs ; à trente bêtes d'une même espèce à l'écran, ce qui
+   manque n'est plus le nombre, c'est que deux voisines cessent de se
+   lire comme deux tirages du même dessin. D'où ce tirage, dont se
+   servent maintenant le singe, le panda, le koala et le cochon d'Inde
+   pour choisir leur taille, leur robe et leur silhouette.
+
+   Il part de k.n, l'indice dans la liste des créatures. Le semis pose
+   les bêtes PAR GROUPES : les n d'une même grappe se suivent donc, et
+   un simple n % 3 les aurait rangées en file indienne de motifs — roux,
+   noir, tricolore, roux, noir, tricolore. Le sinus haché casse la
+   suite, et reste évidemment reproductible d'une image à l'autre et
+   d'une machine à l'autre.
+   « sel » sépare les tirages : un même individu doit pouvoir tirer sa
+   taille et son motif sans que l'un dicte l'autre. */
+function fauneTirage(n, sel){
+  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
+  return a - Math.floor(a);
 }
 
 /* ---- SURSAUT ----------------------------------------------------
@@ -7057,8 +7223,16 @@ function singeVentre(c){
   c.quadraticCurveTo(-5.2, -7.3, -6.2, -9.0);
 }
 function dessineSinge(c, k, tps){
-  var P = PAL_SINGE;
-  var ph = k.ph || 0, pas = k.phase || 0;
+  /* La robe et la taille sont des propriétés de L'INDIVIDU, pas de
+     l'instant : elles se tirent de k.teinte (que le semis pose déjà en
+     0, 1 ou 2) et de k.n, et ne changent jamais en cours de partie. */
+  var robe = k.teinte | 0; if(robe > 2 || robe < 0) robe = 0;
+  var P = PAL_SINGE_ROBES[robe];
+  var ph = k.ph || 0, pas = k.phase || 0, n = k.n || 0;
+  /* Un jeune fait les quatre cinquièmes d'un adulte. Vingt pour cent
+     d'écart, c'est peu à la loupe et énorme dans une bande : c'est ce
+     qui transforme huit exemplaires alignés en une troupe. */
+  var ech = 0.88 + fauneTirage(n, 11) * 0.22;
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var bond = Math.abs(Math.sin(pas));
@@ -7073,6 +7247,8 @@ function dessineSinge(c, k, tps){
      croire à un animal et pas à un pion qui glisse. */
   var gratte = alerte ? 0 : fauneFenetre(tps, ph, 6.3, 0.9);
 
+  c.save();
+  c.scale(ech, ech);
   ombreFaune(c, 0.8, 9.2, 3.2, bond, 0.26);
 
   c.save();
@@ -7090,12 +7266,20 @@ function dessineSinge(c, k, tps){
      singe qui court ne porte pas sa queue en crosse, et cette bascule
      se lit d'un seul coup d'œil même sans voir les pattes. */
   var onde = fuit ? 0 : Math.sin(tps * 1.35 + ph) * 2.2;
+  /* LA HAUTEUR DE LA CROSSE change d'un singe à l'autre. C'est le
+     contour le plus visible de la bête — celui qu'on reconnaît quand
+     il ne reste que quinze pixels — donc le varier suffit à ce que
+     deux voisins ne se lisent plus comme deux tirages du même dessin,
+     même à robe égale. Deux unités d'écart, pas plus : au-delà, la
+     queue cessait d'être une crosse de macaque pour devenir un point
+     d'interrogation, et on perdait la signature au lieu de la varier. */
+  var cro = fauneTirage(n, 21) * 4.0 - 2.0;
   var q = fuit
     ? [[-6.4, -10.0, -13.6, -11.8, -19.4, -13.8],
        [-19.4, -13.8, -24.0, -15.4, -26.4, -17.6]]
-    : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4],
-       [-13.2 + onde * 0.6, -18.4, -13.8 + onde * 1.0, -23.4, -8.2 + onde * 1.3, -24.2],
-       [-8.2 + onde * 1.3, -24.2, -4.6 + onde * 1.5, -24.6, -5.4 + onde * 1.6, -21.2]];
+    : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4 - cro * 0.5],
+       [-13.2 + onde * 0.6, -18.4 - cro * 0.5, -13.8 + onde * 1.0, -23.4 - cro, -8.2 + onde * 1.3, -24.2 - cro],
+       [-8.2 + onde * 1.3, -24.2 - cro, -4.6 + onde * 1.5, -24.6 - cro, -5.4 + onde * 1.6, -21.2 - cro * 0.8]];
   /* Le compte de disques est calculé, pas écrit : posé à quatorze sur
      un tracé de trente-cinq unités, la queue sortait en collier de
      perles. */
@@ -7107,11 +7291,13 @@ function dessineSinge(c, k, tps){
   membreFaune(c, 4.8, -12.2, 4.0, -6.8, 4.2 - ec, -1.0, 1.7, 1.05, P.ventreO, P.main, 1.5);
 
   /* ---- le torse ---- */
-  c.fillStyle = degCache(c, "singeTorse", function(){
+  /* Un dégradé par ROBE, pas un par singe : trois CanvasGradient en
+     tout et pour tout, gravés à la première image. */
+  c.fillStyle = degCache(c, "singeTorse" + robe, function(){
     var g = c.createLinearGradient(0, -17.2, 0, -5.4);
-    g.addColorStop(0, PAL_SINGE.dos);
-    g.addColorStop(0.52, PAL_SINGE.flanc);
-    g.addColorStop(1, PAL_SINGE.ventreO);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.52, P.flanc);
+    g.addColorStop(1, P.ventreO);
     return g;
   });
   singeTorse(c, d); c.fill();
@@ -7121,8 +7307,11 @@ function dessineSinge(c, k, tps){
      flanc et le singe prenait un air de poney. */
   c.save();
   singeTorse(c, d); c.clip();
-  c.fillStyle = "rgba(74,53,32,.30)";
+  /* La cape prend la couleur de la robe : posée en brun fixe, elle
+     plantait une tache chaude sur l'épaule du vieux mâle argenté. */
+  c.globalAlpha = 0.30; c.fillStyle = P.cape;
   c.beginPath(); c.ellipse(5.2, -14.8 - d, 5.2, 3.2, -0.22, 0, 6.2832); c.fill();
+  c.globalAlpha = 1;
   /* Le ventre crème est venu et reparti : même en bande fine, posé au
      milieu du flanc, il se lisait comme un hublot pâle collé sur la
      bête. Le dégradé du tronc suffit — le ventre s'éclaircit tout seul
@@ -7249,6 +7438,7 @@ function dessineSinge(c, k, tps){
 
   c.restore();
   c.restore();
+  c.restore();
 }
 
 /* ================================================================
@@ -7295,11 +7485,28 @@ function pandaVentre(c){
   c.quadraticCurveTo(-9.4, -8.1, -11.4, -10.6);
 }
 
+/* LES TROIS MASQUES. Un panda ne peut pas changer de couleur — c'est
+   toute sa définition — donc la seule chose qu'on puisse varier d'un
+   individu à l'autre, c'est la FORME de ses taches oculaires. Chez les
+   vrais, elle sépare les individus mieux que n'importe quoi d'autre, et
+   ici elle tombe pile à l'endroit où l'œil du joueur va : le visage.
+   Trois familles bien séparées, tirées de k.teinte que le semis pose
+   déjà — la goutte inclinée d'origine, une tache large et ronde qui
+   donne l'air ahuri, une tache étroite qui tombe sur la joue et donne
+   l'air renfrogné. Coût : zéro tracé de plus.
+   [ rxG, ryG, rotG, dyG, rxD, ryD, rotD, dyD ] */
+var MASQUES_PANDA = [
+  [2.0, 2.7, -0.44, -0.9,  2.1, 2.8,  0.40, -0.7],
+  [2.5, 2.3, -0.15, -0.7,  2.6, 2.4,  0.12, -0.5],
+  [1.7, 3.0, -0.74, -0.4,  1.8, 3.1,  0.70, -0.2]
+];
+
 /* La tête, commune aux deux poses : on la place, on l'oriente, et elle
    se dessine pareil. Le seul paramètre de jeu est « mach », l'ouverture
    de mâchoire, qui ne sert qu'assis.
-   « pl » plaque les oreilles (fuite, sursaut), « lacet » tourne. */
-function panda_tete(c, lacet, ouv, mach, pl, tire_langue){
+   « pl » plaque les oreilles (fuite, sursaut), « lacet » tourne,
+   « masque » choisit la forme des taches oculaires. */
+function panda_tete(c, lacet, ouv, mach, pl, tire_langue, masque){
   var P = PAL_PANDA;
   /* Oreilles : deux disques noirs BIEN détachés du crâne. Collées,
      elles fondaient dans la tache oculaire et le panda perdait sa
@@ -7323,15 +7530,16 @@ function panda_tete(c, lacet, ouv, mach, pl, tire_langue){
      plus grandes que ce qu'un panda a vraiment — parce que c'est le
      seul dessin de la tête qui survive au dézoom, et parce qu'elles
      donnent les deux points sombres sur fond clair. */
+  var M = MASQUES_PANDA[masque | 0] || MASQUES_PANDA[0];
   c.save();
   c.translate(lacet * 2.0, 0);
   c.fillStyle = P.noirO;
-  c.save(); c.translate(-2.4, -0.9); c.rotate(-0.44);
-  c.beginPath(); c.ellipse(0, 0, 2.0, 2.7, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(-2.4, M[3]); c.rotate(M[2]);
+  c.beginPath(); c.ellipse(0, 0, M[0], M[1], 0, 0, 6.2832); c.fill();
   c.restore();
   c.fillStyle = P.noir;
-  c.save(); c.translate(2.5, -0.7); c.rotate(0.40);
-  c.beginPath(); c.ellipse(0, 0, 2.1, 2.8, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(2.5, M[7]); c.rotate(M[6]);
+  c.beginPath(); c.ellipse(0, 0, M[4], M[5], 0, 0, 6.2832); c.fill();
   c.restore();
   /* les yeux DANS les taches : sans le petit rond clair autour, la
      bille noire disparaissait purement et simplement dans la tache */
@@ -7435,7 +7643,11 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
   /* La mastication par salves : cinq coups de mâchoire serrés, puis
      deux secondes à regarder ailleurs. Une mâchoire qui bat sans arrêt
      donne un automate ; c'est la PAUSE qui fait le panda. */
-  var cyc = (tps * 0.42 + ph * 0.27) % 1;
+  /* Le n entre dans le cycle de mastication en plus de la phase : deux
+     pandas assis côte à côte avaient des ph voisins (le semis les pose
+     en groupe, donc à indices qui se suivent) et mâchaient presque en
+     chœur — ce qui est exactement ce que le préambule interdit. */
+  var cyc = (tps * 0.42 + ph * 0.27 + fauneTirage(k.n || 0, 31)) % 1;
   var croque = cyc < 0.62 ? 1 : 0;
   var mach = alerte ? 0 : croque * (0.5 + 0.5 * Math.sin(tps * 11.5 + ph * 2)) * 0.9;
   var resp = Math.sin(tps * 1.15 + ph) * 0.45;
@@ -7526,7 +7738,7 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
      plus l'air de la même espèce. */
   c.translate(4.4 + serre * 0.4, -21.8 + mach * 0.5 + serre * 1.2);
   c.rotate(0.14 + mach * 0.05 + serre * 0.12);
-  panda_tete(c, lacet, ouv, mach, serre, 0);
+  panda_tete(c, lacet, ouv, mach, serre, 0, k.teinte);
   c.restore();
 
   c.restore();
@@ -7606,7 +7818,7 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   c.save();
   c.translate(15.2 + (fuit ? 1.6 : 0), -20.4 + (fuit ? 2.6 : 0) + sur * 1.6);
   c.rotate((fuit ? 0.2 : Math.sin(tps * 0.44 + ph * 1.5) * 0.05) + roule * 0.5);
-  panda_tete(c, lacet, ouv, fuit ? 0.55 : 0, alerte ? 1 : 0, fuit ? 1 : 0);
+  panda_tete(c, lacet, ouv, fuit ? 0.55 : 0, alerte ? 1 : 0, fuit ? 1 : 0, k.teinte);
   c.restore();
 
   c.restore();
@@ -7616,8 +7828,19 @@ function dessinePanda(c, k, tps){
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var alerte = fuit || sur > 0.15;
+  /* DES JEUNES PARMI LES ADULTES. C'est le seul levier de variété qui
+     reste à un animal dont la robe est sa définition — et c'est le plus
+     fort des trois espèces : un panda aux quatre cinquièmes de la
+     taille, assis au milieu de trois grands, ne se lit pas comme « le
+     même dessin en plus petit », il se lit comme un petit. L'écart va
+     jusqu'à un cinquième, ce qui, à cent dix pandas semés en groupes,
+     suffit à faire des familles. */
+  var ech = 0.80 + fauneTirage(k.n || 0, 17) * 0.28;
+  c.save();
+  c.scale(ech, ech);
   if(k.assis) panda_assis(c, k, tps, sur, alerte, fuit);
   else panda_debout(c, k, tps, sur, alerte, fuit);
+  c.restore();
 }
 
 /* ================================================================
@@ -7667,8 +7890,13 @@ function koala_oreille(c, x, y, r, ext, poil, ang){
   c.restore();
 }
 function dessineKoala(c, k, tps){
-  var P = PAL_KOALA;
-  var ph = k.ph || 0;
+  var robe = k.teinte | 0; if(robe > 2 || robe < 0) robe = 0;
+  var P = PAL_KOALA_ROBES[robe];
+  var ph = k.ph || 0, n = k.n || 0;
+  /* Les koalas sont posés au pied des troncs, souvent deux ou trois
+     ensemble : un jeune à côté d'un adulte raconte une scène là où
+     deux adultes identiques ne racontent rien. */
+  var ech = 0.86 + fauneTirage(n, 13) * 0.24;
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var alerte = fuit || sur > 0.15;
@@ -7684,6 +7912,8 @@ function dessineKoala(c, k, tps){
   var lacet = alerte ? -0.2 : Math.sin(tps * 0.36 + ph * 1.1) * 0.3;
   var tremble = fuit ? Math.sin(tps * 13 + ph) * 0.5 : 0;
 
+  c.save();
+  c.scale(ech, ech);
   ombreFaune(c, 0.4, 8.0, 3.0, 0, 0.28);
 
   c.save();
@@ -7694,11 +7924,11 @@ function dessineKoala(c, k, tps){
   membreFaune(c, -3.2, -8.0 - dresse * 3.4, -5.4, -4.6, -4.0, -0.8, 2.0, 1.6, P.ombre, P.griffe, 1.8);
 
   /* le corps */
-  c.fillStyle = degCache(c, "koalaTorse", function(){
+  c.fillStyle = degCache(c, "koalaTorse" + robe, function(){
     var g = c.createLinearGradient(0, -16, 0, -1);
-    g.addColorStop(0, PAL_KOALA.dos);
-    g.addColorStop(0.55, PAL_KOALA.flanc);
-    g.addColorStop(1, PAL_KOALA.ombre);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.55, P.flanc);
+    g.addColorStop(1, P.ombre);
     return g;
   });
   koalaTorse(c, resp, dresse); c.fill();
@@ -7746,11 +7976,11 @@ function dessineKoala(c, k, tps){
                 3.2, P.dos, P.touffe, 0.5);
 
   /* crâne */
-  c.fillStyle = degCache(c, "koalaCrane", function(){
+  c.fillStyle = degCache(c, "koalaCrane" + robe, function(){
     var g = c.createRadialGradient(-1.4, -2.6, 0.6, 0.4, 0, 6.2);
-    g.addColorStop(0, PAL_KOALA.dos);
-    g.addColorStop(0.7, PAL_KOALA.flanc);
-    g.addColorStop(1, PAL_KOALA.ombre);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.7, P.flanc);
+    g.addColorStop(1, P.ombre);
     return g;
   });
   c.beginPath(); c.ellipse(0.6, 0, 4.7, 4.5, 0, 0, 6.2832); c.fill();
@@ -7788,6 +8018,7 @@ function dessineKoala(c, k, tps){
   oeilFaune(c, -1.7 + lacet * 2.0, -1.0, 1.05 * lo, ouv, "rgba(246,244,240,.55)", lacet);
   oeilFaune(c, 3.0 + lacet * 1.7, -1.3, 1.15, ouv, "rgba(246,244,240,.6)", lacet);
 
+  c.restore();
   c.restore();
   c.restore();
 }
@@ -8169,16 +8400,6 @@ var PAL_COCHON = [
     nez:"#c48d84", patte:"#c6bdad", cerne:"rgba(248,242,230,.68)" }
 ];
 
-/* Haché d'individu. Le semis pose k.n = l'indice dans la liste des
-   créatures : deux bêtes d'une même grappe ont donc des n qui SE
-   SUIVENT, et un simple n % 4 les aurait rangées en file indienne de
-   motifs. Un sinus haché casse la suite, et reste évidemment
-   reproductible d'une image à l'autre. */
-function cochonTirage(n, sel){
-  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
-  return a - Math.floor(a);
-}
-
 /* ---- LA DÉMARCHE -------------------------------------------------
    Le cœur de la bête. Un cochon d'Inde ne se déplace pas d'un point à
    un autre : il reste planté, puis il RUE pendant trois dixièmes de
@@ -8205,7 +8426,7 @@ function courseCochon(tps, ph, n, fuit){
      occupe presque tout : il ne reste qu'un souffle entre deux ruées. */
   var seg = tps * (fuit ? 1.85 : 0.78) + ph * 0.61;
   var i = Math.floor(seg), u = seg - i;
-  var d = cochonTirage(i, n);
+  var d = fauneTirage(i, n);
   var pop = (!fuit && d > 0.83) ? 1 : 0;
   var dur = pop ? 0.30 : (fuit ? 0.66 + d * 0.22 : 0.17 + d * 0.23);
   var elan = 0, saut = 0;
@@ -8326,8 +8547,8 @@ function dessineCochon(c, k, tps){
   /* La taille : de 0,86 à 1,08. Une grappe de six bêtes du même gabarit
      reste un motif imprimé, quelles que soient les robes ; deux jeunes
      au milieu de quatre adultes, et c'est une portée. */
-  var ech = 0.86 + cochonTirage(n, 3) * 0.22;
-  var motif = (cochonTirage(n, 1) * 4) | 0;
+  var ech = 0.86 + fauneTirage(n, 3) * 0.22;
+  var motif = (fauneTirage(n, 1) * 4) | 0;
 
   /* Le reniflement. Un cochon d'Inde à l'arrêt n'est jamais tout à fait
      immobile : le nez bat à sept coups par seconde, et RIEN d'autre ne
@@ -8348,9 +8569,14 @@ function dessineCochon(c, k, tps){
   c.save();
   c.scale(ech, ech);
 
-  /* L'ombre reste au sol pendant le bond : c'est elle qui dit qu'il
-     saute VERTICALEMENT et qu'il n'a pas simplement grandi. */
-  ombreFaune(c, -0.4, 9.2, 2.8, saut * 0.30, 0.28);
+  /* L'ombre ne suit qu'à MOITIÉ la ruée : le corps part devant elle,
+     ce qui est exactement l'effet cherché — il double ses propres
+     pieds. Complètement fixe (premier essai), à cinq unités d'écart en
+     fuite, elle finissait par se lire comme une flaque abandonnée
+     derrière la bête. Elle ne suit pas le bond en revanche : c'est ce
+     qui dit qu'il saute VERTICALEMENT et qu'il n'a pas simplement
+     grandi. */
+  ombreFaune(c, -0.4 + av * 0.55, 9.2, 2.8, saut * 0.30, 0.28);
 
   c.save();
   c.translate(av, -saut);
@@ -8461,7 +8687,7 @@ function dessineCochon(c, k, tps){
      sur la couleur — qui fait tourner la tête aux trois quarts sans
      rien redessiner. Sa LARGEUR varie d'un individu à l'autre, une
      raison de plus de la tirer de k.n. */
-  var bl = cochonTirage(n, 5) * 1.4;
+  var bl = fauneTirage(n, 5) * 1.4;
   c.fillStyle = P.clair;
   c.beginPath();
   c.moveTo(11.4 + e, -9.8 - t * 0.8);
@@ -9125,43 +9351,77 @@ function dessineLueursVegetation(c, tps){
 }
 
 /* ================================================================
-   5. LES PETITS NUAGES
+   5. LES TROIS NUAGES D'ORAGE
    Ils ne sont pas décoratifs : ils sont la CAUSE. Un éclair qui tombe
    d'un ciel vide n'est qu'un effet posé sur la carte ; le même éclair
-   parti d'un nuage qu'on regardait dériver depuis vingt secondes est
-   un événement. C'est tout ce que cette section sert à fabriquer —
-   un préavis, et un point de départ.
-   Ils restent DISCRETS : une ombre portée au sol, une masse sombre
-   au-dessus. Jamais un plafond, jamais quelque chose qui cache le jeu.
+   parti d'une masse qu'on regardait dériver vers ses troupes est une
+   information, et une raison de bouger.
+
+   ILS APPARTIENNENT AU JEU, PAS À CE FICHIER. `jeu.nuages` est tenu
+   par 80-jeu.js : trois nuages, leur dérive erratique, leur vitesse
+   (le double d'une troupe) et le tirage du point d'impact sous l'un
+   d'eux. Ce fichier ne fait que les PEINDRE. Une seconde liste tenue
+   ici donnerait des nuages dessinés à un endroit et une foudre qui
+   tombe à un autre — précisément le défaut que ces nuages existent
+   pour corriger.
+
+   Un nuage porte { gx, gy, r, cap, capBut, vire, v, ph } : position au
+   sol, rayon en cases, cap, et un déphasage `ph` stable par nuage. Ce
+   ph sert ici de graine — silhouette et respiration en sont tirées,
+   donc identiques chez tous les joueurs sans qu'aucun champ de plus
+   ait besoin de circuler sur le réseau.
    ================================================================ */
-var MET_NUAGE  = "18,32,34";        // le ventre du nuage, presque noir
+var MET_NUAGE   = "18,32,34";       // le ventre du nuage, presque noir
 var MET_NUAGE_H = "150,174,166";    // sa crête, qui prend ce qui reste de jour
-/* DOUZE PETITS plutôt que neuf gros : le joueur a demandé des
-   « petits nuages qui se baladent ». Un gros nuage mou se confond avec
-   la nappe d'ombres du sol et ne se lit plus comme un objet ; un petit
-   nuage bien découpé se lit tout de suite, et on peut le suivre. */
-var JUNGLE_NUAGES = 12;
+/* La hauteur de la couche, en unités locales — la même pour les trois.
+   Un ciel d'orage est une NAPPE : trois nuages à trois altitudes
+   différentes se liraient comme trois objets sans rapport. C'est aussi
+   de cette hauteur que part la foudre. */
+var MET_NUAGE_ALT = 340;
 
 /* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
-   une dizaine de dégradés par image et par nuage ; celui-ci coûte un
+   une vingtaine de dégradés par image et par nuage ; celui-ci coûte un
    seul blit. Le rapport 2:1 de la tuile est celui de la projection :
-   un nuage vu de trois quarts est un objet couché. */
+   un nuage vu de trois quarts est un objet couché.
+   Ils ne sont plus que TROIS sur toute l'île : chacun doit donc porter
+   seul, et la tuile est deux fois plus fine qu'à douze — 512 px, pour
+   qu'un nuage occupant huit cents pixels d'écran ne soit pas un
+   agrandissement de trois fois. */
 var metSpNuages = null;
 function spritesNuage(){
   if(metSpNuages) return metSpNuages;
   metSpNuages = [];
   var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
+  var dp = disqueMeteo(MET_PLUIE);
   for(var v = 0; v < 4; v++){
-    var cv = nouveauCanvas(256, 128);
+    var cv = nouveauCanvas(512, 256);
     var g = cv.getContext("2d");
     var al = prng(0x4E51 + v * 977);
-    var n = 8 + ((al() * 4) | 0), i;
+    var n = 10 + ((al() * 5) | 0), i;
+
+    /* LA VIRGA — le rideau de pluie qui pend sous le ventre. C'est la
+       signature d'un nuage d'orage, et c'est ce qui relie la masse du
+       ciel à la pluie qui tombe partout ailleurs. Peint EN PREMIER :
+       il doit passer derrière le ventre, pas devant. */
+    g.globalAlpha = 1;
+    g.lineCap = "butt";
+    g.strokeStyle = "rgba(" + MET_PLUIE + ",0.10)";
+    g.lineWidth = 2.2;
+    g.beginPath();
+    for(i = 0; i < 26; i++){
+      var vx = 96 + al() * 320;
+      var vy = 150 + al() * 20;
+      g.moveTo(vx, vy);
+      g.lineTo(vx + 9, vy + 42 + al() * 52);
+    }
+    g.stroke();
+
     /* le ventre : des lobes bas, larges, franchement écrasés */
     for(i = 0; i < n; i++){
-      var x = 34 + al() * 188, r = 30 + al() * 54;
-      var y = 80 + (al() - 0.5) * 18;
+      var x = 62 + al() * 388, r = 56 + al() * 104;
+      var y = 156 + (al() - 0.5) * 34;
       g.globalAlpha = 0.42 + al() * 0.44;
-      g.drawImage(db, x - r, y - r * 0.60, r * 2, r * 1.20);
+      g.drawImage(db, x - r, y - r * 0.58, r * 2, r * 1.16);
     }
     /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
        et rien d'autre qui donne le volume : sans lui, un nuage n'est
@@ -9170,155 +9430,89 @@ function spritesNuage(){
        du premier essai, où l'on ne distinguait plus les nuages de la
        nappe d'ombres au sol. */
     for(i = 0; i < n - 2; i++){
-      var x2 = 48 + al() * 160, r2 = 22 + al() * 34;
-      g.globalAlpha = 0.22 + al() * 0.26;
-      g.drawImage(dh, x2 - r2, 44 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.05);
+      var x2 = 92 + al() * 328, r2 = 40 + al() * 64;
+      g.globalAlpha = 0.20 + al() * 0.26;
+      g.drawImage(dh, x2 - r2, 84 + (al() - 0.5) * 26 - r2 * 0.55, r2 * 2, r2 * 1.05);
+    }
+    /* deux ou trois bourgeons tout en haut : la tête d'un cumulus qui
+       monte. Ils cassent la ligne d'horizon du nuage, sans quoi la
+       silhouette reste un ovale. */
+    for(i = 0; i < 3; i++){
+      var x3 = 150 + al() * 212, r3 = 34 + al() * 40;
+      g.globalAlpha = 0.16 + al() * 0.20;
+      g.drawImage(dh, x3 - r3, 46 + al() * 22 - r3 * 0.5, r3 * 2, r3 * 1.0);
     }
     metSpNuages.push(cv);
   }
   return metSpNuages;
 }
 
-/* UN NUAGE, en coordonnées MONDE comme une défense :
-     gx, gy   le point du sol qu'il survole — donc où tombe son ombre
-     h        sa hauteur au-dessus du sol, en unités locales
-     r        son demi-diamètre au sol, en cases
-     v        la variante de silhouette (0..3)
-     gx0, vx  sa position de départ et sa dérive, en cases par seconde
-   La liste est PUBLIQUE : la boucle de jeu peut la remplir, la vider,
-   ou déplacer les nuages elle-même. */
-var nuagesJungle = [];
-
-function nouveauNuageJungle(gx, gy, graine){
-  var al = prng((graine | 0) || 1);
-  return {
-    gx:gx, gy:gy, gx0:gx, gy0:gy,
-    r:4.5 + al() * 5,
-    h:250 + al() * 170,
-    v:(al() * 4) | 0,
-    op:0.62 + al() * 0.38,
-    vx:0.24 + al() * 0.18,
-    vy:0.08 + al() * 0.09
-  };
+/* La liste du jeu, ou rien. On ne fabrique jamais de nuages ici. */
+function nuagesDuJeu(){
+  return (typeof jeu !== "undefined" && jeu && jeu.nuages) ? jeu.nuages : null;
 }
 
-/* Un semis reproductible : deux joueurs d'un même salon doivent voir
-   le même ciel, sinon la foudre ne part pas du même endroit chez l'un
-   et chez l'autre. */
-function peupleNuagesJungle(nb, graine){
-  var al = prng((graine | 0) || 0x51A9E1);
-  nuagesJungle.length = 0;
-  for(var i = 0; i < nb; i++)
-    nuagesJungle.push(nouveauNuageJungle(al() * GW, al() * GH, (al() * 1e9) | 0));
-  return nuagesJungle;
-}
-
-/* LA DÉRIVE, calculée à partir de tps et de RIEN D'AUTRE.
-   Pas d'accumulation « gx += vx*dt » : deux clients qui n'ont pas
-   exactement le même nombre d'images finiraient avec deux ciels
-   différents, donc deux éclairs partant de deux endroits. Ici la
-   position est une FONCTION du temps, elle est identique partout.
-   Ils sortent par un bord et rentrent par l'autre — la carte est
-   bouclée pour eux, ce qui évite d'en créer et d'en détruire. */
-var MET_NUAGE_MARGE = 22;
-var metNuagesMaj = -1;
-function majNuagesJungle(tps){
-  if(tps === metNuagesMaj) return nuagesJungle;
-  metNuagesMaj = tps;
-  if(!nuagesJungle.length) peupleNuagesJungle(JUNGLE_NUAGES, 0x51A9E1);
-  var m = MET_NUAGE_MARGE, LX = GW + m * 2, LY = GH + m * 2;
-  for(var i = 0; i < nuagesJungle.length; i++){
-    var u = nuagesJungle[i];
-    u.gx = ((u.gx0 + u.vx * tps) % LX + LX) % LX - m;
-    u.gy = ((u.gy0 + u.vy * tps) % LY + LY) % LY - m;
-  }
-  return nuagesJungle;
-}
-
-/* Le nuage le plus proche d'un point. C'est de lui que partira
-   l'éclair. Au-delà de MET_NUAGE_PORTEE cases, on répond « aucun » :
-   un éclair rattaché à un nuage situé à vingt cases arrive de biais en
-   travers de tout l'écran, et on lit alors qu'il vient d'ailleurs —
-   exactement ce qu'on cherchait à éviter en mettant des nuages. */
-var MET_NUAGE_PORTEE = 9;
-function nuageAuDessus(gx, gy){
-  var meilleur = null, d2 = MET_NUAGE_PORTEE * MET_NUAGE_PORTEE;
-  for(var i = 0; i < nuagesJungle.length; i++){
-    var u = nuagesJungle[i];
-    var d = (u.gx - gx) * (u.gx - gx) + (u.gy - gy) * (u.gy - gy);
-    if(d < d2){ d2 = d; meilleur = u; }
-  }
-  return meilleur;
-}
-
-/* OÙ FRAPPER — pour la boucle de jeu.
-   L'ORDRE COMPTE, et c'est tout l'intérêt de cette fonction : on
-   choisit d'abord LE NUAGE, ensuite le point sous lui. Tiré dans
-   l'autre sens — un point au hasard, puis le nuage le plus proche —
-   le nuage le plus proche peut être à l'autre bout de l'île, et
-   l'éclair traverse alors l'écran en diagonale sans qu'on comprenne
-   d'où il sort.
-   `al` est une fonction de tirage (Math.random convient) ; `evite` un
-   point à ne pas approcher (le Brasier), `rEvite` son rayon en cases.
-   Retourne {gx, gy, nuage}. */
-function tirePointDeFoudre(tps, al, evite, rEvite){
-  al = al || Math.random;
-  var nu = majNuagesJungle(tps);
-  if(!nu.length) return null;
-  for(var essai = 0; essai < 24; essai++){
-    var u = nu[(al() * nu.length) | 0];
-    var a = al() * 6.2832, r = Math.sqrt(al()) * u.r * 0.8;
-    var gx = borne(u.gx + Math.cos(a) * r, 5, GW - 5);
-    var gy = borne(u.gy + Math.sin(a) * r, 4, GH - 4);
-    if(evite && Math.hypot(gx - evite.gx, gy - evite.gy) < (rEvite || 20)) continue;
-    return { gx:gx, gy:gy, nuage:u };
-  }
-  return null;
-}
-
-/* L'OMBRE PORTÉE. Elle vit avec les ombres de nuages du sol, donc
-   SOUS les entités : c'est de l'ombre sur la terre, elle n'a rien à
-   faire par-dessus les troupes. Appelée depuis dessineCielOrage. */
+/* L'OMBRE PORTÉE. Elle vit avec les ombres du sol, donc SOUS les
+   entités : c'est de l'ombre sur la terre, elle n'a rien à faire
+   par-dessus les troupes. Appelée depuis dessineCielOrage.
+   Elle est franche — 0,30 — parce qu'elle a un travail à faire en
+   plus d'être jolie : c'est elle qui dit AU SOL où le nuage passe, et
+   donc où le joueur ne doit pas laisser ses troupes. */
 function dessineOmbresNuages(c, tps){
+  var nu = nuagesDuJeu();
+  if(!nu || !nu.length) return;
   var z = cam.z;
   var d = disqueMeteo(MET_OMBRE);
-  var nu = majNuagesJungle(tps);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    var rx = u.r * RX * z * 1.15, ry = u.r * RY * z * 1.15;
+    var souffle = 1 + Math.sin(tps * 0.21 + u.ph) * 0.05;
+    var rx = u.r * RX * z * 1.05 * souffle, ry = u.r * RY * z * 1.05 * souffle;
     if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
-    c.globalAlpha = 0.20 * u.op;
+    c.globalAlpha = 0.30;
     c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
   }
   c.restore();
 }
 
 /* LA MASSE, en l'air, par-dessus la carte.
-   Lissage COUPÉ : la silhouette est agrandie d'un facteur trois ou
-   quatre, et un agrandissement filtré coûte cinq fois le prix — 5,2 ms
-   contre 1,0 ms pour douze sprites, mesuré. Sur un dégradé aussi doux
-   l'escalier ne se voit pas. */
+   Deux précautions que le mouvement impose. Ces nuages vont VITE — le
+   double d'une troupe, soit une traversée d'écran en une quinzaine de
+   secondes — et tout défaut de rendu qui serait invisible sur un objet
+   fixe se met à ramper sur un objet qui file.
+     1. Lissage COUPÉ : la silhouette est agrandie, et un
+        agrandissement filtré coûte cinq fois le prix (5,2 ms contre
+        1,0 ms pour douze sprites, mesuré).
+     2. …mais un agrandissement NON filtré rampe quand la destination
+        bouge d'une fraction de pixel. On ARRONDIT donc la taille ET
+        la position à l'entier : le rapport source/destination devient
+        constant, chaque pixel de destination échantillonne toujours
+        le même pixel de source, et le nuage se contente de translater.
+        Sans cet arrondi, sa texture grouillait pendant qu'il avançait. */
 var metNuagesDessin = -1;
 function dessineNuagesJungle(c, tps){
   if(tps === metNuagesDessin) return;
   metNuagesDessin = tps;
+  var nu = nuagesDuJeu();
+  if(!nu || !nu.length) return;
   var z = cam.z, sp = spritesNuage();
-  var nu = majNuagesJungle(tps);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    /* respiration très lente : un nuage figé se lit comme un autocollant */
-    var souffle = 1 + Math.sin(tps * 0.13 + u.gx0) * 0.06;
-    var w = u.r * RX * 2 * z * souffle, hh = w * 0.5;
-    var x = p.x - w / 2, y = p.y - u.h * z - hh * 0.55;
+    /* respiration très lente, décalée par nuage : trois masses qui
+       enflent en même temps se lisent comme un seul objet répété */
+    var souffle = 1 + Math.sin(tps * 0.17 + u.ph) * 0.055;
+    var w = Math.round(u.r * RX * 2.15 * z * souffle);
+    var hh = Math.round(w * 0.5);
+    var x = Math.round(p.x - w / 2);
+    var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = 0.44 * u.op;
-    c.drawImage(sp[u.v], x, y, w, hh);
+    c.globalAlpha = 0.46;
+    c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();
 }
@@ -9341,33 +9535,26 @@ var EC_DESC = 0.11;      // le temps que l'éclair met à descendre
 var EC_VIE  = 0.28;      // ce qu'il vit encore après avoir touché
 
 /* ---------------------------------------------------------------
-   LE CONTRAT AVEC LA BOUCLE DE JEU
-   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Ces
-   deux nombres sont tout ce qu'il faut pour le calculer, et le rendu
-   les lit exactement comme le fera la boucle — c'est la seule façon
-   que ce qu'on voit et ce qui tue soient le même cercle.
-   (À reprendre dans EQ tels quels : JUNGLE_FOUDRE_RAYON /
-    JUNGLE_FOUDRE_DUREE.)
-   --------------------------------------------------------------- */
-var JUNGLE_FOUDRE_RAYON = 7.0;    // cases : rayon FINAL de la nappe
-var JUNGLE_FOUDRE_DUREE = 2.6;    // secondes pour l'atteindre
-/* Conséquence directe : un éclair doit VIVRE au moins
-   EC_DESC + JUNGLE_FOUDRE_DUREE + le fondu de queue, soit 3,4 s. En
-   dessous, la boucle retire l'objet de jeu.eclairs pendant que la
-   nappe est encore en train de s'étendre, et elle disparaît d'un coup
-   au milieu de sa course. */
-var JUNGLE_FOUDRE_VIE = 3.4;      // e.duree recommandé
-
-/* Le front avance en RACINE du temps : très vite au premier dixième
-   de seconde, puis il s'essouffle. Une décharge qui s'étalerait à
-   vitesse constante aurait l'air d'un cercle de sélection ; celle-ci
-   a l'air de se diffuser dans la terre, ce qui est le propos. */
-function frontFoudre(age){
-  return Math.sqrt(borne((age - EC_DESC) / JUNGLE_FOUDRE_DUREE, 0, 1));
+   LA NAPPE — CE QU'ON DESSINE EST CE QUI TUE
+   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Le
+   calcul appartient à 80-jeu.js, qui pose sur chaque éclair :
+     e.cx, e.cy   le nuage d'où le coup est parti, figé au tir
+     e.front      le rayon atteint par le courant, EN CASES
+   On ne recalcule rien ici : on lit e.front. C'est la seule façon que
+   le cercle qu'on voit et le cercle qui tue soient le même — s'ils
+   divergeaient d'un dixième de case, le joueur perdrait des troupes
+   hors du halo et n'y comprendrait rien.
+   Le repli n'existe que pour les bancs d'essai, qui fabriquent des
+   éclairs à la main sans passer par la boucle. */
+function rayonFoudre(e){
+  if(e.front !== undefined) return e.front;
+  var R = (typeof EQ !== "undefined" && EQ.ECLAIR_RAYON_NAPPE) || 7.5;
+  var D = (typeof EQ !== "undefined" && EQ.ECLAIR_NAPPE_DUREE) || 2.6;
+  return Math.sqrt(borne(e.age / D, 0, 1)) * R;
 }
-/* Le rayon courant de la nappe, EN CASES. C'est cette fonction que la
-   boucle doit appeler pour savoir qui est dedans. */
-function rayonFoudre(e){ return frontFoudre(e.age) * JUNGLE_FOUDRE_RAYON; }
+function rayonMaxFoudre(){
+  return (typeof EQ !== "undefined" && EQ.ECLAIR_RAYON_NAPPE) || 7.5;
+}
 
 /* L'intensité du canal. Un éclair ne s'éteint pas d'un coup : il se
    réamorce deux fois. Ces deux bosses sont ce qui distingue un éclair
@@ -9482,12 +9669,15 @@ function traitFoudre(c, xs, ys, n, larg, I){
    de sinus de tps, jamais de Math.random.
    --------------------------------------------------------------- */
 function dessineNappeFoudre(c, e, ti, tps){
-  var u = borne(ti / JUNGLE_FOUDRE_DUREE, 0, 1);
-  if(u >= 1) return;
-  var f = Math.sqrt(u);
+  var R = rayonFoudre(e);
+  /* `u` mesure l'AVANCEMENT, pas le temps : c'est le rayon atteint
+     rapporté au rayon final. En le tirant du front plutôt que de
+     l'horloge, l'extinction reste calée sur la nappe même si la boucle
+     change un jour sa loi d'expansion. */
+  var u = borne(R / rayonMaxFoudre(), 0, 1);
+  if(u >= 1 || R <= 0.02) return;
   var z = cam.z;
   var p = versEcran(cam, e.gx, e.gy);
-  var R = JUNGLE_FOUDRE_RAYON * f;
   var rx = R * RX * z, ry = R * RY * z;
   if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) return;
   /* elle s'éteint en s'élargissant : l'énergie se dilue */
@@ -9554,16 +9744,19 @@ function dessineEclairJungle(c, e, tps){
      et le pied de l'éclair doit rester accroché à lui. Sans nuage
      (liste vide), on retombe sur le haut de l'écran — l'éclair
      traverse alors tout le cadre, ce qui reste correct. */
-  if(e.nuage === undefined) e.nuage = nuageAuDessus(e.gx, e.gy) || null;
   var ox, oy;
-  if(e.nuage){
-    var pn = versEcran(cam, e.nuage.gx, e.nuage.gy);
-    ox = pn.x; oy = pn.y - e.nuage.h * z;
+  if(e.cx !== undefined){
+    /* 80-jeu.js a figé, au moment du tir, le nuage d'où le coup part.
+       On le lit tel quel : le nuage continue de dériver pendant que
+       l'éclair tombe, mais le canal, lui, reste accroché à l'endroit
+       d'où il est parti. C'est ce que fait la nature, et c'est surtout
+       ce qui garantit que le pied du trait tombe pile sur le point que
+       la boucle a choisi de foudroyer. */
+    var pn = versEcran(cam, e.cx, e.cy);
+    ox = pn.x; oy = pn.y - MET_NUAGE_ALT * z;
   }else{
-    /* Aucun nuage assez près : on fait descendre l'éclair de la
-       couche de nuages elle-même, à la verticale du point. Le joueur
-       ne voit pas d'où il part, mais il ne voit pas non plus un trait
-       qui traverse l'écran en biais depuis un nuage sans rapport. */
+    /* Pas de nuage d'origine (banc d'essai) : l'éclair descend de la
+       couche de nuages à la verticale du point. */
     ox = p.x; oy = Math.min(p.y - 90, -Math.max(60, H * 0.10));
   }
   var haut = p.y - oy;
@@ -9574,10 +9767,9 @@ function dessineEclairJungle(c, e, tps){
        qui s'allume. C'est plus précis, plus joli, moins cher, et ça
        dit au joueur d'où le coup va partir. */
     var pre = borne(t / EC_DESC, 0, 1);
-    if(t < EC_DESC + 0.09 && e.nuage)
-      lueurRapide(c, ox, oy + e.nuage.h * z * 0.05,
-                  e.nuage.r * RX * z * 1.2, "#cfe0ff",
-                  0.55 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    if(t < EC_DESC + 0.09 && e.cx !== undefined)
+      lueurRapide(c, ox, oy + 16 * z, Math.max(70, 13 * RX * z), "#cfe0ff",
+                  0.60 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
        dans l'air, il est aussi gros de près que de loin. Elle a été
@@ -24400,6 +24592,17 @@ function remetSalonAZero(){
 /* Le joueur vient de valider un nouveau plan. C'est un changement de
    carte : on repart sur un tirage neuf, donc sur une île intacte —
    les bâtiments détruits de l'ancienne carte ne désignent plus rien. */
+/* Enregistre le plan d'UNE carte dans le paquet du salon. Les autres
+   cartes gardent le leur : c'est tout l'objet de la refonte. */
+function enregistrePlanCarte(index, chaine){
+  var t = decodePlans(planSalon);
+  if(chaine) t[index] = chaine; else delete t[index];
+  var r = enregistrePlan(encodePlans(t));
+  /* Les onglets portent la pastille « déjà enregistrée » : ils doivent
+     la voir apparaître au moment où elle devient vraie. */
+  if(typeof construitOngletsCartes === "function") construitOngletsCartes();
+  return r;
+}
 function enregistrePlan(chaine){
   if(chaine === planSalon) return false;
   planSalon   = chaine;
@@ -24409,7 +24612,11 @@ function enregistrePlan(chaine){
   carteSalon  = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon };
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            je:0, jf:0, jd:"", jq:0,
+            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
+            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
+            ch:(monde && monde.ch) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;
@@ -24726,6 +24933,10 @@ var COUL_PLAN = {
   cellule  : "#ffd84a"
 };
 
+/* LA CARTE EN COURS D'ÉDITION. C'est la variable qui manquait : sans
+   elle, l'éditeur ne savait pas sur quelle île il travaillait, et le
+   plan qu'il produisait était servi aux cinq. */
+var planCarteIdx = 0;
 var planZones = null;        // le brouillon en cours d'édition
 var planPile = [];           // historique, pour « Annuler »
 var planOutil = 1;           // indice dans TYPES_PLAN (0 = pinceau neutre)
@@ -24744,37 +24955,118 @@ var planCellules = 0;
    carte qu'on impose.
    --------------------------------------------------------------- */
 var CLE_PLAN_DEFAUT = "milyboum.plan";
-function planDefaut(){
-  try{ return localStorage.getItem(CLE_PLAN_DEFAUT) || ""; }catch(e){ return ""; }
+function planDefaut(i){
+  try{ return localStorage.getItem(CLE_PLAN_DEFAUT + "." + (i | 0)) || ""; }catch(e){ return ""; }
 }
-function gardePlanDefaut(s){
+function gardePlanDefaut(s, i){
   try{
-    if(s) localStorage.setItem(CLE_PLAN_DEFAUT, s);
-    else localStorage.removeItem(CLE_PLAN_DEFAUT);
+    var c = CLE_PLAN_DEFAUT + "." + (i | 0);
+    if(s) localStorage.setItem(c, s);
+    else localStorage.removeItem(c);
     return true;
   }catch(e){ return false; }
+}
+
+/* ---------------------------------------------------------------
+   L'HISTORIQUE LÉGER — trois versions par carte
+
+   Pas un système de versions : trois photos, la dernière enregistrée
+   en tête. C'est ce qu'il faut pour rattraper une mauvaise
+   modification, et rien de plus. Local à cet appareil, comme le
+   brouillon : c'est le carnet de bord du créateur, pas l'état du
+   salon.
+   --------------------------------------------------------------- */
+var VERSIONS_GARDEES = 3;
+function historiquePlan(i){
+  try{
+    var t = JSON.parse(localStorage.getItem(CLE_PLAN_DEFAUT + ".h." + (i | 0)) || "[]");
+    return (t instanceof Array) ? t : [];
+  }catch(e){ return []; }
+}
+function pousseHistoriquePlan(i, chaine){
+  var h = historiquePlan(i);
+  /* Enregistrer deux fois la même chose ne doit pas consommer une
+     place de l'historique : on n'y garderait plus rien d'utile. */
+  if(h.length && h[0] === chaine) return h;
+  h.unshift(chaine);
+  h = h.slice(0, VERSIONS_GARDEES);
+  try{ localStorage.setItem(CLE_PLAN_DEFAUT + ".h." + (i | 0), JSON.stringify(h)); }catch(e){}
+  return h;
 }
 var planCv = null, planCtx = null;
 var planEch = 1, planOx = 0, planOy = 0;   // carte → pixels du canevas
 var planApercu = null;       // carte générée pour l'aperçu
+/* LA GRAINE DE L'APERÇU. Le bouton « Régénérer » ne change QUE ce
+   nombre : les zones, les densités et les proportions restent les
+   mêmes, seule la réalisation change. C'est exactement la distinction
+   entre le modèle enregistré et la partie qu'on en tire. */
+var planGraine = 0;
 var planApercuSale = true;
 var planDoigt = null;        // identifiant du doigt qui peint
 
 /* ---------------------------------------------------------------
    Ouverture / fermeture
    --------------------------------------------------------------- */
-function ouvrePlan(){
-  /* Le plan du salon fait foi ; à défaut, le brouillon gardé sur cet
-     appareil ; à défaut, une carte vierge. */
-  var dep = planSalon || planDefaut();
-  planZones = dep ? decodePlan(dep) : planVide();
-  planPile = [];
-  planApercuSale = true;
+/* `ou` : l'index de la carte à éditer. Par défaut, celle que le salon
+   joue en ce moment — c'est celle qu'on vient de regarder. */
+function ouvrePlan(ou){
+  planCarteIdx = (typeof ou === "number") ? ou : carteSalon;
+  chargeCarteDansEditeur();
   $("plan").classList.add("on");
   construitPalettePlan();
+  construitOngletsCartes();
   ajustePlanCv();
   majPanneauPlan();
   dessinePlan();
+}
+/* Charge dans l'éditeur le plan de la carte courante. Le plan du salon
+   fait foi ; à défaut le brouillon gardé sur cet appareil POUR CETTE
+   CARTE ; à défaut, pour la jungle, son plan gravé ; à défaut, une
+   carte vierge. */
+function chargeCarteDansEditeur(){
+  var dep = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
+  if(!dep && carteSpeciale(planCarteIdx)) dep = planJungle();
+  planZones = dep ? decodePlan(dep) : planVide();
+  planPile = [];
+  planApercuSale = true;
+}
+/* Passer d'une carte à l'autre sans quitter l'éditeur. C'est ce qui
+   permet de les COMPARER, et donc de vérifier qu'elles ont bien des
+   identités différentes. */
+function choisitCartePlan(i){
+  if(i === planCarteIdx) return;
+  var enCours = encodePlan(planZones);
+  var gardee = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
+  if(enCours !== gardee && zonesPeintes(planZones) &&
+     !confirm("La carte « " + CARTES[planCarteIdx].nom + " » a des modifications\n"
+            + "qui ne sont pas enregistrées. Les abandonner ?")) return;
+  planCarteIdx = i | 0;
+  chargeCarteDansEditeur();
+  construitOngletsCartes();
+  ajustePlanCv();
+  majPanneauPlan();
+  dessinePlan();
+}
+/* Les onglets des six cartes, en tête de l'éditeur. */
+function construitOngletsCartes(){
+  var e = $("planCartes");
+  if(!e) return;
+  var h = "";
+  for(var i = 0; i < CARTES.length; i++){
+    var edite = !!planCarte(planSalon, i);
+    h += '<div class="poc' + (i === planCarteIdx ? " on" : "")
+       + (carteSpeciale(i) ? " evt" : "") + '" data-carte="' + i + '">'
+       + echappe(CARTES[i].nom.replace(/^Mily /, ""))
+       + (edite ? '<i title="cette carte a son propre plan enregistré">●</i>' : "")
+       + '</div>';
+  }
+  e.innerHTML = h;
+  var els = e.querySelectorAll("[data-carte]");
+  for(var k = 0; k < els.length; k++){
+    els[k].addEventListener("click", function(){
+      choisitCartePlan(+this.getAttribute("data-carte"));
+    });
+  }
 }
 function fermePlan(){
   $("plan").classList.remove("on");
@@ -24865,7 +25157,10 @@ function planVersCase(sx, sy){
    image pendant qu'un doigt glisse. */
 function apercuPlan(){
   if(planApercuSale || !planApercu){
-    planApercu = genereCarte(CODE_SALON, 0, encodePlan(planZones), tirageSalon);
+    /* La carte ÉDITÉE, et pas la première : sans cet index, l'aperçu
+       montrait toujours la plage quelle que soit l'île choisie, et
+       comparer deux cartes devenait impossible. */
+    planApercu = genereCarte(CODE_SALON, planCarteIdx, encodePlan(planZones), planGraine);
     planApercuSale = false;
   }
   return planApercu;
@@ -24876,10 +25171,13 @@ function dessinePlan(){
   var c = planCtx, e = planEch, ox = planOx, oy = planOy;
   var m = apercuPlan();
 
-  c.fillStyle = "#0d1a14"; c.fillRect(0, 0, planCv.width, planCv.height);
-  /* le sol : terre, puis la plage de débarquement à l'est */
-  c.fillStyle = "#5c7a43"; c.fillRect(ox, oy, PLAGE_X0 * e, GH * e);
-  c.fillStyle = "#ddc697"; c.fillRect(ox + PLAGE_X0 * e, oy, (GW - PLAGE_X0) * e, GH * e);
+  /* Le fond prend les couleurs du BIOME de la carte éditée : c'est ce
+     qui permet de reconnaître d'un coup d'œil sur laquelle on
+     travaille, et de comparer deux identités sans se tromper. */
+  var bio = BIOMES[CARTES[planCarteIdx].biome] || BIOMES.plage;
+  c.fillStyle = bio.ciel; c.fillRect(0, 0, planCv.width, planCv.height);
+  c.fillStyle = bio.sol1; c.fillRect(ox, oy, PLAGE_X0 * e, GH * e);
+  c.fillStyle = bio.sable; c.fillRect(ox + PLAGE_X0 * e, oy, (GW - PLAGE_X0) * e, GH * e);
   /* la ceinture rocheuse, infranchissable */
   c.fillStyle = "rgba(58,52,68,.5)";
   c.fillRect(ox, oy, LARGEUR_ROCHE * e, GH * e);
@@ -25045,7 +25343,23 @@ function installePlan(){
     var e = ev.target.closest ? ev.target.closest("[data-dens]") : null;
     if(e) choisitDensitePlan(+e.getAttribute("data-dens"));
   });
-  $("btPlan").addEventListener("click", ouvrePlan);
+  /* L'ENTRÉE DE L'ADMINISTRATION. Elle est protégée : l'éditeur écrit
+     désormais le plan de six cartes, et une fausse manœuvre d'un
+     joueur de passage y coûterait beaucoup plus cher qu'avant. La
+     porte demande donc le mot de passe, et non plus seulement la
+     validation. */
+  $("btPlan").addEventListener("click", function(){
+    var mot = prompt("ADMINISTRATION DES MAPS\n\n"
+      + "Six cartes, chacune avec son plan indépendant.\n"
+      + "Tu peux les parcourir, les prévisualiser, les éditer.\n\n"
+      + "Mot de passe administrateur :");
+    if(mot === null) return;
+    if(!motAdminValide(mot)){
+      alert("Mot de passe incorrect.");
+      return;
+    }
+    ouvrePlan(carteSalon);
+  });
   $("btPlanFerme").addEventListener("click", fermePlan);
   $("btPlanAnnule").addEventListener("click", function(){
     if(!planPile.length) return;
@@ -25069,21 +25383,30 @@ function installePlan(){
           + "Peins au moins une zone, puis réessaie.");
       return;
     }
-    if(!gardePlanDefaut(ch)){
+    if(!gardePlanDefaut(ch, planCarteIdx)){
       alert("Impossible d'écrire dans ce navigateur (mode privé ?).");
       return;
     }
-    alert("Plan gardé comme brouillon par défaut sur cet appareil.\n\n"
-        + "Il te sera proposé à chaque ouverture de l'éditeur, tant que le\n"
-        + "salon n'a pas son propre plan. Ça ne change RIEN pour les autres\n"
-        + "joueurs — pour ça, il faut « Valider pour tout le salon ».");
+    alert("Brouillon de « " + CARTES[planCarteIdx].nom + " » gardé sur cet appareil.\n\n"
+        + "Il te sera reproposé à l'ouverture de l'éditeur tant que le salon\n"
+        + "n'a pas son propre plan pour CETTE carte. Ça ne change RIEN pour\n"
+        + "les autres cartes, ni pour les autres\n"
+        + "joueurs — pour ça, il faut « Enregistrer cette carte ».");
   });
-  $("btPlanOubli").addEventListener("click", function(){
-    if(!planDefaut()){ alert("Aucun plan par défaut gardé sur cet appareil."); return; }
-    if(!confirm("Oublier le plan par défaut de cet appareil ?")) return;
-    gardePlanDefaut("");
-    alert("Oublié.");
+  $("btPlanRegen").addEventListener("click", function(){
+    /* Une AUTRE réalisation du même plan. Les zones, les densités et
+       les proportions ne bougent pas — seule la graine change. C'est
+       exactement la distinction entre le modèle qu'on enregistre et la
+       partie qu'on en tire. */
+    planGraine = (planGraine + 1) % 1000;
+    planApercuSale = true;
+    dessinePlan(); majPanneauPlan();
+    message2("Variante n°" + planGraine + " du même plan. Les zones n'ont pas bougé.");
   });
+  $("btPlanRestaure").addEventListener("click", restaurePlanCarte);
+  $("btPlanRecule").addEventListener("click", reculePlanCarte);
+  $("btPlanDup").addEventListener("click", dupliquePlanCarte);
+  $("btPlanRaz").addEventListener("click", reinitialisePlanCarte);
   $("btPlanValide").addEventListener("click", validePlan);
   window.addEventListener("resize", function(){
     if($("plan").classList.contains("on")){ ajustePlanCv(); dessinePlan(); }
@@ -25131,6 +25454,7 @@ function majPanneauPlan(){
   var c = comptePlan(), s = [], t;
   for(t in c.par) s.push(c.par[t] + " " + DEF[t].nom.toLowerCase());
   s.sort(function(a, b){ return parseInt(b, 10) - parseInt(a, 10); });
+  $("planTitre").textContent = "Plan — " + CARTES[planCarteIdx].nom;
   $("planCompte").innerHTML =
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES + "<br>"
@@ -25166,23 +25490,27 @@ function majPanneauPlan(){
 
 function validePlan(){
   var chaine = encodePlan(planZones);
-  if(chaine === planSalon){
-    alert("Ce plan est déjà celui du salon. Rien n'a changé.");
+  var nom = CARTES[planCarteIdx].nom;
+  if(chaine === planCarte(planSalon, planCarteIdx)){
+    alert("« " + nom + " » a déjà exactement ce plan. Rien n'a changé.");
     return;
   }
-  var mot = prompt("Mot de passe pour changer le plan du salon :");
+  var mot = prompt("Mot de passe pour enregistrer le plan de\n« " + nom + " » :");
   if(mot === null) return;
   if(!motAdminValide(mot)){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
-  if(!confirm("Appliquer ce plan À TOUT LE SALON ?\n\n"
-            + "• les défenses sont retirées au sort selon tes zones\n"
-            + "• l'île repart intacte, pour tout le monde\n"
+  if(!confirm("Enregistrer ce plan pour « " + nom + " » ?\n\n"
+            + "• cette carte seule est concernée — les cinq autres\n"
+            + "  gardent exactement le plan qu'elles ont\n"
+            + "• les défenses y sont retirées au sort selon tes zones\n"
+            + "• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;
 
-  enregistrePlan(chaine);
+  pousseHistoriquePlan(planCarteIdx, chaine);
+  enregistrePlanCarte(planCarteIdx, chaine);
   if(enJeu){
     nouvelleCarte(carteSalon);
     if(typeof construitFondMini === "function") construitFondMini();
@@ -25190,8 +25518,92 @@ function validePlan(){
   }
   majMondes();
   rafraichitPlan();
-  fermePlan();
-  alert("Plan appliqué. Tout le salon joue désormais cette carte.");
+  construitOngletsCartes();
+  majPanneauPlan();
+  alert("Plan de « " + nom + " » enregistré pour tout le salon.\n\n"
+      + "Les autres cartes n'ont pas bougé.");
+}
+
+/* --- LES BOUTONS DE SÉCURITÉ --- */
+/* Revenir à la dernière version enregistrée pour CETTE carte. */
+function restaurePlanCarte(){
+  var g = planCarte(planSalon, planCarteIdx);
+  var h = historiquePlan(planCarteIdx);
+  var src = g || (h.length ? h[0] : "");
+  if(!src){
+    alert("« " + CARTES[planCarteIdx].nom + " » n'a aucune version enregistrée.");
+    return;
+  }
+  planPile.push(planZones.slice());
+  planZones = decodePlan(src);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+}
+/* Reculer d'un cran dans les trois versions gardées. */
+function reculePlanCarte(){
+  var h = historiquePlan(planCarteIdx);
+  if(h.length < 2){
+    alert("Pas de version antérieure gardée pour cette carte.\n\n"
+        + "L'historique retient les " + VERSIONS_GARDEES + " derniers enregistrements,\n"
+        + "et il n'y en a " + (h.length ? "qu'un" : "aucun") + " pour l'instant.");
+    return;
+  }
+  var i = h.indexOf(encodePlan(planZones));
+  var suiv = (i >= 0 && i + 1 < h.length) ? i + 1 : 1;
+  planPile.push(planZones.slice());
+  planZones = decodePlan(h[suiv]);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+  message2("Version " + (suiv + 1) + " sur " + h.length + " — la plus ancienne gardée est la n°" + h.length);
+}
+/* Rendre CETTE carte à sa génération d'origine. */
+function reinitialisePlanCarte(){
+  var nom = CARTES[planCarteIdx].nom;
+  if(!confirm("RÉINITIALISER « " + nom + " » ?\n\n"
+            + "Son plan est effacé et elle retrouve sa carte d'origine.\n"
+            + "Les cinq autres ne sont pas touchées.\n\n"
+            + "Cette action est définitive pour le salon.")) return;
+  var mot = prompt("Mot de passe pour réinitialiser « " + nom + " » :");
+  if(mot === null) return;
+  if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a été touché."); return; }
+  enregistrePlanCarte(planCarteIdx, "");
+  planZones = carteSpeciale(planCarteIdx) ? decodePlan(planJungle()) : planVide();
+  planPile = [];
+  planApercuSale = true;
+  majMondes(); rafraichitPlan(); construitOngletsCartes();
+  dessinePlan(); majPanneauPlan();
+  alert("« " + nom + " » est revenue à sa carte d'origine.");
+}
+/* Copier le plan d'une autre carte sur celle-ci. */
+function dupliquePlanCarte(){
+  var l = [], i;
+  for(i = 0; i < CARTES.length; i++){
+    if(i === planCarteIdx) continue;
+    if(!planCarte(planSalon, i)) continue;
+    l.push(i + " = " + CARTES[i].nom);
+  }
+  if(!l.length){
+    alert("Aucune autre carte n'a de plan enregistré à copier.");
+    return;
+  }
+  var rep = prompt("Copier le plan d'une autre carte SUR « "
+    + CARTES[planCarteIdx].nom + " » ?\n\n" + l.join("\n")
+    + "\n\nEntre le numéro de la carte à copier :");
+  if(rep === null) return;
+  var src = parseInt(rep, 10);
+  var ch = planCarte(planSalon, src);
+  if(!ch){ alert("Cette carte n'a pas de plan enregistré."); return; }
+  planPile.push(planZones.slice());
+  planZones = decodePlan(ch);
+  planApercuSale = true;
+  dessinePlan(); majPanneauPlan();
+  message2("Plan de « " + CARTES[src].nom + " » copié. Il reste à l'enregistrer.");
+}
+/* Un mot dans le bandeau d'avertissement de l'éditeur : plus discret
+   qu'une fenêtre, et il disparaît au prochain rafraîchissement. */
+function message2(s){
+  var e = $("planAvert");
+  if(e) e.textContent = s;
 }
 
 /* Le résumé du briefing, rafraîchi quand le plan change — ici ou
@@ -25199,21 +25611,30 @@ function validePlan(){
 function rafraichitPlan(){
   var e = $("planResume");
   if(!e) return;
-  if(!planSalon){
-    e.textContent = "Défenses d'origine — la carte que tout le monde connaît.";
+  var t = decodePlans(planSalon), l = [], i, k;
+  for(i = 0; i < CARTES.length; i++){
+    if(!t[i]) continue;
+    var z = decodePlan(t[i]), n = zonesPeintes(z), par = {}, j;
+    for(j = 0; j < NB_ZONES; j++){
+      var ty = zoneType(z[j]);
+      if(ty) par[TYPES_PLAN[ty]] = (par[TYPES_PLAN[ty]] || 0) + 1;
+      if(zoneChamp(z[j])) par.cellule = (par.cellule || 0) + 1;
+    }
+    var noms = [];
+    for(k in par) noms.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
+    l.push("<b>" + echappe(CARTES[i].nom) + "</b> — " + n + " zone"
+         + (n > 1 ? "s" : "") + " : " + (noms.length ? noms.join(", ") : "gommées"));
+  }
+  if(!l.length){
+    e.textContent = "Chaque carte a ses défenses d'origine. Aucune n'a encore été dessinée.";
     return;
   }
-  var z = decodePlan(planSalon), n = zonesPeintes(z), par = {}, i;
-  for(i = 0; i < NB_ZONES; i++){
-    var t = zoneType(z[i]);
-    if(t) par[TYPES_PLAN[t]] = (par[TYPES_PLAN[t]] || 0) + 1;
-    if(zoneChamp(z[i])) par.cellule = (par.cellule || 0) + 1;
-  }
-  var s = [];
-  for(var k in par) s.push(k === "vide" ? "gommées à fond" : DEF[k].nom);
-  e.textContent = n + " zone" + (n > 1 ? "s" : "") + " peinte" + (n > 1 ? "s" : "")
-    + " sur " + NB_ZONES + " — " + (s.length ? s.join(", ") : "gommées")
-    + ". Tirage n°" + tirageSalon + ".";
+  /* On liste CARTE PAR CARTE. Un résumé global ne dirait plus rien
+     depuis que chacune a son plan — et c'est précisément l'ancienne
+     confusion qu'on vient de corriger. */
+  e.innerHTML = l.join("<br>") + "<br><span style=\"color:#8f86a0\">Les "
+    + (CARTES.length - l.length) + " autres gardent leur carte d'origine. Tirage n°"
+    + tirageSalon + ".</span>";
 }
 
 /* ===== 88-rendu.js ===== */

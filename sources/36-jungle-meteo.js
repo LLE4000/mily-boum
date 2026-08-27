@@ -567,43 +567,77 @@ function dessineLueursVegetation(c, tps){
 }
 
 /* ================================================================
-   5. LES PETITS NUAGES
+   5. LES TROIS NUAGES D'ORAGE
    Ils ne sont pas décoratifs : ils sont la CAUSE. Un éclair qui tombe
    d'un ciel vide n'est qu'un effet posé sur la carte ; le même éclair
-   parti d'un nuage qu'on regardait dériver depuis vingt secondes est
-   un événement. C'est tout ce que cette section sert à fabriquer —
-   un préavis, et un point de départ.
-   Ils restent DISCRETS : une ombre portée au sol, une masse sombre
-   au-dessus. Jamais un plafond, jamais quelque chose qui cache le jeu.
+   parti d'une masse qu'on regardait dériver vers ses troupes est une
+   information, et une raison de bouger.
+
+   ILS APPARTIENNENT AU JEU, PAS À CE FICHIER. `jeu.nuages` est tenu
+   par 80-jeu.js : trois nuages, leur dérive erratique, leur vitesse
+   (le double d'une troupe) et le tirage du point d'impact sous l'un
+   d'eux. Ce fichier ne fait que les PEINDRE. Une seconde liste tenue
+   ici donnerait des nuages dessinés à un endroit et une foudre qui
+   tombe à un autre — précisément le défaut que ces nuages existent
+   pour corriger.
+
+   Un nuage porte { gx, gy, r, cap, capBut, vire, v, ph } : position au
+   sol, rayon en cases, cap, et un déphasage `ph` stable par nuage. Ce
+   ph sert ici de graine — silhouette et respiration en sont tirées,
+   donc identiques chez tous les joueurs sans qu'aucun champ de plus
+   ait besoin de circuler sur le réseau.
    ================================================================ */
-var MET_NUAGE  = "18,32,34";        // le ventre du nuage, presque noir
+var MET_NUAGE   = "18,32,34";       // le ventre du nuage, presque noir
 var MET_NUAGE_H = "150,174,166";    // sa crête, qui prend ce qui reste de jour
-/* DOUZE PETITS plutôt que neuf gros : le joueur a demandé des
-   « petits nuages qui se baladent ». Un gros nuage mou se confond avec
-   la nappe d'ombres du sol et ne se lit plus comme un objet ; un petit
-   nuage bien découpé se lit tout de suite, et on peut le suivre. */
-var JUNGLE_NUAGES = 12;
+/* La hauteur de la couche, en unités locales — la même pour les trois.
+   Un ciel d'orage est une NAPPE : trois nuages à trois altitudes
+   différentes se liraient comme trois objets sans rapport. C'est aussi
+   de cette hauteur que part la foudre. */
+var MET_NUAGE_ALT = 340;
 
 /* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
-   une dizaine de dégradés par image et par nuage ; celui-ci coûte un
+   une vingtaine de dégradés par image et par nuage ; celui-ci coûte un
    seul blit. Le rapport 2:1 de la tuile est celui de la projection :
-   un nuage vu de trois quarts est un objet couché. */
+   un nuage vu de trois quarts est un objet couché.
+   Ils ne sont plus que TROIS sur toute l'île : chacun doit donc porter
+   seul, et la tuile est deux fois plus fine qu'à douze — 512 px, pour
+   qu'un nuage occupant huit cents pixels d'écran ne soit pas un
+   agrandissement de trois fois. */
 var metSpNuages = null;
 function spritesNuage(){
   if(metSpNuages) return metSpNuages;
   metSpNuages = [];
   var db = disqueMeteo(MET_NUAGE), dh = disqueMeteo(MET_NUAGE_H);
+  var dp = disqueMeteo(MET_PLUIE);
   for(var v = 0; v < 4; v++){
-    var cv = nouveauCanvas(256, 128);
+    var cv = nouveauCanvas(512, 256);
     var g = cv.getContext("2d");
     var al = prng(0x4E51 + v * 977);
-    var n = 8 + ((al() * 4) | 0), i;
+    var n = 10 + ((al() * 5) | 0), i;
+
+    /* LA VIRGA — le rideau de pluie qui pend sous le ventre. C'est la
+       signature d'un nuage d'orage, et c'est ce qui relie la masse du
+       ciel à la pluie qui tombe partout ailleurs. Peint EN PREMIER :
+       il doit passer derrière le ventre, pas devant. */
+    g.globalAlpha = 1;
+    g.lineCap = "butt";
+    g.strokeStyle = "rgba(" + MET_PLUIE + ",0.10)";
+    g.lineWidth = 2.2;
+    g.beginPath();
+    for(i = 0; i < 26; i++){
+      var vx = 96 + al() * 320;
+      var vy = 150 + al() * 20;
+      g.moveTo(vx, vy);
+      g.lineTo(vx + 9, vy + 42 + al() * 52);
+    }
+    g.stroke();
+
     /* le ventre : des lobes bas, larges, franchement écrasés */
     for(i = 0; i < n; i++){
-      var x = 34 + al() * 188, r = 30 + al() * 54;
-      var y = 80 + (al() - 0.5) * 18;
+      var x = 62 + al() * 388, r = 56 + al() * 104;
+      var y = 156 + (al() - 0.5) * 34;
       g.globalAlpha = 0.42 + al() * 0.44;
-      g.drawImage(db, x - r, y - r * 0.60, r * 2, r * 1.20);
+      g.drawImage(db, x - r, y - r * 0.58, r * 2, r * 1.16);
     }
     /* LA CRÊTE. Plus haute, plus petite, plus claire. C'est ce liseré
        et rien d'autre qui donne le volume : sans lui, un nuage n'est
@@ -612,155 +646,89 @@ function spritesNuage(){
        du premier essai, où l'on ne distinguait plus les nuages de la
        nappe d'ombres au sol. */
     for(i = 0; i < n - 2; i++){
-      var x2 = 48 + al() * 160, r2 = 22 + al() * 34;
-      g.globalAlpha = 0.22 + al() * 0.26;
-      g.drawImage(dh, x2 - r2, 44 + (al() - 0.5) * 14 - r2 * 0.55, r2 * 2, r2 * 1.05);
+      var x2 = 92 + al() * 328, r2 = 40 + al() * 64;
+      g.globalAlpha = 0.20 + al() * 0.26;
+      g.drawImage(dh, x2 - r2, 84 + (al() - 0.5) * 26 - r2 * 0.55, r2 * 2, r2 * 1.05);
+    }
+    /* deux ou trois bourgeons tout en haut : la tête d'un cumulus qui
+       monte. Ils cassent la ligne d'horizon du nuage, sans quoi la
+       silhouette reste un ovale. */
+    for(i = 0; i < 3; i++){
+      var x3 = 150 + al() * 212, r3 = 34 + al() * 40;
+      g.globalAlpha = 0.16 + al() * 0.20;
+      g.drawImage(dh, x3 - r3, 46 + al() * 22 - r3 * 0.5, r3 * 2, r3 * 1.0);
     }
     metSpNuages.push(cv);
   }
   return metSpNuages;
 }
 
-/* UN NUAGE, en coordonnées MONDE comme une défense :
-     gx, gy   le point du sol qu'il survole — donc où tombe son ombre
-     h        sa hauteur au-dessus du sol, en unités locales
-     r        son demi-diamètre au sol, en cases
-     v        la variante de silhouette (0..3)
-     gx0, vx  sa position de départ et sa dérive, en cases par seconde
-   La liste est PUBLIQUE : la boucle de jeu peut la remplir, la vider,
-   ou déplacer les nuages elle-même. */
-var nuagesJungle = [];
-
-function nouveauNuageJungle(gx, gy, graine){
-  var al = prng((graine | 0) || 1);
-  return {
-    gx:gx, gy:gy, gx0:gx, gy0:gy,
-    r:4.5 + al() * 5,
-    h:250 + al() * 170,
-    v:(al() * 4) | 0,
-    op:0.62 + al() * 0.38,
-    vx:0.24 + al() * 0.18,
-    vy:0.08 + al() * 0.09
-  };
+/* La liste du jeu, ou rien. On ne fabrique jamais de nuages ici. */
+function nuagesDuJeu(){
+  return (typeof jeu !== "undefined" && jeu && jeu.nuages) ? jeu.nuages : null;
 }
 
-/* Un semis reproductible : deux joueurs d'un même salon doivent voir
-   le même ciel, sinon la foudre ne part pas du même endroit chez l'un
-   et chez l'autre. */
-function peupleNuagesJungle(nb, graine){
-  var al = prng((graine | 0) || 0x51A9E1);
-  nuagesJungle.length = 0;
-  for(var i = 0; i < nb; i++)
-    nuagesJungle.push(nouveauNuageJungle(al() * GW, al() * GH, (al() * 1e9) | 0));
-  return nuagesJungle;
-}
-
-/* LA DÉRIVE, calculée à partir de tps et de RIEN D'AUTRE.
-   Pas d'accumulation « gx += vx*dt » : deux clients qui n'ont pas
-   exactement le même nombre d'images finiraient avec deux ciels
-   différents, donc deux éclairs partant de deux endroits. Ici la
-   position est une FONCTION du temps, elle est identique partout.
-   Ils sortent par un bord et rentrent par l'autre — la carte est
-   bouclée pour eux, ce qui évite d'en créer et d'en détruire. */
-var MET_NUAGE_MARGE = 22;
-var metNuagesMaj = -1;
-function majNuagesJungle(tps){
-  if(tps === metNuagesMaj) return nuagesJungle;
-  metNuagesMaj = tps;
-  if(!nuagesJungle.length) peupleNuagesJungle(JUNGLE_NUAGES, 0x51A9E1);
-  var m = MET_NUAGE_MARGE, LX = GW + m * 2, LY = GH + m * 2;
-  for(var i = 0; i < nuagesJungle.length; i++){
-    var u = nuagesJungle[i];
-    u.gx = ((u.gx0 + u.vx * tps) % LX + LX) % LX - m;
-    u.gy = ((u.gy0 + u.vy * tps) % LY + LY) % LY - m;
-  }
-  return nuagesJungle;
-}
-
-/* Le nuage le plus proche d'un point. C'est de lui que partira
-   l'éclair. Au-delà de MET_NUAGE_PORTEE cases, on répond « aucun » :
-   un éclair rattaché à un nuage situé à vingt cases arrive de biais en
-   travers de tout l'écran, et on lit alors qu'il vient d'ailleurs —
-   exactement ce qu'on cherchait à éviter en mettant des nuages. */
-var MET_NUAGE_PORTEE = 9;
-function nuageAuDessus(gx, gy){
-  var meilleur = null, d2 = MET_NUAGE_PORTEE * MET_NUAGE_PORTEE;
-  for(var i = 0; i < nuagesJungle.length; i++){
-    var u = nuagesJungle[i];
-    var d = (u.gx - gx) * (u.gx - gx) + (u.gy - gy) * (u.gy - gy);
-    if(d < d2){ d2 = d; meilleur = u; }
-  }
-  return meilleur;
-}
-
-/* OÙ FRAPPER — pour la boucle de jeu.
-   L'ORDRE COMPTE, et c'est tout l'intérêt de cette fonction : on
-   choisit d'abord LE NUAGE, ensuite le point sous lui. Tiré dans
-   l'autre sens — un point au hasard, puis le nuage le plus proche —
-   le nuage le plus proche peut être à l'autre bout de l'île, et
-   l'éclair traverse alors l'écran en diagonale sans qu'on comprenne
-   d'où il sort.
-   `al` est une fonction de tirage (Math.random convient) ; `evite` un
-   point à ne pas approcher (le Brasier), `rEvite` son rayon en cases.
-   Retourne {gx, gy, nuage}. */
-function tirePointDeFoudre(tps, al, evite, rEvite){
-  al = al || Math.random;
-  var nu = majNuagesJungle(tps);
-  if(!nu.length) return null;
-  for(var essai = 0; essai < 24; essai++){
-    var u = nu[(al() * nu.length) | 0];
-    var a = al() * 6.2832, r = Math.sqrt(al()) * u.r * 0.8;
-    var gx = borne(u.gx + Math.cos(a) * r, 5, GW - 5);
-    var gy = borne(u.gy + Math.sin(a) * r, 4, GH - 4);
-    if(evite && Math.hypot(gx - evite.gx, gy - evite.gy) < (rEvite || 20)) continue;
-    return { gx:gx, gy:gy, nuage:u };
-  }
-  return null;
-}
-
-/* L'OMBRE PORTÉE. Elle vit avec les ombres de nuages du sol, donc
-   SOUS les entités : c'est de l'ombre sur la terre, elle n'a rien à
-   faire par-dessus les troupes. Appelée depuis dessineCielOrage. */
+/* L'OMBRE PORTÉE. Elle vit avec les ombres du sol, donc SOUS les
+   entités : c'est de l'ombre sur la terre, elle n'a rien à faire
+   par-dessus les troupes. Appelée depuis dessineCielOrage.
+   Elle est franche — 0,30 — parce qu'elle a un travail à faire en
+   plus d'être jolie : c'est elle qui dit AU SOL où le nuage passe, et
+   donc où le joueur ne doit pas laisser ses troupes. */
 function dessineOmbresNuages(c, tps){
+  var nu = nuagesDuJeu();
+  if(!nu || !nu.length) return;
   var z = cam.z;
   var d = disqueMeteo(MET_OMBRE);
-  var nu = majNuagesJungle(tps);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    var rx = u.r * RX * z * 1.15, ry = u.r * RY * z * 1.15;
+    var souffle = 1 + Math.sin(tps * 0.21 + u.ph) * 0.05;
+    var rx = u.r * RX * z * 1.05 * souffle, ry = u.r * RY * z * 1.05 * souffle;
     if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
-    c.globalAlpha = 0.20 * u.op;
+    c.globalAlpha = 0.30;
     c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
   }
   c.restore();
 }
 
 /* LA MASSE, en l'air, par-dessus la carte.
-   Lissage COUPÉ : la silhouette est agrandie d'un facteur trois ou
-   quatre, et un agrandissement filtré coûte cinq fois le prix — 5,2 ms
-   contre 1,0 ms pour douze sprites, mesuré. Sur un dégradé aussi doux
-   l'escalier ne se voit pas. */
+   Deux précautions que le mouvement impose. Ces nuages vont VITE — le
+   double d'une troupe, soit une traversée d'écran en une quinzaine de
+   secondes — et tout défaut de rendu qui serait invisible sur un objet
+   fixe se met à ramper sur un objet qui file.
+     1. Lissage COUPÉ : la silhouette est agrandie, et un
+        agrandissement filtré coûte cinq fois le prix (5,2 ms contre
+        1,0 ms pour douze sprites, mesuré).
+     2. …mais un agrandissement NON filtré rampe quand la destination
+        bouge d'une fraction de pixel. On ARRONDIT donc la taille ET
+        la position à l'entier : le rapport source/destination devient
+        constant, chaque pixel de destination échantillonne toujours
+        le même pixel de source, et le nuage se contente de translater.
+        Sans cet arrondi, sa texture grouillait pendant qu'il avançait. */
 var metNuagesDessin = -1;
 function dessineNuagesJungle(c, tps){
   if(tps === metNuagesDessin) return;
   metNuagesDessin = tps;
+  var nu = nuagesDuJeu();
+  if(!nu || !nu.length) return;
   var z = cam.z, sp = spritesNuage();
-  var nu = majNuagesJungle(tps);
   c.save();
   c.imageSmoothingEnabled = false;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    /* respiration très lente : un nuage figé se lit comme un autocollant */
-    var souffle = 1 + Math.sin(tps * 0.13 + u.gx0) * 0.06;
-    var w = u.r * RX * 2 * z * souffle, hh = w * 0.5;
-    var x = p.x - w / 2, y = p.y - u.h * z - hh * 0.55;
+    /* respiration très lente, décalée par nuage : trois masses qui
+       enflent en même temps se lisent comme un seul objet répété */
+    var souffle = 1 + Math.sin(tps * 0.17 + u.ph) * 0.055;
+    var w = Math.round(u.r * RX * 2.15 * z * souffle);
+    var hh = Math.round(w * 0.5);
+    var x = Math.round(p.x - w / 2);
+    var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);
     if(x > W || x + w < 0 || y > H || y + hh < 0) continue;
-    c.globalAlpha = 0.44 * u.op;
-    c.drawImage(sp[u.v], x, y, w, hh);
+    c.globalAlpha = 0.46;
+    c.drawImage(sp[((u.ph * 3.1) | 0) & 3], x, y, w, hh);
   }
   c.restore();
 }
@@ -783,33 +751,26 @@ var EC_DESC = 0.11;      // le temps que l'éclair met à descendre
 var EC_VIE  = 0.28;      // ce qu'il vit encore après avoir touché
 
 /* ---------------------------------------------------------------
-   LE CONTRAT AVEC LA BOUCLE DE JEU
-   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Ces
-   deux nombres sont tout ce qu'il faut pour le calculer, et le rendu
-   les lit exactement comme le fera la boucle — c'est la seule façon
-   que ce qu'on voit et ce qui tue soient le même cercle.
-   (À reprendre dans EQ tels quels : JUNGLE_FOUDRE_RAYON /
-    JUNGLE_FOUDRE_DUREE.)
-   --------------------------------------------------------------- */
-var JUNGLE_FOUDRE_RAYON = 7.0;    // cases : rayon FINAL de la nappe
-var JUNGLE_FOUDRE_DUREE = 2.6;    // secondes pour l'atteindre
-/* Conséquence directe : un éclair doit VIVRE au moins
-   EC_DESC + JUNGLE_FOUDRE_DUREE + le fondu de queue, soit 3,4 s. En
-   dessous, la boucle retire l'objet de jeu.eclairs pendant que la
-   nappe est encore en train de s'étendre, et elle disparaît d'un coup
-   au milieu de sa course. */
-var JUNGLE_FOUDRE_VIE = 3.4;      // e.duree recommandé
-
-/* Le front avance en RACINE du temps : très vite au premier dixième
-   de seconde, puis il s'essouffle. Une décharge qui s'étalerait à
-   vitesse constante aurait l'air d'un cercle de sélection ; celle-ci
-   a l'air de se diffuser dans la terre, ce qui est le propos. */
-function frontFoudre(age){
-  return Math.sqrt(borne((age - EC_DESC) / JUNGLE_FOUDRE_DUREE, 0, 1));
+   LA NAPPE — CE QU'ON DESSINE EST CE QUI TUE
+   Le dégât ne tombe pas d'un coup sur un disque : il se DIFFUSE. Le
+   calcul appartient à 80-jeu.js, qui pose sur chaque éclair :
+     e.cx, e.cy   le nuage d'où le coup est parti, figé au tir
+     e.front      le rayon atteint par le courant, EN CASES
+   On ne recalcule rien ici : on lit e.front. C'est la seule façon que
+   le cercle qu'on voit et le cercle qui tue soient le même — s'ils
+   divergeaient d'un dixième de case, le joueur perdrait des troupes
+   hors du halo et n'y comprendrait rien.
+   Le repli n'existe que pour les bancs d'essai, qui fabriquent des
+   éclairs à la main sans passer par la boucle. */
+function rayonFoudre(e){
+  if(e.front !== undefined) return e.front;
+  var R = (typeof EQ !== "undefined" && EQ.ECLAIR_RAYON_NAPPE) || 7.5;
+  var D = (typeof EQ !== "undefined" && EQ.ECLAIR_NAPPE_DUREE) || 2.6;
+  return Math.sqrt(borne(e.age / D, 0, 1)) * R;
 }
-/* Le rayon courant de la nappe, EN CASES. C'est cette fonction que la
-   boucle doit appeler pour savoir qui est dedans. */
-function rayonFoudre(e){ return frontFoudre(e.age) * JUNGLE_FOUDRE_RAYON; }
+function rayonMaxFoudre(){
+  return (typeof EQ !== "undefined" && EQ.ECLAIR_RAYON_NAPPE) || 7.5;
+}
 
 /* L'intensité du canal. Un éclair ne s'éteint pas d'un coup : il se
    réamorce deux fois. Ces deux bosses sont ce qui distingue un éclair
@@ -924,12 +885,15 @@ function traitFoudre(c, xs, ys, n, larg, I){
    de sinus de tps, jamais de Math.random.
    --------------------------------------------------------------- */
 function dessineNappeFoudre(c, e, ti, tps){
-  var u = borne(ti / JUNGLE_FOUDRE_DUREE, 0, 1);
-  if(u >= 1) return;
-  var f = Math.sqrt(u);
+  var R = rayonFoudre(e);
+  /* `u` mesure l'AVANCEMENT, pas le temps : c'est le rayon atteint
+     rapporté au rayon final. En le tirant du front plutôt que de
+     l'horloge, l'extinction reste calée sur la nappe même si la boucle
+     change un jour sa loi d'expansion. */
+  var u = borne(R / rayonMaxFoudre(), 0, 1);
+  if(u >= 1 || R <= 0.02) return;
   var z = cam.z;
   var p = versEcran(cam, e.gx, e.gy);
-  var R = JUNGLE_FOUDRE_RAYON * f;
   var rx = R * RX * z, ry = R * RY * z;
   if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) return;
   /* elle s'éteint en s'élargissant : l'énergie se dilue */
@@ -996,16 +960,19 @@ function dessineEclairJungle(c, e, tps){
      et le pied de l'éclair doit rester accroché à lui. Sans nuage
      (liste vide), on retombe sur le haut de l'écran — l'éclair
      traverse alors tout le cadre, ce qui reste correct. */
-  if(e.nuage === undefined) e.nuage = nuageAuDessus(e.gx, e.gy) || null;
   var ox, oy;
-  if(e.nuage){
-    var pn = versEcran(cam, e.nuage.gx, e.nuage.gy);
-    ox = pn.x; oy = pn.y - e.nuage.h * z;
+  if(e.cx !== undefined){
+    /* 80-jeu.js a figé, au moment du tir, le nuage d'où le coup part.
+       On le lit tel quel : le nuage continue de dériver pendant que
+       l'éclair tombe, mais le canal, lui, reste accroché à l'endroit
+       d'où il est parti. C'est ce que fait la nature, et c'est surtout
+       ce qui garantit que le pied du trait tombe pile sur le point que
+       la boucle a choisi de foudroyer. */
+    var pn = versEcran(cam, e.cx, e.cy);
+    ox = pn.x; oy = pn.y - MET_NUAGE_ALT * z;
   }else{
-    /* Aucun nuage assez près : on fait descendre l'éclair de la
-       couche de nuages elle-même, à la verticale du point. Le joueur
-       ne voit pas d'où il part, mais il ne voit pas non plus un trait
-       qui traverse l'écran en biais depuis un nuage sans rapport. */
+    /* Pas de nuage d'origine (banc d'essai) : l'éclair descend de la
+       couche de nuages à la verticale du point. */
     ox = p.x; oy = Math.min(p.y - 90, -Math.max(60, H * 0.10));
   }
   var haut = p.y - oy;
@@ -1016,10 +983,9 @@ function dessineEclairJungle(c, e, tps){
        qui s'allume. C'est plus précis, plus joli, moins cher, et ça
        dit au joueur d'où le coup va partir. */
     var pre = borne(t / EC_DESC, 0, 1);
-    if(t < EC_DESC + 0.09 && e.nuage)
-      lueurRapide(c, ox, oy + e.nuage.h * z * 0.05,
-                  e.nuage.r * RX * z * 1.2, "#cfe0ff",
-                  0.55 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
+    if(t < EC_DESC + 0.09 && e.cx !== undefined)
+      lueurRapide(c, ox, oy + 16 * z, Math.max(70, 13 * RX * z), "#cfe0ff",
+                  0.60 * pre * (t < EC_DESC ? 1 : 1 - (t - EC_DESC) / 0.09));
 
     /* La largeur ne suit PAS le zoom : un éclair est de la lumière
        dans l'air, il est aussi gros de près que de loin. Elle a été

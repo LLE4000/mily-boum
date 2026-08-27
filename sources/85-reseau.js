@@ -588,6 +588,17 @@ function remetSalonAZero(){
 /* Le joueur vient de valider un nouveau plan. C'est un changement de
    carte : on repart sur un tirage neuf, donc sur une île intacte —
    les bâtiments détruits de l'ancienne carte ne désignent plus rien. */
+/* Enregistre le plan d'UNE carte dans le paquet du salon. Les autres
+   cartes gardent le leur : c'est tout l'objet de la refonte. */
+function enregistrePlanCarte(index, chaine){
+  var t = decodePlans(planSalon);
+  if(chaine) t[index] = chaine; else delete t[index];
+  var r = enregistrePlan(encodePlans(t));
+  /* Les onglets portent la pastille « déjà enregistrée » : ils doivent
+     la voir apparaître au moment où elle devient vraie. */
+  if(typeof construitOngletsCartes === "function") construitOngletsCartes();
+  return r;
+}
 function enregistrePlan(chaine){
   if(chaine === planSalon) return false;
   planSalon   = chaine;
@@ -597,7 +608,11 @@ function enregistrePlan(chaine){
   carteSalon  = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon };
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            je:0, jf:0, jd:"", jq:0,
+            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
+            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
+            ch:(monde && monde.ch) || "" };
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;

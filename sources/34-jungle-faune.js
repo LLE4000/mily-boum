@@ -67,12 +67,38 @@ var FAUNE_JUNGLE = ["singe", "panda", "koala", "bourdon", "papillon", "luciole"]
 
 /* Singe. Doré franc — la seule chose chaude et saturée qui bouge au
    sol. Le premier essai était brun-olive « réaliste » : sur la terre de
-   jungle, il disparaissait aussi bien qu'un caillou. */
+   jungle, il disparaissait aussi bien qu'un caillou.
+
+   TROIS ROBES, ajoutées après coup et pour une raison mesurée : à
+   quatre-vingts singes semés, dix voisins de la même couleur se
+   lisaient comme dix décalques. Elles ne sont pas trois nuances de
+   doré — ce serait ne rien changer à dix pas — mais TROIS VALEURS :
+   le doré du milieu, un roux nettement plus sombre, et un vieux mâle
+   argenté qui monte plus haut que tout le reste de la carte. C'est
+   exactement le raisonnement des trois chats de Mily, et c'est le seul
+   qui survive au dézoom.
+   PAL_SINGE reste la robe dorée : c'est elle que le reste du fichier
+   nomme, et elle n'a pas bougé d'un point. */
 var PAL_SINGE = {
   dos:"#c89453", flanc:"#9d7038", ventreO:"#6b4c28", cape:"#4a3520",
   face:"#f4d7ae", faceO:"#cfa87c", museau:"#fbecd2",
   main:"#3b2a1a", nez:"#7a4c39", chair:"#cd8d74", dents:"#f6f0e2"
 };
+var PAL_SINGE_ROBES = [
+  PAL_SINGE,
+  { /* 1 — roux sombre. Le seul du lot qui joue contre le fond plutôt
+       qu'avec : sa face claire fait alors tout le travail, ce qui est
+       exactement pourquoi elle est encore plus pâle que celle du doré. */
+    dos:"#b06a34", flanc:"#8a4e22", ventreO:"#5a3316", cape:"#3a2413",
+    face:"#eec39a", faceO:"#c1926a", museau:"#f9e2c2",
+    main:"#33210f", nez:"#6d3f2c", chair:"#c47a62", dents:"#f6f0e2" },
+  { /* 2 — vieux mâle argenté. Valeur haute, saturation presque nulle :
+       posé au milieu de deux dorés, on le prend tout de suite pour un
+       autre animal, ce qui est précisément le but. */
+    dos:"#cec4a8", flanc:"#a3987d", ventreO:"#6f6754", cape:"#4b4638",
+    face:"#f8eeda", faceO:"#cfc4ac", museau:"#fefaf0",
+    main:"#3a352c", nez:"#7d5a4b", chair:"#c69a8c", dents:"#f6f0e2" }
+];
 
 /* Panda. Le blanc n'est pas blanc : tiré vers le crème, sinon il fait
    un trou dans l'image. Et le noir n'est pas noir : #231f28 garde un
@@ -95,6 +121,29 @@ var PAL_KOALA = {
   touffe:"#f6f6f4", touffeO:"#c3c8cf",
   nez:"#2b262e", nezC:"#544c58", griffe:"#2e2930", face:"#c8ced6"
 };
+/* Trois robes, pour la même raison que chez le singe : à cinquante-cinq
+   koalas posés au pied des troncs, tous du même gris, on ne voyait plus
+   qu'un motif. Elles restent toutes FROIDES — c'est la seule espèce
+   froide du bestiaire et c'est ce qui l'empêche d'être prise pour un
+   singe — mais elles s'étagent franchement en valeur : le gris bleuté
+   du milieu, un gris-brun plus sombre, et un koala presque blanc.
+   Le nez reste noir dans les trois : c'est la moitié de sa
+   reconnaissance, il n'y a rien à y varier. */
+var PAL_KOALA_ROBES = [
+  PAL_KOALA,
+  { /* 1 — gris brun, le plus sombre. Contre un tronc il disparaîtrait
+       sans son plastron, qui est donc le plus contrasté des trois. */
+    dos:"#9a8f7e", flanc:"#7b7161", ombre:"#565042",
+    ventre:"#f4eee0", ventreO:"#ccc4b2",
+    touffe:"#faf6ea", touffeO:"#c9c2b0",
+    nez:"#2b2620", nezC:"#544c44", griffe:"#2e2924", face:"#cec5b4" },
+  { /* 2 — presque blanc. Le plus visible du lot, et de loin : c'est
+       lui qu'on repère en premier dans une rangée de troncs. */
+    dos:"#c8cfd9", flanc:"#a7aeba", ombre:"#7d8490",
+    ventre:"#fbfdff", ventreO:"#d8dee6",
+    touffe:"#ffffff", touffeO:"#d6dae0",
+    nez:"#2b262e", nezC:"#5b535f", griffe:"#332e36", face:"#e2e7ee" }
+];
 
 /* Bourdon. Le jaune est mis très haut et le noir très bas : à 9 unités
    il ne reste que le rythme des bandes, et c'est ce rythme-là qui dit
@@ -143,6 +192,27 @@ function fauneFenetre(tps, ph, periode, duree){
   var p = (tps + ph * 3.71) % periode;
   if(p < 0 || p > duree) return 0;
   return Math.sin(p / duree * 3.1416);
+}
+
+/* ---- HACHÉ D'INDIVIDU -------------------------------------------
+   « Je ne vois pas encore assez d'animaux. » Le poseur a triplé les
+   effectifs ; à trente bêtes d'une même espèce à l'écran, ce qui
+   manque n'est plus le nombre, c'est que deux voisines cessent de se
+   lire comme deux tirages du même dessin. D'où ce tirage, dont se
+   servent maintenant le singe, le panda, le koala et le cochon d'Inde
+   pour choisir leur taille, leur robe et leur silhouette.
+
+   Il part de k.n, l'indice dans la liste des créatures. Le semis pose
+   les bêtes PAR GROUPES : les n d'une même grappe se suivent donc, et
+   un simple n % 3 les aurait rangées en file indienne de motifs — roux,
+   noir, tricolore, roux, noir, tricolore. Le sinus haché casse la
+   suite, et reste évidemment reproductible d'une image à l'autre et
+   d'une machine à l'autre.
+   « sel » sépare les tirages : un même individu doit pouvoir tirer sa
+   taille et son motif sans que l'un dicte l'autre. */
+function fauneTirage(n, sel){
+  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
+  return a - Math.floor(a);
 }
 
 /* ---- SURSAUT ----------------------------------------------------
@@ -300,8 +370,16 @@ function singeVentre(c){
   c.quadraticCurveTo(-5.2, -7.3, -6.2, -9.0);
 }
 function dessineSinge(c, k, tps){
-  var P = PAL_SINGE;
-  var ph = k.ph || 0, pas = k.phase || 0;
+  /* La robe et la taille sont des propriétés de L'INDIVIDU, pas de
+     l'instant : elles se tirent de k.teinte (que le semis pose déjà en
+     0, 1 ou 2) et de k.n, et ne changent jamais en cours de partie. */
+  var robe = k.teinte | 0; if(robe > 2 || robe < 0) robe = 0;
+  var P = PAL_SINGE_ROBES[robe];
+  var ph = k.ph || 0, pas = k.phase || 0, n = k.n || 0;
+  /* Un jeune fait les quatre cinquièmes d'un adulte. Vingt pour cent
+     d'écart, c'est peu à la loupe et énorme dans une bande : c'est ce
+     qui transforme huit exemplaires alignés en une troupe. */
+  var ech = 0.88 + fauneTirage(n, 11) * 0.22;
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var bond = Math.abs(Math.sin(pas));
@@ -316,6 +394,8 @@ function dessineSinge(c, k, tps){
      croire à un animal et pas à un pion qui glisse. */
   var gratte = alerte ? 0 : fauneFenetre(tps, ph, 6.3, 0.9);
 
+  c.save();
+  c.scale(ech, ech);
   ombreFaune(c, 0.8, 9.2, 3.2, bond, 0.26);
 
   c.save();
@@ -333,12 +413,20 @@ function dessineSinge(c, k, tps){
      singe qui court ne porte pas sa queue en crosse, et cette bascule
      se lit d'un seul coup d'œil même sans voir les pattes. */
   var onde = fuit ? 0 : Math.sin(tps * 1.35 + ph) * 2.2;
+  /* LA HAUTEUR DE LA CROSSE change d'un singe à l'autre. C'est le
+     contour le plus visible de la bête — celui qu'on reconnaît quand
+     il ne reste que quinze pixels — donc le varier suffit à ce que
+     deux voisins ne se lisent plus comme deux tirages du même dessin,
+     même à robe égale. Deux unités d'écart, pas plus : au-delà, la
+     queue cessait d'être une crosse de macaque pour devenir un point
+     d'interrogation, et on perdait la signature au lieu de la varier. */
+  var cro = fauneTirage(n, 21) * 4.0 - 2.0;
   var q = fuit
     ? [[-6.4, -10.0, -13.6, -11.8, -19.4, -13.8],
        [-19.4, -13.8, -24.0, -15.4, -26.4, -17.6]]
-    : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4],
-       [-13.2 + onde * 0.6, -18.4, -13.8 + onde * 1.0, -23.4, -8.2 + onde * 1.3, -24.2],
-       [-8.2 + onde * 1.3, -24.2, -4.6 + onde * 1.5, -24.6, -5.4 + onde * 1.6, -21.2]];
+    : [[-6.4, -10.2, -12.6 + onde * 0.3, -12.6, -13.2 + onde * 0.6, -18.4 - cro * 0.5],
+       [-13.2 + onde * 0.6, -18.4 - cro * 0.5, -13.8 + onde * 1.0, -23.4 - cro, -8.2 + onde * 1.3, -24.2 - cro],
+       [-8.2 + onde * 1.3, -24.2 - cro, -4.6 + onde * 1.5, -24.6 - cro, -5.4 + onde * 1.6, -21.2 - cro * 0.8]];
   /* Le compte de disques est calculé, pas écrit : posé à quatorze sur
      un tracé de trente-cinq unités, la queue sortait en collier de
      perles. */
@@ -350,11 +438,13 @@ function dessineSinge(c, k, tps){
   membreFaune(c, 4.8, -12.2, 4.0, -6.8, 4.2 - ec, -1.0, 1.7, 1.05, P.ventreO, P.main, 1.5);
 
   /* ---- le torse ---- */
-  c.fillStyle = degCache(c, "singeTorse", function(){
+  /* Un dégradé par ROBE, pas un par singe : trois CanvasGradient en
+     tout et pour tout, gravés à la première image. */
+  c.fillStyle = degCache(c, "singeTorse" + robe, function(){
     var g = c.createLinearGradient(0, -17.2, 0, -5.4);
-    g.addColorStop(0, PAL_SINGE.dos);
-    g.addColorStop(0.52, PAL_SINGE.flanc);
-    g.addColorStop(1, PAL_SINGE.ventreO);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.52, P.flanc);
+    g.addColorStop(1, P.ventreO);
     return g;
   });
   singeTorse(c, d); c.fill();
@@ -364,8 +454,11 @@ function dessineSinge(c, k, tps){
      flanc et le singe prenait un air de poney. */
   c.save();
   singeTorse(c, d); c.clip();
-  c.fillStyle = "rgba(74,53,32,.30)";
+  /* La cape prend la couleur de la robe : posée en brun fixe, elle
+     plantait une tache chaude sur l'épaule du vieux mâle argenté. */
+  c.globalAlpha = 0.30; c.fillStyle = P.cape;
   c.beginPath(); c.ellipse(5.2, -14.8 - d, 5.2, 3.2, -0.22, 0, 6.2832); c.fill();
+  c.globalAlpha = 1;
   /* Le ventre crème est venu et reparti : même en bande fine, posé au
      milieu du flanc, il se lisait comme un hublot pâle collé sur la
      bête. Le dégradé du tronc suffit — le ventre s'éclaircit tout seul
@@ -492,6 +585,7 @@ function dessineSinge(c, k, tps){
 
   c.restore();
   c.restore();
+  c.restore();
 }
 
 /* ================================================================
@@ -538,11 +632,28 @@ function pandaVentre(c){
   c.quadraticCurveTo(-9.4, -8.1, -11.4, -10.6);
 }
 
+/* LES TROIS MASQUES. Un panda ne peut pas changer de couleur — c'est
+   toute sa définition — donc la seule chose qu'on puisse varier d'un
+   individu à l'autre, c'est la FORME de ses taches oculaires. Chez les
+   vrais, elle sépare les individus mieux que n'importe quoi d'autre, et
+   ici elle tombe pile à l'endroit où l'œil du joueur va : le visage.
+   Trois familles bien séparées, tirées de k.teinte que le semis pose
+   déjà — la goutte inclinée d'origine, une tache large et ronde qui
+   donne l'air ahuri, une tache étroite qui tombe sur la joue et donne
+   l'air renfrogné. Coût : zéro tracé de plus.
+   [ rxG, ryG, rotG, dyG, rxD, ryD, rotD, dyD ] */
+var MASQUES_PANDA = [
+  [2.0, 2.7, -0.44, -0.9,  2.1, 2.8,  0.40, -0.7],
+  [2.5, 2.3, -0.15, -0.7,  2.6, 2.4,  0.12, -0.5],
+  [1.7, 3.0, -0.74, -0.4,  1.8, 3.1,  0.70, -0.2]
+];
+
 /* La tête, commune aux deux poses : on la place, on l'oriente, et elle
    se dessine pareil. Le seul paramètre de jeu est « mach », l'ouverture
    de mâchoire, qui ne sert qu'assis.
-   « pl » plaque les oreilles (fuite, sursaut), « lacet » tourne. */
-function panda_tete(c, lacet, ouv, mach, pl, tire_langue){
+   « pl » plaque les oreilles (fuite, sursaut), « lacet » tourne,
+   « masque » choisit la forme des taches oculaires. */
+function panda_tete(c, lacet, ouv, mach, pl, tire_langue, masque){
   var P = PAL_PANDA;
   /* Oreilles : deux disques noirs BIEN détachés du crâne. Collées,
      elles fondaient dans la tache oculaire et le panda perdait sa
@@ -566,15 +677,16 @@ function panda_tete(c, lacet, ouv, mach, pl, tire_langue){
      plus grandes que ce qu'un panda a vraiment — parce que c'est le
      seul dessin de la tête qui survive au dézoom, et parce qu'elles
      donnent les deux points sombres sur fond clair. */
+  var M = MASQUES_PANDA[masque | 0] || MASQUES_PANDA[0];
   c.save();
   c.translate(lacet * 2.0, 0);
   c.fillStyle = P.noirO;
-  c.save(); c.translate(-2.4, -0.9); c.rotate(-0.44);
-  c.beginPath(); c.ellipse(0, 0, 2.0, 2.7, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(-2.4, M[3]); c.rotate(M[2]);
+  c.beginPath(); c.ellipse(0, 0, M[0], M[1], 0, 0, 6.2832); c.fill();
   c.restore();
   c.fillStyle = P.noir;
-  c.save(); c.translate(2.5, -0.7); c.rotate(0.40);
-  c.beginPath(); c.ellipse(0, 0, 2.1, 2.8, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(2.5, M[7]); c.rotate(M[6]);
+  c.beginPath(); c.ellipse(0, 0, M[4], M[5], 0, 0, 6.2832); c.fill();
   c.restore();
   /* les yeux DANS les taches : sans le petit rond clair autour, la
      bille noire disparaissait purement et simplement dans la tache */
@@ -678,7 +790,11 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
   /* La mastication par salves : cinq coups de mâchoire serrés, puis
      deux secondes à regarder ailleurs. Une mâchoire qui bat sans arrêt
      donne un automate ; c'est la PAUSE qui fait le panda. */
-  var cyc = (tps * 0.42 + ph * 0.27) % 1;
+  /* Le n entre dans le cycle de mastication en plus de la phase : deux
+     pandas assis côte à côte avaient des ph voisins (le semis les pose
+     en groupe, donc à indices qui se suivent) et mâchaient presque en
+     chœur — ce qui est exactement ce que le préambule interdit. */
+  var cyc = (tps * 0.42 + ph * 0.27 + fauneTirage(k.n || 0, 31)) % 1;
   var croque = cyc < 0.62 ? 1 : 0;
   var mach = alerte ? 0 : croque * (0.5 + 0.5 * Math.sin(tps * 11.5 + ph * 2)) * 0.9;
   var resp = Math.sin(tps * 1.15 + ph) * 0.45;
@@ -769,7 +885,7 @@ function panda_assis(c, k, tps, sur, alerte, fuit){
      plus l'air de la même espèce. */
   c.translate(4.4 + serre * 0.4, -21.8 + mach * 0.5 + serre * 1.2);
   c.rotate(0.14 + mach * 0.05 + serre * 0.12);
-  panda_tete(c, lacet, ouv, mach, serre, 0);
+  panda_tete(c, lacet, ouv, mach, serre, 0, k.teinte);
   c.restore();
 
   c.restore();
@@ -849,7 +965,7 @@ function panda_debout(c, k, tps, sur, alerte, fuit){
   c.save();
   c.translate(15.2 + (fuit ? 1.6 : 0), -20.4 + (fuit ? 2.6 : 0) + sur * 1.6);
   c.rotate((fuit ? 0.2 : Math.sin(tps * 0.44 + ph * 1.5) * 0.05) + roule * 0.5);
-  panda_tete(c, lacet, ouv, fuit ? 0.55 : 0, alerte ? 1 : 0, fuit ? 1 : 0);
+  panda_tete(c, lacet, ouv, fuit ? 0.55 : 0, alerte ? 1 : 0, fuit ? 1 : 0, k.teinte);
   c.restore();
 
   c.restore();
@@ -859,8 +975,19 @@ function dessinePanda(c, k, tps){
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var alerte = fuit || sur > 0.15;
+  /* DES JEUNES PARMI LES ADULTES. C'est le seul levier de variété qui
+     reste à un animal dont la robe est sa définition — et c'est le plus
+     fort des trois espèces : un panda aux quatre cinquièmes de la
+     taille, assis au milieu de trois grands, ne se lit pas comme « le
+     même dessin en plus petit », il se lit comme un petit. L'écart va
+     jusqu'à un cinquième, ce qui, à cent dix pandas semés en groupes,
+     suffit à faire des familles. */
+  var ech = 0.80 + fauneTirage(k.n || 0, 17) * 0.28;
+  c.save();
+  c.scale(ech, ech);
   if(k.assis) panda_assis(c, k, tps, sur, alerte, fuit);
   else panda_debout(c, k, tps, sur, alerte, fuit);
+  c.restore();
 }
 
 /* ================================================================
@@ -910,8 +1037,13 @@ function koala_oreille(c, x, y, r, ext, poil, ang){
   c.restore();
 }
 function dessineKoala(c, k, tps){
-  var P = PAL_KOALA;
-  var ph = k.ph || 0;
+  var robe = k.teinte | 0; if(robe > 2 || robe < 0) robe = 0;
+  var P = PAL_KOALA_ROBES[robe];
+  var ph = k.ph || 0, n = k.n || 0;
+  /* Les koalas sont posés au pied des troncs, souvent deux ou trois
+     ensemble : un jeune à côté d'un adulte raconte une scène là où
+     deux adultes identiques ne racontent rien. */
+  var ech = 0.86 + fauneTirage(n, 13) * 0.24;
   var fuit = k.etat === "fuite";
   var sur = fauneSursaut(k, tps);
   var alerte = fuit || sur > 0.15;
@@ -927,6 +1059,8 @@ function dessineKoala(c, k, tps){
   var lacet = alerte ? -0.2 : Math.sin(tps * 0.36 + ph * 1.1) * 0.3;
   var tremble = fuit ? Math.sin(tps * 13 + ph) * 0.5 : 0;
 
+  c.save();
+  c.scale(ech, ech);
   ombreFaune(c, 0.4, 8.0, 3.0, 0, 0.28);
 
   c.save();
@@ -937,11 +1071,11 @@ function dessineKoala(c, k, tps){
   membreFaune(c, -3.2, -8.0 - dresse * 3.4, -5.4, -4.6, -4.0, -0.8, 2.0, 1.6, P.ombre, P.griffe, 1.8);
 
   /* le corps */
-  c.fillStyle = degCache(c, "koalaTorse", function(){
+  c.fillStyle = degCache(c, "koalaTorse" + robe, function(){
     var g = c.createLinearGradient(0, -16, 0, -1);
-    g.addColorStop(0, PAL_KOALA.dos);
-    g.addColorStop(0.55, PAL_KOALA.flanc);
-    g.addColorStop(1, PAL_KOALA.ombre);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.55, P.flanc);
+    g.addColorStop(1, P.ombre);
     return g;
   });
   koalaTorse(c, resp, dresse); c.fill();
@@ -989,11 +1123,11 @@ function dessineKoala(c, k, tps){
                 3.2, P.dos, P.touffe, 0.5);
 
   /* crâne */
-  c.fillStyle = degCache(c, "koalaCrane", function(){
+  c.fillStyle = degCache(c, "koalaCrane" + robe, function(){
     var g = c.createRadialGradient(-1.4, -2.6, 0.6, 0.4, 0, 6.2);
-    g.addColorStop(0, PAL_KOALA.dos);
-    g.addColorStop(0.7, PAL_KOALA.flanc);
-    g.addColorStop(1, PAL_KOALA.ombre);
+    g.addColorStop(0, P.dos);
+    g.addColorStop(0.7, P.flanc);
+    g.addColorStop(1, P.ombre);
     return g;
   });
   c.beginPath(); c.ellipse(0.6, 0, 4.7, 4.5, 0, 0, 6.2832); c.fill();
@@ -1031,6 +1165,7 @@ function dessineKoala(c, k, tps){
   oeilFaune(c, -1.7 + lacet * 2.0, -1.0, 1.05 * lo, ouv, "rgba(246,244,240,.55)", lacet);
   oeilFaune(c, 3.0 + lacet * 1.7, -1.3, 1.15, ouv, "rgba(246,244,240,.6)", lacet);
 
+  c.restore();
   c.restore();
   c.restore();
 }
@@ -1412,16 +1547,6 @@ var PAL_COCHON = [
     nez:"#c48d84", patte:"#c6bdad", cerne:"rgba(248,242,230,.68)" }
 ];
 
-/* Haché d'individu. Le semis pose k.n = l'indice dans la liste des
-   créatures : deux bêtes d'une même grappe ont donc des n qui SE
-   SUIVENT, et un simple n % 4 les aurait rangées en file indienne de
-   motifs. Un sinus haché casse la suite, et reste évidemment
-   reproductible d'une image à l'autre. */
-function cochonTirage(n, sel){
-  var a = Math.sin(n * 41.317 + sel * 91.73) * 39113.7;
-  return a - Math.floor(a);
-}
-
 /* ---- LA DÉMARCHE -------------------------------------------------
    Le cœur de la bête. Un cochon d'Inde ne se déplace pas d'un point à
    un autre : il reste planté, puis il RUE pendant trois dixièmes de
@@ -1448,7 +1573,7 @@ function courseCochon(tps, ph, n, fuit){
      occupe presque tout : il ne reste qu'un souffle entre deux ruées. */
   var seg = tps * (fuit ? 1.85 : 0.78) + ph * 0.61;
   var i = Math.floor(seg), u = seg - i;
-  var d = cochonTirage(i, n);
+  var d = fauneTirage(i, n);
   var pop = (!fuit && d > 0.83) ? 1 : 0;
   var dur = pop ? 0.30 : (fuit ? 0.66 + d * 0.22 : 0.17 + d * 0.23);
   var elan = 0, saut = 0;
@@ -1569,8 +1694,8 @@ function dessineCochon(c, k, tps){
   /* La taille : de 0,86 à 1,08. Une grappe de six bêtes du même gabarit
      reste un motif imprimé, quelles que soient les robes ; deux jeunes
      au milieu de quatre adultes, et c'est une portée. */
-  var ech = 0.86 + cochonTirage(n, 3) * 0.22;
-  var motif = (cochonTirage(n, 1) * 4) | 0;
+  var ech = 0.86 + fauneTirage(n, 3) * 0.22;
+  var motif = (fauneTirage(n, 1) * 4) | 0;
 
   /* Le reniflement. Un cochon d'Inde à l'arrêt n'est jamais tout à fait
      immobile : le nez bat à sept coups par seconde, et RIEN d'autre ne
@@ -1591,9 +1716,14 @@ function dessineCochon(c, k, tps){
   c.save();
   c.scale(ech, ech);
 
-  /* L'ombre reste au sol pendant le bond : c'est elle qui dit qu'il
-     saute VERTICALEMENT et qu'il n'a pas simplement grandi. */
-  ombreFaune(c, -0.4, 9.2, 2.8, saut * 0.30, 0.28);
+  /* L'ombre ne suit qu'à MOITIÉ la ruée : le corps part devant elle,
+     ce qui est exactement l'effet cherché — il double ses propres
+     pieds. Complètement fixe (premier essai), à cinq unités d'écart en
+     fuite, elle finissait par se lire comme une flaque abandonnée
+     derrière la bête. Elle ne suit pas le bond en revanche : c'est ce
+     qui dit qu'il saute VERTICALEMENT et qu'il n'a pas simplement
+     grandi. */
+  ombreFaune(c, -0.4 + av * 0.55, 9.2, 2.8, saut * 0.30, 0.28);
 
   c.save();
   c.translate(av, -saut);
@@ -1704,7 +1834,7 @@ function dessineCochon(c, k, tps){
      sur la couleur — qui fait tourner la tête aux trois quarts sans
      rien redessiner. Sa LARGEUR varie d'un individu à l'autre, une
      raison de plus de la tirer de k.n. */
-  var bl = cochonTirage(n, 5) * 1.4;
+  var bl = fauneTirage(n, 5) * 1.4;
   c.fillStyle = P.clair;
   c.beginPath();
   c.moveTo(11.4 + e, -9.8 - t * 0.8);
