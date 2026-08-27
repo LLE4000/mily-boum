@@ -774,15 +774,11 @@ function majPodium(){
        + '</div>';
     if(listeEnLigne && nAutres){
       h += '<div class="quiLa">' + ligneEnLigne(monNom, jeu ? jeu.unites.length : 0, 1);
-      /* rangés par nom, pour que la liste ne saute pas d'une seconde à
-         l'autre au gré des messages reçus */
-      var noms = [];
-      for(idj in autresJoueurs){
-        var ja = autresJoueurs[idj];
-        noms.push({ nom:(ja && ja.nom) || "?", n:(ja && ja.n) | 0 });
-      }
-      noms.sort(function(x, y){ return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
-      for(var iq = 0; iq < noms.length; iq++) h += ligneEnLigne(noms[iq].nom, noms[iq].n, 0);
+      var q = nomsEnLigne();
+      for(var iq = 0; iq < q.montres.length; iq++)
+        h += ligneEnLigne(q.montres[iq].nom, q.montres[iq].n, 0);
+      if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
+                     + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
       h += '</div>';
     }
   }
@@ -791,6 +787,35 @@ function majPodium(){
 /* Une ligne de la liste des présents. Le nombre d'unités dit qui se
    bat vraiment : zéro, c'est quelqu'un qui regarde le menu ou qui vient
    de perdre sa vague. */
+/* ================================================================
+   QUI EST EN LIGNE — ON EN MONTRE HUIT, ET ON DIT LE RESTE
+
+   Les deux listes — celle du chat et celle de l'accueil — bâtissaient
+   une ligne par joueur, toutes. À cinquante, ça fait cinquante lignes
+   de HTML reconstruites À CHAQUE message reçu pour le chat, dans le
+   même budget d'image que le champ de bataille ; et un ascenseur de
+   cinq lignes sur cinquante ne dit à personne combien il y en a.
+
+   On en montre huit, on annonce le reste en toutes lettres, et ça
+   défile quand même. Huit, parce que c'est ce qu'on lit d'un coup
+   d'œil sans faire défiler : au-delà, on ne cherche plus un nom, on
+   consulte un annuaire.
+   ================================================================ */
+var NOMS_EN_LIGNE_MAX = 8;
+function nomsEnLigne(max){
+  var l = [], k;
+  if(typeof autresJoueurs === "object" && autresJoueurs){
+    for(k in autresJoueurs){
+      var j = autresJoueurs[k];
+      if(j && j.nom && j.nom !== "?") l.push({ nom:j.nom, n:j.n | 0 });
+    }
+  }
+  /* rangés par NOM et non par ordre d'arrivée : une liste qui saute
+     d'une seconde à l'autre au gré des messages reçus est illisible */
+  l.sort(function(a, b){ return a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0; });
+  var m = max || NOMS_EN_LIGNE_MAX;
+  return { montres:l.slice(0, m), reste:Math.max(0, l.length - m), total:l.length };
+}
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'

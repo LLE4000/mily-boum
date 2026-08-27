@@ -251,6 +251,8 @@ select.champ{cursor:pointer}
 #chatQui .ql .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;color:#cdbfd6}
 #chatQui .ql.moi .n{color:var(--or);font-weight:700}
+#chatQui .ql.autres .n,
+#podium .ql.autres .n{color:#8f86a0;font-style:italic}
 /* Un pseudo se touche : c'est par lui qu'on choisit de ne plus lire
    quelqu'un. Le pointillé le dit sans crier. */
 #chatL .cm b[data-sourd]{cursor:pointer;border-bottom:1px dotted rgba(125,230,255,.45)}
@@ -1114,7 +1116,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.20";
+var VERSION = "v0.21";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -27224,15 +27226,12 @@ var chatQuiDeplie = false;
 function majQuiEstLa(){
   var e = $("chatQui");
   if(!e) return;
-  var noms = [], k;
-  if(typeof autresJoueurs === "object" && autresJoueurs){
-    for(k in autresJoueurs){
-      var j = autresJoueurs[k];
-      if(j && j.nom && j.nom !== "?") noms.push(j.nom);
-    }
-  }
-  noms.sort(function(a, b){ return a.localeCompare(b); });
-  var n = noms.length + 1;                   // soi-même compte
+  /* nomsEnLigne n'en rend que huit, et dit combien il en reste : à
+     cinquante joueurs, cinquante lignes reconstruites à chaque message
+     coûteraient cher pour un ascenseur qui, lui, ne dirait rien du
+     nombre. */
+  var q = nomsEnLigne();
+  var n = q.total + 1;                       // soi-même compte
   var s = nbSourds();
   var tete = '<b data-qui title="Voir qui est là">'
            + (n > 1 ? (chatQuiDeplie ? "▾ " : "▸ ") + n + " joueurs en ligne"
@@ -27241,11 +27240,13 @@ function majQuiEstLa(){
            + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
   if(!chatQuiDeplie || n < 2){ e.innerHTML = tete; return; }
   var h = '<div class="ql moi"><span class="p">🔸</span><span class="n">'
-        + echappe(monNom || "toi") + " (toi)</span></div>";
-  for(k = 0; k < noms.length; k++){
+        + echappe(monNom || "toi") + " (toi)</span></div>", k;
+  for(k = 0; k < q.montres.length; k++){
     h += '<div class="ql"><span class="p">🔹</span><span class="n">'
-       + echappe(noms[k]) + "</span></div>";
+       + echappe(q.montres[k].nom) + "</span></div>";
   }
+  if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
+                 + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
   e.innerHTML = tete + '<div class="qlListe">' + h + "</div>";
 }
 
@@ -32876,15 +32877,11 @@ function majPodium(){
        + '</div>';
     if(listeEnLigne && nAutres){
       h += '<div class="quiLa">' + ligneEnLigne(monNom, jeu ? jeu.unites.length : 0, 1);
-      /* rangés par nom, pour que la liste ne saute pas d'une seconde à
-         l'autre au gré des messages reçus */
-      var noms = [];
-      for(idj in autresJoueurs){
-        var ja = autresJoueurs[idj];
-        noms.push({ nom:(ja && ja.nom) || "?", n:(ja && ja.n) | 0 });
-      }
-      noms.sort(function(x, y){ return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
-      for(var iq = 0; iq < noms.length; iq++) h += ligneEnLigne(noms[iq].nom, noms[iq].n, 0);
+      var q = nomsEnLigne();
+      for(var iq = 0; iq < q.montres.length; iq++)
+        h += ligneEnLigne(q.montres[iq].nom, q.montres[iq].n, 0);
+      if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
+                     + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
       h += '</div>';
     }
   }
@@ -32893,6 +32890,35 @@ function majPodium(){
 /* Une ligne de la liste des présents. Le nombre d'unités dit qui se
    bat vraiment : zéro, c'est quelqu'un qui regarde le menu ou qui vient
    de perdre sa vague. */
+/* ================================================================
+   QUI EST EN LIGNE — ON EN MONTRE HUIT, ET ON DIT LE RESTE
+
+   Les deux listes — celle du chat et celle de l'accueil — bâtissaient
+   une ligne par joueur, toutes. À cinquante, ça fait cinquante lignes
+   de HTML reconstruites À CHAQUE message reçu pour le chat, dans le
+   même budget d'image que le champ de bataille ; et un ascenseur de
+   cinq lignes sur cinquante ne dit à personne combien il y en a.
+
+   On en montre huit, on annonce le reste en toutes lettres, et ça
+   défile quand même. Huit, parce que c'est ce qu'on lit d'un coup
+   d'œil sans faire défiler : au-delà, on ne cherche plus un nom, on
+   consulte un annuaire.
+   ================================================================ */
+var NOMS_EN_LIGNE_MAX = 8;
+function nomsEnLigne(max){
+  var l = [], k;
+  if(typeof autresJoueurs === "object" && autresJoueurs){
+    for(k in autresJoueurs){
+      var j = autresJoueurs[k];
+      if(j && j.nom && j.nom !== "?") l.push({ nom:j.nom, n:j.n | 0 });
+    }
+  }
+  /* rangés par NOM et non par ordre d'arrivée : une liste qui saute
+     d'une seconde à l'autre au gré des messages reçus est illisible */
+  l.sort(function(a, b){ return a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0; });
+  var m = max || NOMS_EN_LIGNE_MAX;
+  return { montres:l.slice(0, m), reste:Math.max(0, l.length - m), total:l.length };
+}
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'

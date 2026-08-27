@@ -213,15 +213,12 @@ var chatQuiDeplie = false;
 function majQuiEstLa(){
   var e = $("chatQui");
   if(!e) return;
-  var noms = [], k;
-  if(typeof autresJoueurs === "object" && autresJoueurs){
-    for(k in autresJoueurs){
-      var j = autresJoueurs[k];
-      if(j && j.nom && j.nom !== "?") noms.push(j.nom);
-    }
-  }
-  noms.sort(function(a, b){ return a.localeCompare(b); });
-  var n = noms.length + 1;                   // soi-même compte
+  /* nomsEnLigne n'en rend que huit, et dit combien il en reste : à
+     cinquante joueurs, cinquante lignes reconstruites à chaque message
+     coûteraient cher pour un ascenseur qui, lui, ne dirait rien du
+     nombre. */
+  var q = nomsEnLigne();
+  var n = q.total + 1;                       // soi-même compte
   var s = nbSourds();
   var tete = '<b data-qui title="Voir qui est là">'
            + (n > 1 ? (chatQuiDeplie ? "▾ " : "▸ ") + n + " joueurs en ligne"
@@ -230,11 +227,13 @@ function majQuiEstLa(){
            + (s ? ' <b id="chatSourds" title="Réafficher tout le monde">🔇 ' + s + "</b>" : "");
   if(!chatQuiDeplie || n < 2){ e.innerHTML = tete; return; }
   var h = '<div class="ql moi"><span class="p">🔸</span><span class="n">'
-        + echappe(monNom || "toi") + " (toi)</span></div>";
-  for(k = 0; k < noms.length; k++){
+        + echappe(monNom || "toi") + " (toi)</span></div>", k;
+  for(k = 0; k < q.montres.length; k++){
     h += '<div class="ql"><span class="p">🔹</span><span class="n">'
-       + echappe(noms[k]) + "</span></div>";
+       + echappe(q.montres[k].nom) + "</span></div>";
   }
+  if(q.reste) h += '<div class="ql autres"><span class="p"></span><span class="n">et '
+                 + q.reste + " autre" + (q.reste > 1 ? "s" : "") + "…</span></div>";
   e.innerHTML = tete + '<div class="qlListe">' + h + "</div>";
 }
 
