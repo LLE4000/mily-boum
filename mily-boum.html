@@ -1318,13 +1318,21 @@ var UNI = {
 
      Douze Meufs : 54 dégâts toutes les 1,3 s, soit 41,54 dégâts/s
      chacune, donc 498,5 dégâts/s pour la barge entière. L'Ogre lance
-     440 par hache toutes les 850 ms, soit 517,6 dégâts/s : 3,8 % de
-     mieux que les douze, ce qui reste dans le « très légèrement plus
-     puissant » et pas au-delà. Les deux valeurs se règlent ENSEMBLE —
-     changer l'une sans l'autre casse l'équivalence.
-     La cadence est volontairement courte : il doit mitrailler le
-     bâtiment de haches, pas poser une hache toutes les cinq secondes.
+     506 par hache toutes les 850 ms, soit 595,3 dégâts/s.
 
+     IL FRAPPE DÉSORMAIS 19 % PLUS FORT QUE SA BARGE, et c'est voulu.
+     La hache était à 440, soit 3,8 % de mieux que les douze Meufs — un
+     match nul, sur le papier. Sur le terrain il perdait : il traverse
+     l'île SEUL, il encaisse cinq fois les roquettes du Frelon, et le
+     mirador l'abat d'une balle. Une barge de douze, elle, perd trois
+     Meufs et continue. La stricte égalité des dégâts par seconde ne
+     tenait donc pas compte de ce qu'il paie pour arriver à portée.
+     Les quinze pour cent de plus achètent exactement ça.
+
+     Les deux valeurs se règlent ENSEMBLE — changer l'une sans l'autre
+     casse le rapport. La cadence est volontairement courte : il doit
+     mitrailler le bâtiment de haches, pas poser une hache toutes les
+     cinq secondes.
      Résistance : 110 × 1,5 = 165 PV. Plus dur à tuer qu'une Meuf,
      jamais immortel.
      Faiblesse : il encaisse CINQ FOIS les dégâts d'un lance-roquettes
@@ -1340,7 +1348,7 @@ var UNI = {
      leur corps fait trois fois celui d'une Meuf et déborde largement de
      l'écart qui convient à une petite troupe. */
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
-         degats:440, cadence:850, vitesse:1.782, rayon:1.6, places:1,
+         degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, ech:3,
          /* SES DEUX FAIBLESSES, par type d'arme. Une table plutôt que
             deux champs séparés : il y en aura d'autres, et le jour où

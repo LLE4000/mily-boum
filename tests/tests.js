@@ -647,12 +647,21 @@ G("4. Déterminisme de la génération de carte");
     ok("l'Ogre ne gonfle pas la flotte maximale",
        N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("mec"),
        "" + N.flotteMaximum());
-    /* Puissance : les deux valeurs se règlent ENSEMBLE. */
+    /* PUISSANCE — les deux valeurs se règlent ENSEMBLE.
+       Il frappe volontairement PLUS FORT que la barge de douze Meufs
+       qu'il remplace : la stricte égalité des dégâts par seconde ne
+       tenait pas compte de ce qu'il paie pour arriver à portée — il
+       traverse l'île seul, encaisse cinq fois les roquettes du Frelon
+       et tombe d'une balle de mirador, quand une barge de douze en
+       perd trois et continue. La borne haute reste basse : il doit
+       valoir sa barge, jamais deux. */
     var dpsM = M.degats / (M.cadence / 1000);
     var dpsO = O.degats / (O.cadence / 1000);
     var r = dpsO / (dpsM * 12);
-    ok("1 Ogre ≈ la puissance des 12 Meufs d'une barge (×" + r.toFixed(3) + ")",
-       r >= 1.0 && r <= 1.10, dpsO.toFixed(1) + " contre " + (dpsM * 12).toFixed(1));
+    ok("1 Ogre frappe un peu plus fort que les 12 Meufs d'une barge (×"
+       + r.toFixed(3) + ")",
+       r >= 1.10 && r <= 1.30, dpsO.toFixed(1) + " contre " + (dpsM * 12).toFixed(1));
+    ok("mais jamais comme deux barges", r < 2);
     ok("il n'a surtout pas la puissance d'UNE Meuf",
        dpsO > dpsM * 10, "×" + (dpsO / dpsM).toFixed(1) + " une Meuf");
     ok("sa cadence reste dynamique (moins d'une seconde)", O.cadence < 1000, O.cadence + " ms");
