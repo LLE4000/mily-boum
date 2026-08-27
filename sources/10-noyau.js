@@ -73,6 +73,15 @@ var EQ = {
   VENG_BRAISE_DUREE    : 5.0,   // les traînées continuent de brûler
   VENG_BRAISE_DPS      : 9,
 
+  /* LA CARTE ÉVÉNEMENT. Le minimum de joueurs est un DÉFAUT : il vit
+     dans l'instantané partagé et se règle depuis le panneau
+     administrateur, donc c'est la valeur du salon qui fait foi.
+     Celle-ci ne sert qu'au tout premier salon, avant tout réglage. */
+  JUNGLE_MIN_JOUEURS   : 7,
+  JUNGLE_ATTENTE_H     : 48,    // heures de verrou après une victoire
+  JUNGLE_ECLAIR        : 30,    // secondes entre deux impacts de foudre
+  JUNGLE_GEYSERS       : 22,    // ouvertures de feu sur l'île
+
   /* Réglages fins demandés */
   MITRA_SEUIL_PRECISION: 4.2,   // au-delà, la crible rate
   MITRA_CHANCE_LOIN    : 1 / 3, // une balle sur trois touche
@@ -360,6 +369,21 @@ var CRE = {
 var ESPECES_PROTEGEES = ["chat", "chaton", "chatte"];
 
 /* ----------------------------------------------------------------
+   LA FAUNE DE LA JUNGLE
+   Aucune ne se bat : elles sont là pour que la jungle soit HABITÉE.
+   Toutes fuient, et c'est leur fuite qui raconte le combat — un singe
+   qui détale dit qu'une explosion vient de tomber derrière lui.
+   Les trois insectes volent, donc ils ne se posent jamais et ne
+   gênent aucune trajectoire.
+   ---------------------------------------------------------------- */
+CRE.singe    = { nom:"Singe",    pv:110, detection:9.0,  portee:0, degats:0, cadence:0, vitesse:2.90, rayon:0.28, fuit:1 };
+CRE.panda    = { nom:"Panda",    pv:260, detection:7.0,  portee:0, degats:0, cadence:0, vitesse:1.35, rayon:0.42, fuit:1 };
+CRE.koala    = { nom:"Koala",    pv:140, detection:6.5,  portee:0, degats:0, cadence:0, vitesse:1.15, rayon:0.30, fuit:1 };
+CRE.bourdon  = { nom:"Bourdon",  pv:30,  detection:6.0,  portee:0, degats:0, cadence:0, vitesse:3.10, rayon:0.16, fuit:1, vole:1 };
+CRE.papillon = { nom:"Papillon", pv:20,  detection:7.5,  portee:0, degats:0, cadence:0, vitesse:2.40, rayon:0.14, fuit:1, vole:1 };
+CRE.luciole  = { nom:"Luciole",  pv:15,  detection:5.0,  portee:0, degats:0, cadence:0, vitesse:1.60, rayon:0.10, fuit:1, vole:1 };
+
+/* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
    Chaque emploi renchérit le suivant : coût = base + pas × usages.
    ---------------------------------------------------------------- */
@@ -405,8 +429,38 @@ var CARTES = [
   { nom:"Mily en soirée hippie",  biome:"hippie",   pvQG:31000000,
     victoire:"Mily t'invite à venir chez elle !" },
   { nom:"Mily dans le Sud",       biome:"sud",      pvQG:37000000,
-    victoire:"Mily te dit qu'elle t'aime !" }
+    victoire:"Mily te dit qu'elle t'aime !" },
+  /* ----------------------------------------------------------------
+     LA CARTE ÉVÉNEMENT. Elle vit dans le MÊME tableau que les cinq
+     autres — c'est ce qui lui donne gratuitement genereCarte, les
+     biomes, le générateur de défenses, texteVictoire et tout le
+     rendu. Ce qui la sépare tient dans un seul drapeau : special.
+     La rotation des îles ne compte QUE les cartes ordinaires (voir
+     NB_CARTES_NORMALES), donc l'enchaînement automatique ne peut
+     jamais tomber sur elle. On n'y entre que par un lancement
+     collectif, et sa progression vit dans une voie à part de
+     l'instantané partagé (champs je/jf/jd/jpv, voir plus bas).
+     ---------------------------------------------------------------- */
+  { nom:"Mily dans la jungle",    biome:"jungle",   pvQG:60000000,
+    special:1,
+    victoire:"Mily lui offre un verre sous la pluie !" }
 ];
+/* Combien de cartes participent à l'enchaînement ordinaire. Tout le
+   reste du jeu compte les îles AVEC ce nombre et non CARTES.length :
+   ajouter une carte événement ne doit pas rallonger la campagne. */
+var NB_CARTES_NORMALES = (function(){
+  var n = 0;
+  for(var i = 0; i < CARTES.length; i++) if(!CARTES[i].special) n++;
+  return n;
+})();
+/* L'index de la jungle dans CARTES. Calculé, jamais écrit en dur :
+   le jour où une deuxième carte événement arrive, rien ne bouge. */
+var IDX_JUNGLE = (function(){
+  for(var i = 0; i < CARTES.length; i++)
+    if(CARTES[i].biome === "jungle") return i;
+  return -1;
+})();
+function carteSpeciale(i){ return !!(CARTES[i] && CARTES[i].special); }
 
 /* Le message de victoire nomme celui qui a le plus contribué à faire
    tomber le Brasier, et change avec le thème de l'île. */
@@ -843,6 +897,192 @@ function genereCarte(codeSalon, index, plan, tirage){
       }
     }
   }
+
+  /* --- LA JUNGLE : SA FLORE, SA FAUNE, SES GEYSERS ---
+     Tout à la fin, après les cellules peintes : peupleLaJungle lit
+     c.batiments pour ne rien planter sur une défense, et il doit
+     donc les voir TOUS. Ces tirages ne concernent qu'une carte sur
+     six ; les faire plus tôt décalerait la séquence des cinq autres. */
+  if(CARTES[index] && CARTES[index].biome === "jungle") peupleLaJungle(c, al);
+  return c;
+}
+
+/* ----------------------------------------------------------------
+   PEUPLER LA JUNGLE
+
+   Le semis obéit à deux règles, et la seconde est la plus
+   importante :
+
+   1. LA DENSITÉ VIENT DES PETITES CHOSES. Un millier d'arbres ne fait
+      pas une jungle — il fait une forêt clairsemée avec de gros
+      objets. Ce sont les fougères, les herbes et les racines, par
+      milliers, qui donnent le tapis végétal ; les grands arbres ne
+      sont que la ponctuation.
+
+   2. RIEN NE POUSSE SUR UNE DÉFENSE. Une plante posée sur une
+      tourelle la cache, et le cahier des charges est formel : « les
+      arbres et la végétation ne doivent pas cacher complètement les
+      éléments importants ». On teste donc chaque pousse contre les
+      bâtiments déjà posés — d'où la grille d'occupation ci-dessous,
+      qui rend ce test constant au lieu de parcourir deux mille
+      bâtiments par plante.
+   ---------------------------------------------------------------- */
+function peupleLaJungle(c, al){
+  /* DEUX GRILLES D'OCCUPATION, ET C'EST TOUT LE SUJET.
+
+     Une seule grille, qui interdirait toute pousse au voisinage d'un
+     bâtiment, ne laisse rien passer sur une carte saturée : mesuré,
+     674 plantes acceptées sur 8000 et vingt-quatre arbres pour toute
+     une jungle. Or une fougère n'a pas les besoins d'un arbre.
+
+     `occHaut` interdit ce qui CACHE : arbres, lianes, plantes
+     tropicales, buissons. Ils gardent leurs distances avec les
+     défenses, sans quoi la carte devient illisible.
+
+     `occBas` n'interdit que le pied même du bâtiment : herbes,
+     fougères, racines et rochers moussus s'y glissent entre les
+     tourelles. C'est exactement ce que demande le cahier des charges
+     — « végétation entre certaines défenses », et « les hautes herbes
+     peuvent légèrement masquer les jambes des unités ». Ce tapis-là
+     ne cache rien d'important : il passe sous la ligne de mire.
+
+     Les grilles rendent le test constant : sans elles, tester huit
+     mille pousses contre deux mille bâtiments coûterait seize
+     millions de comparaisons à chaque génération de carte. */
+  var occHaut = {}, occBas = {}, i, b;
+  function marque(grille, gx, gy, r){
+    var x0 = Math.floor(gx - r), x1 = Math.ceil(gx + r);
+    var y0 = Math.floor(gy - r), y1 = Math.ceil(gy + r);
+    for(var x = x0; x <= x1; x++)
+      for(var y = y0; y <= y1; y++) grille[x + "," + y] = 1;
+  }
+  for(i = 0; i < c.batiments.length; i++){
+    b = c.batiments[i];
+    marque(occHaut, b.gx, b.gy, b.e * 0.5 + 1.2);
+    marque(occBas,  b.gx, b.gy, b.e * 0.28);
+  }
+  /* Le Brasier reste dégagé sur les deux grilles : c'est l'objectif,
+     rien ne doit le voiler. */
+  marque(occHaut, QG_GX, QG_GY, 14);
+  marque(occBas,  QG_GX, QG_GY, 13);
+  function dansLIle(gx, gy){
+    return gx >= 3 && gx <= PLAGE_X0 - 2 && gy >= 3 && gy <= GH - 4;
+  }
+  function libre(gx, gy){
+    return dansLIle(gx, gy) && !occHaut[Math.round(gx) + "," + Math.round(gy)];
+  }
+  function libreBas(gx, gy){
+    return dansLIle(gx, gy) && !occBas[Math.round(gx) + "," + Math.round(gy)];
+  }
+
+  /* --- LA FLORE ---
+     Les proportions font le tapis : pour un grand arbre, il y a une
+     centaine de petites pousses. C'est ce RAPPORT, et non le nombre
+     total, qui donne l'impression d'entrer dans une jungle — mille
+     arbres feraient une forêt clairsemée avec de gros objets. */
+  c.flore = [];
+
+  /* LES CASES OÙ UN GRAND ARBRE PEUT TENIR, recensées UNE fois.
+     Sur une carte saturée elles sont rares — l'essentiel se trouve
+     dans les clairières du plan et le long de la ceinture rocheuse.
+     Les tirer au hasard gaspillait quatre-vingt-dix-sept essais sur
+     cent et ne donnait que trente arbres pour toute une jungle. En
+     piochant dans la liste, on décide vraiment de leur nombre, et les
+     clairières deviennent ce qu'elles doivent être : des trouées
+     pleines d'arbres au milieu du champ de tir. */
+  var casesHautes = [];
+  for(var cx = 3; cx <= PLAGE_X0 - 2; cx++){
+    for(var cy = 3; cy <= GH - 4; cy++){
+      if(!occHaut[cx + "," + cy]) casesHautes.push(cx + cy * 1000);
+    }
+  }
+  function poseHaute(fam, n){
+    if(!casesHautes.length) return;
+    for(var k = 0; k < n; k++){
+      var e = casesHautes[(al() * casesHautes.length) | 0];
+      /* la gigue est bornée à la demi-case : une pousse ne doit pas
+         sortir de la case libre qu'on lui a trouvée */
+      var gx = (e % 1000) + (al() - 0.5) * 0.9;
+      var gy = ((e / 1000) | 0) + (al() - 0.5) * 0.9;
+      var fv = al(), fs = al();
+      if(!dansLIle(gx, gy)) continue;
+      c.flore.push({ gx:gx, gy:gy, fam:fam, v:fv, s:fs });
+    }
+  }
+  poseHaute("arbre",   420);
+  poseHaute("liane",   300);
+  poseHaute("plante",  620);
+  poseHaute("buisson", 760);
+
+  /* LE TAPIS. Lui n'a besoin de rien : il se glisse partout où il n'y
+     a pas le pied d'un bâtiment, donc le tirage direct suffit. C'est
+     lui, et non les arbres, qui fait la jungle. */
+  var TAPIS = [
+    { fam:"herbe",   n:5200 },
+    { fam:"fougere", n:3600 },
+    { fam:"racine",  n:2400 },
+    { fam:"rocher",  n:1000 }
+  ];
+  for(i = 0; i < TAPIS.length; i++){
+    var F = TAPIS[i];
+    for(var k2 = 0; k2 < F.n; k2++){
+      /* Un tirage par pousse, gardée ou non : la séquence reste
+         stable si l'on change un jour un effectif. */
+      var fx = 2 + al() * (PLAGE_X0 - 2);
+      var fy = 2 + al() * (GH - 4);
+      var fv2 = al(), fs2 = al();
+      if(!libreBas(fx, fy)) continue;
+      c.flore.push({ gx:fx, gy:fy, fam:F.fam, v:fv2, s:fs2 });
+    }
+  }
+
+  /* --- LES GEYSERS DE FEU ---
+     Répartis « intelligemment dans certaines zones » : en foyers, pas
+     uniformément. C'est semeGeysers qui s'en charge ; on ne lui donne
+     que le test de terrain libre. */
+  c.geysers = [];
+  for(i = 0; i < EQ.JUNGLE_GEYSERS; i++){
+    for(var e = 0; e < 200; e++){
+      var gx = 8 + al() * (PLAGE_X0 - 14), gy = 5 + al() * (GH - 10);
+      if(!libre(gx, gy)) continue;
+      if(Math.hypot(gx - QG_GX, gy - QG_GY) < 18) continue;
+      var trop = 0;
+      for(var q = 0; q < c.geysers.length; q++){
+        if(Math.hypot(c.geysers[q].gx - gx, c.geysers[q].gy - gy) < 6){ trop = 1; break; }
+      }
+      if(trop) continue;
+      c.geysers.push({ gx:gx, gy:gy, sommeil:al() * 14 });
+      break;
+    }
+  }
+
+  /* --- LA FAUNE ---
+     « Beaucoup de pandas », dit le cahier des charges, et il a raison :
+     c'est le nombre qui rend une jungle habitée, pas la variété. Les
+     pandas sont donc les plus nombreux, et la moitié d'entre eux est
+     assise à manger — une jungle où tout le monde marche est une
+     jungle en fuite. */
+  var BESTIOLES = [
+    { t:"panda",    n:34 },
+    { t:"singe",    n:22 },
+    { t:"koala",    n:16 },
+    { t:"bourdon",  n:26 },
+    { t:"papillon", n:30 },
+    { t:"luciole",  n:44 }
+  ];
+  for(i = 0; i < BESTIOLES.length; i++){
+    var B = BESTIOLES[i];
+    for(var j = 0; j < B.n; j++){
+      for(var t2 = 0; t2 < 60; t2++){
+        var bx = 6 + al() * (PLAGE_X0 - 12), by = 4 + al() * (GH - 8);
+        if(Math.hypot(bx - QG_GX, by - QG_GY) < 15) continue;
+        if(!libre(bx, by)) continue;
+        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:0,
+                           assis:(B.t === "panda" && al() < 0.5) ? 1 : 0 });
+        break;
+      }
+    }
+  }
   return c;
 }
 
@@ -1211,9 +1451,72 @@ function zonesPeintes(zones){
   return n;
 }
 
+/* ----------------------------------------------------------------
+   LE PLAN INTÉGRÉ DE LA JUNGLE
+
+   La carte événement doit être BEAUCOUP plus dense que les cinq
+   autres. Plutôt qu'un générateur à part, elle porte son propre plan
+   de défense : la même chaîne que produit l'éditeur, mais figée dans
+   le code. genereCarte() ne voit donc aucune différence — c'est la
+   machinerie du plan qui fait tout le travail, et la densité de la
+   jungle se règle ici, à un endroit, en clair.
+
+   La recette, et POURQUOI elle est ce qu'elle est :
+     — « surchargé » dans le gros du terrain : les deux quadrillages
+       pleins, soit deux fois la densité d'une carte normale ;
+     — le type laissé en « auto », pour garder le bandage naturel du
+       générateur : missiles près du Brasier, artillerie au loin ;
+     — un semis de cellules énergétiques une zone sur cinq, en
+       quinconce, pour que la récolte se fasse SOUS le feu ;
+     — des CLAIRIÈRES à la gomme forte, en diagonale : de vrais
+       passages, et des trouées où l'on voit le ciel. Sans elles une
+       carte uniformément saturée n'est plus un terrain, c'est un mur ;
+     — et surtout des ALLÉES clairsemées entre les massifs.
+
+   Cette dernière ligne n'est pas décorative, elle est vitale. Mesuré :
+   à « surchargé » partout, le générateur ne pose plus que DEUX
+   miradors sur l'île au lieu de soixante-huit — sa passe de miradors
+   cherche une place libre, et une carte saturée n'en a plus. Or le
+   mirador est le seul contre-feu de l'Ogre. Les allées clairsemées lui
+   rendent de la place : 24 miradors, pour 1022 défenses (1,65 fois une
+   carte normale) et 1143 cellules. Les périodes 13 et 4 sont réglées à
+   la mesure ; changer l'une d'elles se paie au comptant sur ces trois
+   nombres, et la période 5 du semis de cellules ne doit pas tomber en
+   phase avec celle des allées, faute de quoi la récolte s'effondre de
+   1143 cellules à 115.
+
+   Calculé à la demande et mémoïsé : NB_ZONES et faitZone() sont
+   déclarés plus bas dans le fichier, un calcul au chargement ici
+   lirait des variables encore vides.
+   ---------------------------------------------------------------- */
+var planJungleCache = null;
+function planJungle(){
+  if(planJungleCache !== null) return planJungleCache;
+  var z = planVide(), i, zx, zy;
+  for(i = 0; i < NB_ZONES; i++){
+    zx = i % ZONES_L; zy = (i / ZONES_L) | 0;
+    /* les clairières, rares : une diagonale sur treize */
+    if((zx + zy) % 13 === 0){ z[i] = faitZone(8, 0, 0); continue; }
+    /* les allées, régulières : c'est là que tiennent les miradors */
+    if((zx - zy + 40) % 4 === 0){ z[i] = faitZone(0, 1, 0); continue; }
+    /* et partout ailleurs, le mur de défenses */
+    var champ = ((zx * 3 + zy * 2) % 5) === 0 ? 1 : 0;
+    z[i] = faitZone(0, 5, champ);
+  }
+  planJungleCache = encodePlan(z);
+  return planJungleCache;
+}
+/* Le plan que joue une carte donnée : le sien s'il est gravé (la
+   jungle), celui du salon sinon. Un seul endroit décide. */
+function planDeCarte(index, planSalon){
+  if(CARTES[index] && CARTES[index].biome === "jungle") return planJungle();
+  return planSalon;
+}
+
 function mondeVide(index, pvMax, cycle){
   return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
-           p:"", pn:0, tg:0, s:"", k:"" };
+           p:"", pn:0, tg:0, s:"", k:"",
+           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"" };
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -1311,6 +1614,110 @@ function fusionneChats(a, b){
   return encodeChats(o);
 }
 
+/* ================================================================
+   LA VOIE DE LA JUNGLE — une progression parallèle à la campagne
+
+   La carte événement ne peut pas vivre dans le champ « c » : ce
+   champ porte la campagne, sa fusion est monotone croissante, et une
+   expédition qui se termine devrait faire REDESCENDRE l'index — ce
+   que la fusion refuse par construction, et à raison.
+
+   Elle a donc sa propre voie, avec exactement la même discipline :
+
+     je  compteur de LANCEMENTS, ne fait qu'augmenter
+     jf  compteur de FINS, ne fait qu'augmenter
+         → une expédition est en cours si, et seulement si, je > jf.
+           Lancer, c'est je = max(je,jf)+1 ; terminer, c'est jf = je.
+           Deux incréments monotones décrivent un état qui va et
+           vient : c'est ce qui rend la chose fusionnable.
+     jd  bâtiments détruits, jq  PV du Brasier de la jungle
+         → portés par l'époque je, comme d et pv le sont par cy.
+     jt  heure de la dernière victoire, en millisecondes epoch
+         → le maximum gagne : une victoire plus récente écrase
+           toujours une plus ancienne, donc le verrou de 48 h ne peut
+           pas être raccourci par un client en retard.
+     jm  minimum de joueurs, jmn son numéro de réglage
+         → même motif que le plan de défense : le numéro tranche,
+           puis la valeur, pour que deux administrateurs simultanés
+           convergent au lieu de se réécrire en boucle.
+   ================================================================ */
+function jungleEnCours(m){ return !!m && (m.je | 0) > (m.jf | 0); }
+
+/* UNE HEURE EPOCH NE TIENT PAS DANS TRENTE-DEUX BITS. Date.now() vaut
+   aujourd'hui 1,77 × 10¹², et « | 0 » — l'idiome employé partout
+   ailleurs dans ce fichier pour assainir un entier — le tronque en un
+   nombre sans rapport, souvent négatif. Le verrou de 48 heures
+   s'ouvrait alors immédiatement. Toute heure passe donc par ici, et
+   par nulle part d'autre. */
+function msMonde(x){
+  var v = +x;
+  return (isFinite(v) && v > 0) ? Math.floor(v) : 0;
+}
+
+/* Le réglage administrateur, tranché comme meilleurPlan : le numéro
+   d'abord, la valeur ensuite. Commutatif, associatif, idempotent. */
+function meilleurMinJoueurs(a, b){
+  var va = a ? (a.jm | 0) : 0, na = a ? (a.jmn | 0) : 0;
+  var vb = b ? (b.jm | 0) : 0, nb = b ? (b.jmn | 0) : 0;
+  if(nb > na) return { jm:vb, jmn:nb };
+  if(na > nb) return { jm:va, jmn:na };
+  return vb > va ? { jm:vb, jmn:nb } : { jm:va, jmn:na };
+}
+
+/* ----------------------------------------------------------------
+   LES CHAMPIONS — un par carte, indépendants les uns des autres
+
+   « Détruite par Johan. Johan est le champion de cette carte. »
+   Chaque entrée porte le NUMÉRO de la victoire qui l'a posée : c'est
+   lui qui rend la fusion monotone. Sans ce numéro, « le dernier
+   gagne » dépendrait de l'ordre d'arrivée des messages, et deux
+   clients ne s'accorderaient jamais.
+
+   Format : « index:nom:numéro|index:nom:numéro ». Les trois
+   séparateurs sont retirés des pseudos à l'encodage — un pseudo fait
+   au plus quatorze caractères et n'a pas d'autre structure à
+   préserver.
+   ---------------------------------------------------------------- */
+function encodeChampions(tab){
+  var l = [], k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e || !e.nom) continue;
+    var nom = String(e.nom).replace(/[|:]/g, "").substr(0, 14);
+    if(!nom) continue;
+    l.push((k | 0) + ":" + nom + ":" + Math.max(1, e.n | 0));
+  }
+  /* tri par index : deux clients au même état doivent produire
+     exactement la même chaîne, sinon ils se republieraient l'un
+     l'autre sans fin */
+  l.sort(function(x, y){ return (parseInt(x, 10) - parseInt(y, 10)); });
+  return l.join("|");
+}
+function decodeChampions(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var m = p[i].split(":");
+    if(m.length !== 3) continue;
+    var idx = parseInt(m[0], 10), n = parseInt(m[2], 10);
+    if(!(idx >= 0) || !(n > 0) || !m[1]) continue;
+    if(!out[idx] || n > out[idx].n) out[idx] = { nom:m[1], n:n };
+  }
+  return out;
+}
+/* Par carte, la victoire de plus haut numéro l'emporte. À numéro
+   égal — deux joueurs qui publient la même victoire — le nom tranche,
+   pour que l'ordre d'arrivée ne change rien. */
+function fusionneChampions(a, b){
+  var x = decodeChampions(a), y = decodeChampions(b), k;
+  for(k in y){
+    if(!x[k] || y[k].n > x[k].n) x[k] = y[k];
+    else if(y[k].n === x[k].n && y[k].nom < x[k].nom) x[k] = y[k];
+  }
+  return encodeChampions(x);
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -1336,27 +1743,71 @@ function meilleurPlan(a, b){
    n'ont rien à voir avec ceux de la précédente. À rang égal, une
    défense détruite ne se relève jamais et les PV ne remontent jamais —
    c'est ce qui rend l'ordre d'arrivée des messages sans importance. */
+/* La voie de la jungle se fusionne À PART, et son résultat est posé
+   dans les TROIS branches de fusionneMonde. C'est indispensable :
+   un client peut très bien être en avance sur la campagne et en
+   retard sur l'expédition. Si la branche « île plus avancée » rendait
+   son instantané tel quel, elle emporterait avec elle une jungle
+   périmée — et le verrou de 48 h sauterait chez tout le monde. */
+function fusionneJungle(a, b){
+  var je = Math.max(a.je | 0, b.je | 0);
+  var jf = Math.max(a.jf | 0, b.jf | 0);
+  var mj = meilleurMinJoueurs(a, b);
+  var o = {
+    je : je,
+    jf : jf,
+    /* jt ne redescend jamais : une victoire plus récente écrase
+       toujours une plus ancienne, donc personne ne peut raccourcir
+       le verrou en republiant un vieil instantané. */
+    jt : Math.max(msMonde(a.jt), msMonde(b.jt)),
+    jm : mj.jm, jmn : mj.jmn,
+    ch : fusionneChampions(a.ch, b.ch)
+  };
+  /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
+     à cy : une expédition plus récente balaie les destructions de la
+     précédente, qui ne désignent plus rien. */
+  var ea = a.je | 0, eb = b.je | 0;
+  if(eb > ea){ o.jd = b.jd || ""; o.jq = b.jq | 0; }
+  else if(ea > eb){ o.jd = a.jd || ""; o.jq = a.jq | 0; }
+  else{
+    o.jd = unionBits(a.jd, b.jd);
+    /* à époque égale, les PV ne remontent jamais — sauf quand l'un
+       des deux n'a pas encore vu le lancement et porte encore un 0 */
+    var qa = a.jq | 0, qb = b.jq | 0;
+    o.jq = (qa && qb) ? Math.min(qa, qb) : (qa || qb);
+  }
+  return o;
+}
+/* Recopie les champs de la jungle dans un instantané fusionné. */
+function poseJungle(o, j){
+  o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
+  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.ch = j.ch;
+  return o;
+}
+
 function fusionneMonde(a, b){
   if(!mondeValide(a)) return mondeValide(b) ? b : null;
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   var pl = meilleurPlan(a, b);
+  var jg = fusionneJungle(a, b);
   /* Une île plus avancée écrase la précédente : ses destructions ET
      son tableau des dégâts, exactement comme jeu.degatsMoi qui repart
-     à zéro à chaque île. */
-  if(rb > ra) return { v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
+     à zéro à chaque île. La jungle, elle, suit sa propre voie. */
+  if(rb > ra) return poseJungle({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "", k:b.k || "" };
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:b.s || "", k:b.k || "" }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
-       bien son plan qui l'emporte. */
-    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0)) return a;
-    return { v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
+       bien son plan qui l'emporte — ET si b n'apporte rien à la
+       jungle, dont l'état est indépendant de l'avancée de campagne. */
+    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeJungle(a, jg)) return a;
+    return poseJungle({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
-             s:a.s || "", k:a.k || "" };
+             s:a.s || "", k:a.k || "" }, jg);
   }
-  return {
+  return poseJungle({
     v : Math.max(a.v, b.v),
     cy: a.cy | 0,
     c : a.c,
@@ -1371,7 +1822,14 @@ function fusionneMonde(a, b){
     /* le meilleur score de chacun survit à sa déconnexion */
     s : fusionneScores(a.s, b.s),
     p : pl.p, pn: pl.pn, tg: a.tg | 0
-  };
+  }, jg);
+}
+/* L'instantané a-t-il déjà exactement l'état de jungle fusionné ? */
+function memeJungle(m, j){
+  return (m.je | 0) === j.je && (m.jf | 0) === j.jf &&
+         (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
+         msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
+         (m.jmn | 0) === j.jmn && (m.ch || "") === j.ch;
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -1383,7 +1841,12 @@ function memeMonde(a, b){
          (a.w || "") === (b.w || "") && (a.s || "") === (b.s || "") &&
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
-         (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0);
+         (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0) &&
+         /* ni un lancement d'expédition, ni un champion, ni le verrou */
+         (a.je | 0) === (b.je | 0) && (a.jf | 0) === (b.jf | 0) &&
+         (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
+         msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
+         (a.jmn | 0) === (b.jmn | 0) && (a.ch || "") === (b.ch || "");
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */

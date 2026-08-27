@@ -28,6 +28,7 @@ function demarre(){
   construitBriefing();
   installeBoutons();
   installeRaz();
+  installeAdmin();
   installePlan();
   rafraichitPlan();
 
@@ -58,6 +59,10 @@ function boucle(maintenant){
   interpoleDistants(dt);
   majFlash(dt);
   majEtatReseauLent(dt);
+  /* Le compte à rebours de la jungle et le nombre de joueurs vivent
+     dans le BRIEFING, donc avant le « if(!enJeu) return » : c'est là,
+     menu ouvert, qu'on les regarde. */
+  majJungleLent(dt);
 
   if(!enJeu) return;
   /* Le gouverneur passe AVANT le rendu, jamais après : son ajuste()

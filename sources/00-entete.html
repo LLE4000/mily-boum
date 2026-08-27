@@ -168,6 +168,78 @@ select.champ{cursor:pointer}
 .monde.faite{opacity:.66}
 .monde.faite .etat{color:var(--vert)}
 .monde.verrou{opacity:.42}
+/* Le champion, sous chaque carte : « Détruite par Johan ». Il tient sur
+   deux lignes serrées pour ne pas déformer la grille des vignettes. */
+.monde .champ{padding:0 10px 8px;font-size:11px;line-height:1.35;color:#d8c98a}
+.monde .champ b{color:#ffd870}
+.monde .champ i{display:block;color:#8f86a0;font-style:normal;font-size:10px}
+
+/* ---- LA CARTE ÉVÉNEMENT ----
+   Elle occupe toute la largeur de la grille et vit sous une autre
+   lumière : un vert profond, un liseré qui respire, et un halo. Il
+   faut qu'on la distingue AVANT de savoir lire ce qu'elle raconte. */
+.monde.evt{grid-column:1/-1;opacity:1;background:#08150f;
+  border-color:rgba(90,220,140,.34);box-shadow:0 0 0 1px rgba(90,220,140,.14),0 8px 26px rgba(0,0,0,.6)}
+.monde.evt canvas{height:150px}
+.monde.evt .nom{font-size:17px;letter-spacing:.4px}
+.monde.evt .etat{background:rgba(4,26,14,.78);border-color:rgba(90,220,140,.5);color:#7ce8a6}
+.monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
+  text-transform:uppercase;padding:3px 9px;border-radius:20px;color:#0a2416;font-weight:700;
+  background:linear-gradient(180deg,#8ff0b4,#39c47c)}
+.monde.evt .jauge{display:flex;align-items:center;gap:10px;padding:0 10px 9px;flex-wrap:wrap}
+.monde.evt .cpt{font-size:22px;font-weight:900;color:#8ff0b4;font-variant-numeric:tabular-nums}
+.monde.evt .cpt small{font-size:13px;font-weight:700;color:#6d8f7c}
+.monde.evt .msg{font-size:12px;color:#a9c6b6;flex:1;min-width:130px}
+.monde.evt .barreJ{height:5px;border-radius:4px;background:rgba(255,255,255,.09);overflow:hidden;
+  flex-basis:100%;margin-top:2px}
+.monde.evt .barreJ i{display:block;height:100%;border-radius:4px;
+  background:linear-gradient(90deg,#2f8f5e,#8ff0b4);transition:width .4s}
+#btJungle{width:calc(100% - 20px);margin:0 10px 10px;padding:12px;font-size:15px;font-weight:900;
+  letter-spacing:1.2px;border-radius:12px;border:0;cursor:pointer;color:#06180e;
+  background:linear-gradient(180deg,#9bf6bd,#2fb872);box-shadow:0 4px 16px rgba(60,200,120,.35)}
+#btJungle:disabled{background:#232c26;color:#5f6b63;box-shadow:none;cursor:default}
+/* Prête : le liseré et le bouton respirent, pour qu'on comprenne d'un
+   coup d'œil qu'il n'y a plus qu'à appuyer. */
+.monde.evt.prete{border-color:rgba(140,255,180,.75)}
+.monde.evt.prete #btJungle{animation:pulseJungle 1.5s ease-in-out infinite}
+@keyframes pulseJungle{
+  0%,100%{box-shadow:0 4px 16px rgba(60,200,120,.35)}
+  50%{box-shadow:0 4px 30px rgba(120,255,180,.85)}
+}
+@media (prefers-reduced-motion:reduce){
+  .monde.evt.prete #btJungle{animation:none}
+}
+
+/* ---- LE VOLET D'ENTRÉE DANS LA JUNGLE ----
+   Trois secondes : le noir tombe, un éclair blanchit l'écran, le titre
+   s'inscrit, puis la carte apparaît. C'est une porte qu'on franchit,
+   pas un générique — d'où la brièveté. */
+#voletJungle{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:0;
+  background:radial-gradient(120% 90% at 50% 40%,#0b2418 0%,#040d09 55%,#000 100%);
+  display:flex;align-items:center;justify-content:center}
+#voletJungle.on{pointer-events:auto;animation:voletJ 2.6s ease-out forwards}
+#voletJungle .ecl{position:absolute;inset:0;background:#eafff4;opacity:0}
+#voletJungle.on .ecl{animation:eclairJ 2.6s linear forwards}
+#voletJungle .ttr{position:relative;text-align:center;color:#cfead9;
+  font:700 clamp(20px,4.2vw,40px)/1.15 'Trebuchet MS','Segoe UI',sans-serif;
+  letter-spacing:.32em;text-indent:.32em;opacity:0;transform:translateY(14px)}
+#voletJungle .ttr b{display:block;margin-top:6px;font-size:1.5em;letter-spacing:.12em;
+  text-indent:.12em;color:#9df7c0;text-shadow:0 0 26px rgba(90,240,150,.6)}
+#voletJungle.on .ttr{animation:titreJ 2.6s ease-out forwards}
+@keyframes voletJ{0%{opacity:0}14%{opacity:1}88%{opacity:1}100%{opacity:0}}
+@keyframes eclairJ{
+  0%,24%{opacity:0} 26%{opacity:.62} 31%{opacity:.04} 33%{opacity:.42}
+  40%,100%{opacity:0}
+}
+@keyframes titreJ{
+  0%,26%{opacity:0;transform:translateY(14px)}
+  42%{opacity:1;transform:translateY(0)}
+  86%{opacity:1;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-8px)}
+}
+@media (prefers-reduced-motion:reduce){
+  #voletJungle.on .ecl{animation:none}
+}
 
 /* navettes */
 #barges{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
@@ -466,7 +538,7 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Les cinq îles</h2>
+      <h2>Les cinq îles… et la jungle</h2>
       <div class="mondes" id="mondes"></div>
       <div id="objBouclier">
         <b>⚡ Le Brasier est sous bouclier.</b>
@@ -497,8 +569,9 @@ select.champ{cursor:pointer}
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
-    <div class="ligne" style="justify-content:center;margin-bottom:6px">
+    <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
+      <button id="btAdmin" class="bt ptt" title="Réglages réservés, protégés par mot de passe">⚙ Administration</button>
     </div>
     <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
   </div>

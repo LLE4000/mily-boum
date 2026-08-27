@@ -167,21 +167,50 @@ function envoie(obj){
    --------------------------------------------------------------- */
 
 /* Ce que la partie en cours sait du monde, sous forme d'instantané. */
+/* L'état de la jungle tel que CE client le connaît. Il vient toujours
+   de l'instantané reçu — jamais d'un calcul local — sauf les deux
+   choses que ce client est seul à savoir : les destructions et les PV
+   du Brasier, quand c'est lui qui est en expédition. */
+function jungleCourante(){
+  var m = monde || {};
+  var o = { je:m.je | 0, jf:m.jf | 0, jd:m.jd || "", jq:m.jq | 0,
+            jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
+            jmn:m.jmn | 0, ch:m.ch || "" };
+  if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
+    var bits = [], i;
+    for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
+    o.jd = encodeBits(bits);
+    o.jq = Math.max(0, Math.round(jeu.qg.pv));
+  }
+  return o;
+}
+
 function mondeCourant(){
+  var jg = jungleCourante();
   /* Sans partie en cours, il faut quand même savoir estampiller le
      plan : on peint depuis le briefing, où `jeu` est nul, et sans ça
      un plan tout juste validé ne serait jamais publié. */
   if(!jeu){
     if(!monde) return null;
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
-       (monde.tg | 0) === tirageSalon) return monde;
-    return { v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
+       (monde.tg | 0) === tirageSalon && memeJungle(monde, jg)) return monde;
+    return poseJungle({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
-             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+  }
+  /* En expédition, la campagne ne bouge PAS : on republie l'île
+     normale telle que l'instantané la connaît, et c'est la voie de la
+     jungle qui porte les dégâts. Sans ça, une expédition écraserait
+     l'avancée de la campagne avec les PV du Brasier de la jungle. */
+  if(jeu.index === IDX_JUNGLE){
+    var mm = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+    return poseJungle({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
+             g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   }
   var bits = [], i;
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
-  return { v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
+  return poseJungle({ v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
            k:encodeChats(jeu.tueurChats),
@@ -189,7 +218,7 @@ function mondeCourant(){
               ce qui le fait survivre à la déconnexion de celui qui les a
               faits, et même à la déconnexion de tout le monde. */
            s:tableauScores(),
-           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 };
+           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -257,7 +286,13 @@ function recoitMonde(txt){
 /* Éteint les bâtiments que l'instantané déclare détruits, et abaisse
    les PV du Brasier. Monotone : on ne relève jamais rien. */
 function appliqueMondeAuJeu(m){
-  if(!jeu || !mondeValide(m) || m.c !== jeu.index || (m.cy | 0) !== cycleSalon) return;
+  if(!jeu || !mondeValide(m)) return;
+  /* EN EXPÉDITION, c'est la voie de la jungle qui commande, pas la
+     campagne : les destructions viennent de jd et les PV de jq. Le
+     reste de l'instantané décrit une île à laquelle on ne touche pas
+     tant qu'on est dans la jungle. */
+  if(jeu.index === IDX_JUNGLE) return appliqueJungleAuJeu(m);
+  if(m.c !== jeu.index || (m.cy | 0) !== cycleSalon) return;
   var bits = decodeBits(m.d, jeu.batiments.length), i, b, change = 0;
   for(i = 0; i < jeu.batiments.length; i++){
     b = jeu.batiments[i];
@@ -298,6 +333,134 @@ function appliqueMondeAuJeu(m){
     demandeMajBarres();
   }
   return change;
+}
+
+/* Le pendant de appliqueMondeAuJeu pour l'expédition : les mêmes
+   règles monotones, mais sur la voie de la jungle. Une expédition qui
+   s'est terminée ailleurs pendant qu'on jouait renvoie au briefing —
+   on ne peut pas rester seul dans une jungle que le salon a fermée. */
+function appliqueJungleAuJeu(m){
+  if(!jeu || jeu.index !== IDX_JUNGLE) return 0;
+  if(!jungleEnCours(m)){ if(typeof finExpeditionLocale === "function") finExpeditionLocale(); return 0; }
+  var bits = decodeBits(m.jd, jeu.batiments.length), i, b, change = 0;
+  for(i = 0; i < jeu.batiments.length; i++){
+    b = jeu.batiments[i];
+    if(bits[i] && b.vivant){
+      b.vivant = 0; b.pv = 0;
+      marqueEmprise(b, 0);
+      change++;
+    }
+  }
+  if(m.jq){ jeu.file.adopteMinimum(m.jq); jeu.qg.pv = jeu.file.pv; }
+  if(change){
+    if(jeu.balise && jeu.balise.cible && !jeu.balise.cible.vivant) jeu.balise = null;
+    demandeMajBarres();
+  }
+  return change;
+}
+
+/* ---------------------------------------------------------------
+   LE LANCEMENT COLLECTIF
+
+   Le cahier des charges est clair : « Ne lance surtout pas plusieurs
+   instances involontairement parce que plusieurs personnes ont appuyé
+   presque simultanément. » C'est exactement ce que garantit le couple
+   je/jf : lancer, c'est porter je à max(je,jf)+1. Deux joueurs qui
+   appuient dans la même seconde calculent tous les deux LE MÊME
+   nombre — leurs deux instantanés sont donc identiques, la fusion les
+   confond, et il n'y a qu'une expédition. Un troisième qui arrive en
+   retard voit je > jf et rejoint au lieu de relancer.
+   --------------------------------------------------------------- */
+function lanceExpedition(){
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  if(jungleEnCours(m)) return false;              // déjà en cours : on rejoint
+  var jg = jungleCourante();
+  jg.je = Math.max(jg.je, jg.jf) + 1;
+  jg.jd = ""; jg.jq = CARTES[IDX_JUNGLE].pvQG;    // une jungle neuve
+  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
+                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
+                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
+                       tg:tirageSalon | 0 }, jg);
+  sauveMondeLocal();
+  publieMonde(true);
+  return true;
+}
+
+/* La fin de l'expédition : jf rattrape je, l'heure est estampillée
+   pour le verrou de 48 h, et le champion de la jungle est inscrit. */
+function termineExpedition(champion){
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  var jg = jungleCourante();
+  if(jg.je <= jg.jf) return false;                // déjà terminée ailleurs
+  jg.jf = jg.je;
+  jg.jt = Date.now();
+  jg.jd = ""; jg.jq = 0;
+  jg.ch = inscritChampion(jg.ch, IDX_JUNGLE, champion);
+  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
+                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
+                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
+                       tg:tirageSalon | 0 }, jg);
+  sauveMondeLocal();
+  publieMonde(true);
+  return true;
+}
+
+/* Inscrit le champion d'une carte, en incrémentant son numéro de
+   victoire — c'est ce numéro qui rend la fusion monotone. */
+function inscritChampion(ch, index, nom){
+  var t = decodeChampions(ch);
+  var n = (t[index] ? t[index].n : 0) + 1;
+  t[index] = { nom:String(nom || "?").substr(0, 14), n:n };
+  return encodeChampions(t);
+}
+/* Sacre le champion d'une carte ORDINAIRE et le publie. La jungle a
+   son propre chemin (termineExpedition), qui inscrit le champion en
+   même temps qu'il referme l'expédition. */
+function sacreChampion(index, nom){
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  var jg = jungleCourante();
+  jg.ch = inscritChampion(jg.ch, index, nom);
+  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
+                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
+                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
+                       tg:tirageSalon | 0 }, jg);
+  sauveMondeLocal();
+  publieMonde(true);
+}
+
+/* Le champion d'une carte, tel que le salon le connaît. */
+function championDeCarte(index){
+  var t = decodeChampions(monde ? monde.ch : "");
+  return t[index] ? t[index].nom : "";
+}
+/* Le minimum de joueurs en vigueur dans ce salon. */
+function minJoueursJungle(){
+  return (monde && (monde.jm | 0)) || EQ.JUNGLE_MIN_JOUEURS;
+}
+/* Le réglage administrateur : on incrémente son numéro pour que la
+   fusion sache lequel est le plus récent. */
+function regleMinJoueurs(n){
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  var jg = jungleCourante();
+  jg.jm = borne(n | 0, 1, 60);
+  jg.jmn = (jg.jmn | 0) + 1;
+  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
+                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
+                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
+                       tg:tirageSalon | 0 }, jg);
+  sauveMondeLocal();
+  publieMonde(true);
+  return jg.jm;
+}
+/* Combien de millisecondes avant que la jungle rouvre. 0 = ouverte.
+   L'heure de référence vient de l'instantané PARTAGÉ : un client dont
+   l'horloge retarde ne peut pas ouvrir la carte plus tôt pour les
+   autres, puisque c'est jt qui fait foi et que jt ne redescend pas. */
+function attenteJungle(){
+  var t = monde ? msMonde(monde.jt) : 0;
+  if(!t) return 0;
+  var reste = t + EQ.JUNGLE_ATTENTE_H * 3600000 - Date.now();
+  return reste > 0 ? reste : 0;
 }
 
 /* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le

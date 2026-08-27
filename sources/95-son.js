@@ -168,6 +168,45 @@ var son = {
     this.souffle(1400, 90, 1.4, 0.13);
   },
 
+  /* ---- L'ORAGE DE LA JUNGLE ----
+     Le tonnerre est un bruit filtré qui DESCEND : un grondement qui
+     s'éloigne. Deux couches — la claque sèche du coup, puis le
+     roulement qui traîne — parce qu'un tonnerre d'une seule couche
+     sonne comme une porte qui claque. */
+  tonnerre:function(){
+    if(!this.ok()) return;
+    var t = this.ac.currentTime;
+    var s = this.ac.createBufferSource();
+    s.buffer = this.bruit; s.loop = true;
+    var f = this.ac.createBiquadFilter();
+    f.type = "lowpass"; f.Q.value = 0.7;
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.exponentialRampToValueAtTime(60, t + 2.4);
+    var g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.20, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.055, t + 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+    s.connect(f); f.connect(g); g.connect(this.maitre);
+    s.start(t); s.stop(t + 2.7);
+    this.bip("sine", 46, 24, 2.0, 0.10);
+  },
+  /* Un grondement LOINTAIN : pas de claque, que le roulement. C'est
+     lui qui tourne en fond d'ambiance, donc il reste très en dessous. */
+  grondeLoin:function(){ this.souffle(160, 38, 3.2, 0.055); },
+  /* La foudre qui touche vraiment le sol : un craquement sec, puis le
+     tonnerre par-dessus. */
+  foudre:function(){
+    this.bip("sawtooth", 2400, 90, 0.20, 0.13);
+    this.bip("square", 900, 60, 0.10, 0.07);
+    this.tonnerre();
+  },
+  /* Le geyser : une bouffée qui monte et qui souffle. */
+  geyser:function(){
+    this.souffle(220, 1300, 0.30, 0.11);
+    this.bip("sawtooth", 70, 190, 0.34, 0.08);
+  },
+
   /* petit requiem pour Gégé */
   gege:function(){
     this.bip("triangle", 660, 620, 0.22, 0.10);

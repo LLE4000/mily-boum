@@ -18,7 +18,11 @@ function nouvelleCarte(index, pvConnu){
   /* La carte suit le plan du salon et son tirage courant : c'est ce
      couple, diffusé dans l'instantané retenu, qui garantit que tout le
      monde voit exactement les mêmes défenses. */
-  carte = genereCarte(CODE_SALON, index, planSalon, tirageSalon);
+  /* planDeCarte tranche : la jungle joue son plan gravé, les cinq îles
+     celui du salon. L'éditeur de défenses ne touche donc jamais à la
+     carte événement — sa densité est une décision de conception, pas
+     un réglage de partie. */
+  carte = genereCarte(CODE_SALON, index, planDeCarte(index, planSalon), tirageSalon);
   jeu = {
     index:index,
     tps:0,
@@ -34,13 +38,23 @@ function nouvelleCarte(index, pvConnu){
       var f = CRE[k.t];
       return { t:k.t, gx:k.gx, gy:k.gy, ox:k.gx, oy:k.gy, pv:f.pv, n:i, teinte:k.teinte,
                phase:i * 0.7, ph:i * 1.31, droite:true, etat:"repos", cible:null,
-               prochainTir:0, but:null, minuteur:0, gonfle:0, ang:0 };
+               prochainTir:0, but:null, minuteur:0, gonfle:0, ang:0,
+               /* un panda sur deux est assis à manger : une jungle où
+                  tout le monde marche est une jungle en fuite */
+               assis:k.assis || 0 };
     }),
     unites:[], projectiles:[], effets:[], crateres:[], flaques:[], glu:[],
     brouillards:[], soin:[], balise:null, poulets:[], cryos:[],
     /* Le bouclier du Brasier : les cinq cellules, leurs câbles, et le
        compte de celles qui tiennent encore. */
     reacteurs:[], cables:[], bouclier:0, boucliercoups:0, boucliertouche:0, coupure:0,
+    /* LA JUNGLE. Les trois listes sont vides sur les cinq îles
+       ordinaires, et tout le rendu s'appuie sur ce fait : un tableau
+       vide ne coûte rien à parcourir. */
+    geysers:(carte.geysers || []).map(function(g){
+      return nouveauGeyser(g.gx, g.gy, g.sommeil);
+    }),
+    eclairs:[], prochainEclair:EQ.JUNGLE_ECLAIR * (0.4 + 0.5 * Math.random()),
     navettes:[],
     energie:EQ.ENERGIE_DEPART, novaDispo:EQ.NOVA_PAR_VIE,
     tueurGege:"", tueurTweety:"",   // les responsables, une fois pour toutes
@@ -2542,10 +2556,68 @@ function majJeu(dt){
   majCreatures(dt, jeu.tps);
   majProjectiles(dt);
   majZones(dt);
+  majJungle(dt);
   majQG(dt, jeu.tps);
   majEffets(dt);
   majMort(dt);
 }
+/* ================================================================
+   LA VIE DE LA JUNGLE — geysers, foudre, et la faune qui s'égaille
+
+   Rien de tout cela ne tourne sur les cinq îles ordinaires : les
+   listes y sont vides et la fonction sort à la première ligne. C'est
+   ce qui permet à la carte événement d'être aussi chargée sans rien
+   coûter aux autres.
+   ================================================================ */
+function majJungle(dt){
+  if(!jeu.geysers.length) return;
+  var i;
+
+  /* --- LES GEYSERS ---
+     Chacun a sa propre horloge, tirée à la génération : deux bouches
+     voisines ne soufflent jamais ensemble, sans quoi la carte
+     ressemblerait à un métronome. */
+  for(i = 0; i < jeu.geysers.length; i++){
+    var g = jeu.geysers[i], avant = g.phase;
+    majGeyser(g, dt);
+    /* le souffle ne s'entend que si l'on est à portée de l'écran :
+       vingt-deux bouches qui grondent toutes ensemble seraient un
+       vacarme, et la plupart sont hors champ */
+    if(g.phase === "feu" && avant !== "feu" && son.geyser &&
+       Math.abs(g.gx - centreCameraGx()) < 26 && Math.abs(g.gy - centreCameraGy()) < 26){
+      son.geyser();
+    }
+  }
+
+  /* --- LA FOUDRE ---
+     Un impact toutes les trente secondes environ. Le point est tiré
+     dans les terres, jamais sur le Brasier — un éclair qui frapperait
+     l'objectif ferait croire à un dégât qui n'existe pas. */
+  jeu.prochainEclair -= dt;
+  if(jeu.prochainEclair <= 0){
+    jeu.prochainEclair = EQ.JUNGLE_ECLAIR * (0.75 + Math.random() * 0.5);
+    var ex, ey, essais = 0;
+    do{
+      ex = 6 + Math.random() * (PLAGE_X0 - 12);
+      ey = 4 + Math.random() * (GH - 8);
+    }while(Math.hypot(ex - jeu.qg.gx, ey - jeu.qg.gy) < 20 && ++essais < 20);
+    jeu.eclairs.push({ gx:ex, gy:ey, age:0, duree:2.4 });
+    if(son.foudre) son.foudre();
+    jeu.secousse = Math.min(5, jeu.secousse + 1.6);
+    /* les bêtes détalent : c'est ce qui rend la jungle habitée plutôt
+       que décorée */
+    if(typeof effraieFaune === "function") effraieFaune(ex, ey, 22, jeu.tps);
+  }
+  for(i = jeu.eclairs.length - 1; i >= 0; i--){
+    jeu.eclairs[i].age += dt;
+    if(jeu.eclairs[i].age > jeu.eclairs[i].duree) jeu.eclairs.splice(i, 1);
+  }
+}
+/* Le centre de l'écran, en cases — sert à ne pas jouer le son d'un
+   geyser situé à l'autre bout de l'île. */
+function centreCameraGx(){ return versMonde(cam, W / 2, H / 2).gx; }
+function centreCameraGy(){ return versMonde(cam, W / 2, H / 2).gy; }
+
 function majEffets(dt){
   for(var i = jeu.effets.length - 1; i >= 0; i--){
     var e = jeu.effets[i];

@@ -38,6 +38,19 @@ var BIOMES = {
     herbe:"#a7b183", allee:"#f2e7cc", roche:"#c6bba4",
     eauC:"#b6f7ec", eau:"#189ad6", eauO:"#0a4e94", ecume:"#f6ffff",
     fond:"#38b6da", basFond:"#93ecdd", ciel:"#a4dcf2"
+  },
+  /* LA JUNGLE — la carte événement. Orage tropical permanent : le
+     ciel est bas et chargé, la lumière passe à travers la canopée et
+     se teinte de vert, la terre est noire et gorgée d'eau. Le piège
+     serait de tout verdir : c'est le CONTRASTE qui fait la jungle —
+     de la terre presque noire sous des feuillages très clairs, et des
+     allées de boue luisante qui séparent les massifs. La mer, elle,
+     est saumâtre : une eau de mangrove, pas un lagon. */
+  jungle: {
+    sol1:"#2e4428", sol2:"#25381f", sable:"#6d6444", sableO:"#463f2a",
+    herbe:"#3c6b30", allee:"#4a4030", roche:"#4e5450",
+    eauC:"#4fbfa0", eau:"#12756e", eauO:"#063f42", ecume:"#d8fff2",
+    fond:"#1d7a72", basFond:"#5cb8a4", ciel:"#0a1c18"
   }
 };
 
@@ -806,6 +819,20 @@ var MATIERES = {
     herbe1:"#aab586", herbe2:"#8b9765",
     sable1:"#f2e5c6", sable2:"#e2d0a8",
     mouille:"#b6a179", roche1:"#d0c5ad", roche2:"#a89b83"
+  },
+  /* La jungle sous l'orage. Ici la terre n'est pas un fond : c'est de
+     l'humus noir, gorgé d'eau, et c'est PARCE QU'IL EST SOMBRE que les
+     feuillages au-dessus paraîtront lumineux. Le sable de la plage
+     tire au gris-vert — du limon, pas du sable sec — et la « roche »
+     des bords est une pierre mouillée, presque bleue. L'écart entre
+     herbe1 et herbe2 est le plus large de toutes les cartes : c'est
+     lui qui donne les taches de lumière sous la canopée. */
+  jungle: {
+    fond1:"#2c4126", fond2:"#22331d",
+    tache1:"#3b5730", tache2:"#182614",
+    herbe1:"#5c9440", herbe2:"#2a4522",
+    sable1:"#7b7150", sable2:"#5f5740",
+    mouille:"#33402e", roche1:"#525a58", roche2:"#3a4241"
   }
 };
 
@@ -1252,7 +1279,19 @@ function construitIndexDecor(carteC){
   /* k vaut toujours 9 dans la pile de rendu ; tk dit de quoi il s'agit */
   carteC.decors.forEach(function(d){ range(d.gx, d.gy, { k:9, tk:0, o:d, d:d.gx + d.gy }); });
   carteC.rochers.forEach(function(r){ range(r.gx, r.gy, { k:9, tk:1, o:r, d:r.gx + r.gy }); });
+  /* LA FLORE DE LA JUNGLE entre dans le MÊME index spatial que le
+     décor ordinaire, et dans la même pile de profondeur. C'est ce qui
+     la rend abordable : dix mille plantes ne coûtent pas plus cher que
+     les cinq cents décors d'une île normale, puisque seules celles qui
+     tombent dans les cases visibles sont empilées. tk vaut 2 pour
+     qu'elles passent par dessineFloreMonde et non par les sprites de
+     décor ordinaires. */
+  if(carteC.flore) carteC.flore.forEach(function(f){
+    range(f.gx, f.gy, { k:9, tk:2, o:f, d:f.gx + f.gy });
+  });
   construitSpritesDecor(carteC.biome);
+  if(carteC.flore && carteC.flore.length && typeof construitSpritesFlore === "function")
+    construitSpritesFlore();
 }
 /* Ajoute à la pile de rendu tout le décor visible */
 function decorVisible(vue, sortie){
@@ -1311,6 +1350,17 @@ function construitSpritesDecor(biome){
   }
 }
 function dessineDecorMonde(c, it){
+  /* La flore de la jungle porte son propre blit : elle a des cadres
+     bien plus hauts que les 128×132 du décor ordinaire.
+     Son index de sprite est résolu À LA DEMANDE, comme celui du décor
+     ordinaire juste en dessous : le générateur ne connaît que la
+     famille et deux tirages, parce qu'il tourne AVANT que les sprites
+     existent — et qu'il doit rester du calcul pur, testable hors
+     navigateur. */
+  if(it.tk === 2){
+    if(it.o.sp === undefined) it.o.sp = choisitFlore(it.o.fam, it.o.v);
+    return dessineFloreMonde(c, it.o);
+  }
   var p = versEcran(cam, it.o.gx, it.o.gy);
   var z = cam.z, cv2;
   if(it.tk === 0){

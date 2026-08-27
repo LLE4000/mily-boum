@@ -1153,6 +1153,18 @@ function dessineProjectile(c, p, tps){
 var BQ_FLANC0 = 118, BQ_FLANC1 = 236;   // demi-largeurs de la zone d'arcs
 var BQ_HAUT = -330, BQ_BAS = 26;        // du pied de la coque à son sommet
 
+/* Le geyser dans le repère du monde : même contrat que les défenses,
+   on translate à sa case et on met à l'échelle du zoom, puis le
+   dessin travaille en unités locales avec les Y négatifs vers le haut. */
+function dessineGeyserMonde(c, g, tps){
+  var p = versEcran(cam, g.gx, g.gy);
+  c.save();
+  c.translate(p.x, p.y);
+  c.scale(cam.z, cam.z);
+  dessineGeyser(c, g, tps);
+  c.restore();
+}
+
 function dessineBouclierQG(c, tps){
   if(!jeu.bouclier || jeu.fin) return;
   var q = jeu.qg;
@@ -1947,6 +1959,14 @@ function rendu(tps, dt){
   dessineSol(ctx, vue);
   if(mer){ dessineEcume(ctx, tps); dessineRessac(ctx, tps); }
   dessineZonesSol(ctx, tps);
+  /* La brume rampe AU SOL, donc sous les objets ; le ciel d'orage
+     assombrit le terrain avant qu'on y pose quoi que ce soit. */
+  if(jeu.geysers.length){
+    repereEcran(ctx);
+    dessineCielOrage(ctx, tps);
+    dessineBrumeSol(ctx, tps);
+    repereMonde(ctx);
+  }
   repereEcran(ctx);
 
   /* ---- entités triées en profondeur ---- */
@@ -1967,6 +1987,14 @@ function rendu(tps, dt){
     pile.push({ d:b.gx + b.gy, k:0, o:b });
   }
   majBudgetTourelles(nbTour);
+  /* Les geysers entrent dans le TRI DE PROFONDEUR comme tout ce qui
+     est posé au sol : une colonne de feu doit passer devant ce qui est
+     au nord d'elle et derrière ce qui est au sud, sinon elle flotte. */
+  for(i = 0; i < jeu.geysers.length; i++){
+    var gy2 = jeu.geysers[i];
+    if(!visible(vueL, gy2.gx, gy2.gy)) continue;
+    pile.push({ d:gy2.gx + gy2.gy, k:12, o:gy2 });
+  }
   for(i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;
@@ -2045,6 +2073,7 @@ function rendu(tps, dt){
       case 9: dessineDecorMonde(ctx, it); break;
       case 10: dessinePouletMonde(ctx, it.o, tps); break;
       case 11: dessineNavette(ctx, it.o, tps); break;
+      case 12: dessineGeyserMonde(ctx, it.o, tps); break;
     }
   }
   if(jeu.balise) dessineFusee(ctx, tps);
@@ -2060,6 +2089,17 @@ function rendu(tps, dt){
     var pe = versEcran(cam, mx, my);
     texteCerne(ctx, j2.nom + " · " + j2.n, pe.x, pe.y - 62 * cam.z,
                Math.max(10, 12 * cam.z), "#c9c2ce");
+  }
+
+  /* L'ORAGE, par-dessus la carte : la pluie et les éclairs sont dans
+     l'air, rien au sol ne peut les masquer. Les lueurs de végétation
+     viennent avant la pluie — ce sont des lumières posées dans les
+     feuillages, pas des gouttes. */
+  if(jeu.geysers.length){
+    repereEcran(ctx);
+    dessineLueursVegetation(ctx, tps);
+    for(var ie = 0; ie < jeu.eclairs.length; ie++) dessineEclairJungle(ctx, jeu.eclairs[ie], tps);
+    dessinePluieJungle(ctx, tps);
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de

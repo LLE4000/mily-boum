@@ -25,6 +25,9 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","planJungle","planDeCarte",
+    "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
+    "encodeChampions","decodeChampions","fusionneChampions",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -701,6 +704,180 @@ G("4. Déterminisme de la génération de carte");
        restant.every(function(x, k){ return x.n === k; }));
   })();
 
+  G("5d. Mily dans la jungle — la carte événement");
+  /* LA PROPRIÉTÉ QUI PORTE TOUT : la jungle ne doit RIEN changer à
+     l'enchaînement des cinq îles. */
+  ok("la jungle n'est pas dans l'enchaînement des îles",
+     N.IDX_JUNGLE >= N.NB_CARTES_NORMALES);
+  ok("elle a plus de vie que toutes les autres",
+     N.CARTES.every(function(c, i){
+       return i === N.IDX_JUNGLE || c.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG;
+     }));
+  ok("elle s'écrit MILY DANS LA JUNGLE, jamais autrement",
+     N.CARTES[N.IDX_JUNGLE].nom === "Mily dans la jungle" &&
+     !/Mill?ie|Milly|Milyy|Miley|Midi/i.test(N.CARTES[N.IDX_JUNGLE].nom));
+
+  /* SA DENSITÉ. Le joueur veut la carte de sa photo : bien plus
+     fournie que les cinq autres. */
+  (function(){
+    var pj = N.planJungle();
+    ok("la jungle porte son propre plan gravé (" + pj.length + " car.)",
+       typeof pj === "string" && pj.length > 100);
+    ok("planDeCarte donne ce plan à la jungle, celui du salon ailleurs",
+       N.planDeCarte(N.IDX_JUNGLE, "XX") === pj && N.planDeCarte(0, "XX") === "XX");
+    var normale = N.genereCarte("MILY", 0, "", 0);
+    var jungle  = N.genereCarte("MILY", N.IDX_JUNGLE, pj, 0);
+    function defs(m){
+      return m.batiments.filter(function(b){ return b.t !== "cellule"; }).length;
+    }
+    function cell(m){
+      return m.batiments.filter(function(b){ return b.t === "cellule"; }).length;
+    }
+    ok("la jungle est bien plus dense (" + defs(normale) + " → " + defs(jungle) + ")",
+       defs(jungle) > defs(normale) * 1.6, defs(normale) + " vs " + defs(jungle));
+    ok("et bien plus riche en cellules (" + cell(normale) + " → " + cell(jungle) + ")",
+       cell(jungle) > cell(normale) * 3);
+    /* les clairières : sans elles, une carte saturée n'est plus un
+       terrain mais un mur */
+    var z = N.decodePlan(pj), vides = 0, allees = 0;
+    for(var i = 0; i < N.NB_ZONES; i++){
+      if(N.zoneEstVide(z[i])) vides++;
+      else if(N.zoneDens(z[i]) === 1) allees++;
+    }
+    ok("elle garde des clairières (" + vides + " zones dégagées)",
+       vides > 10 && vides < N.NB_ZONES * 0.25, "" + vides);
+    /* LE PIÈGE MESURÉ : à saturation totale, la passe de miradors ne
+       trouve plus une place libre et il n'en reste que deux sur
+       l'île. Or c'est la seule défense qui abat un Ogre. Les allées
+       clairsemées existent pour ça, et ce test les garde. */
+    ok("et des allées clairsemées (" + allees + " zones)", allees > 30, "" + allees);
+    var mir = jungle.batiments.filter(function(b){ return b.t === "mirador"; }).length;
+    ok("l'Ogre a donc en face de lui " + mir + " miradors", mir >= 18, "" + mir);
+    ok("la jungle garde ses cinq cellules électriques",
+       (jungle.reacteurs || []).length === N.NB_REACTEURS);
+    ok("et ses trois chats", N.ESPECES_PROTEGEES.every(function(e){
+       return jungle.creatures.filter(function(k){ return k.t === e; }).length === 1;
+    }));
+    ok("deux clients génèrent la même jungle",
+       N.empreinteCarte(jungle) === N.empreinteCarte(N.genereCarte("MILY", N.IDX_JUNGLE, pj, 0)));
+  })();
+
+  /* LA VOIE PARALLÈLE. Deux compteurs qui ne font qu'augmenter
+     décrivent un état qui va et vient : c'est ce qui rend une
+     expédition fusionnable comme le reste du monde. */
+  (function(){
+    function m(o){
+      var b = { v:1, cy:0, c:0, pv:100, d:"", g:"", w:"", s:"", k:"",
+                p:"", pn:0, tg:0, je:0, jf:0, jd:"", jq:0, jt:0, jm:7, jmn:0, ch:"" };
+      for(var q in o) b[q] = o[q];
+      return b;
+    }
+    ok("un monde neuf n'a pas d'expédition en cours",
+       !N.jungleEnCours(N.mondeVide(0, 100, 0)));
+    ok("je > jf : expédition en cours", N.jungleEnCours(m({ je:1, jf:0 })));
+    ok("je = jf : terminée", !N.jungleEnCours(m({ je:3, jf:3 })));
+    /* un client qui n'a pas vu le lancement, et un qui l'a lancé */
+    var enRetard = m({ je:0, jf:0 });
+    var lanceur  = m({ je:1, jf:0, jq:60000000 });
+    var f1 = N.fusionneMonde(enRetard, lanceur);
+    var f2 = N.fusionneMonde(lanceur, enRetard);
+    ok("le lancement se propage au retardataire, dans les deux sens",
+       N.jungleEnCours(f1) && N.jungleEnCours(f2) && f1.je === f2.je);
+    ok("et les PV du Brasier de la jungle avec",
+       f1.jq === 60000000 && f2.jq === 60000000);
+    /* la fin : jf rattrape je */
+    var fini = m({ je:1, jf:1, jt:1000 });
+    var f3 = N.fusionneMonde(lanceur, fini), f4 = N.fusionneMonde(fini, lanceur);
+    ok("la fin se propage aussi, dans les deux sens",
+       !N.jungleEnCours(f3) && !N.jungleEnCours(f4));
+    /* LE POINT CRITIQUE : une île plus avancée ne doit pas emporter
+       une jungle périmée avec elle */
+    var avanceMaisVieux = m({ c:4, je:0, jf:0, jt:0 });
+    var enRetardMaisFrais = m({ c:0, je:5, jf:5, jt:9999 });
+    var f5 = N.fusionneMonde(avanceMaisVieux, enRetardMaisFrais);
+    var f6 = N.fusionneMonde(enRetardMaisFrais, avanceMaisVieux);
+    ok("une île plus avancée n'efface pas l'état de la jungle",
+       f5.je === 5 && f5.jt === 9999 && f6.je === 5 && f6.jt === 9999,
+       "f5.je=" + f5.je + " f5.jt=" + f5.jt);
+    ok("et l'avancée de campagne est bien conservée", f5.c === 4 && f6.c === 4);
+    /* LE VERROU DE 48 H. Une heure epoch vaut aujourd'hui 1,77 × 10¹²
+       et NE TIENT PAS dans trente-deux bits : « | 0 », l'idiome
+       employé partout ailleurs pour assainir un entier, la transforme
+       en un nombre sans rapport et le verrou s'ouvrait aussitôt. Ces
+       trois vérifications montent la garde sur des heures RÉELLES. */
+    var vrai = 1772000000000, vieux = vrai - 3600000;
+    ok("une heure epoch survit à l'assainissement",
+       N.msMonde(vrai) === vrai && N.msMonde("" + vrai) === vrai,
+       "msMonde(" + vrai + ") = " + N.msMonde(vrai));
+    ok("et aux valeurs absurdes",
+       N.msMonde(null) === 0 && N.msMonde(-5) === 0 && N.msMonde(NaN) === 0 &&
+       N.msMonde(Infinity) === 0);
+    var f7 = N.fusionneMonde(m({ jt:vrai }), m({ jt:vieux }));
+    ok("l'heure de la dernière victoire ne redescend jamais, sur une vraie heure",
+       f7.jt === vrai && N.fusionneMonde(m({ jt:vieux }), m({ jt:vrai })).jt === vrai,
+       "" + f7.jt);
+    ok("et deux heures réelles distinctes ne se confondent pas",
+       !N.memeMonde(m({ jt:vrai }), m({ jt:vieux })));
+    ok("fusionner est idempotent sur la voie de la jungle",
+       N.memeMonde(N.fusionneMonde(f5, f5), f5));
+    /* le réglage administrateur */
+    var a1 = m({ jm:7, jmn:3 }), a2 = m({ jm:12, jmn:4 });
+    ok("le réglage le plus récent gagne, dans les deux sens",
+       N.fusionneMonde(a1, a2).jm === 12 && N.fusionneMonde(a2, a1).jm === 12);
+    var e1 = m({ jm:5, jmn:9 }), e2 = m({ jm:15, jmn:9 });
+    ok("à numéro égal, la valeur tranche — jamais l'ordre d'arrivée",
+       N.fusionneMonde(e1, e2).jm === N.fusionneMonde(e2, e1).jm);
+    ok("un lancement compte dans la comparaison de deux mondes",
+       !N.memeMonde(m({ je:1 }), m({ je:0 })) &&
+       !N.memeMonde(m({ jt:1 }), m({ jt:0 })) &&
+       N.memeMonde(m({ je:2, jf:1 }), m({ je:2, jf:1 })));
+    /* les destructions de la jungle appartiennent à leur époque */
+    var ep1 = m({ je:1, jf:0, jd:"ZZ" });
+    var ep2 = m({ je:2, jf:1, jd:"" });
+    ok("une expédition plus récente balaie les destructions de la précédente",
+       N.fusionneMonde(ep1, ep2).jd === "" && N.fusionneMonde(ep2, ep1).jd === "");
+    var mm1 = m({ je:2, jf:1, jd:N.encodeBits([1,0,0,0,0,0]) });
+    var mm2 = m({ je:2, jf:1, jd:N.encodeBits([0,1,0,0,0,0]) });
+    ok("à époque égale, elles s'additionnent",
+       N.fusionneMonde(mm1, mm2).jd === N.fusionneMonde(mm2, mm1).jd &&
+       N.compteBits(N.fusionneMonde(mm1, mm2).jd) === 2);
+  })();
+
+  /* LES CHAMPIONS — un par carte, et ils ne se mélangent pas. */
+  (function(){
+    ok("un monde neuf n'a aucun champion", N.mondeVide(0, 100, 0).ch === "");
+    var t = { 0:{ nom:"Johan", n:1 }, 5:{ nom:"Lucien", n:2 } };
+    var s = N.encodeChampions(t), r = N.decodeChampions(s);
+    ok("aller-retour des champions (« " + s + " »)",
+       r[0].nom === "Johan" && r[0].n === 1 && r[5].nom === "Lucien" && r[5].n === 2);
+    ok("les séparateurs sont retirés des pseudos",
+       N.decodeChampions(N.encodeChampions({ 0:{ nom:"a|b:c", n:1 } }))[0].nom === "abc");
+    var v1 = N.encodeChampions({ 0:{ nom:"Johan", n:1 } });
+    var v2 = N.encodeChampions({ 0:{ nom:"Sophie", n:2 }, 3:{ nom:"Lucien", n:1 } });
+    var fc = N.fusionneChampions(v1, v2);
+    ok("la victoire la plus récente remplace le champion",
+       N.decodeChampions(fc)[0].nom === "Sophie");
+    ok("et les autres cartes gardent le leur",
+       N.decodeChampions(fc)[3].nom === "Lucien");
+    ok("fusionner donne le même résultat dans les deux sens",
+       N.fusionneChampions(v1, v2) === N.fusionneChampions(v2, v1));
+    ok("fusionner deux fois ne change rien",
+       N.fusionneChampions(fc, v1) === fc);
+    ok("fusionner est associatif",
+       N.fusionneChampions(N.fusionneChampions(v1, v2), s) ===
+       N.fusionneChampions(v1, N.fusionneChampions(v2, s)));
+    /* un champion de la jungle ne devient pas champion de la plage */
+    var f = N.fusionneMonde(
+      { v:1, cy:0, c:0, pv:100, d:"", g:"", w:"", s:"", k:"", p:"", pn:0, tg:0,
+        je:0, jf:0, jd:"", jq:0, jt:0, jm:7, jmn:0, ch:v1 },
+      { v:1, cy:0, c:0, pv:100, d:"", g:"", w:"", s:"", k:"", p:"", pn:0, tg:0,
+        je:0, jf:0, jd:"", jq:0, jt:0, jm:7, jmn:0,
+        ch:N.encodeChampions({ 5:{ nom:"Zoé", n:1 } }) });
+    var dc = N.decodeChampions(f.ch);
+    ok("chaque carte garde son propre champion",
+       dc[0].nom === "Johan" && dc[5].nom === "Zoé" && !dc[1]);
+  })();
+
   G("5c. Les trois chats de Mily, et sa vengeance");
   ok("trois espèces protégées, dans un ordre gravé",
      N.ESPECES_PROTEGEES.length === 3 &&
@@ -1122,20 +1299,35 @@ G("8. Cohérence des règles de jeu");
       }
     }
     ok("chaque île a son message de victoire, avec le pseudo en tête", bon, det);
-    ok("il y a bien cinq îles", N.CARTES.length === 5, "" + N.CARTES.length);
+    /* La campagne compte CINQ îles ; la jungle est une carte
+       événement, dans le même tableau mais hors de l'enchaînement.
+       C'est NB_CARTES_NORMALES, jamais CARTES.length, que le reste du
+       jeu doit consulter — sans quoi une carte événement allongerait
+       la campagne de tout le monde. */
+    ok("la campagne compte cinq îles", N.NB_CARTES_NORMALES === 5,
+       "" + N.NB_CARTES_NORMALES);
+    ok("et une seule carte événement s'y ajoute",
+       N.CARTES.length === 6 && N.CARTES.filter(function(c){ return c.special; }).length === 1);
+    ok("aucune carte ordinaire n'est marquée spéciale",
+       N.CARTES.slice(0, 5).every(function(c){ return !c.special; }));
+    ok("la jungle est bien la carte spéciale",
+       N.IDX_JUNGLE === 5 && N.carteSpeciale(5) && !N.carteSpeciale(0) &&
+       N.CARTES[N.IDX_JUNGLE].nom === "Mily dans la jungle");
     var vus = {}, tousDifferents = true;
     for(var iv = 0; iv < N.CARTES.length; iv++){
       var m = N.texteVictoire(iv, "X")[1];
       if(vus[m]) tousDifferents = false;
       vus[m] = 1;
     }
-    ok("les cinq messages sont différents", tousDifferents);
+    ok("les six messages sont différents", tousDifferents);
     ok("plage : le verre", N.texteVictoire(0, "X")[1].indexOf("boire un verre") > 0);
     ok("forêt : la cabane", N.texteVictoire(1, "X")[1].indexOf("cabane") > 0);
     ok("campagne : la paille", N.texteVictoire(2, "X")[1].indexOf("paille") > 0);
     ok("soirée hippie : chez elle", N.texteVictoire(3, "X")[1].indexOf("chez elle") > 0);
     ok("le Sud : elle l'aime", N.texteVictoire(4, "X")[1].indexOf("aime") > 0);
-    ok("le message boucle avec les îles", N.texteVictoire(5, "X")[1] === N.texteVictoire(0, "X")[1]);
+    ok("la jungle a son propre message", N.texteVictoire(5, "X")[1].indexOf("pluie") > 0);
+    ok("le message boucle au-delà du tableau",
+       N.texteVictoire(6, "X")[1] === N.texteVictoire(0, "X")[1]);
     /* Elle s'appelle MILY. Aucune orthographe fantaisiste nulle part. */
     var fautes = "";
     for(var ic = 0; ic < N.CARTES.length; ic++){

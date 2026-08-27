@@ -744,9 +744,25 @@ function majBilan(dt){
   if(bilanT <= 0){
     bilanActif = false;
     $("bilan").classList.remove("on");
+    /* LA JUNGLE NE MÈNE À AUCUNE ÎLE SUIVANTE. C'est une expédition :
+       elle se termine, le salon la referme pour 48 heures, et tout le
+       monde revient au campement. La campagne, elle, n'a pas bougé
+       d'un cran pendant ce temps. */
+    if(jeu.index === IDX_JUNGLE){
+      termineExpedition(championDeLaPartie().nom);
+      quitteVersBriefing();
+      return;
+    }
+    /* Le champion de l'île qui vient de tomber, gravé dans
+       l'instantané partagé : il restera affiché sur sa vignette
+       jusqu'à la prochaine fois que cette même île sera détruite. */
+    sacreChampion(jeu.index, championDeLaPartie().nom);
     var suiv = Math.max(carteSalon, jeu.index + 1);
     carteSalon = suiv;
-    if(suiv >= CARTES.length){
+    /* NB_CARTES_NORMALES, jamais CARTES.length : la carte événement
+       vit dans le même tableau mais hors de l'enchaînement, et la
+       campagne doit boucler sur cinq îles comme avant. */
+    if(suiv >= NB_CARTES_NORMALES){
       /* toutes les îles sont tombées : nouvelle campagne, monde neuf */
       carteSalon = 0; suiv = 0;
       cycleSalon++;
@@ -755,7 +771,7 @@ function majBilan(dt){
     construitFondMini();
     majBarres();
     majMondes();
-    message("Nouvelle île : " + CARTES[suiv % CARTES.length].nom);
+    message("Nouvelle île : " + CARTES[suiv].nom);
   }
 }
 
@@ -957,30 +973,174 @@ function rangeeNavette(i, b){
        + '<span class="unSeul">' + maxi + ' par navette</span></div>';
 }
 
+/* ---------------------------------------------------------------
+   LE CHAMPION D'UNE CARTE
+   « Détruite par Johan. Johan est le champion de cette carte. Mily lui
+   offre un verre. » Le nom vient de l'instantané PARTAGÉ, donc il est
+   le même pour tout le monde et il survit à toutes les déconnexions.
+   --------------------------------------------------------------- */
+function blocChampion(i){
+  var nom = championDeCarte(i);
+  if(!nom) return "";
+  var quoi = i === IDX_JUNGLE ? "de la jungle" : "de cette carte";
+  return '<div class="champ">Détruite par <b>' + echappe(nom) + '</b>'
+       + '<i>' + echappe(nom) + ' est le champion ' + quoi
+       + '. Mily lui offre un verre.</i></div>';
+}
+
+/* Combien de joueurs le salon entend en ce moment, moi compris. */
+function joueursEnLigne(){
+  var n = 1, id;
+  for(id in autresJoueurs) n++;
+  return n;
+}
+
+/* Le compte à rebours du verrou, en clair. On descend jusqu'aux
+   secondes une fois sous l'heure : au-dessus, personne ne regarde les
+   secondes, et les faire défiler donnerait une fausse urgence. */
+function texteAttente(ms){
+  var s = Math.ceil(ms / 1000);
+  var j = (s / 86400) | 0, hh = ((s % 86400) / 3600) | 0;
+  var mm = ((s % 3600) / 60) | 0, ss = s % 60;
+  if(j > 0) return j + " j " + hh + " h " + mm + " min";
+  if(hh > 0) return hh + " h " + mm + " min " + ss + " s";
+  if(mm > 0) return mm + " min " + ss + " s";
+  return ss + " s";
+}
+
+/* L'état de la carte événement, tel que le cahier des charges le
+   décrit : cooldown / attente / prête / expédition en cours. Un seul
+   endroit décide, et l'affichage n'en est que la lecture. */
+function etatJungle(){
+  if(jungleEnCours(monde)) return "encours";
+  var a = attenteJungle();
+  if(a > 0) return "cooldown";
+  return joueursEnLigne() >= minJoueursJungle() ? "prete" : "attente";
+}
+
 function majMondes(){
   var h = "";
   for(var i = 0; i < CARTES.length; i++){
+    if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
     var etat = i < carteSalon ? "tombée" : (i === carteSalon ? "en cours" : "verrouillée");
     var cl = i < carteSalon ? "faite" : (i === carteSalon ? "actif" : "verrou");
     h += '<div class="monde ' + cl + '"><canvas width="360" height="148" id="mn' + i + '"></canvas>'
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
-       + nombre(CARTES[i].pvQG) + ' PV</span></div></div>';
+       + nombre(CARTES[i].pvQG) + ' PV</span></div>'
+       + blocChampion(i) + '</div>';
   }
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
+  installeBoutonJungle();
+}
+
+/* La vignette de la carte événement. Elle porte quatre informations
+   sans devenir un tableau de bord : ce qu'elle est, combien on est,
+   ce qui manque, et qui l'a détruite la dernière fois. */
+function vignetteEvenement(i){
+  var e = etatJungle();
+  var n = joueursEnLigne(), mini = minJoueursJungle();
+  var msg, etiq;
+  if(e === "encours"){
+    etiq = "expédition en cours";
+    msg = "Une expédition est partie. Rejoins-la !";
+  }else if(e === "cooldown"){
+    etiq = "verrouillée";
+    msg = "Disponible dans <b>" + texteAttente(attenteJungle()) + "</b>";
+  }else if(e === "prete"){
+    etiq = "prête";
+    msg = "<b>LA JUNGLE EST PRÊTE.</b> Il ne manque plus qu'à entrer.";
+  }else{
+    etiq = "en attente";
+    var manque = mini - n;
+    msg = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
+  }
+  var frac = Math.min(1, n / Math.max(1, mini));
+  var bouton = e === "prete" ? "ENTRER DANS LA JUNGLE"
+             : e === "encours" ? "REJOINDRE L'EXPÉDITION"
+             : e === "cooldown" ? "LA JUNGLE SE REPOSE"
+             : "EN ATTENTE DE JOUEURS";
+  var actif = (e === "prete" || e === "encours");
+  return '<div class="monde evt ' + e + '" id="mondeEvt">'
+       + '<canvas width="720" height="300" id="mn' + i + '"></canvas>'
+       + '<div class="bandeau">🌿 Carte spéciale</div>'
+       + '<div class="etat">' + etiq + '</div>'
+       + '<div class="nom">' + CARTES[i].nom
+       + '<br><span style="font-size:11px;color:#a99cb4">QG '
+       + nombre(CARTES[i].pvQG) + ' PV — événement multijoueur</span></div>'
+       + '<div class="jauge">'
+       +   '<span class="cpt">' + n + '<small>/' + mini + '</small></span>'
+       +   '<span class="msg">' + msg + '</span>'
+       +   '<span class="barreJ"><i style="width:' + (frac * 100).toFixed(0) + '%"></i></span>'
+       + '</div>'
+       + '<button id="btJungle"' + (actif ? "" : " disabled") + '>' + bouton + '</button>'
+       + blocChampion(i) + '</div>';
+}
+
+/* Le menu ne se reconstruit pas à chaque image — mais le compte à
+   rebours doit vraiment descendre, et le nombre de joueurs vraiment
+   suivre les arrivées. On rafraîchit donc la seule vignette
+   événement, une fois par seconde, tant que le briefing est ouvert. */
+var evtT = 0, evtEtat = "";
+function majJungleLent(dt){
+  if(enJeu || !$("mondeEvt")) return;
+  evtT -= dt;
+  if(evtT > 0) return;
+  evtT = 1.0;
+  var e = etatJungle();
+  /* Un changement d'état retouche les classes et le bouton : on
+     reconstruit alors la vignette. Sinon on ne réécrit que les deux
+     nombres qui bougent, pour ne pas casser une animation en cours. */
+  if(e !== evtEtat){ evtEtat = e; majMondes(); return; }
+  var el = $("mondeEvt");
+  var cpt = el.querySelector(".cpt"), msg = el.querySelector(".msg");
+  var n = joueursEnLigne(), mini = minJoueursJungle();
+  if(cpt) cpt.innerHTML = n + '<small>/' + mini + '</small>';
+  if(msg && e === "cooldown") msg.innerHTML = "Disponible dans <b>" + texteAttente(attenteJungle()) + "</b>";
+  if(msg && e === "attente"){
+    var manque = mini - n;
+    msg.innerHTML = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
+  }
+  var barre = el.querySelector(".barreJ i");
+  if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
+}
+
+function installeBoutonJungle(){
+  var b = $("btJungle");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    if(!pseudoSaisi()) return signalePseudoManquant();
+    var e = etatJungle();
+    if(e !== "prete" && e !== "encours") return;
+    monNom = pseudoSaisi();
+    if(e === "prete") lanceExpedition();
+    entreDansLaJungle();
+  });
 }
 function dessineApercu(i){
   var el = $("mn" + i);
   if(!el) return;
   var c = el.getContext("2d");
+  /* LA CARTE ÉVÉNEMENT A SON PROPRE TABLEAU. Il est peint en direct,
+     à chaque rafraîchissement du menu, et son ambiance suit l'état
+     de l'expédition — c'est la première chose que le joueur voit de
+     la jungle. Tant que le sculpteur n'a pas livré, on retombe sur
+     l'aperçu ordinaire plutôt que sur un carré vide. */
+  if(carteSpeciale(i) && typeof dessineVignetteJungle === "function"){
+    dessineVignetteJungle(c, el.width, el.height, tempsGlobal, etatJungle());
+    return;
+  }
   /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
      démarrage : construitBriefing() se lance avant la boucle de rendu, si
      bien qu'un BIOMES[...] indéfini laissait un écran noir et une tablette
      qui ne répondait plus à la rotation. La vignette se rabat sur la
      plage, le jeu vit. */
   var b = BIOMES[CARTES[i].biome] || BIOMES.plage;
-  var w = 360, h = 148;
+  /* La taille vient du CANEVAS, pas d'une constante : la vignette
+     événement est deux fois plus grande que les cinq autres, et un
+     360×148 écrit en dur ne peignait qu'un quart de sa surface. */
+  var w = el.width, h = el.height;
   var g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, b.ciel); g.addColorStop(0.42, b.eau); g.addColorStop(1, b.eauO);
   c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -1054,7 +1214,9 @@ function basculePlein(){
 /* ---------------------------------------------------------------
    Lancement de la partie
    --------------------------------------------------------------- */
-function lancePartie(){
+/* `ou` est l'index de carte à jouer : la campagne du salon par défaut,
+   la jungle quand on entre en expédition. */
+function lancePartie(ou){
   if(!pseudoSaisi()) return signalePseudoManquant();
   monNom = pseudoSaisi();
   $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
@@ -1070,12 +1232,15 @@ function lancePartie(){
   dprPlafond = 4;
   lissageImg = 16; gouvLent = 0; gouvVite = 0;
   ajuste();
-  nouvelleCarte(carteSalon);
+  var idx = (typeof ou === "number") ? ou : carteSalon;
+  nouvelleCarte(idx);
   construitFondMini();
   construitMenu();
   majBarres();
   majPodium();
-  message("Choisis une barge en bas à gauche, puis appuie sur la plage.");
+  message(idx === IDX_JUNGLE
+    ? "L'orage gronde. Choisis une navette et débarque."
+    : "Choisis une barge en bas à gauche, puis appuie sur la plage.");
   if(reseau.connecte) envoie({ t:"bonjour", nom:monNom });
 }
 
@@ -1083,6 +1248,94 @@ function lancePartie(){
 /* Le bouton n'existe que dans le briefing : impossible de l'effleurer
    en pleine partie. Double garde-fou — un mot de passe, puis une
    confirmation qui annonce ce que ça détruit. */
+/* ---------------------------------------------------------------
+   ENTRER DANS LA JUNGLE
+   Assombrissement, coup de tonnerre, éclair, le titre — puis la carte.
+   La séquence est courte : trois secondes, c'est une porte qu'on
+   franchit, pas un générique.
+   --------------------------------------------------------------- */
+function entreDansLaJungle(){
+  var v = $("voletJungle");
+  if(!v){
+    v = document.createElement("div");
+    v.id = "voletJungle";
+    v.innerHTML = '<div class="ecl"></div><div class="ttr">MILY<br><b>DANS LA JUNGLE</b></div>';
+    document.body.appendChild(v);
+  }
+  v.classList.remove("on"); void v.offsetWidth;      // on relance l'animation
+  v.classList.add("on");
+  son.reveille();
+  if(son.tonnerre) son.tonnerre();
+  setTimeout(function(){ if(son.tonnerre) son.tonnerre(); }, 1400);
+  setTimeout(function(){
+    lancePartie(IDX_JUNGLE);
+    v.classList.remove("on");
+  }, 2600);
+}
+
+/* Le salon a fermé l'expédition pendant qu'on y était : on ne peut pas
+   rester seul dans une jungle qui n'existe plus pour les autres. */
+function finExpeditionLocale(){
+  if(!enJeu || !jeu || jeu.index !== IDX_JUNGLE) return;
+  message("L'expédition est terminée. Retour au campement.");
+  quitteVersBriefing();
+}
+/* Retour au menu, proprement : la partie s'arrête, le briefing revient
+   avec ses vignettes à jour. */
+function quitteVersBriefing(){
+  enJeu = false;
+  bilanActif = false;
+  $("bilan").classList.remove("on");
+  $("hud").classList.remove("on");
+  $("hud").classList.remove("fin");
+  $("brief").style.display = "";
+  evtEtat = "";
+  majMondes();
+  rafraichitPlan();
+}
+
+/* ---------------------------------------------------------------
+   LE PANNEAU D'ADMINISTRATION
+   Protégé par le même mot de passe que la remise à zéro et le plan de
+   défense. Il ne contient pour l'instant qu'un réglage, mais il est
+   fait pour en accueillir d'autres : chaque réglage part dans
+   l'instantané partagé, donc il vaut pour tout le salon.
+   --------------------------------------------------------------- */
+function installeAdmin(){
+  var b = $("btAdmin");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var mot = prompt("Mot de passe administrateur :");
+    if(mot === null) return;
+    if(mot.trim().toLowerCase() !== MOT_RAZ){
+      alert("Mot de passe incorrect. Rien n'a été touché.");
+      return;
+    }
+    var actuel = minJoueursJungle();
+    var rep = prompt(
+      "RÉGLAGES DU SALON\n\n"
+      + "Nombre minimum de joueurs connectés pour lancer\n"
+      + "« Mily dans la jungle ».\n\n"
+      + "Valeur actuelle : " + actuel + " joueurs.\n"
+      + "Par défaut : " + EQ.JUNGLE_MIN_JOUEURS + " joueurs.\n\n"
+      + "Entre un nombre entre 1 et 60 :", "" + actuel);
+    if(rep === null) return;
+    var n = parseInt(rep, 10);
+    if(!(n >= 1 && n <= 60)){
+      alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
+      return;
+    }
+    var pose = regleMinJoueurs(n);
+    evtEtat = "";
+    majMondes();
+    alert("Réglage enregistré : il faut désormais " + pose + " joueur"
+        + (pose > 1 ? "s" : "") + " connecté" + (pose > 1 ? "s" : "")
+        + "\npour lancer la jungle.\n\n"
+        + "Ce réglage vaut pour TOUT LE SALON et survit à la fermeture\n"
+        + "du navigateur : il voyage dans l'instantané partagé.");
+  });
+}
+
 function installeRaz(){
   var b = $("btRaz");
   if(!b) return;
