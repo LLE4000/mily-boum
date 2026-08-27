@@ -76,7 +76,52 @@ canvas{display:block}
     linear-gradient(180deg,#1a0f24 0%,#0d0714 100%);
   touch-action:pan-y;
 }
-.enveloppe{max-width:920px;margin:0 auto}
+/* L'ENVELOPPE S'ÉLARGIT, MAIS PAS LA LECTURE.
+   920 px convenaient à une page en une seule colonne ; avec une
+   colonne latérale il faut de la place pour les deux, sans quoi les
+   vignettes d'île deviennent des timbres. 1360 px laissent 280 au
+   classement et un peu plus de mille au jeu — et sur une tablette en
+   paysage (1024 à 1280 de large) la page tient enfin la largeur au
+   lieu de laisser deux bandes vides sur les côtés. */
+.enveloppe{max-width:1360px;margin:0 auto}
+
+/* ============================================================
+   L'ACCUEIL EN DEUX COLONNES
+
+   À gauche ce qu'on CONSULTE, à droite ce qu'on FAIT. La colonne de
+   gauche est étroite exprès : le classement doit rester lisible en
+   permanence sans jamais disputer la place aux îles.
+
+   `align-items:start` est ce qui permet au sticky de fonctionner —
+   sans lui, la colonne s'étire sur toute la hauteur de la grille et
+   n'a plus rien à quoi se coller.
+   ============================================================ */
+.accueilGrille{
+  display:grid;grid-template-columns:minmax(232px,278px) minmax(0,1fr);
+  gap:14px;align-items:start;
+}
+.colPrincipale{min-width:0}
+.colCote{position:sticky;top:calc(10px + var(--sat));min-width:0}
+/* Le classement de la colonne : plus dense que sur une pleine
+   largeur, et ses lignes se resserrent. */
+.carriereP{margin-bottom:0}
+.colCote .clR{padding:5px 9px}
+.colCote .clR .nm{font-size:12.5px}
+.colCote .clR .vl{font-size:11px}
+.colCote .clR.pod .nm{font-size:13px}
+.colCote #carriereBas{flex-wrap:wrap;gap:6px;justify-content:space-between}
+.colCote #btCarriere{flex:1 1 auto;white-space:nowrap}
+
+/* SOUS 1040 px : UNE SEULE COLONNE, ET LE CLASSEMENT PASSE DESSOUS.
+   C'est le seul ordre acceptable sur un téléphone — un classement
+   au-dessus du bouton DÉBARQUER serait un mur avant l'essentiel.
+   Le sticky se désarme : collé en haut d'un flux vertical, il
+   masquerait ce qui défile sous lui. */
+@media (max-width:1040px){
+  .accueilGrille{grid-template-columns:1fr;gap:0}
+  .colCote{position:static;order:2}
+  .carriereP{margin-top:12px}
+}
 #titre{text-align:center;margin:6px 0 2px;position:relative}
 #logoCv{width:min(420px,88vw);height:auto;display:block;margin:0 auto;filter:drop-shadow(0 8px 22px rgba(255,110,20,.45))}
 /* Le slogan « forteresse de braise » a été retiré à la demande du
@@ -413,7 +458,22 @@ select.champ{cursor:pointer}
 .bt.danger{color:#ffb0a2;border-color:rgba(230,80,60,.4)}
 
 /* cartes du monde */
-.mondes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+/* QUATRE ÎLES PAR RANGÉE, DONC DEUX RANGÉES POUR HUIT.
+   L'ancien `auto-fit minmax(190px,1fr)` remplissait la largeur avec
+   autant de colonnes qu'il pouvait : à 1080 px de contenu cela faisait
+   cinq colonnes, donc 5 + 3, et la deuxième rangée restait boiteuse.
+   On NOMME le nombre de colonnes, et on le fait descendre par paliers
+   au lieu de le laisser au hasard de la largeur. `minmax(0,1fr)` et
+   non `1fr` : sans lui, une vignette au contenu large (un pseudo
+   long dans le Top 3) pousse sa colonne et déséquilibre la rangée. */
+.mondes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:1240px){ .mondes{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (max-width:900px){  .mondes{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* Une seule colonne seulement sur les écrans VRAIMENT étroits. À
+   412 px — la largeur d'un téléphone courant — deux vignettes de
+   190 px tiennent encore, et la page fait deux fois moins de
+   défilement qu'avec une seule. */
+@media (max-width:378px){  .mondes{grid-template-columns:minmax(0,1fr)} }
 .monde{
   position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.09);
   background:#1a1024;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.4);
@@ -941,6 +1001,38 @@ select.champ{cursor:pointer}
   <div class="enveloppe">
     <div id="titre"><canvas id="logoCv" width="840" height="230"></canvas></div>
 
+    <!-- ============ L'ACCUEIL EN DEUX COLONNES ============
+         Tout ce qui suit existait déjà : mêmes blocs, mêmes
+         identifiants, mêmes écouteurs. Seule leur DISPOSITION change.
+         À gauche, ce qu'on consulte ; à droite, ce qu'on fait — et
+         dans l'ordre où on le fait : je vérifie qui je suis, je
+         prépare mes troupes, je choisis mon île, je pars.
+         Sous 1040 px la grille retombe sur une seule colonne et le Top
+         carrière repasse SOUS le contenu principal (order:2) : sur un
+         téléphone, un classement au-dessus du bouton DÉBARQUER serait
+         un mur avant l'essentiel. -->
+    <div class="accueilGrille">
+
+    <!-- ---- COLONNE DE GAUCHE : le Top carrière ----
+         Il était tout en bas de la page, après les navettes et après
+         les îles. Il occupe maintenant la largeur qui ne servait à
+         rien sur les côtés, et il reste à l'écran pendant qu'on fait
+         défiler le reste (position:sticky). Cinq lignes ici, tout le
+         classement derrière « Voir tout ». -->
+    <aside class="colCote">
+    <div class="carteP carriereP">
+      <h2>Top carrière</h2>
+      <div id="carriereListe"></div>
+      <div id="carriereBas">
+        <span id="carriereCompte"></span>
+        <button id="btCarriere" class="bt ptt">Voir tout ↗</button>
+      </div>
+    </div>
+    </aside>
+
+    <!-- ---- COLONNE PRINCIPALE ---- -->
+    <main class="colPrincipale">
+
     <div class="carteP">
       <h2>Salon</h2>
       <div class="ligne">
@@ -969,8 +1061,22 @@ select.champ{cursor:pointer}
         Afficher le chat du salon</label>
     </div>
 
+    <!-- LA FLOTTE, ET LE DÉPART JUSTE EN DESSOUS. Elle est remontée
+         juste après le salon : on prépare ses troupes AVANT de choisir
+         son île, parce que c'est l'ordre dans lequel on y pense. Le
+         bloc lui-même n'a pas changé d'un caractère — huit navettes,
+         leur portrait, leur menu, le résumé de flotte et DÉBARQUER. -->
     <div class="carteP">
-      <h2>Les cinq îles… et la jungle</h2>
+      <h2>Composition des huit navettes</h2>
+      <div id="barges"></div>
+      <div id="totalTroupes"></div>
+      <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
+      <button id="lancer" class="bt pri">DÉBARQUER</button>
+      <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
+    </div>
+
+    <div class="carteP">
+      <h2>Les huit îles… et la jungle</h2>
       <div class="mondes" id="mondes"></div>
       <div id="objBouclier">
         <b>⚡ Le Brasier est sous bouclier.</b>
@@ -981,32 +1087,6 @@ select.champ{cursor:pointer}
       </div>
     </div>
 
-    <!-- LA FLOTTE, ET LE DÉPART JUSTE EN DESSOUS. Les huit navettes
-         tenaient sur deux rangées de vignettes hautes, et le bouton
-         DÉBARQUER se retrouvait à un écran et demi plus bas, derrière
-         le plan de défense. On choisit son type dans un menu, la
-         rangée tient sur une ligne, et le bouton est là où le regard
-         finit sa course. -->
-    <div class="carteP">
-      <h2>Composition des huit navettes</h2>
-      <div id="barges"></div>
-      <div id="totalTroupes"></div>
-      <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
-      <button id="lancer" class="bt pri">DÉBARQUER</button>
-      <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
-    </div>
-    <!-- LE TOP CARRIÈRE. Il est ICI et nulle part ailleurs : en jeu on
-         regarde l'île où l'on se bat, sur l'accueil on regarde la
-         campagne entière. Cinq lignes suffisent à savoir où l'on en
-         est ; le reste tient derrière « Voir tout ». -->
-    <div class="carteP">
-      <h2>Top carrière</h2>
-      <div id="carriereListe"></div>
-      <div id="carriereBas">
-        <span id="carriereCompte"></span>
-        <button id="btCarriere" class="bt ptt">Voir tout ↗</button>
-      </div>
-    </div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
@@ -1016,6 +1096,9 @@ select.champ{cursor:pointer}
       <button id="btAdmin" class="bt ptt" title="Réglages réservés, protégés par mot de passe">⚙ Administration</button>
     </div>
     <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
+
+    </main>
+    </div><!-- /.accueilGrille -->
   </div>
 </div>
 

@@ -1303,10 +1303,19 @@ function etatJungle(){
    Plus besoin : la visite se déclenche au clic, instantané, et son
    écouteur est posé UNE FOIS sur le conteneur — que les vignettes
    soient remplacées ne le concerne pas. */
+/* LA GRILLE DES ÎLES, PUIS LES ÉVÉNEMENTS — dans cet ordre, jamais
+   mélangés. On parcourait le tableau CARTES de bout en bout ; la
+   jungle, qui y porte l'index 5, se plantait donc AU MILIEU de la
+   grille, entre la cinquième île et la sixième, et sa vignette pleine
+   largeur coupait les huit cartes en deux paquets de quatre et
+   quatre… séparés par un bloc vert. Deux passes règlent la question :
+   l'ordre de campagne d'abord, ce qui donne deux rangées de quatre
+   propres, les cartes événement ensuite, en bas, où elles se
+   détachent. */
 function majMondes(){
-  var h = "";
-  for(var i = 0; i < CARTES.length; i++){
-    if(carteSpeciale(i)){ h += vignetteEvenement(i); continue; }
+  var h = "", rang, i;
+  for(rang = 0; rang < ORDRE_CAMPAGNE.length; rang++){
+    i = ORDRE_CAMPAGNE[rang];
     var etat = i < carteSalon ? "tombée" : (i === carteSalon ? "en cours" : "verrouillée");
     var cl = i < carteSalon ? "faite" : (i === carteSalon ? "actif" : "verrou");
     h += '<div class="monde ' + cl + '" data-carte="' + i + '">'
@@ -1317,6 +1326,9 @@ function majMondes(){
        + blocTop3(i)
        + (i > carteSalon ? boutonVisite(i) : "") + '</div>';
   }
+  /* les cartes événement, après la grille et non dedans */
+  for(i = 0; i < CARTES.length; i++)
+    if(carteSpeciale(i)) h += vignetteEvenement(i);
   $("mondes").innerHTML = h;
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
   installeBoutonJungle();
