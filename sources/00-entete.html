@@ -175,6 +175,107 @@ select.champ{cursor:pointer}
   #planOutils{width:auto;max-height:46vh;border-left:none;border-top:1px solid rgba(255,168,72,.22)}
 }
 
+/* ================================================================
+   LE CHAT DU SALON
+
+   Il vit AU-DESSUS du briefing (30) et du HUD (10), mais SOUS l'éditeur
+   de cartes (35) et le bilan de fin (40) : on doit pouvoir bavarder en
+   attendant, jamais pendant qu'on dessine une carte ou qu'on lit son
+   score.
+
+   DEUX MISES EN PAGE, et ce n'est pas cosmétique. Sur une tablette, un
+   panneau posé en bas au milieu ne recouvre ni les navettes (en bas à
+   gauche) ni les capacités (en bas à droite) : c'est le seul creux de
+   l'écran. Sur un téléphone il n'y a pas de creux — alors le chat monte
+   EN HAUT, ne montre que trois lignes, et se ferme d'un doigt.
+   ================================================================ */
+#optChat{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;cursor:pointer}
+#optChat input{width:17px;height:17px;accent-color:var(--braise);cursor:pointer}
+
+#chatBt{
+  position:fixed;z-index:32;display:none;
+  left:50%;transform:translateX(-50%);
+  bottom:calc(10px + var(--sab));
+  width:52px;height:38px;border-radius:12px;padding:0;
+  border:var(--bord);background:linear-gradient(180deg,#3a2148,#241433);
+  color:var(--texte);font-size:17px;line-height:1;cursor:pointer;box-shadow:var(--ombre);
+}
+#chatBt.on{display:block}
+#chatBt:active{filter:brightness(1.2)}
+#chatBadge{
+  position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;
+  background:var(--braise);color:#2a1004;font-size:11px;font-weight:700;font-style:normal;
+  line-height:18px;padding:0 4px;display:none;box-shadow:0 2px 8px rgba(0,0,0,.5);
+}
+#chatBadge.on{display:block}
+
+#chat{
+  position:fixed;z-index:33;display:none;flex-direction:column;
+  background:var(--verre);border:var(--bord);box-shadow:var(--ombre);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  touch-action:auto;overscroll-behavior:contain;
+}
+#chat.on{display:flex}
+#chatHaut{
+  display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;flex:none;
+  border-bottom:1px solid rgba(255,168,72,.18);
+}
+#chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
+#chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatFerme{
+  flex:none;width:28px;height:28px;border-radius:8px;padding:0;
+  border:1px solid rgba(255,168,72,.22);background:#241a30;color:var(--texte);
+  font-size:14px;line-height:1;cursor:pointer;
+}
+#chatL{
+  flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:7px 10px;display:flex;flex-direction:column;gap:3px;
+  font-size:13px;line-height:1.42;
+}
+#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere}
+#chatL .cm b{color:var(--cyan);font-weight:700}
+#chatL .cm.moi b{color:var(--or)}
+#chatL .cs{color:var(--gris);font-size:11.5px;font-style:italic}
+#chatL .cv{color:#8f86a0;font-size:12px}
+#chatBas{display:flex;gap:6px;padding:7px 8px;flex:none;border-top:1px solid rgba(255,168,72,.18)}
+#chatSaisie{
+  flex:1;min-width:0;background:#160d20;border:1px solid rgba(255,168,72,.3);
+  border-radius:10px;color:var(--texte);font:inherit;font-size:14px;padding:8px 10px;outline:none;
+}
+#chatSaisie:focus{border-color:var(--braise);box-shadow:0 0 0 3px rgba(255,138,30,.16)}
+#chatEnvoi{
+  flex:none;width:42px;border-radius:10px;padding:0;
+  border:1px solid rgba(255,214,140,.55);
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;
+  font-size:16px;cursor:pointer;
+}
+#chatEnvoi:disabled{opacity:.4}
+
+/* GRAND ÉCRAN : le creux du bas, entre les navettes et les capacités. */
+@media (min-width:820px) and (min-aspect-ratio:1/1){
+  #chat{
+    left:50%;transform:translateX(-50%);
+    bottom:calc(56px + var(--sab));
+    width:min(430px,42vw);height:min(320px,36vh);
+    border-radius:16px;
+  }
+}
+/* PETIT ÉCRAN : en haut, trois lignes, et le bouton de fermeture sous
+   le pouce. Le clavier qui monte pousse la page ; le chat étant collé
+   en haut, il ne bouge pas — c'est tout l'intérêt de ce placement. */
+@media (max-width:819px), (max-aspect-ratio:1/1){
+  #chat{
+    top:0;left:0;right:0;
+    border-radius:0 0 16px 16px;border-top:none;
+    padding-top:var(--sat);
+  }
+  #chatL{
+    /* exactement trois lignes, et ça défile au-delà */
+    height:calc(3 * 1.42 * 13px + 6px);flex:none;
+  }
+  #chatBt{bottom:calc(8px + var(--sab));width:46px;height:34px;font-size:15px}
+}
+
 #etatRes{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;flex-wrap:wrap}
 .pastille{width:9px;height:9px;border-radius:50%;background:#7a6a86;box-shadow:0 0 8px currentColor;flex:none}
 .pastille.ok{background:var(--vert);color:var(--vert)}
@@ -656,6 +757,12 @@ select.champ{cursor:pointer}
         <button id="btReco" class="bt ptt">Reconnecter</button>
       </div>
       <div id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></div>
+      <!-- L'INTERRUPTEUR DU CHAT. Il ne coupe pas seulement l'affichage :
+           quand il est éteint, rien n'est ni envoyé ni retenu. C'est le
+           réglage de quelqu'un qui ne veut pas de chat, pas celui de
+           quelqu'un qui veut le replier. -->
+      <label id="optChat"><input type="checkbox" id="chatActif" checked>
+        Afficher le chat du salon</label>
     </div>
 
     <div class="carteP">
@@ -753,9 +860,29 @@ select.champ{cursor:pointer}
         <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
         <button id="btPlanRaz" class="bt ptt danger" title="Efface le plan de CETTE carte pour tout le salon">⌫ Réinitialiser</button>
       </div>
+      <button id="btPlanTirage" class="bt ptt" title="Rejoue les six recettes autrement : mêmes plans, autres réalisations">🎲 Nouveau tirage — les six îles</button>
       <button id="btPlanValide" class="bt pri">Enregistrer cette carte</button>
       <div id="planAvert"></div>
     </div>
+  </div>
+</div>
+
+<!-- ============================ LE CHAT ============================
+     Hors du HUD, et volontairement : il vit aussi bien sur le briefing
+     que sur le champ de bataille, et le HUD est caché tant qu'on n'a
+     pas débarqué. -->
+<button id="chatBt" title="Chat du salon"><span>💬</span><i id="chatBadge"></i></button>
+<div id="chat">
+  <div id="chatHaut">
+    <span id="chatTitre">Salon MILY</span>
+    <span id="chatQui"></span>
+    <button id="chatFerme" title="Fermer le chat">✕</button>
+  </div>
+  <div id="chatL"></div>
+  <div id="chatBas">
+    <input id="chatSaisie" maxlength="160" autocomplete="off"
+           placeholder="Écris ici…" aria-label="Message pour le salon">
+    <button id="chatEnvoi" title="Envoyer">➤</button>
   </div>
 </div>
 

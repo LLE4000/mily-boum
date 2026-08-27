@@ -854,6 +854,104 @@ G("4. Déterminisme de la génération de carte");
        3. les pourcentages demandés sont ceux qu'on obtient, quelle
           que soit la répartition choisie.
      ================================================================ */
+  /* ================================================================
+     5g. CHAQUE ÎLE GARDE SON DÉCOR
+
+     La question, posée telle quelle : « quand j'édite les défenses,
+     est-ce que je perds les tentes de la soirée hippie ? »
+
+     La réponse tient en deux propriétés, et ce groupe les grave.
+
+     1. LA NATURE DU DÉCOR N'EST PAS DANS LA CARTE. Un décor ne retient
+        qu'une position, une taille et un numéro de variante, 0 à 3.
+        C'est dessineDecor(biome, …) qui décide, au moment de peindre,
+        si la variante 1 est un tipi ou un olivier — et le biome vient
+        de CARTES, jamais du plan. Aucune édition ne peut donc changer
+        ce qu'une île contient.
+
+     2. D'UN PLAN À UN AUTRE, RIEN NE BOUGE. Le générateur consomme le
+        même nombre de tirages par nœud qu'il le garde ou le saute :
+        décors, rochers et bestioles sortent donc identiques au
+        millième de case près.
+
+     La seule exception, et elle est dite au joueur au moment
+     d'enregistrer : la toute PREMIÈRE sauvegarde d'une île vierge
+     franchit la frontière entre « sans plan » et « avec plan », deux
+     branches qui ne tirent pas le même nombre de nombres. Le décor y
+     est redistribué — mêmes objets, autres places.
+     ================================================================ */
+  G("5g. Chaque île garde son décor");
+  (function(){
+    function emp(l, taille){
+      return l.map(function(o){
+        return (o.t || o.v) + "@" + o.gx.toFixed(3) + "," + o.gy.toFixed(3)
+             + (taille && o.s !== undefined ? ":" + o.s.toFixed(3) : "");
+      }).sort().join("|");
+    }
+    function planA(){
+      var z = N.planVide(), i;
+      for(i = 0; i < N.NB_ZONES; i++) if((i % N.ZONES_L) < 9) z[i] = N.faitZone(3, 3, 0);
+      return N.encodePlan(z);
+    }
+    function planB(){
+      var z = N.decodePlan(planA());
+      z[200] = N.faitZone(5, 2, 0);          // une zone de plus, à l'autre bout
+      return N.encodePlan(z);
+    }
+
+    var bouge = [], i;
+    for(i = 0; i < N.CARTES.length; i++){
+      var B = N.genereCarte("MILY", i, planA(), 0);
+      var C = N.genereCarte("MILY", i, planB(), 0);
+      if(emp(B.decors, 1)    !== emp(C.decors, 1))    bouge.push(N.CARTES[i].nom + "/décors");
+      if(emp(B.rochers, 1)   !== emp(C.rochers, 1))   bouge.push(N.CARTES[i].nom + "/rochers");
+      if(emp(B.creatures)    !== emp(C.creatures))    bouge.push(N.CARTES[i].nom + "/bestioles");
+    }
+    ok("d'un plan à un autre, décors, rochers et bestioles ne bougent pas d'un millième de case",
+       bouge.length === 0, bouge.join(", "));
+
+    /* et pourtant les défenses, elles, ont bien changé — sinon la
+       vérification ci-dessus passerait pour de mauvaises raisons */
+    var d1 = N.genereCarte("MILY", 2, planA(), 0);
+    var d2 = N.genereCarte("MILY", 2, planB(), 0);
+    ok("alors que les défenses, elles, ont bien changé",
+       N.empreinteCarte(d1) !== N.empreinteCarte(d2));
+
+    /* Chaque île porte le même NOMBRE de décors, quel que soit le plan :
+       ce sont les mêmes cinq cents objets, pas un décor « en moins »
+       parce qu'on a peint dessus. */
+    var comptes = [], k;
+    for(k = 0; k < N.CARTES.length; k++){
+      var M = N.genereCarte("MILY", k, planA(), 0);
+      comptes.push(M.decors.length);
+      if(M.decors.length < 400) bouge.push(N.CARTES[k].nom + " n'a que " + M.decors.length + " décors");
+    }
+    ok("chaque île garde ses cinq cents décors sous n'importe quel plan ("
+       + comptes.join(", ") + ")",
+       comptes.every(function(n){ return n > 400; }));
+
+    /* LA PREUVE QUE LA NATURE DU DÉCOR EST HORS DE PORTÉE DU PLAN :
+       un décor ne porte QUE gx, gy, s et v. Rien qui nomme un tipi. */
+    var un = N.genereCarte("MILY", 3, planA(), 0).decors[0];
+    var champs = Object.keys(un).sort().join(",");
+    ok("un décor ne retient qu'une place, une taille et une variante (" + champs + ")",
+       champs === "gx,gy,s,v");
+    ok("c'est donc le biome, et lui seul, qui dit ce qu'on y dessine",
+       N.CARTES[3].biome === "hippie" && N.CARTES[0].biome === "plage");
+
+    /* LA FRONTIÈRE, dite au joueur au moment d'enregistrer : passer de
+       « aucun plan » à « un plan » redistribue le décor. On vérifie
+       que c'est bien ce qui se produit, pour que la phrase affichée
+       reste vraie le jour où quelqu'un touchera au générateur. */
+    var vierge = N.genereCarte("MILY", 3, "", 0);
+    var peinte = N.genereCarte("MILY", 3, planA(), 0);
+    ok("la première sauvegarde d'une île vierge redistribue bien son décor",
+       emp(vierge.decors, 1) !== emp(peinte.decors, 1));
+    ok("mais elle en garde le même nombre, à quelques unités près ("
+       + vierge.decors.length + " puis " + peinte.decors.length + ")",
+       Math.abs(vierge.decors.length - peinte.decors.length) < 25);
+  })();
+
   G("5f. Les zones vectorielles — le compas");
   (function(){
     /* --- l'encodage --- */

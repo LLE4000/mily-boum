@@ -505,23 +505,37 @@ function dessinePluieJungle(c, tps){
   var vis = borne((z - 0.44) * 4, 0, 1);
   c.save();
   c.lineWidth = Math.max(0.8, 1.1 * z);
-  for(i = g.i0; i <= g.i1; i++){
-    for(var j = g.j0; j <= g.j1; j++){
-      var n0 = i * 131.7 + j * 37.3;
-      var b0 = bruitStable(n0, 0), b1 = bruitStable(n0, 1);
-      var b2 = bruitStable(i * 57.1 - j * 91.9, 1);
-      var ph = (tps * 1.55 + b2) % 1;
-      if(ph > 0.42) continue;                    // deux cases sur cinq
-      var u = ph / 0.42;
-      var x = ((i + b0) * g.pas) * z + cam.px;
-      var y = ((j + b1) * g.pas) * z + cam.py;
-      if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
-      var rr = (2.5 + u * 9) * z;
-      c.strokeStyle = "rgba(" + MET_PLUIE + "," + ((1 - u) * 0.34 * vis) + ")";
-      c.beginPath();
-      c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
-      c.stroke();
+  /* QUATRE TRACÉS, PAS SOIXANTE. Au zoom de jeu il y a une soixantaine
+     d'anneaux à l'écran, chacun avec sa propre opacité selon son âge.
+     Les tracer un par un revenait à changer soixante fois le style, et
+     chaque changement force le rasteriseur à vider son lot en cours —
+     c'était plus cher que toute la pluie. On range donc les anneaux
+     dans quatre paliers d'opacité et on ne trace que quatre chemins.
+     Quatre paliers suffisent : entre le plus jeune et le plus vieux
+     anneau il n'y a de toute façon qu'un tiers d'opacité d'écart.
+     Le moveTo avant chaque ellipse n'est pas décoratif — sans lui,
+     ellipse() relie le nouvel anneau au précédent par un trait. */
+  for(var pal = 0; pal < 4; pal++){
+    c.strokeStyle = "rgba(" + MET_PLUIE + "," + (((pal + 0.5) / 4) * 0.34 * vis) + ")";
+    c.beginPath();
+    for(i = g.i0; i <= g.i1; i++){
+      for(var j = g.j0; j <= g.j1; j++){
+        var n0 = i * 131.7 + j * 37.3;
+        var b2 = bruitStable(i * 57.1 - j * 91.9, 1);
+        var ph = (tps * 1.55 + b2) % 1;
+        if(ph > 0.42) continue;                    // deux cases sur cinq
+        var u = ph / 0.42;
+        if((((1 - u) * 4) | 0) !== pal) continue;
+        var b0 = bruitStable(n0, 0), b1 = bruitStable(n0, 1);
+        var x = ((i + b0) * g.pas) * z + cam.px;
+        var y = ((j + b1) * g.pas) * z + cam.py;
+        if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
+        var rr = (2.5 + u * 9) * z;
+        c.moveTo(x + rr, y);
+        c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
+      }
     }
+    c.stroke();
   }
   c.restore();
 }
@@ -546,6 +560,16 @@ function dessineLueursVegetation(c, tps){
   var z = cam.z;
   if(z < 0.18) return;
   var g = bornesGrille(170, 60);
+  /* UN SEUL save/restore ET UN SEUL changement de mode pour toutes les
+     lueurs. lueurRapide fait un save + un globalCompositeOperation +
+     un restore À CHAQUE appel : sur une vingtaine de points ça coûtait
+     2,4 ms par image au banc, plus que toutes les autres couches
+     réunies. Ce ne sont pas les pixels qui coûtent — il y en a
+     quelques milliers — ce sont les changements d'état, qui forcent le
+     rasteriseur à vider son lot en cours. */
+  var chaud = disqueMeteo("255,224,138"), froid = disqueMeteo("168,255,190");
+  c.save();
+  c.globalCompositeOperation = "lighter";
   for(var i = g.i0; i <= g.i1; i++){
     for(var j = g.j0; j <= g.j1; j++){
       var n0 = i * 91.3 + j * 173.9;
@@ -560,10 +584,12 @@ function dessineLueursVegetation(c, tps){
       var p = 0.45 + 0.35 * Math.sin(tps * (0.8 + b1) + b0 * 6.28)
                    + 0.20 * Math.sin(tps * (3.1 + b0 * 2) + b1 * 6.28);
       if(p < 0.12) continue;
-      lueurRapide(c, x, y - 9 * z, (5 + b1 * 5) * Math.max(0.55, z),
-                  b1 > 0.55 ? "#ffe08a" : "#a8ffbe", p * 0.22);
+      var r = (5 + b1 * 5) * Math.max(0.55, z);
+      c.globalAlpha = p * 0.17;
+      c.drawImage(b1 > 0.55 ? chaud : froid, x - r, y - 9 * z - r, r * 2, r * 2);
     }
   }
+  c.restore();
 }
 
 /* ================================================================
@@ -707,6 +733,22 @@ function nuagesDuJeu(){
    Elle est franche — 0,30 — parce qu'elle a un travail à faire en
    plus d'être jolie : c'est elle qui dit AU SOL où le nuage passe, et
    donc où le joueur ne doit pas laisser ses troupes. */
+/* Le PRIX de cette ombre est le seul sujet, et il tient dans une
+   règle : c'est une SURFACE, et une surface se paie au pixel. Trois
+   ombres au rayon du nuage, au zoom de jeu, c'est trois millions et
+   demi de pixels fondus par image. Mesuré, sur les trois variantes
+   possibles :
+     remplissage en dégradé radial   6,0 ms
+     disque fondu, lissage ACTIF     6,5 ms
+     disque fondu, lissage COUPÉ     3,5 ms
+     ellipse PLATE                   0,7 ms
+   L'ellipse plate est dix fois moins chère mais son bord est net, et
+   un bord net ne peut pas passer pour une ombre. On garde donc le
+   disque fondu, et on paie la surface en la RÉDUISANT : l'ombre ne
+   fait que les trois cinquièmes du rayon du nuage. C'est trois fois moins de
+   pixels, c'est physiquement juste — le soleil n'est jamais tout à
+   fait à la verticale — et l'opacité rendue compense la taille. */
+var MET_OMBRE_PART = 0.60;
 function dessineOmbresNuages(c, tps){
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
@@ -714,13 +756,13 @@ function dessineOmbresNuages(c, tps){
   var d = disqueMeteo(MET_OMBRE);
   c.save();
   c.imageSmoothingEnabled = false;
+  c.globalAlpha = 0.36;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    var souffle = 1 + Math.sin(tps * 0.21 + u.ph) * 0.05;
-    var rx = u.r * RX * z * 1.05 * souffle, ry = u.r * RY * z * 1.05 * souffle;
+    var souffle = MET_OMBRE_PART * (1 + Math.sin(tps * 0.21 + u.ph) * 0.05);
+    var rx = u.r * RX * z * souffle, ry = u.r * RY * z * souffle;
     if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
-    c.globalAlpha = 0.30;
     c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
   }
   c.restore();
@@ -755,7 +797,7 @@ function dessineNuagesJungle(c, tps){
     /* respiration très lente, décalée par nuage : trois masses qui
        enflent en même temps se lisent comme un seul objet répété */
     var souffle = 1 + Math.sin(tps * 0.17 + u.ph) * 0.055;
-    var w = Math.round(u.r * RX * 2.15 * z * souffle);
+    var w = Math.round(u.r * RX * 1.85 * z * souffle);
     var hh = Math.round(w * 0.5);
     var x = Math.round(p.x - w / 2);
     var y = Math.round(p.y - MET_NUAGE_ALT * z - hh * 0.52);

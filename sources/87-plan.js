@@ -26,6 +26,34 @@ var COUL_PLAN = {
   cellule  : "#ffd84a"
 };
 
+/* ---------------------------------------------------------------
+   CE QUE CHAQUE ÎLE A DE PROPRE, ET QUE LE PLAN NE TOUCHE JAMAIS
+
+   Le décor n'est pas rangé dans la carte : la carte ne retient qu'une
+   position, une taille et un numéro de variante, de 0 à 3. C'est le
+   BIOME qui décide, au moment de dessiner, si la variante 1 est un
+   tipi ou un olivier — et le biome est écrit dans CARTES, pas dans le
+   plan. Aucune édition ne peut donc changer la NATURE du décor d'une
+   île : la soirée hippie aura ses combis et ses guirlandes quoi qu'on
+   peigne dessus.
+
+   Cette table ne sert qu'à le DIRE au joueur, en toutes lettres, dans
+   le panneau de l'éditeur. Elle est le miroir de dessineDecor() ; si
+   l'un change, l'autre doit suivre.
+   --------------------------------------------------------------- */
+var FAMILLES_DECOR = {
+  plage   : ["palmiers", "buissons", "touffes sèches", "coquillages"],
+  foret   : ["sapins", "buissons", "souches"],
+  campagne: ["meules de foin", "buissons", "bouts de clôture", "sillons"],
+  hippie  : ["combis", "tipis", "guirlandes", "feux de camp"],
+  sud     : ["cyprès", "oliviers", "lavandes", "murets de pierre sèche"],
+  jungle  : ["arbres géants", "lianes", "fougères", "hautes herbes", "tapis de sol"]
+};
+function decorDeLIle(i){
+  var b = CARTES[i] ? CARTES[i].biome : "plage";
+  return FAMILLES_DECOR[b] || [];
+}
+
 /* LA CARTE EN COURS D'ÉDITION. C'est la variable qui manquait : sans
    elle, l'éditeur ne savait pas sur quelle île il travaillait, et le
    plan qu'il produisait était servi aux cinq. */
@@ -565,6 +593,35 @@ function dessinePlan(){
     c.lineTo(ox + GW * e, oy + i * PAS_ZONE * e);
     c.stroke();
   }
+
+  /* LE DÉCOR ET LES BÊTES, sous les défenses.
+     Ils ne sont pas là pour décorer l'éditeur : ils sont la PREUVE, à
+     l'écran, que peindre des défenses ne les efface pas. On les
+     dessine donc à chaque aperçu, discrètement, dans le vert de la
+     végétation et l'ambre des bestioles. */
+  var decVerts = { plage:"#4fae62", foret:"#3f8a45", campagne:"#8a9a52",
+                   hippie:"#c86ad0", sud:"#7fa06a", jungle:"#3fa05c" };
+  c.fillStyle = decVerts[CARTES[planCarteIdx].biome] || "#4fae62";
+  c.globalAlpha = 0.55;
+  for(i = 0; i < m.decors.length; i++){
+    var dd = m.decors[i];
+    c.fillRect(ox + dd.gx * e - e * 0.35, oy + dd.gy * e - e * 0.35, e * 0.7, e * 0.7);
+  }
+  c.globalAlpha = 0.42;
+  c.fillStyle = "#6b6478";
+  for(i = 0; i < m.rochers.length; i++){
+    var rr = m.rochers[i];
+    c.fillRect(ox + rr.gx * e - e * 0.3, oy + rr.gy * e - e * 0.3, e * 0.6, e * 0.6);
+  }
+  c.globalAlpha = 0.9;
+  for(i = 0; i < m.creatures.length; i++){
+    var kk = m.creatures[i];
+    c.fillStyle = (ESPECES_PROTEGEES.indexOf(kk.t) >= 0) ? "#ff9ecb" : "#e0a24a";
+    c.beginPath();
+    c.arc(ox + kk.gx * e, oy + kk.gy * e, Math.max(0.9, e * 0.34), 0, 6.2832);
+    c.fill();
+  }
+  c.globalAlpha = 1;
 
   /* les défenses telles qu'elles sortiraient du générateur */
   for(i = 0; i < m.batiments.length; i++){
@@ -1316,6 +1373,32 @@ function installePlan(){
     dessinePlan(); majPanneauPlan();
     message2("Variante n°" + planGraine + " du même plan. Les zones n'ont pas bougé.");
   });
+  /* LE TIRAGE NEUF, DEMANDÉ EXPRÈS. Il ne l'était pas : enregistrer
+     n'importe quel plan le faisait tout seul, et refaisait au passage
+     le terrain des six îles. On l'a séparé, et le voici en clair. */
+  $("btPlanTirage").addEventListener("click", function(){
+    if(!confirm("NOUVEAU TIRAGE pour les six îles ?\n\n"
+              + "Les six plans sont gardés au mot près : ce sont les mêmes\n"
+              + "recettes. Mais chaque île est réalisée autrement —\n"
+              + "autres positions, autres décors, autres bestioles.\n\n"
+              + "La campagne repart de la première île, pour tout le salon,\n"
+              + "et les dégâts déjà infligés sont perdus.")) return;
+    var mot = prompt("Mot de passe pour un nouveau tirage du salon :");
+    if(mot === null) return;
+    if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a bougé."); return; }
+    var n = nouveauTirageSalon();
+    planGraine = 0;
+    planApercuSale = true;
+    if(enJeu){
+      nouvelleCarte(carteSalon);
+      if(typeof construitFondMini === "function") construitFondMini();
+      if(typeof majBarres === "function") majBarres();
+    }
+    majMondes(); rafraichitPlan();
+    dessinePlan(); majPanneauPlan();
+    alert("Tirage n°" + n + ". Les six îles sont rejouées,\n"
+        + "avec exactement les mêmes plans qu'avant.");
+  });
   $("btPlanRestaure").addEventListener("click", restaurePlanCarte);
   $("btPlanRecule").addEventListener("click", reculePlanCarte);
   $("btPlanDup").addEventListener("click", dupliquePlanCarte);
@@ -1337,7 +1420,9 @@ function comptePlan(){
     par[t] = (par[t] || 0) + 1; n++;
   }
   return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
-           formes:planFormes.length };
+           formes:planFormes.length,
+           decors:m.decors.length, rochers:m.rochers.length,
+           bestioles:m.creatures.length };
 }
 /* La fiche d'une défense, telle qu'on la lit avant de la poser :
    ce qu'elle est, puis les seuls chiffres qui changent une décision —
@@ -1375,7 +1460,18 @@ function majPanneauPlan(){
     + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
     + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
-    + "<b>" + c.cellules + "</b> cellules à récolter";
+    + "<b>" + c.cellules + "</b> cellules à récolter<br>"
+    /* CE QUE LE PLAN NE REMPLACE JAMAIS. La première question qu'on se
+       pose en peignant une carte est « est-ce que je détruis son
+       ambiance ». La réponse doit être lisible sans avoir à essayer —
+       et elle doit être EXACTE : le plan ne change jamais la NATURE du
+       décor (le biome seul en décide), il peut seulement, à la toute
+       première sauvegarde d'une île vierge, le redistribuer ailleurs.
+       C'est ce que dit la confirmation d'enregistrement. */
+    + '<span style="color:#8f86a0">' + c.decors + " "
+    + echappe(decorDeLIle(planCarteIdx).slice(0, 3).join(", "))
+    + " · " + c.bestioles + " bestioles · " + c.rochers + " rochers<br>"
+    + "l'ambiance de l'île — le plan ne la remplace jamais</span>";
 
   /* En mode compas, l'aide parle de ce qu'on est en train de faire :
      l'outil choisi, ou la forme qu'on règle. */
@@ -1465,11 +1561,26 @@ function validePlan(){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
+  /* LA PREMIÈRE SAUVEGARDE D'UNE ÎLE VIERGE EST UN CAS À PART, et il
+     faut le dire. Le générateur ne tire pas le même nombre de nombres
+     selon qu'il suit un plan ou non : franchir cette frontière décale
+     la suite du tirage, donc redistribue les décors, les rochers et
+     les bestioles de CETTE île. Mesuré sur la soirée hippie : 505
+     décors avant, 509 après — les mêmes combis et les mêmes tipis,
+     ailleurs. Passer d'un plan à un autre, ensuite, ne les bouge plus
+     JAMAIS d'un millième de case. */
+  var premiere = !planCarte(planSalon, planCarteIdx);
+  var dec = decorDeLIle(planCarteIdx);
   if(!confirm("Enregistrer ce plan pour « " + nom + " » ?\n\n"
-            + "• cette carte seule est concernée — les cinq autres\n"
-            + "  gardent exactement le plan qu'elles ont\n"
+            + "• cette carte seule est concernée — les cinq autres ne\n"
+            + "  bougent pas d'un pouce, ni leur plan ni leur terrain\n"
             + "• les défenses y sont retirées au sort selon tes zones\n"
-            + "• la campagne repart de la première île, pour tout le salon\n"
+            + "• son ambiance reste la sienne : " + dec.slice(0, 3).join(", ")
+            + (premiere
+                ? "\n  (première sauvegarde de cette île : ils seront\n"
+                  + "   redistribués ailleurs — mêmes objets, autres places)"
+                : "\n  ils ne bougeront pas d'un pouce")
+            + "\n• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;
 

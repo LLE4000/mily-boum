@@ -30,6 +30,7 @@ function demarre(){
   installeRaz();
   installeAdmin();
   installePlan();
+  installeChat();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

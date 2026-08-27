@@ -590,6 +590,28 @@ function remetSalonAZero(){
    les bâtiments détruits de l'ancienne carte ne désignent plus rien. */
 /* Enregistre le plan d'UNE carte dans le paquet du salon. Les autres
    cartes gardent le leur : c'est tout l'objet de la refonte. */
+/* Le tirage neuf, demandé exprès. Les recettes ne bougent pas d'une
+   virgule — les six plans sont republiés tels quels — mais chaque île
+   est réalisée autrement : d'autres positions, d'autres décors,
+   d'autres bestioles. C'est le pendant du bouton « Régénérer » de
+   l'éditeur, qui ne changeait jusqu'ici que l'aperçu. */
+function nouveauTirageSalon(){
+  numeroPlan  = (numeroPlan | 0) + 1;
+  tirageSalon = (tirageSalon | 0) + 1;
+  cycleSalon  = (cycleSalon | 0) + 1;
+  carteSalon  = 0;
+  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            je:0, jf:0, jd:"", jq:0,
+            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
+            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
+            ch:(monde && monde.ch) || "" };
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return tirageSalon;
+}
+
 function enregistrePlanCarte(index, chaine){
   var t = decodePlans(planSalon);
   if(chaine) t[index] = chaine; else delete t[index];
@@ -599,11 +621,32 @@ function enregistrePlanCarte(index, chaine){
   if(typeof construitOngletsCartes === "function") construitOngletsCartes();
   return r;
 }
+/* ----------------------------------------------------------------
+   ENREGISTRER UN PLAN NE RETIRE PLUS TOUTE LA CAMPAGNE AU SORT
+
+   LE DÉFAUT. Cette fonction incrémentait `tirageSalon`, et
+   genereCarte() en tire la graine de CHAQUE île :
+     gr = tirage ? graineTexte(salon + "#" + index + "@" + tirage) : …
+   Autrement dit, enregistrer le plan de la soirée hippie redessinait
+   aussi la plage, la forêt, la campagne, le Sud et la jungle — leurs
+   décors, leurs rochers, leurs bestioles, tout. Les cinq autres
+   gardaient bien leur PLAN, mais plus leur RÉALISATION. C'était le
+   dernier endroit où éditer une carte en touchait six, et il ne se
+   voyait pas : le plan, lui, était bien resté isolé.
+
+   CE QU'ON GARDE. Le numéro de campagne monte toujours, et la carte
+   repart de la première île : les bâtiments ont changé, le tableau des
+   destructions ne veut plus rien dire, il faut repartir. Mais le
+   TIRAGE, lui, ne bouge plus tout seul.
+
+   POUR REJOUER LA MÊME RECETTE AUTREMENT, il y a un bouton, et il le
+   dit : « Nouveau tirage ». Un geste explicite plutôt qu'un effet de
+   bord.
+   ---------------------------------------------------------------- */
 function enregistrePlan(chaine){
   if(chaine === planSalon) return false;
   planSalon   = chaine;
   numeroPlan  = (numeroPlan | 0) + 1;
-  tirageSalon = (tirageSalon | 0) + 1;
   cycleSalon  = (cycleSalon | 0) + 1;
   carteSalon  = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
@@ -688,6 +731,14 @@ function recoit(txt){
     noteScore(m.id, j.nom, 0);
     if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
     annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
+    if(typeof chatSysteme === "function") chatSysteme(j.nom + " a rejoint le salon.");
+  }else if(m.t === "chat"){
+    /* Le chat est un message ordinaire de plus sur le sujet vivant :
+       aucun sujet supplémentaire, aucune rétention, rien de changé au
+       protocole. Le pseudo affiché est celui que NOUS connaissons pour
+       cet identifiant, pas celui que le message annonce. */
+    j.nom = (m.nom || j.nom || "?").substr(0, 14);
+    if(typeof recoitChat === "function") recoitChat(j, m);
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
     /* `monde` peut encore être nul : le sujet des joueurs est souscrit
@@ -790,6 +841,8 @@ function recoit(txt){
   }else if(m.t === "adieu"){
     if(autresJoueurs[m.id] && autresJoueurs[m.id].nom !== "?"){
       annonce("<b>" + echappe(autresJoueurs[m.id].nom) + "</b> a quitté le salon");
+      if(typeof chatSysteme === "function")
+        chatSysteme(autresJoueurs[m.id].nom + " a quitté le salon.");
     }
     delete autresJoueurs[m.id];
     majPodium();

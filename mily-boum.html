@@ -175,6 +175,107 @@ select.champ{cursor:pointer}
   #planOutils{width:auto;max-height:46vh;border-left:none;border-top:1px solid rgba(255,168,72,.22)}
 }
 
+/* ================================================================
+   LE CHAT DU SALON
+
+   Il vit AU-DESSUS du briefing (30) et du HUD (10), mais SOUS l'éditeur
+   de cartes (35) et le bilan de fin (40) : on doit pouvoir bavarder en
+   attendant, jamais pendant qu'on dessine une carte ou qu'on lit son
+   score.
+
+   DEUX MISES EN PAGE, et ce n'est pas cosmétique. Sur une tablette, un
+   panneau posé en bas au milieu ne recouvre ni les navettes (en bas à
+   gauche) ni les capacités (en bas à droite) : c'est le seul creux de
+   l'écran. Sur un téléphone il n'y a pas de creux — alors le chat monte
+   EN HAUT, ne montre que trois lignes, et se ferme d'un doigt.
+   ================================================================ */
+#optChat{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;cursor:pointer}
+#optChat input{width:17px;height:17px;accent-color:var(--braise);cursor:pointer}
+
+#chatBt{
+  position:fixed;z-index:32;display:none;
+  left:50%;transform:translateX(-50%);
+  bottom:calc(10px + var(--sab));
+  width:52px;height:38px;border-radius:12px;padding:0;
+  border:var(--bord);background:linear-gradient(180deg,#3a2148,#241433);
+  color:var(--texte);font-size:17px;line-height:1;cursor:pointer;box-shadow:var(--ombre);
+}
+#chatBt.on{display:block}
+#chatBt:active{filter:brightness(1.2)}
+#chatBadge{
+  position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;
+  background:var(--braise);color:#2a1004;font-size:11px;font-weight:700;font-style:normal;
+  line-height:18px;padding:0 4px;display:none;box-shadow:0 2px 8px rgba(0,0,0,.5);
+}
+#chatBadge.on{display:block}
+
+#chat{
+  position:fixed;z-index:33;display:none;flex-direction:column;
+  background:var(--verre);border:var(--bord);box-shadow:var(--ombre);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  touch-action:auto;overscroll-behavior:contain;
+}
+#chat.on{display:flex}
+#chatHaut{
+  display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;flex:none;
+  border-bottom:1px solid rgba(255,168,72,.18);
+}
+#chatTitre{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--braise);font-weight:700}
+#chatQui{font-size:11px;color:var(--gris);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatFerme{
+  flex:none;width:28px;height:28px;border-radius:8px;padding:0;
+  border:1px solid rgba(255,168,72,.22);background:#241a30;color:var(--texte);
+  font-size:14px;line-height:1;cursor:pointer;
+}
+#chatL{
+  flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:7px 10px;display:flex;flex-direction:column;gap:3px;
+  font-size:13px;line-height:1.42;
+}
+#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere}
+#chatL .cm b{color:var(--cyan);font-weight:700}
+#chatL .cm.moi b{color:var(--or)}
+#chatL .cs{color:var(--gris);font-size:11.5px;font-style:italic}
+#chatL .cv{color:#8f86a0;font-size:12px}
+#chatBas{display:flex;gap:6px;padding:7px 8px;flex:none;border-top:1px solid rgba(255,168,72,.18)}
+#chatSaisie{
+  flex:1;min-width:0;background:#160d20;border:1px solid rgba(255,168,72,.3);
+  border-radius:10px;color:var(--texte);font:inherit;font-size:14px;padding:8px 10px;outline:none;
+}
+#chatSaisie:focus{border-color:var(--braise);box-shadow:0 0 0 3px rgba(255,138,30,.16)}
+#chatEnvoi{
+  flex:none;width:42px;border-radius:10px;padding:0;
+  border:1px solid rgba(255,214,140,.55);
+  background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;
+  font-size:16px;cursor:pointer;
+}
+#chatEnvoi:disabled{opacity:.4}
+
+/* GRAND ÉCRAN : le creux du bas, entre les navettes et les capacités. */
+@media (min-width:820px) and (min-aspect-ratio:1/1){
+  #chat{
+    left:50%;transform:translateX(-50%);
+    bottom:calc(56px + var(--sab));
+    width:min(430px,42vw);height:min(320px,36vh);
+    border-radius:16px;
+  }
+}
+/* PETIT ÉCRAN : en haut, trois lignes, et le bouton de fermeture sous
+   le pouce. Le clavier qui monte pousse la page ; le chat étant collé
+   en haut, il ne bouge pas — c'est tout l'intérêt de ce placement. */
+@media (max-width:819px), (max-aspect-ratio:1/1){
+  #chat{
+    top:0;left:0;right:0;
+    border-radius:0 0 16px 16px;border-top:none;
+    padding-top:var(--sat);
+  }
+  #chatL{
+    /* exactement trois lignes, et ça défile au-delà */
+    height:calc(3 * 1.42 * 13px + 6px);flex:none;
+  }
+  #chatBt{bottom:calc(8px + var(--sab));width:46px;height:34px;font-size:15px}
+}
+
 #etatRes{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;flex-wrap:wrap}
 .pastille{width:9px;height:9px;border-radius:50%;background:#7a6a86;box-shadow:0 0 8px currentColor;flex:none}
 .pastille.ok{background:var(--vert);color:var(--vert)}
@@ -656,6 +757,12 @@ select.champ{cursor:pointer}
         <button id="btReco" class="bt ptt">Reconnecter</button>
       </div>
       <div id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></div>
+      <!-- L'INTERRUPTEUR DU CHAT. Il ne coupe pas seulement l'affichage :
+           quand il est éteint, rien n'est ni envoyé ni retenu. C'est le
+           réglage de quelqu'un qui ne veut pas de chat, pas celui de
+           quelqu'un qui veut le replier. -->
+      <label id="optChat"><input type="checkbox" id="chatActif" checked>
+        Afficher le chat du salon</label>
     </div>
 
     <div class="carteP">
@@ -753,9 +860,29 @@ select.champ{cursor:pointer}
         <button id="btPlanVide" class="bt ptt">Tout d'origine</button>
         <button id="btPlanRaz" class="bt ptt danger" title="Efface le plan de CETTE carte pour tout le salon">⌫ Réinitialiser</button>
       </div>
+      <button id="btPlanTirage" class="bt ptt" title="Rejoue les six recettes autrement : mêmes plans, autres réalisations">🎲 Nouveau tirage — les six îles</button>
       <button id="btPlanValide" class="bt pri">Enregistrer cette carte</button>
       <div id="planAvert"></div>
     </div>
+  </div>
+</div>
+
+<!-- ============================ LE CHAT ============================
+     Hors du HUD, et volontairement : il vit aussi bien sur le briefing
+     que sur le champ de bataille, et le HUD est caché tant qu'on n'a
+     pas débarqué. -->
+<button id="chatBt" title="Chat du salon"><span>💬</span><i id="chatBadge"></i></button>
+<div id="chat">
+  <div id="chatHaut">
+    <span id="chatTitre">Salon MILY</span>
+    <span id="chatQui"></span>
+    <button id="chatFerme" title="Fermer le chat">✕</button>
+  </div>
+  <div id="chatL"></div>
+  <div id="chatBas">
+    <input id="chatSaisie" maxlength="160" autocomplete="off"
+           placeholder="Écris ici…" aria-label="Message pour le salon">
+    <button id="chatEnvoi" title="Envoyer">➤</button>
   </div>
 </div>
 
@@ -9924,23 +10051,37 @@ function dessinePluieJungle(c, tps){
   var vis = borne((z - 0.44) * 4, 0, 1);
   c.save();
   c.lineWidth = Math.max(0.8, 1.1 * z);
-  for(i = g.i0; i <= g.i1; i++){
-    for(var j = g.j0; j <= g.j1; j++){
-      var n0 = i * 131.7 + j * 37.3;
-      var b0 = bruitStable(n0, 0), b1 = bruitStable(n0, 1);
-      var b2 = bruitStable(i * 57.1 - j * 91.9, 1);
-      var ph = (tps * 1.55 + b2) % 1;
-      if(ph > 0.42) continue;                    // deux cases sur cinq
-      var u = ph / 0.42;
-      var x = ((i + b0) * g.pas) * z + cam.px;
-      var y = ((j + b1) * g.pas) * z + cam.py;
-      if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
-      var rr = (2.5 + u * 9) * z;
-      c.strokeStyle = "rgba(" + MET_PLUIE + "," + ((1 - u) * 0.34 * vis) + ")";
-      c.beginPath();
-      c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
-      c.stroke();
+  /* QUATRE TRACÉS, PAS SOIXANTE. Au zoom de jeu il y a une soixantaine
+     d'anneaux à l'écran, chacun avec sa propre opacité selon son âge.
+     Les tracer un par un revenait à changer soixante fois le style, et
+     chaque changement force le rasteriseur à vider son lot en cours —
+     c'était plus cher que toute la pluie. On range donc les anneaux
+     dans quatre paliers d'opacité et on ne trace que quatre chemins.
+     Quatre paliers suffisent : entre le plus jeune et le plus vieux
+     anneau il n'y a de toute façon qu'un tiers d'opacité d'écart.
+     Le moveTo avant chaque ellipse n'est pas décoratif — sans lui,
+     ellipse() relie le nouvel anneau au précédent par un trait. */
+  for(var pal = 0; pal < 4; pal++){
+    c.strokeStyle = "rgba(" + MET_PLUIE + "," + (((pal + 0.5) / 4) * 0.34 * vis) + ")";
+    c.beginPath();
+    for(i = g.i0; i <= g.i1; i++){
+      for(var j = g.j0; j <= g.j1; j++){
+        var n0 = i * 131.7 + j * 37.3;
+        var b2 = bruitStable(i * 57.1 - j * 91.9, 1);
+        var ph = (tps * 1.55 + b2) % 1;
+        if(ph > 0.42) continue;                    // deux cases sur cinq
+        var u = ph / 0.42;
+        if((((1 - u) * 4) | 0) !== pal) continue;
+        var b0 = bruitStable(n0, 0), b1 = bruitStable(n0, 1);
+        var x = ((i + b0) * g.pas) * z + cam.px;
+        var y = ((j + b1) * g.pas) * z + cam.py;
+        if(x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
+        var rr = (2.5 + u * 9) * z;
+        c.moveTo(x + rr, y);
+        c.ellipse(x, y, rr, rr * 0.5, 0, 0, 6.2832);
+      }
     }
+    c.stroke();
   }
   c.restore();
 }
@@ -9965,6 +10106,16 @@ function dessineLueursVegetation(c, tps){
   var z = cam.z;
   if(z < 0.18) return;
   var g = bornesGrille(170, 60);
+  /* UN SEUL save/restore ET UN SEUL changement de mode pour toutes les
+     lueurs. lueurRapide fait un save + un globalCompositeOperation +
+     un restore À CHAQUE appel : sur une vingtaine de points ça coûtait
+     2,4 ms par image au banc, plus que toutes les autres couches
+     réunies. Ce ne sont pas les pixels qui coûtent — il y en a
+     quelques milliers — ce sont les changements d'état, qui forcent le
+     rasteriseur à vider son lot en cours. */
+  var chaud = disqueMeteo("255,224,138"), froid = disqueMeteo("168,255,190");
+  c.save();
+  c.globalCompositeOperation = "lighter";
   for(var i = g.i0; i <= g.i1; i++){
     for(var j = g.j0; j <= g.j1; j++){
       var n0 = i * 91.3 + j * 173.9;
@@ -9979,10 +10130,12 @@ function dessineLueursVegetation(c, tps){
       var p = 0.45 + 0.35 * Math.sin(tps * (0.8 + b1) + b0 * 6.28)
                    + 0.20 * Math.sin(tps * (3.1 + b0 * 2) + b1 * 6.28);
       if(p < 0.12) continue;
-      lueurRapide(c, x, y - 9 * z, (5 + b1 * 5) * Math.max(0.55, z),
-                  b1 > 0.55 ? "#ffe08a" : "#a8ffbe", p * 0.22);
+      var r = (5 + b1 * 5) * Math.max(0.55, z);
+      c.globalAlpha = p * 0.17;
+      c.drawImage(b1 > 0.55 ? chaud : froid, x - r, y - 9 * z - r, r * 2, r * 2);
     }
   }
+  c.restore();
 }
 
 /* ================================================================
@@ -10126,6 +10279,22 @@ function nuagesDuJeu(){
    Elle est franche — 0,30 — parce qu'elle a un travail à faire en
    plus d'être jolie : c'est elle qui dit AU SOL où le nuage passe, et
    donc où le joueur ne doit pas laisser ses troupes. */
+/* Le PRIX de cette ombre est le seul sujet, et il tient dans une
+   règle : c'est une SURFACE, et une surface se paie au pixel. Trois
+   ombres au rayon du nuage, au zoom de jeu, c'est trois millions et
+   demi de pixels fondus par image. Mesuré, sur les trois variantes
+   possibles :
+     remplissage en dégradé radial   6,0 ms
+     disque fondu, lissage ACTIF     6,5 ms
+     disque fondu, lissage COUPÉ     3,5 ms
+     ellipse PLATE                   0,7 ms
+   L'ellipse plate est dix fois moins chère mais son bord est net, et
+   un bord net ne peut pas passer pour une ombre. On garde donc le
+   disque fondu, et on paie la surface en la RÉDUISANT : l'ombre ne
+   fait que les deux tiers du rayon du nuage. C'est deux fois moins de
+   pixels, c'est physiquement juste — le soleil n'est jamais tout à
+   fait à la verticale — et l'opacité rendue compense la taille. */
+var MET_OMBRE_PART = 0.66;
 function dessineOmbresNuages(c, tps){
   var nu = nuagesDuJeu();
   if(!nu || !nu.length) return;
@@ -10133,13 +10302,13 @@ function dessineOmbresNuages(c, tps){
   var d = disqueMeteo(MET_OMBRE);
   c.save();
   c.imageSmoothingEnabled = false;
+  c.globalAlpha = 0.36;
   for(var i = 0; i < nu.length; i++){
     var u = nu[i];
     var p = versEcran(cam, u.gx, u.gy);
-    var souffle = 1 + Math.sin(tps * 0.21 + u.ph) * 0.05;
-    var rx = u.r * RX * z * 1.05 * souffle, ry = u.r * RY * z * 1.05 * souffle;
+    var souffle = MET_OMBRE_PART * (1 + Math.sin(tps * 0.21 + u.ph) * 0.05);
+    var rx = u.r * RX * z * souffle, ry = u.r * RY * z * souffle;
     if(p.x + rx < 0 || p.x - rx > W || p.y + ry < 0 || p.y - ry > H) continue;
-    c.globalAlpha = 0.30;
     c.drawImage(d, p.x - rx, p.y - ry, rx * 2, ry * 2);
   }
   c.restore();
@@ -25264,6 +25433,28 @@ function remetSalonAZero(){
    les bâtiments détruits de l'ancienne carte ne désignent plus rien. */
 /* Enregistre le plan d'UNE carte dans le paquet du salon. Les autres
    cartes gardent le leur : c'est tout l'objet de la refonte. */
+/* Le tirage neuf, demandé exprès. Les recettes ne bougent pas d'une
+   virgule — les six plans sont republiés tels quels — mais chaque île
+   est réalisée autrement : d'autres positions, d'autres décors,
+   d'autres bestioles. C'est le pendant du bouton « Régénérer » de
+   l'éditeur, qui ne changeait jusqu'ici que l'aperçu. */
+function nouveauTirageSalon(){
+  numeroPlan  = (numeroPlan | 0) + 1;
+  tirageSalon = (tirageSalon | 0) + 1;
+  cycleSalon  = (cycleSalon | 0) + 1;
+  carteSalon  = 0;
+  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            je:0, jf:0, jd:"", jq:0,
+            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
+            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
+            ch:(monde && monde.ch) || "" };
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return tirageSalon;
+}
+
 function enregistrePlanCarte(index, chaine){
   var t = decodePlans(planSalon);
   if(chaine) t[index] = chaine; else delete t[index];
@@ -25273,11 +25464,32 @@ function enregistrePlanCarte(index, chaine){
   if(typeof construitOngletsCartes === "function") construitOngletsCartes();
   return r;
 }
+/* ----------------------------------------------------------------
+   ENREGISTRER UN PLAN NE RETIRE PLUS TOUTE LA CAMPAGNE AU SORT
+
+   LE DÉFAUT. Cette fonction incrémentait `tirageSalon`, et
+   genereCarte() en tire la graine de CHAQUE île :
+     gr = tirage ? graineTexte(salon + "#" + index + "@" + tirage) : …
+   Autrement dit, enregistrer le plan de la soirée hippie redessinait
+   aussi la plage, la forêt, la campagne, le Sud et la jungle — leurs
+   décors, leurs rochers, leurs bestioles, tout. Les cinq autres
+   gardaient bien leur PLAN, mais plus leur RÉALISATION. C'était le
+   dernier endroit où éditer une carte en touchait six, et il ne se
+   voyait pas : le plan, lui, était bien resté isolé.
+
+   CE QU'ON GARDE. Le numéro de campagne monte toujours, et la carte
+   repart de la première île : les bâtiments ont changé, le tableau des
+   destructions ne veut plus rien dire, il faut repartir. Mais le
+   TIRAGE, lui, ne bouge plus tout seul.
+
+   POUR REJOUER LA MÊME RECETTE AUTREMENT, il y a un bouton, et il le
+   dit : « Nouveau tirage ». Un geste explicite plutôt qu'un effet de
+   bord.
+   ---------------------------------------------------------------- */
 function enregistrePlan(chaine){
   if(chaine === planSalon) return false;
   planSalon   = chaine;
   numeroPlan  = (numeroPlan | 0) + 1;
-  tirageSalon = (tirageSalon | 0) + 1;
   cycleSalon  = (cycleSalon | 0) + 1;
   carteSalon  = 0;
   monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
@@ -25362,6 +25574,14 @@ function recoit(txt){
     noteScore(m.id, j.nom, 0);
     if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
     annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
+    if(typeof chatSysteme === "function") chatSysteme(j.nom + " a rejoint le salon.");
+  }else if(m.t === "chat"){
+    /* Le chat est un message ordinaire de plus sur le sujet vivant :
+       aucun sujet supplémentaire, aucune rétention, rien de changé au
+       protocole. Le pseudo affiché est celui que NOUS connaissons pour
+       cet identifiant, pas celui que le message annonce. */
+    j.nom = (m.nom || j.nom || "?").substr(0, 14);
+    if(typeof recoitChat === "function") recoitChat(j, m);
   }else if(m.t === "sync"){
     j.nom = (m.nom || "?").substr(0, 14);
     /* `monde` peut encore être nul : le sujet des joueurs est souscrit
@@ -25464,6 +25684,8 @@ function recoit(txt){
   }else if(m.t === "adieu"){
     if(autresJoueurs[m.id] && autresJoueurs[m.id].nom !== "?"){
       annonce("<b>" + echappe(autresJoueurs[m.id].nom) + "</b> a quitté le salon");
+      if(typeof chatSysteme === "function")
+        chatSysteme(autresJoueurs[m.id].nom + " a quitté le salon.");
     }
     delete autresJoueurs[m.id];
     majPodium();
@@ -25574,6 +25796,245 @@ window.addEventListener("beforeunload", function(){
   fermeRelais();
 });
 
+/* ===== 86-chat.js ===== */
+/* ================================================================
+   LE CHAT DU SALON
+
+   CE QU'IL EST. Un fil de messages entre les joueurs d'un même salon,
+   vivant du briefing jusqu'à la fin de la bataille. Il se replie d'un
+   doigt, et s'éteint tout à fait pour qui n'en veut pas.
+
+   CE QU'IL N'EST PAS, ET POURQUOI. Il n'a PAS d'historique. Un joueur
+   qui arrive voit ce qui se dit à partir de son arrivée, jamais ce qui
+   s'est dit avant. Ce n'est pas une paresse, c'est la seule réponse
+   honnête à l'architecture : le jeu n'a pas de serveur, seulement un
+   courtier public qui retient UN message par sujet. Un historique
+   partagé voudrait dire que chaque client republie tout le fil à
+   chaque phrase — deux joueurs qui parlent en même temps s'écraseraient
+   l'un l'autre, et l'on perdrait des messages sans jamais savoir
+   lesquels. Mieux vaut un fil sans mémoire qu'une mémoire qui ment.
+
+   Chacun garde en revanche SON défilement local : tout ce qu'il a reçu
+   depuis qu'il est là reste consultable, et se perd en fermant l'onglet.
+
+   CE QUI PASSE SUR LE RÉSEAU. Un message ordinaire de plus sur le sujet
+   vivant du salon, { t:"chat", x:"…" }, à côté des « bonjour », des
+   « etat » et des destructions. Aucun nouveau sujet, aucune rétention,
+   aucun changement au protocole. Il passe par envoie(), donc il hérite
+   gratuitement du verrou de la prévisualisation : en mode aperçu, rien
+   ne part.
+   ================================================================ */
+
+var CHAT_MAX      = 80;      // messages gardés dans le fil local
+var CHAT_LONGUEUR = 160;     // caractères par message
+var CHAT_REPOS    = 1200;    // ms entre deux envois du même joueur
+var CLE_CHAT      = "milyboum.chat";
+
+var chatActif   = true;      // le réglage du joueur : chat ou pas de chat
+var chatOuvert  = false;
+var chatNonLus  = 0;
+var chatDernier = 0;         // horodatage du dernier envoi, pour le repos
+var chatFil     = [];        // { nom, txt, moi, sys }
+
+/* ---------------------------------------------------------------
+   Le réglage, retenu sur cet appareil
+   --------------------------------------------------------------- */
+function litReglageChat(){
+  try{
+    var v = localStorage.getItem(CLE_CHAT);
+    return v === null ? true : v === "1";
+  }catch(e){ return true; }
+}
+function gardeReglageChat(on){
+  try{ localStorage.setItem(CLE_CHAT, on ? "1" : "0"); }catch(e){}
+}
+
+/* ---------------------------------------------------------------
+   Ouvrir, fermer, se taire
+   --------------------------------------------------------------- */
+function majBoutonChat(){
+  var b = $("chatBt");
+  if(!b) return;
+  b.classList.toggle("on", chatActif && !chatOuvert);
+  var g = $("chatBadge");
+  if(g){
+    g.classList.toggle("on", chatNonLus > 0);
+    g.textContent = chatNonLus > 9 ? "9+" : String(chatNonLus);
+  }
+}
+function ouvreChat(){
+  if(!chatActif) return;
+  chatOuvert = true;
+  chatNonLus = 0;
+  $("chat").classList.add("on");
+  majBoutonChat();
+  dessineChat();
+  /* On ne prend PAS le clavier de force : sur tablette, ouvrir le chat
+     pour lire ne doit pas faire monter un clavier qui mange la moitié
+     de l'écran. C'est le joueur qui touche le champ quand il veut
+     écrire. */
+}
+function fermeChat(){
+  chatOuvert = false;
+  $("chat").classList.remove("on");
+  var s = $("chatSaisie");
+  if(s) s.blur();
+  majBoutonChat();
+}
+function basculeChat(){ chatOuvert ? fermeChat() : ouvreChat(); }
+/* L'interrupteur du briefing. Éteint, il ne replie pas le chat : il le
+   retire. Plus de bouton, plus de fil, et les messages reçus sont
+   jetés à l'arrivée. */
+function regleChat(on){
+  chatActif = !!on;
+  gardeReglageChat(chatActif);
+  if(!chatActif){
+    fermeChat();
+    chatFil = [];
+    chatNonLus = 0;
+  }
+  majBoutonChat();
+  var c = $("chatActif");
+  if(c) c.checked = chatActif;
+}
+
+/* ---------------------------------------------------------------
+   Le fil
+   --------------------------------------------------------------- */
+/* `sys` marque les lignes que le jeu écrit lui-même — les arrivées, les
+   départs, les avertissements. Elles ne portent pas de pseudo et se
+   lisent en gris : on ne doit jamais pouvoir les confondre avec la
+   parole d'un joueur, sans quoi n'importe qui pourrait se faire passer
+   pour le jeu en choisissant son pseudo. */
+function ajouteAuChat(nom, txt, moi, sys){
+  if(!chatActif) return;
+  txt = String(txt == null ? "" : txt).replace(/\s+/g, " ").trim();
+  if(!txt) return;
+  if(txt.length > CHAT_LONGUEUR) txt = txt.substr(0, CHAT_LONGUEUR);
+  chatFil.push({ nom:String(nom || "?").substr(0, 14), txt:txt, moi:!!moi, sys:!!sys });
+  if(chatFil.length > CHAT_MAX) chatFil.splice(0, chatFil.length - CHAT_MAX);
+  if(chatOuvert) dessineChat();
+  else if(!sys){ chatNonLus++; majBoutonChat(); }
+}
+/* Une ligne du jeu, pas d'un joueur. */
+function chatSysteme(txt){ ajouteAuChat("", txt, 0, 1); }
+
+function dessineChat(){
+  var e = $("chatL");
+  if(!e) return;
+  if(!chatFil.length){
+    e.innerHTML = '<div class="cv">Personne n\'a encore rien dit. '
+      + 'Le fil commence à ton arrivée : ce qui s\'est dit avant n\'est '
+      + 'gardé nulle part.</div>';
+  }else{
+    var h = "", i;
+    for(i = 0; i < chatFil.length; i++){
+      var m = chatFil[i];
+      h += m.sys
+         ? '<div class="cs">' + echappe(m.txt) + '</div>'
+         : '<div class="cm' + (m.moi ? " moi" : "") + '"><b>'
+           + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
+    }
+    e.innerHTML = h;
+  }
+  /* toujours collé au dernier message : un chat qu'il faut faire
+     défiler pour lire ce qui vient d'arriver ne sert à rien */
+  e.scrollTop = e.scrollHeight;
+  majQuiEstLa();
+}
+/* Qui est en ligne, en tête du panneau. La liste vient de celle que le
+   réseau tient déjà pour l'affichage des autres joueurs. */
+function majQuiEstLa(){
+  var e = $("chatQui");
+  if(!e) return;
+  var n = 1, k;                              // soi-même compte
+  if(typeof autresJoueurs === "object" && autresJoueurs){
+    for(k in autresJoueurs) if(autresJoueurs[k]) n++;
+  }
+  e.textContent = n > 1 ? (n + " joueurs en ligne") : "toi seul pour l'instant";
+}
+
+/* ---------------------------------------------------------------
+   Envoyer
+   --------------------------------------------------------------- */
+function envoieChat(){
+  var s = $("chatSaisie");
+  if(!s || !chatActif) return;
+  var txt = s.value.replace(/\s+/g, " ").trim();
+  if(!txt) return;
+  if(txt.length > CHAT_LONGUEUR) txt = txt.substr(0, CHAT_LONGUEUR);
+
+  /* LE REPOS ENTRE DEUX MESSAGES. Le courtier est public et partagé :
+     un client qui publie en rafale se fait couper, et il emporte avec
+     lui l'instantané du monde et les positions des troupes. Le chat ne
+     doit jamais pouvoir faire tomber la partie. */
+  var t = Date.now();
+  if(t - chatDernier < CHAT_REPOS){
+    chatSysteme("Doucement — un message par seconde, pas plus. "
+              + "Le relais du salon est partagé avec la partie.");
+    return;
+  }
+  if(typeof modeApercu !== "undefined" && modeApercu){
+    chatSysteme("Prévisualisation : rien de ce que tu écris ne part. "
+              + "Les autres joueurs ne savent même pas que tu es là.");
+    s.value = "";
+    return;
+  }
+  if(!reseau.connecte){
+    chatSysteme("Pas de relais : le message n'est parti nulle part.");
+    return;
+  }
+  chatDernier = t;
+  s.value = "";
+  envoie({ t:"chat", nom:monNom, x:txt });
+  ajouteAuChat(monNom, txt, 1, 0);
+}
+/* Ce qui arrive des autres. Le pseudo affiché est celui que le réseau
+   connaît pour cet identifiant, jamais celui que le message prétend :
+   sinon n'importe qui pourrait signer du nom d'un autre. */
+function recoitChat(j, m){
+  if(!chatActif) return;
+  ajouteAuChat(j && j.nom ? j.nom : (m.nom || "?"), m.x, 0, 0);
+}
+
+/* ---------------------------------------------------------------
+   Câblage
+   --------------------------------------------------------------- */
+function installeChat(){
+  var b = $("chatBt"), f = $("chatFerme"), s = $("chatSaisie"), e = $("chatEnvoi"),
+      c = $("chatActif"), p = $("chat");
+  if(!b || !p) return;
+
+  chatActif = litReglageChat();
+  if(c){
+    c.checked = chatActif;
+    c.addEventListener("change", function(){ regleChat(c.checked); });
+  }
+  b.addEventListener("click", basculeChat);
+  if(f) f.addEventListener("click", fermeChat);
+  if(e) e.addEventListener("click", envoieChat);
+  if(s){
+    s.addEventListener("keydown", function(ev){
+      if(ev.key === "Enter"){ ev.preventDefault(); envoieChat(); }
+      if(ev.key === "Escape"){ ev.preventDefault(); fermeChat(); }
+      /* Le champ de saisie doit garder ses touches : sans ça, écrire
+         « + » ou « - » zoomait la carte derrière. */
+      ev.stopPropagation();
+    });
+    s.addEventListener("keyup", function(ev){ ev.stopPropagation(); });
+  }
+  /* Le panneau est posé PAR-DESSUS le canevas, qui écoute tous les
+     gestes de la fenêtre pour déplacer la caméra. Sans ces barrages,
+     défiler le fil du chat faisait glisser l'île dessous. */
+  ["touchstart", "touchmove", "touchend", "mousedown", "mousemove", "wheel"]
+    .forEach(function(nom){
+      p.addEventListener(nom, function(ev){ ev.stopPropagation(); },
+                         { passive:nom === "touchmove" || nom === "wheel" });
+    });
+  majBoutonChat();
+  dessineChat();
+}
+
 /* ===== 87-plan.js ===== */
 /* ================================================================
    L'ÉDITEUR DE DÉFENSES — la carte vue de haut, peinte au doigt.
@@ -25602,6 +26063,34 @@ var COUL_PLAN = {
   silo     : "#c8ae74",
   cellule  : "#ffd84a"
 };
+
+/* ---------------------------------------------------------------
+   CE QUE CHAQUE ÎLE A DE PROPRE, ET QUE LE PLAN NE TOUCHE JAMAIS
+
+   Le décor n'est pas rangé dans la carte : la carte ne retient qu'une
+   position, une taille et un numéro de variante, de 0 à 3. C'est le
+   BIOME qui décide, au moment de dessiner, si la variante 1 est un
+   tipi ou un olivier — et le biome est écrit dans CARTES, pas dans le
+   plan. Aucune édition ne peut donc changer la NATURE du décor d'une
+   île : la soirée hippie aura ses combis et ses guirlandes quoi qu'on
+   peigne dessus.
+
+   Cette table ne sert qu'à le DIRE au joueur, en toutes lettres, dans
+   le panneau de l'éditeur. Elle est le miroir de dessineDecor() ; si
+   l'un change, l'autre doit suivre.
+   --------------------------------------------------------------- */
+var FAMILLES_DECOR = {
+  plage   : ["palmiers", "buissons", "touffes sèches", "coquillages"],
+  foret   : ["sapins", "buissons", "souches"],
+  campagne: ["meules de foin", "buissons", "bouts de clôture", "sillons"],
+  hippie  : ["combis", "tipis", "guirlandes", "feux de camp"],
+  sud     : ["cyprès", "oliviers", "lavandes", "murets de pierre sèche"],
+  jungle  : ["arbres géants", "lianes", "fougères", "hautes herbes", "tapis de sol"]
+};
+function decorDeLIle(i){
+  var b = CARTES[i] ? CARTES[i].biome : "plage";
+  return FAMILLES_DECOR[b] || [];
+}
 
 /* LA CARTE EN COURS D'ÉDITION. C'est la variable qui manquait : sans
    elle, l'éditeur ne savait pas sur quelle île il travaillait, et le
@@ -26142,6 +26631,35 @@ function dessinePlan(){
     c.lineTo(ox + GW * e, oy + i * PAS_ZONE * e);
     c.stroke();
   }
+
+  /* LE DÉCOR ET LES BÊTES, sous les défenses.
+     Ils ne sont pas là pour décorer l'éditeur : ils sont la PREUVE, à
+     l'écran, que peindre des défenses ne les efface pas. On les
+     dessine donc à chaque aperçu, discrètement, dans le vert de la
+     végétation et l'ambre des bestioles. */
+  var decVerts = { plage:"#4fae62", foret:"#3f8a45", campagne:"#8a9a52",
+                   hippie:"#c86ad0", sud:"#7fa06a", jungle:"#3fa05c" };
+  c.fillStyle = decVerts[CARTES[planCarteIdx].biome] || "#4fae62";
+  c.globalAlpha = 0.55;
+  for(i = 0; i < m.decors.length; i++){
+    var dd = m.decors[i];
+    c.fillRect(ox + dd.gx * e - e * 0.35, oy + dd.gy * e - e * 0.35, e * 0.7, e * 0.7);
+  }
+  c.globalAlpha = 0.42;
+  c.fillStyle = "#6b6478";
+  for(i = 0; i < m.rochers.length; i++){
+    var rr = m.rochers[i];
+    c.fillRect(ox + rr.gx * e - e * 0.3, oy + rr.gy * e - e * 0.3, e * 0.6, e * 0.6);
+  }
+  c.globalAlpha = 0.9;
+  for(i = 0; i < m.creatures.length; i++){
+    var kk = m.creatures[i];
+    c.fillStyle = (ESPECES_PROTEGEES.indexOf(kk.t) >= 0) ? "#ff9ecb" : "#e0a24a";
+    c.beginPath();
+    c.arc(ox + kk.gx * e, oy + kk.gy * e, Math.max(0.9, e * 0.34), 0, 6.2832);
+    c.fill();
+  }
+  c.globalAlpha = 1;
 
   /* les défenses telles qu'elles sortiraient du générateur */
   for(i = 0; i < m.batiments.length; i++){
@@ -26893,6 +27411,32 @@ function installePlan(){
     dessinePlan(); majPanneauPlan();
     message2("Variante n°" + planGraine + " du même plan. Les zones n'ont pas bougé.");
   });
+  /* LE TIRAGE NEUF, DEMANDÉ EXPRÈS. Il ne l'était pas : enregistrer
+     n'importe quel plan le faisait tout seul, et refaisait au passage
+     le terrain des six îles. On l'a séparé, et le voici en clair. */
+  $("btPlanTirage").addEventListener("click", function(){
+    if(!confirm("NOUVEAU TIRAGE pour les six îles ?\n\n"
+              + "Les six plans sont gardés au mot près : ce sont les mêmes\n"
+              + "recettes. Mais chaque île est réalisée autrement —\n"
+              + "autres positions, autres décors, autres bestioles.\n\n"
+              + "La campagne repart de la première île, pour tout le salon,\n"
+              + "et les dégâts déjà infligés sont perdus.")) return;
+    var mot = prompt("Mot de passe pour un nouveau tirage du salon :");
+    if(mot === null) return;
+    if(!motAdminValide(mot)){ alert("Mot de passe incorrect. Rien n'a bougé."); return; }
+    var n = nouveauTirageSalon();
+    planGraine = 0;
+    planApercuSale = true;
+    if(enJeu){
+      nouvelleCarte(carteSalon);
+      if(typeof construitFondMini === "function") construitFondMini();
+      if(typeof majBarres === "function") majBarres();
+    }
+    majMondes(); rafraichitPlan();
+    dessinePlan(); majPanneauPlan();
+    alert("Tirage n°" + n + ". Les six îles sont rejouées,\n"
+        + "avec exactement les mêmes plans qu'avant.");
+  });
   $("btPlanRestaure").addEventListener("click", restaurePlanCarte);
   $("btPlanRecule").addEventListener("click", reculePlanCarte);
   $("btPlanDup").addEventListener("click", dupliquePlanCarte);
@@ -26914,7 +27458,9 @@ function comptePlan(){
     par[t] = (par[t] || 0) + 1; n++;
   }
   return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
-           formes:planFormes.length };
+           formes:planFormes.length,
+           decors:m.decors.length, rochers:m.rochers.length,
+           bestioles:m.creatures.length };
 }
 /* La fiche d'une défense, telle qu'on la lit avant de la poser :
    ce qu'elle est, puis les seuls chiffres qui changent une décision —
@@ -26952,7 +27498,18 @@ function majPanneauPlan(){
     + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
     + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
-    + "<b>" + c.cellules + "</b> cellules à récolter";
+    + "<b>" + c.cellules + "</b> cellules à récolter<br>"
+    /* CE QUE LE PLAN NE REMPLACE JAMAIS. La première question qu'on se
+       pose en peignant une carte est « est-ce que je détruis son
+       ambiance ». La réponse doit être lisible sans avoir à essayer —
+       et elle doit être EXACTE : le plan ne change jamais la NATURE du
+       décor (le biome seul en décide), il peut seulement, à la toute
+       première sauvegarde d'une île vierge, le redistribuer ailleurs.
+       C'est ce que dit la confirmation d'enregistrement. */
+    + '<span style="color:#8f86a0">' + c.decors + " "
+    + echappe(decorDeLIle(planCarteIdx).slice(0, 3).join(", "))
+    + " · " + c.bestioles + " bestioles · " + c.rochers + " rochers<br>"
+    + "l'ambiance de l'île — le plan ne la remplace jamais</span>";
 
   /* En mode compas, l'aide parle de ce qu'on est en train de faire :
      l'outil choisi, ou la forme qu'on règle. */
@@ -27042,11 +27599,26 @@ function validePlan(){
     alert("Mot de passe incorrect. Le plan n'a pas été touché.");
     return;
   }
+  /* LA PREMIÈRE SAUVEGARDE D'UNE ÎLE VIERGE EST UN CAS À PART, et il
+     faut le dire. Le générateur ne tire pas le même nombre de nombres
+     selon qu'il suit un plan ou non : franchir cette frontière décale
+     la suite du tirage, donc redistribue les décors, les rochers et
+     les bestioles de CETTE île. Mesuré sur la soirée hippie : 505
+     décors avant, 509 après — les mêmes combis et les mêmes tipis,
+     ailleurs. Passer d'un plan à un autre, ensuite, ne les bouge plus
+     JAMAIS d'un millième de case. */
+  var premiere = !planCarte(planSalon, planCarteIdx);
+  var dec = decorDeLIle(planCarteIdx);
   if(!confirm("Enregistrer ce plan pour « " + nom + " » ?\n\n"
-            + "• cette carte seule est concernée — les cinq autres\n"
-            + "  gardent exactement le plan qu'elles ont\n"
+            + "• cette carte seule est concernée — les cinq autres ne\n"
+            + "  bougent pas d'un pouce, ni leur plan ni leur terrain\n"
             + "• les défenses y sont retirées au sort selon tes zones\n"
-            + "• la campagne repart de la première île, pour tout le salon\n"
+            + "• son ambiance reste la sienne : " + dec.slice(0, 3).join(", ")
+            + (premiere
+                ? "\n  (première sauvegarde de cette île : ils seront\n"
+                  + "   redistribués ailleurs — mêmes objets, autres places)"
+                : "\n  ils ne bougeront pas d'un pouce")
+            + "\n• la campagne repart de la première île, pour tout le salon\n"
             + "• les dégâts déjà infligés sont perdus\n\n"
             + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;
 
@@ -31779,6 +32351,7 @@ function demarre(){
   installeRaz();
   installeAdmin();
   installePlan();
+  installeChat();
   rafraichitPlan();
 
   monNom = pseudoSaisi();
