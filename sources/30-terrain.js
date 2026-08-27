@@ -94,8 +94,19 @@ var BIOMES = {
        tout l'effet cherché ; l'orange franc, lui, reste réservé au
        décor et à la mer, où il est rare et donc brûlant. */
     herbe:"#4a1a10", allee:"#2e2225", roche:"#2b2429",
-    eauC:"#ffdf7a", eau:"#e2551a", eauO:"#8a1408", ecume:"#fff2c4",
-    fond:"#b83a10", basFond:"#ff8b32", ciel:"#2a0c0a"
+    /* LA MER EST NOIRE, ET LE FEU EST SUR LA ROCHE.
+       Une mer de lave orange vue de loin donnait un tapis uniforme et
+       criard tout autour de l'île : la carte entière prenait la
+       couleur de son eau, et la roche du rivage devenait un liseré
+       gris perdu au milieu. En rendant l'eau presque noire on lui rend
+       son rôle — un vide autour de l'île, pas un décor — et l'on
+       reporte TOUTE la chaleur là où elle se voit vraiment : sur les
+       falaises et sur les rochers, qui brûlent et coulent.
+       Ce n'est pas un noir plat pour autant : les crêtes gardent une
+       braise sourde. Un aplat parfaitement noir se lit comme un trou
+       dans l'image, pas comme de l'eau. */
+    eauC:"#4a1c10", eau:"#150d0f", eauO:"#050304", ecume:"#8a3a18",
+    fond:"#100a0c", basFond:"#2a1512", ciel:"#1a0806"
   },
   /* IBIZA — midi qui n'en finit pas, en plus riche que le Sud.
      Le Sud est délavé par la lumière ; Ibiza est SATURÉE. C'est ce qui
@@ -125,6 +136,112 @@ var CENTRE_X = 0, CENTRE_Y = 0;
 /* ================================================================
    FALAISES — les trois bords fermés
    ================================================================ */
+/* ================================================================
+   LE FEU SUR LA ROCHE — Mily dans les ténèbres
+
+   « Je mettrais l'eau complètement noire, mais je mettrais du feu fort
+   sur tous les rochers, à la limite belle flamme et lave qui coule
+   des rochers. »
+
+   Un seul dessin, appelé par les falaises comme par les rochers : ce
+   sont les mêmes pierres, elles doivent brûler pareil. Il travaille en
+   PIXELS D'ÉCRAN autour d'un point donné, et non en cases, parce que
+   ses deux appelants ne lui donnent pas la même chose — une falaise
+   fait cent pixels de haut, un rocher dix.
+
+   Tout est DÉTERMINISTE, tiré sur la graine de la pierre : ces deux
+   dessins sont pré-cuits, l'un dans le canevas de sol, l'autre dans
+   une planche de sprites. Un Math.random() ici donnerait des flammes
+   différentes à chaque reconstruction — et surtout, la même pierre
+   changerait d'aspect en revenant sur la carte.
+   ================================================================ */
+function feuSurRoche(c, x, yBas, h, larg, graine){
+  var al = prng((graine >>> 0) ^ 0x7E4B), i;
+
+  /* --- 1. LES COULÉES. Elles partent du haut et descendent en
+     zigzag sur la face, en s'élargissant : c'est de la roche fondue
+     qui suit la pente, pas un trait peint. Trois couches sur le même
+     tracé — la lèvre sombre, la lave, le cœur — comme pour les
+     fissures du sol. */
+  var nc = 2 + ((al() * 3) | 0);
+  for(i = 0; i < nc; i++){
+    var x0 = x + (al() - 0.5) * larg * 1.5;
+    var pts = [[x0, yBas - h * (0.82 + al() * 0.16)]];
+    var seg = 3 + ((al() * 3) | 0), cx = x0, cy = pts[0][1];
+    for(var j = 0; j < seg; j++){
+      cx += (al() - 0.5) * larg * 0.42;
+      cy += (yBas - cy) * (0.34 + al() * 0.4);
+      pts.push([cx, cy]);
+    }
+    var couches = [[3.4, "rgba(16,7,6,.55)"], [2.0, "rgba(196,48,12,.85)"],
+                   [0.9, "rgba(255,168,58,.9)"]];
+    for(var k = 0; k < couches.length; k++){
+      c.strokeStyle = couches[k][1];
+      c.lineWidth = couches[k][0];
+      c.lineCap = "round"; c.lineJoin = "round";
+      c.beginPath();
+      c.moveTo(pts[0][0], pts[0][1]);
+      for(var q = 1; q < pts.length; q++) c.lineTo(pts[q][0], pts[q][1]);
+      c.stroke();
+    }
+    /* la goutte au bout, prête à tomber */
+    var fin = pts[pts.length - 1];
+    c.fillStyle = "rgba(255,196,86,.9)";
+    c.beginPath(); c.ellipse(fin[0], fin[1] + 1, 1.5, 2.2, 0, 0, 6.2832); c.fill();
+  }
+
+  /* --- 2. LA COURONNE DE FLAMMES, sur l'arête du haut. C'est elle
+     qu'on voit de loin, et c'est elle qui fait qu'une île de ténèbres
+     est bordée de feu et non de béton. */
+  var nf = 3 + ((al() * 3) | 0);
+  for(i = 0; i < nf; i++){
+    var fx = x + (al() - 0.5) * larg * 1.6;
+    var fy = yBas - h;
+    var fh = h * (0.26 + al() * 0.36) + 6;
+    var fw = 2.2 + al() * 3.0;
+    /* le halo, d'abord */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gh = c.createRadialGradient(fx, fy - fh * 0.35, 1, fx, fy - fh * 0.35, fh * 1.5);
+    gh.addColorStop(0, "rgba(255,150,50,.34)");
+    gh.addColorStop(1, "rgba(220,70,16,0)");
+    c.fillStyle = gh;
+    c.beginPath();
+    c.ellipse(fx, fy - fh * 0.35, fh * 1.5, fh * 1.1, 0, 0, 6.2832); c.fill();
+    c.restore();
+    /* la langue, en trois épaisseurs de plus en plus claires */
+    var teintes = [["rgba(214,54,14,.86)", 1.0], ["rgba(255,132,30,.9)", 0.62],
+                   ["rgba(255,238,178,.92)", 0.28]];
+    for(var t2 = 0; t2 < teintes.length; t2++){
+      var e = teintes[t2][1];
+      c.fillStyle = teintes[t2][0];
+      c.beginPath();
+      c.moveTo(fx - fw * e, fy);
+      c.quadraticCurveTo(fx - fw * e * 1.1, fy - fh * e * 0.62,
+                         fx + fw * e * 0.28, fy - fh * e);
+      c.quadraticCurveTo(fx + fw * e * 0.9, fy - fh * e * 0.55,
+                         fx + fw * e, fy);
+      c.closePath(); c.fill();
+    }
+  }
+
+  /* --- 3. LA FLAQUE AU PIED : la lave arrivée en bas. Elle referme
+     le dessin — sans elle, les coulées coulent dans le vide. */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gp = c.createRadialGradient(x, yBas, 1, x, yBas, larg * 1.5);
+  gp.addColorStop(0, "rgba(255,150,50,.44)");
+  gp.addColorStop(0.5, "rgba(226,80,20,.16)");
+  gp.addColorStop(1, "rgba(200,50,10,0)");
+  c.fillStyle = gp;
+  c.beginPath(); c.ellipse(x, yBas, larg * 1.5, larg * 0.7, 0, 0, 6.2832); c.fill();
+  c.restore();
+  c.fillStyle = "rgba(226,86,22,.7)";
+  c.beginPath(); c.ellipse(x, yBas, larg * 0.55, larg * 0.26, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,206,120,.75)";
+  c.beginPath(); c.ellipse(x, yBas - 0.5, larg * 0.28, larg * 0.13, 0, 0, 6.2832); c.fill();
+}
+
 function dessineFalaise(c, f){
   var b = BIOMES[carte.biome];
   var p = iso(f.gx, f.gy);
@@ -191,8 +308,11 @@ function dessineFalaise(c, f){
   c.lineTo(pts[0].x, pts[0].y - h);
   c.lineTo(pts[1].x, pts[1].y - h);
   c.stroke();
-  /* végétation ou mousse au pied */
-  if(f.v % 3 === 0){
+  /* végétation ou mousse au pied — sauf dans les ténèbres, où rien ne
+     pousse : c'est du feu qui coule à la place. */
+  if(carte.biome === "tenebres"){
+    feuSurRoche(c, p.x, p.y, h, f.r * RX * 0.9, (f.gx * 733 + f.gy * 97 + f.v) | 0);
+  }else if(f.v % 3 === 0){
     c.fillStyle = carte.biome === "plage" ? "rgba(90,140,70,.45)" : "rgba(60,100,50,.5)";
     c.beginPath();
     c.ellipse(p.x - f.r * 5, p.y - h * 0.05, f.r * 9, f.r * 4, 0, 0, 6.2832);
@@ -231,6 +351,16 @@ function dessineRocher(c, gx, gy, r, s, v){
   c.closePath(); c.fill();
   c.strokeStyle = "rgba(255,250,240,.22)"; c.lineWidth = 1;
   c.beginPath(); c.moveTo(pts[n - 1].x, pts[n - 1].y - h); c.lineTo(pts[0].x, pts[0].y - h); c.stroke();
+  /* DANS LES TÉNÈBRES, CHAQUE ROCHER BRÛLE. Le même dessin que sur
+     les falaises, à l'échelle du caillou : c'est ce qui met le feu
+     partout sur l'île, maintenant que la mer est noire.
+     `carte` est global comme dans dessineFalaise ; la graine vient de
+     la forme et de la teinte, si bien que les vingt-quatre sprites
+     pré-cuits brûlent chacun à sa façon et ne se répètent pas. */
+  if(typeof carte !== "undefined" && carte && carte.biome === "tenebres"){
+    feuSurRoche(c, p.x, p.y, h, r * RX * 0.62,
+                ((v * 977) + Math.round(s * 1000)) | 0);
+  }
 }
 
 /* ================================================================

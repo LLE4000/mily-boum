@@ -1332,7 +1332,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.41";
+var VERSION = "v0.42";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2314,15 +2314,66 @@ function genereCarte(codeSalon, index, plan, tirage){
     bandeMoy    = [["frelon",0.30],["pilon",0.36],["bobine",0.24],["crible",0.10]];
     bandeLoin   = [["pilon",0.40],["frelon",0.26],["crible",0.22],["chalumeau",0.12]];
   }
+  /* ================================================================
+     LES TÉNÈBRES SE DÉFENDENT VRAIMENT.
 
-  for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
-    for(var ly = 3; ly <= GH - 4; ly += 5){
+     « C'est trop gentil là, beaucoup de lance-roquettes, des
+     lance-flammes aussi, et d'autres, de manière harmonieuse. »
+
+     DEUX LEVIERS, ET C'EST LE PREMIER QUI COMPTE LE PLUS.
+     La DENSITÉ d'abord : le quadrillage militaire saute 28 % de ses
+     nœuds partout ; ici il n'en saute plus que 13 %. C'est ce nombre,
+     et lui seul, qui fait passer l'île de sept cent quatre-vingts
+     défenses à mille et quelques — changer les proportions sans
+     toucher à la densité aurait donné une île tout aussi clairsemée,
+     simplement peuplée d'autre chose.
+
+     LA COMPOSITION ensuite, et « harmonieuse » est le mot juste : le
+     piège serait de tout mettre en Frelons. Une île d'une seule arme
+     se joue d'une seule façon — on trouve la parade une fois, et elle
+     vaut partout. Chaque bande garde donc QUATRE armes actives et des
+     rôles qui se complètent :
+       — le FRELON, le lance-roquettes, est le fil rouge des trois
+         bandes : c'est lui que le joueur a demandé en nombre, et sa
+         longue portée fait la pression sur toute la traversée ;
+       — le CHALUMEAU, le lance-flammes, est massé PRÈS du Brasier :
+         il ne porte qu'à cinq cases et demie, c'est une arme de
+         contact, et sa place est là où l'on arrive enfin. Sur une île
+         de feu, c'est aussi l'arme qui va de soi ;
+       — le PILON et le CRIBLE tiennent le milieu et le lointain, l'un
+         par l'obus, l'autre par la rafale ;
+       — les stocks inertes (cuve, silo) tombent à presque rien : ils
+         ne tirent pas, et ici chaque emplacement doit menacer.
+     ================================================================ */
+  if(fic.biome === "tenebres"){
+    bandeProche = [["chalumeau",0.34],["frelon",0.30],["bobine",0.20],["pilon",0.12],["cuve",0.04]];
+    bandeMoy    = [["frelon",0.34],["pilon",0.26],["chalumeau",0.18],["crible",0.16],["silo",0.06]];
+    bandeLoin   = [["frelon",0.36],["pilon",0.26],["crible",0.24],["chalumeau",0.10],["silo",0.04]];
+  }
+  /* LA DENSITÉ SE RÈGLE À DEUX ENDROITS, et le premier essai n'a
+     touché que le mauvais.
+       — LA PART DE NŒUDS SAUTÉS. Descendre de 28 % à 13 % ne pouvait
+         donner au mieux que × 1,2 : on ne peut pas garder plus que
+         tous les nœuds, et le plafond de ce levier seul était de
+         onze cents défenses. Mesuré : 780 → 866, à peine plus.
+       — LE PAS DU QUADRILLAGE, qui est le vrai levier. Il vaut cinq
+         cases partout ; le resserrer à quatre multiplie le nombre de
+         NŒUDS par (5/4)² = 1,56. C'est celui-là qu'il fallait bouger.
+     Les deux ensemble portent les ténèbres à plus de treize cents
+     défenses — presque le double des autres îles — sans jamais
+     approcher les deux mille cent cinquante du plan gravé de la
+     jungle, qui tiennent sur la même île sans se chevaucher. */
+  var sautIle = (fic.biome === "tenebres") ? 0.10 : 0.28;
+  var pasIle  = (fic.biome === "tenebres") ? 4    : 5;
+
+  for(var lx = 6; lx <= PLAGE_X0 - 3; lx += pasIle){
+    for(var ly = 3; ly <= GH - 4; ly += pasIle){
       /* La zone du plan sous ce nœud décide de deux choses : combien on
          en saute ici, et quel type on y pose. Elle ne décide RIEN
          d'autre — la position, le jitter et l'orientation restent
          tirés comme avant. */
       var Q = P ? planEn(P, lx, ly) : null;
-      var saut = Q ? Q.saut : 0.28;
+      var saut = Q ? Q.saut : sautIle;
       var dx = lx - QG_GX, dy = ly - QG_GY;
       var d = Math.hypot(dx, dy);
       var tAuto, rSaut, gx, gy, ang;
@@ -2347,7 +2398,7 @@ function genereCarte(codeSalon, index, plan, tirage){
         /* SANS PLAN : la séquence d'origine, tirage pour tirage. C'est
            elle qui garantit que la carte des salons déjà en cours ne
            bouge pas d'un pouce. */
-        if(al() < 0.28) continue;
+        if(al() < sautIle) continue;
         if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;
         tAuto = d < 30 ? tirePondere(al, bandeProche)
               : d < 62 ? tirePondere(al, bandeMoy)
@@ -5551,8 +5602,19 @@ var BIOMES = {
        tout l'effet cherché ; l'orange franc, lui, reste réservé au
        décor et à la mer, où il est rare et donc brûlant. */
     herbe:"#4a1a10", allee:"#2e2225", roche:"#2b2429",
-    eauC:"#ffdf7a", eau:"#e2551a", eauO:"#8a1408", ecume:"#fff2c4",
-    fond:"#b83a10", basFond:"#ff8b32", ciel:"#2a0c0a"
+    /* LA MER EST NOIRE, ET LE FEU EST SUR LA ROCHE.
+       Une mer de lave orange vue de loin donnait un tapis uniforme et
+       criard tout autour de l'île : la carte entière prenait la
+       couleur de son eau, et la roche du rivage devenait un liseré
+       gris perdu au milieu. En rendant l'eau presque noire on lui rend
+       son rôle — un vide autour de l'île, pas un décor — et l'on
+       reporte TOUTE la chaleur là où elle se voit vraiment : sur les
+       falaises et sur les rochers, qui brûlent et coulent.
+       Ce n'est pas un noir plat pour autant : les crêtes gardent une
+       braise sourde. Un aplat parfaitement noir se lit comme un trou
+       dans l'image, pas comme de l'eau. */
+    eauC:"#4a1c10", eau:"#150d0f", eauO:"#050304", ecume:"#8a3a18",
+    fond:"#100a0c", basFond:"#2a1512", ciel:"#1a0806"
   },
   /* IBIZA — midi qui n'en finit pas, en plus riche que le Sud.
      Le Sud est délavé par la lumière ; Ibiza est SATURÉE. C'est ce qui
@@ -5582,6 +5644,112 @@ var CENTRE_X = 0, CENTRE_Y = 0;
 /* ================================================================
    FALAISES — les trois bords fermés
    ================================================================ */
+/* ================================================================
+   LE FEU SUR LA ROCHE — Mily dans les ténèbres
+
+   « Je mettrais l'eau complètement noire, mais je mettrais du feu fort
+   sur tous les rochers, à la limite belle flamme et lave qui coule
+   des rochers. »
+
+   Un seul dessin, appelé par les falaises comme par les rochers : ce
+   sont les mêmes pierres, elles doivent brûler pareil. Il travaille en
+   PIXELS D'ÉCRAN autour d'un point donné, et non en cases, parce que
+   ses deux appelants ne lui donnent pas la même chose — une falaise
+   fait cent pixels de haut, un rocher dix.
+
+   Tout est DÉTERMINISTE, tiré sur la graine de la pierre : ces deux
+   dessins sont pré-cuits, l'un dans le canevas de sol, l'autre dans
+   une planche de sprites. Un Math.random() ici donnerait des flammes
+   différentes à chaque reconstruction — et surtout, la même pierre
+   changerait d'aspect en revenant sur la carte.
+   ================================================================ */
+function feuSurRoche(c, x, yBas, h, larg, graine){
+  var al = prng((graine >>> 0) ^ 0x7E4B), i;
+
+  /* --- 1. LES COULÉES. Elles partent du haut et descendent en
+     zigzag sur la face, en s'élargissant : c'est de la roche fondue
+     qui suit la pente, pas un trait peint. Trois couches sur le même
+     tracé — la lèvre sombre, la lave, le cœur — comme pour les
+     fissures du sol. */
+  var nc = 2 + ((al() * 3) | 0);
+  for(i = 0; i < nc; i++){
+    var x0 = x + (al() - 0.5) * larg * 1.5;
+    var pts = [[x0, yBas - h * (0.82 + al() * 0.16)]];
+    var seg = 3 + ((al() * 3) | 0), cx = x0, cy = pts[0][1];
+    for(var j = 0; j < seg; j++){
+      cx += (al() - 0.5) * larg * 0.42;
+      cy += (yBas - cy) * (0.34 + al() * 0.4);
+      pts.push([cx, cy]);
+    }
+    var couches = [[3.4, "rgba(16,7,6,.55)"], [2.0, "rgba(196,48,12,.85)"],
+                   [0.9, "rgba(255,168,58,.9)"]];
+    for(var k = 0; k < couches.length; k++){
+      c.strokeStyle = couches[k][1];
+      c.lineWidth = couches[k][0];
+      c.lineCap = "round"; c.lineJoin = "round";
+      c.beginPath();
+      c.moveTo(pts[0][0], pts[0][1]);
+      for(var q = 1; q < pts.length; q++) c.lineTo(pts[q][0], pts[q][1]);
+      c.stroke();
+    }
+    /* la goutte au bout, prête à tomber */
+    var fin = pts[pts.length - 1];
+    c.fillStyle = "rgba(255,196,86,.9)";
+    c.beginPath(); c.ellipse(fin[0], fin[1] + 1, 1.5, 2.2, 0, 0, 6.2832); c.fill();
+  }
+
+  /* --- 2. LA COURONNE DE FLAMMES, sur l'arête du haut. C'est elle
+     qu'on voit de loin, et c'est elle qui fait qu'une île de ténèbres
+     est bordée de feu et non de béton. */
+  var nf = 3 + ((al() * 3) | 0);
+  for(i = 0; i < nf; i++){
+    var fx = x + (al() - 0.5) * larg * 1.6;
+    var fy = yBas - h;
+    var fh = h * (0.26 + al() * 0.36) + 6;
+    var fw = 2.2 + al() * 3.0;
+    /* le halo, d'abord */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gh = c.createRadialGradient(fx, fy - fh * 0.35, 1, fx, fy - fh * 0.35, fh * 1.5);
+    gh.addColorStop(0, "rgba(255,150,50,.34)");
+    gh.addColorStop(1, "rgba(220,70,16,0)");
+    c.fillStyle = gh;
+    c.beginPath();
+    c.ellipse(fx, fy - fh * 0.35, fh * 1.5, fh * 1.1, 0, 0, 6.2832); c.fill();
+    c.restore();
+    /* la langue, en trois épaisseurs de plus en plus claires */
+    var teintes = [["rgba(214,54,14,.86)", 1.0], ["rgba(255,132,30,.9)", 0.62],
+                   ["rgba(255,238,178,.92)", 0.28]];
+    for(var t2 = 0; t2 < teintes.length; t2++){
+      var e = teintes[t2][1];
+      c.fillStyle = teintes[t2][0];
+      c.beginPath();
+      c.moveTo(fx - fw * e, fy);
+      c.quadraticCurveTo(fx - fw * e * 1.1, fy - fh * e * 0.62,
+                         fx + fw * e * 0.28, fy - fh * e);
+      c.quadraticCurveTo(fx + fw * e * 0.9, fy - fh * e * 0.55,
+                         fx + fw * e, fy);
+      c.closePath(); c.fill();
+    }
+  }
+
+  /* --- 3. LA FLAQUE AU PIED : la lave arrivée en bas. Elle referme
+     le dessin — sans elle, les coulées coulent dans le vide. */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gp = c.createRadialGradient(x, yBas, 1, x, yBas, larg * 1.5);
+  gp.addColorStop(0, "rgba(255,150,50,.44)");
+  gp.addColorStop(0.5, "rgba(226,80,20,.16)");
+  gp.addColorStop(1, "rgba(200,50,10,0)");
+  c.fillStyle = gp;
+  c.beginPath(); c.ellipse(x, yBas, larg * 1.5, larg * 0.7, 0, 0, 6.2832); c.fill();
+  c.restore();
+  c.fillStyle = "rgba(226,86,22,.7)";
+  c.beginPath(); c.ellipse(x, yBas, larg * 0.55, larg * 0.26, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,206,120,.75)";
+  c.beginPath(); c.ellipse(x, yBas - 0.5, larg * 0.28, larg * 0.13, 0, 0, 6.2832); c.fill();
+}
+
 function dessineFalaise(c, f){
   var b = BIOMES[carte.biome];
   var p = iso(f.gx, f.gy);
@@ -5648,8 +5816,11 @@ function dessineFalaise(c, f){
   c.lineTo(pts[0].x, pts[0].y - h);
   c.lineTo(pts[1].x, pts[1].y - h);
   c.stroke();
-  /* végétation ou mousse au pied */
-  if(f.v % 3 === 0){
+  /* végétation ou mousse au pied — sauf dans les ténèbres, où rien ne
+     pousse : c'est du feu qui coule à la place. */
+  if(carte.biome === "tenebres"){
+    feuSurRoche(c, p.x, p.y, h, f.r * RX * 0.9, (f.gx * 733 + f.gy * 97 + f.v) | 0);
+  }else if(f.v % 3 === 0){
     c.fillStyle = carte.biome === "plage" ? "rgba(90,140,70,.45)" : "rgba(60,100,50,.5)";
     c.beginPath();
     c.ellipse(p.x - f.r * 5, p.y - h * 0.05, f.r * 9, f.r * 4, 0, 0, 6.2832);
@@ -5688,6 +5859,16 @@ function dessineRocher(c, gx, gy, r, s, v){
   c.closePath(); c.fill();
   c.strokeStyle = "rgba(255,250,240,.22)"; c.lineWidth = 1;
   c.beginPath(); c.moveTo(pts[n - 1].x, pts[n - 1].y - h); c.lineTo(pts[0].x, pts[0].y - h); c.stroke();
+  /* DANS LES TÉNÈBRES, CHAQUE ROCHER BRÛLE. Le même dessin que sur
+     les falaises, à l'échelle du caillou : c'est ce qui met le feu
+     partout sur l'île, maintenant que la mer est noire.
+     `carte` est global comme dans dessineFalaise ; la graine vient de
+     la forme et de la teinte, si bien que les vingt-quatre sprites
+     pré-cuits brûlent chacun à sa façon et ne se répètent pas. */
+  if(typeof carte !== "undefined" && carte && carte.biome === "tenebres"){
+    feuSurRoche(c, p.x, p.y, h, r * RX * 0.62,
+                ((v * 977) + Math.round(s * 1000)) | 0);
+  }
 }
 
 /* ================================================================

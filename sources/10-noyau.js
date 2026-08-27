@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.41";
+var VERSION = "v0.42";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -991,15 +991,66 @@ function genereCarte(codeSalon, index, plan, tirage){
     bandeMoy    = [["frelon",0.30],["pilon",0.36],["bobine",0.24],["crible",0.10]];
     bandeLoin   = [["pilon",0.40],["frelon",0.26],["crible",0.22],["chalumeau",0.12]];
   }
+  /* ================================================================
+     LES TÉNÈBRES SE DÉFENDENT VRAIMENT.
 
-  for(var lx = 6; lx <= PLAGE_X0 - 3; lx += 5){
-    for(var ly = 3; ly <= GH - 4; ly += 5){
+     « C'est trop gentil là, beaucoup de lance-roquettes, des
+     lance-flammes aussi, et d'autres, de manière harmonieuse. »
+
+     DEUX LEVIERS, ET C'EST LE PREMIER QUI COMPTE LE PLUS.
+     La DENSITÉ d'abord : le quadrillage militaire saute 28 % de ses
+     nœuds partout ; ici il n'en saute plus que 13 %. C'est ce nombre,
+     et lui seul, qui fait passer l'île de sept cent quatre-vingts
+     défenses à mille et quelques — changer les proportions sans
+     toucher à la densité aurait donné une île tout aussi clairsemée,
+     simplement peuplée d'autre chose.
+
+     LA COMPOSITION ensuite, et « harmonieuse » est le mot juste : le
+     piège serait de tout mettre en Frelons. Une île d'une seule arme
+     se joue d'une seule façon — on trouve la parade une fois, et elle
+     vaut partout. Chaque bande garde donc QUATRE armes actives et des
+     rôles qui se complètent :
+       — le FRELON, le lance-roquettes, est le fil rouge des trois
+         bandes : c'est lui que le joueur a demandé en nombre, et sa
+         longue portée fait la pression sur toute la traversée ;
+       — le CHALUMEAU, le lance-flammes, est massé PRÈS du Brasier :
+         il ne porte qu'à cinq cases et demie, c'est une arme de
+         contact, et sa place est là où l'on arrive enfin. Sur une île
+         de feu, c'est aussi l'arme qui va de soi ;
+       — le PILON et le CRIBLE tiennent le milieu et le lointain, l'un
+         par l'obus, l'autre par la rafale ;
+       — les stocks inertes (cuve, silo) tombent à presque rien : ils
+         ne tirent pas, et ici chaque emplacement doit menacer.
+     ================================================================ */
+  if(fic.biome === "tenebres"){
+    bandeProche = [["chalumeau",0.34],["frelon",0.30],["bobine",0.20],["pilon",0.12],["cuve",0.04]];
+    bandeMoy    = [["frelon",0.34],["pilon",0.26],["chalumeau",0.18],["crible",0.16],["silo",0.06]];
+    bandeLoin   = [["frelon",0.36],["pilon",0.26],["crible",0.24],["chalumeau",0.10],["silo",0.04]];
+  }
+  /* LA DENSITÉ SE RÈGLE À DEUX ENDROITS, et le premier essai n'a
+     touché que le mauvais.
+       — LA PART DE NŒUDS SAUTÉS. Descendre de 28 % à 13 % ne pouvait
+         donner au mieux que × 1,2 : on ne peut pas garder plus que
+         tous les nœuds, et le plafond de ce levier seul était de
+         onze cents défenses. Mesuré : 780 → 866, à peine plus.
+       — LE PAS DU QUADRILLAGE, qui est le vrai levier. Il vaut cinq
+         cases partout ; le resserrer à quatre multiplie le nombre de
+         NŒUDS par (5/4)² = 1,56. C'est celui-là qu'il fallait bouger.
+     Les deux ensemble portent les ténèbres à plus de treize cents
+     défenses — presque le double des autres îles — sans jamais
+     approcher les deux mille cent cinquante du plan gravé de la
+     jungle, qui tiennent sur la même île sans se chevaucher. */
+  var sautIle = (fic.biome === "tenebres") ? 0.10 : 0.28;
+  var pasIle  = (fic.biome === "tenebres") ? 4    : 5;
+
+  for(var lx = 6; lx <= PLAGE_X0 - 3; lx += pasIle){
+    for(var ly = 3; ly <= GH - 4; ly += pasIle){
       /* La zone du plan sous ce nœud décide de deux choses : combien on
          en saute ici, et quel type on y pose. Elle ne décide RIEN
          d'autre — la position, le jitter et l'orientation restent
          tirés comme avant. */
       var Q = P ? planEn(P, lx, ly) : null;
-      var saut = Q ? Q.saut : 0.28;
+      var saut = Q ? Q.saut : sautIle;
       var dx = lx - QG_GX, dy = ly - QG_GY;
       var d = Math.hypot(dx, dy);
       var tAuto, rSaut, gx, gy, ang;
@@ -1024,7 +1075,7 @@ function genereCarte(codeSalon, index, plan, tirage){
         /* SANS PLAN : la séquence d'origine, tirage pour tirage. C'est
            elle qui garantit que la carte des salons déjà en cours ne
            bouge pas d'un pouce. */
-        if(al() < 0.28) continue;
+        if(al() < sautIle) continue;
         if(Math.abs(dx) <= 9 && Math.abs(dy) <= 9) continue;
         tAuto = d < 30 ? tirePondere(al, bandeProche)
               : d < 62 ? tirePondere(al, bandeMoy)
