@@ -239,34 +239,92 @@ function dessineBrulures(c, tps){
 
 /* L'ENTONNOIR.
 
-   PREMIER JET RATÉ, ET CE QU'IL A APPRIS. Il était fait de vingt-six
-   lamelles horizontales en dégradé, empilées en « lighter ». À
-   l'écran : une grosse lueur ovale. Aucune rotation, aucun bord,
-   aucune taille — un halo, pas un objet.
+   TROISIÈME ÉCRITURE, ET LES DEUX PREMIÈRES DISENT POURQUOI.
 
-   CE QUI FAIT QU'UNE COLONNE SE LIT COMME UNE TORNADE, ce sont deux
-   choses que les dégradés empilés ne peuvent pas donner :
-     1. UNE SILHOUETTE NETTE. Un profil tracé d'un seul trait — évasé
-        au pied, PINCÉ au tiers, largement ouvert vers le nuage — et
-        rempli. Le pincement est le dessin entier : sans lui c'est un
-        cône, et un cône n'a jamais tourné.
-     2. DES BANDES QUI MONTENT EN TOURNANT. Des arcs qui traversent la
-        silhouette en biais, décalés en phase avec la hauteur. C'est
-        d'elles que vient la rotation ; l'œil suit la spirale et
-        comprend que ça visse.
-   Le reste — le halo au pied, le cœur blanc, les braises arrachées —
-   ne fait que poser l'objet dans la scène.
+   Le premier jet empilait vingt-six lamelles en dégradé : à l'écran,
+   une grosse lueur ovale — aucune rotation, aucun bord, aucune taille.
+   Le deuxième a donné la forme (un profil pincé, des anneaux qui
+   vissent), et c'était le bon squelette : on lisait enfin une
+   tornade. Mais on lisait une tornade DE TERRE. Un cône brun,
+   parfaitement opaque, aux bords lisses comme un objet tourné, avec
+   des rayures crème peintes dessus. Tout, sauf du feu.
+
+   CE QUI SÉPARE UNE COLONNE DE FEU D'UN CÔNE PEINT — et aucun de ces
+   quatre points n'est décoratif :
+
+     1. LE FEU EST FAIT DE COUCHES, PAS D'UNE SURFACE. Un vrai feu se
+        regarde à travers : sombre et large au bord, orange au milieu,
+        blanc et étroit au cœur. On empile donc QUATRE silhouettes de
+        largeur décroissante et de clarté croissante. Une seule
+        silhouette remplie, même bien colorée, restera toujours un
+        solide.
+     2. SES BORDS BOUGENT. Un profil lisse est un objet tourné au
+        tour ; une flamme ondule. Le profil reçoit une somme de deux
+        sinus qui dépendent de la hauteur ET du temps — c'est peu de
+        chose au calcul, et c'est ce qui fait la différence entre
+        « ça brûle » et « c'est posé là ».
+     3. LA LUMIÈRE VIENT DU CŒUR. En « lighter », un rouge sombre
+        n'ajoute presque rien et se lit comme du brun. Les couches
+        montent donc franchement en température vers l'intérieur, et
+        le cœur est presque blanc.
+     4. LE HAUT NE S'ARRÊTE PAS, IL SE DISSOUT. Une colonne qui finit
+        net a une extrémité, donc une taille finie, donc elle ne vient
+        de nulle part. La dernière couche se délave et de la fumée
+        monte au-dessus : elle se perd dans le ciel, et c'est de là
+        qu'on la croit tombée.
 
    Elle est dans le TRI DE PROFONDEUR, comme les geysers : une colonne
    de feu doit passer devant ce qui est au nord d'elle et derrière ce
    qui est au sud, sinon elle flotte. */
-var TOR_HAUT = 320;              // hauteur de l'entonnoir, en pixels du monde
+var TOR_HAUT = 330;              // hauteur de l'entonnoir, en pixels du monde
 
 /* Le demi-profil, en cases, à la hauteur u (0 = le pied, 1 = le
-   nuage). Une seule fonction, appelée par le remplissage comme par
-   les bandes : les deux doivent parler de la même forme. */
-function torProfil(u){
-  return 0.42 + Math.pow(u, 2.1) * 4.6 + Math.exp(-u * 11) * 1.25;
+   nuage). `tps` et `ph` font onduler les bords : sans eux la colonne
+   est un solide de révolution. Une seule fonction, appelée par toutes
+   les couches et par les anneaux — elles doivent parler de la même
+   forme, ondulation comprise. */
+function torProfil(u, tps, ph){
+  /* Le sommet est plus ouvert qu'au deuxième jet (4,6 → 6,4) : une
+     tornade s'évase vers le nuage, et c'est cette ouverture qui la
+     raccroche au ciel. Le pied, lui, reste serré — c'est le PINCEMENT
+     entre les deux qui fait tout le dessin. */
+  var base = 0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15;
+  var houle = Math.sin(u * 9.5 - tps * 3.1 + ph) * 0.085
+            + Math.sin(u * 21 - tps * 5.3 + ph * 1.7) * 0.045;
+  return base * (1 + houle);
+}
+
+/* Une silhouette de l'entonnoir, à une largeur donnée. On monte par le
+   bord gauche et l'on redescend par le bord droit ; `haut` coupe la
+   colonne avant le sommet pour les couches internes, qui ne montent
+   pas aussi loin que l'enveloppe. */
+/* LA POINTE PENDANT LA DESCENTE. Couper la silhouette à une hauteur
+   donne un bord PLAT : l'entonnoir pendait du ciel comme un tube
+   scié. Une tornade qui descend s'effile — c'est même à cela qu'on
+   voit qu'elle cherche encore le sol. On resserre donc la largeur sur
+   la dernière demi-case avant la coupe, jusqu'à zéro. */
+function torEffile(u, pied){
+  if(pied <= 0) return 1;
+  var d = (u - pied) / 0.16;
+  return d >= 1 ? 1 : Math.sqrt(Math.max(0, d));
+}
+function torSilhouette(c, t, p, z, H, pied, k, haut, tps){
+  var N = 34, i, u, w, pr;
+  c.beginPath();
+  for(i = 0; i <= N; i++){
+    u = pied + (haut - pied) * (i / N);
+    pr = torProfil(u, tps, t.tour);
+    w = pr * RX * z * 0.5 * k * torEffile(u, pied);
+    var x = p.x + Math.sin(t.tour + u * 3.4) * pr * 0.30 * RX * z - w;
+    if(i === 0) c.moveTo(x, p.y - u * H); else c.lineTo(x, p.y - u * H);
+  }
+  for(i = N; i >= 0; i--){
+    u = pied + (haut - pied) * (i / N);
+    pr = torProfil(u, tps, t.tour);
+    w = pr * RX * z * 0.5 * k * torEffile(u, pied);
+    c.lineTo(p.x + Math.sin(t.tour + u * 3.4) * pr * 0.30 * RX * z + w, p.y - u * H);
+  }
+  c.closePath();
 }
 
 function dessineTornadeMonde(c, t, tps){
@@ -277,10 +335,7 @@ function dessineTornadeMonde(c, t, tps){
      est coupée par le bas, et elle descend */
   var pied = descend ? (1 - t.age / EQ.TORNADE_DESCENTE) : 0;
   var H = TOR_HAUT * z;
-  var i, k;
-  /* le point de l'axe à la hauteur u : c'est le VRILLAGE, un décalage
-     latéral qui tourne avec la hauteur et avec le temps */
-  function axeX(u){ return p.x + Math.sin(t.tour + u * 3.4) * torProfil(u) * 0.30 * RX * z; }
+  var k;
 
   c.save();
 
@@ -296,8 +351,8 @@ function dessineTornadeMonde(c, t, tps){
     c.beginPath();
     c.ellipse(p.x, p.y, rA * RX * z, rA * RY * z, 0, 0, 6.2832);
     c.stroke();
-    /* et un second anneau, fixe, qui dit la zone mortelle à venir */
-    c.strokeStyle = "rgba(255,90,30,.28)";
+    /* et un second anneau, fixe : la zone qui va tuer, à la case près */
+    c.strokeStyle = "rgba(255,90,30,.30)";
     c.lineWidth = 1.1 * z;
     c.beginPath();
     c.ellipse(p.x, p.y, EQ.TORNADE_RAYON * RX * z, EQ.TORNADE_RAYON * RY * z, 0, 0, 6.2832);
@@ -307,100 +362,119 @@ function dessineTornadeMonde(c, t, tps){
   /* --- 2. LE HALO AU PIED : la lumière qu'elle jette sur la terre. */
   if(!descend){
     c.globalCompositeOperation = "lighter";
-    var gh = c.createRadialGradient(p.x, p.y, 2, p.x, p.y, 5.6 * RX * z);
-    gh.addColorStop(0, "rgba(255,186,80,.52)");
-    gh.addColorStop(0.5, "rgba(255,112,26,.19)");
+    var gh = c.createRadialGradient(p.x, p.y, 2, p.x, p.y, 6.2 * RX * z);
+    gh.addColorStop(0, "rgba(255,180,80,.34)");
+    gh.addColorStop(0.45, "rgba(255,104,24,.16)");
     gh.addColorStop(1, "rgba(220,60,10,0)");
     c.fillStyle = gh;
-    c.beginPath(); c.ellipse(p.x, p.y, 5.6 * RX * z, 5.6 * RY * z, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(p.x, p.y, 6.2 * RX * z, 6.2 * RY * z, 0, 0, 6.2832); c.fill();
   }
 
-  /* --- 3. LA SILHOUETTE, d'un seul trait.
-     On monte par le bord gauche, on redescend par le bord droit. */
-  var N = 30;
+  /* --- 3. LA FUMÉE, AU-DESSUS. Peinte AVANT le feu, pour qu'elle
+     passe derrière : c'est ce qui reste quand la flamme s'est
+     éteinte, et c'est elle qui raccroche la colonne au ciel. */
+  c.globalCompositeOperation = "source-over";
+  for(k = 0; k < 7; k++){
+    var uf = 0.82 + k * 0.055;
+    var yf = p.y - uf * H - k * 5 * z;
+    var rf = (3.2 + k * 1.5) * RX * z * 0.5;
+    var af = 0.10 * (1 - k / 7) * (descend ? 0.5 : 1);
+    var gs = c.createRadialGradient(p.x + Math.sin(t.tour * 0.4 + k) * rf * 0.35, yf, 1,
+                                    p.x, yf, rf);
+    gs.addColorStop(0, "rgba(58,38,34," + af + ")");
+    gs.addColorStop(1, "rgba(40,26,24,0)");
+    c.fillStyle = gs;
+    c.beginPath(); c.ellipse(p.x, yf, rf, rf * 0.5, 0, 0, 6.2832); c.fill();
+  }
+
+  /* --- 4. LE CORPS, EN QUATRE COUCHES DE FEU.
+     De l'extérieur vers le cœur : large et sombre, puis orange, puis
+     vif, puis presque blanc. Les couches internes montent moins haut
+     — un feu est plus chaud en bas, et sa partie blanche s'arrête
+     bien avant le sommet. */
   c.globalCompositeOperation = "lighter";
-  c.beginPath();
-  for(i = 0; i <= N; i++){
-    var u = pied + (1 - pied) * (i / N);
-    var w = torProfil(u) * RX * z * 0.5;
-    var x = axeX(u) - w, y = p.y - u * H;
-    if(i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+  var couches = [
+    /* largeur, hauteur atteinte, couleur au pied,     couleur au sommet,   alpha */
+    [1.00, 1.00, "214,52,14",  "104,20,10", 0.34],
+    [0.78, 0.94, "255,104,24", "150,34,12", 0.40],
+    [0.50, 0.80, "255,168,52", "214,70,20", 0.42],
+    [0.26, 0.58, "255,238,186", "255,150,60", 0.46]
+  ];
+  for(k = 0; k < couches.length; k++){
+    var L = couches[k];
+    var haut = pied + (L[1] - pied) * (L[1] > pied ? 1 : 0);
+    if(L[1] <= pied) continue;
+    torSilhouette(c, t, p, z, H, pied, L[0], L[1], tps);
+    var g = c.createLinearGradient(0, p.y - pied * H, 0, p.y - L[1] * H);
+    g.addColorStop(0,    "rgba(" + L[2] + "," + L[4] + ")");
+    g.addColorStop(0.55, "rgba(" + L[2] + "," + (L[4] * 0.82) + ")");
+    g.addColorStop(1,    "rgba(" + L[3] + ",0)");
+    c.fillStyle = g;
+    c.globalAlpha = descend ? 0.74 : 1;
+    c.fill();
   }
-  for(i = N; i >= 0; i--){
-    var u2 = pied + (1 - pied) * (i / N);
-    var w2 = torProfil(u2) * RX * z * 0.5;
-    c.lineTo(axeX(u2) + w2, p.y - u2 * H);
-  }
-  c.closePath();
-  /* le remplissage : blanc chaud au pied, rouge sombre vers le nuage.
-     L'opacité NE tombe pas avec la hauteur — un entonnoir transparent
-     en haut n'a plus d'origine. */
-  var gf = c.createLinearGradient(0, p.y, 0, p.y - H);
-  gf.addColorStop(0,    "rgba(255,236,190,.52)");
-  gf.addColorStop(0.12, "rgba(255,168,60,.44)");
-  gf.addColorStop(0.45, "rgba(236,96,26,.34)");
-  gf.addColorStop(1,    "rgba(150,34,12,.30)");
-  c.globalAlpha = descend ? 0.72 : 1;
-  c.fillStyle = gf;
-  c.fill();
+  c.globalAlpha = 1;
 
-  /* --- 4. LES BANDES QUI VISSENT.
-     Chacune traverse la silhouette en biais ; leur phase se décale
-     avec la hauteur, si bien que l'œil suit une spirale qui monte.
-     C'est CE détail qui fait la rotation, et rien d'autre. */
+  /* --- 5. LES ANNEAUX QUI VISSENT.
+     Ils ceinturent la colonne et se décalent avec la hauteur : l'œil
+     suit la spirale et comprend que ça tourne. Ils sont maintenant de
+     la couleur du feu et non crème — des rayures pâles sur un cône
+     se lisaient comme de la peinture. */
   c.save();
-  c.clip();                                    // rien ne sort de la silhouette
-  var NB = 15;
+  torSilhouette(c, t, p, z, H, pied, 1.0, 1.0, tps);
+  c.clip();
+  var NB = 17;
   for(k = 0; k < NB; k++){
-    /* la bande monte avec le temps et repart en bas : c'est
-       l'aspiration */
-    var ub = ((k / NB) + (tps * 0.30) % 1) % 1;
-    if(ub < pied) continue;
-    var yb = p.y - ub * H;
-    var wb = torProfil(ub) * RX * z * 0.5;
-    var xb = axeX(ub);
-    var chaud = 1 - ub;
-    c.globalAlpha = (0.16 + chaud * 0.24) * (descend ? 0.7 : 1);
-    c.strokeStyle = "rgba(255," + Math.round(180 + chaud * 60) + ","
-                  + Math.round(90 + chaud * 120) + ",1)";
-    c.lineWidth = (2.2 + chaud * 3.4) * z;
+    var ub = ((k / NB) + (tps * 0.34) % 1) % 1;
+    if(ub < pied || ub > 0.97) continue;
+    var wb = torProfil(ub, tps, t.tour) * RX * z * 0.5;
+    var xb = p.x + Math.sin(t.tour + ub * 3.4) * torProfil(ub, tps, t.tour) * 0.30 * RX * z;
+    var chaud = Math.max(0, 1 - ub * 1.25);
+    c.globalAlpha = (0.10 + chaud * 0.30) * (descend ? 0.7 : 1);
+    c.strokeStyle = "rgba(255," + Math.round(150 + chaud * 100) + ","
+                  + Math.round(46 + chaud * 150) + ",1)";
+    c.lineWidth = (1.8 + chaud * 3.6) * z;
     c.beginPath();
-    /* une ellipse très aplatie, inclinée : vue de trois quarts, un
-       anneau qui ceinture la colonne est exactement cela */
-    c.ellipse(xb, yb, wb * 1.05, Math.max(1.5, wb * 0.26), 0.22, 0.15, 3.0);
+    c.ellipse(xb, p.y - ub * H, wb * 1.02, Math.max(1.4, wb * 0.24), 0.20, 0.35, 2.85);
     c.stroke();
   }
   c.restore();
   c.globalAlpha = 1;
 
-  /* --- 5. LE CŒUR BLANC au pied : sans lui la colonne est un nuage
-     orange ; avec lui, c'est un feu. */
+  /* --- 6. LE PIED QUI ARRACHE.
+     Il était deux fois plus large et deux fois plus blanc : une boule
+     de lumière au sol qui AVALAIT LE PINCEMENT — c'est-à-dire le seul
+     trait qui distingue une tornade d'une flamme. On le rabaisse au
+     ras de la terre et on le tient étroit : il doit dire le point de
+     morsure, pas éclairer la scène. C'est le halo, en dessous, qui
+     porte la lumière. */
   if(!descend){
-    var gc = c.createLinearGradient(0, p.y, 0, p.y - H * 0.36);
-    gc.addColorStop(0, "rgba(255,250,230,.62)");
-    gc.addColorStop(0.35, "rgba(255,196,96,.30)");
-    gc.addColorStop(1, "rgba(255,120,30,0)");
-    c.fillStyle = gc;
+    var gp = c.createRadialGradient(p.x, p.y - 1 * z, 1, p.x, p.y - 1 * z, 1.5 * RX * z);
+    gp.addColorStop(0, "rgba(255,250,232,.50)");
+    gp.addColorStop(0.4, "rgba(255,198,104,.24)");
+    gp.addColorStop(1, "rgba(255,120,30,0)");
+    c.fillStyle = gp;
     c.beginPath();
-    c.ellipse(p.x, p.y - H * 0.13, 1.15 * RX * z, H * 0.19, 0, 0, 6.2832);
-    c.fill();
+    c.ellipse(p.x, p.y - 1 * z, 1.5 * RX * z, 1.1 * RY * z, 0, 0, 6.2832); c.fill();
   }
 
-  /* --- 6. LES BRAISES ARRACHÉES, en spirale.
-     Elles donnent l'échelle : sans un objet NET qui tourne, une
-     colonne de dégradés n'a pas de taille. */
-  for(k = 0; k < 22; k++){
-    var ue = ((tps * 0.46 + k * 0.0454 + t.tour * 0.04) % 1);
+  /* --- 7. LES BRAISES ARRACHÉES, en spirale. Elles donnent l'échelle :
+     sans un objet NET qui tourne, une colonne de dégradés n'a pas de
+     taille. Certaines sortent du corps — ce sont celles-là qu'on
+     suit. */
+  for(k = 0; k < 26; k++){
+    var ue = ((tps * 0.46 + k * 0.0385 + t.tour * 0.04) % 1);
     if(ue < pied) continue;
     var ae = t.tour * 1.7 + k * 2.1 + ue * 8.5;
-    var re = torProfil(ue) * 0.66;
-    var ex = axeX(ue) + Math.cos(ae) * re * RX * z * 0.5;
+    var re = torProfil(ue, tps, t.tour) * (0.62 + (k % 5) * 0.14);
+    var ex = p.x + Math.sin(t.tour + ue * 3.4) * torProfil(ue, tps, t.tour) * 0.30 * RX * z
+           + Math.cos(ae) * re * RX * z * 0.5;
     var ey = p.y - ue * H + Math.sin(ae) * re * RY * z * 0.45;
     var te = 1 - ue;
-    c.fillStyle = "rgba(255," + Math.round(160 + te * 80) + ","
-                + Math.round(70 + te * 120) + "," + (0.34 + te * 0.5) + ")";
+    c.fillStyle = "rgba(255," + Math.round(170 + te * 70) + ","
+                + Math.round(80 + te * 120) + "," + (0.30 + te * 0.55) + ")";
     c.beginPath();
-    c.arc(ex, ey, (0.55 + te * 1.6) * z, 0, 6.2832);
+    c.arc(ex, ey, (0.5 + te * 1.7) * z, 0, 6.2832);
     c.fill();
   }
 
