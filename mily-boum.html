@@ -1137,7 +1137,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.28";
+var VERSION = "v0.29";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -30494,15 +30494,38 @@ function dessineEffet(c, e, tps){
     var a2 = 1 - t;
     var sup = e.sup ? 1 : 0;
     c.save();
-    /* flash — plus long et plus large quand c'est une super Nova */
-    var dFlash = sup ? 0.24 : 0.16;
-    if(t < dFlash){
-      c.fillStyle = "rgba(255,255,245," + (1 - t / dFlash) * (sup ? 0.96 : 0.9) + ")";
+    /* LE FLASH SE COMPTE EN SECONDES, PAS EN FRACTION DE DURÉE — et
+       c'est un vrai correctif, pas un réglage.
+       Il s'écrivait « t < 0,16 », or t vaut age/duree : sur une Nova
+       qui vit 3,2 s, cela faisait UNE DEMI-SECONDE d'écran blanc. On
+       ne voyait donc ni le champignon, ni les anneaux, ni rien de ce
+       pour quoi l'effet existe — la capture est sans appel, toute
+       l'image reste laiteuse jusqu'à un tiers de seconde. Et le défaut
+       s'aggravait tout seul : allonger la durée de la super Nova
+       ALLONGEAIT son flash.
+       Un éclair de bombe dure un dixième de seconde. On le lit donc
+       sur e.age, qui est en secondes, et il ne dépend plus de rien
+       d'autre. La super flashe un peu moins fort : elle occupe déjà
+       trois fois plus d'écran, elle n'a pas besoin d'effacer le reste
+       par-dessus. */
+    var af = e.age;
+    if(af < 0.13){
+      c.fillStyle = "rgba(255,255,245," + (1 - af / 0.13) * (sup ? 0.60 : 0.80) + ")";
       c.fillRect(-W, -H, W * 3, H * 3);
     }
     c.globalCompositeOperation = "lighter";
-    /* boule de feu */
-    var rb = e.r * RX * z * (0.4 + Math.min(1, t * 3) * 1.5);
+    /* LA BOULE DE FEU NE SUIT PAS LE RAYON DE LA SUPER, et c'est le
+       correctif qui a sauvé cet effet. e.r triple avec la super ; la
+       boule, elle, est un dégradé PLEIN — à 13,8 cases elle faisait
+       cinq cent quatre-vingts pixels de rayon et noyait toute l'image
+       dans du blanc. Ce qui doit grandir sur une super Nova, c'est ce
+       qui est CREUX : les anneaux et le champignon. Ce qui est plein
+       reste mesuré. */
+    var rFeu = sup ? e.r * 0.42 : e.r;
+    /* la boule enfle en un tiers de seconde, en SECONDES elle aussi :
+       sur t, son gonflement s'étalait sur plus d'une seconde et elle
+       restait pleine et pâle tout ce temps */
+    var rb = rFeu * RX * z * (0.4 + Math.min(1, af / 0.33) * 1.5);
     var gb2 = c.createRadialGradient(p.x, p.y - rb * 0.45, rb * 0.08, p.x, p.y - rb * 0.45, rb);
     gb2.addColorStop(0, "rgba(255,255,235," + (0.95 * a2) + ")");
     /* la super Nova a un cœur plus BLEU : c'est ce qui dit, sans un
@@ -30520,9 +30543,11 @@ function dessineEffet(c, e, tps){
        écrasée : c'est un objet vertical dans l'air, pas une marque au
        sol — et c'est ce contraste avec les anneaux du sol qui donne du
        volume à l'ensemble. */
-    var tw = t / 0.42;
+    var tw = af / (sup ? 0.62 : 0.42);
     if(tw < 1){
-      var rw = rb * (1.0 + tw * 1.35);
+      /* l'anneau, LUI, prend toute la mesure de la super : c'est du
+         creux, il peut être immense sans rien effacer */
+      var rw = rb * (1.0 + tw * 1.35) * (sup ? 1.9 : 1);
       var aw = (1 - tw) * (1 - tw) * 0.55;
       c.strokeStyle = "rgba(226,240,255," + aw + ")";
       c.lineWidth = Math.max(1.5, rb * 0.16 * (1 - tw * 0.5));
@@ -30557,24 +30582,31 @@ function dessineEffet(c, e, tps){
     c.save();
     c.globalAlpha = Math.min(1, a2 * 1.4);
     var mt = Math.min(1, t * 1.5);
-    var yc = p.y - (24 + mt * 150) * z;
+    /* LE CHAMPIGNON GRANDIT AVEC LA SUPER — il ne le faisait pas, et
+       c'est ce qui le rendait ridicule sous un anneau trois fois plus
+       large : une petite touffe au milieu d'un cratère immense. Toutes
+       ses cotes sont désormais multipliées, hauteur comprise. */
+    var em = sup ? 1.85 : 1;
+    var yc = p.y - (24 + mt * 150) * em * z;
     for(var s2 = 0; s2 < 7; s2++){
-      bouffee(c, p.x + Math.sin(s2 * 1.7 + t * 3) * 8 * z,
-              p.y - (14 + s2 * 18 * mt) * z, (9 + s2 * 2) * z * (0.5 + mt), 0.45, "#6a5a52");
+      bouffee(c, p.x + Math.sin(s2 * 1.7 + t * 3) * 8 * em * z,
+              p.y - (14 + s2 * 18 * mt) * em * z,
+              (9 + s2 * 2) * em * z * (0.5 + mt), 0.45, "#6a5a52");
     }
     for(var h2 = 0; h2 < 9; h2++){
       var ah = h2 / 9 * 6.2832;
-      bouffee(c, p.x + Math.cos(ah) * (14 + mt * 46) * z, yc + Math.sin(ah) * (7 + mt * 16) * z,
-              (16 + mt * 20) * z, 0.42, h2 % 2 ? "#7a6258" : "#94786a");
+      bouffee(c, p.x + Math.cos(ah) * (14 + mt * 46) * em * z,
+              yc + Math.sin(ah) * (7 + mt * 16) * em * z,
+              (16 + mt * 20) * em * z, 0.42, h2 % 2 ? "#7a6258" : "#94786a");
     }
-    bouffee(c, p.x, yc - 8 * z, (22 + mt * 34) * z, 0.5, "#8a7264");
+    bouffee(c, p.x, yc - 8 * em * z, (22 + mt * 34) * em * z, 0.5, "#8a7264");
     c.restore();
     /* la collerette : un anneau clair au pied du chapeau, qui monte
        avec lui. Additive et discrète — c'est un liant, pas un effet. */
     if(mt > 0.12){
       c.save();
       c.globalCompositeOperation = "lighter";
-      var rcol = (30 + mt * 52) * z;
+      var rcol = (30 + mt * 52) * em * z;
       c.strokeStyle = "rgba(255,232,196," + (0.30 * a2 * mt) + ")";
       c.lineWidth = Math.max(1.2, 5 * z * (1 - mt * 0.4));
       c.beginPath();
