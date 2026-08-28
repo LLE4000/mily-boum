@@ -2918,11 +2918,26 @@ G("4. Déterminisme de la génération de carte");
       ok("les ténèbres gardent les leurs, et elles sont de feu",
          !!PF && PF.style === "feu" && N.carteTornades(N.CARTES.findIndex(
            function(c){ return c.biome === "tenebres"; })));
-      ok("aucune autre île n'en a — ni la jungle, ni la campagne",
+      /* TROIS ÎLES EN ONT, ET TROIS SEULEMENT. La campagne a rejoint
+         les deux autres avec la tornade classique — celle de
+         poussière, la seule des trois qui ressemble à une vraie. La
+         jungle, elle, n'en a pas : elle a déjà l'orage et la foudre,
+         et deux dangers qui tombent du ciel ne se distingueraient
+         plus l'un de l'autre. */
+      ok("trois îles en ont, et pas la jungle",
          !PT && !N.profilTornade(0) && !N.profilTornade(999) &&
-         N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); }).length === 2,
+         N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); }).length === 3,
          N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); })
            .map(function(c){ return c.nom; }).join(", "));
+      ok("… et les trois sortes sont bien distinctes",
+         (function(){
+           var vus = {}, q4;
+           for(q4 = 0; q4 < N.CARTES.length; q4++){
+             var Q = N.profilTornade(q4);
+             if(Q) vus[Q.style] = (vus[Q.style] || 0) + 1;
+           }
+           return vus.feu === 1 && vus.etoiles === 1 && vus.poussiere === 1;
+         })());
       ok("une île de campagne n'a pas de profil du tout, pas un profil vide",
          N.profilTornade(0) === null);
       /* LA TAILLE : une fois et demie, exactement. */

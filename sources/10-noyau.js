@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.51";
+var VERSION = "v0.52";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -143,6 +143,26 @@ var EQ = {
        VITESSE    un peu plus lente. Une masse plus grande ne se
                   déplace pas aussi vif, et cela laisse à l'œil le
                   temps de la suivre. */
+  /* ---- LA TORNADE CLASSIQUE, à la campagne ----
+     Ni feu ni étoiles : de la poussière, de la terre et des débris —
+     celle qu'on voit dans un champ. Deux réglages la distinguent, et
+     les deux viennent de ce qu'elle traverse une île de CAMPAGNE,
+     c'est-à-dire une île où l'on reste longtemps :
+       VIE plus longue — « qu'elle dure un peu plus longtemps » : sa
+         course passe de 19-26 s à 24-32 s ;
+       PERIODE plus longue aussi, et c'est l'équilibre de la première :
+         un phénomène qui dure plus doit revenir moins souvent, sinon
+         l'île finit par en porter deux en permanence et ce n'est plus
+         un événement, c'est un climat.
+     Sa taille est celle d'origine : c'est la tornade de référence, les
+     deux autres sont les variantes. */
+  CLASSIQUE_PERIODE    : 46,    // s entre deux : rare, on reste longtemps ici
+  CLASSIQUE_DESCENTE   : 2.6,   // s d'avertissement — rien n'est mortel
+  CLASSIQUE_VIE        : 16,    // s : la marche au sol de référence
+  CLASSIQUE_VITESSE    : 2.5,   // cases/s
+  CLASSIQUE_RAYON      : 1.25,  // cases : le pied, mortel
+  CLASSIQUE_TRAINEE    : 4.0,   // s : la poussière retombe vite
+  CLASSIQUE_TRAINEE_R  : 1.05,  // cases : demi-largeur de la traînée
   TOURBILLON_ECH       : 1.5,
   TOURBILLON_PERIODE   : 40,    // s entre deux : plus grosse, donc plus rare
   TOURBILLON_DESCENTE  : 3.4,   // s d'avertissement — 2,6 × 1,3
@@ -1027,6 +1047,12 @@ function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"
    traînée. */
 function carteTourbillons(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits"); }
 
+/* Et où passe la tornade CLASSIQUE — celle de poussière et de terre,
+   la seule des trois qui ressemble à une vraie. Elle traverse une île
+   de CAMPAGNE, c'est-à-dire une île qu'on joue longtemps : elle est
+   donc plus longue et plus rare que les deux autres. */
+function carteTornadeTerre(i){ return !!(CARTES[i] && CARTES[i].biome === "campagne"); }
+
 /* ================================================================
    LE PROFIL D'UNE TORNADE
 
@@ -1039,11 +1065,14 @@ function carteTourbillons(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits"
    Tout ce qui distingue les deux tient donc dans cette table. Le
    dessin, lui, est bien différent : `style` dit lequel.
 
-     feu      les ténèbres. Une colonne de flammes, une traînée qui
-              brûle la terre.
-     etoiles  les Mily et une nuits. Une fois et demie plus grande,
-              plus lente, avec une traînée plus large qui n'est pas du
-              feu mais de la poussière d'étoile.
+     feu       les ténèbres. Une colonne de flammes, une traînée qui
+               brûle la terre.
+     etoiles   les Mily et une nuits. Une fois et demie plus grande,
+               plus lente, avec une traînée plus large qui n'est pas du
+               feu mais de la poussière d'étoile.
+     poussiere la campagne. La tornade de référence : de la terre, des
+               débris, un mur de poussière. Plus longue et plus rare —
+               une île de campagne se joue longtemps.
 
    POURQUOI LA GRANDE DESCEND PLUS LENTEMENT. L'avertissement n'est
    pas de la décoration : c'est ce qui sépare un danger d'un piège. Le
@@ -1068,6 +1097,13 @@ function profilTornade(i){
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, haut:330 * EQ.TOURBILLON_ECH, style:"etoiles"
+  };
+  if(carteTornadeTerre(i)) return {
+    periode:EQ.CLASSIQUE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
+    vie:EQ.CLASSIQUE_VIE, vitesse:EQ.CLASSIQUE_VITESSE, rayon:EQ.CLASSIQUE_RAYON,
+    trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
+    trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
+    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"poussiere"
   };
   return null;
 }

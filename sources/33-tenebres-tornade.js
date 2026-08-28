@@ -240,6 +240,8 @@ function dessineBrulureSol(c, b, tps){
      tourbillon d'étoiles n'est pas du feu et se peint ailleurs. */
   if(b.style === "etoiles" && typeof dessineTraceEtoileeSol === "function")
     return dessineTraceEtoileeSol(c, b, tps);
+  if(b.style === "poussiere" && typeof dessineTraceTerreSol === "function")
+    return dessineTraceTerreSol(c, b, tps);
   var PB = profilTornade(jeu.index) || {};
   var duree = PB.trainee || EQ.TORNADE_TRAINEE;
   var largeur = PB.traineeR || EQ.TORNADE_TRAINEE_R;
@@ -397,6 +399,8 @@ function dessineTornadeMonde(c, t, tps){
      traînée, mort — leur est commun. */
   if(t.style === "etoiles" && typeof dessineTourbillonMonde === "function")
     return dessineTourbillonMonde(c, t, tps);
+  if(t.style === "poussiere" && typeof dessineTornadeTerreMonde === "function")
+    return dessineTornadeTerreMonde(c, t, tps);
   var P = profilTornade(jeu.index) || {};
   var p = versEcran(cam, t.gx, t.gy);
   var z = cam.z;
