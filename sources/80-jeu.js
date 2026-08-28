@@ -140,11 +140,16 @@ function nouvelleCarte(index, pvConnu){
        jour dans la boucle : leur mouvement est une fonction du temps
        et de leur décalage sur le battement. */
     danseurs:carteScene(index) ? fabriqueDanseurs() : [],
-    /* Le délai avant la première : il vient du PROFIL de l'île, pas de
-       la tornade de feu. Une île sans tornade s'en moque — le compteur
-       descend dans le vide, personne ne le lit. */
-    prochaineTornade:((profilTornade(index) || {}).periode || EQ.TORNADE_PERIODE)
-                     * (0.55 + 0.5 * Math.random()),
+    /* IL N'Y A PLUS DE COMPTE À REBOURS. Les tornades ne naissent plus
+       quand un compteur local arrive à zéro — ce compteur était privé,
+       donc chaque joueur avait sa propre météo. Elles naissent
+       maintenant dans des CRÉNEAUX du temps partagé, et le moteur
+       demande à l'horloge quels créneaux sont en cours. Voir l'en-tête
+       de 33-tenebres-tornade.js.
+       Le champ reste, à zéro, parce qu'une sauvegarde ou un banc plus
+       ancien peut encore l'écrire : mieux vaut un champ inerte qu'un
+       accès à undefined. */
+    prochaineTornade:0,
     /* QUATRE NUAGES D'ORAGE, et ils vont vite.
        Peu, parce qu'un ciel couvert n'est plus une menace : c'est un
        décor. Des masses qu'on peut suivre du regard, c'est une

@@ -164,6 +164,52 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#7a6a4c";
     c.beginPath(); c.ellipse(p.x, p.y, 2.6 * z, 1.3 * z, 0, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "emportee"){
+    /* ---- UNE TROUPE EMPORTÉE PAR LA TORNADE ----
+       Elle est HAPPÉE VERS L'AXE, pas projetée : le rayon se referme
+       pendant qu'elle monte, et elle tourne de plus en plus vite à
+       mesure qu'elle se rapproche du centre — c'est ce que fait un
+       tourbillon, et c'est ce qui distingue une aspiration d'une
+       éjection. Elle rapetisse en s'élevant et s'efface dans le
+       nuage. Elle ne retombe jamais.
+
+       Trois courbes, et chacune répond à un défaut du premier jet :
+         la MONTÉE en t², parce qu'une ascension linéaire donne un
+           ballon qu'on lâche, pas une troupe aspirée ;
+         le RAYON qui se referme en (1−t)^1,4, plus vite à la fin,
+           sinon elle a l'air de tourner sagement en orbite ;
+         et la ROTATION qui s'accélère quand le rayon tombe — c'est
+           le moment cinétique, et l'œil le connaît sans le nommer. */
+    var tm = t;
+    var mont = tm * tm;
+    var r0 = Math.hypot(e.gx - e.tgx, e.gy - e.tgy);
+    var a0 = Math.atan2(e.gy - e.tgy, e.gx - e.tgx) + e.ph;
+    var rr = Math.max(0.12, r0 * Math.pow(1 - tm, 1.4));
+    var aa = a0 + e.sens * (2.2 + 9.5 * mont);
+    var egx = e.tgx + Math.cos(aa) * rr, egy = e.tgy + Math.sin(aa) * rr;
+    var pe2 = versEcran(cam, egx, egy);
+    var haut = mont * 300 * z;
+    /* elle s'efface sur le dernier quart, jamais avant : disparaître
+       trop tôt donnerait l'impression qu'elle est sortie du cadre */
+    var opa = tm < 0.72 ? 1 : Math.max(0, (1 - tm) / 0.28);
+    c.save();
+    c.globalAlpha = opa;
+    c.translate(pe2.x, pe2.y - haut);
+    c.scale(z * (1 - tm * 0.72), z * (1 - tm * 0.72));
+    /* elle culbute — et pas autour de son nombril : autour d'un point
+       un peu au-dessus, sinon elle pivote comme une aiguille de
+       boussole au lieu de basculer */
+    c.translate(0, -14);
+    c.rotate(e.sens * (0.5 + 7.0 * mont));
+    c.translate(0, 14);
+    dessineUnite(c, e.typ, tm * 20, 0, false);
+    c.restore();
+    /* la poussière qu'elle emmène avec elle : une bouffée qui monte
+       derrière, et qui dit le sens de l'aspiration */
+    if(tm > 0.06){
+      bouffee(c, pe2.x, pe2.y - haut * 0.86, (3 + tm * 9) * z,
+              opa * 0.30 * (1 - tm), "#6b5f4a");
+    }
   }else if(e.t === "interception"){
     /* ---- UNE ROQUETTE ABATTUE EN VOL ----
        Elle éclate EN L'AIR, et c'est tout le sujet : l'effet est

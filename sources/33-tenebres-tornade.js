@@ -44,27 +44,112 @@
 /* Une tornade neuve, tirée sous un nuage. On la lance vers l'intérieur
    de l'île : partie vers le bord, elle sortirait de la carte en trois
    secondes et n'aurait servi à rien. */
-function creeTornade(){
-  var P = profilTornade(jeu.index);
-  var nu = jeu.nuages && jeu.nuages.length
-         ? jeu.nuages[(Math.random() * jeu.nuages.length) | 0] : null;
-  var gx = nu ? nu.gx : Math.random() * GW;
-  var gy = nu ? nu.gy : Math.random() * GH;
-  /* NAISSANCE ET VISÉE VONT JUSQU'AUX BORDS DE LA CARTE. Elles
-     s'arrêtaient à huit et dix cases de la terre utile — une seconde
-     clôture, redondante avec la marge de bord, et qui interdisait
-     elle aussi la plage et le Brasier. */
-  gx = borne(gx, 3, GW - 3);
-  gy = borne(gy, 6, GH - 6);
-  /* Le cap : on vise un point de l'île tiré au sort, plutôt qu'un
-     angle. Un angle tiré au hasard sort de la carte une fois sur
-     deux ; un point visé donne une traversée qui sert. */
-  var vx = 4 + Math.random() * (GW - 8);
-  var vy = 4 + Math.random() * (GH - 8);
+/* ================================================================
+   LA MÊME TORNADE POUR TOUT LE MONDE, SANS UN OCTET DE RÉSEAU
+
+   « Est-ce que chaque joueur voit la même tornade au même endroit au
+   même moment ? » — Non. Chacun tirait les siennes au Math.random(),
+   et le mot « tornade » n'apparaissait nulle part dans le fichier
+   réseau. Toi tu en voyais une à gauche, Lu n'en voyait aucune. De la
+   météo privée sur une carte partagée.
+
+   ────────────────────────────────────────────────────────────────
+   ON NE LES FAIT PAS VOYAGER : ON LES RECALCULE
+
+   Publier chaque tornade aurait coûté un type de message, un
+   ordonnancement, et un état de plus à fusionner. On applique donc la
+   mécanique qui fait DÉJÀ que vous voyez tous la même carte, le même
+   sol et la même mer d'encre : la GÉNÉRATION DÉTERMINISTE.
+
+   Le temps est découpé en CRÉNEAUX d'une période. La tornade du
+   créneau n est entièrement déterminée par la graine
+   (code du salon, île, campagne, n) : son instant de naissance, son
+   point d'apparition, son cap, la longueur de sa course, sa phase de
+   rotation. Deux clients qui calculent le créneau 41 210 obtiennent
+   le même objet, au bit près, sans s'être parlé.
+
+   ────────────────────────────────────────────────────────────────
+   LE PIÈGE, ET IL EST TOUT ENTIER DANS LE dt
+
+   Une naissance identique ne suffit pas. La trajectoire est INTÉGRÉE
+   — elle vire près des bords, et le virage dépend de la position, qui
+   dépend du virage précédent. Intégrée avec le dt de chaque image,
+   elle diverge : à trente images par seconde on n'obtient pas la même
+   courbe qu'à soixante, et au bout de dix secondes les deux tornades
+   sont à plusieurs cases l'une de l'autre.
+
+   Elle avance donc par PAS FIXES de cinquante millisecondes, toujours,
+   quel que soit le rythme de l'appareil. Une image longue en consomme
+   plusieurs, une image courte aucun. C'est la seule façon d'obtenir la
+   même courbe partout — et c'est aussi ce qui rend le REMBOBINAGE
+   possible.
+
+   ────────────────────────────────────────────────────────────────
+   LE REMBOBINAGE, QUI EST LE VRAI CADEAU
+
+   Comme la trajectoire ne dépend que de la graine et du nombre de pas,
+   un joueur qui débarque au milieu d'une tornade peut la rejouer
+   depuis sa naissance en quelques centaines de pas — trois millièmes
+   de seconde de calcul — et la trouver exactement où elle est chez les
+   autres, avec sa traînée déjà semée derrière elle. On n'arrive plus
+   sur une île où la météo commence : on arrive dans une météo qui
+   était déjà là.
+
+   ────────────────────────────────────────────────────────────────
+   LA SEULE RÉSERVE HONNÊTE
+
+   L'horloge. On lit Date.now(), c'est-à-dire l'heure de l'appareil.
+   Deux téléphones bien réglés sont à moins d'une seconde l'un de
+   l'autre, et la descente dure trois secondes et demie : l'écart ne se
+   voit pas. Un appareil dont l'heure serait fausse de plusieurs
+   minutes verrait les bonnes tornades aux mauvais moments. On ne peut
+   rien y faire sans horloge commune, et ce serait un message de plus
+   pour un cas qui n'arrive pas.
+   ================================================================ */
+
+/* Le pas d'intégration, en secondes. Le même sur tous les appareils :
+   c'est lui, et non le dt de l'image, qui fait que deux joueurs voient
+   la même courbe. */
+var TORNADE_PAS_FIXE = 0.05;
+/* Le pas de la traînée, en cases. Assez serré pour que la bande soit
+   continue, assez large pour ne pas fabriquer trois cents points. */
+var TORNADE_PAS = 0.55;
+
+/* L'horloge partagée, en secondes. */
+function horlogeTornade(){ return Date.now() * 0.001; }
+
+/* La graine d'un créneau. Elle mêle le salon, l'île et le numéro de
+   campagne : deux îles n'ont pas la même météo, et une campagne neuve
+   repart sur une autre suite. Le TIRAGE, lui, n'y est pas — il change
+   la disposition des défenses, et la météo n'a rien à voir avec elle. */
+function graineTornade(n){
+  return graineTexte(CODE_SALON + "|tornade|" + ((jeu && jeu.index) | 0) + "|"
+                     + ((typeof cycleSalon === "number" ? cycleSalon : 0) | 0)
+                     + "|" + n) >>> 0;
+}
+
+/* LA TORNADE DU CRÉNEAU n. Tout ce qui la définit sort de sa graine,
+   dans un ordre fixe — la règle de la maison : on tire d'abord, on
+   teste ensuite. Un `borne` appliqué au résultat d'un tirage ne
+   décale pas la suite ; un `if` qui saute un tirage, si. */
+function tornadeDuCreneau(n, P){
+  var al = prng(graineTornade(n));
+  var quand = al();
+  var gx = borne(al() * GW, 3, GW - 3);
+  var gy = borne(al() * GH, 6, GH - 6);
+  var vx = 4 + al() * (GW - 8);
+  var vy = 4 + al() * (GH - 8);
+  var course = al();
+  var tour = al() * 6.2832;
   var dx = vx - gx, dy = vy - gy, d = Math.hypot(dx, dy) || 1;
   return {
+    creneau:n,
+    /* elle ne naît pas au top du créneau : sans ce décalage, les
+       tornades tomberaient à intervalles rigoureusement égaux et l'on
+       entendrait le métronome */
+    naissance:n * P.periode + quand * P.periode * 0.5,
     gx:gx, gy:gy,
-    cx:gx, cy:gy,                 // d'où elle est sortie, dans le nuage
+    cx:gx, cy:gy,                 // d'où elle est sortie, dans le ciel
     dx:dx / d, dy:dy / d,
     age:0,
     /* LA LONGUEUR DE SA COURSE. Chacune tire la sienne entre +50 % et
@@ -72,131 +157,170 @@ function creeTornade(){
        toujours la même distance devient un métronome, et c'est
        justement l'écart entre une petite et une grosse qui fait qu'on
        les regarde. */
-    vie:P.vie * (P.trajetMin + Math.random() * (P.trajetMax - P.trajetMin)),
+    vie:P.vie * (P.trajetMin + course * (P.trajetMax - P.trajetMin)),
     /* SA SORTE, PORTÉE PAR L'OBJET LUI-MÊME et non relue sur l'île à
        chaque image. Le dessin passe par le tri de profondeur, où l'on
-       n'a plus que la tornade en main ; et si un jour deux sortes
-       devaient cohabiter, rien n'aurait à changer. */
+       n'a plus que la tornade en main. */
     style:P.style,
-    tour:Math.random() * 6.2832,  // sa phase de rotation propre
-    posee:0,                      // a-t-elle touché terre ?
-    dernier:0                     // distance depuis le dernier point de traînée
+    tour:tour,
+    posee:0, dernier:0, effroi:0
   };
 }
-
-/* Le pas de la traînée, en cases. Assez serré pour que la bande soit
-   continue, assez large pour ne pas fabriquer trois cents points. */
-var TORNADE_PAS = 0.55;
+/* Gardée pour qui voudrait une tornade tout de suite — un banc, une
+   mise au point. Elle rend celle du créneau courant. */
+function creeTornade(){
+  var P = profilTornade(jeu.index) || profilTornade(2);
+  return tornadeDuCreneau(Math.floor(horlogeTornade() / P.periode), P);
+}
 
 /* ---------------------------------------------------------------
-   LA MISE À JOUR — appelée depuis majJeu, seulement dans les ténèbres
+   UN PAS DE TORNADE — toujours de la même durée
+
+   `T` est l'instant partagé courant : il sert à DATER les points de
+   traînée. Pendant un rembobinage, un point semé il y a douze secondes
+   doit naître avec douze secondes d'âge, sinon la traînée d'une
+   tornade rattrapée resterait allumée douze secondes de trop.
+
+   `vif` vaut 0 pendant le rembobinage : on refait la trajectoire et on
+   sème la traînée, mais on ne TUE personne et l'on ne secoue pas la
+   caméra. Les troupes d'aujourd'hui n'étaient pas là où la tornade est
+   passée il y a dix secondes ; les tuer rétroactivement serait absurde.
+   --------------------------------------------------------------- */
+function pasTornade(t, P, vif, T){
+  var pas = TORNADE_PAS_FIXE;
+  t.age += pas;
+  t.tour += pas * 5.6;
+  if(t.age < P.descente) return;
+  if(!t.posee){
+    t.posee = 1;
+    if(vif) jeu.secousse = Math.min(8, jeu.secousse + 3.0);
+  }
+
+  /* ELLE RESTE DANS LA ZONE DE JEU.
+     Avant, elle sortait de l'île et disparaissait : la moitié des
+     tornades mouraient hors du terrain sans avoir servi à rien. Elle
+     VIRE maintenant quand elle approche d'un bord — pas un rebond, une
+     courbe : on infléchit peu à peu son cap vers l'intérieur, d'autant
+     plus fort qu'elle est près du bord.
+     LA CLÔTURE SE MESURE DEPUIS LES BORDS DE LA CARTE, PAS DEPUIS LA
+     TERRE UTILE. Elle était accrochée à LARGEUR_ROCHE à l'ouest et à
+     PLAGE_X0 à l'est, ce qui lui interdisait exactement les deux bandes
+     où l'on joue : la PLAGE, où l'on débarque, et l'approche du
+     BRASIER. Voir TORNADE_MARGE_BORD dans 10-noyau.js. */
+  var m = P.marge;
+  var rx = 0, ry = 0;
+  if(t.gx < m)      rx =  (m - t.gx) / m;
+  if(t.gx > GW - m) rx = -(t.gx - (GW - m)) / m;
+  if(t.gy < m)      ry =  (m - t.gy) / m;
+  if(t.gy > GH - m) ry = -(t.gy - (GH - m)) / m;
+  if(rx || ry){
+    /* on ajoute la poussée vers l'intérieur au cap, puis on
+       renormalise : la vitesse ne change pas, seule la direction */
+    var vir = 2.6 * pas;
+    t.dx += rx * vir; t.dy += ry * vir;
+    var nn = Math.hypot(t.dx, t.dy) || 1;
+    t.dx /= nn; t.dy /= nn;
+  }
+
+  /* elle avance */
+  var av = P.vitesse * pas;
+  t.gx += t.dx * av;
+  t.gy += t.dy * av;
+  /* et par sécurité, elle ne franchit jamais la bordure : un cap tiré
+     exactement le long d'un bord pourrait glisser dehors sans que le
+     virage ait prise dessus */
+  t.gx = borne(t.gx, 2, GW - 2);
+  t.gy = borne(t.gy, 2, GH - 2);
+
+  /* elle sème sa traînée */
+  t.dernier += av;
+  while(t.dernier >= TORNADE_PAS){
+    t.dernier -= TORNADE_PAS;
+    /* l'âge du point : depuis combien de temps il aurait dû brûler.
+       Zéro en vitesse de croisière, réel pendant un rembobinage. */
+    var vieux = T - (t.naissance + t.age);
+    if(vieux >= P.trainee) continue;      // il serait déjà éteint
+    jeu.brulures.push({
+      gx:t.gx, gy:t.gy, age:Math.max(0, vieux), style:P.style,
+      /* la phase des flammes vient de la POSITION et non du hasard :
+         deux joueurs voient le même feu danser de la même façon */
+      ph:((t.gx * 7919 + t.gy * 104729) % 6.2832)
+    });
+  }
+
+  if(!vif) return;
+  /* CE QUE SON PIED TOUCHE MEURT — et se fait EMPORTER. Comme la
+     foudre : on ne blesse pas. Une tornade qui laisserait des
+     survivants à demi cuits ne se lirait pas. */
+  tueDansLeFeu(t.gx, t.gy, P.rayon, t);
+  /* les bêtes ne meurent pas dedans, mais elles la fuient : sans cela,
+     un sanglier resterait planté au milieu des flammes */
+  t.effroi -= pas;
+  if(t.effroi <= 0){
+    t.effroi = 0.5;
+    if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 12, jeu.tps);
+  }
+}
+
+/* ---------------------------------------------------------------
+   LA MISE À JOUR — appelée depuis majJeu, sur les trois îles qui ont
+   des tornades
    --------------------------------------------------------------- */
 var tornadeAutour = [];
 function majTornades(dt){
-  var i, k;
-  /* LE PROFIL DE CETTE ÎLE, lu une fois par image. Tout ce qui suit
-     était écrit en EQ.TORNADE_* — c'est-à-dire en dur pour les
-     ténèbres. Le moteur ne connaît plus la sorte : il applique des
-     nombres, et c'est le noyau qui dit lesquels. */
+  var i, k, n;
+  /* LE PROFIL DE CETTE ÎLE, lu une fois par image. Le moteur ne
+     connaît pas la sorte : il applique des nombres, et c'est le noyau
+     qui dit lesquels. */
   var P = profilTornade(jeu.index);
   if(!P) return;
+  var T = horlogeTornade();
 
-  /* --- l'apparition --- */
-  jeu.prochaineTornade -= dt;
-  if(jeu.prochaineTornade <= 0){
-    jeu.prochaineTornade = P.periode * (0.72 + Math.random() * 0.56);
-    /* Jamais plus de deux à la fois. Trois entonnoirs sur l'écran,
-       ce n'est plus une menace, c'est une météo dont on ne peut rien
+  /* --- QUELLES TORNADES DEVRAIENT ÊTRE VIVANTES À CET INSTANT ?
+     On ne les crée plus quand un compte à rebours arrive à zéro — ce
+     compte à rebours était local, donc privé. On DEMANDE au temps
+     partagé quels créneaux sont en cours, et l'on rembobine ceux qu'on
+     découvre en retard. */
+  var courant = Math.floor(T / P.periode);
+  for(n = courant - 2; n <= courant; n++){
+    if(n < 0) continue;
+    var deja = 0;
+    for(i = 0; i < jeu.tornades.length; i++)
+      if(jeu.tornades[i].creneau === n){ deja = 1; break; }
+    if(deja) continue;
+    /* Jamais plus de deux à la fois. Trois entonnoirs sur l'écran, ce
+       n'est plus une menace, c'est une météo dont on ne peut rien
        faire. */
-    if(jeu.tornades.length < 2){
-      jeu.tornades.push(creeTornade());
+    if(jeu.tornades.length >= 2) continue;
+    var t = tornadeDuCreneau(n, P);
+    var age = T - t.naissance;
+    if(age < 0) continue;                          // elle n'est pas encore née
+    if(age >= P.descente + t.vie) continue;        // elle est déjà finie
+    /* LE REMBOBINAGE. On rejoue sa trajectoire depuis sa naissance,
+       par pas fixes, sans tuer personne. Le plafond n'est pas de la
+       prudence contre un bogue : c'est le garde-fou contre une horloge
+       d'appareil qui aurait sauté d'une heure. */
+    var pasARattraper = Math.floor(age / TORNADE_PAS_FIXE);
+    for(k = 0; k < pasARattraper && k < 2000; k++) pasTornade(t, P, 0, T);
+    jeu.tornades.push(t);
+    /* le son et l'effroi des bêtes n'ont de sens que pour une tornade
+       qui vient VRAIMENT de naître, pas pour une qu'on rattrape */
+    if(age < 1.5){
       if(son.tornade) son.tornade();
-      if(typeof effraieFaune === "function")
-        effraieFaune(jeu.tornades[jeu.tornades.length - 1].gx,
-                     jeu.tornades[jeu.tornades.length - 1].gy, 30, jeu.tps);
+      if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 30, jeu.tps);
     }
   }
 
-  /* --- les tornades vivantes --- */
+  /* --- les tornades vivantes avancent jusqu'à l'instant partagé --- */
   for(i = jeu.tornades.length - 1; i >= 0; i--){
-    var t = jeu.tornades[i];
-    t.age += dt;
-    t.tour += dt * 5.6;
-
-    if(t.age < P.descente){
-      /* elle descend encore : elle ne bouge pas et ne tue rien */
-      continue;
-    }
-    if(!t.posee){
-      t.posee = 1;
-      jeu.secousse = Math.min(8, jeu.secousse + 3.0);
-    }
-
-    /* ELLE RESTE DANS LA ZONE DE JEU.
-       Avant, elle sortait de l'île et disparaissait : la moitié des
-       tornades mouraient hors du terrain sans avoir servi à rien, et
-       plus on rallongeait leur course, plus elles s'échappaient tôt.
-       Elle VIRE maintenant quand elle approche d'un bord — pas un
-       rebond, une courbe : on infléchit peu à peu son cap vers
-       l'intérieur, d'autant plus fort qu'elle est près du bord. Une
-       tornade qui rebondit à angle droit se lirait comme une bille ;
-       celle-ci décrit de grandes boucles molles, ce qui est
-       exactement ce que fait une vraie. */
-    /* LA CLÔTURE SE MESURE DEPUIS LES BORDS DE LA CARTE, PAS DEPUIS
-       LA TERRE UTILE. Elle était accrochée à LARGEUR_ROCHE à l'ouest
-       et à PLAGE_X0 à l'est, ce qui interdisait à la tornade
-       exactement les deux bandes où l'on joue : la PLAGE, où l'on
-       débarque, et l'approche du BRASIER. Elle tournait en rond au
-       milieu — c'est-à-dire là où personne n'est. Voir le long
-       commentaire de TORNADE_MARGE_BORD dans 10-noyau.js. */
-    var m = P.marge;
-    var rx = 0, ry = 0;
-    if(t.gx < m)                  rx =  (m - t.gx) / m;
-    if(t.gx > GW - m)             rx = -(t.gx - (GW - m)) / m;
-    if(t.gy < m)                  ry =  (m - t.gy) / m;
-    if(t.gy > GH - m)             ry = -(t.gy - (GH - m)) / m;
-    if(rx || ry){
-      /* on ajoute la poussée vers l'intérieur au cap, puis on
-         renormalise : la vitesse ne change pas, seule la direction */
-      var vir = 2.6 * dt;
-      t.dx += rx * vir; t.dy += ry * vir;
-      var n = Math.hypot(t.dx, t.dy) || 1;
-      t.dx /= n; t.dy /= n;
-    }
-
-    /* elle avance */
-    var av = P.vitesse * dt;
-    t.gx += t.dx * av;
-    t.gy += t.dy * av;
-    /* et par sécurité, elle ne franchit jamais la bordure : un cap
-       tiré exactement le long d'un bord pourrait glisser dehors sans
-       que le virage ait prise dessus */
-    t.gx = borne(t.gx, 2, GW - 2);
-    t.gy = borne(t.gy, 2, GH - 2);
-
-    /* elle sème sa traînée */
-    t.dernier += av;
-    while(t.dernier >= TORNADE_PAS){
-      t.dernier -= TORNADE_PAS;
-      jeu.brulures.push({ gx:t.gx, gy:t.gy, age:0, style:P.style,
-                          ph:Math.random() * 6.2832 });
-    }
-
-    /* CE QUE SON PIED TOUCHE MEURT. Comme la foudre : on ne blesse
-       pas, on tue. Une tornade de feu qui laisserait des survivants
-       à demi cuits ne se lirait pas. */
-    tueDansLeFeu(t.gx, t.gy, P.rayon);
-    /* les bêtes ne meurent pas dedans, mais elles la fuient : sans
-       cela, un sanglier resterait planté au milieu des flammes */
-    t.effroi = (t.effroi || 0) - dt;
-    if(t.effroi <= 0){
-      t.effroi = 0.5;
-      if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 12, jeu.tps);
-    }
-
-    /* elle ne s'éteint plus QUE par le temps : elle ne peut plus
-       sortir de l'île, elle y tourne jusqu'au bout de sa course */
-    if(t.age > P.descente + t.vie) jeu.tornades.splice(i, 1);
+    var t2 = jeu.tornades[i];
+    var cible = T - t2.naissance;
+    var garde = 0;
+    while(t2.age + TORNADE_PAS_FIXE <= cible && garde++ < 400)
+      pasTornade(t2, P, 1, T);
+    /* elle ne s'éteint QUE par le temps : elle ne peut plus sortir de
+       l'île, elle y tourne jusqu'au bout de sa course */
+    if(t2.age > P.descente + t2.vie) jeu.tornades.splice(i, 1);
   }
 
   /* --- la terre qui brûle derrière --- */
@@ -209,7 +333,7 @@ function majTornades(dt){
        laisser sa flotte. Sans cela, une île traversée deux fois
        devenait un labyrinthe de couloirs interdits. */
     if(b.age < P.trainee * 0.66)
-      tueDansLeFeu(b.gx, b.gy, P.traineeR);
+      tueDansLeFeu(b.gx, b.gy, P.traineeR, null);
   }
 }
 
@@ -228,12 +352,48 @@ function majTornades(dt){
    disparaître un animal que quelqu'un cherchait.
    Elles fuient quand même — effraieFaune() les disperse à
    l'apparition : elles ont peur du feu sans mourir dedans. */
-function tueDansLeFeu(gx, gy, r){
+/* ════════════════════════════════════════════════════════════════
+   ET ELLE LES EMPORTE
+
+   « Si une tornade passe, ce serait peut-être bien qu'une troupe se
+   fasse emporter par la tornade. Il ne faut pas d'effet où elles se
+   font éjecter, et que ce soit moche. »
+
+   Le point d'attention est là, et il est juste : la solution facile
+   serait de projeter le corps en l'air et de le faire retomber. Ça se
+   lit comme un pantin qu'on jette, et un pantin qu'on jette est moche.
+
+   Une tornade n'éjecte pas, elle ASPIRE. La troupe est donc happée
+   vers l'axe de l'entonnoir, tourne autour en montant de plus en plus
+   vite, rapetisse à mesure qu'elle s'élève — et disparaît dans le
+   nuage. Elle ne retombe jamais. Rien ne heurte le sol, rien ne
+   rebondit : elle est prise, et elle n'est plus là.
+
+   L'EFFET N'EST QUE DU DÉCOR. La troupe est déjà morte quand il
+   commence — retirée des unités, comptée dans les pertes, sa dernière
+   position notée. Si le joueur quitte l'île pendant qu'elle tourne,
+   rien n'est en suspens.
+
+   Le troisième paramètre est l'ENTONNOIR, ou null. La traînée au sol
+   tue aussi, mais elle ne peut rien emporter : c'est de la terre en
+   feu, il n'y a pas de colonne d'air au-dessus. On meurt dedans, on
+   n'y est pas aspiré.
+   ════════════════════════════════════════════════════════════════ */
+function tueDansLeFeu(gx, gy, r, entonnoir){
   unitesAutour(gx, gy, r, tornadeAutour);
   for(var i = 0; i < tornadeAutour.length; i++){
     var u = tornadeAutour[i];
     if(u.pv <= 0 || u.leurre) continue;
     if(Math.hypot(u.gx - gx, u.gy - gy) > r) continue;
+    if(entonnoir){
+      jeu.effets.push({
+        t:"emportee", gx:u.gx, gy:u.gy, age:0, duree:2.0,
+        typ:u.t, tgx:entonnoir.gx, tgy:entonnoir.gy,
+        /* son pas de danse : deux troupes prises ensemble ne doivent
+           pas tourner comme des jumelles */
+        ph:(u.n * 1.7) % 6.2832, sens:(u.n & 1) ? 1 : -1
+      });
+    }
     toucheUnite(u, u.pv + 1);
   }
 }

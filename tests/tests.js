@@ -3351,6 +3351,161 @@ G("4. Déterminisme de la génération de carte");
     })();
 
     /* ================================================================
+       LA MÊME TORNADE POUR TOUT LE MONDE
+
+       « Est-ce que chaque joueur voit la même tornade au même endroit
+       au même moment ? » — maintenant oui, et sans un octet de réseau :
+       elle est RECALCULÉE à partir d'une graine commune et de
+       l'horloge découpée en créneaux.
+
+       Ce groupe garde les trois choses qui font tenir ce montage, et
+       chacune casse le partage à elle seule si elle saute.
+       ================================================================ */
+    (function(){
+      var d = html.indexOf("function tornadeDuCreneau(");
+      var f = d < 0 ? -1 : html.indexOf("\n}", d);
+      ok("la fabrique de tornade se relit dans le fichier livré", d > 0 && f > d);
+      if(d < 0 || f < 0) return;
+      var src = html.slice(html.indexOf("function graineTornade("), f + 2);
+      function moteur(code, index, cycle){
+        return new Function("graineTexte", "prng", "borne", "GW", "GH",
+          "var CODE_SALON = '" + code + "';\n" +
+          "var cycleSalon = " + cycle + ";\n" +
+          "var jeu = { index:" + index + " };\n" +
+          src + "; return tornadeDuCreneau;")
+          (N.graineTexte, N.prng, N.borne, N.GW, N.GH);
+      }
+      var P = N.profilTornade(2);
+      var A = moteur("MILY", 2, 0), B = moteur("MILY", 2, 0);
+      /* LA PROPRIÉTÉ QUI PORTE TOUT : deux clients qui ne se sont
+         jamais parlé calculent le même objet, au bit près. */
+      var pareil = true, det = "";
+      for(var n = 1000; n < 1040; n++){
+        var a = JSON.stringify(A(n, P)), b = JSON.stringify(B(n, P));
+        if(a !== b){ pareil = false; det += n + " "; }
+      }
+      ok("deux clients calculent EXACTEMENT la même tornade, sans se parler",
+         pareil, det || "quarante créneaux identiques");
+      /* … et deux créneaux voisins ne se ressemblent pas : une graine
+         qui ne mélangerait pas assez donnerait quarante fois la même
+         tornade, et le test ci-dessus passerait quand même. */
+      (function(){
+        var vus = {}, n2, distinctes = 0;
+        for(n2 = 1000; n2 < 1040; n2++){
+          var t = A(n2, P);
+          var cle = t.gx.toFixed(2) + "," + t.gy.toFixed(2);
+          if(!vus[cle]){ vus[cle] = 1; distinctes++; }
+        }
+        ok("… et quarante créneaux donnent quarante tornades différentes",
+           distinctes === 40, distinctes + "/40");
+      })();
+      /* CHAQUE ÎLE A SA MÉTÉO, et une campagne neuve en a une autre.
+         Sans l'île dans la graine, les trois cartes à tornades
+         verraient la même ; sans le cycle, une campagne recommencée
+         rejouerait la météo de la précédente à la seconde près. */
+      ok("chaque île a sa propre suite de tornades",
+         JSON.stringify(moteur("MILY", 2, 0)(1000, P)) !==
+         JSON.stringify(moteur("MILY", 7, 0)(1000, P)));
+      ok("… et une campagne neuve en repart sur une autre",
+         JSON.stringify(moteur("MILY", 2, 0)(1000, P)) !==
+         JSON.stringify(moteur("MILY", 2, 1)(1000, P)));
+      ok("… et deux salons différents aussi",
+         JSON.stringify(moteur("MILY", 2, 0)(1000, P)) !==
+         JSON.stringify(moteur("AUTRE", 2, 0)(1000, P)));
+      /* ELLE NAÎT DANS SON CRÉNEAU, jamais en dehors : sinon deux
+         tornades voisines se chevaucheraient et le compte des vivantes
+         ne voudrait plus rien dire. */
+      (function(){
+        var dedans = true, n3;
+        for(n3 = 1000; n3 < 1060; n3++){
+          var t = A(n3, P);
+          if(t.naissance < n3 * P.periode ||
+             t.naissance >= (n3 + 1) * P.periode) dedans = false;
+        }
+        ok("chaque tornade naît bien dans son propre créneau", dedans);
+      })();
+      /* LE PAS FIXE. C'est le point le plus facile à casser sans s'en
+         apercevoir : une trajectoire intégrée avec le dt de l'image
+         diverge entre deux appareils qui ne tournent pas au même
+         rythme, et les tornades s'écartent de plusieurs cases en dix
+         secondes. Le moteur ne doit avancer QUE par pas fixes. */
+      ok("la trajectoire s'intègre à PAS FIXE, jamais avec le dt de l'image",
+         /var TORNADE_PAS_FIXE = [\d.]+;/.test(html) &&
+         /function pasTornade\(t, P, vif, T\)\{[\s\S]{0,200}var pas = TORNADE_PAS_FIXE;/.test(html));
+      ok("… et pasTornade ne reçoit jamais le dt",
+         !/pasTornade\([^)]*\bdt\b/.test(html));
+      /* LE REMBOBINAGE : un joueur qui arrive en retard rejoue la
+         tornade depuis sa naissance, sans tuer personne au passage. */
+      ok("un joueur qui arrive en cours rembobine la tornade",
+         /pasARattraper[\s\S]{0,120}pasTornade\(t, P, 0, T\)/.test(html));
+      ok("… et le rembobinage ne tue personne : le drapeau vif est à zéro",
+         /if\(!vif\) return;[\s\S]{0,200}tueDansLeFeu/.test(html));
+      /* L'HORLOGE EST PARTAGÉE, et c'est la seule entrée extérieure. */
+      ok("l'horloge est celle de l'appareil, donc commune",
+         /function horlogeTornade\(\)\{ return Date\.now\(\) \* 0\.001; \}/.test(html));
+      /* ET PLUS AUCUN HASARD dans la fabrique : un seul Math.random y
+         suffirait à désaccorder tout le salon. */
+      ok("aucun Math.random ne subsiste dans la fabrique de tornade",
+         !/Math\.random/.test(src));
+    })();
+
+    /* ================================================================
+       ET ELLE LES EMPORTE
+
+       « Il ne faut pas d'effet où elles se font éjecter, et que ce soit
+       moche. » L'effet doit donc ASPIRER : happée vers l'axe, montée,
+       disparition. Rien ne retombe.
+       ================================================================ */
+    (function(){
+      ok("le pied de l'entonnoir emporte ce qu'il touche",
+         /t:"emportee"/.test(html) &&
+         /tueDansLeFeu\(t\.gx, t\.gy, P\.rayon, t\)/.test(html));
+      /* LA TRAÎNÉE AU SOL, ELLE, N'EMPORTE RIEN. C'est de la terre en
+         feu : il n'y a pas de colonne d'air au-dessus. On meurt dedans,
+         on n'y est pas aspiré — et le quatrième argument le dit. */
+      ok("… mais la traînée au sol, non : elle tue sans emporter",
+         /tueDansLeFeu\(b\.gx, b\.gy, P\.traineeR, null\)/.test(html));
+      ok("la troupe est bien HAPPÉE VERS L'AXE et non projetée",
+         /r0 \* Math\.pow\(1 - tm, 1\.4\)/.test(html));
+      /* ELLE MONTE, ELLE RAPETISSE, ET ELLE NE RETOMBE JAMAIS.
+         La première écriture de cette vérification cherchait l'ABSENCE
+         des mots « retombe » et « chute » dans le voisinage — et elle
+         échouait, parce que `!/a|b/` ne dit pas ce qu'on croit : le
+         « ou » englobe toute l'alternative, si bien que le test lisait
+         « ni (emportee… retombe) ni (chute n'importe où dans le
+         fichier) ». Le mot « chute » vit ailleurs, dans le commentaire
+         des secousses.
+         Chercher l'absence d'un mot était de toute façon une mauvaise
+         idée : on ne garde pas une propriété en interdisant un
+         vocabulaire. On rejoue donc la HAUTEUR sur toute la durée de
+         l'effet et l'on vérifie qu'elle ne redescend pas une seule
+         fois — c'est cela, « elle ne retombe jamais ». */
+      (function(){
+        var dh = html.indexOf('}else if(e.t === "emportee"){');
+        var fh = dh < 0 ? -1 : html.indexOf("var mont = tm * tm;", dh);
+        ok("le bloc de l'aspiration se relit dans le fichier livré", dh > 0 && fh > dh);
+        if(dh < 0 || fh < 0) return;
+        var monte = true, avant = -1, k, tm, mont, haut;
+        for(k = 0; k <= 100; k++){
+          tm = k / 100;
+          mont = tm * tm;                    // la courbe de montée, recopiée
+          haut = mont * 300;
+          if(haut < avant - 1e-9) monte = false;
+          avant = haut;
+        }
+        ok("elle monte sans jamais redescendre, du premier au dernier instant",
+           monte && /var haut = mont \* 300 \* z;/.test(html),
+           "de 0 à " + (300).toFixed(0) + " px, en t²");
+        ok("… et elle rapetisse en montant",
+           /1 - tm \* 0\.72/.test(html));
+        ok("… puis s'efface sur le dernier quart, jamais avant",
+           /tm < 0\.72 \? 1 : Math\.max\(0, \(1 - tm\) \/ 0\.28\)/.test(html));
+      })();
+      ok("l'effet n'est que du décor : la troupe est morte avant lui",
+         /t:"emportee"[\s\S]{0,400}toucheUnite\(u, u\.pv \+ 1\)/.test(html));
+    })();
+
+    /* ================================================================
        L'AIR MAGIQUE
 
        « Des étoiles qui flottent dans l'air, des bulles magiques, de
