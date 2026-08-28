@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.80";
+var VERSION = "v0.81";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1736,13 +1736,37 @@ function videIbiza(gx, gy){
    réserve, il reste à deux cases et demie du bord, et le couloir garde
    des arêtes franches. */
 var IBIZA_RESERVE = 0.5;
-function videIbizaLarge(gx, gy){
+/* ════════════════════════════════════════════════════════════════
+   ON ÉCARTE L'EMPRISE, PAS LE CENTRE — et c'est le défaut qui a coûté
+   le plus cher de toute cette carte.
+
+   Ces tests recevaient la POSITION d'une pièce et disaient si elle
+   tombait dans un couloir. Ils laissaient donc poser un Frelon dont le
+   centre est à un cheveu du bord — et un Frelon tient trois cases : il
+   débordait d'une case et demie DANS le couloir. Avec des tourelles
+   posées à huit centièmes d'écart, les deux bords d'un couloir de
+   quatre cases se rejoignaient au milieu, et le couloir n'existait
+   plus sur la grille de collision.
+
+   Ce qui suivait était mécanique et brutal : `ouvreLaFete` trouvait
+   l'île coupée en morceaux et arrachait SIX CENT QUINZE bâtiments pour
+   la rouvrir — presque la moitié du remplissage, au hasard de
+   l'inondation. On bâtissait pour démolir, et l'on croyait que l'île
+   ne pouvait pas être plus pleine.
+
+   Chaque test prend donc une MARGE, qui est le demi-encombrement de la
+   pièce qu'on veut poser. Un Frelon s'arrête à une case et demie du
+   bord, une Bobine à une case : le couloir garde alors sa largeur
+   entière sur la grille, et l'inondation n'a plus rien à rouvrir.
+   ════════════════════════════════════════════════════════════════ */
+function videIbizaLarge(gx, gy, marge){
+  var m = marge || 0;
   if(dansLaScene(gx, gy)) return true;
   var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
   var r = Math.sqrt(dx * dx + dy * dy);
   if(r > FAISC_R1) return false;
-  if(r >= FAISC_R0 && ecartAuRayon(dx, dy, r, 0) <= largeurFaisceau(r) + IBIZA_RESERVE) return true;
-  return r >= FAISC2_R0 && ecartAuRayon(dx, dy, r, 1) <= largeurFaisceau2(r);
+  if(r >= FAISC_R0 && ecartAuRayon(dx, dy, r, 0) <= largeurFaisceau(r) + IBIZA_RESERVE + m) return true;
+  return r >= FAISC2_R0 && ecartAuRayon(dx, dy, r, 1) <= largeurFaisceau2(r) + m;
 }
 /* Le rythme des impacts, par île. */
 function periodeEclair(i){
@@ -3670,125 +3694,96 @@ function neonsIbiza(c, al){
 }
 
 /* ================================================================
-   3. LA FOULE — DES BANDES CONCENTRIQUES, ET ON BALAIE
+   3. LA FOULE — ON REMPLIT TOUT, ET C'EST TOUT
 
-   « Remplis entièrement les secteurs, il doit y avoir vraiment
-   beaucoup de défenses sur cette carte finale. Elle doit être dure. »
-
-   ────────────────────────────────────────────────────────────────
-   POURQUOI L'ÎLE N'ÉTAIT PLEINE QU'AUX DEUX TIERS
-
-   La version précédente posait huit cent trois défenses et paraissait
-   déjà chargée. Elle n'occupait pourtant que SOIXANTE-CINQ POUR CENT
-   de la surface des quartiers — le sable se voyait entre les
-   tourelles, et c'est exactement ce que le joueur a entouré en rouge.
-
-   La cause tient en une phrase, et c'est la même qui revient sur toute
-   cette île : UN FRELON ET UNE PETITE PIÈCE N'OCCUPENT PAS LA MÊME
-   PLACE. Il faut 3,08 case entre deux Frelons, 2,08 entre deux petites
-   pièces, 2,58 entre l'un et l'autre. Saturer d'abord en Frelons au
-   plus serré donne le plus grand nombre de Frelons — et referme du
-   même coup toute l'île : le creux d'un triangle de Frelons au pas de
-   3,08 est à 1,78 case de chacun, quand une Bobine en réclame 2,58.
-   Or la part demandée veut UNE FOIS ET DEMIE ce nombre en petites
-   pièces. On avait donc un champ de Frelons parfait, et nulle part où
-   mettre les mille pièces qui devaient l'accompagner.
+   « Entre deux lignes d'électro-bombes, j'aimerais que ce soit
+   entièrement rempli de défenses. Je m'en fous qu'il y en ait
+   beaucoup, il pourrait même y en avoir cinquante fois plus. Toute
+   cette zone de secteur doit être une zone de défense uniquement. »
 
    ────────────────────────────────────────────────────────────────
-   LA SOLUTION : DES BANDES, ET NON UN MÉLANGE
+   CE QUI LAISSAIT DES TROUS, ET C'ÉTAIT UN PLAFOND QU'ON S'ÉTAIT
+   POSÉ SOI-MÊME
 
-   Quand deux espèces ne s'entendent pas, on ne les mélange pas — on
-   leur donne chacune son quartier. Le terrain est découpé en BANDES
-   CONCENTRIQUES autour de la scène : une bande de Frelons, une bande
-   de petites pièces, et ainsi de suite jusqu'au rivage. Chaque espèce
-   se tasse alors à SA propre densité au lieu de payer partout la
-   distance de l'autre.
+   Les versions précédentes posaient les Frelons à saturation, PUIS
+   complétaient avec de petites pièces — mais en s'arrêtant net au
+   compte des quarante pour cent : `place = f / 0,40 − d`. Ce plafond
+   était calculé sur le nombre de Frelons qu'on avait pu poser, et il
+   tombait TOUJOURS avant que l'île soit pleine. Mesuré : trois cent
+   quatre-vingt-dix petites pièces autorisées, huit cents places
+   encore libres sur le terrain. On s'interdisait quatre cents défenses
+   pour tenir une proportion.
 
-   Et l'interface ne coûte rien, ce qui n'allait pas de soi : entre la
-   dernière rangée de Frelons et la première rangée de Bobines il faut
-   2,58 case, soit très exactement la moyenne de ce que chaque espèce
-   exige chez elle. Une frontière entre deux bandes est donc gratuite.
-   C'est ce qui rend la disposition optimale et non pas seulement
-   commode.
-
-     dans une bande de Frelons        1 / (3,08² × 0,866) = 0,122 / case²
-     dans une bande de petites pièces 1 / (2,08² × 0,866) = 0,267 / case²
-
-   Avec 10,8 case de Frelons pour 6,6 de petites pièces — 53 % contre
-   32 % de la surface, le reste étant les ruelles — la part de Frelons
-   tombe d'elle-même autour de quarante pour cent. La composition
-   demandée SORT de la découpe ; on ne la corrige plus, on la constate.
+   Le raisonnement était à l'envers. La proportion ne dit pas COMBIEN
+   de défenses l'île porte — elle dit seulement dans quel RAPPORT les
+   deux genres se répartissent. On remplit donc jusqu'au refus, et la
+   proportion se règle par le CHOIX DU GENRE à chaque place, pas par un
+   arrêt anticipé.
 
    ────────────────────────────────────────────────────────────────
-   ET ON BALAIE, ON NE POSE PLUS SUR UN RÉSEAU
+   COMMENT ON REMPLIT
 
-   C'est l'autre moitié du gain, et elle a été mesurée : un réseau
-   d'anneaux perd la moitié de ses places autour du moindre obstacle —
-   les néons, les cellules, les miradors condamnaient neuf cents nœuds.
-   Un réseau ne sait pas contourner ; un balayage, si. On passe donc le
-   peigne du gros au fin sur toute la bande, et l'encombrement décide
-   seul de l'écart. Là où un obstacle gêne, la pièce se pose à côté au
-   lieu de disparaître.
+   Deux passes, et rien de plus :
 
-   Le prix de tout cela est connu et assumé : la carte finale portera
-   plus de mille défenses, dont quatre cents Frelons à trente et une
-   cases de portée. C'est ce qui a été demandé — « elle doit être
-   dure ».
+     LES FRELONS D'ABORD, sur un réseau hexagonal au pas
+     `IBIZA_PAS_F`. Ce pas est le seul réglage de la composition : plus
+     il est serré, plus la part de Frelons est haute. Il vaut 3,2 case —
+     à peine plus que les 3,08 qui les empêchent de se chevaucher — et
+     la part tombe alors d'elle-même sur les quarante pour cent
+     demandés. Mesuré, du plus lâche au plus serré : 4,2 donne 672
+     défenses, 3,8 en donne 744, 3,4 en donne 965, et 3,2 en donne mille
+     dix-sept. On serre donc au maximum, et l'on remplit le reste.
+
+     TOUT LE RESTE ENSUITE, en petites pièces, SANS AUCUN PLAFOND :
+     Bobine, Crible, Chalumeau à tour de rôle, du peigne le plus gros
+     au plus fin, jusqu'à ce que plus rien ne rentre nulle part. C'est
+     cette passe qui pose la moitié de l'île.
+
+   LE GROS D'ABORD, TOUJOURS. Un Frelon tient trois cases et réclame
+   2,58 d'écart avec une petite pièce : posé après elles, il ne trouve
+   plus une seule place sur l'île. C'est la règle qui revient à chaque
+   version de cette carte, et elle ne souffre pas d'exception.
+
+   ────────────────────────────────────────────────────────────────
+   ET LES RUELLES RESTENT, PARCE QU'ELLES NE COÛTENT RIEN
+
+   Une seule chose n'est pas remplie à l'intérieur d'un secteur : de
+   fines ruelles concentriques, tous les onze rayons. Elles ne sont pas
+   là pour le dessin — elles sont là parce qu'une zone pleine à ras
+   bord enferme son propre milieu, et qu'une tourelle qu'aucune troupe
+   ne peut approcher à cinq cases rend l'île infinissable. Mesuré sans
+   elles : l'inondation de secours arrachait deux cent quarante et un
+   bâtiments, au hasard, après coup. Avec elles, elle ne trouve
+   presque plus rien à rouvrir.
+
+   Elles coûtent une case sur douze et en sauvent deux cent
+   quarante-et-une. Ce n'est pas un compromis, c'est un gain.
    ================================================================ */
-var IBIZA_BANDE_F = 10.8;  // une bande de Frelons — quatre rangées
-var IBIZA_BANDE_P = 6.6;   // une bande de petites pièces — trois rangées
-/* ════════════════════════════════════════════════════════════════
-   ET UNE RUELLE ENTRE CHAQUE BANDE — CE QUI COÛTE LE MOINS CHER
+var IBIZA_PAS_F   = 3.2;    // le pas du réseau de Frelons — règle la part
+var IBIZA_RUE     = 1.9;    // la ruelle de service, en cases
+var IBIZA_PAS_RUE = 16.0;   // et tous les combien de rayons on en ouvre une
+var IBIZA_TAMIS   = [3, 1.5, 0.8, 0.45];   // le peigne des Frelons
+var IBIZA_SEL     = [2.4, 1.2, 0.6, 0.35]; // et celui des petites pièces
+var IBIZA_PETIT   = ["bobine", "crible", "chalumeau"];
 
-   Un quartier rempli à ras bord enferme son propre milieu : à
-   soixante-dix cases du centre, un secteur fait quinze cases de large
-   et sa moitié est à sept cases de tout passage, quand une troupe n'en
-   atteint que cinq. `ouvreLaFete` rouvrait alors de force et retirait
-   DEUX CENT QUARANTE ET UN bâtiments — un quart du remplissage, arraché
-   après coup, au hasard de l'inondation.
-
-   Deux façons de l'éviter : élargir les couloirs radiaux, ou ouvrir des
-   ruelles CONCENTRIQUES entre les bandes. La seconde est bien
-   meilleure, et pour trois raisons :
-
-     ELLE COÛTE MOINS. Une ruelle de deux cases entre deux bandes met
-     tout point à cinq cases et demie d'un passage — la moitié de la
-     bande la plus large. Élargir les douze couloirs pour obtenir le
-     même résultat aurait pris deux fois plus de terrain.
-     ET ELLE DOIT FAIRE DEUX CASES, pas une : la grille de collision du
-     jeu travaille en cases ENTIÈRES, et une ruelle d'une case se fait
-     avaler par l'arrondi des bâtiments qui la bordent. Mesuré : à une
-     case, l'inondation arrachait encore cent quatre-vingt-cinq
-     bâtiments ; à 1,9, plus rien. Une ruelle qu'on ne peut pas
-     emprunter n'est pas une ruelle, c'est une ligne sur un plan.
-     ELLE EST SÛRE. Une ruelle fait le tour complet et croise les
-     vingt-quatre couloirs : la connexité est garantie par construction,
-     et non plus rattrapée par une inondation.
-     ELLE SE VOIT. Ce sont des allées de promenade concentriques autour
-     de la piste — exactement ce qu'on trouve dans une fête. Le sol y
-     reste nu, et les bandes pleines se détachent d'autant mieux.
-   ════════════════════════════════════════════════════════════════ */
-var IBIZA_RUE = 1.9;       // la ruelle entre deux bandes
-var IBIZA_TAMIS   = [3, 1.5, 0.8, 0.45];   // le peigne, du gros au fin
-
-/* De quelle bande relève ce point ? 0 = Frelons, 1 = petites pièces.
-   La première bande commence au bord de la piste : la foule est donc
-   en Frelons dès la première rangée, ce qui met les missiles au plus
-   près de la scène — là où le joueur finit par arriver. */
-function bandeIbiza(gx, gy){
+/* Le point tombe-t-il dans une ruelle de service ? Des anneaux minces,
+   concentriques à la scène, qui croisent les vingt-quatre couloirs :
+   la connexité de l'île en découle par construction. */
+function ruelleIbiza(gx, gy, marge){
+  if(IBIZA_RUE <= 0) return false;
   var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
-  var a = IBIZA_BANDE_F, b = a + IBIZA_RUE, e = b + IBIZA_BANDE_P;
-  var pas = e + IBIZA_RUE;
-  var u = (Math.sqrt(dx * dx + dy * dy) - FAISC_R0) % pas;
-  if(u < 0) u += pas;
-  if(u < a) return 0;        // bande de Frelons
-  if(u < b) return 2;        // ruelle
-  if(u < e) return 1;        // bande de petites pièces
-  return 2;                  // ruelle
+  var u = (Math.sqrt(dx * dx + dy * dy) - FAISC_R0) % IBIZA_PAS_RUE;
+  if(u < 0) u += IBIZA_PAS_RUE;
+  /* la distance au MILIEU de la ruelle, en tenant compte de l'anneau
+     suivant : sans cela une pièce posée juste avant la ruelle suivante
+     passerait le test et déborderait dedans */
+  var d = Math.abs(u - IBIZA_RUE * 0.5);
+  if(d > IBIZA_PAS_RUE * 0.5) d = IBIZA_PAS_RUE - d;
+  return d < IBIZA_RUE * 0.5 + (marge || 0);
 }
 
 /* ================================================================
-   LE PEIGNE HEXAGONAL — LA MANIÈRE DE REMPLIR, ET ELLE COMPTE
+   LE PEIGNE — LA MANIÈRE DE REMPLIR, ET ELLE COMPTE
 
    Un balayage ligne par ligne remplit un plan en QUINCONCE CARRÉ : à
    pas minimal, il place 1/p² pièces par case carrée. L'empilement le
@@ -3797,101 +3792,110 @@ function bandeIbiza(gx, gy){
    cinquante pièces gratuites — le prix d'une ligne de code.
 
    La première passe pose donc le RÉSEAU HEXAGONAL exact : les rangées
-   espacées de p × 0,866, une rangée sur deux décalée d'un demi-pas.
-   Les passes suivantes, de plus en plus fines, ne font que ramasser ce
-   que les obstacles ont fait manquer — un mirador, une cellule, le
-   bord d'un couloir. C'est l'ordre qui compte : le réseau d'abord,
-   puisqu'il est optimal, le rattrapage ensuite.
+   espacées de p × √3/2, une rangée sur deux décalée d'un demi-pas. Les
+   passes suivantes, de plus en plus fines, ne font que ramasser ce que
+   les obstacles ont fait manquer — un mirador, une cellule, le bord
+   d'un couloir. C'est l'ordre qui compte : le réseau d'abord, puisqu'il
+   est optimal, le rattrapage ensuite.
 
-   ET SANS DRAPAGE. `pose` explore par défaut seize écarts jusqu'à
-   trois cases deux : c'est ce qu'il faut pour accrocher une perle à
-   une guirlande, et exactement ce qu'il ne faut pas ici. Le peigne EST
-   la recherche ; laisser en plus la pièce sauter de trois cases la
-   jette au milieu de la rangée suivante et bouche deux places pour en
-   gagner une.
+   UN MILLIÈME DE MARGE, ET IL N'EST PAS COSMÉTIQUE. Le test
+   d'encombrement refuse à distance STRICTEMENT inférieure au minimum ;
+   un réseau posé au minimum exact tombe pile sur la limite, et le
+   moindre arrondi le fait basculer du mauvais côté. On desserre de
+   quatre millièmes, ce qui ne coûte rien.
+
+   ET SANS DRAPAGE. `pose` explore par défaut seize écarts jusqu'à trois
+   cases deux : c'est ce qu'il faut pour accrocher une perle à une
+   guirlande, et exactement ce qu'il ne faut pas ici. Le peigne EST la
+   recherche ; laisser en plus la pièce sauter de trois cases la jette
+   au milieu de la rangée suivante et bouche deux places pour en gagner
+   une.
    ================================================================ */
-function peigneIbiza(A, genres, bande, tamis, cible){
+function peigneIbiza(A, genres, pas, tamis, ecartMeme){
   var pose = A.pose, libre = A.libre;
-  /* le pas est celui du genre le plus encombrant du lot */
-  var pas = 0, q;
-  for(q = 0; q < genres.length; q++)
-    pas = Math.max(pas, DEF[genres[q]].emprise + IBIZA_SERRE);
-  /* UN MILLIÈME DE MARGE, ET IL N'EST PAS COSMÉTIQUE. Le test
-     d'encombrement refuse à distance STRICTEMENT inférieure au
-     minimum ; un réseau posé au minimum exact tombe donc pile sur la
-     limite, et le moindre arrondi le fait basculer du mauvais côté —
-     hypot(p/2, p × 0,866) vaut 0,99999 p, pas p, parce que 0,866 n'est
-     pas √3/2. Résultat mesuré : une rangée sur deux entièrement
-     refusée, la moitié de la densité perdue sur un quatrième chiffre
-     après la virgule. On desserre de quatre millièmes, ce qui ne coûte
-     rien, et l'on utilise la vraie valeur de √3/2. */
+  var mis = 0, tour = 0, x, y, r = 0;
   pas *= 1.004;
   var LIGNE = pas * 0.86602540378;
-  var mis = 0, tour = 0, x, y, r = 0;
+
+  /* ════════════════════════════════════════════════════════════════
+     L'ÉCART ENTRE PIÈCES DU MÊME PEIGNE — LE PIÈGE DE LA PASSE DE
+     RATTRAPAGE
+
+     Le réseau des Frelons est posé DÉLIBÉRÉMENT LÂCHE, à 4,6 case, pour
+     laisser dans chaque maille la place de deux petites pièces. Mais la
+     passe de rattrapage qui le suit, elle, ne connaît que
+     l'encombrement — et l'encombrement autorise deux Frelons à 3,08. En
+     quatre peignes de plus en plus fins, elle rebouchait donc de
+     Frelons tout ce que le réseau venait d'ouvrir : la part montait à
+     soixante pour cent, `degraisseIbiza` en retirait des centaines, et
+     l'île tombait à cinq cent quarante-sept défenses.
+
+     Le peigne tient donc SA PROPRE table des pièces qu'il vient de
+     poser, et s'interdit de les approcher à moins de `ecartMeme`. Le
+     rattrapage ne peut plus alors que combler ce que les obstacles ont
+     fait manquer — ce pour quoi il est fait — sans jamais refermer les
+     mailles.
+
+     Des seaux de six cases : le plus grand écart demandé est de 4,6, et
+     six est plus grand, donc les neuf seaux voisins suffisent. */
+  var seaux = {}, SEAU = 6;
+  function loin(px, py){
+    if(!ecartMeme) return 1;
+    var sx = Math.floor(px / SEAU), sy = Math.floor(py / SEAU), dx, dy, q;
+    for(dx = -1; dx <= 1; dx++)
+      for(dy = -1; dy <= 1; dy++){
+        var l = seaux[(sx + dx) + "," + (sy + dy)];
+        if(!l) continue;
+        for(q = 0; q < l.length; q += 2)
+          if(Math.hypot(l[q] - px, l[q + 1] - py) < ecartMeme) return 0;
+      }
+    return 1;
+  }
   /* LES GENRES TOURNENT PIÈCE À PIÈCE, et non peigne après peigne : à
      les épuiser l'un après l'autre, le premier prenait toute la place
      et l'île finissait avec trois cent huit Bobines pour quinze
      Cribles. Une île d'une seule arme se résout une fois pour toutes. */
   function essaie(px, py){
-    /* la ruelle n'est à personne : même le rattrapage libre (bande < 0)
-       s'y interdit, sans quoi il la reboucherait aussitôt */
-    var bp = bandeIbiza(px, py);
-    if(bande < 0 ? bp === 2 : bp !== bande) return 0;
-    if(videIbizaLarge(px, py)) return 0;
     var t = genres[tour % genres.length];
-    if(!libre(t, px, py)) return 0;
-    if(!pose(t, px, py, 0, 0)) return 0;
+    /* LA MARGE EST LE DEMI-ENCOMBREMENT DE LA PIÈCE : c'est son bord,
+       et non son centre, qui doit rester hors du couloir. */
+    var m = DEF[t].emprise * 0.5;
+    if(videIbizaLarge(px, py, m) || ruelleIbiza(px, py, m)) return;
+    if(!loin(px, py)) return;
+    if(!libre(t, px, py)) return;
+    var b = pose(t, px, py, 0, 0);
+    if(!b) return;
+    if(ecartMeme){
+      var k = Math.floor(b.gx / SEAU) + "," + Math.floor(b.gy / SEAU);
+      (seaux[k] || (seaux[k] = [])).push(b.gx, b.gy);
+    }
     mis++; tour++;
-    return 1;
   }
-  /* --- le réseau hexagonal, au pas minimal --- */
+  /* --- le réseau hexagonal --- */
   for(y = 4; y < GH - 4; y += LIGNE){
     var dec = (r++ & 1) ? pas * 0.5 : 0;
-    for(x = 7 + dec; x < PLAGE_X0 - 3; x += pas){
-      if(cible && mis >= cible) return mis;
-      essaie(x, y);
-    }
+    for(x = 7 + dec; x < PLAGE_X0 - 3; x += pas) essaie(x, y);
   }
   /* --- puis le rattrapage, du gros au fin --- */
   for(var ip = 0; ip < tamis.length; ip++){
     var p2 = tamis[ip];
     for(x = 7; x < PLAGE_X0 - 3; x += p2)
-      for(y = 4; y < GH - 4; y += p2){
-        if(cible && mis >= cible) return mis;
-        essaie(x, y);
-      }
+      for(y = 4; y < GH - 4; y += p2) essaie(x, y);
   }
   return mis;
 }
 
-/* --- LES BANDES DE FRELONS ---
-   Tout ce qui n'est ni la piste, ni un couloir, ni une bande de
-   petites pièces reçoit un Frelon. Le gros d'abord, toujours : posé
-   après, il ne trouverait plus une seule place. */
+/* --- LES FRELONS ---
+   Sur leur réseau à `IBIZA_PAS_F`, un cheveu plus lâche que leur écart
+   minimal. C'est tout le mécanisme de la composition, et il joue dans
+   les deux sens : trop serré, ils ne laisseraient aucune place aux
+   petites pièces et la part monterait ; trop lâche, ils deviennent trop
+   rares et le dégraissage retire les petites pièces en trop. Le
+   balayage qui suit le réseau ne peut pas les resserrer non plus — il
+   tient sa propre table et s'interdit de descendre sous ce pas. */
 function fouleIbiza(c, al){
-  return peigneIbiza(atelierFoule(c, al), ["frelon"], 0, IBIZA_TAMIS, 0);
+  return peigneIbiza(atelierFoule(c, al), ["frelon"], IBIZA_PAS_F, IBIZA_TAMIS, IBIZA_PAS_F);
 }
-
-/* ================================================================
-   ET LE SEL — LES PETITES PIÈCES DANS LES CREUX DES MAILLES
-
-   Les bandes de Frelons sont pleines ; le sel vient garnir les bandes
-   qui lui reviennent, puis les creux que les Frelons ont laissés dans
-   les leurs, jusqu'à la part demandée exactement — ni une de plus.
-
-   C'EST LUI QUI FAIT LA DENSITÉ, et ce n'est pas une figure de style :
-   il pose plus de la moitié des défenses de l'île. Chaque Frelon posé
-   plus haut lui ouvre une place et demie ; s'il ne les trouve pas,
-   c'est le Frelon qui repart au dégraissage. Les deux passes se
-   tiennent, et c'est pour cela qu'on remplit le gros d'abord.
-
-   TROIS GENRES QUI TOURNENT — Bobine, Crible, Chalumeau — parce qu'une
-   île d'une seule arme se résout une fois pour toutes : la Bobine
-   ralentit, le Crible arrose, le Chalumeau brûle au contact.
-   ================================================================ */
-var IBIZA_SEL   = [2.4, 1.2, 0.6];               // le peigne du sel, du gros au fin
-var IBIZA_PETIT = ["bobine", "crible", "chalumeau"];
-
 
 /* ================================================================
    4. ET LE COMPTE, FINI À L'UNITÉ — DANS LES DEUX SENS
@@ -3926,35 +3930,20 @@ function compteFrelons(c){
 function saleIbiza(c, al){
   /* PAS DE TEST ANTI-BOUCHON ICI, contrairement à la guinguette : le
      passage d'Ibiza ne tient pas aux interstices entre les bâtiments,
-     il tient aux douze couloirs, qui sont vides par construction et
-     que l'atelier s'interdit. Le test local, lui, ne voit pas les
-     couloirs — il regarde neuf cases et refuse presque tout sur une
-     île saturée. Mesuré : c'est lui qui empêchait le compte
-     d'aboutir. `ouvreLaFete` reste le juge, et la mesure dit 99 % de
-     cases atteignables. */
-  var A = atelierIbiza(c, al);
-  var f = compteFrelons(c), d = compteDefenses(c);
-  var place = Math.floor(f / IBIZA_PART) - d;
-  if(place <= 0) return 0;
-  /* ON BALAIE, ON N'ÉCHANTILLONNE PAS — la leçon de la guinguette, et
-     elle a resservi une fois de plus. Une suite de Roberts DISTRIBUE
-     bien, mais elle ne CHERCHE pas : les places qui restent ici sont
-     les creux des mailles de Frelons, larges d'une case, et une suite
-     qui sème seize mille points sur seize mille cases en manque la
-     moitié. On passe donc le peigne, du gros au fin, et l'encombrement
-     décide seul de l'écart. */
-  /* DEUX TEMPS, ET L'ORDRE COMPTE.
-       SA BANDE D'ABORD : c'est là qu'elle a été taillée pour elle, et
-         elle s'y tasse à 2,08 case, sa vraie distance.
-       LE RESTE ENSUITE : les creux que les Frelons ont laissés dans
-         LEUR bande — autour d'un mirador, au bord d'un couloir, contre
-         une cellule. Trop petits pour un Frelon, parfaits pour une
-         Bobine. C'est du gain pur.
-     Les trois genres tournent d'un peigne à l'autre : une île d'une
-     seule arme se résout une fois pour toutes. */
-  var mis = peigneIbiza(A, IBIZA_PETIT, 1, IBIZA_SEL, place);
-  if(mis < place) mis += peigneIbiza(A, IBIZA_PETIT, -1, IBIZA_SEL, place - mis);
-  return mis;
+     il tient aux vingt-quatre couloirs et aux ruelles, qui sont vides
+     par construction et que l'atelier s'interdit. Le test local, lui,
+     ne voit pas les couloirs — il regarde neuf cases et refuse presque
+     tout sur une île saturée. `ouvreLaFete` reste le juge, et la mesure
+     dit 99 % de cases atteignables.
+
+     ET PAS DE PLAFOND NON PLUS. C'est le changement de cette version :
+     on posait jusqu'au compte des quarante pour cent, et l'on
+     s'arrêtait toujours avant que l'île soit pleine — quatre cents
+     défenses laissées de côté pour tenir une proportion que le pas des
+     Frelons tient déjà tout seul. On remplit maintenant jusqu'à ce que
+     plus rien ne rentre, et `degraisseIbiza` corrige les dernières
+     unités. */
+  return peigneIbiza(atelierIbiza(c, al), IBIZA_PETIT, 2 + IBIZA_SERRE, IBIZA_SEL);
 }
 
 /* Le trop-plein de Frelons, retiré par la queue. EN TOUT DERNIER,

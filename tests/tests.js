@@ -30,7 +30,7 @@ try{
     "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene",
     "ETOILE_R","ETOILE_R2","ETOILE_G","ETOILE_POINTES","dansLeFaisceau","videIbiza","videIbizaLarge",
     "largeurFaisceau","largeurFaisceau2","FAISC_N","FAISC2_R0","ecartAuRayon","NB_REACTEURS","FAISC_R0","FAISC_R1","FAISC_LARG0","FAISC_EVASE","IBIZA_PART",
-    "IBIZA_BANDE_F","IBIZA_BANDE_P","IBIZA_RUE","bandeIbiza","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","largeurPeinte","FAISC_PEINT","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
+    "IBIZA_PAS_F","IBIZA_RUE","IBIZA_PAS_RUE","ruelleIbiza","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","largeurPeinte","FAISC_PEINT","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
     "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
     "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
@@ -7475,22 +7475,47 @@ G("28. La figure d'Ibiza");
      rouvrait de force et emportait deux cent trente-neuf bâtiments. */
   ok("l'écart d'Ibiza est bien plus serré que celui de la guinguette",
      N.IBIZA_SERRE < 0.2, "" + N.IBIZA_SERRE);
-  /* LES BANDES CONCENTRIQUES, ET LA RUELLE QUI LES SÉPARE. C'est la
-     ruelle qui autorise à remplir : sans elle, un quartier plein
-     enferme son milieu et `ouvreLaFete` en arrache un quart. */
-  ok("les bandes alternent Frelons et petites pièces autour de la scène",
+  /* LES RUELLES CONCENTRIQUES, ET CE QU'ELLES AUTORISENT. Sans elles,
+     un secteur plein enferme son milieu et `ouvreLaFete` en arrache la
+     moitié. Avec elles, il ne trouve presque plus rien à rouvrir. */
+  ok("des ruelles concentriques coupent les secteurs",
      (function(){
        var a = -0.5236 + 6.2832 / (N.FAISC_N * 4);   // au milieu d'un quartier
-       var vus = {}, r;
-       for(r = N.FAISC_R0 + 1; r < 60; r += 0.5)
-         vus[N.bandeIbiza(N.SCENE_GX + Math.cos(a) * r, N.SCENE_GY + Math.sin(a) * r)] = 1;
-       return vus[0] && vus[1] && vus[2];           // Frelons, petites pièces, ruelle
+       var dedans = 0, dehors = 0, r;
+       for(r = N.FAISC_R0 + 1; r < 60; r += 0.5){
+         var x = N.SCENE_GX + Math.cos(a) * r, y = N.SCENE_GY + Math.sin(a) * r;
+         if(N.ruelleIbiza(x, y)) dedans++; else dehors++;
+       }
+       return dedans > 4 && dehors > dedans * 2;
      })());
-  ok("aucune bande n'est plus profonde que la portée d'une troupe",
-     Math.max(N.IBIZA_BANDE_F, N.IBIZA_BANDE_P) / 2 <= N.DEF.frelon.porteeMin + 0.5,
-     (Math.max(N.IBIZA_BANDE_F, N.IBIZA_BANDE_P) / 2).toFixed(2) + " cases");
+  ok("aucun point d'un secteur n'est plus loin d'une ruelle que la portée d'une troupe",
+     N.IBIZA_PAS_RUE / 2 <= N.DEF.frelon.porteeMin + 3,
+     (N.IBIZA_PAS_RUE / 2).toFixed(1) + " cases");
   ok("… et la ruelle est assez large pour qu'on y marche",
      N.IBIZA_RUE >= 1.5, N.IBIZA_RUE + " cases");
+  /* ON ÉCARTE L'EMPRISE, PAS LE CENTRE. Sans marge, un Frelon posé au
+     ras d'un couloir y déborde d'une case et demie, les deux bords se
+     rejoignent, et le couloir n'existe plus sur la grille de collision.
+     Mesuré : l'inondation de secours arrachait alors six cent quinze
+     bâtiments au lieu de dix-neuf. */
+  ok("un Frelon au bord d'un couloir est écarté de son demi-encombrement",
+     (function(){
+       var a = -0.5236, r = 50, ca = Math.cos(a), sa = Math.sin(a);
+       var t = N.largeurFaisceau(r) + N.IBIZA_RESERVE + 0.4;   // hors couloir, mais de peu
+       var x = N.SCENE_GX + ca * r - sa * t, y = N.SCENE_GY + sa * r + ca * t;
+       /* sans marge il passe ; avec la marge d'un Frelon, il est refusé */
+       return !N.videIbizaLarge(x, y) && N.videIbizaLarge(x, y, N.DEF.frelon.emprise * 0.5);
+     })());
+  ok("… et une ruelle repousse de même ce qui la borde",
+     (function(){
+       var a = -0.5236 + 6.2832 / (N.FAISC_N * 4), r, dedans = 0, large = 0;
+       for(r = N.FAISC_R0; r < 70; r += 0.25){
+         var x = N.SCENE_GX + Math.cos(a) * r, y = N.SCENE_GY + Math.sin(a) * r;
+         if(N.ruelleIbiza(x, y)) dedans++;
+         if(N.ruelleIbiza(x, y, 1.5)) large++;
+       }
+       return large > dedans * 1.5;
+     })());
 
   /* --- LA DENSITÉ --- */
   (function(){
@@ -7519,8 +7544,8 @@ G("28. La figure d'Ibiza");
        tombent les obstacles, et la phase des bandes avec eux. Mesuré
        sur une dizaine de salons : entre huit cent cinquante et mille.
        Le seuil est posé sous le plancher observé, pas sur la moyenne. */
-    ok("… et elle porte plus de huit cent cinquante défenses",
-       dIbiza > 850, "" + dIbiza);
+    ok("… et elle porte plus de neuf cents défenses",
+       dIbiza > 900, "" + dIbiza);
     /* ET ELLE LES PORTE MALGRÉ SON VIDE : l'étoile et les vingt-quatre
        couloirs lui retirent près de la moitié du terrain bâtissable.
        C'est là toute la performance de la disposition. */
