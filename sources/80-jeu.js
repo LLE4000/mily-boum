@@ -692,7 +692,7 @@ function creeUnite(type, gx, gy){
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
        qui décide. Une roquette de Frelon sur deux — le compteur, pas
        un tirage au sort : voir UNI.tank dans 10-noyau.js. */
-    angInter:0, capInter:0, interFlash:0, interCompte:0
+    angInter:0, capInter:0, viseeInter:0, interFlash:0, interCompte:0
   });
   return jeu.unites[jeu.unites.length - 1];
 }
@@ -777,9 +777,20 @@ function majTank(u, dt){
   else u.angInter += TANK_VEILLE * dt;
   if(u.recul > 0) u.recul = Math.max(0, u.recul - dt * 3.4);
   if(u.flash > 0) u.flash = Math.max(0, u.flash - dt * 9);
-  if(u.interFlash > 0){
-    u.interFlash = Math.max(0, u.interFlash - dt * 6);
-    if(u.interFlash === 0) u.capInter = 0;      // il retourne en veille
+  if(u.interFlash > 0) u.interFlash = Math.max(0, u.interFlash - dt * 6);
+  /* LE BRAQUAGE DURE PLUS LONGTEMPS QUE LE COUP.
+     Premier réglage : le cap désigné était effacé dès que la lueur de
+     bouche s'éteignait — un sixième de seconde. À 4,2 rad/s le
+     tourillon tournait de 0,7 radian et repartait aussitôt en veille :
+     il tirait donc dans la direction où il balayait, pas vers la
+     roquette, et le braquage était strictement invisible. C'était le
+     seul mouvement qui devait se lire, et c'était le seul qu'on ne
+     voyait pas.
+     Il garde maintenant sa cible une seconde et demie — le temps de
+     s'y poser, d'y rester, puis de reprendre sa ronde. */
+  if(u.viseeInter > 0){
+    u.viseeInter = Math.max(0, u.viseeInter - dt);
+    if(u.viseeInter === 0) u.capInter = 0;      // il retourne en veille
   }
 }
 /* ================================================================
@@ -818,8 +829,10 @@ function marqueInterception(cible){
    braque dessus, tire, et elle éclate en l'air. Elle ne touche donc
    NI la cible, NI le sol : c'est une destruction, pas un détournement. */
 var TANK_INTER_PORTEE = 2.4;      // en cases : là où la charge la cueille
+var TANK_VISEE = 1.5;             // s : le temps qu'il reste braqué
 function abatRoquette(p, u){
   u.capInter = Math.atan2(p.gy - u.gy, p.gx - u.gx) || 0.0001;
+  u.viseeInter = TANK_VISEE;
   u.interFlash = 1;
   jeu.effets.push({ t:"interception", gx:p.gx, gy:p.gy, z:p.z || 0, age:0, duree:0.42 });
   if(son.interception) son.interception();
@@ -1481,8 +1494,18 @@ function majUnites(dt){
     /* états */
     if(u.brulure > 0){
       u.brulure -= dt;
-      u.pv -= EQ.BRULURE_DPS * dt;
-      if(u.pv <= 0){ toucheUnite(u, 0); jeu.unites.splice(i, 1); continue; }
+      /* MOURIR BRÛLÉ EST UNE MORT COMME UNE AUTRE, et elle ne l'était
+         pas. La ligne retirait les points de vie À LA MAIN puis
+         appelait toucheUnite(u, 0) pour « déclencher la mort » — sauf
+         que toucheUnite commence par `if(u.pv <= 0) return;`. Elle
+         sortait donc immédiatement, sans pousser l'effet de mort, sans
+         noter la dernière perte, et — depuis le TX-90 — sans laisser
+         d'épave. Une troupe qui brûlait s'évaporait en silence.
+         On laisse maintenant toucheUnite retirer les points elle-même :
+         c'est le seul endroit du jeu qui sache mourir. */
+      var brl = EQ.BRULURE_DPS * dt;
+      toucheUnite(u, brl);
+      if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
     }
     var vit = UNI[u.t].vitesse;
     if(u.ralenti > 0){
@@ -1709,12 +1732,24 @@ function armeSansTirer(u){
 }
 function chercheCibleUnite(u){
   var meilleur = null, md = 1e9;
-  /* créatures proches d'abord (elles nous agressent) */
-  for(var k = 0; k < jeu.creatures.length; k++){
-    var cr = jeu.creatures[k];
-    if(cr.pv <= 0) continue;
-    var dc = Math.hypot(cr.gx - u.gx, cr.gy - u.gy);
-    if(dc < 6 && dc < md){ md = dc; meilleur = { k:"cre", o:cr }; }
+  /* CRÉATURES PROCHES D'ABORD — parce qu'elles nous agressent. MAIS
+     PAS POUR CELUI QU'ELLES NE PEUVENT PAS BLESSER.
+     Le TX-90 est immunisé aux bestioles ; il s'arrêtait pourtant
+     quatre secondes pour tuer au canon un piqueur qui ne lui faisait
+     rien, pendant que la tour de guet d'en face lui prenait deux cent
+     vingt-quatre points par balle. Répondre à une agression qui ne
+     peut pas vous atteindre, ce n'est pas de la prudence, c'est une
+     perte de temps — et sur une troupe dont tout l'intérêt est
+     d'avancer lentement mais sans s'arrêter, c'est le pire des
+     défauts. La table de vulnérabilité dit déjà tout : si elle
+     annonce zéro, on passe son chemin. */
+  if(multVuln(u, "bete") > 0){
+    for(var k = 0; k < jeu.creatures.length; k++){
+      var cr = jeu.creatures[k];
+      if(cr.pv <= 0) continue;
+      var dc = Math.hypot(cr.gx - u.gx, cr.gy - u.gy);
+      if(dc < 6 && dc < md){ md = dc; meilleur = { k:"cre", o:cr }; }
+    }
   }
   if(meilleur) return meilleur;
   batimentsAutour(u.gx, u.gy, 11, tmpBat);
@@ -2186,10 +2221,18 @@ function majProjectiles(dt){
           jeu.effets.push({ t:"onde", gx:bx, gy:by, age:0, duree:0.4, r:1.7 });
           jeu.effets.push({ t:"impact", gx:bx + (Math.random() - 0.5) * 0.9,
                             gy:by + (Math.random() - 0.5) * 0.9, age:0, duree:0.35 });
-        }else{
+        }else if(p.t !== "obusTank"){
           jeu.effets.push({ t:"boum", gx:bx, gy:by, age:0, duree:0.5, r:0.9, force:0.6 });
         }
-        son.boum(0.3);
+        /* L'OBUS DE CHAR A DÉJÀ SON IMPACT, et il n'en veut pas deux.
+           Il pousse son propre `obusBoum` et son propre son quelques
+           lignes plus haut — un choc d'acier, sec et blanc. Le `else`
+           générique lui ajoutait par-dessus la boule de feu orange
+           d'une roquette, et `son.boum` par-dessus son claquement :
+           deux explosions superposées à chaque coup, sur quatorze
+           chars qui tirent toutes les quatre secondes. On entendait
+           que quelque chose n'allait pas avant de pouvoir le nommer. */
+        if(p.t !== "obusTank") son.boum(0.3);
         jeu.projectiles.splice(i, 1);
         continue;
       }

@@ -1081,6 +1081,44 @@ function dessineProjectile(c, p, tps){
     c.restore();
     return;
   }
+  /* ═══ L'OBUS DE CHAR : un traceur, pas une flamme ═══════════════
+     Une roquette a un moteur, donc une queue de feu. Un obus n'a
+     rien : il est déjà parti quand on le voit, et tout ce qu'on en
+     perçoit est la ligne qu'il laisse. On le dessine donc comme un
+     TRAIT, orienté et étiré, avec une pointe chaude — et surtout pas
+     comme une petite fusée.
+
+     IL ÉTAIT INVISIBLE. Ce bloc était écrit à l'intérieur du `if` des
+     roquettes, quelques lignes plus bas : il ne pouvait donc s'exécuter
+     que si le projectile était une roquette — c'est-à-dire jamais.
+     Quatorze chars tiraient des obus qu'on ne voyait pas partir. La
+     faute ne se voit pas à la lecture (le code était juste, il était
+     seulement au mauvais endroit) et elle ne se voit pas à l'image non
+     plus, parce qu'un champ de bataille est plein de traits lumineux
+     et qu'on croit voir ceux qu'on cherche. Elle se voit quand on
+     demande : « qui appelle ce bloc, et sous quelle condition ? » */
+  if(p.t === "obusTank"){
+    var dt2 = vecteurEcran(p.ang || 0);
+    var nq = Math.hypot(dt2.x, dt2.y) || 1;
+    var ux2 = dt2.x / nq, uy2 = dt2.y / nq;
+    var ho = e.x, vo = e.y - zz;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.lineCap = "round";
+    var g3 = c.createLinearGradient(ho - ux2 * 26 * z, vo - uy2 * 26 * z, ho, vo);
+    g3.addColorStop(0, "rgba(255,190,110,0)");
+    g3.addColorStop(0.7, "rgba(255,206,140,.34)");
+    g3.addColorStop(1, "rgba(255,244,206,.85)");
+    c.strokeStyle = g3; c.lineWidth = 2.2 * z;
+    c.beginPath();
+    c.moveTo(ho - ux2 * 26 * z, vo - uy2 * 26 * z);
+    c.lineTo(ho + ux2 * 2 * z, vo + uy2 * 2 * z);
+    c.stroke();
+    c.fillStyle = "rgba(255,250,226,.95)";
+    c.beginPath(); c.arc(ho, vo, 2.1 * z, 0, 6.2832); c.fill();
+    c.restore();
+    return;
+  }
   if(p.t === "roquetteJ" || p.t === "roquette"){
     var hx = e.x, hy = e.y - 18 * z - zz;
 
@@ -1138,34 +1176,6 @@ function dessineProjectile(c, p, tps){
       /* lueur du moteur, projetée derrière la roquette */
       lueurRapide(c, hx - Math.cos(angV) * 7 * z, hy - Math.sin(angV) * 7 * z,
                   11 * z, "#ffb24a", 0.5);
-      return;
-    }
-
-    /* --- L'OBUS DE CHAR : un traceur, pas une flamme ---------------
-       Une roquette a un moteur, donc une queue de feu. Un obus n'a
-       rien : il est déjà parti quand on le voit, et tout ce qu'on en
-       perçoit est la ligne qu'il laisse. On le dessine donc comme un
-       TRAIT, orienté et étiré, avec une pointe chaude — et surtout
-       pas comme une petite fusée. */
-    if(p.t === "obusTank"){
-      var dt2 = vecteurEcran(p.ang || 0);
-      var nq = Math.hypot(dt2.x, dt2.y) || 1;
-      var ux2 = dt2.x / nq, uy2 = dt2.y / nq;
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      c.lineCap = "round";
-      var g3 = c.createLinearGradient(hx - ux2 * 26 * z, hy - uy2 * 26 * z, hx, hy);
-      g3.addColorStop(0, "rgba(255,190,110,0)");
-      g3.addColorStop(0.7, "rgba(255,206,140,.34)");
-      g3.addColorStop(1, "rgba(255,244,206,.85)");
-      c.strokeStyle = g3; c.lineWidth = 2.2 * z;
-      c.beginPath();
-      c.moveTo(hx - ux2 * 26 * z, hy - uy2 * 26 * z);
-      c.lineTo(hx + ux2 * 2 * z, hy + uy2 * 2 * z);
-      c.stroke();
-      c.fillStyle = "rgba(255,250,226,.95)";
-      c.beginPath(); c.arc(hx, hy, 2.1 * z, 0, 6.2832); c.fill();
-      c.restore();
       return;
     }
 

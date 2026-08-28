@@ -1354,10 +1354,22 @@ function dessineTank(c, phase, variante, tir){
    glacis et toute la longueur du tube — un char de face ne montre ni
    ses chenilles ni son canon. Le char est plus long qu'avant :
    l'échelle descend en conséquence, sinon il déborde du cadre. */
+/* LE CADRAGE A ÉTÉ CALCULÉ, PAS DEVINÉ. Deux réglages successifs
+   posés à l'œil ont laissé le char déborder — d'abord par le bas,
+   puis par la droite et par le haut : le frein de bouche coupé et
+   l'antenne rasée. Un cadre qui rogne son sujet est un cadre faux,
+   et l'œil ne le voit pas quand la vignette fait cent cinquante
+   pixels de large.
+   On a donc mesuré la boîte réellement peinte à l'échelle 1 dans
+   CETTE pose — 83 de large sur 70 de haut, x de −31 à 52, y de −49
+   à 21 — et l'on en a déduit l'échelle et la translation qui la
+   centrent dans 150 × 104 avec six pixels de marge de chaque côté.
+   Si la pose ou les cotes du char changent, ces deux nombres sont à
+   recalculer, pas à retoucher. */
 function portraitTank(c){
   c.save();
-  c.translate(50, 53.3);
-  c.scale(1.02, 1.02);
+  c.translate(40.8, 56.3);
+  c.scale(0.876, 0.876);
   charTank(c, 0.55, -0.16, 0, 0, 0, 0, 0, 1, 2.7, 0);
   c.restore();
 }

@@ -974,7 +974,13 @@ function dessineUnite(c, type, phase, variante, tir){
 /* La planche doit contenir l'OGRE, qui monte trois fois plus haut
    qu'une Furie : dimensionnée sur les petits, elle lui coupait la tête
    et les épaules. L'origine descend d'autant. */
-var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
+/* La planche doit aussi contenir le TX-90, qui descend plus bas que
+   tout le monde : un fantassin s'arrête à ses pieds, un char pose une
+   ombre et deux chenilles qui débordent de vingt unités sous son
+   ancre. Seule la HAUTEUR change — l'origine reste où elle est, sinon
+   toutes les troupes grises des autres joueurs remonteraient d'un cran
+   sur la carte. */
+var VIG_W = 150, VIG_H = 186, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
 var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank"];
@@ -988,8 +994,20 @@ function construitVignettesGrises(){
         var cv = nouveauCanvas(VIG_W * VIG_ECH, VIG_H * VIG_ECH);
         var c = cv.getContext("2d");
         c.setTransform(VIG_ECH, 0, 0, VIG_ECH, VIG_OX * VIG_ECH, VIG_OY * VIG_ECH);
-        if(dr === 0){ c.scale(-1, 1); }
-        dessineUnite(c, types[ti], ph / 6 * 6.2832, ph % 3, false);
+        /* UN CHAR NE SE RETOURNE PAS AU MIROIR — pas même en gris.
+           Cette planche renvoyait les deux orientations d'un simple
+           c.scale(-1, 1), ce qui est exactement ce que 61-tank.js
+           interdit : un char miroité a ses chenilles inversées, son
+           insigne à l'envers et son échappement du mauvais côté.
+           Comme il se dessine à un CAP quelconque, il suffit de lui
+           en donner deux : il n'a jamais besoin de miroir. */
+        if(types[ti] === "tank" && typeof charTank === "function"){
+          charTank(c, dr ? 0.62 : 0.62 + 3.1416, dr ? 0.28 : 0.28 + 3.1416,
+                   ph * 5, 0, 0, 0, 0, 1, dr ? 2.6 : 2.6 + 3.1416, 0);
+        }else{
+          if(dr === 0){ c.scale(-1, 1); }
+          dessineUnite(c, types[ti], ph / 6 * 6.2832, ph % 3, false);
+        }
         /* désaturation au niveau des pixels */
         c.setTransform(1, 0, 0, 1, 0, 0);
         var img = c.getImageData(0, 0, cv.width, cv.height);
@@ -1061,10 +1079,14 @@ function dessineUniteMonde(c, u, tps){
   }
   /* barre de vie si blessée */
   var fr = u.pv / u.pvMax;
-  /* La barre passe AU-DESSUS de l'unité, donc plus haut pour un char :
-     à trente-six, elle lui traversait la tourelle et l'antenne. */
+  /* LA BARRE PASSE AU-DESSUS DE L'UNITÉ, et « au-dessus » a été
+     mesuré deux fois. Le char a grandi entre-temps : sa tourelle monte
+     à 29, sa coupole à 32, son antenne à 41 — et son canon, quand il
+     vise vers le fond, passe encore par-dessus. À quarante-huit la
+     barre lui traversait le tube et l'antenne. Elle est maintenant
+     au-dessus de tout ce qu'il peut lever. */
   if(fr < 0.999 && z > 0.2)
-    barreVie(c, p.x, p.y - (u.t === "tank" ? 48 : 36) * z, (u.t === "tank" ? 28 : 20) * z, fr);
+    barreVie(c, p.x, p.y - (u.t === "tank" ? 60 : 36) * z, (u.t === "tank" ? 28 : 20) * z, fr);
 }
 
 /* Unité d'un autre joueur : vignette grise, même tri de profondeur */

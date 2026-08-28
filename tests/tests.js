@@ -1664,17 +1664,40 @@ G("4. Déterminisme de la génération de carte");
       }
     }
     ok("chaque type et chaque orientation font l'aller-retour", rond, det);
-    /* Ce qu'un ANCIEN client comprend en recevant les nouveaux codes :
-       il ne lit que le bit 1. Un Ogre lui arrive en Furie, un Doc en
-       Commando — une silhouette approchée, jamais une erreur. */
-    ok("un ancien client voit l'Ogre en Furie, le Doc en Commando",
-       !(((T.indexOf("ogre") << 1) + 1) & 2) && !!(((T.indexOf("doc") << 1) + 1) & 2));
-    /* Et le TX-90, qu'un ancien client ne connaît pas du tout : son
-       indice 4 met le bit 3, pas le bit 1 — il le lit donc en Furie.
-       Une silhouette approchée, jamais un plantage : c'est tout ce
-       qu'on demande à la compatibilité descendante. */
-    ok("… et le TX-90 en Furie, faute de mieux",
-       !(((T.indexOf("tank") << 1) + 1) & 2));
+    /* CE QU'UN ANCIEN CLIENT COMPREND, MESURÉ SUR LE VRAI DÉCODEUR.
+
+       Les deux vérifications qui vivaient ici testaient un décodeur
+       QUI N'EXISTE PLUS : elles lisaient le bit 1 du code, ce que
+       faisait la toute première version du protocole. Le décodeur
+       d'aujourd'hui lit `borne(code >> 1, 0, longueur - 1)`, ce qui
+       n'a pas le même comportement du tout — et l'une des deux
+       affirmait, en passant au vert, quelque chose de faux : « un
+       ancien client voit le TX-90 en Furie ». Il le voit en DOC.
+
+       Un test qui passe en énonçant une contre-vérité est pire qu'un
+       test absent : il donne l'assurance qu'on a vérifié. On rejoue
+       donc la ligne de décodage du fichier livré, avec la table à
+       quatre entrées qu'avait la version précédente. */
+    (function(){
+      var lg = /u\.type = TYPES_TROUPE\[[^\]]+\][^;]*;/.exec(html);
+      ok("la ligne de décodage se relit dans le fichier livré", !!lg);
+      if(!lg) return;
+      function litAvec(table, type){
+        var code = (T.indexOf(type) << 1) + 1;
+        var u = {};
+        new Function("TYPES_TROUPE", "borne", "u", "code", lg[0])
+          (table, N.borne, u, code);
+        return u.type;
+      }
+      var v55 = ["furie", "commando", "ogre", "doc"];
+      ok("un client de la version précédente lit l'Ogre en Ogre et le Doc en Doc",
+         litAvec(v55, "ogre") === "ogre" && litAvec(v55, "doc") === "doc");
+      ok("… et le TX-90, qu'il ne connaît pas, en Doc — la dernière "
+         + "troupe de SA table, jamais un vide",
+         litAvec(v55, "tank") === "doc", litAvec(v55, "tank"));
+      ok("un client à jour lit chaque troupe pour ce qu'elle est",
+         T.every(function(t){ return litAvec(T, t) === t; }));
+    })();
     /* Et ce qu'un client NEUF comprend en recevant les anciens codes. */
     ok("les quatre anciens codes gardent exactement leur sens",
        T[0 >> 1] === "furie" && T[1 >> 1] === "furie" &&
