@@ -25,7 +25,7 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
@@ -2550,6 +2550,162 @@ G("4. Déterminisme de la génération de carte");
         if(N.CARTES[q2].biome === neuves[k].biome && q2 !== neuves[k].i)
           jum += neuves[k].biome + " ";
     ok("chacune a un biome qui n'appartient qu'à elle", jum === "", jum);
+  })();
+
+  /* ================================================================
+     5h. LA SCÈNE D'IBIZA
+
+     Elle est du DÉCOR : pas de points de vie, pas d'index de bâtiment,
+     rien à casser et rien à gagner. Son seul effet sur les règles est
+     le TROU qu'elle creuse dans le quadrillage militaire — et c'est
+     exactement ce trou qu'on épingle ici, parce qu'il vit dans le
+     noyau et qu'une retouche du dessin ne doit jamais le refermer.
+     ================================================================ */
+  G("5h. La scène d'Ibiza");
+  (function(){
+    var IBIZA = 8;
+    ok("le carré réservé n'existe que sur Ibiza",
+       N.carteScene(IBIZA) &&
+       N.CARTES.filter(function(c, i){ return N.carteScene(i); }).length === 1,
+       N.CARTES.filter(function(c, i){ return N.carteScene(i); })
+         .map(function(c){ return c.nom; }).join(", "));
+    ok("une île inexistante n'a pas de scène",
+       !N.carteScene(999) && !N.carteScene(-1));
+    /* LES BORNES, à la case près. Le carré est INCLUSIF : le
+       quadrillage militaire s'arrête sur le bord, il ne mord pas
+       dessus. */
+    ok("le carré fait bien " + (N.SCENE_DEMI * 2 + 1) + " cases de côté, bornes comprises",
+       N.dansLaScene(N.SCENE_GX, N.SCENE_GY) &&
+       N.dansLaScene(N.SCENE_GX + N.SCENE_DEMI, N.SCENE_GY + N.SCENE_DEMI) &&
+       N.dansLaScene(N.SCENE_GX - N.SCENE_DEMI, N.SCENE_GY - N.SCENE_DEMI) &&
+       !N.dansLaScene(N.SCENE_GX + N.SCENE_DEMI + 1, N.SCENE_GY) &&
+       !N.dansLaScene(N.SCENE_GX, N.SCENE_GY - N.SCENE_DEMI - 1));
+    ok("il est loin du QG et de la plage : la piste ne gêne aucun débarquement",
+       Math.abs(N.SCENE_GX - N.QG_GX) > 40 && N.SCENE_GX + N.SCENE_DEMI < N.PLAGE_X0);
+
+    /* LE TROU EST RÉEL. C'est LA propriété : sept passes de génération
+       tirent des bâtiments (treillis, treillis d'appoint, champs de
+       cellules, miradors, spirale des réacteurs, décors) et chacune
+       doit s'écarter du carré. Il a suffi d'en oublier une pour qu'un
+       lance-roquettes pousse au milieu de la piste. */
+    (function(){
+      var m = N.genereCarte("MILY", IBIZA, "", 0);
+      function dedans(t){
+        return t.filter(function(o){ return N.dansLaScene(o.gx, o.gy); }).length;
+      }
+      ok("aucun bâtiment dans le carré (" + m.batiments.length + " sur l'île)",
+         dedans(m.batiments) === 0, dedans(m.batiments) + " intrus");
+      ok("aucun décor non plus (" + m.decors.length + " sur l'île)",
+         dedans(m.decors) === 0, dedans(m.decors) + " intrus");
+      ok("et les cinq cellules électriques sont dehors, toutes les cinq",
+         m.reacteurs.length === N.NB_REACTEURS && dedans(m.reacteurs) === 0,
+         m.reacteurs.length + " cellules, " + dedans(m.reacteurs) + " dedans");
+      /* Les bêtes, elles, entrent : elles MARCHENT. Un sanglier qui
+         traverse la piste est un cadeau, pas un défaut — c'est la
+         seule chose vivante que la génération ne fige pas. */
+      ok("les bêtes, elles, ont le droit d'y passer",
+         m.creatures.length > 60);
+      /* Et la contre-épreuve : le trou est propre à Ibiza. Sans elle,
+         un `dansLaScene` toujours vrai passerait le test précédent. */
+      var autre = N.genereCarte("MILY", 0, "", 0);
+      ok("sur une autre île, le même carré est bâti comme le reste",
+         autre.batiments.filter(function(b){ return N.dansLaScene(b.gx, b.gy); }).length > 10);
+      /* LE PRIX DU TROU, mesuré : il ne doit pas dépeupler l'île. */
+      ok("Ibiza reste aussi fournie que les autres ("
+         + m.batiments.length + " contre " + autre.batiments.length + ")",
+         m.batiments.length > autre.batiments.length * 0.9,
+         m.batiments.length + " / " + autre.batiments.length);
+    })();
+
+    /* LA FOULE. Elle vit hors du noyau (35-ibiza-scene.js) ; on la
+       relit dans le fichier livré et on la rejoue, comme
+       periodeRoulement plus haut.
+       Ce qu'on vérifie n'est pas qu'elle soit jolie — c'est qu'elle
+       soit AU BON ENDROIT, et cet endroit est piégeux : « devant la
+       scène » à l'écran, ce n'est pas « gy plus grand » (qui part en
+       bas à GAUCHE), c'est gx ET gy qui montent ensemble. La première
+       version dansait à côté du podium. */
+    (function(){
+      var d0 = html.indexOf("var IBI_DEMI");
+      var d1 = html.indexOf("function fabriqueDanseurs(");
+      var f1 = d1 < 0 ? -1 : html.indexOf("\n}", d1);
+      if(d0 < 0 || d1 < 0 || f1 < 0){
+        ok("la foule se relit dans le fichier livré", false); return;
+      }
+      var src = html.slice(d0, f1 + 2);
+      ok("la foule se relit dans le fichier livré", src.length > 200);
+      function fabrique(){
+        return new Function("prng", "SCENE_GX", "SCENE_GY",
+                            src + "; return { d:fabriqueDanseurs(), coin:IBI_COIN, demi:IBI_DEMI, n:IBI_NB_DANSEURS };")
+               (N.prng, N.SCENE_GX, N.SCENE_GY);
+      }
+      var R = fabrique(), D = R.d;
+      ok("vingt personnes dansent", D.length === R.n && D.length === 20, "" + D.length);
+      /* LE PLANCHER, en coordonnées du monde. Le podium est tracé en
+         losange d'écran de demi-largeur IBI_DEMI * RX ; ce losange-là
+         est, dans le monde, le CARRÉ |Δgx| ≤ IBI_DEMI/√2. C'est
+         précisément ce que vaut IBI_COIN, et ce test le fige : si un
+         jour quelqu'un écrit IBI_COIN = IBI_DEMI, la foule remonte sur
+         la scène. */
+      ok("le coin du plancher vaut bien la demi-diagonale sur √2 ("
+         + R.coin.toFixed(2) + " cases)",
+         Math.abs(R.coin - R.demi * Math.SQRT1_2) < 1e-9, "" + R.coin);
+      var surScene = 0, horsCarre = 0, derriere = 0, i, dd, dx, dy;
+      for(i = 0; i < D.length; i++){
+        dd = D[i]; dx = dd.gx - N.SCENE_GX; dy = dd.gy - N.SCENE_GY;
+        if(Math.max(Math.abs(dx), Math.abs(dy)) <= R.coin) surScene++;
+        if(!N.dansLaScene(dd.gx, dd.gy)) horsCarre++;
+        if((dx + dy) / 2 <= R.coin) derriere++;      // pas franchement au sud de la scène
+      }
+      ok("personne ne danse SUR le plancher — c'est la place du DJ", surScene === 0,
+         surScene + " sur scène");
+      ok("les vingt sont DEVANT la scène, au sud de l'écran", derriere === 0,
+         derriere + " mal placés");
+      ok("et les vingt tiennent dans le carré réservé, là où rien n'est bâti",
+         horsCarre === 0, horsCarre + " dehors");
+      /* LA RÉPARTITION. Le tirage de la largeur est fait par tranches
+         exprès : à vingt tirages libres il reste toujours un trou, et
+         le trou tombe au premier rang devant le DJ, c'est-à-dire au
+         seul endroit que l'œil regarde. */
+      (function(){
+        var lat = D.map(function(o){
+          return ((o.gx - N.SCENE_GX) - (o.gy - N.SCENE_GY)) / 2;
+        }).sort(function(a, b){ return a - b; });
+        var pire = 0;
+        for(var q = 1; q < lat.length; q++) pire = Math.max(pire, lat[q] - lat[q - 1]);
+        ok("la foule n'a pas de trou : le plus grand vide fait " + pire.toFixed(2)
+           + " case de large", pire < 1.0, pire.toFixed(2));
+        ok("… et elle est plus large que la scène",
+           lat[lat.length - 1] - lat[0] > R.coin * 2, (lat[lat.length - 1] - lat[0]).toFixed(1));
+      })();
+      /* DÉTERMINISTE. Sans cela, la piste se réorganiserait à chaque
+         retour au briefing — et le premier rang changerait de tête
+         entre deux regards. */
+      var R2 = fabrique();
+      ok("la même île rend toujours exactement la même foule",
+         R2.d.every(function(o, q){
+           return o.gx === D[q].gx && o.gy === D[q].gy && o.style === D[q].style;
+         }));
+      ok("les trois façons de danser sortent toutes les trois",
+         (function(){
+           var vus = {};
+           for(var q = 0; q < D.length; q++) vus[D[q].style] = 1;
+           return vus[0] && vus[1] && vus[2];
+         })());
+    })();
+
+    /* LE PORTIQUE. Ses trois mâts se posent sur les coins du plancher,
+       rentrés de 10 % : ils doivent tenir SUR la scène. Le nombre est
+       relu du fichier livré pour que le test suive le dessin. */
+    (function(){
+      var d0 = html.indexOf("var mh = IBI_MH, ir = ");
+      ok("le portique se relit dans le fichier livré", d0 > 0);
+      if(d0 < 0) return;
+      var ir = parseFloat(html.slice(d0).match(/ir = ([0-9.]+)/)[1]);
+      ok("les mâts sont rentrés sur le plancher (" + ir + ")", ir > 0 && ir < 1, "" + ir);
+      ok("… et la scène entière tient très à l'aise dans le carré réservé",
+         3.5 * Math.SQRT1_2 < N.SCENE_DEMI * 0.5);
+    })();
   })();
 
   G("5d. Mily dans la jungle — la carte événement");

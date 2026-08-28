@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.45";
+var VERSION = "v0.46";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -891,6 +891,32 @@ function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"
    répond oui aux deux, les ténèbres à la seconde seulement.
    ================================================================ */
 function carteFoudre(i){ return carteOrageuse(i) || carteTornades(i); }
+
+/* ================================================================
+   LA SCÈNE D'IBIZA
+
+   « Au centre, un carré qui soit réservé et une sorte de scène avec un
+   DJ qui met de la musique, des lasers qui pointent vers le ciel et
+   une vingtaine de personnes qui dansent devant lui. »
+
+   LE CARRÉ RÉSERVÉ EST LA PARTIE SÉRIEUSE. La scène elle-même n'est
+   que du décor — elle ne se détruit pas, elle ne compte pas, elle
+   n'entre pas dans le tableau des bâtiments — mais le trou qu'elle
+   creuse dans le quadrillage militaire, lui, EN FAIT PARTIE : les
+   défenses qui auraient dû s'y poser n'existent plus, et le tableau
+   change de longueur. C'est le seul endroit de l'île où le générateur
+   saute des nœuds pour une raison qui n'est pas le hasard.
+
+   Il est posé au milieu de la terre praticable — pas au milieu de la
+   carte, qui compte la plage et le Brasier. C'est là qu'on le voit en
+   traversant, et c'est là qu'il vaut quelque chose.
+   ================================================================ */
+var SCENE_GX = 76, SCENE_GY = 68, SCENE_DEMI = 11;
+function carteScene(i){ return !!(CARTES[i] && CARTES[i].biome === "ibiza"); }
+/* Le point est-il dans le carré réservé ? */
+function dansLaScene(gx, gy){
+  return Math.abs(gx - SCENE_GX) <= SCENE_DEMI && Math.abs(gy - SCENE_GY) <= SCENE_DEMI;
+}
 /* Le rythme des impacts, par île. */
 function periodeEclair(i){
   return carteTornades(i) ? EQ.TENEBRES_ECLAIR : EQ.JUNGLE_ECLAIR;
@@ -1067,6 +1093,7 @@ function genereCarte(codeSalon, index, plan, tirage){
      jungle, qui tiennent sur la même île sans se chevaucher. */
   var sautIle = (fic.biome === "tenebres") ? 0.10 : 0.28;
   var pasIle  = (fic.biome === "tenebres") ? 4    : 5;
+  var scene   = (fic.biome === "ibiza");
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += pasIle){
     for(var ly = 3; ly <= GH - 4; ly += pasIle){
@@ -1115,6 +1142,19 @@ function genereCarte(codeSalon, index, plan, tirage){
          consomme la séquence puis on jette le résultat, sinon effacer
          une zone rebattrait toute l'île derrière elle. */
       if(t === "vide") continue;
+      /* LA PISTE DE DANSE, sur la position FINALE — et sur elle seule.
+         Il y avait ici deux tests : un premier sur le nœud du treillis,
+         posé avant les tirages, et celui-ci. Le premier est parti, pour
+         deux raisons. D'abord il enfreignait la règle de la maison — un
+         « continue » avant les tirages saute la séquence au lieu de la
+         consommer. Ensuite il ne servait à rien : le bâtiment se pose
+         avec un jitter, donc seule la position FINALE dit s'il tombe
+         sur la piste, et c'est exactement ce que teste cette ligne.
+         Le garder élargissait le trou d'une demi-case tout autour et
+         coûtait quarante-deux défenses pour rien.
+         Comme la gomme forte : la séquence est consommée, seul le
+         résultat est jeté. */
+      if(scene && dansLaScene(gx, gy)) continue;
       var f = DEF[t];
       c.batiments.push({
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
@@ -1155,6 +1195,7 @@ function genereCarte(codeSalon, index, plan, tirage){
            cellules dans un couloir censé être nu. Le test vient après
            tous les tirages, comme partout. */
         if(P && planEn(P, bx, by).vide) continue;
+        if(scene && dansLaScene(bx, by)) continue;
         c.batiments.push({
           t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
           ang:angc, vivant:1, n:c.batiments.length
@@ -1199,6 +1240,10 @@ function genereCarte(codeSalon, index, plan, tirage){
   for(var j = 0; j < nbDec; j++){
     var px = 1 + al() * (GW + 2), py = 1 + al() * (GH - 2);
     if(Math.hypot(px - QG_GX, py - QG_GY) < 13) continue;
+    /* rien ne pousse sur la piste de danse : ni parasol ni transat.
+       Le tirage est consommé quand même — sauter la ligne suivante
+       sans consommer décalerait tous les décors suivants. */
+    if(scene && dansLaScene(px, py)) continue;
     c.decors.push({ gx:px, gy:py, s:0.8 + al() * 0.5, v:(al() * 4) | 0 });
   }
 
@@ -1264,6 +1309,12 @@ function genereCarte(codeSalon, index, plan, tirage){
       var px2 = borne(vx + Math.cos(ang) * ray, marge, PLAGE_X0 - 5);
       var py2 = borne(vy + Math.sin(ang) * ray, marge, GH - marge);
       if(Math.hypot(px2 - QG_GX, py2 - QG_GY) < 20) continue;
+      /* LA PISTE DE DANSE EST UN OBSTACLE POUR LA SPIRALE. La cinquième
+         cellule vise le milieu de la terre praticable — très exactement
+         le centre de la scène. Sans cette ligne elle se posait au
+         milieu des danseurs. La spirale sait s'écarter : elle sort du
+         carré en quelques pas, et l'île garde ses cinq cellules. */
+      if(scene && dansLaScene(px2, py2)) continue;
       var libre = 1;
       for(var jb = 0; jb < c.batiments.length; jb++){
         var bb = c.batiments[jb];
@@ -1322,6 +1373,8 @@ function genereCarte(codeSalon, index, plan, tirage){
       if(Math.abs(sx - QG_GX) <= 10 && Math.abs(sy - QG_GY) <= 10) continue;
       var ts = (Qs && Qs.t) ? TYPES_PLAN[Qs.t] : tAutoS;
       if(ts === "vide") continue;                    // la gomme forte
+      /* et la piste de danse, comme partout : après les tirages */
+      if(scene && dansLaScene(sx + jxs, sy + jys)) continue;
       var fs = DEF[ts];
       c.batiments.push({
         t:ts, gx:sx + jxs, gy:sy + jys, pv:fs.pv, pvMax:fs.pv, e:fs.emprise,
@@ -1355,6 +1408,8 @@ function genereCarte(codeSalon, index, plan, tirage){
       var angm = al() * 6.2832;
       if(rm < 0.18) continue;
       if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
+      /* et pas de tour de guet au milieu de la piste */
+      if(scene && dansLaScene(gxm, gym)) continue;
       /* la gomme forte vaut aussi pour les miradors — c'est même son
          intérêt principal, ce sont eux qui verrouillent le terrain */
       if(P && planEn(P, gxm, gym).vide) continue;

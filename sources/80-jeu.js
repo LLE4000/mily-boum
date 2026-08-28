@@ -120,6 +120,12 @@ function nouvelleCarte(index, pvConnu){
        tombe pas tout de suite — on doit avoir eu le temps de débarquer
        avant de voir arriver la première. */
     tornades:[], brulures:[],
+    /* La foule de la scène d'Ibiza. Vide ailleurs : c'est carteScene()
+       qui décide, et elle seule. Elle ne bouge jamais de place — les
+       danseurs dansent, ils ne marchent pas — donc rien à mettre à
+       jour dans la boucle : leur mouvement est une fonction du temps
+       et de leur décalage sur le battement. */
+    danseurs:carteScene(index) ? fabriqueDanseurs() : [],
     prochaineTornade:EQ.TORNADE_PERIODE * (0.55 + 0.5 * Math.random()),
     /* QUATRE NUAGES D'ORAGE, et ils vont vite.
        Peu, parce qu'un ciel couvert n'est plus une menace : c'est un

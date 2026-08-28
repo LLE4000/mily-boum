@@ -2140,6 +2140,16 @@ function rendu(tps, dt){
     if(!visible(vueL, to2.gx, to2.gy)) continue;
     pile.push({ d:to2.gx + to2.gy, k:13, o:to2 });
   }
+  /* LA SCÈNE D'IBIZA ET SA FOULE, dans le même tri : les troupes qui
+     passent au sud doivent leur passer devant, celles du nord
+     derrière. Une scène de trois mètres qui flotte au-dessus de tout
+     le monde ne serait pas posée sur l'île, elle serait collée sur
+     l'écran. */
+  if(carteScene(jeu.index)){
+    if(visible(vueL, SCENE_GX, SCENE_GY))
+      pile.push({ d:SCENE_GX + SCENE_GY, k:15, o:null });
+    danseursVisibles(vueL, pile);
+  }
   for(i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
     if(!visible(vueL, u.gx, u.gy)) continue;
@@ -2236,6 +2246,8 @@ function rendu(tps, dt){
       case 11: dessineNavette(ctx, it.o, tps); break;
       case 12: dessineGeyserMonde(ctx, it.o, tps); break;
       case 13: dessineTornadeMonde(ctx, it.o, tps); break;
+      case 14: dessineDanseur(ctx, it.o, tps); break;
+      case 15: dessineSceneIbiza(ctx, tps); break;
     }
   }
   if(jeu.balise) dessineFusee(ctx, tps);
@@ -2295,7 +2307,10 @@ function rendu(tps, dt){
   }
 
   /* Les rayons de Mily passent AU-DESSUS de toute la carte : c'est de
-     la lumière dans l'air, rien ne peut la masquer. */
+     la lumière dans l'air, rien ne peut la masquer. Les lasers de la
+     scène d'Ibiza sont exactement dans le même cas — ils pointent vers
+     le ciel, rien ne se met devant. */
+  if(carteScene(jeu.index)){ repereEcran(ctx); dessineLasersIbiza(ctx, tps); }
   if(jeu.vengeance) dessineRayonsVengeance(ctx, tps);
 
   /* visée */
