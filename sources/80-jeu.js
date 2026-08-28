@@ -165,6 +165,10 @@ function nouvelleCarte(index, pvConnu){
     messageTweety:0,
     /* Les trois chats de Mily : qui a tué lequel, et la riposte en cours. */
     tueurChats:{ chat:"", chaton:"", chatte:"" },
+    /* LA PLUIE D'ÉTOILES. Seuls les vœux POSÉS ont un état — pris ou
+       pas pris ; les étoiles en chute sont une fonction du temps et
+       n'existent nulle part. Voir 46-nuits-pluie.js. */
+    voeux:[], voeuxVus:{}, pluieCreneau:-1,
     vengeance:null,
     usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
     barges:[],
@@ -3342,6 +3346,7 @@ function majJeu(dt){
      décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
      doit pas tirer une dernière fois dans la même image. */
   if(carteAvecTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
+  majPluieEtoiles(dt);
   majFoudre(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);

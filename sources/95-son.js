@@ -129,6 +129,42 @@ var son = {
     this.bip("square", 900, 210, 0.05, 0.05);
     this.bip("sawtooth", 260, 60, 0.15, 0.10);
   },
+  /* ================================================================
+     LA PLUIE D'ÉTOILES — trois sons, et aucun ne ressemble au reste
+     du jeu
+
+     Toute la bande-son de Mily Boum est faite d'explosions, de tôle
+     et de moteurs : des bruits qui DESCENDENT — une attaque forte
+     suivie d'une chute. Un vœu doit faire l'inverse, sinon l'oreille
+     le range parmi les dégâts. Les trois sons ci-dessous MONTENT, ils
+     sont tous en sinus pur (aucune harmonique dure), et ils tombent
+     sur des intervalles justes — quinte et octave. C'est ce qui les
+     rend audibles au milieu du vacarme sans y ajouter de violence.
+     ================================================================ */
+  /* L'annonce : le ciel s'ouvre. Trois notes très douces qui montent,
+     largement espacées — on doit lever les yeux, pas sursauter. */
+  pluieAnnonce:function(){
+    this.bip("sine", 523, 523, 0.9, 0.055);
+    this.bip("sine", 784, 784, 0.9, 0.048, 0.35);
+    this.bip("sine", 1046, 1046, 1.4, 0.052, 0.75);
+    this.souffle(2600, 1400, 1.6, 0.022);
+  },
+  /* Une étoile se pose : une clochette, courte et haute. Il y en a
+     vingt-six par pluie, donc elle doit être MINCE — un son plein
+     répété vingt-six fois devient un carillon insupportable. */
+  voeuPose:function(){
+    this.bip("sine", 1760, 1760, 0.34, 0.030);
+    this.bip("sine", 2637, 2637, 0.22, 0.016, 0.02);
+  },
+  /* Un vœu cueilli : la même clochette, mais qui MONTE d'une octave,
+     et deux notes au lieu d'une. C'est le seul son du jeu qui monte
+     franchement — il ne peut se confondre avec rien. */
+  voeuPris:function(soigne){
+    this.bip("sine", 880, 1320, 0.30, 0.075);
+    this.bip("sine", 1320, 1976, 0.34, 0.055, 0.07);
+    if(soigne) this.bip("sine", 1760, 2637, 0.40, 0.040, 0.14);
+    this.souffle(3400, 1800, 0.30, 0.030);
+  },
   /* Un char qui meurt : les munitions partent. Une détonation plus
      longue et plus basse que son propre canon — c'est ce qui la
      distingue d'un tir, et c'est ce qui la rend triste. */

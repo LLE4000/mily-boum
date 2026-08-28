@@ -210,6 +210,84 @@ function dessineEffet(c, e, tps){
       bouffee(c, pe2.x, pe2.y - haut * 0.86, (3 + tm * 9) * z,
               opa * 0.30 * (1 - tm), "#6b5f4a");
     }
+  }else if(e.t === "etoilePosee"){
+    /* ---- UNE ÉTOILE TOUCHE LE SOL ----
+       Une gerbe, et surtout UN ANNEAU QUI COURT AU RAS DE LA TERRE.
+       C'est l'anneau qui fait la différence entre « quelque chose a
+       brillé » et « quelque chose s'est POSÉ LÀ » : il donne au
+       joueur le rayon exact où le vœu l'attend. */
+    var te = e.teinte || "255,246,214";
+    var ae = 1 - t;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var re = (6 + t * 46) * z;
+    c.strokeStyle = "rgba(" + te + "," + (0.85 * ae * ae) + ")";
+    c.lineWidth = (3.4 * (1 - t) + 0.6) * z;
+    c.beginPath(); c.ellipse(p.x, p.y, re, re * 0.5, 0, 0, 6.2832); c.stroke();
+    /* l'éclat, très court : il doit être fini avant l'anneau */
+    if(t < 0.45){
+      var fe = 1 - t / 0.45;
+      var ge = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, 40 * z * fe);
+      ge.addColorStop(0, "rgba(255,255,255," + (0.9 * fe) + ")");
+      ge.addColorStop(0.3, "rgba(" + te + "," + (0.5 * fe) + ")");
+      ge.addColorStop(1, "rgba(" + te + ",0)");
+      c.fillStyle = ge;
+      c.beginPath(); c.ellipse(p.x, p.y, 40 * z * fe, 20 * z * fe, 0, 0, 6.2832); c.fill();
+    }
+    /* et les éclats qui rejaillissent, puis retombent */
+    for(var ke = 0; ke < 9; ke++){
+      var aE = ke * 0.698 + (e.gx + e.gy);
+      var dE = t * (18 + (ke % 4) * 9) * z;
+      var hE = Math.sin(t * 3.14159) * (22 + (ke % 3) * 10) * z;
+      c.fillStyle = "rgba(" + te + "," + (0.8 * ae * ae) + ")";
+      c.beginPath();
+      c.arc(p.x + Math.cos(aE) * dE, p.y + Math.sin(aE) * dE * 0.5 - hE,
+            (2.2 - t * 1.4) * z, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+
+  }else if(e.t === "voeuPris"){
+    /* ---- UNE TROUPE CUEILLE UN VŒU ----
+       L'étoile MONTE dans la troupe au lieu d'exploser sur elle : un
+       vœu se prend, il ne détone pas. Puis un anneau s'ouvre, et le
+       chiffre de ce qu'il a donné part vers le haut — c'est la seule
+       façon de dire « soigné » ou « énergie » sans un panneau. */
+    var tv = e.teinte || "255,246,214";
+    var av = 1 - t;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var hv = (1 - t) * (1 - t) * 62 * z;         // l'étoile qui monte et rentre
+    var rv = (13 - t * 9) * z;
+    if(rv > 0.5){
+      var gv = c.createRadialGradient(p.x, p.y - hv, 0, p.x, p.y - hv, rv * 3);
+      gv.addColorStop(0, "rgba(255,255,255," + (0.95 * av) + ")");
+      gv.addColorStop(0.2, "rgba(" + tv + "," + (0.6 * av) + ")");
+      gv.addColorStop(1, "rgba(" + tv + ",0)");
+      c.fillStyle = gv;
+      c.beginPath(); c.arc(p.x, p.y - hv, rv * 3, 0, 6.2832); c.fill();
+      if(typeof dessineEtoileRayons === "function")
+        dessineEtoileRayons(c, p.x, p.y - hv, rv, t * 9, tv, av);
+    }
+    /* l'anneau au sol, qui dit d'où le vœu est parti */
+    c.strokeStyle = "rgba(" + tv + "," + (0.6 * av * av) + ")";
+    c.lineWidth = 2.2 * z;
+    c.beginPath();
+    c.ellipse(p.x, p.y, (10 + t * 40) * z, (5 + t * 20) * z, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+    /* le chiffre : hors composition additive, sinon il devient illisible */
+    if(e.gain || e.energie){
+      c.save();
+      c.globalAlpha = Math.min(1, av * 1.6);
+      c.font = "700 " + Math.round(15 * z) + "px system-ui, sans-serif";
+      c.textAlign = "center";
+      c.fillStyle = e.energie ? "#ffe08a" : "#9dffb4";
+      c.fillText(e.energie ? ("+" + e.energie + " ⚡") : ("+" + e.gain),
+                 p.x, p.y - (34 + t * 34) * z);
+      c.restore();
+    }
+
   }else if(e.t === "interception"){
     /* ---- UNE ROQUETTE ABATTUE EN VOL ----
        Elle éclate EN L'AIR, et c'est tout le sujet : l'effet est
@@ -2427,6 +2505,17 @@ function rendu(tps, dt){
   for(i = 0; i < jeu.brouillards.length; i++){
     pile.push({ d:jeu.brouillards[i].gx + jeu.brouillards[i].gy + 0.4, k:7, o:jeu.brouillards[i] });
   }
+  /* LES VŒUX DE LA PLUIE D'ÉTOILES. Ils entrent dans la pile pour
+     qu'une tour puisse en cacher un : c'est ce qui les met DANS la
+     carte au lieu de les poser dessus. Leur colonne de lumière monte
+     assez haut pour qu'on les repère quand même. */
+  if(jeu.voeux){
+    for(i = 0; i < jeu.voeux.length; i++){
+      var vo = jeu.voeux[i];
+      if(!visible(vueL, vo.gx, vo.gy)) continue;
+      pile.push({ d:vo.gx + vo.gy + 0.1, k:16, o:vo });
+    }
+  }
   /* navettes de débarquement : elles sont à cheval sur l'eau et le sable */
   for(i = 0; i < jeu.navettes.length; i++){
     var nv = jeu.navettes[i];
@@ -2472,6 +2561,7 @@ function rendu(tps, dt){
       case 13: dessineTornadeMonde(ctx, it.o, tps); break;
       case 14: dessineDanseur(ctx, it.o, tps); break;
       case 15: dessineSceneIbiza(ctx, tps); break;
+      case 16: dessineVoeuMonde(ctx, it.o, tps); break;
     }
   }
   /* ================================================================
@@ -2531,6 +2621,13 @@ function rendu(tps, dt){
        éclairée par la nuit, elle EST la nuit. La filtrer avec le reste
        lui aurait pris exactement ce qui la fait briller. */
     dessineAirNuits(ctx, tps, vue, 1);
+    /* LE PHÉNOMÈNE SIGNATURE. Les nuages et les étoiles en chute sont
+       très au-dessus de l'île : rien ne peut les cacher, donc ils
+       passent après tout le reste. Les VŒUX, eux, sont posés au sol et
+       entrent dans la pile de profondeur — une tour doit pouvoir en
+       masquer un. Voir 46-nuits-pluie.js. */
+    dessineNuagesEnchantes(ctx, tps, vue);
+    dessineChutesEtoiles(ctx, tps, vue);
   }
   if(jeu.balise) dessineFusee(ctx, tps);
 
