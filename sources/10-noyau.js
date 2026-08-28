@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.74";
+var VERSION = "v0.75";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -312,8 +312,27 @@ var EQ = {
      partout ailleurs dans ce fichier : le dessin peut grossir
      librement, le rayon mortel non. Le joueur voit une grosse tornade
      et un petit anneau, et c'est l'anneau qui dit la vérité.
+
+     ────────────────────────────────────────────────────────────
+     ET LA HAUTEUR EST REVENUE À UN, APRÈS ESSAI À L'ÉCRAN
+
+     « J'ai l'impression que toutes les tornades sont trop hautes
+     maintenant ; à mon avis deux fois plus petites. »
+
+     Elle avait été doublée à la demande — « deux fois plus hautes et
+     le cône une fois et demie plus large » — et c'est le doublement
+     qui était de trop : à deux, la colonne sort du cadre au zoom de
+     jeu, et une colonne dont on ne voit pas le sommet ne se lit plus
+     comme une tornade mais comme un trait vertical. Le cône, lui,
+     reste à une fois et demie : c'est LUI qui fait l'impression, et
+     il a été gardé.
+
+     LE RAYON MORTEL N'A JAMAIS BOUGÉ, ni à la hausse ni à la baisse.
+     Ces deux nombres ne touchent que le dessin — c'est toute la
+     raison d'être de la convention rappelée juste au-dessus. Aucune
+     partie en cours ne change de difficulté d'un point.
      ════════════════════════════════════════════════════════════ */
-  TORNADE_HAUT_ECH     : 2.0,
+  TORNADE_HAUT_ECH     : 1.0,
   TORNADE_CONE_ECH     : 1.5,
   /* ---- LA TORNADE DE LA GUINGUETTE ----
      « Mily en guinguette, elle est un peu fade. Il faudrait mettre
@@ -2061,7 +2080,8 @@ function genereCarte(codeSalon, index, plan, tirage){
      ce qui précède ne peut la décaler, et rien ne vient après elle. */
   if(CARTES[index] && CARTES[index].biome === "guinguette"){
     var avantPavois = c.batiments.length;
-    var cible = Math.round(compteDefenses(c) * (1 + PAVOIS_HAUSSE));
+    var defAvant = compteDefenses(c);
+    var cible = Math.round(defAvant * (1 + PAVOIS_HAUSSE));
     var alG = prng((gr ^ 0x6A17E7EE) >>> 0);
     /* On dessine, on rouvre, on complète, on rouvre encore. Deux tours
        et pas trois : le premier pose la figure, qui ferme des
@@ -2072,6 +2092,15 @@ function genereCarte(codeSalon, index, plan, tirage){
     ouvreLaFete(c, avantPavois);
     lampionsGuinguette(c, alG, cible);
     ouvreLaFete(c, avantPavois);
+    /* --- ET LE RENFORT, PAR-DESSUS, SANS TOUCHER À RIEN ---
+       Tout ce qui précède est exactement la guinguette de la v0.74,
+       tirage pour tirage : elle est en ligne, ses rangs sont l'index
+       des destructions. Le renfort s'ajoute derrière, et l'ouverture
+       qui le suit reçoit pour plancher la longueur atteinte ici — elle
+       ne peut donc défaire que l'ouvrage du renfort. */
+    var geleV074 = c.batiments.length;
+    renfortGuinguette(c, alG, Math.round(defAvant * (1 + PAVOIS_RENFORT)));
+    ouvreLaFete(c, geleV074, PAVOIS_POCHE_RENFORT, 1, PAVOIS_PASSES_RENFORT);
   }
 
   /* --- LES CHATS DE MILY SORTENT DES MURS ---
@@ -2437,6 +2466,62 @@ var PAVOIS_TABLES   = 150;   // guéridons tentés, sur toute l'île
 var PAVOIS_LAMPIONS = 2400;  // essais de la passe qui tient le compte
 var PAVOIS_HAUSSE   = 0.50;  // « cinquante pour cent de défenses en plus »
 
+/* ================================================================
+   LE RENFORT — « encore vingt pour cent, et une majorité de Frelons »
+
+   C'EST UNE TROISIÈME PASSE, ET C'EST TOUT LE POINT. La guinguette
+   pavoisée est en ligne depuis la v0.74 : ses onze cent soixante-deux
+   rangs sont, dès maintenant, l'index qui porte le bitmap des
+   destructions de quiconque y débarque. On n'y touche donc pas —
+   ni la figure, ni le motif peint au sol, ni la passe qui tenait le
+   compte à cinquante pour cent, ni même l'ouverture qui la suivait.
+   Tout cela reste bit pour bit ce qu'il était, et le renfort s'ajoute
+   DERRIÈRE, sur des rangs qui n'ont jamais existé pour personne.
+
+   La conséquence pratique, et elle commande le code : l'ouverture qui
+   suit le renfort ne reçoit plus 830 comme plancher mais la longueur
+   ATTEINTE APRÈS la v0.74. Elle ne peut donc rouvrir que ce que le
+   renfort a lui-même fermé. C'est une meilleure règle en soi — une
+   passe ne défait que son propre ouvrage — et c'est elle qui rend le
+   troisième étage possible.
+
+   LA MARGE Y EST PLUS COURTE, et il faut le dire franchement. La
+   figure garde celle des miradors — 0,6 — parce que c'est elle qui
+   donne aux festons leur allure de guirlande et non de muraille. Le
+   renfort, lui, pose des bâtiments ISOLÉS dans ce qui reste, et à 0,6
+   il ne restait plus rien : l'île plafonnait à mille défenses. À
+   0,30, deux bâtiments d'emprise deux sont à 2,3 case l'un de
+   l'autre — leurs emprises se frôlent et ne se chevauchent jamais, le
+   seuil réel étant 2,0.
+
+   ET LE GROS PASSE D'ABORD. Le Frelon tient trois cases, il lui faut
+   trois cases et demie de dégagement : posé après les petits, il ne
+   trouve plus une seule place. Deux tours, donc — les Frelons, puis
+   le reste — et c'est cet ordre, et lui seul, qui fait la majorité
+   demandée. Mesuré : dans l'autre sens, quatorze Frelons au lieu de
+   cent quatre-vingts.
+   ================================================================ */
+var PAVOIS_RENFORT   = 0.80;  // la cible finale, toujours comptée sur les 668 d'origine
+var PAVOIS_TAMIS     = [3, 1.5, 0.75, 0.4];  // le balayage, du gros au fin
+var PAVOIS_RECOIN    = 1;     // en deçà, un groupe de cases n'est pas un passage     // en deçà, un groupe de cases n'est pas un passage
+/* ET LE SEUIL DE POCHE Y EST BIEN PLUS HAUT — mesuré, pas choisi.
+   À trois cases, l'ouverture reprenait cent trente et un Frelons sur
+   deux cent deux : le renfort se défaisait aux deux tiers. Or une
+   case libre inatteignable ne fait de mal à personne — aucune troupe
+   ne peut s'y trouver, puisqu'aucune ne peut y aller. Ce qui ferait
+   du mal, c'est un SECTEUR muré, où l'on entre par un côté qui se
+   referme, et c'est un bâtiment qu'on ne pourrait plus abattre : la
+   carte ne serait jamais rasée et le score jamais complet. Les deux
+   sont contrôlés par les tests, pas par ce seuil. */
+var PAVOIS_POCHE_RENFORT = 30;
+/* ET PLUS DE PASSES. Chaque passe ne perce QU'UNE porte par poche :
+   un mur de deux bâtiments d'épaisseur en demande deux, un de trois en
+   demande trois. Six suffisaient à la figure, qui est faite de cordes
+   d'une seule perle d'épaisseur ; le renfort, lui, s'appuie contre ce
+   qui est déjà là et peut doubler un mur. Mesuré : à six passes, cinq
+   bâtiments restaient hors d'atteinte sur certains salons. */
+var PAVOIS_PASSES_RENFORT = 12;
+
 /* CINQ COURONNES CONCENTRIQUES, et c'est la deuxième version.
 
    La première rayonnait : seize guirlandes partant du mât vers une
@@ -2599,7 +2684,7 @@ function figureGuinguette(){
    d'occupation qui garde des places libérées referait poser dans le
    vide qu'on vient d'ouvrir, et l'on rouvrirait indéfiniment.
    ================================================================ */
-function atelierPavois(c, al){
+function atelierPavois(c, al, ecart){
   /* La table des cases prises, dressée une fois : mille bâtiments
      contre mille candidats feraient un million de comparaisons par
      carte, et genereCarte tourne aussi pour les vignettes de
@@ -2617,12 +2702,101 @@ function atelierPavois(c, al){
      3,6 case, donc strictement moins qu'un seau, donc les neuf seaux
      voisins suffisent et rien ne peut être manqué. */
   var seaux = {}, i, SEAU = 4;
+  var MARGE = (ecart === undefined) ? PAVOIS_ECART : ecart;
+  /* LA GRILLE DE CASES, celle que `bloque()` consulte en jeu. Elle sert
+     au seul test `bouche()` ci-dessous, mais elle doit être tenue à
+     jour à chaque pose, sinon deux bâtiments posés coup sur coup ne se
+     voient pas boucher le même couloir. */
+  var sol = [];
+  for(i = 0; i < GW * GH; i++) sol.push(0);
+  function marque(b){
+    var r = (b.e || 2) / 2, x, y;
+    for(x = Math.floor(b.gx - r); x <= Math.ceil(b.gx + r) - 1; x++)
+      for(y = Math.floor(b.gy - r); y <= Math.ceil(b.gy + r) - 1; y++)
+        if(x >= 0 && x < GW && y >= 0 && y < GH) sol[y * GW + x] = 1;
+  }
   function sac(x, y){ return Math.floor(x / SEAU) + "," + Math.floor(y / SEAU); }
   function inscris(b){
     var k = sac(b.gx, b.gy);
     (seaux[k] || (seaux[k] = [])).push(b);
   }
-  for(i = 0; i < c.batiments.length; i++) inscris(c.batiments[i]);
+  for(i = 0; i < c.batiments.length; i++){ inscris(c.batiments[i]); marque(c.batiments[i]); }
+
+  /* ================================================================
+     BOUCHE-T-ELLE UN COULOIR ?
+
+     C'est LE test qui manquait, et il vaut d'être expliqué parce qu'il
+     commande toute densification future.
+
+     L'espace libre qui reste sur une île bien remplie N'EST PAS de
+     l'espace perdu : c'est exactement l'espace où l'on MARCHE. Chaque
+     bâtiment de plus le prend à quelqu'un. Poser deux cents pièces au
+     hasard dans ce qui reste faisait tomber l'île de 99 % de cases
+     atteignables à 79 %, et la passe d'ouverture en reprenait aussitôt
+     les deux tiers : on payait le calcul pour rien.
+
+     On regarde donc AVANT de poser. Autour de la place visée, on
+     compte les groupes de cases libres — d'abord tels quels, puis avec
+     le bâtiment en place. Si le nombre de groupes AUGMENTE, c'est que
+     la pose vient de couper un passage en deux : on refuse. Le
+     bâtiment ira ailleurs, et il y a de la place ailleurs.
+
+     C'est un test LOCAL, sur une fenêtre de neuf cases de côté. Il ne
+     prouve pas que l'île reste connexe — ouvreLaFete s'en charge, et
+     ne trouve plus grand-chose à faire. Il suffit à écarter le cas qui
+     coûte : le bouchon de couloir.
+
+     Et il ne tourne QUE sur les candidats qui ont déjà passé
+     l'encombrement — quelques centaines, pas les trente mille du
+     balayage. */
+  var VOIS8 = [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]];
+  function groupes(x0, y0, r, sx, sy, se){
+    /* Nombre de groupes de cases libres dans la fenêtre, le bâtiment
+       hypothétique (sx, sy, se) étant compté comme occupé — et l'on ne
+       compte QUE les groupes d'au moins PAVOIS_RECOIN cases.
+       Sans ce plancher, le test refusait tout : sur une île déjà
+       dense, presque toute pose détache un recoin d'une ou deux cases
+       où personne n'irait jamais, et l'on écartait ainsi les trois
+       quarts des places valables. Ce qu'il faut interdire, c'est de
+       couper un PASSAGE en deux, pas de fermer une encoignure. */
+    var L = r * 2 + 1, vu = [], n = 0, i2, j2;
+    for(i2 = 0; i2 < L * L; i2++) vu.push(0);
+    function pris(x, y){
+      if(x < 0 || x >= GW || y < 0 || y >= GH) return 1;
+      if(sx !== undefined){
+        var rr = se / 2;
+        if(x >= Math.floor(sx - rr) && x <= Math.ceil(sx + rr) - 1 &&
+           y >= Math.floor(sy - rr) && y <= Math.ceil(sy + rr) - 1) return 1;
+      }
+      return sol[y * GW + x];
+    }
+    for(i2 = 0; i2 < L; i2++)
+      for(j2 = 0; j2 < L; j2++){
+        if(vu[j2 * L + i2]) continue;
+        if(pris(x0 - r + i2, y0 - r + j2)) continue;
+        var taille = 0;
+        var pile = [j2 * L + i2];
+        vu[j2 * L + i2] = 1;
+        while(pile.length){
+          taille++;
+          var k2 = pile.pop(), cx = k2 % L, cy = (k2 / L) | 0, d2;
+          for(d2 = 0; d2 < 8; d2++){
+            var nx = cx + VOIS8[d2][0], ny = cy + VOIS8[d2][1];
+            if(nx < 0 || nx >= L || ny < 0 || ny >= L) continue;
+            if(vu[ny * L + nx]) continue;
+            if(pris(x0 - r + nx, y0 - r + ny)) continue;
+            vu[ny * L + nx] = 1; pile.push(ny * L + nx);
+          }
+        }
+        if(taille >= PAVOIS_RECOIN) n++;
+      }
+    return n;
+  }
+  function bouche(t, x, y){
+    var e = DEF[t].emprise, r = Math.ceil(e * 0.5) + 2;
+    var cx = Math.round(x), cy = Math.round(y);
+    return groupes(cx, cy, r, x, y, e) > groupes(cx, cy, r);
+  }
 
   function libre(t, x, y){
     if(x < 6 || x > PLAGE_X0 - 3 || y < 3 || y > GH - 4) return 0;
@@ -2638,7 +2812,7 @@ function atelierPavois(c, al){
         if(!l) continue;
         for(var j = 0; j < l.length; j++){
           var b = l[j];
-          if(Math.hypot(b.gx - x, b.gy - y) < (e + (b.e || 2)) * 0.5 + PAVOIS_ECART) return 0;
+          if(Math.hypot(b.gx - x, b.gy - y) < (e + (b.e || 2)) * 0.5 + MARGE) return 0;
         }
       }
     return 1;
@@ -2667,12 +2841,12 @@ function atelierPavois(c, al){
       var b = { t:t, gx:ax, gy:ay, pv:f.pv, pvMax:f.pv, e:f.emprise,
                 ang:ang, vivant:1, n:c.batiments.length };
       c.batiments.push(b);
-      inscris(b);
+      inscris(b); marque(b);
       return b;
     }
     return null;
   }
-  return { libre:libre, pose:pose };
+  return { libre:libre, pose:pose, bouche:bouche };
 }
 
 function pavoiseLaGuinguette(c, al){
@@ -2818,6 +2992,81 @@ function lampionsGuinguette(c, al, cible){
 }
 
 /* ================================================================
+   LE RENFORT SE BALAIE, IL NE S'ÉCHANTILLONNE PAS
+
+   Et c'est la quatrième tentative. Les trois premières ont échoué sur
+   le même malentendu, qui valait d'être levé.
+
+   J'AI CRU L'ÎLE PLEINE. Les guéridons et les lampions de la v0.74
+   sont semés sur une suite de Roberts : deux mille quatre cents
+   points sur dix-sept mille cases, soit un tous les sept. Quand elle
+   a cessé de trouver des places, j'en ai conclu que l'île n'en avait
+   plus. C'était faux. Un balayage systématique à la demi-case en
+   trouve CENT QUARANTE-SEPT pour un Frelon et quatre cent
+   vingt-et-une pour une bobine, à la marge normale de 0,6 — celle de
+   la figure, celle des miradors, sans rien desserrer du tout.
+
+   La leçon vaut d'être écrite : une suite à faible discrépance
+   répartit bien, elle ne cherche pas. Pour COMPTER des places, il
+   faut les balayer.
+
+   LE BALAYAGE EST DITHÉRÉ, du gros au fin — trois cases, une et
+   demie, trois quarts. Un balayage en lignes remplirait l'ouest
+   d'abord et laisserait l'est nu dès que le compte est atteint ; en
+   passes de plus en plus fines, chaque arrêt laisse une île
+   uniformément garnie.
+
+   ET LE GROS PASSE D'ABORD. Le Frelon tient trois cases, il lui faut
+   trois cases et demie de dégagement ; posé après les petits, il n'en
+   trouve plus une seule — mesuré, quatorze au lieu de cent
+   quarante-sept. C'est cet ordre, et lui seul, qui fait la majorité
+   de Frelons demandée.
+   ================================================================ */
+function renfortGuinguette(c, al, cible){
+  var A = atelierPavois(c, al), pose = A.pose, libre = A.libre, bouche = A.bouche;
+  var n = compteDefenses(c), frelons = 0, petits = 0, ip, x, y;
+
+  /* L'ORDRE DES DEUX TESTS EST UN CHOIX DE COÛT, PAS DE GOÛT.
+     `libre` coûte huit comparaisons ; `bouche` en coûte deux cents —
+     deux inondations dans une fenêtre de neuf cases. Le balayage
+     propose trente mille places, dont deux cents tiennent. Tester
+     l'encombrement d'abord fait tomber la génération de sept secondes
+     à quelques dizaines de millisecondes, pour exactement le même
+     résultat. */
+  function essaie(t, x, y){
+    return libre(t, x, y) && !bouche(t, x, y) && !!pose(t, x, y, 0, 0);
+  }
+
+  /* 1. LES FRELONS, aussi loin que le balayage en trouve. Le gros
+        passe d'abord : posé après les petits, il ne trouve plus une
+        seule place — mesuré, quatorze au lieu de cent. */
+  for(ip = 0; ip < PAVOIS_TAMIS.length && n < cible; ip++){
+    var pas = PAVOIS_TAMIS[ip];
+    for(x = 6 + pas * 0.5; x <= PLAGE_X0 - 3 && n < cible; x += pas)
+      for(y = 3 + pas * 0.5; y <= GH - 4 && n < cible; y += pas)
+        if(essaie("frelon", x, y)){ n++; frelons++; }
+  }
+
+  /* 2. ET LE COMPTE SE FINIT AU LAMPION ET AU BRASERO — mais JAMAIS
+        PLUS QU'IL N'Y A DE FRELONS. C'était la demande : « une
+        majorité de Frelons ». Le Frelon tient trois cases contre deux,
+        il bouche donc bien plus facilement un couloir, et l'île en
+        accueille forcément moins ; si on laissait les petits finir le
+        compte librement, ils seraient deux fois plus nombreux et la
+        majorité serait perdue. On plafonne. */
+  var pair = 0;
+  for(ip = 0; ip < PAVOIS_TAMIS.length && n < cible && petits < frelons; ip++){
+    var pas2 = PAVOIS_TAMIS[ip];
+    for(x = 6 + pas2 * 0.25; x <= PLAGE_X0 - 3 && n < cible && petits < frelons; x += pas2)
+      for(y = 3 + pas2 * 0.25; y <= GH - 4 && n < cible && petits < frelons; y += pas2){
+        var t2 = (pair & 1) ? "chalumeau" : "bobine";
+        if(essaie(t2, x, y)){ n++; petits++; pair++; }
+      }
+  }
+  return { total:n, frelons:frelons, petits:petits };
+}
+
+/* ================================================================
    ON ROUVRE CE QUI S'EST FERMÉ
 
    Le pavois dessine des courbes FERMÉES, et une courbe fermée
@@ -2849,8 +3098,9 @@ function lampionsGuinguette(c, al, cible){
 var PAVOIS_PASSES = 6;      // au plus six percées successives
 var PAVOIS_POCHE  = 3;      // en deçà, c'est un recoin, pas une prison
 
-function ouvreLaFete(c, depart){
+function ouvreLaFete(c, depart, seuil, exige, passes){
   var n = GW * GH, i, j, k, x, y, nx, ny, kk;
+  var POCHE = (seuil === undefined) ? PAVOIS_POCHE : seuil;
   var VOIS = [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]];
 
   /* les quatre tableaux sont alloués UNE fois pour toutes les passes :
@@ -2859,7 +3109,7 @@ function ouvreLaFete(c, depart){
   var occ = [], qui = [], vu = [], lot = [];
   for(i = 0; i < n; i++){ occ.push(0); qui.push(-1); vu.push(0); lot.push(0); }
 
-  for(var passe = 0; passe < PAVOIS_PASSES; passe++){
+  for(var passe = 0; passe < (passes || PAVOIS_PASSES); passe++){
     /* 1. la grille d'occupation, exactement comme marqueEmprise, et
           l'on retient QUEL bâtiment tient chaque case — le dernier
           inscrit, donc le plus neuf, donc celui qu'on a le droit de
@@ -2919,7 +3169,42 @@ function ouvreLaFete(c, depart){
             lot[kk] = 1; p2.push(kk);
           }
         }
-        if(taille < PAVOIS_POCHE) continue;      // un recoin, pas une prison
+        /* ══ FAUT-IL OUVRIR CETTE POCHE ? DEUX RAISONS, ET LA
+           SECONDE NE SE NÉGOCIE PAS.
+
+           Le CONFORT : une poche large est un secteur muré, où l'on
+           entre par un côté qui se referme. En deçà de POCHE cases,
+           c'est une encoignure, et une encoignure ne gêne personne —
+           aucune troupe ne peut s'y trouver, puisqu'aucune ne peut y
+           aller.
+
+           LA CORRECTION : un bâtiment dont AUCUNE case atteignable
+           n'est à portée de tir ne pourra jamais être abattu. L'île ne
+           serait plus rasable à cent pour cent et le score jamais
+           complet. Cinq cases : la portée de la Furie, celle qui fait
+           le gros des flottes. Cette poche-là s'ouvre quelle que soit
+           sa taille. */
+        var doit = (taille >= POCHE);
+        /* LA RÈGLE DE PORTÉE EST NEUVE, ET ELLE NE VAUT QUE POUR LE
+           RENFORT. Ce n'est pas une faveur faite au passé : la
+           guinguette de la v0.74 la respecte déjà — zéro bâtiment hors
+           d'atteinte, le test le vérifie à chaque exécution — mais
+           l'appliquer à ses deux passes d'ouverture leur ferait
+           percer d'autres portes, donc retirer d'autres bâtiments,
+           donc DÉCALER ses rangs. Or ses rangs sont en ligne. On la
+           branche là où elle a du travail, et nulle part ailleurs. */
+        if(!doit && exige)
+          for(var cs in bord){
+            var bs = c.batiments[cs | 0], vus = 0, ds, es;
+            for(ds = -5; ds <= 5 && !vus; ds++)
+              for(es = -5; es <= 5 && !vus; es++){
+                if(ds * ds + es * es > 25) continue;
+                var xs = Math.round(bs.gx) + ds, ys = Math.round(bs.gy) + es;
+                if(xs >= 0 && xs < GW && ys >= 0 && ys < GH && vu[ys * GW + xs]) vus = 1;
+              }
+            if(!vus){ doit = 1; break; }
+          }
+        if(!doit) continue;
         /* la meilleure porte : celle qui donne déjà sur le dehors */
         var porte = -1, mieux = -1;
         for(var cb in bord){
@@ -2935,6 +3220,39 @@ function ouvreLaFete(c, depart){
           }
         }
         if(porte >= 0 && !aOter[porte]){ aOter[porte] = 1; combien++; }
+      }
+    /* ══ ET LA DÉLIVRANCE, QUI NE PASSE PLUS PAR LES POCHES.
+       Percer la porte d'une poche suppose qu'un bâtiment NEUF borde
+       cette poche. Ce n'est pas toujours vrai : le renfort peut
+       rétrécir un passage à dix cases de là et enfermer un bâtiment
+       derrière un mur qui, lui, est entièrement d'origine — donc
+       intouchable. Mesuré : six bâtiments hors d'atteinte, puis deux
+       en montant le nombre de passes ; jamais zéro.
+       On s'y prend donc par l'autre bout. On cherche les bâtiments
+       qu'on ne peut plus atteindre, et l'on retire autour d'eux le
+       bâtiment NEUF le plus proche — celui qui, de proche en proche,
+       finit par rendre le chemin. C'est la seule règle du fichier qui
+       raisonne sur le résultat plutôt que sur la cause, et c'est
+       assumé : le résultat est ce qui compte. */
+    if(exige)
+      for(i = 0; i < c.batiments.length; i++){
+        var bx2 = c.batiments[i], atteint = 0, dx2, dy2;
+        for(dx2 = -5; dx2 <= 5 && !atteint; dx2++)
+          for(dy2 = -5; dy2 <= 5 && !atteint; dy2++){
+            if(dx2 * dx2 + dy2 * dy2 > 25) continue;
+            var ax2 = Math.round(bx2.gx) + dx2, ay2 = Math.round(bx2.gy) + dy2;
+            if(ax2 >= 0 && ax2 < GW && ay2 >= 0 && ay2 < GH && vu[ay2 * GW + ax2]) atteint = 1;
+          }
+        if(atteint) continue;
+        /* le plus proche des neufs, à huit cases au plus */
+        var pres = -1, dPres = 1e9;
+        for(j = depart; j < c.batiments.length; j++){
+          if(aOter[j]) continue;
+          var cj = c.batiments[j];
+          var dj = Math.hypot(cj.gx - bx2.gx, cj.gy - bx2.gy);
+          if(dj < dPres && dj <= 8){ dPres = dj; pres = j; }
+        }
+        if(pres >= 0){ aOter[pres] = 1; combien++; }
       }
     if(!combien) break;                          // l'île est ouverte
     var reste = [];

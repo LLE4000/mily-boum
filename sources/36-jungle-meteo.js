@@ -873,8 +873,18 @@ var MET_NUAGE_G_H = "176,198,188";  // sa crête, qui prend ce qui reste de jour
    cadre au zoom de jeu. Mauvais calcul : un nuage plus bas recouvre
    d'autant plus le terrain qu'on est en train de regarder. On la
    remet à 340 et l'on rend la place autrement — en effaçant la masse
-   quand on se rapproche. */
-var MET_NUAGE_ALT = 340;
+   quand on se rapproche.
+
+   PUIS 375, « légèrement plus haut », demandé en même temps que le
+   raccourcissement des tornades — et les deux vont ensemble. Une
+   tornade descend du nuage : en la ramenant à sa taille d'avant, on
+   creuse l'écart entre son sommet et la couche, et la colonne se met
+   à pendre dans le vide. Remonter la nappe d'un dixième referme cet
+   écart et rend au ciel sa profondeur, sans redescendre sur le
+   terrain — ce qui reste, et de loin, le défaut le plus coûteux d'un
+   nuage. Les trois ciels hors orage la multiplient toujours par
+   1,35, donc la nuit enchantée passe de 459 à 506. */
+var MET_NUAGE_ALT = 375;
 
 /* Quatre silhouettes pré-rendues. Un nuage dessiné en direct coûterait
    une vingtaine de dégradés par image et par nuage ; celui-ci coûte un

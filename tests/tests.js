@@ -6129,13 +6129,23 @@ G("8. Cohérence des règles de jeu");
       n += d;
     }
     /* on ne peut pas relire la carte d'avant depuis le fichier livré :
-       on compare donc au nombre qu'elle avait, gravé ici. C'est un
-       repère mesuré, pas une constante du jeu. */
-    var AVANT = 668;
+       on compare donc aux nombres qu'elle avait, gravés ici. Ce sont
+       des repères MESURÉS, pas des constantes du jeu.
+         668  l'île nue, avant le pavois (v0.73)
+        1000  après la figure et sa passe de complément (v0.74)
+       Le renfort de la v0.75 s'ajoute par-dessus, sans toucher à un
+       seul des rangs de la v0.74 — c'est l'objet du groupe suivant. */
+    var AVANT = 668, V074 = 1000;
     var moyen = n / 4, hausse = moyen / AVANT - 1;
-    ok("la guinguette porte bien la moitié de défenses en plus",
-       hausse > 0.45 && hausse < 0.56,
+    ok("la guinguette porte au moins la moitié de défenses en plus",
+       hausse > 0.50 && hausse < 0.75,
        AVANT + " → " + moyen.toFixed(0) + "  (+" + (hausse * 100).toFixed(1) + "%)");
+    /* ET LE RENFORT EST BIEN LÀ, par-dessus la v0.74. Il ne peut pas
+       atteindre les vingt pour cent demandés, et le groupe suivant dit
+       pourquoi, mesure à l'appui : l'espace libre qui restait sur
+       cette île EST l'espace où l'on marche. */
+    ok("… et le renfort s'ajoute par-dessus la figure de la v0.74",
+       moyen > V074 + 40, V074 + " → " + moyen.toFixed(0));
     ok("… et d'un salon à l'autre le compte ne s'envole pas",
        haut - bas < 90, bas + " à " + haut);
 
@@ -6270,6 +6280,251 @@ G("8. Cohérence des règles de jeu");
     for(var k = 0; k < cg.batiments.length; k++)
       if(cg.batiments[k].t === "cuve") cuvesG++;
     ok("… et la guinguette, elle, l'est bien", cuvesG > 80, cuvesG + " cuves");
+  })();
+})();
+
+/* ================================================================
+   LE RENFORT DE LA GUINGUETTE, ET LE PLAFOND DE L'ÎLE
+
+   « En gardant exactement ce graphisme, ce motif au sol, cette
+   configuration-là, densifie encore de vingt pour cent les défenses.
+   Rajoute une majorité de Frelons. »
+
+   Deux choses se vérifient ici, et la seconde est un CONSTAT autant
+   qu'un test : l'île a un plafond, il a été mesuré, et il est en
+   dessous des vingt pour cent demandés. Ce que ce groupe garantit,
+   c'est qu'on s'en approche autant que l'île le permet SANS casser ce
+   qui la rend jouable.
+   ================================================================ */
+(function(){
+  G("24. Le renfort de la guinguette");
+
+  var IG = -1;
+  for(var ig = 0; ig < N.CARTES.length; ig++)
+    if(N.CARTES[ig].biome === "guinguette") IG = ig;
+  if(IG < 0){ ok("l'île de la guinguette est là", false); return; }
+
+  /* ---------------------------------------------------------------
+     1. LA FIGURE DE LA v0.74 N'A PAS BOUGÉ D'UN RANG.
+     C'est la condition de tout le reste : cette carte est en ligne,
+     ses rangs portent le bitmap des destructions de qui y débarque.
+     Le renfort n'a le droit que d'AJOUTER EN QUEUE.
+     --------------------------------------------------------------- */
+  (function(){
+    var pav = html.match(/if\(CARTES\[index\] && CARTES\[index\]\.biome === "guinguette"\)\{[\s\S]*?\n  \}/);
+    ok("l'appel du pavois est dans le fichier livré", !!pav);
+    if(!pav) return;
+    var t = pav[0];
+    /* l'ordre est l'invariant : figure, ouverture, complément,
+       ouverture — puis SEULEMENT le renfort */
+    var iPav = t.indexOf("pavoiseLaGuinguette");
+    var iLamp = t.indexOf("lampionsGuinguette");
+    var iGele = t.indexOf("geleV074");
+    var iRenf = t.indexOf("renfortGuinguette");
+    ok("le renfort vient après toute la guinguette de la v0.74",
+       iPav > 0 && iLamp > iPav && iGele > iLamp && iRenf > iGele);
+    /* et son ouverture ne peut défaire QUE son propre ouvrage */
+    ok("… et l'ouverture qui le suit a pour plancher la longueur d'alors",
+       /ouvreLaFete\(c, geleV074/.test(t));
+    ok("… alors que les deux premières gardent le plancher d'origine",
+       (t.match(/ouvreLaFete\(c, avantPavois/g) || []).length === 2);
+  })();
+
+  /* ---------------------------------------------------------------
+     2. UNE MAJORITÉ DE FRELONS. Le Frelon tient trois cases contre
+     deux : il bouche bien plus facilement un couloir, et l'île en
+     accueille forcément moins. C'est pour cela que la passe des
+     petits est PLAFONNÉE à leur nombre — sans quoi ils seraient deux
+     fois plus nombreux et la majorité serait perdue.
+     --------------------------------------------------------------- */
+  (function(){
+    var ren = html.match(/function renfortGuinguette[\s\S]*?\n\}/);
+    ok("le renfort est dans le fichier livré", !!ren);
+    if(!ren) return;
+    ok("il pose des Frelons", ren[0].indexOf('"frelon"') > 0);
+    ok("… il les pose AVANT les petits, sinon ils ne trouvent plus de place",
+       ren[0].indexOf('"frelon"') < ren[0].indexOf('"chalumeau"'));
+    ok("… et il plafonne les petits à leur nombre",
+       /petits < frelons/.test(ren[0]));
+
+    var avant = 14, bas = 1e9, haut = 0, som = 0;
+    for(var g = 0; g < 4; g++){
+      var c = N.genereCarte("RENF" + g, IG, "", 0), f = 0;
+      for(var i = 0; i < c.batiments.length; i++) if(c.batiments[i].t === "frelon") f++;
+      som += f; if(f < bas) bas = f; if(f > haut) haut = f;
+    }
+    var moy = som / 4;
+    ok("l'île porte maintenant beaucoup plus de Frelons qu'avant",
+       moy > avant * 2.5, avant + " → " + moy.toFixed(0) + " en moyenne");
+    ok("… et d'un salon à l'autre le compte tient", haut - bas < 30, bas + " à " + haut);
+  })();
+
+  /* ---------------------------------------------------------------
+     3. LE TEST DU BOUCHON, ET C'EST LUI QUI A TOUT DÉBLOQUÉ.
+     L'espace libre qui reste sur une île dense N'EST PAS de l'espace
+     perdu : c'est exactement l'espace où l'on marche. Poser au hasard
+     dans ce qui reste faisait tomber l'île de 99 % de cases
+     atteignables à 79 %.
+     --------------------------------------------------------------- */
+  (function(){
+    var at = html.match(/function atelierPavois[\s\S]*?\n\}/);
+    ok("l'atelier de pose est dans le fichier livré", !!at);
+    if(!at) return;
+    ok("il sait dire si une pose coupe un passage", /function bouche\(/.test(at[0]));
+    ok("… en comptant les groupes de cases libres avant et après",
+       /groupes\([\s\S]{0,80}\) > groupes\(/.test(at[0]));
+    /* et le test coûteux ne tourne QUE derrière le test bon marché :
+       trente mille places balayées, deux cents qui tiennent */
+    var ren = html.match(/function renfortGuinguette[\s\S]*?\n\}/);
+    ok("… et il ne tourne qu'après l'encombrement, jamais avant",
+       !!ren && /libre\(t, x, y\) && !bouche\(t, x, y\)/.test(ren[0]));
+  })();
+
+  /* ---------------------------------------------------------------
+     4. ET L'ÎLE RESTE JOUABLE. C'est la contrainte qui a fixé le
+     plafond, et elle prime sur le compte.
+     --------------------------------------------------------------- */
+  (function(){
+    var VOIS = [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]];
+    var pireHors = 0, pireTaux = 1, pirePoches = 0;
+    for(var g = 0; g < 4; g++){
+      var c = N.genereCarte("RENF" + g, IG, "", 0), i, x, y;
+      var occ = [], vu = [], pile = [];
+      for(i = 0; i < N.GW * N.GH; i++){ occ.push(0); vu.push(0); }
+      for(i = 0; i < c.batiments.length; i++){
+        var b = c.batiments[i], r = b.e / 2;
+        for(x = Math.floor(b.gx - r); x <= Math.ceil(b.gx + r) - 1; x++)
+          for(y = Math.floor(b.gy - r); y <= Math.ceil(b.gy + r) - 1; y++)
+            if(x >= 0 && x < N.GW && y >= 0 && y < N.GH) occ[y * N.GW + x] = 1;
+      }
+      for(y = 0; y < N.GH; y++){
+        var k = y * N.GW + N.PLAGE_X0;
+        if(!occ[k]){ vu[k] = 1; pile.push(k); }
+      }
+      while(pile.length){
+        var q = pile.pop(), qx = q % N.GW, qy = (q / N.GW) | 0;
+        for(var j = 0; j < 8; j++){
+          var nx = qx + VOIS[j][0], ny = qy + VOIS[j][1];
+          if(nx < 0 || nx >= N.GW || ny < 0 || ny >= N.GH) continue;
+          var kk = ny * N.GW + nx;
+          if(vu[kk] || occ[kk]) continue;
+          vu[kk] = 1; pile.push(kk);
+        }
+      }
+      var libres = 0, atteintes = 0, poches = 0;
+      for(i = 0; i < N.GW * N.GH; i++){ if(!occ[i]) libres++; if(vu[i]) atteintes++; }
+      for(y = 0; y < N.GH; y++)
+        for(x = 6; x < N.PLAGE_X0; x++){
+          var k2 = y * N.GW + x;
+          if(!occ[k2] && !vu[k2]) poches++;
+        }
+      var hors = 0;
+      for(i = 0; i < c.batiments.length; i++){
+        var b2 = c.batiments[i], ok2 = 0, dx, dy;
+        for(dx = -5; dx <= 5 && !ok2; dx++)
+          for(dy = -5; dy <= 5 && !ok2; dy++){
+            if(dx * dx + dy * dy > 25) continue;
+            x = Math.round(b2.gx) + dx; y = Math.round(b2.gy) + dy;
+            if(x >= 0 && x < N.GW && y >= 0 && y < N.GH && vu[y * N.GW + x]) ok2 = 1;
+          }
+        if(!ok2) hors++;
+      }
+      if(hors > pireHors) pireHors = hors;
+      if(poches > pirePoches) pirePoches = poches;
+      if(atteintes / libres < pireTaux) pireTaux = atteintes / libres;
+    }
+    /* CE TEST-CI EST LE PLAFOND DE L'ÎLE. Il ne se négocie pas : un
+       bâtiment qu'aucune troupe ne peut atteindre est un bâtiment
+       qu'on ne peut plus abattre, et l'île n'est alors jamais rasable
+       à cent pour cent. C'est lui qui a arrêté la densification à
+       sept pour cent au lieu des vingt demandés. */
+    ok("après le renfort, aucun bâtiment n'est hors d'atteinte",
+       pireHors === 0, pireHors + " bâtiment(s)");
+    ok("… et l'île reste franchissable de part en part",
+       pireTaux > 0.97, (pireTaux * 100).toFixed(1) + "%");
+    ok("… il ne reste que des recoins, pas des secteurs murés",
+       pirePoches < 400, pirePoches + " cases enfermées");
+  })();
+})();
+
+/* ================================================================
+   LA TAILLE DES TORNADES, ET LA HAUTEUR DES NUAGES
+
+   « J'ai l'impression que toutes les tornades sont trop hautes
+   maintenant ; à mon avis deux fois plus petites. Et les nuages
+   doivent être légèrement plus hauts. »
+
+   Deux nombres, et une règle de maison à ne pas enfreindre : le
+   dessin peut grossir ou maigrir librement, LE RAYON MORTEL NON.
+   Une partie en cours ne doit pas changer de difficulté parce qu'on
+   a retouché une silhouette.
+   ================================================================ */
+(function(){
+  G("25. La taille des tornades et la hauteur des nuages");
+
+  ok("la colonne est revenue à sa hauteur d'avant",
+     N.EQ.TORNADE_HAUT_ECH === 1.0, "×" + N.EQ.TORNADE_HAUT_ECH);
+  /* le cône, lui, reste élargi : c'est LUI qui fait l'impression, et
+     il avait été demandé à part */
+  ok("… mais le cône garde son évasement d'une fois et demie",
+     N.EQ.TORNADE_CONE_ECH === 1.5, "×" + N.EQ.TORNADE_CONE_ECH);
+
+  /* LES QUATRE PROFILS SUIVENT LE MÊME NOMBRE. Il y en a un par île à
+     tornades — ténèbres, nuits, campagne, guinguette — et chacun
+     calcule sa hauteur dans son coin : en oublier un donnerait une île
+     à deux tailles de tornade sans qu'on sache pourquoi. */
+  (function(){
+    var vus = 0, tous = 1;
+    for(var i = 0; i < N.CARTES.length; i++){
+      var P = N.profilTornade(i);
+      if(!P) continue;
+      vus++;
+      /* 330 est la hauteur de référence du dessin ; ech vaut
+         TORNADE_ECH_VISUEL, et le tourbillon des nuits y ajoute le
+         sien. La hauteur doit rester proportionnelle à ces facteurs
+         SEULS, sans le doublement retiré. */
+      var attendu = 330 * N.EQ.TORNADE_ECH_VISUEL * N.EQ.TORNADE_HAUT_ECH;
+      var attenduTb = attendu * N.EQ.TOURBILLON_ECH;
+      if(Math.abs(P.haut - attendu) > 0.5 && Math.abs(P.haut - attenduTb) > 0.5) tous = 0;
+    }
+    ok("les quatre îles à tornades ont un profil", vus === 4, vus + " profils");
+    ok("… et toutes suivent la même hauteur, sans exception", tous);
+  })();
+
+  /* LE RAYON MORTEL N'A PAS BOUGÉ. C'est la convention de la maison,
+     et c'est aussi ce qui garantit qu'aucune partie en cours ne change
+     de difficulté : ces deux nombres ne touchent qu'au dessin. */
+  (function(){
+    var src = html.match(/function torProfil[\s\S]*?\n\}/);
+    ok("le profil de dessin est dans le fichier livré", !!src);
+    if(src)
+      ok("… et c'est bien LUI, et lui seul, qui porte l'évasement",
+         src[0].indexOf("TORNADE_CONE_ECH") > 0);
+    /* le tueur ne connaît ni l'un ni l'autre */
+    var tue = html.match(/function tueDansLeFeu[\s\S]*?\n\}/);
+    ok("le tueur est dans le fichier livré", !!tue);
+    if(tue)
+      ok("… et il ne connaît aucun des deux facteurs de dessin",
+         tue[0].indexOf("TORNADE_CONE_ECH") < 0 &&
+         tue[0].indexOf("TORNADE_HAUT_ECH") < 0 &&
+         tue[0].indexOf("TORNADE_ECH_VISUEL") < 0);
+  })();
+
+  /* LES NUAGES, LÉGÈREMENT PLUS HAUTS. La nappe est commune aux quatre
+     ciels ; les trois hors orage la multiplient par 1,35. */
+  (function(){
+    var alt = html.match(/var MET_NUAGE_ALT = (\d+);/);
+    ok("la hauteur des nuages est dans le fichier livré", !!alt);
+    if(!alt) return;
+    var v = alt[1] | 0;
+    ok("elle est montée, mais légèrement", v > 340 && v <= 420, v + " (avant 340)");
+    ok("… et la nuit enchantée garde son facteur, donc monte avec",
+       /MET_NUAGE_ALT \* \(haut \? 1\.35 : 1\)/.test(html),
+       Math.round(v * 1.35) + " pour les ciels hors orage");
+    /* la foudre part de cette même nappe : elle doit suivre, sinon
+       l'éclair naîtrait à côté du nuage */
+    ok("… et la foudre part toujours de la même nappe",
+       /oy = pn\.y - MET_NUAGE_ALT \* z/.test(html));
   })();
 })();
 
