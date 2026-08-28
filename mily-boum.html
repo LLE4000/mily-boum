@@ -1415,7 +1415,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.57";
+var VERSION = "v0.58";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1526,10 +1526,38 @@ var EQ = {
      tornades de la même partie ne se ressemblent pas. */
   TORNADE_TRAJET_MIN   : 1.5,   // × TORNADE_VIE  (+50 %)
   TORNADE_TRAJET_MAX   : 2.0,   // × TORNADE_VIE  (+100 %)
-  /* À quelle distance du bord elle commence à virer pour rester dans
-     la zone de jeu. Assez large pour que le virage soit une courbe et
-     non un rebond. */
-  TORNADE_MARGE_BORD   : 14,    // cases
+  /* ════════════════════════════════════════════════════════════
+     LA MARGE DE BORD — ET POURQUOI ELLE EST PASSÉE DE 14 À 5
+
+     C'est la distance au bord à laquelle la tornade commence à virer
+     pour rester dans la zone de jeu. Assez large pour que le virage
+     soit une courbe et non un rebond ; voilà pour l'intention.
+
+     À QUATORZE, C'ÉTAIT UNE CLÔTURE. La tornade faisait demi-tour dès
+     x > 126 ou x < 21, sur une terre praticable qui va de 7 à 152. Or
+     ON DÉBARQUE À x ≥ 140 et LE BRASIER EST À x = 9 : les deux
+     endroits où l'on passe son temps étaient hors de la clôture. La
+     tornade tournait en rond au milieu de l'île, c'est-à-dire là où
+     personne n'est.
+
+     Mesuré, flotte postée, sur des heures de jeu simulées :
+
+                          avant (14)    après (5)
+       la plage             80 min       29 min
+       le milieu            11 min       13 min
+       devant le Brasier    28 min       18 min
+
+     On a d'abord cherché ailleurs. Doubler les nuages : aucun effet
+     mesurable — ils traversent l'île en deux minutes, donc leurs
+     points de naissance couvrent déjà tout. Changer le point visé
+     pour faire traverser l'île de part en part : aucun effet non
+     plus. La clôture était la seule cause, et les deux autres pistes
+     étaient des façons de ne pas la voir.
+
+     1 % des tornades sortent maintenant du terrain, contre 0 %. C'est
+     le prix, et il est négligeable.
+     ════════════════════════════════════════════════════════════ */
+  TORNADE_MARGE_BORD   : 5,     // cases
   TORNADE_VITESSE      : 2.9,   // cases/s
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
@@ -1562,7 +1590,13 @@ var EQ = {
          un événement, c'est un climat.
      Sa taille est celle d'origine : c'est la tornade de référence, les
      deux autres sont les variantes. */
-  CLASSIQUE_PERIODE    : 46,    // s entre deux : rare, on reste longtemps ici
+  /* 46 → 36. Ouvrir la clôture répartit les tornades sur toute l'île,
+     ce qui fait forcément BAISSER la fréquence au milieu — on ne peut
+     pas monter les bords sans descendre le centre à nombre égal. Dix
+     secondes de moins entre deux rendent au milieu ce que la
+     répartition lui a pris, et l'on retombe sur les trois chiffres
+     visés : 29, 13 et 18 minutes. */
+  CLASSIQUE_PERIODE    : 36,    // s entre deux
   CLASSIQUE_DESCENTE   : 2.6,   // s d'avertissement — rien n'est mortel
   CLASSIQUE_VIE        : 16,    // s : la marche au sol de référence
   CLASSIQUE_VITESSE    : 2.5,   // cases/s
@@ -1577,6 +1611,35 @@ var EQ = {
   TOURBILLON_RAYON     : 1.875, // cases : le pied, mortel — 1,25 × 1,5
   TOURBILLON_TRAINEE   : 5.5,   // s : la traînée reste mortelle
   TOURBILLON_TRAINEE_R : 1.80,  // cases : demi-largeur, volontairement large
+  /* ════════════════════════════════════════════════════════════
+     LA TAILLE DESSINÉE — 30 % DE PLUS, ET RIEN D'AUTRE
+
+     Ce facteur ne grossit QUE le dessin : la hauteur de l'entonnoir
+     et la largeur du bourrelet de débris. Le RAYON MORTEL n'y touche
+     pas, et c'est délibéré.
+
+     Ce n'est pas une prudence, c'est la convention déjà en place :
+     le bourrelet de poussière au pied fait deux fois et demie
+     l'entonnoir et NE TUE PAS — ce qui tue est l'anneau net qu'on
+     trace dedans, à la mesure exacte du rayon. Le joueur voit donc
+     une grosse tornade et un petit anneau, et c'est l'anneau qui dit
+     la vérité. Grossir l'un sans l'autre continue cette convention au
+     lieu de la casser.
+
+     ET IL Y A UNE RAISON DURE DE NE PAS TOUCHER AU RAYON. Deux
+     promesses en dépendent, toutes deux vérifiées par les tests :
+       — le couloir mortel reste plus étroit qu'un débarquement, pour
+         qu'une seule tornade ne puisse jamais balayer une flotte
+         entière. Le tourbillon des nuits est DÉJÀ à la limite :
+         1,875 × 2 = 3,75 pour un rayon de formation de 3,8. Trente
+         pour cent de plus le ferait passer à 4,88, et la promesse
+         tomberait.
+       — l'avertissement seul suffit à sortir du couloir : la troupe
+         la plus lente doit parcourir plus que le rayon pendant que
+         l'entonnoir descend.
+     Le dessin peut grossir librement ; le rayon, non.
+     ════════════════════════════════════════════════════════════ */
+  TORNADE_ECH_VISUEL   : 1.3,
   JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
   JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
   /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
@@ -2600,21 +2663,24 @@ function profilTornade(i){
     vie:EQ.TORNADE_VIE, vitesse:EQ.TORNADE_VITESSE, rayon:EQ.TORNADE_RAYON,
     trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"feu"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu"
   };
   if(carteTourbillons(i)) return {
     periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,
     vie:EQ.TOURBILLON_VIE, vitesse:EQ.TOURBILLON_VITESSE, rayon:EQ.TOURBILLON_RAYON,
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330 * EQ.TOURBILLON_ECH, style:"etoiles"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles"
   };
   if(carteTornadeTerre(i)) return {
     periode:EQ.CLASSIQUE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
     vie:EQ.CLASSIQUE_VIE, vitesse:EQ.CLASSIQUE_VITESSE, rayon:EQ.CLASSIQUE_RAYON,
     trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"poussiere"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere"
   };
   return null;
 }
@@ -11265,14 +11331,18 @@ function creeTornade(){
   var P = profilTornade(jeu.index);
   var nu = jeu.nuages && jeu.nuages.length
          ? jeu.nuages[(Math.random() * jeu.nuages.length) | 0] : null;
-  var gx = nu ? nu.gx : 20 + Math.random() * (PLAGE_X0 - 30);
+  var gx = nu ? nu.gx : Math.random() * GW;
   var gy = nu ? nu.gy : Math.random() * GH;
-  gx = borne(gx, 8, PLAGE_X0 - 8);
+  /* NAISSANCE ET VISÉE VONT JUSQU'AUX BORDS DE LA CARTE. Elles
+     s'arrêtaient à huit et dix cases de la terre utile — une seconde
+     clôture, redondante avec la marge de bord, et qui interdisait
+     elle aussi la plage et le Brasier. */
+  gx = borne(gx, 3, GW - 3);
   gy = borne(gy, 6, GH - 6);
   /* Le cap : on vise un point de l'île tiré au sort, plutôt qu'un
      angle. Un angle tiré au hasard sort de la carte une fois sur
      deux ; un point visé donne une traversée qui sert. */
-  var vx = 10 + Math.random() * (PLAGE_X0 - 20);
+  var vx = 4 + Math.random() * (GW - 8);
   var vy = 4 + Math.random() * (GH - 8);
   var dx = vx - gx, dy = vy - gy, d = Math.hypot(dx, dy) || 1;
   return {
@@ -11355,10 +11425,17 @@ function majTornades(dt){
        tornade qui rebondit à angle droit se lirait comme une bille ;
        celle-ci décrit de grandes boucles molles, ce qui est
        exactement ce que fait une vraie. */
+    /* LA CLÔTURE SE MESURE DEPUIS LES BORDS DE LA CARTE, PAS DEPUIS
+       LA TERRE UTILE. Elle était accrochée à LARGEUR_ROCHE à l'ouest
+       et à PLAGE_X0 à l'est, ce qui interdisait à la tornade
+       exactement les deux bandes où l'on joue : la PLAGE, où l'on
+       débarque, et l'approche du BRASIER. Elle tournait en rond au
+       milieu — c'est-à-dire là où personne n'est. Voir le long
+       commentaire de TORNADE_MARGE_BORD dans 10-noyau.js. */
     var m = P.marge;
     var rx = 0, ry = 0;
-    if(t.gx < LARGEUR_ROCHE + m)  rx =  (LARGEUR_ROCHE + m - t.gx) / m;
-    if(t.gx > PLAGE_X0 - m)       rx = -(t.gx - (PLAGE_X0 - m)) / m;
+    if(t.gx < m)                  rx =  (m - t.gx) / m;
+    if(t.gx > GW - m)             rx = -(t.gx - (GW - m)) / m;
     if(t.gy < m)                  ry =  (m - t.gy) / m;
     if(t.gy > GH - m)             ry = -(t.gy - (GH - m)) / m;
     if(rx || ry){
@@ -11377,7 +11454,7 @@ function majTornades(dt){
     /* et par sécurité, elle ne franchit jamais la bordure : un cap
        tiré exactement le long d'un bord pourrait glisser dehors sans
        que le virage ait prise dessus */
-    t.gx = borne(t.gx, LARGEUR_ROCHE + 2, PLAGE_X0 - 2);
+    t.gx = borne(t.gx, 2, GW - 2);
     t.gy = borne(t.gy, 2, GH - 2);
 
     /* elle sème sa traînée */
@@ -11565,12 +11642,20 @@ var TOR_HAUT = 330;              // hauteur de l'entonnoir, en pixels du monde
    est un solide de révolution. Une seule fonction, appelée par toutes
    les couches et par les anneaux — elles doivent parler de la même
    forme, ondulation comprise. */
+/* L'ÉCHELLE DESSINÉE de la tornade de feu. Sa largeur ne vient pas du
+   rayon mortel — elle vient de torProfil, un profil absolu — donc elle
+   n'a pas grossi toute seule quand la hauteur a pris ses trente pour
+   cent. On la fait passer par ici, posée une fois par image au début du
+   dessin. C'est une variable de module et non un paramètre parce que
+   torProfil est appelé de six endroits ; le fichier est mono-tâche, et
+   la valeur ne vit que le temps d'un dessin. */
+var TOR_ECH = 1;
 function torProfil(u, tps, ph){
   /* Le sommet est plus ouvert qu'au deuxième jet (4,6 → 6,4) : une
      tornade s'évase vers le nuage, et c'est cette ouverture qui la
      raccroche au ciel. Le pied, lui, reste serré — c'est le PINCEMENT
      entre les deux qui fait tout le dessin. */
-  var base = 0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15;
+  var base = (0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15) * TOR_ECH;
   var houle = Math.sin(u * 9.5 - tps * 3.1 + ph) * 0.085
             + Math.sin(u * 21 - tps * 5.3 + ph * 1.7) * 0.045;
   return base * (1 + houle);
@@ -11627,6 +11712,7 @@ function dessineTornadeMonde(c, t, tps){
      est coupée par le bas, et elle descend */
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || TOR_HAUT) * z;
+  TOR_ECH = P.ech || 1;
   var k;
 
   c.save();
@@ -22651,7 +22737,14 @@ function dessineTourbillonMonde(c, t, tps){
   var descend = t.age < desc;
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || 330 * EQ.TOURBILLON_ECH) * z;
-  var ray = P.rayon || EQ.TOURBILLON_RAYON;
+  /* DEUX RAYONS, ET IL FAUT LES DISTINGUER.
+     `rayTue` est le contrat : le cercle exact dans lequel on meurt.
+     `ray` est ce qu'on DESSINE, trente pour cent plus large depuis
+     que la tornade a grossi. Le bourrelet de débris faisait déjà
+     deux fois et demie le rayon mortel sans tuer : la distinction
+     existait, elle n'avait simplement pas de nom. Elle en a un. */
+  var rayTue = P.rayon || EQ.TOURBILLON_RAYON;
+  var ray = rayTue * (P.ech || 1);
   var i, u, q;
 
   c.save();
@@ -22820,11 +22913,14 @@ function dessineTourbillonMonde(c, t, tps){
     c.beginPath();
     c.ellipse(p.x, p.y, ray * RX * z * 1.5, ray * RY * z * 1.5, 0, 0, 6.2832);
     c.fill();
-    /* l'anneau net, sur le rayon exact */
+    /* L'ANNEAU NET, SUR LE RAYON EXACT — rayTue, pas ray. Le dessin
+       a grossi de trente pour cent, le rayon mortel non : c'est cet
+       anneau-là qui dit la règle, et il ne doit jamais grossir avec
+       le décor qui l'entoure. */
     c.strokeStyle = "rgba(245,240,255,.66)";
     c.lineWidth = 1.8 * z;
     c.beginPath();
-    c.ellipse(p.x, p.y, ray * RX * z, ray * RY * z, 0, 0, 6.2832);
+    c.ellipse(p.x, p.y, rayTue * RX * z, rayTue * RY * z, 0, 0, 6.2832);
     c.stroke();
     /* et la poussière qui fuse au ras du sol */
     for(i = 0; i < 10; i++){
@@ -23107,7 +23203,14 @@ function dessineTornadeTerreMonde(c, t, tps){
   var descend = t.age < desc;
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || 330) * z;
-  var ray = P.rayon || EQ.CLASSIQUE_RAYON;
+  /* DEUX RAYONS, ET IL FAUT LES DISTINGUER.
+     `rayTue` est le contrat : le cercle exact dans lequel on meurt.
+     `ray` est ce qu'on DESSINE, trente pour cent plus large depuis
+     que la tornade a grossi. Le bourrelet de débris faisait déjà
+     deux fois et demie le rayon mortel sans tuer : la distinction
+     existait, elle n'avait simplement pas de nom. Elle en a un. */
+  var rayTue = P.rayon || EQ.CLASSIQUE_RAYON;
+  var ray = rayTue * (P.ech || 1);
   var i, u;
 
   c.save();
@@ -23303,7 +23406,7 @@ function dessineTornadeTerreMonde(c, t, tps){
     c.strokeStyle = "rgba(50,38,20,.55)";
     c.lineWidth = 1.6 * z;
     c.beginPath();
-    c.ellipse(p.x, p.y, ray * RX * z, ray * RY * z, 0, 0, 6.2832); c.stroke();
+    c.ellipse(p.x, p.y, rayTue * RX * z, rayTue * RY * z, 0, 0, 6.2832); c.stroke();
   }
 
   /* --- 5. LE SOMMET, qui se perd dans le nuage. */
@@ -31776,7 +31879,21 @@ var W = 960, H = 600, dpr = 1;
    que la surface d'ombre totale — le seul poste qui se paie au pixel —
    n'augmente presque pas. */
 function fabriqueNuages(orage){
-  var n = orage ? 4 : 5;
+  /* DIX NUAGES AU LIEU DE CINQ, sur les îles sans orage. C'est un
+     réglage de CIEL, et il faut le dire parce que la mesure a dit le
+     contraire de ce qu'on espérait : doubler les nuages ne change
+     RIEN à la fréquence des tornades — elles naissent sous eux, mais
+     un nuage traverse l'île en deux minutes, si bien que leurs points
+     de naissance couvrent déjà toute la carte au bout de quelques
+     minutes. Ce qui enfermait la tornade était la marge de bord, pas
+     le nombre de nuages.
+     On les double quand même : cinq nuages sur une île de cent
+     trente-trois cases, c'est un ciel vide — et comme la tornade naît
+     sous l'un d'eux, en avoir plus veut dire la voir venir plus
+     souvent. L'orage de la jungle garde ses quatre grosses masses :
+     elles font trois fois la taille des autres, et dix noieraient
+     l'île sous une couverture continue. */
+  var n = orage ? 4 : 10;
   var out = [], i;
   for(i = 0; i < n; i++){
     out.push({ gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,

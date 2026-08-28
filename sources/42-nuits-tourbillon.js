@@ -99,7 +99,14 @@ function dessineTourbillonMonde(c, t, tps){
   var descend = t.age < desc;
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || 330 * EQ.TOURBILLON_ECH) * z;
-  var ray = P.rayon || EQ.TOURBILLON_RAYON;
+  /* DEUX RAYONS, ET IL FAUT LES DISTINGUER.
+     `rayTue` est le contrat : le cercle exact dans lequel on meurt.
+     `ray` est ce qu'on DESSINE, trente pour cent plus large depuis
+     que la tornade a grossi. Le bourrelet de débris faisait déjà
+     deux fois et demie le rayon mortel sans tuer : la distinction
+     existait, elle n'avait simplement pas de nom. Elle en a un. */
+  var rayTue = P.rayon || EQ.TOURBILLON_RAYON;
+  var ray = rayTue * (P.ech || 1);
   var i, u, q;
 
   c.save();
@@ -268,11 +275,14 @@ function dessineTourbillonMonde(c, t, tps){
     c.beginPath();
     c.ellipse(p.x, p.y, ray * RX * z * 1.5, ray * RY * z * 1.5, 0, 0, 6.2832);
     c.fill();
-    /* l'anneau net, sur le rayon exact */
+    /* L'ANNEAU NET, SUR LE RAYON EXACT — rayTue, pas ray. Le dessin
+       a grossi de trente pour cent, le rayon mortel non : c'est cet
+       anneau-là qui dit la règle, et il ne doit jamais grossir avec
+       le décor qui l'entoure. */
     c.strokeStyle = "rgba(245,240,255,.66)";
     c.lineWidth = 1.8 * z;
     c.beginPath();
-    c.ellipse(p.x, p.y, ray * RX * z, ray * RY * z, 0, 0, 6.2832);
+    c.ellipse(p.x, p.y, rayTue * RX * z, rayTue * RY * z, 0, 0, 6.2832);
     c.stroke();
     /* et la poussière qui fuse au ras du sol */
     for(i = 0; i < 10; i++){

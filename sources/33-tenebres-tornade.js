@@ -48,14 +48,18 @@ function creeTornade(){
   var P = profilTornade(jeu.index);
   var nu = jeu.nuages && jeu.nuages.length
          ? jeu.nuages[(Math.random() * jeu.nuages.length) | 0] : null;
-  var gx = nu ? nu.gx : 20 + Math.random() * (PLAGE_X0 - 30);
+  var gx = nu ? nu.gx : Math.random() * GW;
   var gy = nu ? nu.gy : Math.random() * GH;
-  gx = borne(gx, 8, PLAGE_X0 - 8);
+  /* NAISSANCE ET VISÉE VONT JUSQU'AUX BORDS DE LA CARTE. Elles
+     s'arrêtaient à huit et dix cases de la terre utile — une seconde
+     clôture, redondante avec la marge de bord, et qui interdisait
+     elle aussi la plage et le Brasier. */
+  gx = borne(gx, 3, GW - 3);
   gy = borne(gy, 6, GH - 6);
   /* Le cap : on vise un point de l'île tiré au sort, plutôt qu'un
      angle. Un angle tiré au hasard sort de la carte une fois sur
      deux ; un point visé donne une traversée qui sert. */
-  var vx = 10 + Math.random() * (PLAGE_X0 - 20);
+  var vx = 4 + Math.random() * (GW - 8);
   var vy = 4 + Math.random() * (GH - 8);
   var dx = vx - gx, dy = vy - gy, d = Math.hypot(dx, dy) || 1;
   return {
@@ -138,10 +142,17 @@ function majTornades(dt){
        tornade qui rebondit à angle droit se lirait comme une bille ;
        celle-ci décrit de grandes boucles molles, ce qui est
        exactement ce que fait une vraie. */
+    /* LA CLÔTURE SE MESURE DEPUIS LES BORDS DE LA CARTE, PAS DEPUIS
+       LA TERRE UTILE. Elle était accrochée à LARGEUR_ROCHE à l'ouest
+       et à PLAGE_X0 à l'est, ce qui interdisait à la tornade
+       exactement les deux bandes où l'on joue : la PLAGE, où l'on
+       débarque, et l'approche du BRASIER. Elle tournait en rond au
+       milieu — c'est-à-dire là où personne n'est. Voir le long
+       commentaire de TORNADE_MARGE_BORD dans 10-noyau.js. */
     var m = P.marge;
     var rx = 0, ry = 0;
-    if(t.gx < LARGEUR_ROCHE + m)  rx =  (LARGEUR_ROCHE + m - t.gx) / m;
-    if(t.gx > PLAGE_X0 - m)       rx = -(t.gx - (PLAGE_X0 - m)) / m;
+    if(t.gx < m)                  rx =  (m - t.gx) / m;
+    if(t.gx > GW - m)             rx = -(t.gx - (GW - m)) / m;
     if(t.gy < m)                  ry =  (m - t.gy) / m;
     if(t.gy > GH - m)             ry = -(t.gy - (GH - m)) / m;
     if(rx || ry){
@@ -160,7 +171,7 @@ function majTornades(dt){
     /* et par sécurité, elle ne franchit jamais la bordure : un cap
        tiré exactement le long d'un bord pourrait glisser dehors sans
        que le virage ait prise dessus */
-    t.gx = borne(t.gx, LARGEUR_ROCHE + 2, PLAGE_X0 - 2);
+    t.gx = borne(t.gx, 2, GW - 2);
     t.gy = borne(t.gy, 2, GH - 2);
 
     /* elle sème sa traînée */
@@ -348,12 +359,20 @@ var TOR_HAUT = 330;              // hauteur de l'entonnoir, en pixels du monde
    est un solide de révolution. Une seule fonction, appelée par toutes
    les couches et par les anneaux — elles doivent parler de la même
    forme, ondulation comprise. */
+/* L'ÉCHELLE DESSINÉE de la tornade de feu. Sa largeur ne vient pas du
+   rayon mortel — elle vient de torProfil, un profil absolu — donc elle
+   n'a pas grossi toute seule quand la hauteur a pris ses trente pour
+   cent. On la fait passer par ici, posée une fois par image au début du
+   dessin. C'est une variable de module et non un paramètre parce que
+   torProfil est appelé de six endroits ; le fichier est mono-tâche, et
+   la valeur ne vit que le temps d'un dessin. */
+var TOR_ECH = 1;
 function torProfil(u, tps, ph){
   /* Le sommet est plus ouvert qu'au deuxième jet (4,6 → 6,4) : une
      tornade s'évase vers le nuage, et c'est cette ouverture qui la
      raccroche au ciel. Le pied, lui, reste serré — c'est le PINCEMENT
      entre les deux qui fait tout le dessin. */
-  var base = 0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15;
+  var base = (0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15) * TOR_ECH;
   var houle = Math.sin(u * 9.5 - tps * 3.1 + ph) * 0.085
             + Math.sin(u * 21 - tps * 5.3 + ph * 1.7) * 0.045;
   return base * (1 + houle);
@@ -410,6 +429,7 @@ function dessineTornadeMonde(c, t, tps){
      est coupée par le bas, et elle descend */
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || TOR_HAUT) * z;
+  TOR_ECH = P.ech || 1;
   var k;
 
   c.save();

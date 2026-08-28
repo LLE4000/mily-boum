@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.57";
+var VERSION = "v0.58";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -120,10 +120,38 @@ var EQ = {
      tornades de la même partie ne se ressemblent pas. */
   TORNADE_TRAJET_MIN   : 1.5,   // × TORNADE_VIE  (+50 %)
   TORNADE_TRAJET_MAX   : 2.0,   // × TORNADE_VIE  (+100 %)
-  /* À quelle distance du bord elle commence à virer pour rester dans
-     la zone de jeu. Assez large pour que le virage soit une courbe et
-     non un rebond. */
-  TORNADE_MARGE_BORD   : 14,    // cases
+  /* ════════════════════════════════════════════════════════════
+     LA MARGE DE BORD — ET POURQUOI ELLE EST PASSÉE DE 14 À 5
+
+     C'est la distance au bord à laquelle la tornade commence à virer
+     pour rester dans la zone de jeu. Assez large pour que le virage
+     soit une courbe et non un rebond ; voilà pour l'intention.
+
+     À QUATORZE, C'ÉTAIT UNE CLÔTURE. La tornade faisait demi-tour dès
+     x > 126 ou x < 21, sur une terre praticable qui va de 7 à 152. Or
+     ON DÉBARQUE À x ≥ 140 et LE BRASIER EST À x = 9 : les deux
+     endroits où l'on passe son temps étaient hors de la clôture. La
+     tornade tournait en rond au milieu de l'île, c'est-à-dire là où
+     personne n'est.
+
+     Mesuré, flotte postée, sur des heures de jeu simulées :
+
+                          avant (14)    après (5)
+       la plage             80 min       29 min
+       le milieu            11 min       13 min
+       devant le Brasier    28 min       18 min
+
+     On a d'abord cherché ailleurs. Doubler les nuages : aucun effet
+     mesurable — ils traversent l'île en deux minutes, donc leurs
+     points de naissance couvrent déjà tout. Changer le point visé
+     pour faire traverser l'île de part en part : aucun effet non
+     plus. La clôture était la seule cause, et les deux autres pistes
+     étaient des façons de ne pas la voir.
+
+     1 % des tornades sortent maintenant du terrain, contre 0 %. C'est
+     le prix, et il est négligeable.
+     ════════════════════════════════════════════════════════════ */
+  TORNADE_MARGE_BORD   : 5,     // cases
   TORNADE_VITESSE      : 2.9,   // cases/s
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
@@ -156,7 +184,13 @@ var EQ = {
          un événement, c'est un climat.
      Sa taille est celle d'origine : c'est la tornade de référence, les
      deux autres sont les variantes. */
-  CLASSIQUE_PERIODE    : 46,    // s entre deux : rare, on reste longtemps ici
+  /* 46 → 36. Ouvrir la clôture répartit les tornades sur toute l'île,
+     ce qui fait forcément BAISSER la fréquence au milieu — on ne peut
+     pas monter les bords sans descendre le centre à nombre égal. Dix
+     secondes de moins entre deux rendent au milieu ce que la
+     répartition lui a pris, et l'on retombe sur les trois chiffres
+     visés : 29, 13 et 18 minutes. */
+  CLASSIQUE_PERIODE    : 36,    // s entre deux
   CLASSIQUE_DESCENTE   : 2.6,   // s d'avertissement — rien n'est mortel
   CLASSIQUE_VIE        : 16,    // s : la marche au sol de référence
   CLASSIQUE_VITESSE    : 2.5,   // cases/s
@@ -171,6 +205,35 @@ var EQ = {
   TOURBILLON_RAYON     : 1.875, // cases : le pied, mortel — 1,25 × 1,5
   TOURBILLON_TRAINEE   : 5.5,   // s : la traînée reste mortelle
   TOURBILLON_TRAINEE_R : 1.80,  // cases : demi-largeur, volontairement large
+  /* ════════════════════════════════════════════════════════════
+     LA TAILLE DESSINÉE — 30 % DE PLUS, ET RIEN D'AUTRE
+
+     Ce facteur ne grossit QUE le dessin : la hauteur de l'entonnoir
+     et la largeur du bourrelet de débris. Le RAYON MORTEL n'y touche
+     pas, et c'est délibéré.
+
+     Ce n'est pas une prudence, c'est la convention déjà en place :
+     le bourrelet de poussière au pied fait deux fois et demie
+     l'entonnoir et NE TUE PAS — ce qui tue est l'anneau net qu'on
+     trace dedans, à la mesure exacte du rayon. Le joueur voit donc
+     une grosse tornade et un petit anneau, et c'est l'anneau qui dit
+     la vérité. Grossir l'un sans l'autre continue cette convention au
+     lieu de la casser.
+
+     ET IL Y A UNE RAISON DURE DE NE PAS TOUCHER AU RAYON. Deux
+     promesses en dépendent, toutes deux vérifiées par les tests :
+       — le couloir mortel reste plus étroit qu'un débarquement, pour
+         qu'une seule tornade ne puisse jamais balayer une flotte
+         entière. Le tourbillon des nuits est DÉJÀ à la limite :
+         1,875 × 2 = 3,75 pour un rayon de formation de 3,8. Trente
+         pour cent de plus le ferait passer à 4,88, et la promesse
+         tomberait.
+       — l'avertissement seul suffit à sortir du couloir : la troupe
+         la plus lente doit parcourir plus que le rayon pendant que
+         l'entonnoir descend.
+     Le dessin peut grossir librement ; le rayon, non.
+     ════════════════════════════════════════════════════════════ */
+  TORNADE_ECH_VISUEL   : 1.3,
   JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
   JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
   /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
@@ -1194,21 +1257,24 @@ function profilTornade(i){
     vie:EQ.TORNADE_VIE, vitesse:EQ.TORNADE_VITESSE, rayon:EQ.TORNADE_RAYON,
     trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"feu"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu"
   };
   if(carteTourbillons(i)) return {
     periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,
     vie:EQ.TOURBILLON_VIE, vitesse:EQ.TOURBILLON_VITESSE, rayon:EQ.TOURBILLON_RAYON,
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330 * EQ.TOURBILLON_ECH, style:"etoiles"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles"
   };
   if(carteTornadeTerre(i)) return {
     periode:EQ.CLASSIQUE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
     vie:EQ.CLASSIQUE_VIE, vitesse:EQ.CLASSIQUE_VITESSE, rayon:EQ.CLASSIQUE_RAYON,
     trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
-    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"poussiere"
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere"
   };
   return null;
 }

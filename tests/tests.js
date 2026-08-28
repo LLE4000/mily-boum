@@ -2776,14 +2776,52 @@ G("4. Déterminisme de la génération de carte");
       ok("l'écart entre la plus courte et la plus longue se voit",
          long / court >= 1.3, "×" + (long / court).toFixed(2));
     })();
-    /* ELLE RESTE DANS LA ZONE DE JEU. La marge de virage doit être
-       assez large pour que le virage soit une courbe et non un rebond,
-       et assez étroite pour lui laisser de la place au milieu. */
-    ok("la marge de virage (" + N.EQ.TORNADE_MARGE_BORD
-       + " cases) laisse de la place au centre",
-       N.EQ.TORNADE_MARGE_BORD > 6 &&
-       N.EQ.TORNADE_MARGE_BORD * 2 < (N.PLAGE_X0 - N.LARGEUR_ROCHE) * 0.5 &&
-       N.EQ.TORNADE_MARGE_BORD * 2 < N.GH * 0.5);
+    /* ════════════════════════════════════════════════════════════
+       LA MARGE DE VIRAGE, ET CE QU'ELLE DOIT VRAIMENT GARANTIR
+
+       Cette vérification épinglait un NOMBRE — « la marge dépasse
+       six » — et c'est exactement ce nombre qui a enfermé la tornade
+       au milieu de l'île pendant des mois. Elle passait au vert
+       pendant que la plage et le Brasier, les deux endroits où l'on
+       joue, étaient hors d'atteinte.
+
+       Un test qui garde une valeur ne garde rien : il empêche
+       seulement qu'on la change. Ce qu'il fallait garder, ce sont les
+       DEUX PROPRIÉTÉS que cette valeur sert :
+
+         que le virage soit une COURBE et non un rebond — donc que la
+         tornade mette au moins une seconde à traverser la bande de
+         virage, sans quoi le cap sauterait ;
+         et qu'elle puisse ATTEINDRE tout le terrain de jeu — la
+         plage où l'on débarque à l'est, l'approche du Brasier à
+         l'ouest.
+
+       Ce sont ces deux-là qui sont écrites maintenant. La seconde
+       aurait fait échouer le test le jour où la marge est passée à
+       quatorze, et l'on aurait cherché tout de suite au bon endroit.
+       ════════════════════════════════════════════════════════════ */
+    (function(){
+      var m = N.EQ.TORNADE_MARGE_BORD;
+      var lente = Math.min(N.EQ.TORNADE_VITESSE, N.EQ.CLASSIQUE_VITESSE,
+                           N.EQ.TOURBILLON_VITESSE);
+      var vive = Math.max(N.EQ.TORNADE_VITESSE, N.EQ.CLASSIQUE_VITESSE,
+                          N.EQ.TOURBILLON_VITESSE);
+      ok("le virage est une courbe : la plus rapide met "
+         + (m / vive).toFixed(1) + " s à traverser la bande de virage",
+         m / vive >= 1.0, (m / vive).toFixed(2) + " s");
+      ok("… et la bande ne mange pas le milieu de l'île",
+         m * 2 < N.GW * 0.5 && m * 2 < N.GH * 0.5);
+      /* LES DEUX BORDS QUI COMPTENT. La plage est la bande où toute
+         partie commence ; l'approche du Brasier est celle où toute
+         partie finit. Une tornade qui ne peut atteindre ni l'une ni
+         l'autre est un décor, pas un danger. */
+      ok("la tornade peut atteindre la PLAGE, où l'on débarque",
+         N.GW - m >= N.PLAGE_X0,
+         "elle vire à x=" + (N.GW - m) + ", la plage commence à x=" + N.PLAGE_X0);
+      ok("… et l'approche du BRASIER, où l'on finit",
+         m <= N.QG_GX + 4,
+         "elle vire à x=" + m + ", le Brasier est à x=" + N.QG_GX);
+    })();
     ok("elle ne revient pas sans arrêt : " + N.EQ.TORNADE_PERIODE + " s entre deux",
        N.EQ.TORNADE_PERIODE > N.EQ.TORNADE_VIE, "" + N.EQ.TORNADE_PERIODE);
     /* LE SOL REFROIDIT. Sans cela, une île traversée deux fois

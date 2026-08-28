@@ -123,7 +123,14 @@ function dessineTornadeTerreMonde(c, t, tps){
   var descend = t.age < desc;
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || 330) * z;
-  var ray = P.rayon || EQ.CLASSIQUE_RAYON;
+  /* DEUX RAYONS, ET IL FAUT LES DISTINGUER.
+     `rayTue` est le contrat : le cercle exact dans lequel on meurt.
+     `ray` est ce qu'on DESSINE, trente pour cent plus large depuis
+     que la tornade a grossi. Le bourrelet de débris faisait déjà
+     deux fois et demie le rayon mortel sans tuer : la distinction
+     existait, elle n'avait simplement pas de nom. Elle en a un. */
+  var rayTue = P.rayon || EQ.CLASSIQUE_RAYON;
+  var ray = rayTue * (P.ech || 1);
   var i, u;
 
   c.save();
@@ -319,7 +326,7 @@ function dessineTornadeTerreMonde(c, t, tps){
     c.strokeStyle = "rgba(50,38,20,.55)";
     c.lineWidth = 1.6 * z;
     c.beginPath();
-    c.ellipse(p.x, p.y, ray * RX * z, ray * RY * z, 0, 0, 6.2832); c.stroke();
+    c.ellipse(p.x, p.y, rayTue * RX * z, rayTue * RY * z, 0, 0, 6.2832); c.stroke();
   }
 
   /* --- 5. LE SOMMET, qui se perd dans le nuage. */

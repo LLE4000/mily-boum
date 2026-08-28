@@ -46,7 +46,21 @@ var W = 960, H = 600, dpr = 1;
    que la surface d'ombre totale — le seul poste qui se paie au pixel —
    n'augmente presque pas. */
 function fabriqueNuages(orage){
-  var n = orage ? 4 : 5;
+  /* DIX NUAGES AU LIEU DE CINQ, sur les îles sans orage. C'est un
+     réglage de CIEL, et il faut le dire parce que la mesure a dit le
+     contraire de ce qu'on espérait : doubler les nuages ne change
+     RIEN à la fréquence des tornades — elles naissent sous eux, mais
+     un nuage traverse l'île en deux minutes, si bien que leurs points
+     de naissance couvrent déjà toute la carte au bout de quelques
+     minutes. Ce qui enfermait la tornade était la marge de bord, pas
+     le nombre de nuages.
+     On les double quand même : cinq nuages sur une île de cent
+     trente-trois cases, c'est un ciel vide — et comme la tornade naît
+     sous l'un d'eux, en avoir plus veut dire la voir venir plus
+     souvent. L'orage de la jungle garde ses quatre grosses masses :
+     elles font trois fois la taille des autres, et dix noieraient
+     l'île sous une couverture continue. */
+  var n = orage ? 4 : 10;
   var out = [], i;
   for(i = 0; i < n; i++){
     out.push({ gx:Math.random() * PLAGE_X0, gy:Math.random() * GH,
