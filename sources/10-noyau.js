@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.71";
+var VERSION = "v0.72";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -288,6 +288,48 @@ var EQ = {
      Le dessin peut grossir librement ; le rayon, non.
      ════════════════════════════════════════════════════════════ */
   TORNADE_ECH_VISUEL   : 1.3,
+  /* ════════════════════════════════════════════════════════════
+     PLUS HAUTES, ET PLUS OUVERTES EN HAUT
+
+     « Il faudrait les faire deux fois plus hautes, et le cône
+     au-dessus une fois et demie plus large. »
+
+     Les deux facteurs sont séparés parce qu'ils ne font pas le même
+     travail, et qu'un seul des deux aurait donné une tornade grasse.
+
+     LA HAUTEUR. Elle double, purement et simplement. C'est elle qui
+     donne l'échelle : une colonne qui monte hors de l'écran ne se
+     compare plus à un bâtiment, elle se compare au CIEL.
+
+     LE CÔNE. torProfil ouvre l'entonnoir en u² — le pied reste serré,
+     le sommet s'évase. On ne multiplie QUE ce terme-là : le sommet
+     s'ouvre d'une fois et demie, le pied ne bouge pas d'un pixel. Ce
+     qui fait le dessin d'une tornade, c'est le PINCEMENT entre les
+     deux ; élargir le pied aussi l'aurait effacé, et l'on aurait
+     obtenu un tube.
+
+     ET NI L'UN NI L'AUTRE NE TOUCHE À CE QUI TUE. Même convention que
+     partout ailleurs dans ce fichier : le dessin peut grossir
+     librement, le rayon mortel non. Le joueur voit une grosse tornade
+     et un petit anneau, et c'est l'anneau qui dit la vérité.
+     ════════════════════════════════════════════════════════════ */
+  TORNADE_HAUT_ECH     : 2.0,
+  TORNADE_CONE_ECH     : 1.5,
+  /* ---- LA TORNADE DE LA GUINGUETTE ----
+     « Mily en guinguette, elle est un peu fade. Il faudrait mettre
+     deux tornades dessus. » Elle emprunte tout à la tornade classique
+     — même sorte, même taille, même traînée de poussière — et n'en
+     change que deux nombres, les deux qu'impose la paire.
+
+     LA PÉRIODE PASSE DE 36 À 52 SECONDES, et ce n'est pas un réglage
+     d'humeur, c'est de l'arithmétique. Une tornade de campagne vit au
+     plus 2,6 + 16 × 2 = 34,6 s. Pour qu'une paire soit toujours
+     éteinte quand la suivante tombe — sinon il y en aurait quatre —
+     il faut période − flottement ≥ 34,6. À 36 s le flottement devrait
+     tomber à quatre pour cent, c'est-à-dire au métronome ; à 52 s il
+     garde son quart, soit treize secondes de jeu, et il reste encore
+     4,4 s de marge. Le test le vérifie sur dix mille créneaux. */
+  GUINGUETTE_PERIODE   : 52,
   JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
   JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
   /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
@@ -1310,6 +1352,10 @@ function carteAirMagique(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits")
    donc plus longue et plus rare que les deux autres. */
 function carteTornadeTerre(i){ return !!(CARTES[i] && CARTES[i].biome === "campagne"); }
 
+/* Et où l'on danse sous les tornades : la guinguette. Même sorte que
+   la campagne — de la poussière et des débris — mais par deux. */
+function carteTornadeFete(i){ return !!(CARTES[i] && CARTES[i].biome === "guinguette"); }
+
 /* ================================================================
    LE PROFIL D'UNE TORNADE
 
@@ -1347,7 +1393,7 @@ function profilTornade(i){
     trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu",
+    haut:330 * EQ.TORNADE_ECH_VISUEL * EQ.TORNADE_HAUT_ECH, style:"feu",
     paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
   };
   if(carteTourbillons(i)) return {
@@ -1356,7 +1402,8 @@ function profilTornade(i){
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles",
+    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL * EQ.TORNADE_HAUT_ECH,
+    style:"etoiles",
     paire:EQ.TOURBILLON_PAIRE, jitter:EQ.TOURBILLON_JITTER, ecart:EQ.TOURBILLON_ECART
   };
   if(carteTornadeTerre(i)) return {
@@ -1365,8 +1412,20 @@ function profilTornade(i){
     trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere",
+    haut:330 * EQ.TORNADE_ECH_VISUEL * EQ.TORNADE_HAUT_ECH, style:"poussiere",
     paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
+  };
+  /* LA GUINGUETTE. Même tornade que la campagne, mais PAR DEUX : la
+     carte manquait d'événement, et deux colonnes qui traversent une
+     piste de danse en font un. */
+  if(carteTornadeFete(i)) return {
+    periode:EQ.GUINGUETTE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
+    vie:EQ.CLASSIQUE_VIE, vitesse:EQ.CLASSIQUE_VITESSE, rayon:EQ.CLASSIQUE_RAYON,
+    trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
+    trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
+    marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
+    haut:330 * EQ.TORNADE_ECH_VISUEL * EQ.TORNADE_HAUT_ECH, style:"poussiere",
+    paire:EQ.TOURBILLON_PAIRE, jitter:EQ.TOURBILLON_JITTER, ecart:EQ.TOURBILLON_ECART
   };
   return null;
 }

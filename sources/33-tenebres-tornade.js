@@ -589,7 +589,14 @@ function torProfil(u, tps, ph){
      tornade s'évase vers le nuage, et c'est cette ouverture qui la
      raccroche au ciel. Le pied, lui, reste serré — c'est le PINCEMENT
      entre les deux qui fait tout le dessin. */
-  var base = (0.40 + Math.pow(u, 2.0) * 6.4 + Math.exp(-u * 12) * 1.15) * TOR_ECH;
+  /* LE CÔNE S'OUVRE, LE PIED NE BOUGE PAS. Le facteur ne multiplie
+     que le terme en u², celui qui évase la colonne vers le nuage ; le
+     0,40 du fût et le bourrelet en exponentielle du pied restent
+     intacts. C'est le PINCEMENT entre les deux qui fait reconnaître
+     une tornade — un pied élargi dans la même proportion aurait donné
+     un tube. */
+  var base = (0.40 + Math.pow(u, 2.0) * 6.4 * (EQ.TORNADE_CONE_ECH || 1)
+                   + Math.exp(-u * 12) * 1.15) * TOR_ECH;
   var houle = Math.sin(u * 9.5 - tps * 3.1 + ph) * 0.085
             + Math.sin(u * 21 - tps * 5.3 + ph * 1.7) * 0.045;
   return base * (1 + houle);
@@ -629,9 +636,17 @@ function torSilhouette(c, t, p, z, H, pied, k, haut, tps){
 }
 
 function dessineTornadeMonde(c, t, tps){
+  /* L'ÉCHELLE DESSINÉE, POSÉE AVANT L'AIGUILLAGE, et c'est un
+     correctif : elle ne l'était que dans la branche du feu, si bien
+     que le tourbillon des nuits et la tornade de la campagne
+     lisaient la valeur LAISSÉE PAR LA CARTE PRÉCÉDENTE. Sur un
+     onglet neuf, un ; après une visite des ténèbres, 1,3. La largeur
+     de l'entonnoir dépendait donc de l'île qu'on avait regardée
+     avant — invisible à la lecture, évident dès qu'on cherche. */
+  TOR_ECH = (profilTornade(jeu.index) || {}).ech || 1;
   /* L'AIGUILLAGE DE SORTE. Le tri de profondeur ne connaît qu'un
-     numéro de couche ; c'est ici que les deux tornades se séparent, et
-     nulle part ailleurs. Tout ce qui précède — naissance, marche,
+     numéro de couche ; c'est ici que les trois tornades se séparent,
+     et nulle part ailleurs. Tout ce qui précède — naissance, marche,
      traînée, mort — leur est commun. */
   if(t.style === "etoiles" && typeof dessineTourbillonMonde === "function")
     return dessineTourbillonMonde(c, t, tps);
@@ -646,7 +661,6 @@ function dessineTornadeMonde(c, t, tps){
      est coupée par le bas, et elle descend */
   var pied = descend ? (1 - t.age / desc) : 0;
   var H = (P.haut || TOR_HAUT) * z;
-  TOR_ECH = P.ech || 1;
   var k;
 
   c.save();

@@ -3456,26 +3456,46 @@ G("4. Déterminisme de la génération de carte");
       ok("les ténèbres gardent les leurs, et elles sont de feu",
          !!PF && PF.style === "feu" && N.carteTornades(N.CARTES.findIndex(
            function(c){ return c.biome === "tenebres"; })));
-      /* TROIS ÎLES EN ONT, ET TROIS SEULEMENT. La campagne a rejoint
-         les deux autres avec la tornade classique — celle de
-         poussière, la seule des trois qui ressemble à une vraie. La
-         jungle, elle, n'en a pas : elle a déjà l'orage et la foudre,
-         et deux dangers qui tombent du ciel ne se distingueraient
-         plus l'un de l'autre. */
-      ok("trois îles en ont, et pas la jungle",
-         !PT && !N.profilTornade(0) && !N.profilTornade(999) &&
-         N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); }).length === 3,
+      /* QUATRE ÎLES EN ONT, ET PAS LA JUNGLE. La campagne puis la
+         guinguette ont rejoint les deux premières avec la tornade
+         classique — celle de poussière, la seule des trois sortes qui
+         ressemble à une vraie. La jungle, elle, n'en a pas : elle a
+         déjà l'orage et la foudre, et deux dangers qui tombent du ciel
+         ne se distingueraient plus l'un de l'autre.
+         Ce test n'épingle PAS le nombre d'îles — il en viendra
+         d'autres — mais les deux règles qui tiennent : la jungle en
+         est exclue, et une île sans tornade n'a pas de profil vide,
+         elle n'a pas de profil du tout. */
+      ok("la jungle n'a pas de tornade, et les îles ordinaires non plus",
+         !PT && !N.profilTornade(0) && !N.profilTornade(999),
          N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); })
            .map(function(c){ return c.nom; }).join(", "));
-      ok("… et les trois sortes sont bien distinctes",
+      ok("… et les trois SORTES existent toutes, chacune sur au moins une île",
          (function(){
            var vus = {}, q4;
            for(q4 = 0; q4 < N.CARTES.length; q4++){
              var Q = N.profilTornade(q4);
              if(Q) vus[Q.style] = (vus[Q.style] || 0) + 1;
            }
-           return vus.feu === 1 && vus.etoiles === 1 && vus.poussiere === 1;
+           return vus.feu >= 1 && vus.etoiles >= 1 && vus.poussiere >= 1;
          })());
+      /* LA GUINGUETTE : la même tornade que la campagne, mais par
+         deux — c'était tout l'objet de la demande. */
+      (function(){
+        var IG = N.CARTES.findIndex(function(c){ return c.biome === "guinguette"; });
+        var PG = N.profilTornade(IG);
+        ok("la guinguette a ses tornades, de poussière comme la campagne",
+           !!PG && PG.style === "poussiere");
+        ok("… et elles tombent PAR DEUX", !!PG && N.paireTornade(PG) === 2);
+        /* Et la paire suivante attend que celle-ci soit morte : c'est
+           la même arithmétique que sur les nuits, avec des durées de
+           campagne — d'où la période allongée à 52 s. */
+        var vieMax = PG.descente + PG.vie * PG.trajetMax;
+        ok("… et une paire est toujours éteinte quand la suivante tombe",
+           PG.periode - PG.jitter * PG.periode >= vieMax,
+           "vie max " + vieMax.toFixed(1) + " s, fenêtre "
+           + (PG.periode - PG.jitter * PG.periode).toFixed(1) + " s");
+      })();
       ok("une île de campagne n'a pas de profil du tout, pas un profil vide",
          N.profilTornade(0) === null);
       /* LA TAILLE : une fois et demie, exactement. */
