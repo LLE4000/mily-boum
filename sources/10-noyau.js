@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.68";
+var VERSION = "v0.69";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1058,9 +1058,11 @@ var CARTES = [
      pour qu'il y ait presque toujours quelque chose à prendre.
      ---------------------------------------------------------------- */
   /* `chantier` : la carte est EN TRAVAUX. Elle apparaît sur l'accueil
-     — c'est même le but, on veut la voir arriver — mais personne ne
-     peut y entrer ni la visiter. Seul un appui long de cinq secondes
-     sur sa vignette, suivi du mot de passe, l'ouvre en prévisualisation.
+     — c'est même le but, on veut la voir arriver — et tout le monde
+     peut la VISITER, mais personne ne peut y entrer ni y rejoindre
+     une expédition. Le drapeau ferme deux portes, plus trois : la
+     visite ne publie rien, ne range aucun dégât et n'entame aucun
+     verrou de 48 h, donc elle ne gardait plus rien.
      Retirer cette ligne le jour de la sortie suffit à l'ouvrir à tout
      le monde : c'est un seul mot à effacer, et rien d'autre à toucher. */
   { nom:"Les Mily et une nuits", biome:"nuits", pvQG:75000000,

@@ -1348,8 +1348,8 @@ function blocTop3(i){
   return h + '</div>';
 }
 /* Le podium de l'île EN COURS bouge sans arrêt. On le réécrit en place
-   plutôt que de reconstruire tout le menu — reconstruire tuerait
-   l'appui long du créateur et relancerait les animations. */
+   plutôt que de reconstruire tout le menu, qui relancerait toutes les
+   animations à chaque seconde. */
 function majTop3Vivant(){
   if(enJeu) return;
   var e = document.querySelector('.top3[data-t3="' + carteSalon + '"]');
@@ -1492,104 +1492,15 @@ function installeAppuisCartes(){
     ev.stopPropagation();
     demandeVisite(+b.getAttribute("data-visite"));
   });
-  installeAppuiChantier(m);
 }
 
-/* ================================================================
-   L'APPUI LONG DES CARTES EN CHANTIER
-
-   Cinq secondes de doigt posé sur la bande « en travaux », puis le
-   mot de passe du salon. C'est le geste qui gardait la visite avant
-   qu'on l'ouvre à tout le monde, et il revient ici pour exactement la
-   même raison : introuvable par hasard, immédiat quand on le connaît.
-
-   TROIS CHOSES QU'IL FAUT, ET QUE LA PREMIÈRE VERSION N'AVAIT PAS.
-
-   1. UN RETOUR VISIBLE. Cinq secondes sans rien à l'écran, on relâche
-      au bout de deux en croyant que ça ne marche pas. La bande se
-      remplit, et c'est elle qui fait tenir le doigt.
-
-   2. SURVIVRE À LA RECONSTRUCTION DU MENU. majMondes() réécrit tout
-      l'innerHTML dès que l'instantané change — toutes les deux
-      secondes quand quelqu'un joue. C'est ce qui tuait l'appui long
-      d'origine : « le chargement s'arrête avant ». L'écouteur est donc
-      posé UNE FOIS sur le conteneur, qui ne bouge jamais, et
-      l'avancement vit dans une variable, pas dans le DOM. La bande
-      est retrouvée à chaque image par son attribut ; si elle a été
-      remplacée entre-temps, on écrit dans la nouvelle sans rien
-      remarquer.
-
-   3. S'ANNULER PROPREMENT. Doigt relevé, doigt qui sort, doigt
-      annulé par le navigateur (un défilement qui démarre) : les trois
-      remettent la bande à zéro.
-   ================================================================ */
-var CHANTIER_DUREE = 5.0;              // secondes de doigt posé
-var chantierCible = -1, chantierT = 0, chantierTic = 0;
-function installeAppuiChantier(m){
-  function debut(ev){
-    var b = ev.target.closest ? ev.target.closest("[data-chantier]") : null;
-    if(!b) return;
-    chantierCible = +b.getAttribute("data-chantier");
-    chantierT = 0;
-    if(!chantierTic) chantierTic = setInterval(battementChantier, 60);
-  }
-  function fin(){
-    if(chantierCible < 0) return;
-    chantierCible = -1; chantierT = 0;
-    if(chantierTic){ clearInterval(chantierTic); chantierTic = 0; }
-    peintChantier(0);
-  }
-  m.addEventListener("pointerdown", debut);
-  m.addEventListener("pointerup", fin);
-  m.addEventListener("pointercancel", fin);
-  m.addEventListener("pointerleave", fin);
-  /* Un doigt qui glisse hors de la bande annule aussi : sans ça, on
-     pourrait démarrer l'appui puis promener son doigt sur la page. */
-  m.addEventListener("pointermove", function(ev){
-    if(chantierCible < 0) return;
-    var b = ev.target.closest ? ev.target.closest("[data-chantier]") : null;
-    if(!b || +b.getAttribute("data-chantier") !== chantierCible) fin();
-  });
-}
-/* La bande de progression, retrouvée à chaque image : elle a pu être
-   remplacée par une reconstruction du menu entre deux battements. */
-function peintChantier(u){
-  var b = document.querySelector('[data-chantier="' + chantierCible + '"]')
-       || document.querySelector('[data-chantier]');
-  if(!b) return;
-  var i = b.querySelector("i"), t = b.querySelector("span");
-  if(i) i.style.width = (u * 100).toFixed(0) + "%";
-  if(t) t.textContent = u > 0.02 ? "ouverture… " + Math.ceil(CHANTIER_DUREE * (1 - u)) + " s"
-                                 : "en travaux";
-}
-function battementChantier(){
-  if(chantierCible < 0) return;
-  chantierT += 0.06;
-  var u = Math.min(1, chantierT / CHANTIER_DUREE);
-  peintChantier(u);
-  if(u < 1) return;
-  var idx = chantierCible;
-  /* on referme AVANT de demander le mot de passe : le prompt bloque
-     la page, et un intervalle qui continue de battre derrière
-     relancerait la question à chaque tour */
-  chantierCible = -1; chantierT = 0;
-  if(chantierTic){ clearInterval(chantierTic); chantierTic = 0; }
-  peintChantier(0);
-  ouvreChantier(idx);
-}
-function ouvreChantier(i){
-  var mot = prompt("« " + CARTES[i].nom + " » est en travaux.\n\n"
-                 + "Mot de passe du salon pour l'ouvrir en visite :");
-  if(mot === null) return;
-  if(!motAdminValide(mot)){
-    alert("Mot de passe incorrect. La carte reste fermée.");
-    return;
-  }
-  /* La VISITE, jamais le lancement : rien de ce qui s'y passe ne
-     quitte l'appareil, aucune expédition n'est ouverte pour le salon,
-     et le verrou de 48 h n'est pas entamé. */
-  ouvreApercuAdmin(i);
-}
+/* L'APPUI LONG DES CARTES EN CHANTIER a été retiré avec le verrou
+   qu'il gardait : cinq secondes de doigt posé, une bande de
+   progression, un mot de passe, et tout cela pour ouvrir une visite
+   que n'importe qui peut désormais ouvrir d'un bouton. Un geste
+   qu'on ne trouve pas, devant une porte qui n'est plus fermée, ce
+   n'est pas de la sécurité — c'est du décor. Voir vignetteEvenement.
+   ---------------------------------------------------------------- */
 
 /* La vignette de la carte événement. Elle porte quatre informations
    sans devenir un tableau de bord : ce qu'elle est, combien on est,
@@ -1675,16 +1586,21 @@ function vignetteEvenement(i){
           aimerait voir à quoi elle ressemble. Le bouton d'entrée, lui,
           reste conditionné au nombre de joueurs — visiter n'est pas
           jouer.
-          UNE CARTE EN CHANTIER N'A PAS CE BOUTON. À sa place, une
-          bande de progression vide : c'est la cible de l'appui long,
-          et c'est aussi ce qui montre qu'il se passe quelque chose
-          pendant les cinq secondes. Sans retour visible, on relâche
-          au bout de deux — c'est précisément ce qui avait fait
-          abandonner le geste la première fois. */
-       + (chantier
-          ? '<div class="chantierBarre" data-chantier="' + i + '">'
-            + '<i></i><span>en travaux</span></div>'
-          : boutonVisite(i))
+          Y COMPRIS EN CHANTIER, et c'est le seul changement.
+          La carte en travaux avait, à la place du bouton, une bande
+          d'appui long de cinq secondes suivie du mot de passe du
+          salon. Ce verrou-là gardait quelque chose tant que la visite
+          POLLUAIT ; elle ne pollue plus rien depuis longtemps — rien
+          de ce qui se passe pendant une visite ne quitte l'appareil,
+          ni message d'état, ni instantané, ni dégât rangé. Il ne
+          gardait donc plus qu'une porte ouverte de l'autre côté, et
+          c'est exactement le raisonnement qui avait déjà fait tomber
+          l'appui long des cartes ordinaires (voir boutonVisite).
+          LES DEUX AUTRES PORTES NE BOUGENT PAS. Le bouton d'entrée
+          reste désarmé — `actif` ne s'arme que sur « prete » ou
+          « encours » — donc on ne lance ni ne rejoint rien sur une
+          carte en travaux. On la REGARDE, c'est tout. */
+       + boutonVisite(i)
        + blocTop3(i) + '</div>';
 }
 
@@ -1723,14 +1639,20 @@ function majJungleLent(dt){
       var manque = mini - n;
       msg.innerHTML = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
     }
+    /* LA JAUGE RESTE VIDE EN CHANTIER, comme à la construction de la
+       vignette. Ce rafraîchissement-là l'ignorait : une seconde après
+       l'ouverture du menu, la carte en travaux affichait « 1 joueur
+       sur 7 » sous un compteur masqué et un bouton désarmé. Trois
+       signaux, dont un qui disait le contraire des deux autres. */
     var barre = el.querySelector(".barreJ i");
-    if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
+    if(barre) barre.style.width =
+      (e === "chantier" ? 0 : Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
   }
 }
 
 /* Le podium de l'île en cours, une fois par seconde. Même raison que
    le compte à rebours de la jungle : ça bouge, et reconstruire tout le
-   menu pour ça casserait l'appui long et les animations. */
+   menu pour ça relancerait toutes les animations. */
 var t3T = 0;
 function majTop3Lent(dt){
   if(enJeu) return;

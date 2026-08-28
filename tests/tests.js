@@ -3331,13 +3331,21 @@ G("4. Déterminisme de la génération de carte");
        /dessineVignetteNuits/.test(html) && /n:"dessineVignetteNuits"/.test(html));
 
     /* ================================================================
-       ELLE EST EN CHANTIER, ET C'EST UN VERROU, PAS UNE ÉTIQUETTE
+       ELLE EST EN CHANTIER : ON LA REGARDE, ON N'Y JOUE PAS
 
-       Tant qu'elle est en travaux, personne ne doit pouvoir la lancer,
-       la rejoindre ni la visiter. Trois portes, et elles se ferment
-       toutes les trois par le même endroit : etatEvt() rend
-       « chantier », et le bouton d'entrée ne s'active que sur
-       « prete » ou « encours ».
+       Le verrou fermait TROIS portes — lancer, rejoindre, visiter. Il
+       n'en ferme plus que deux : la visite est ouverte à tout le
+       monde, par le même bouton que sur les onze autres cartes. Ce
+       n'est pas un trou dans le verrou, c'est le constat que cette
+       porte-là ne gardait plus rien : rien de ce qui se passe pendant
+       une visite ne quitte l'appareil — ni message d'état, ni
+       instantané, ni dégât rangé — et l'appui long de cinq secondes
+       qui la gardait avait déjà été retiré des cartes ordinaires pour
+       cette raison exacte.
+
+       LES DEUX PORTES QUI COMPTENT SE FERMENT TOUJOURS PAR LE MÊME
+       ENDROIT : etatEvt() rend « chantier », et le bouton d'entrée ne
+       s'arme que sur « prete » ou « encours ».
        Le jour de l'ouverture, on efface `chantier` de sa ligne dans
        CARTES et rien d'autre ne bouge — c'est ce que ce groupe
        vérifie aussi, en n'épinglant JAMAIS le fait qu'elle soit
@@ -3382,18 +3390,28 @@ G("4. Déterminisme de la génération de carte");
       ok("le bouton d'entrée ne s'arme que sur « prete » ou « encours »",
          /e !== "prete" && e !== "encours"/.test(html) &&
          /var actif = \(e === "prete" \|\| e === "encours"\)/.test(html));
-      /* LA TROISIÈME PORTE : la visite. En chantier, le bouton
-         « Visiter » est remplacé par la bande d'appui long. */
-      ok("en chantier, le bouton Visiter cède la place à l'appui long",
-         /chantier\s*\n?\s*\?\s*'<div class="chantierBarre"/.test(html) ||
-         /chantier[\s\S]{0,80}chantierBarre[\s\S]{0,120}: boutonVisite\(i\)/.test(html));
-      ok("… et l'appui long demande le mot de passe du salon",
-         /function ouvreChantier\([\s\S]{0,400}motAdminValide/.test(html));
-      ok("… puis ouvre en PRÉVISUALISATION, jamais en partie réelle",
-         /function ouvreChantier\([\s\S]{0,600}ouvreApercuAdmin\(i\)/.test(html) &&
-         !/function ouvreChantier\([\s\S]{0,600}lanceExpedition/.test(html));
-      ok("l'appui dure cinq secondes, pas moins",
-         /var CHANTIER_DUREE = 5(\.0)?;/.test(html));
+      /* LA VISITE EST OUVERTE, et par le bouton de tout le monde :
+         une carte en travaux est justement celle qu'on aimerait
+         regarder. Le bouton est posé SANS condition — un ternaire
+         reviendrait à refermer la porte. */
+      ok("toute carte événement porte le bouton Visiter, chantier compris",
+         /\+ boutonVisite\(i\)\s*\n\s*\+ blocTop3\(i\)/.test(html));
+      ok("… et il mène à la PRÉVISUALISATION, jamais à une partie réelle",
+         /function demandeVisite\([\s\S]{0,700}ouvreApercuAdmin\(i\)/.test(html) &&
+         !/function demandeVisite\([\s\S]{0,700}lanceExpedition/.test(html));
+      /* LA VISITE NE PUBLIE RIEN, et c'est ce qui autorise à l'ouvrir.
+         Si ce robinet se rouvrait, une île en travaux visitée
+         gonflerait le classement du salon pour tout le monde. */
+      ok("… et rien de ce qui s'y passe ne quitte l'appareil",
+         /function envoie\(obj\)\{[\s\S]{0,600}if\(modeApercu\) return;/.test(html) &&
+         /function repliMesDegats\(\)\{[\s\S]{0,900}if\(modeApercu\) return;/.test(html) &&
+         /function publieMonde\(force\)\{[\s\S]{0,600}if\(modeApercu\) return;/.test(html));
+      /* ET L'APPUI LONG A DISPARU AVEC LE VERROU QU'IL GARDAIT. Le
+         laisser en place, c'était garder cinq secondes de cérémonie
+         devant une porte ouverte. */
+      ok("l'appui long de cinq secondes ne subsiste nulle part",
+         !/chantierBarre/.test(html) && !/CHANTIER_DUREE/.test(html) &&
+         !/function ouvreChantier\(/.test(html));
     })();
 
     /* ================================================================
