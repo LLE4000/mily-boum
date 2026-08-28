@@ -37,6 +37,243 @@ function visible(vue, gx, gy){
 /* ---------------------------------------------------------------
    Effets
    --------------------------------------------------------------- */
+/* ================================================================
+   LE CHAMPIGNON ATOMIQUE
+
+   « Il y a une sorte de cercle qui s'échappe. Il faudrait un beau
+   champignon atomique. »
+
+   Le premier était fait de sept bouffées empilées pour le pied et de
+   neuf en anneau pour le chapeau — dix-sept disques opaques posés les
+   uns sur les autres. Ça donnait une touffe, et comme l'anneau de
+   condensation, lui, était large et net, c'est lui qu'on regardait :
+   l'effet se lisait comme un cercle qui s'échappe, avec quelque chose
+   de gris au milieu.
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI FAIT UN CHAMPIGNON, ET CE N'EST PAS SA SILHOUETTE
+   ────────────────────────────────────────────────────────────────
+
+   Un arbre aussi a un pied et une boule. Ce qui fait le champignon
+   atomique, c'est L'ENROULEMENT SOUS LE CHAPEAU : la colonne monte si
+   vite qu'elle dépasse l'air chaud, retombe sur les côtés et
+   s'enroule vers l'intérieur. Le chapeau n'est donc pas une boule
+   posée sur un pied, c'est un TORE qui roule sur lui-même, et son
+   dessous est plus sombre que son dessus parce qu'il est dans son
+   ombre.
+
+   On peint donc, de l'arrière vers l'avant :
+
+     1. LA JUPE AU SOL      la poussière soulevée, qui file en nappe
+     2. LE PIED            un tronc qui s'évase en bas et se pince en
+                           haut, chaud à la base, froid au sommet
+     3. L'ENROULEMENT      un anneau sombre SOUS le chapeau, peint
+                           avant lui pour qu'il le recouvre à moitié :
+                           c'est ce recouvrement qui creuse le dessous
+     4. LE CHAPEAU         une couronne de lobes, pas un disque — un
+                           chapeau lisse se lit comme un ballon
+     5. LA CRÊTE           les lobes du dessus, plus clairs, là où la
+                           lumière frappe
+     6. LE CŒUR            la braise dans le pied, les premières
+                           secondes seulement
+
+   ────────────────────────────────────────────────────────────────
+   IL REFROIDIT
+   ────────────────────────────────────────────────────────────────
+
+   La fumée n'a pas une couleur, elle en a deux : celle de la première
+   seconde, éclairée de l'intérieur par la boule de feu, et celle
+   d'après, quand il ne reste que de la poussière. On interpole entre
+   les deux — sans ça, un champignon orange jusqu'au bout ressemble à
+   un feu de camp, et un champignon gris dès la première image n'a
+   jamais explosé.
+
+   ET IL MONTE SANS S'ARRÊTER. La croissance du chapeau se termine à
+   la moitié de l'effet, mais la colonne, elle, continue de s'élever
+   jusqu'au bout. Un champignon qui se fige est un dessin ; un
+   champignon qui monte encore en s'effaçant est une explosion.
+   ================================================================ */
+/* Deux palettes : à chaud, à froid. Chaque teinte est un triplet nu,
+   parce que bouffeeFloue veut éteindre le dégradé dans SA couleur. */
+var NOVA_CHAUD = { haut:[255, 214, 150], mil:[214, 132, 74], bas:[150, 70, 40], creux:[92, 44, 30] };
+var NOVA_FROID = { haut:[158, 150, 162], mil:[100, 93, 104], bas:[63, 58, 68],  creux:[36, 32, 40] };
+function melangeNova(k, f){
+  var a = NOVA_CHAUD[k], b = NOVA_FROID[k];
+  return Math.round(a[0] + (b[0] - a[0]) * f) + "," +
+         Math.round(a[1] + (b[1] - a[1]) * f) + "," +
+         Math.round(a[2] + (b[2] - a[2]) * f);
+}
+
+function dessineChampignonNova(c, x, ySol, t, a2, em, z, tps, sup){
+  /* mt : la croissance du chapeau, finie à mi-vie.
+     mo : la montée de la colonne, qui ne s'arrête jamais. */
+  var mt = Math.min(1, t * 1.7);
+  var mo = t;
+  var froid = Math.min(1, Math.max(0, (t - 0.10) / 0.80));   // il refroidit
+  var HAUT = melangeNova("haut", froid), MIL = melangeNova("mil", froid);
+  var BAS  = melangeNova("bas",  froid), CREUX = melangeNova("creux", froid);
+  /* ================================================================
+     LA SUPER S'ÉLARGIT, ELLE NE S'ALLONGE PAS
+
+     Un seul facteur d'échelle pour tout multipliait aussi la hauteur :
+     le chapeau sortait par le haut du cadre et il ne restait qu'une
+     longue coulée brune. Or ce qui dit la puissance, dans un
+     champignon, c'est la LARGEUR du chapeau — c'est elle qu'on compare
+     d'une photo d'essai à l'autre. La hauteur, elle, se perd hors
+     champ et ne se compare à rien.
+     Deux facteurs, donc : un tiers de plus en hauteur, presque le
+     double en largeur. */
+  var emH = sup ? 1.35 : 1, emR = sup ? 1.90 : 1;
+  var E = em * z;
+  var EH = emH * z, ER = emR * z;
+  /* ================================================================
+     L'ÉCHELLE, ET C'ÉTAIT LE VRAI DÉFAUT
+
+     Le premier champignon montait à quarante-six unités plus cent
+     soixante-seize : soixante-sept pixels au zoom de jeu. La boule de
+     feu, elle, fait quatre virgule six cases de rayon, soit deux cent
+     quarante pixels au même zoom. On peignait donc une touffe de la
+     taille d'un buisson au pied d'un soleil — et c'est pour ça que
+     l'œil n'attrapait que les anneaux.
+
+     Un champignon atomique est BEAUCOUP plus haut que la boule de feu
+     n'est large : trois à quatre fois. Les cotes sont donc en unités
+     de monde, comme la hauteur de la tornade (TOR_HAUT), et non en
+     pixels d'écran choisis à vue.
+
+     ET IL NE S'ÉTEINT PAS AVANT LA FIN. L'opacité suivait 1 − t, donc
+     à trois secondes sur trois deux il ne restait rien qu'un cratère.
+     Une colonne de fumée ne s'évapore pas, elle s'éloigne : elle tient
+     presque toute la durée, puis part d'un coup. */
+  /* Plafonnée à ce que le cadre peut montrer : plus haut, le chapeau
+     sort de l'écran au zoom de jeu et il ne reste qu'une colonne. */
+  var H  = (104 + mo * 400) * EH;
+  var Rc = (44 + mt * 210) * ER;
+  var yc = ySol - H;                                   // le centre du chapeau
+  var op = Math.min(1, (1 - Math.pow(t, 2.8)) * 1.2);
+  if(op <= 0.01) return;
+
+  c.save();
+  /* ATTENTION : bouffeeFloue POSE son globalAlpha, il ne le multiplie
+     pas. L'opacité générale de l'effet doit donc entrer dans chaque
+     appel — la mettre sur le contexte ne servirait à rien, et le
+     champignon resterait opaque jusqu'à sa dernière image. */
+
+  /* ---- 1. LA JUPE AU SOL ---- */
+  var rj = (56 + t * 280) * ER;
+  for(var j = 0; j < 9; j++){
+    var aj = j * 0.698 + 0.3;
+    bouffeeFloue(c, x + Math.cos(aj) * rj, ySol + Math.sin(aj) * rj * 0.42,
+                 (30 + t * 52) * ER, op * 0.30 * (1 - t) * (1 - t), BAS, 0.5);
+  }
+
+  /* ---- 2. LE PIED ----
+     Il s'évase en bas et se pince aux deux tiers : c'est ce
+     rétrécissement qui donne l'aspiration, et sans lui la colonne
+     ressemble à une cheminée d'usine. */
+  var NP = 9;
+  for(var s = 0; s < NP; s++){
+    var u = s / (NP - 1);                              // 0 au sol, 1 au chapeau
+    var yy = ySol - H * u;
+    /* le profil : large au pied, pincé au milieu, ré-évasé sous le
+       chapeau */
+    var prof = 1.15 - 0.72 * u + 0.55 * u * u;
+    var rr = (34 + mt * 26) * ER * prof;
+    /* la colonne serpente : deux ondes lentes, décalées en hauteur */
+    var dx = Math.sin(u * 3.4 + tps * 0.9) * 22 * ER * u
+           + Math.sin(u * 7.1 - tps * 1.4) * 11 * ER * u;
+    var coul = u < 0.34 ? BAS : (u < 0.72 ? MIL : HAUT);
+    bouffeeFloue(c, x + dx, yy, rr, op * 0.52, coul, 0.92);
+    /* un lobe de côté, une fois sur deux : la colonne n'est jamais
+       symétrique */
+    if(s % 2 === 0)
+      bouffeeFloue(c, x + dx + (s % 4 ? 1 : -1) * rr * 0.62, yy - rr * 0.2,
+                   rr * 0.58, op * 0.38, coul, 0.9);
+  }
+
+  /* Un chapeau deux fois plus large avec des lobes deux fois plus gros
+     n'a pas plus de détail, il en a moins : les lobes se recouvrent et
+     la silhouette redevient lisse. On en met donc DAVANTAGE, et on les
+     garde de la même taille apparente. */
+  var lob = sup ? 0.72 : 1;
+
+  /* ---- 3. L'ENROULEMENT SOUS LE CHAPEAU ----
+     Peint AVANT le chapeau, plus bas et plus large que lui, dans la
+     teinte la plus sombre. Le chapeau le recouvre à moitié, et c'est
+     précisément ce recouvrement qui creuse le dessous. */
+  var NE = sup ? 16 : 11;
+  for(var k = 0; k < NE; k++){
+    var ak = k / NE * 6.2832 + 0.2;
+    var re = Rc * 1.06;
+    bouffeeFloue(c, x + Math.cos(ak) * re,
+                 yc + Rc * 0.30 + Math.sin(ak) * re * 0.34,
+                 Rc * (0.26 + 0.06 * Math.sin(k * 2.1 + tps)) * lob, op * 0.60, CREUX, 0.74);
+  }
+
+  /* ---- 4. LE CHAPEAU ----
+     Une couronne de lobes de rayons inégaux, plus une masse centrale.
+     Les rayons viennent d'un sinus en k : ils sont donc stables d'une
+     image à l'autre — un chapeau dont les bosses sautent à chaque
+     image grésille au lieu de rouler. */
+  var NC = sup ? 23 : 16;
+  for(k = 0; k < NC; k++){
+    var a = k / NC * 6.2832;
+    var bosse = 0.86 + 0.20 * Math.sin(k * 2.7 + 1.1) + 0.07 * Math.sin(tps * 1.3 + k);
+    var rx = Math.cos(a) * Rc * 0.74 * bosse;
+    var ry = Math.sin(a) * Rc * 0.44 * bosse;
+    /* les lobes du haut sont plus clairs que ceux du bas : c'est tout
+       ce qu'il faut pour que la masse ait un dessus et un dessous */
+    var haut = Math.sin(a) < -0.15;
+    bouffeeFloue(c, x + rx, yc + ry, Rc * 0.31 * bosse * lob, op * 0.62,
+                 haut ? HAUT : MIL, 0.82);
+  }
+  bouffeeFloue(c, x, yc + Rc * 0.06, Rc * 0.52, op * 0.56, MIL, 0.78);
+
+  /* ---- 5. LE DÔME ----
+     Une seconde couronne, plus serrée et posée plus haut. Sans elle le
+     chapeau est une GALETTE : une seule couronne de lobes donne une
+     masse large et plate, et un champignon atomique bombe. Les lobes du
+     dôme sont dans la teinte claire, ce qui achève de dire où est le
+     dessus. */
+  var ND = sup ? 11 : 8;
+  for(k = 0; k < ND; k++){
+    var ad = k / ND * 6.2832;
+    var bd = 0.9 + 0.16 * Math.sin(k * 3.1 + 0.7);
+    bouffeeFloue(c, x + Math.cos(ad) * Rc * 0.46 * bd,
+                 yc - Rc * 0.26 + Math.sin(ad) * Rc * 0.20 * bd,
+                 Rc * 0.26 * bd * lob, op * 0.50, HAUT, 0.86);
+  }
+  /* et la calotte, tout en haut */
+  bouffeeFloue(c, x, yc - Rc * 0.40, Rc * 0.34 * lob, op * 0.42, HAUT, 0.8);
+
+  /* ---- 6. LE CŒUR ----
+     La braise que la colonne emporte, les premières secondes. En
+     additif : c'est de la lumière, pas de la matière. */
+  if(t < 0.44){
+    var vif = (1 - t / 0.44);
+    c.globalCompositeOperation = "lighter";
+    c.globalAlpha = op * vif * vif;
+    for(s = 0; s < 5; s++){
+      var uu = s / 4;
+      var gy2 = ySol - H * uu * 0.86;
+      var rg = (44 - uu * 20) * ER * (0.7 + mt * 0.5);
+      var g = c.createRadialGradient(x, gy2, 0, x, gy2, rg);
+      g.addColorStop(0, "rgba(255,246,214,.85)");
+      g.addColorStop(0.35, "rgba(255,164,60,.45)");
+      g.addColorStop(1, "rgba(220,70,20,0)");
+      c.fillStyle = g;
+      c.beginPath(); c.ellipse(x, gy2, rg, rg * 1.2, 0, 0, 6.2832); c.fill();
+    }
+    /* et la lueur qui bat sous le chapeau */
+    var gc2 = c.createRadialGradient(x, yc + Rc * 0.2, 0, x, yc + Rc * 0.2, Rc * 0.9);
+    gc2.addColorStop(0, "rgba(255,190,110,.55)");
+    gc2.addColorStop(1, "rgba(255,110,30,0)");
+    c.fillStyle = gc2;
+    c.beginPath(); c.ellipse(x, yc + Rc * 0.2, Rc * 0.9, Rc * 0.5, 0, 0, 6.2832); c.fill();
+  }
+  c.restore();
+}
+
 function dessineEffet(c, e, tps){
   var t = e.age / e.duree;
   var p = versEcran(cam, e.gx, e.gy);
@@ -807,14 +1044,20 @@ function dessineEffet(c, e, tps){
       /* l'anneau, LUI, prend toute la mesure de la super : c'est du
          creux, il peut être immense sans rien effacer */
       var rw = rb * (1.0 + tw * 1.35) * (sup ? 1.9 : 1);
-      var aw = (1 - tw) * (1 - tw) * 0.55;
+      /* IL EST DEUX FOIS PLUS DISCRET QU'AVANT, et c'est le sujet de
+         cette version : large, net et brillant, c'était LUI qu'on
+         regardait, et l'effet se lisait comme « un cercle qui
+         s'échappe » avec quelque chose de gris au milieu. Un anneau
+         de condensation est un voile de vapeur d'une demi-seconde,
+         pas une auréole. */
+      var aw = (1 - tw) * (1 - tw) * 0.26;
       c.strokeStyle = "rgba(226,240,255," + aw + ")";
-      c.lineWidth = Math.max(1.5, rb * 0.16 * (1 - tw * 0.5));
+      c.lineWidth = Math.max(1.2, rb * 0.09 * (1 - tw * 0.5));
       c.beginPath();
       c.ellipse(p.x, p.y - rb * 0.45, rw, rw * 0.82, 0, 0, 6.2832);
       c.stroke();
       /* un second liseré, plus fin et plus froid, juste derrière */
-      c.strokeStyle = "rgba(180,214,255," + (aw * 0.5) + ")";
+      c.strokeStyle = "rgba(180,214,255," + (aw * 0.45) + ")";
       c.lineWidth = Math.max(1, rb * 0.06);
       c.beginPath();
       c.ellipse(p.x, p.y - rb * 0.45, rw * 1.14, rw * 0.94, 0, 0, 6.2832);
@@ -837,42 +1080,9 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
 
-    /* ---- 3. LE CHAMPIGNON, ET SA COLLERETTE ---- */
-    c.save();
-    c.globalAlpha = Math.min(1, a2 * 1.4);
-    var mt = Math.min(1, t * 1.5);
-    /* LE CHAMPIGNON GRANDIT AVEC LA SUPER — il ne le faisait pas, et
-       c'est ce qui le rendait ridicule sous un anneau trois fois plus
-       large : une petite touffe au milieu d'un cratère immense. Toutes
-       ses cotes sont désormais multipliées, hauteur comprise. */
+    /* ---- 3. LE CHAMPIGNON ---- */
     var em = sup ? 1.85 : 1;
-    var yc = p.y - (24 + mt * 150) * em * z;
-    for(var s2 = 0; s2 < 7; s2++){
-      bouffee(c, p.x + Math.sin(s2 * 1.7 + t * 3) * 8 * em * z,
-              p.y - (14 + s2 * 18 * mt) * em * z,
-              (9 + s2 * 2) * em * z * (0.5 + mt), 0.45, "#6a5a52");
-    }
-    for(var h2 = 0; h2 < 9; h2++){
-      var ah = h2 / 9 * 6.2832;
-      bouffee(c, p.x + Math.cos(ah) * (14 + mt * 46) * em * z,
-              yc + Math.sin(ah) * (7 + mt * 16) * em * z,
-              (16 + mt * 20) * em * z, 0.42, h2 % 2 ? "#7a6258" : "#94786a");
-    }
-    bouffee(c, p.x, yc - 8 * em * z, (22 + mt * 34) * em * z, 0.5, "#8a7264");
-    c.restore();
-    /* la collerette : un anneau clair au pied du chapeau, qui monte
-       avec lui. Additive et discrète — c'est un liant, pas un effet. */
-    if(mt > 0.12){
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      var rcol = (30 + mt * 52) * em * z;
-      c.strokeStyle = "rgba(255,232,196," + (0.30 * a2 * mt) + ")";
-      c.lineWidth = Math.max(1.2, 5 * z * (1 - mt * 0.4));
-      c.beginPath();
-      c.ellipse(p.x, yc + 12 * z, rcol, rcol * 0.34, 0, 0, 6.2832);
-      c.stroke();
-      c.restore();
-    }
+    dessineChampignonNova(c, p.x, p.y, t, a2, em, z, tps, sup);
   }else if(e.t === "baliseLancee"){
     c.save();
     c.globalCompositeOperation = "lighter";
