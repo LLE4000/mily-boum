@@ -2474,7 +2474,16 @@ function dessineEau(c, t, vue){
   }
   c.restore();
 
-  if(carte.biome === "nuits") dessineMerDEncre(c, t, vue);
+  if(carte.biome === "nuits"){
+    dessineMerDEncre(c, t, vue);
+    /* LA LUNE ET LES FILANTES SONT DANS L'EAU, donc ici, avec la mer
+       et AVANT l'île : c'est le rivage qui coupe le chemin de lune,
+       exactement comme il le ferait sur une vraie plage. Les peindre
+       plus tard les poserait PAR-DESSUS le sable. Voir 45-nuits-ciel.js. */
+    dessineAurores(c, t, vue);
+    dessineLuneNuits(c, t, vue);
+    dessineFilantes(c, t, vue);
+  }
 }
 
 /* ================================================================
