@@ -155,7 +155,37 @@ var CENTRE_X = 0, CENTRE_Y = 0;
    différentes à chaque reconstruction — et surtout, la même pierre
    changerait d'aspect en revenant sur la carte.
    ================================================================ */
-function feuSurRoche(c, x, yBas, h, larg, graine){
+/* DEUX RÉGLAGES APRÈS COUP, tous deux venus d'une capture regardée.
+
+   L'INTENSITÉ DE MOITIÉ. Le premier jet mettait tant de feu sur chaque
+   pierre que le rivage devenait un mur de lumière : on ne voyait plus
+   la roche, seulement ce qui brûlait dessus. Une île de ténèbres doit
+   rester sombre — c'est le noir qui donne leur valeur aux flammes, et
+   des flammes partout ne valent plus rien. Toutes les opacités sont
+   donc divisées par deux, et les flammes sont moins nombreuses et
+   moins hautes.
+
+   ET PLUS ORANGE, COMME LA LAVE. Le cœur des langues était presque
+   blanc (255,238,178) : c'est la couleur d'un feu de bois très chaud,
+   pas celle d'une coulée. On le ramène à l'orange des fissures du sol
+   et des vasques, si bien que tout ce qui brûle sur cette île — la
+   roche, les veines de la terre, les traînées des tornades — parle la
+   même langue. Une seule matière, vue à trois échelles. */
+/* TROISIÈME RÉGLAGE, ET LE VRAI COUPABLE.
+   Le rivage restait BLANC malgré une roche de basalte et un feu divisé
+   par deux. Ce n'était ni la roche, ni le liseré, ni les éboulis : ce
+   sont LES HALOS. Chaque flamme pose un halo en mode additif ; la
+   ceinture compte mille neuf cent vingt-six falaises, chacune avec ses
+   flammes, et les halos de toutes s'additionnent sur les voisines. Un
+   halo à 0,17 d'opacité est discret ; deux cents superposés font du
+   blanc. Mesuré : le pixel le plus clair de la bande valait
+   (232, 228, 216) quand la roche est à (78, 66, 76).
+   `serre` vaut 1 quand les pierres se touchent — c'est le cas des
+   falaises, jamais celui des rochers isolés. On y coupe alors ce qui
+   s'additionne : le halo de chaque langue et la flaque du pied. Il
+   reste les coulées et les langues elles-mêmes, qui ne débordent pas
+   de leur pierre. */
+function feuSurRoche(c, x, yBas, h, larg, graine, serre){
   var al = prng((graine >>> 0) ^ 0x7E4B), i;
 
   /* --- 1. LES COULÉES. Elles partent du haut et descendent en
@@ -173,8 +203,8 @@ function feuSurRoche(c, x, yBas, h, larg, graine){
       cy += (yBas - cy) * (0.34 + al() * 0.4);
       pts.push([cx, cy]);
     }
-    var couches = [[3.4, "rgba(16,7,6,.55)"], [2.0, "rgba(196,48,12,.85)"],
-                   [0.9, "rgba(255,168,58,.9)"]];
+    var couches = [[3.0, "rgba(16,7,6,.34)"], [1.8, "rgba(178,44,10,.44)"],
+                   [0.8, "rgba(240,140,40,.46)"]];
     for(var k = 0; k < couches.length; k++){
       c.strokeStyle = couches[k][1];
       c.lineWidth = couches[k][0];
@@ -186,32 +216,37 @@ function feuSurRoche(c, x, yBas, h, larg, graine){
     }
     /* la goutte au bout, prête à tomber */
     var fin = pts[pts.length - 1];
-    c.fillStyle = "rgba(255,196,86,.9)";
-    c.beginPath(); c.ellipse(fin[0], fin[1] + 1, 1.5, 2.2, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(238,146,44,.46)";
+    c.beginPath(); c.ellipse(fin[0], fin[1] + 1, 1.3, 1.9, 0, 0, 6.2832); c.fill();
   }
 
   /* --- 2. LA COURONNE DE FLAMMES, sur l'arête du haut. C'est elle
      qu'on voit de loin, et c'est elle qui fait qu'une île de ténèbres
      est bordée de feu et non de béton. */
-  var nf = 3 + ((al() * 3) | 0);
+  var nf = 2 + ((al() * 2) | 0);
   for(i = 0; i < nf; i++){
     var fx = x + (al() - 0.5) * larg * 1.6;
     var fy = yBas - h;
-    var fh = h * (0.26 + al() * 0.36) + 6;
-    var fw = 2.2 + al() * 3.0;
-    /* le halo, d'abord */
-    c.save();
-    c.globalCompositeOperation = "lighter";
-    var gh = c.createRadialGradient(fx, fy - fh * 0.35, 1, fx, fy - fh * 0.35, fh * 1.5);
-    gh.addColorStop(0, "rgba(255,150,50,.34)");
-    gh.addColorStop(1, "rgba(220,70,16,0)");
-    c.fillStyle = gh;
-    c.beginPath();
-    c.ellipse(fx, fy - fh * 0.35, fh * 1.5, fh * 1.1, 0, 0, 6.2832); c.fill();
-    c.restore();
+    var fh = h * (0.18 + al() * 0.24) + 4;
+    var fw = 1.8 + al() * 2.2;
+    /* le halo, d'abord — sauf entre pierres jointives, où il
+       s'additionnerait avec celui de toutes les voisines */
+    if(!serre){
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var gh = c.createRadialGradient(fx, fy - fh * 0.35, 1, fx, fy - fh * 0.35, fh * 1.5);
+      gh.addColorStop(0, "rgba(246,132,36,.17)");
+      gh.addColorStop(1, "rgba(214,66,14,0)");
+      c.fillStyle = gh;
+      c.beginPath();
+      c.ellipse(fx, fy - fh * 0.35, fh * 1.25, fh * 0.9, 0, 0, 6.2832); c.fill();
+      c.restore();
+    }
     /* la langue, en trois épaisseurs de plus en plus claires */
-    var teintes = [["rgba(214,54,14,.86)", 1.0], ["rgba(255,132,30,.9)", 0.62],
-                   ["rgba(255,238,178,.92)", 0.28]];
+    /* le cœur n'est plus blanc mais ORANGE : c'est de la lave qui
+       brûle, pas une bûche */
+    var teintes = [["rgba(186,44,10,.44)", 1.0], ["rgba(226,96,22,.46)", 0.62],
+                   ["rgba(255,168,58,.50)", 0.28]];
     for(var t2 = 0; t2 < teintes.length; t2++){
       var e = teintes[t2][1];
       c.fillStyle = teintes[t2][0];
@@ -226,20 +261,22 @@ function feuSurRoche(c, x, yBas, h, larg, graine){
   }
 
   /* --- 3. LA FLAQUE AU PIED : la lave arrivée en bas. Elle referme
-     le dessin — sans elle, les coulées coulent dans le vide. */
+     le dessin — sans elle, les coulées coulent dans le vide. Elle est
+     additive comme le halo : on la garde partout, à moins de moitié
+     entre pierres jointives. */
   c.save();
   c.globalCompositeOperation = "lighter";
-  var gp = c.createRadialGradient(x, yBas, 1, x, yBas, larg * 1.5);
-  gp.addColorStop(0, "rgba(255,150,50,.44)");
-  gp.addColorStop(0.5, "rgba(226,80,20,.16)");
-  gp.addColorStop(1, "rgba(200,50,10,0)");
+  var gp = c.createRadialGradient(x, yBas, 1, x, yBas, larg * 1.3);
+  gp.addColorStop(0, "rgba(246,132,36," + (serre ? 0.09 : 0.22) + ")");
+  gp.addColorStop(0.5, "rgba(214,72,18," + (serre ? 0.03 : 0.08) + ")");
+  gp.addColorStop(1, "rgba(190,46,10,0)");
   c.fillStyle = gp;
-  c.beginPath(); c.ellipse(x, yBas, larg * 1.5, larg * 0.7, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(x, yBas, larg * 1.3, larg * 0.6, 0, 0, 6.2832); c.fill();
   c.restore();
-  c.fillStyle = "rgba(226,86,22,.7)";
-  c.beginPath(); c.ellipse(x, yBas, larg * 0.55, larg * 0.26, 0, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(255,206,120,.75)";
-  c.beginPath(); c.ellipse(x, yBas - 0.5, larg * 0.28, larg * 0.13, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(210,76,18,.36)";
+  c.beginPath(); c.ellipse(x, yBas, larg * 0.5, larg * 0.24, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(246,160,58,.40)";
+  c.beginPath(); c.ellipse(x, yBas - 0.5, larg * 0.25, larg * 0.12, 0, 0, 6.2832); c.fill();
 }
 
 function dessineFalaise(c, f){
@@ -252,7 +289,16 @@ function dessineFalaise(c, f){
     pts.push({ x:p.x + Math.cos(a) * rr * RX, y:p.y + Math.sin(a) * rr * RY });
   }
   var h = f.h;
-  var base = ["#6f6878", "#7c7484", "#615a6c"][f.v % 3];
+  /* LA ROCHE DES TÉNÈBRES EST DU BASALTE, pas le granit gris des
+     autres îles. Ce gris clair écrit en dur valait pour toutes les
+     cartes tant qu'elles se ressemblaient ; au bord d'une mer noire,
+     sous des flammes, il faisait une ceinture blanche autour de l'île
+     — la falaise éclatait plus fort que le feu posé dessus. Les trois
+     teintes descendent donc à du basalte pour cette île, et le feu
+     redevient ce qu'il y a de plus clair à l'écran. */
+  var base = (carte.biome === "tenebres")
+           ? ["#3a3138", "#443a42", "#2e272d"][f.v % 3]
+           : ["#6f6878", "#7c7484", "#615a6c"][f.v % 3];
   /* corps de la falaise, en dégradé du bas sombre vers le haut clair */
   var g = c.createLinearGradient(0, p.y - h, 0, p.y + 6);
   g.addColorStop(0, ecl(base, 0.92));
@@ -301,8 +347,21 @@ function dessineFalaise(c, f){
   c.lineTo(pts[0].x, pts[0].y - h);
   c.lineTo(pts[1].x, pts[1].y - h);
   c.closePath(); c.fill();
-  /* liseré */
-  c.strokeStyle = "rgba(255,250,240,.26)"; c.lineWidth = 1.1;
+  /* LE LISERÉ DE L'ARÊTE, ET LA MASSE BLANCHE QU'IL FABRIQUAIT.
+     Un trait presque blanc à 0,26 d'opacité sur le haut de chaque
+     falaise : discret sur une île qui en compte quelques dizaines
+     dans le champ, mais la ceinture de roche en aligne MILLE NEUF
+     CENT VINGT-SIX. Les traits se recouvrent, s'additionnent, et le
+     rivage des ténèbres devenait une barrière blanche — plus claire
+     que les flammes posées dessus, ce qui est exactement l'inverse de
+     ce qu'on veut. Mesuré : le pixel le plus clair de la bande valait
+     (232, 228, 216), quand la roche était à (78, 66, 76).
+     Sur cette île le liseré devient donc une BRAISE : chaud, et trois
+     fois plus discret. Ailleurs, rien ne change — c'est un clair de
+     lune sur de la pierre, et il est à sa place. */
+  c.strokeStyle = (carte.biome === "tenebres")
+                ? "rgba(255,146,58,.09)" : "rgba(255,250,240,.26)";
+  c.lineWidth = 1.1;
   c.beginPath();
   c.moveTo(pts[n - 1].x, pts[n - 1].y - h);
   c.lineTo(pts[0].x, pts[0].y - h);
@@ -311,7 +370,19 @@ function dessineFalaise(c, f){
   /* végétation ou mousse au pied — sauf dans les ténèbres, où rien ne
      pousse : c'est du feu qui coule à la place. */
   if(carte.biome === "tenebres"){
-    feuSurRoche(c, p.x, p.y, h, f.r * RX * 0.9, (f.gx * 733 + f.gy * 97 + f.v) | 0);
+    /* UNE FALAISE SUR DEUX SEULEMENT. Les falaises se touchent — elles
+       forment une ceinture continue autour de l'île — si bien que
+       leurs flammes s'additionnent en un rideau orange sans
+       interruption : de loin c'est superbe, de près c'est un mur de
+       lumière et l'on ne voit plus la roche.
+       En n'en allumant qu'une sur deux, le feu redevient des FOYERS —
+       des groupes qui brûlent, des pans qui restent noirs — et c'est
+       le contraste entre les deux qui fait le rivage. Le choix est
+       tiré sur la position, donc stable : la même falaise brûle ou ne
+       brûle pas, toujours. */
+    if(((f.gx * 7 + f.gy * 13) | 0) % 2 === 0)
+      feuSurRoche(c, p.x, p.y, h, f.r * RX * 0.9,
+                  (f.gx * 733 + f.gy * 97 + f.v) | 0, 1);   // 1 : pierres jointives
   }else if(f.v % 3 === 0){
     c.fillStyle = carte.biome === "plage" ? "rgba(90,140,70,.45)" : "rgba(60,100,50,.5)";
     c.beginPath();
@@ -321,8 +392,22 @@ function dessineFalaise(c, f){
 }
 
 /* ---------------- Rochers isolés ---------------- */
-function dessineRocher(c, gx, gy, r, s, v){
-  var gris = ["#6d6a75", "#7a7480", "#5f5c68"][v % 3];
+/* LE BIOME SE PASSE EN ARGUMENT, IL NE SE DEVINE PAS.
+   dessineRocher lisait la variable globale `carte` pour savoir si elle
+   dessinait une pierre des ténèbres. Or ses sprites sont pré-cuits par
+   construitSpritesDecor(biome), qui reçoit le biome en argument
+   justement parce que `carte` n'est pas encore la bonne à ce
+   moment-là : les vingt-quatre rochers sortaient donc en granit gris
+   clair sur une île de basalte, et faisaient une ceinture blanche
+   autour du rivage — plus claire que les flammes posées dessus.
+   dessineDecor reçoit son biome depuis toujours ; celle-ci ne l'avait
+   pas, et c'est tout l'écart. Le repli sur `carte` reste pour les
+   quelques appels qui n'ont pas de biome sous la main. */
+function dessineRocher(c, gx, gy, r, s, v, biome){
+  if(!biome && typeof carte !== "undefined" && carte) biome = carte.biome;
+  var gris = (biome === "tenebres")
+           ? ["#2f2830", "#39313a", "#241f26"][v % 3]
+           : ["#6d6a75", "#7a7480", "#5f5c68"][v % 3];
   var p = iso(gx, gy);
   ombreRonde(c, gx, gy, r * 1.15, 0.26);
   var n = 5, pts = [], i;
@@ -349,7 +434,11 @@ function dessineRocher(c, gx, gy, r, s, v){
   c.lineTo(pts[0].x, pts[0].y - h);
   c.lineTo(pts[1].x, pts[1].y - h);
   c.closePath(); c.fill();
-  c.strokeStyle = "rgba(255,250,240,.22)"; c.lineWidth = 1;
+  /* même raison que sur les falaises : sur l'île de basalte, l'arête
+     prend la braise et non le clair de lune */
+  c.strokeStyle = (biome === "tenebres")
+                ? "rgba(255,146,58,.12)" : "rgba(255,250,240,.22)";
+  c.lineWidth = 1;
   c.beginPath(); c.moveTo(pts[n - 1].x, pts[n - 1].y - h); c.lineTo(pts[0].x, pts[0].y - h); c.stroke();
   /* DANS LES TÉNÈBRES, CHAQUE ROCHER BRÛLE. Le même dessin que sur
      les falaises, à l'échelle du caillou : c'est ce qui met le feu
@@ -357,7 +446,7 @@ function dessineRocher(c, gx, gy, r, s, v){
      `carte` est global comme dans dessineFalaise ; la graine vient de
      la forme et de la teinte, si bien que les vingt-quatre sprites
      pré-cuits brûlent chacun à sa façon et ne se répètent pas. */
-  if(typeof carte !== "undefined" && carte && carte.biome === "tenebres"){
+  if(biome === "tenebres"){
     feuSurRoche(c, p.x, p.y, h, r * RX * 0.62,
                 ((v * 977) + Math.round(s * 1000)) | 0);
   }
@@ -1640,7 +1729,12 @@ function construitSol(carteC){
     if(matiereCase(ex | 0, ey | 0, gr).roche < 0.25) continue;
     var pe = iso(ex, ey);
     var tt = al();
-    c.fillStyle = tt < 0.5 ? "rgba(60,54,70,.34)" : "rgba(180,176,192,.26)";
+    /* l'éboulis clair vire au basalte sur l'île de feu : mille quatre
+       cents cailloux gris pâle au pied des falaises éclaircissaient
+       tout le pourtour */
+    c.fillStyle = (carteC.biome === "tenebres")
+                ? (tt < 0.5 ? "rgba(28,22,26,.40)" : "rgba(74,62,66,.26)")
+                : (tt < 0.5 ? "rgba(60,54,70,.34)" : "rgba(180,176,192,.26)");
     c.beginPath();
     c.ellipse(pe.x, pe.y, 2 + al() * 5, 1.2 + al() * 2.4, al() * 3, 0, 6.2832);
     c.fill();
@@ -1809,7 +1903,7 @@ function construitSpritesDecor(biome){
       for(var g = 0; g < 2; g++){
         (function(w2, f2, g2){
           spRocher.push(nouveauSpriteDecor(function(c){
-            dessineRocher(c, 0, 0, 0.36 + g2 * 0.28, f2 * 1.57 + 0.4, w2);
+            dessineRocher(c, 0, 0, 0.36 + g2 * 0.28, f2 * 1.57 + 0.4, w2, biome);
           }));
         })(w, f, g);
       }
