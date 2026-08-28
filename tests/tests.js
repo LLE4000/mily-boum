@@ -27,6 +27,9 @@ try{
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
+    "VOIES_EVT","voieDeCarte","carteDeVoie","reglagesEvt","voieLue","voiePosee",
+    "evenementEnCours","carteEvenementEnCours","fusionneEvenements","poseEvenements",
+    "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
@@ -2848,6 +2851,156 @@ G("4. Déterminisme de la génération de carte");
     ok("à époque égale, elles s'additionnent",
        N.fusionneMonde(mm1, mm2).jd === N.fusionneMonde(mm2, mm1).jd &&
        N.compteBits(N.fusionneMonde(mm1, mm2).jd) === 2);
+
+    /* ================================================================
+       LA VOIE N'EST PLUS « LA JUNGLE », C'EST UNE LETTRE
+
+       Tout ce qui précède doit rester vrai — c'est ce que les
+       vérifications d'au-dessus garantissent, elles n'ont pas bougé
+       d'une ligne. Ce qui suit épingle ce qui est NEUF : qu'il puisse y
+       avoir plusieurs voies, et qu'elles soient étanches.
+       ================================================================ */
+    ok("la jungle porte bien la lettre « j »",
+       N.voieDeCarte(N.IDX_JUNGLE) === "j" && N.carteDeVoie("j") === N.IDX_JUNGLE);
+    ok("une île de campagne n'a aucune voie",
+       N.voieDeCarte(0) === "" && N.voieDeCarte(999) === "");
+    ok("toute carte spéciale a une voie, et deux n'ont jamais la même",
+       (function(){
+         var vus = {}, q;
+         for(q = 0; q < N.CARTES.length; q++){
+           if(!N.carteSpeciale(q)) continue;
+           var P = N.voieDeCarte(q);
+           if(!P || vus[P]) return false;
+           vus[P] = 1;
+         }
+         return N.VOIES_EVT.length === N.CARTES.filter(function(c){ return c.special; }).length;
+       })(),
+       N.VOIES_EVT.map(function(V){ return V.P + "→" + N.CARTES[V.i].nom; }).join(", "));
+    /* LES NOMS DE CHAMPS SUR LE FIL NE BOUGENT PAS. C'est LA promesse
+       de compatibilité : les instantanés retenus de tous les salons du
+       monde portent déjà je/jf/jd/jq/jt/jm/jmn/jb, et les renommer
+       perdrait tout ce qu'ils contiennent. */
+    (function(){
+      var o = {};
+      N.voiePosee(o, "j", { e:1, f:2, d:"ZZ", q:33, t:44, mj:9, mn:5, b:250 });
+      ok("voiePosee écrit EXACTEMENT les huit champs d'origine de la jungle",
+         o.je === 1 && o.jf === 2 && o.jd === "ZZ" && o.jq === 33 &&
+         o.jt === 44 && o.jm === 9 && o.jmn === 5 && o.jb === 250,
+         JSON.stringify(o));
+      var r = N.voieLue(o, "j", N.IDX_JUNGLE);
+      ok("… et voieLue les relit à l'identique",
+         r.e === 1 && r.f === 2 && r.d === "ZZ" && r.q === 33 &&
+         r.t === 44 && r.mj === 9 && r.mn === 5 && r.b === 250);
+    })();
+    ok("evenementEnCours dit la même chose que jungleEnCours sur la jungle",
+       N.evenementEnCours(m({ je:1, jf:0 }), "j") === N.jungleEnCours(m({ je:1, jf:0 })) &&
+       N.evenementEnCours(m({ je:3, jf:3 }), "j") === N.jungleEnCours(m({ je:3, jf:3 })));
+    ok("carteEvenementEnCours nomme la carte partie, ou -1",
+       N.carteEvenementEnCours(m({ je:1, jf:0 })) === N.IDX_JUNGLE &&
+       N.carteEvenementEnCours(m({ je:1, jf:1 })) === -1);
+
+    /* ================================================================
+       DEUX VOIES CÔTE À CÔTE
+
+       On en greffe une seconde À LA MAIN — le noyau est du calcul pur,
+       on peut lui ajouter une carte le temps de la vérification. C'est
+       le seul moyen de prouver AUJOURD'HUI que la machinerie tient à
+       deux, avant même que la deuxième carte existe : le jour où elle
+       arrivera, ce groupe aura déjà monté la garde.
+       ================================================================ */
+    (function(){
+      var nAvant = N.CARTES.length;
+      N.CARTES.push({ nom:"Carte d'essai", biome:"plage", pvQG:75000000,
+                      special:1, voie:"z", minJoueurs:9, attenteH:24,
+                      pvBonus:150, degBonus:70, victoire:"essai" });
+      N.VOIES_EVT.push({ i:nAvant, P:"z" });
+      var Z = nAvant;
+      try{
+        ok("chaque événement porte SES réglages, et la jungle garde les siens",
+           N.reglagesEvt(Z).minJoueurs === 9 && N.reglagesEvt(Z).attenteH === 24 &&
+           N.reglagesEvt(Z).pvBonus === 150 && N.reglagesEvt(Z).degBonus === 70 &&
+           N.reglagesEvt(N.IDX_JUNGLE).minJoueurs === N.EQ.JUNGLE_MIN_JOUEURS &&
+           N.reglagesEvt(N.IDX_JUNGLE).attenteH === N.EQ.JUNGLE_ATTENTE_H);
+        var vide = N.mondeVide(0, 100, 0);
+        ok("un monde neuf porte les DEUX voies, chacune à ses défauts",
+           vide.je === 0 && vide.jm === N.EQ.JUNGLE_MIN_JOUEURS &&
+           vide.ze === 0 && vide.zm === 9 && vide.zb === 150,
+           JSON.stringify({ jm:vide.jm, jb:vide.jb, zm:vide.zm, zb:vide.zb }));
+        function w(o){
+          var b = N.mondeVide(0, 100, 0);
+          for(var q in o) b[q] = o[q];
+          return b;
+        }
+        /* L'ÉTANCHÉITÉ, dans les deux sens. */
+        var jungleSeule = w({ je:1, jf:0 });
+        ok("une expédition dans la jungle ne lance pas l'autre carte",
+           N.evenementEnCours(jungleSeule, "j") && !N.evenementEnCours(jungleSeule, "z"));
+        var essaiSeul = w({ ze:1, zf:0 });
+        ok("et réciproquement",
+           !N.evenementEnCours(essaiSeul, "j") && N.evenementEnCours(essaiSeul, "z"));
+        /* LE POINT CRITIQUE, celui pour lequel tout ce remaniement
+           existe : un client en avance sur une voie et en retard sur
+           l'autre ne doit rien perdre, dans les deux sens. */
+        var A = w({ je:4, jf:4, jt:8000, ze:0, zf:0, zt:0 });
+        var B = w({ je:0, jf:0, jt:0,    ze:6, zf:5, zt:9000 });
+        var f8 = N.fusionneMonde(A, B), f9 = N.fusionneMonde(B, A);
+        ok("chacun garde son avance : la fusion additionne les deux voies",
+           f8.je === 4 && f8.jt === 8000 && f8.ze === 6 && f8.zt === 9000,
+           JSON.stringify({ je:f8.je, jt:f8.jt, ze:f8.ze, zt:f8.zt }));
+        ok("… dans les deux sens", JSON.stringify(f8) === JSON.stringify(f9));
+        ok("… et fusionner deux fois ne change plus rien",
+           JSON.stringify(N.fusionneMonde(f8, f8)) === JSON.stringify(f8));
+        ok("… et c'est associatif",
+           JSON.stringify(N.fusionneMonde(N.fusionneMonde(A, B), vide)) ===
+           JSON.stringify(N.fusionneMonde(A, N.fusionneMonde(B, vide))));
+        /* UN CLIENT QUI NE CONNAÎT PAS LA VOIE NEUVE. C'est le cas réel
+           du jour de la mise en ligne : la moitié du salon a l'ancienne
+           page. Son instantané n'a AUCUN champ « z », et il est en
+           avance sur la campagne — donc c'est SA branche de fusion qui
+           l'emporte. Il ne doit pas emporter la voie neuve avec lui. */
+        var vieuxClient = w({ c:4, je:0, jf:0 });
+        delete vieuxClient.ze; delete vieuxClient.zf; delete vieuxClient.zd;
+        delete vieuxClient.zq; delete vieuxClient.zt; delete vieuxClient.zm;
+        delete vieuxClient.zmn; delete vieuxClient.zb;
+        var frais = w({ c:0, ze:3, zf:2, zt:7777, zm:11, zmn:4, zb:200 });
+        var g1 = N.fusionneMonde(vieuxClient, frais);
+        var g2 = N.fusionneMonde(frais, vieuxClient);
+        ok("un client qui ignore la voie neuve ne l'efface pas, même en menant la campagne",
+           g1.ze === 3 && g1.zt === 7777 && g1.zm === 11 && g1.zb === 200 &&
+           g2.ze === 3 && g2.zt === 7777,
+           JSON.stringify({ ze:g1.ze, zt:g1.zt, zm:g1.zm, zb:g1.zb }));
+        ok("… et il impose bien son avance de campagne", g1.c === 4 && g2.c === 4);
+        ok("memeMonde voit un lancement sur la voie neuve",
+           !N.memeMonde(w({ ze:1 }), w({ ze:0 })) &&
+           !N.memeMonde(w({ zt:1 }), w({ zt:0 })) &&
+           N.memeMonde(w({ ze:2, zf:1 }), w({ ze:2, zf:1 })));
+        /* LE BONUS DE PV, RENDU COMMUTATIF. La règle d'avant était « à
+           numéro égal, prends celui de b » — c'est-à-dire l'ordre
+           d'arrivée. Deux administrateurs qui règlent dans la même
+           seconde calculent le même numéro : la fusion ne convergeait
+           pas et les deux appareils se republiaient sans fin. */
+        var r1 = w({ jm:7, jmn:3, jb:100 }), r2 = w({ jm:9, jmn:3, jb:400 });
+        ok("à numéro égal, le bonus de PV se tranche par la valeur, pas par l'ordre",
+           N.fusionneMonde(r1, r2).jb === N.fusionneMonde(r2, r1).jb &&
+           N.fusionneMonde(r1, r2).jb === 400,
+           N.fusionneMonde(r1, r2).jb + " / " + N.fusionneMonde(r2, r1).jb);
+        ok("… et le numéro tranche toujours AVANT la valeur",
+           N.fusionneMonde(w({ jm:60, jmn:9, jb:900 }), w({ jm:2, jmn:10, jb:0 })).jb === 0);
+        ok("… les deux réglages voyagent bien ensemble",
+           N.fusionneMonde(w({ jm:60, jmn:9, jb:900 }), w({ jm:2, jmn:10, jb:0 })).jm === 2);
+        /* LE DURCISSEMENT SUIT LA CARTE, plus le biome. Il se lisait
+           sur `biome === "jungle"`, ce qui aurait laissé toute carte
+           événement neuve avec des défenses de campagne. */
+        ok("le bonus de PV s'applique à toute carte événement, à aucune île de campagne",
+           N.bonusPvDeCarte(N.IDX_JUNGLE) > 0 && N.bonusPvDeCarte(Z) === 150 &&
+           N.bonusPvDeCarte(0) === 0 && N.bonusPvDeCarte(999) === 0);
+      }finally{
+        /* on rend le noyau tel qu'on l'a trouvé : les groupes suivants
+           comptent les cartes */
+        N.CARTES.length = nAvant;
+        N.VOIES_EVT.length = N.VOIES_EVT.length - 1;
+      }
+    })();
   })();
 
   /* LES CHAMPIONS — un par carte, et ils ne se mélangent pas. */

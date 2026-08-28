@@ -927,16 +927,16 @@ function majBilan(dt){
   if(bilanT <= 0){
     bilanActif = false;
     $("bilan").classList.remove("on");
-    /* LA JUNGLE NE MÈNE À AUCUNE ÎLE SUIVANTE. C'est une expédition :
-       elle se termine, le salon la referme pour 48 heures, et tout le
-       monde revient au campement. La campagne, elle, n'a pas bougé
-       d'un cran pendant ce temps. */
+    /* UNE CARTE ÉVÉNEMENT NE MÈNE À AUCUNE ÎLE SUIVANTE. C'est une
+       expédition : elle se termine, le salon la referme pour la durée
+       de SON verrou, et tout le monde revient au campement. La
+       campagne, elle, n'a pas bougé d'un cran pendant ce temps. */
     /* EN PRÉVISUALISATION, la victoire n'est pas une victoire : ni
        champion, ni chrono de 48 h entamé, ni île suivante. On sort du
        test, c'est tout. */
     if(modeApercu){ quitteApercuAdmin(); return; }
-    if(jeu.index === IDX_JUNGLE){
-      termineExpedition(championDeLaPartie().nom);
+    if(carteSpeciale(jeu.index)){
+      termineExpedition(jeu.index, championDeLaPartie().nom);
       quitteVersBriefing();
       return;
     }
@@ -1184,7 +1184,7 @@ function nommeTroupes(type, n){
 function blocChampion(i){
   var nom = championDeCarte(i);
   if(!nom) return "";
-  var quoi = i === IDX_JUNGLE ? "de la jungle" : "de cette carte";
+  var quoi = carteSpeciale(i) ? "de « " + CARTES[i].nom + " »" : "de cette carte";
   return '<div class="champ">Détruite par <b>' + echappe(nom) + '</b>'
        + '<i>' + echappe(nom) + ' est le champion ' + quoi
        + '. Mily lui offre un verre.</i></div>';
@@ -1229,7 +1229,8 @@ function blocTop3(i){
      Sans ce second cas, l'expédition en cours n'avait pas de podium
      vivant alors que c'est exactement le moment où on le regarde. */
   var enCours = (i === carteSalon && !carteSpeciale(i))
-             || (carteSpeciale(i) && typeof jungleEnCours === "function" && jungleEnCours(monde));
+             || (carteSpeciale(i) && typeof evenementEnCours === "function"
+                 && evenementEnCours(monde, voieDeCarte(i)));
   var liste = fige, titre;
   /* Tant que l'île est en cours, on montre le classement VIVANT de
      cette bataille — il bouge, et c'est ce qu'on vient regarder. */
@@ -1282,15 +1283,19 @@ function texteAttente(ms){
   return ss + " s";
 }
 
-/* L'état de la carte événement, tel que le cahier des charges le
+/* L'état d'une carte événement, tel que le cahier des charges le
    décrit : cooldown / attente / prête / expédition en cours. Un seul
-   endroit décide, et l'affichage n'en est que la lecture. */
-function etatJungle(){
-  if(jungleEnCours(monde)) return "encours";
-  var a = attenteJungle();
-  if(a > 0) return "cooldown";
-  return joueursEnLigne() >= minJoueursJungle() ? "prete" : "attente";
+   endroit décide, et l'affichage n'en est que la lecture.
+   Chaque événement a le sien : son verrou, son minimum de joueurs, sa
+   expédition. Ils ne se ferment pas l'un l'autre. */
+function etatEvt(i){
+  var P = voieDeCarte(i);
+  if(!P) return "attente";
+  if(evenementEnCours(monde, P)) return "encours";
+  if(attenteEvenement(i) > 0) return "cooldown";
+  return joueursEnLigne() >= minJoueursEvt(i) ? "prete" : "attente";
 }
+function etatJungle(){ return etatEvt(IDX_JUNGLE); }
 
 /* LE MENU SE RECONSTRUIT TOUT LE TEMPS, ET C'EST ASSUMÉ.
    majMondes est appelée à chaque instantané reçu qui diffère du
@@ -1391,33 +1396,53 @@ function installeAppuisCartes(){
 /* La vignette de la carte événement. Elle porte quatre informations
    sans devenir un tableau de bord : ce qu'elle est, combien on est,
    ce qui manque, et qui l'a détruite la dernière fois. */
+/* CE QUE CHAQUE ÉVÉNEMENT DIT DE LUI-MÊME. La vignette parlait de « LA
+   JUNGLE » en toutes lettres, dans son bandeau, dans ses phrases et
+   sur son bouton. Chaque carte porte donc maintenant ses mots — c'est
+   la seule façon d'en avoir deux sans que la seconde parle de la
+   première. */
+var MOTS_EVT = {
+  j:{ ecusson:"🌿", prete:"LA JUNGLE EST PRÊTE.", entrer:"ENTRER DANS LA JUNGLE",
+      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" }
+};
+function motsEvt(i){
+  var m = MOTS_EVT[voieDeCarte(i)] || {};
+  var nom = (CARTES[i] && CARTES[i].nom) || "";
+  return {
+    ecusson : m.ecusson || "✦",
+    prete   : m.prete   || (nom.toUpperCase() + " EST PRÊTE."),
+    entrer  : m.entrer  || ("ENTRER — " + nom.toUpperCase()),
+    repos   : m.repos   || "LA CARTE SE REPOSE",
+    ambiance: m.ambiance || ""
+  };
+}
 function vignetteEvenement(i){
-  var e = etatJungle();
-  var n = joueursEnLigne(), mini = minJoueursJungle();
+  var e = etatEvt(i), M = motsEvt(i), R = reglagesEvt(i);
+  var n = joueursEnLigne(), mini = minJoueursEvt(i);
   var msg, etiq;
   if(e === "encours"){
     etiq = "expédition en cours";
     msg = "Une expédition est partie. Rejoins-la !";
   }else if(e === "cooldown"){
     etiq = "verrouillée";
-    msg = "Disponible dans <b>" + texteAttente(attenteJungle()) + "</b>";
+    msg = "Disponible dans <b>" + texteAttente(attenteEvenement(i)) + "</b>";
   }else if(e === "prete"){
     etiq = "prête";
-    msg = "<b>LA JUNGLE EST PRÊTE.</b> Il ne manque plus qu'à entrer.";
+    msg = "<b>" + M.prete + "</b> Il ne manque plus qu'à entrer.";
   }else{
     etiq = "en attente";
     var manque = mini - n;
     msg = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
   }
   var frac = Math.min(1, n / Math.max(1, mini));
-  var bouton = e === "prete" ? "ENTRER DANS LA JUNGLE"
+  var bouton = e === "prete" ? M.entrer
              : e === "encours" ? "REJOINDRE L'EXPÉDITION"
-             : e === "cooldown" ? "LA JUNGLE SE REPOSE"
+             : e === "cooldown" ? M.repos
              : "EN ATTENTE DE JOUEURS";
   var actif = (e === "prete" || e === "encours");
-  return '<div class="monde evt ' + e + '" id="mondeEvt">'
+  return '<div class="monde evt ev' + voieDeCarte(i) + ' ' + e + '" id="mondeEvt' + i + '" data-evt="' + i + '">'
        + '<canvas width="720" height="300" id="mn' + i + '"></canvas>'
-       + '<div class="bandeau">🌿 Carte spéciale</div>'
+       + '<div class="bandeau">' + M.ecusson + ' Carte spéciale</div>'
        + '<div class="etat">' + etiq + '</div>'
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
@@ -1425,22 +1450,24 @@ function vignetteEvenement(i){
        /* Le joueur doit savoir CE QUI L'ATTEND avant d'appuyer, et le
           savoir en une seconde. Deux pastilles, deux chiffres, pas une
           phrase : ce sont les seuls réglages qui rendent cette carte
-          plus dure que les cinq autres. */
+          plus dure que celles de la campagne. */
        + '<div class="durci">'
-       +   '<span class="dz pv">Défenses +' + bonusPvJungle + '% PV</span>'
-       +   '<span class="dz dg">+' + EQ.JUNGLE_DEG_BONUS + '% dégâts</span>'
-       +   '<span class="dz or">⛈ Orage &amp; foudre</span>'
+       +   '<span class="dz pv">Défenses +' + bonusPvDeCarte(i) + '% PV</span>'
+       +   '<span class="dz dg">+' + R.degBonus + '% dégâts</span>'
+       +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
        + '</div>'
        + '<div class="jauge">'
        +   '<span class="cpt">' + n + '<small>/' + mini + '</small></span>'
        +   '<span class="msg">' + msg + '</span>'
        +   '<span class="barreJ"><i style="width:' + (frac * 100).toFixed(0) + '%"></i></span>'
        + '</div>'
-       + '<button id="btJungle"' + (actif ? "" : " disabled") + '>' + bouton + '</button>'
-       /* La jungle se visite comme les autres, et surtout QUAND ELLE
-          EST FERMÉE : c'est justement le moment où l'on aimerait voir
-          à quoi elle ressemble. Le bouton d'entrée, lui, reste
-          conditionné au nombre de joueurs — visiter n'est pas jouer. */
+       + '<button class="btEvt" data-entrer="' + i + '"' + (actif ? "" : " disabled") + '>'
+       + bouton + '</button>'
+       /* Une carte événement se visite comme les autres, et surtout
+          QUAND ELLE EST FERMÉE : c'est justement le moment où l'on
+          aimerait voir à quoi elle ressemble. Le bouton d'entrée, lui,
+          reste conditionné au nombre de joueurs — visiter n'est pas
+          jouer. */
        + boutonVisite(i)
        + blocTop3(i) + '</div>';
 }
@@ -1451,26 +1478,38 @@ function vignetteEvenement(i){
    événement, une fois par seconde, tant que le briefing est ouvert. */
 var evtT = 0, evtEtat = "";
 function majJungleLent(dt){
-  if(enJeu || !$("mondeEvt")) return;
+  if(enJeu) return;
   evtT -= dt;
   if(evtT > 0) return;
   evtT = 1.0;
-  var e = etatJungle();
-  /* Un changement d'état retouche les classes et le bouton : on
-     reconstruit alors la vignette. Sinon on ne réécrit que les deux
-     nombres qui bougent, pour ne pas casser une animation en cours. */
-  if(e !== evtEtat){ evtEtat = e; majMondes(); return; }
-  var el = $("mondeEvt");
-  var cpt = el.querySelector(".cpt"), msg = el.querySelector(".msg");
-  var n = joueursEnLigne(), mini = minJoueursJungle();
-  if(cpt) cpt.innerHTML = n + '<small>/' + mini + '</small>';
-  if(msg && e === "cooldown") msg.innerHTML = "Disponible dans <b>" + texteAttente(attenteJungle()) + "</b>";
-  if(msg && e === "attente"){
-    var manque = mini - n;
-    msg.innerHTML = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
+  /* L'ÉTAT DE TOUTES LES CARTES ÉVÉNEMENT EN UNE CHAÎNE. Il n'y en
+     avait qu'une, donc une chaîne suffisait ; il en faut une par carte,
+     et les comparer une à une reconstruirait le menu deux fois. On les
+     concatène : n'importe quel changement, sur n'importe quelle carte,
+     donne une chaîne différente et déclenche UNE reconstruction. */
+  var etats = [], k, V, el;
+  for(k = 0; k < VOIES_EVT.length; k++) etats.push(etatEvt(VOIES_EVT[k].i));
+  var sig = etats.join("|");
+  if(sig !== evtEtat){ evtEtat = sig; if($("mondes")) majMondes(); return; }
+  /* Sinon on ne réécrit que les nombres qui bougent, pour ne pas
+     casser une animation en cours. */
+  for(k = 0; k < VOIES_EVT.length; k++){
+    V = VOIES_EVT[k];
+    el = $("mondeEvt" + V.i);
+    if(!el) continue;
+    var e = etats[k];
+    var cpt = el.querySelector(".cpt"), msg = el.querySelector(".msg");
+    var n = joueursEnLigne(), mini = minJoueursEvt(V.i);
+    if(cpt) cpt.innerHTML = n + '<small>/' + mini + '</small>';
+    if(msg && e === "cooldown")
+      msg.innerHTML = "Disponible dans <b>" + texteAttente(attenteEvenement(V.i)) + "</b>";
+    if(msg && e === "attente"){
+      var manque = mini - n;
+      msg.innerHTML = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
+    }
+    var barre = el.querySelector(".barreJ i");
+    if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
   }
-  var barre = el.querySelector(".barreJ i");
-  if(barre) barre.style.width = (Math.min(1, n / Math.max(1, mini)) * 100).toFixed(0) + "%";
 }
 
 /* Le podium de l'île en cours, une fois par seconde. Même raison que
@@ -1485,16 +1524,29 @@ function majTop3Lent(dt){
   majTop3Vivant();
 }
 
+/* UN SEUL ÉCOUTEUR, POSÉ SUR LE CONTENEUR. Il y en avait un par
+   vignette, reposé à chaque reconstruction du menu — c'est-à-dire
+   toutes les deux secondes dès que quelqu'un joue. Avec deux cartes
+   événement, cela ferait deux écouteurs à replacer au bon moment, et
+   la moindre reconstruction manquée laisserait un bouton mort. La
+   délégation règle la question une fois pour toutes : le conteneur, lui,
+   ne bouge jamais. */
 function installeBoutonJungle(){
-  var b = $("btJungle");
-  if(!b) return;
-  b.addEventListener("click", function(){
+  var m = $("mondes");
+  if(!m || m._evtArme) return;
+  m._evtArme = 1;
+  m.addEventListener("click", function(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-entrer]") : null;
+    if(!b || b.disabled) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var i = +b.getAttribute("data-entrer");
     if(!pseudoSaisi()) return signalePseudoManquant();
-    var e = etatJungle();
+    var e = etatEvt(i);
     if(e !== "prete" && e !== "encours") return;
     monNom = pseudoSaisi();
-    if(e === "prete") lanceExpedition();
-    entreDansLaJungle();
+    if(e === "prete") lanceExpedition(i);
+    entreDansEvenement(i);
   });
 }
 function dessineApercu(i){
@@ -1507,7 +1559,7 @@ function dessineApercu(i){
      la jungle. Tant que le sculpteur n'a pas livré, on retombe sur
      l'aperçu ordinaire plutôt que sur un carré vide. */
   if(carteSpeciale(i) && typeof dessineVignetteJungle === "function"){
-    dessineVignetteJungle(c, el.width, el.height, tempsGlobal, etatJungle());
+    dessineVignetteJungle(c, el.width, el.height, tempsGlobal, etatEvt(i));
     return;
   }
   /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
@@ -1701,6 +1753,9 @@ function basculePlein(){
    --------------------------------------------------------------- */
 /* `ou` est l'index de carte à jouer : la campagne du salon par défaut,
    la jungle quand on entre en expédition. */
+/* Le premier mot d'une carte événement : ce qu'elle dit quand on y
+   arrive. */
+var MSG_ENTREE = { j:"L'orage gronde. Choisis une navette et débarque." };
 function lancePartie(ou){
   if(!pseudoSaisi()) return signalePseudoManquant();
   monNom = pseudoSaisi();
@@ -1723,8 +1778,8 @@ function lancePartie(ou){
   construitMenu();
   majBarres();
   majPodium();
-  message(idx === IDX_JUNGLE
-    ? "L'orage gronde. Choisis une navette et débarque."
+  message(carteSpeciale(idx)
+    ? (MSG_ENTREE[voieDeCarte(idx)] || "Choisis une navette et débarque.")
     : "Choisis une barge en bas à gauche, puis appuie sur la plage.");
   if(reseau.connecte) envoie({ t:"bonjour", nom:monNom });
 }
@@ -1795,7 +1850,7 @@ function retourAccueil(){
    le salon n'est pas passé à autre chose entre-temps. */
 function reprisePossible(){
   if(!jeu || jeu.fin) return false;
-  if(jeu.index === IDX_JUNGLE) return jungleEnCours(monde);
+  if(carteSpeciale(jeu.index)) return evenementEnCours(monde, voieDeCarte(jeu.index));
   return jeu.index === carteSalon;
 }
 function majBoutonReprendre(){
@@ -1829,29 +1884,50 @@ function reprendCombat(){
    La séquence est courte : trois secondes, c'est une porte qu'on
    franchit, pas un générique.
    --------------------------------------------------------------- */
-function entreDansLaJungle(){
+/* Le volet d'entrée, par carte : son titre, sa classe de style et le
+   son qui l'annonce. La jungle garde le tonnerre ; ce qu'une autre
+   carte joue est à elle. */
+var VOLETS_EVT = {
+  j:{ titre:"MILY<br><b>DANS LA JUNGLE</b>", son:"tonnerre", relance:1400 }
+};
+function entreDansEvenement(i){
+  var P = voieDeCarte(i);
+  var D = VOLETS_EVT[P] || {};
   var v = $("voletJungle");
   if(!v){
     v = document.createElement("div");
     v.id = "voletJungle";
-    v.innerHTML = '<div class="ecl"></div><div class="ttr">MILY<br><b>DANS LA JUNGLE</b></div>';
     document.body.appendChild(v);
   }
-  v.classList.remove("on"); void v.offsetWidth;      // on relance l'animation
+  /* Le titre change d'une carte à l'autre : il se réécrit à chaque
+     entrée plutôt qu'une seule fois à la création, sinon la seconde
+     carte annoncerait la première. */
+  v.className = "vol" + P;
+  v.innerHTML = '<div class="ecl"></div><div class="ttr">'
+              + (D.titre || ((CARTES[i].nom || "").toUpperCase())) + '</div>';
+  void v.offsetWidth;                                // on relance l'animation
   v.classList.add("on");
   son.reveille();
-  if(son.tonnerre) son.tonnerre();
-  setTimeout(function(){ if(son.tonnerre) son.tonnerre(); }, 1400);
+  /* APPELÉ SUR `son`, ET JAMAIS DÉTACHÉ. Écrire `var jouer = son[D.son];
+     jouer()` paraît équivalent et ne l'est pas : les méthodes de `son`
+     font toutes `this.ok()`, et une méthode appelée sans son objet
+     n'a plus de `this`. L'exception remontait jusqu'au clic et
+     avortait l'entrée — on entendait le tonnerre, et la partie ne se
+     lançait pas. */
+  var nomSon = D.son && typeof son[D.son] === "function" ? D.son : "";
+  if(nomSon) son[nomSon]();
+  if(nomSon && D.relance) setTimeout(function(){ son[nomSon](); }, D.relance);
   setTimeout(function(){
-    lancePartie(IDX_JUNGLE);
+    lancePartie(i);
     v.classList.remove("on");
   }, 2600);
 }
+function entreDansLaJungle(){ return entreDansEvenement(IDX_JUNGLE); }
 
 /* Le salon a fermé l'expédition pendant qu'on y était : on ne peut pas
-   rester seul dans une jungle qui n'existe plus pour les autres. */
+   rester seul sur une carte qui n'existe plus pour les autres. */
 function finExpeditionLocale(){
-  if(!enJeu || !jeu || jeu.index !== IDX_JUNGLE) return;
+  if(!enJeu || !jeu || !carteSpeciale(jeu.index)) return;
   message("L'expédition est terminée. Retour au campement.");
   quitteVersBriefing();
 }
@@ -1927,16 +2003,36 @@ function installeAdmin(){
   if(r) r.addEventListener("click", regleJungleAdmin);
 }
 
-/* Les deux réglages du salon, mot pour mot comme avant : seul l'endroit
-   d'où on les appelle a changé. */
+/* LES RÉGLAGES DU SALON, CARTE PAR CARTE. Ils ne concernaient que la
+   jungle, et l'appelaient par son nom dans chacune de leurs six
+   phrases. Chaque carte événement a maintenant les siens, sur sa
+   propre voie : on demande donc d'abord LAQUELLE, et l'on ne pose la
+   question que s'il y en a plus d'une — pour une seule carte, un
+   choix à une entrée est une porte qu'on ouvre pour rien. */
+function choisitEvenementAdmin(){
+  if(VOIES_EVT.length <= 1) return VOIES_EVT.length ? VOIES_EVT[0].i : -1;
+  var l = "RÉGLAGES DU SALON\n\nQuelle carte spéciale veux-tu régler ?\n\n";
+  for(var k = 0; k < VOIES_EVT.length; k++)
+    l += "  " + (k + 1) + " — " + CARTES[VOIES_EVT[k].i].nom + "\n";
+  var rep = prompt(l + "\nEntre un numéro :", "1");
+  if(rep === null) return -1;
+  var q = parseInt(rep, 10);
+  if(!(q >= 1 && q <= VOIES_EVT.length)){
+    alert("Il faut un numéro entre 1 et " + VOIES_EVT.length + ". Rien n'a été changé.");
+    return -1;
+  }
+  return VOIES_EVT[q - 1].i;
+}
 function regleJungleAdmin(){
-  var actuel = minJoueursJungle();
+  var idx = choisitEvenementAdmin();
+  if(idx < 0) return;
+  var nom = "« " + CARTES[idx].nom + " »", R = reglagesEvt(idx);
+  var actuel = minJoueursEvt(idx), pvActuel = bonusPvDeCarte(idx);
   var rep = prompt(
-    "RÉGLAGES DU SALON — 1 sur 2\n\n"
-    + "Nombre minimum de joueurs connectés pour lancer\n"
-    + "« Mily dans la jungle ».\n\n"
+    "RÉGLAGES DE " + nom.toUpperCase() + " — 1 sur 2\n\n"
+    + "Nombre minimum de joueurs connectés pour la lancer.\n\n"
     + "Valeur actuelle : " + actuel + " joueurs.\n"
-    + "Par défaut : " + EQ.JUNGLE_MIN_JOUEURS + " joueurs.\n\n"
+    + "Par défaut : " + R.minJoueurs + " joueurs.\n\n"
     + "Entre un nombre entre 1 et 60 :", "" + actuel);
   if(rep === null) return;
   var n = parseInt(rep, 10);
@@ -1944,34 +2040,34 @@ function regleJungleAdmin(){
     alert("Il faut un nombre entre 1 et 60. Rien n'a été changé.");
     return;
   }
-  /* Le second réglage : la dureté des défenses de la jungle. Il vit
-     dans le même panneau et voyage avec le même numéro, parce qu'on
-     les règle ensemble — l'un dit qui peut entrer, l'autre ce qu'on
-     y trouve. */
+  /* Le second réglage : la dureté des défenses. Il vit dans le même
+     panneau et voyage avec le même numéro, parce qu'on les règle
+     ensemble — l'un dit qui peut entrer, l'autre ce qu'on y trouve. */
   var repPv = prompt(
-    "RÉGLAGES DU SALON — 2 sur 2\n\n"
-    + "Bonus de PV des défenses sur « Mily dans la jungle ».\n"
+    "RÉGLAGES DE " + nom.toUpperCase() + " — 2 sur 2\n\n"
+    + "Bonus de PV des défenses sur cette carte.\n"
     + "Le Brasier, lui, garde exactement sa vie.\n\n"
-    + "Valeur actuelle : +" + bonusPvJungle + " %.\n"
-    + "Par défaut : +" + EQ.JUNGLE_PV_BONUS + " % (leur vie est doublée).\n\n"
-    + "Entre un pourcentage entre 0 et 900 :", "" + bonusPvJungle);
+    + "Valeur actuelle : +" + pvActuel + " %.\n"
+    + "Par défaut : +" + R.pvBonus + " %.\n\n"
+    + "Entre un pourcentage entre 0 et 900 :", "" + pvActuel);
   if(repPv === null) return;
   var pv = parseInt(repPv, 10);
   if(!(pv >= 0 && pv <= 900)){
     alert("Il faut un pourcentage entre 0 et 900. Rien n'a été changé.");
     return;
   }
-  var pose = regleMinJoueurs(n, pv);
+  var pose = regleReglagesEvt(idx, n, pv);
   evtEtat = "";
   majMondes();
-  alert("Réglages enregistrés.\n\n"
+  alert("Réglages enregistrés pour " + nom + ".\n\n"
       + "• " + pose + " joueur" + (pose > 1 ? "s" : "") + " connecté"
-      + (pose > 1 ? "s" : "") + " pour lancer la jungle\n"
-      + "• défenses à +" + bonusPvJungle + " % de PV\n\n"
+      + (pose > 1 ? "s" : "") + " pour la lancer\n"
+      + "• défenses à +" + bonusPvDeCarte(idx) + " % de PV\n\n"
       + "Ils valent pour TOUT LE SALON et survivent à la fermeture du\n"
       + "navigateur : ils voyagent dans l'instantané partagé.\n\n"
+      + "Ils ne touchent QUE cette carte : chaque événement a les siens.\n\n"
       + "Le changement de PV prend effet à la prochaine expédition —\n"
-      + "une jungle en cours garde la dureté avec laquelle elle a été\n"
+      + "une carte en cours garde la dureté avec laquelle elle a été\n"
       + "bâtie.");
 }
 

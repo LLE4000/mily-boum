@@ -427,41 +427,75 @@ function envoie(obj){
    --------------------------------------------------------------- */
 
 /* Ce que la partie en cours sait du monde, sous forme d'instantané. */
-/* L'état de la jungle tel que CE client le connaît. Il vient toujours
-   de l'instantané reçu — jamais d'un calcul local — sauf les deux
-   choses que ce client est seul à savoir : les destructions et les PV
-   du Brasier, quand c'est lui qui est en expédition. */
-function jungleCourante(){
-  var m = monde || {};
-  /* Le bonus du SALON fait foi : genereCarte le lit au moment de
-     bâtir la carte, et deux joueurs qui n'auraient pas le même
-     verraient deux jungles différentes. On le repose à chaque
-     lecture de l'instantané. */
-  poseBonusPvJungle(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS);
-  var o = { je:m.je | 0, jf:m.jf | 0, jd:m.jd || "", jq:m.jq | 0,
-            jt:msMonde(m.jt), jm:(m.jm | 0) || EQ.JUNGLE_MIN_JOUEURS,
-            jmn:m.jmn | 0,
-            jb:(m.jb !== undefined ? (m.jb | 0) : EQ.JUNGLE_PV_BONUS),
-            ch:m.ch || "", t3:m.t3 || "" };
-  if(jeu && jeu.index === IDX_JUNGLE && jungleEnCours(m)){
-    var bits = [], i;
-    for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
-    o.jd = encodeBits(bits);
-    o.jq = Math.max(0, Math.round(jeu.qg.pv));
+/* ----------------------------------------------------------------
+   L'ÉTAT DE TOUTES LES VOIES D'ÉVÉNEMENT, tel que CE client le
+   connaît. Il vient toujours de l'instantané reçu — jamais d'un calcul
+   local — sauf les deux choses que ce client est seul à savoir : les
+   destructions et les PV du Brasier, quand c'est LUI qui est en
+   expédition sur cette carte-là.
+
+   IL FAUT LES LIRE TOUTES, à chaque publication, même celles auxquelles
+   on ne touche pas. Une publication ne met pas à jour l'instantané,
+   elle le REMPLACE : le message est RETENU, et le courtier ne garde que
+   le dernier. Un client qui republierait en n'écrivant que la voie qui
+   l'intéresse effacerait l'autre pour tout le salon — le verrou de
+   48 h de l'autre carte sauterait, ses réglages reviendraient à
+   l'usine, et son expédition en cours disparaîtrait.
+   ---------------------------------------------------------------- */
+function etatEvenements(){
+  var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "" };
+  for(var k = 0; k < VOIES_EVT.length; k++){
+    var V = VOIES_EVT[k];
+    /* Le bonus du SALON fait foi : genereCarte le lit au moment de
+       bâtir la carte, et deux joueurs qui n'auraient pas le même
+       verraient deux cartes différentes. On le repose à chaque
+       lecture de l'instantané. */
+    poseBonusPvEvt(V.P, (m[V.P + "b"] !== undefined) ? (m[V.P + "b"] | 0) : undefined);
+    var o = voieLue(m, V.P, V.i);
+    if(jeu && jeu.index === V.i && evenementEnCours(m, V.P)){
+      var bits = [], i;
+      for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
+      o.d = encodeBits(bits);
+      o.q = Math.max(0, Math.round(jeu.qg.pv));
+    }
+    E.v[V.P] = o;
   }
-  return o;
+  return E;
+}
+/* L'état des événements avec toutes les EXPÉDITIONS remises à zéro,
+   mais les RÉGLAGES et les VERROUS intacts. C'est ce que demandent un
+   tirage neuf et un plan enregistré : la carte change, donc les
+   destructions ne désignent plus rien — mais le verrou de 48 h et le
+   minimum de joueurs ne sont pas de la guerre, ce sont des réglages du
+   salon, et rien ne justifie de les rendre à l'usine. */
+function voiesRemisesAZero(){
+  var E = etatEvenements(), k;
+  for(k = 0; k < VOIES_EVT.length; k++){
+    var u = E.v[VOIES_EVT[k].P];
+    u.e = 0; u.f = 0; u.d = ""; u.q = 0;
+  }
+  E.ch = (monde && monde.ch) || "";
+  E.t3 = (monde && monde.t3) || "";
+  return E;
+}
+/* Gardée sous son nom, dans les champs de la jungle : c'est la forme
+   que les tests et l'ancien code connaissent. */
+function jungleCourante(){
+  var E = etatEvenements(), j = E.v.j;
+  return { je:j.e, jf:j.f, jd:j.d, jq:j.q, jt:j.t,
+           jm:j.mj, jmn:j.mn, jb:j.b, ch:E.ch, t3:E.t3 };
 }
 
 function mondeCourant(){
-  var jg = jungleCourante();
+  var jg = etatEvenements();
   /* Sans partie en cours, il faut quand même savoir estampiller le
      plan : on peint depuis le briefing, où `jeu` est nul, et sans ça
      un plan tout juste validé ne serait jamais publié. */
   if(!jeu){
     if(!monde) return null;
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
-       (monde.tg | 0) === tirageSalon && memeJungle(monde, jg)) return monde;
-    return poseJungle({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
+       (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
+    return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   }
@@ -469,15 +503,15 @@ function mondeCourant(){
      normale telle que l'instantané la connaît, et c'est la voie de la
      jungle qui porte les dégâts. Sans ça, une expédition écraserait
      l'avancée de la campagne avec les PV du Brasier de la jungle. */
-  if(jeu.index === IDX_JUNGLE){
+  if(carteSpeciale(jeu.index)){
     var mm = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
-    return poseJungle({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
+    return poseEvenements({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   }
   var bits = [], i;
   for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
-  return poseJungle({ v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
+  return poseEvenements({ v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
            k:encodeChats(jeu.tueurChats),
@@ -591,7 +625,7 @@ function appliqueMondeAuJeu(m){
      campagne : les destructions viennent de jd et les PV de jq. Le
      reste de l'instantané décrit une île à laquelle on ne touche pas
      tant qu'on est dans la jungle. */
-  if(jeu.index === IDX_JUNGLE) return appliqueJungleAuJeu(m);
+  if(carteSpeciale(jeu.index)) return appliqueEvenementAuJeu(m, jeu.index);
   if(m.c !== jeu.index || (m.cy | 0) !== cycleSalon) return;
   var bits = decodeBits(m.d, jeu.batiments.length), i, b, change = 0;
   for(i = 0; i < jeu.batiments.length; i++){
@@ -602,7 +636,12 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
-  if(m.jb !== undefined) poseBonusPvJungle(m.jb | 0);
+  /* le bonus de PV du salon, pour CHAQUE événement : genereCarte le
+     lira au moment de bâtir la carte */
+  for(var kb = 0; kb < VOIES_EVT.length; kb++){
+    var Pb = VOIES_EVT[kb].P;
+    if(m[Pb + "b"] !== undefined) poseBonusPvEvt(Pb, m[Pb + "b"] | 0);
+  }
   if(m.g && !jeu.tueurGege){
     jeu.tueurGege = String(m.g).substr(0, 14);
     tueGegeLocale();
@@ -640,10 +679,11 @@ function appliqueMondeAuJeu(m){
    règles monotones, mais sur la voie de la jungle. Une expédition qui
    s'est terminée ailleurs pendant qu'on jouait renvoie au briefing —
    on ne peut pas rester seul dans une jungle que le salon a fermée. */
-function appliqueJungleAuJeu(m){
-  if(!jeu || jeu.index !== IDX_JUNGLE) return 0;
-  if(!jungleEnCours(m)){ if(typeof finExpeditionLocale === "function") finExpeditionLocale(); return 0; }
-  var bits = decodeBits(m.jd, jeu.batiments.length), i, b, change = 0;
+function appliqueEvenementAuJeu(m, idx){
+  var P = voieDeCarte(idx);
+  if(!jeu || !P || jeu.index !== idx) return 0;
+  if(!evenementEnCours(m, P)){ if(typeof finExpeditionLocale === "function") finExpeditionLocale(); return 0; }
+  var bits = decodeBits(m[P + "d"], jeu.batiments.length), i, b, change = 0;
   for(i = 0; i < jeu.batiments.length; i++){
     b = jeu.batiments[i];
     if(bits[i] && b.vivant){
@@ -652,13 +692,15 @@ function appliqueJungleAuJeu(m){
       change++;
     }
   }
-  if(m.jq){ jeu.file.adopteMinimum(m.jq); jeu.qg.pv = jeu.file.pv; }
+  var q = m[P + "q"] | 0;
+  if(q){ jeu.file.adopteMinimum(q); jeu.qg.pv = jeu.file.pv; }
   if(change){
     if(jeu.balise && jeu.balise.cible && !jeu.balise.cible.vivant) jeu.balise = null;
     demandeMajBarres();
   }
   return change;
 }
+function appliqueJungleAuJeu(m){ return appliqueEvenementAuJeu(m, IDX_JUNGLE); }
 
 /* ---------------------------------------------------------------
    LE LANCEMENT COLLECTIF
@@ -672,41 +714,53 @@ function appliqueJungleAuJeu(m){
    confond, et il n'y a qu'une expédition. Un troisième qui arrive en
    retard voit je > jf et rejoint au lieu de relancer.
    --------------------------------------------------------------- */
-function lanceExpedition(){
-  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
-  if(jungleEnCours(m)) return false;              // déjà en cours : on rejoint
-  var jg = jungleCourante();
-  jg.je = Math.max(jg.je, jg.jf) + 1;
-  jg.jd = ""; jg.jq = CARTES[IDX_JUNGLE].pvQG;    // une jungle neuve
-  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
+/* Le squelette commun aux quatre écritures d'événement : on repart de
+   l'instantané courant, on ne change QUE ce qu'on vient changer, et
+   toutes les voies repartent avec. */
+function publieEtat(m, jg){
+  monde = poseEvenements({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
                        d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
                        tg:tirageSalon | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
+}
+
+function lanceExpedition(idx){
+  if(idx === undefined) idx = IDX_JUNGLE;
+  var P = voieDeCarte(idx);
+  if(!P) return false;
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  if(evenementEnCours(m, P)) return false;         // déjà en cours : on rejoint
+  var jg = etatEvenements(), u = jg.v[P];
+  u.e = Math.max(u.e, u.f) + 1;
+  u.d = ""; u.q = CARTES[idx].pvQG;                // une expédition neuve
+  publieEtat(m, jg);
   return true;
 }
 
-/* La fin de l'expédition : jf rattrape je, l'heure est estampillée
-   pour le verrou de 48 h, et le champion de la jungle est inscrit. */
-function termineExpedition(champion){
+/* La fin de l'expédition : f rattrape e, l'heure est estampillée pour
+   le verrou, et le champion de la carte est inscrit. */
+function termineExpedition(idx, champion){
+  /* L'ancienne signature était termineExpedition(champion) : un seul
+     argument, la jungle sous-entendue. On l'accepte encore, sinon un
+     appel oublié quelque part sacrerait « [object Object] ». */
+  if(typeof idx === "string" || idx === undefined){ champion = idx; idx = IDX_JUNGLE; }
+  var P = voieDeCarte(idx);
+  if(!P) return false;
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
-  var jg = jungleCourante();
-  if(jg.je <= jg.jf) return false;                // déjà terminée ailleurs
-  jg.jf = jg.je;
-  jg.jt = Date.now();
-  jg.jd = ""; jg.jq = 0;
-  jg.ch = inscritChampion(jg.ch, IDX_JUNGLE, champion);
-  /* La jungle grave son podium comme les autres îles : c'est la même
-     promesse, et elle n'avait tout simplement pas été tenue ici. */
-  jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), IDX_JUNGLE,
-                      classementDepuis(totalParJoueurCarte(scoresAJour(), IDX_JUNGLE)).slice(0, 3));
-  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
-                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
-                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
-  sauveMondeLocal();
-  publieMonde(true);
+  var jg = etatEvenements(), u = jg.v[P];
+  if(u.e <= u.f) return false;                     // déjà terminée ailleurs
+  u.f = u.e;
+  u.t = Date.now();
+  u.d = ""; u.q = 0;
+  jg.ch = inscritChampion(jg.ch, idx, champion);
+  /* Une carte événement grave son podium comme les autres îles : c'est
+     la même promesse, et elle n'avait tout simplement pas été tenue
+     ici. */
+  jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), idx,
+                      classementDepuis(totalParJoueurCarte(scoresAJour(), idx)).slice(0, 3));
+  publieEtat(m, jg);
   return true;
 }
 
@@ -727,7 +781,7 @@ function inscritChampion(ch, index, nom){
    champion d'une bataille et un podium d'une autre. */
 function sacreChampion(index, nom){
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
-  var jg = jungleCourante();
+  var jg = etatEvenements();
   jg.ch = inscritChampion(jg.ch, index, nom);
   /* Le podium de CETTE bataille : les dégâts infligés sur CETTE île,
      pas le total des joueurs. Ce sont deux classements différents, et
@@ -743,12 +797,7 @@ function sacreChampion(index, nom){
      vivant, et la phrase de victoire — qui ne s'affiche que sur un
      podium gelé — était injoignable. */
   jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), index, podium.slice(0, 3));
-  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
-                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
-                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
-  sauveMondeLocal();
-  publieMonde(true);
+  publieEtat(m, jg);
 }
 /* Le podium d'une carte, tel que le salon le connaît. */
 function top3Salon(index){ return top3DeCarte(monde && monde.t3, index); }
@@ -758,36 +807,44 @@ function championDeCarte(index){
   var t = decodeChampions(monde ? monde.ch : "");
   return t[index] ? t[index].nom : "";
 }
-/* Le minimum de joueurs en vigueur dans ce salon. */
-function minJoueursJungle(){
-  return (monde && (monde.jm | 0)) || EQ.JUNGLE_MIN_JOUEURS;
+/* Le minimum de joueurs en vigueur dans ce salon, POUR CETTE CARTE.
+   Chaque événement a le sien : ils n'ont aucune raison de demander le
+   même monde. */
+function minJoueursEvt(idx){
+  var P = voieDeCarte(idx);
+  if(!P) return 0;
+  return (monde && (monde[P + "m"] | 0)) || reglagesEvt(idx).minJoueurs;
 }
+function minJoueursJungle(){ return minJoueursEvt(IDX_JUNGLE); }
 /* Le réglage administrateur : on incrémente son numéro pour que la
    fusion sache lequel est le plus récent. */
-function regleMinJoueurs(n, pv){
+function regleReglagesEvt(idx, n, pv){
+  var P = voieDeCarte(idx);
+  if(!P) return 0;
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
-  var jg = jungleCourante();
-  jg.jm = borne(n | 0, 1, 60);
-  if(typeof pv === "number" && isFinite(pv)) jg.jb = borne(Math.round(pv), 0, 900);
-  jg.jmn = (jg.jmn | 0) + 1;
-  monde = poseJungle({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
-                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
-                       k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
-  sauveMondeLocal();
-  publieMonde(true);
-  return jg.jm;
+  var jg = etatEvenements(), u = jg.v[P];
+  u.mj = borne(n | 0, 1, 60);
+  if(typeof pv === "number" && isFinite(pv)) u.b = borne(Math.round(pv), 0, 900);
+  u.mn = (u.mn | 0) + 1;
+  publieEtat(m, jg);
+  return u.mj;
 }
-/* Combien de millisecondes avant que la jungle rouvre. 0 = ouverte.
+function regleMinJoueurs(n, pv){ return regleReglagesEvt(IDX_JUNGLE, n, pv); }
+/* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
    l'horloge retarde ne peut pas ouvrir la carte plus tôt pour les
-   autres, puisque c'est jt qui fait foi et que jt ne redescend pas. */
-function attenteJungle(){
-  var t = monde ? msMonde(monde.jt) : 0;
+   autres, puisque c'est <P>t qui fait foi et qu'il ne redescend pas.
+   Chaque événement a SON verrou, et ils ne se parlent pas : une
+   expédition dans la jungle n'a jamais fermé une autre carte. */
+function attenteEvenement(idx){
+  var P = voieDeCarte(idx);
+  if(!P) return 0;
+  var t = monde ? msMonde(monde[P + "t"]) : 0;
   if(!t) return 0;
-  var reste = t + EQ.JUNGLE_ATTENTE_H * 3600000 - Date.now();
+  var reste = t + reglagesEvt(idx).attenteH * 3600000 - Date.now();
   return reste > 0 ? reste : 0;
 }
+function attenteJungle(){ return attenteEvenement(IDX_JUNGLE); }
 
 /* Gégé est morte ailleurs : elle l'est aussi ici, sans rejouer le
    deuil ni recréditer d'Énergie. */
@@ -882,10 +939,10 @@ function remetSalonAZero(){
      demandé. poseJungle les recopie depuis jungleCourante(), qui les
      lit sur l'instantané d'avant — c'est exactement à ça qu'il sert. */
   var av = monde || {};
-  var jg = jungleCourante();
+  var jg = etatEvenements();
   jg.ch = av.ch || "";
   jg.t3 = av.t3 || "";
-  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
+  monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon }, jg);
   sauveMondeLocal();
@@ -932,10 +989,10 @@ function nouvelleCampagneSalon(){
   carteSalon = depart;
   scoresSalon = {};
   var av = monde || {};
-  var jg = jungleCourante();
+  var jg = etatEvenements();
   jg.ch = av.ch || "";
   jg.t3 = av.t3 || "";
-  monde = poseJungle({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
+  monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
             pv:CARTES[depart].pvQG, d:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
@@ -950,13 +1007,15 @@ function nouveauTirageSalon(){
   tirageSalon = (tirageSalon | 0) + 1;
   cycleSalon  = (cycleSalon | 0) + 1;
   carteSalon  = 0;
-  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+  /* LES VOIES D'ÉVÉNEMENT SE REMETTENT À ZÉRO, MAIS PAS LEURS
+     RÉGLAGES. Ces champs étaient écrits à la main, dans les noms de la
+     jungle : une carte événement ajoutée après coup se serait fait
+     effacer son verrou et ses réglages à chaque tirage neuf, sans que
+     personne le voie. voiesRemisesAZero() le fait pour toutes. */
+  monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
-            je:0, jf:0, jd:"", jq:0,
-            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
-            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return tirageSalon;
@@ -999,13 +1058,15 @@ function enregistrePlan(chaine){
   numeroPlan  = (numeroPlan | 0) + 1;
   cycleSalon  = (cycleSalon | 0) + 1;
   carteSalon  = 0;
-  monde = { v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
+  /* LES VOIES D'ÉVÉNEMENT SE REMETTENT À ZÉRO, MAIS PAS LEURS
+     RÉGLAGES. Ces champs étaient écrits à la main, dans les noms de la
+     jungle : une carte événement ajoutée après coup se serait fait
+     effacer son verrou et ses réglages à chaque tirage neuf, sans que
+     personne le voie. voiesRemisesAZero() le fait pour toutes. */
+  monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
-            je:0, jf:0, jd:"", jq:0,
-            jt:msMonde(monde && monde.jt), jm:(monde && monde.jm) || EQ.JUNGLE_MIN_JOUEURS,
-            jmn:(monde && monde.jmn) | 0, jb:(monde && monde.jb !== undefined) ? monde.jb : EQ.JUNGLE_PV_BONUS,
-            ch:(monde && monde.ch) || "", t3:(monde && monde.t3) || "" };
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;

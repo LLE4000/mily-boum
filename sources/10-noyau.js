@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.46";
+var VERSION = "v0.47";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -748,8 +748,13 @@ var CARTES = [
      collectif, et sa progression vit dans une voie à part de
      l'instantané partagé (champs je/jf/jd/jpv, voir plus bas).
      ---------------------------------------------------------------- */
+  /* `voie` est la LETTRE que cet événement occupe dans l'instantané
+     partagé. La jungle garde « j » — ses champs je/jf/jd/jq/jt/jm/jmn/jb
+     dorment déjà dans l'instantané retenu de tous les salons du monde,
+     et les renommer perdrait tout ce qu'ils portent. Toute carte
+     événement neuve prend une lettre libre. */
   { nom:"Mily dans la jungle",    biome:"jungle",   pvQG:60000000,
-    special:1,
+    special:1, voie:"j",
     victoire:"Mily lui offre un verre sous la pluie !" },
   /* ----------------------------------------------------------------
      LES TROIS ÎLES AJOUTÉES APRÈS COUP, ET POURQUOI ELLES SONT ICI.
@@ -790,6 +795,76 @@ var IDX_JUNGLE = (function(){
   return -1;
 })();
 function carteSpeciale(i){ return !!(CARTES[i] && CARTES[i].special); }
+
+/* ================================================================
+   LES VOIES D'ÉVÉNEMENT
+
+   Une carte événement ne peut pas vivre dans le champ « c » de
+   l'instantané : ce champ porte la campagne, sa fusion est monotone
+   croissante, et une expédition qui se termine devrait faire
+   REDESCENDRE l'index — ce que la fusion refuse par construction, et à
+   raison. La jungle a donc sa propre voie depuis toujours : huit
+   champs préfixés par « j ».
+
+   Il y en a maintenant PLUSIEURS, et c'est le seul changement de fond
+   de tout ce remaniement : la voie n'est plus « la jungle », c'est une
+   LETTRE. Chaque carte événement porte la sienne dans CARTES, et les
+   huit champs se déduisent d'elle :
+
+     <P>e   compteur de LANCEMENTS, ne fait qu'augmenter
+     <P>f   compteur de FINS, ne fait qu'augmenter
+            → une expédition est en cours si et seulement si e > f
+     <P>d   bâtiments détruits,  <P>q  PV du Brasier
+            → portés par l'époque <P>e, comme d et pv le sont par cy
+     <P>t   heure de la dernière victoire, en ms epoch (le max gagne)
+     <P>m   minimum de joueurs,  <P>mn  son numéro de réglage
+     <P>b   bonus de PV des défenses, réglé avec le même numéro
+
+   POURQUOI UNE LETTRE ET PAS UN TABLEAU. Parce que l'instantané est
+   fusionné champ par champ par des clients qui ne connaissent pas
+   forcément les mêmes cartes. Un client resté sur une ancienne version
+   ne sait rien de la voie « n » : il la recopie sans la comprendre, ou
+   plutôt il ne la recopie pas du tout — et c'est ce qu'il faut. Un
+   tableau, lui, se serait fait tronquer en entier par le premier
+   client en retard. Chaque voie est indépendante des autres et de la
+   campagne : on peut être en avance sur l'une et en retard sur l'autre
+   sans que rien ne se perde.
+
+   `ch` (les champions) et `t3` (les podiums) restent COMMUNS : ils
+   portent toutes les cartes à la fois, événements compris, et ils
+   n'appartiennent à aucune voie.
+   ================================================================ */
+var VOIES_EVT = (function(){
+  var o = [];
+  for(var i = 0; i < CARTES.length; i++)
+    if(CARTES[i].special && CARTES[i].voie) o.push({ i:i, P:CARTES[i].voie });
+  return o;
+})();
+/* La lettre d'une carte, ou "" si ce n'est pas un événement. */
+function voieDeCarte(i){ return (CARTES[i] && CARTES[i].voie) || ""; }
+/* Et la carte d'une lettre. */
+function carteDeVoie(P){
+  for(var k = 0; k < VOIES_EVT.length; k++) if(VOIES_EVT[k].P === P) return VOIES_EVT[k].i;
+  return -1;
+}
+/* ----------------------------------------------------------------
+   LES RÉGLAGES D'UN ÉVÉNEMENT
+
+   Ils étaient quatre constantes nommées JUNGLE_*, ce qui allait très
+   bien tant qu'il n'y avait qu'une carte événement. Chaque événement
+   peut maintenant porter les siens dans CARTES ; les constantes
+   restent le DÉFAUT, et la jungle ne déclare rien, donc rien ne bouge
+   pour elle.
+   ---------------------------------------------------------------- */
+function reglagesEvt(i){
+  var c = CARTES[i] || {};
+  return {
+    minJoueurs:(c.minJoueurs  > 0) ? (c.minJoueurs | 0) : EQ.JUNGLE_MIN_JOUEURS,
+    attenteH  :(c.attenteH    > 0) ? +c.attenteH        : EQ.JUNGLE_ATTENTE_H,
+    pvBonus   :(c.pvBonus  !== undefined) ? (c.pvBonus  | 0) : EQ.JUNGLE_PV_BONUS,
+    degBonus  :(c.degBonus !== undefined) ? (c.degBonus | 0) : EQ.JUNGLE_DEG_BONUS
+  };
+}
 
 /* ================================================================
    L'ORDRE DE LA CAMPAGNE
@@ -1528,8 +1603,12 @@ function genereCarte(codeSalon, index, plan, tirage){
        — le Brasier n'est pas dans ce tableau, donc sa vie ne bouge
          pas. C'était la demande expresse : une carte mieux défendue,
          pas une carte plus longue. */
-  if(CARTES[index] && CARTES[index].biome === "jungle" && bonusPvJungle > 0){
-    var kpv = 1 + bonusPvJungle / 100;
+  /* Le durcissement vaut pour TOUTE carte événement, chacune avec son
+     propre bonus : il se lisait sur le biome « jungle », ce qui aurait
+     laissé la deuxième carte spéciale avec des défenses de campagne. */
+  var bpv = bonusPvDeCarte(index);
+  if(bpv > 0){
+    var kpv = 1 + bpv / 100;
     for(var ib = 0; ib < c.batiments.length; ib++){
       var bb = c.batiments[ib];
       if(bb.t === "cellule" || bb.t === "reacteur") continue;
@@ -1545,19 +1624,46 @@ function genereCarte(codeSalon, index, plan, tirage){
    administrateur, et genereCarte() doit lire la valeur du salon — pas
    celle qui était vraie au chargement de la page. Le réseau la pose
    par poseBonusPvJungle() à chaque instantané reçu. */
+/* Un bonus PAR ÉVÉNEMENT, et non plus un seul pour tout le jeu : deux
+   cartes spéciales n'ont aucune raison d'avoir des défenses de la même
+   dureté, et leurs deux réglages voyagent sur deux voies séparées. */
+var bonusPvEvt = (function(){
+  var o = {};
+  for(var k = 0; k < VOIES_EVT.length; k++)
+    o[VOIES_EVT[k].P] = reglagesEvt(VOIES_EVT[k].i).pvBonus;
+  return o;
+})();
+/* Gardée sous son nom : l'accueil affiche « Défenses +N % PV » et lit
+   celle-ci. C'est la valeur de la jungle. */
 var bonusPvJungle = EQ.JUNGLE_PV_BONUS;
-function poseBonusPvJungle(p){
-  var v = (typeof p === "number" && isFinite(p)) ? p : EQ.JUNGLE_PV_BONUS;
-  bonusPvJungle = borne(Math.round(v), 0, 900);
-  return bonusPvJungle;
+function poseBonusPvEvt(P, p){
+  if(!P) return 0;
+  var def = reglagesEvt(carteDeVoie(P)).pvBonus;
+  var v = (typeof p === "number" && isFinite(p)) ? p : def;
+  bonusPvEvt[P] = borne(Math.round(v), 0, 900);
+  if(P === "j") bonusPvJungle = bonusPvEvt[P];
+  return bonusPvEvt[P];
 }
-/* Le multiplicateur de DÉGÂTS des défenses de la jungle. Il ne peut
-   pas être appliqué à la génération comme les PV : les dégâts sont
-   lus dans DEF au moment du tir, et DEF est partagé par les six
-   cartes. On le lit donc au coup par coup, à l'unique endroit où une
-   défense décide de ce qu'elle inflige. */
+function poseBonusPvJungle(p){ return poseBonusPvEvt("j", p); }
+/* Le bonus en vigueur pour une carte. Zéro pour une île de campagne :
+   c'est ce zéro qui fait que le durcissement ne la touche jamais. */
+function bonusPvDeCarte(i){
+  var P = voieDeCarte(i);
+  if(!P) return 0;
+  /* Tant que le salon n'a rien posé, c'est le défaut DE LA CARTE qui
+     vaut — jamais zéro. Sans ce repli, une carte événement bâtie avant
+     le premier instantané reçu sortait du générateur avec des défenses
+     de campagne, et personne n'aurait vu pourquoi. */
+  return (bonusPvEvt[P] !== undefined) ? (bonusPvEvt[P] | 0) : reglagesEvt(i).pvBonus;
+}
+/* Le multiplicateur de DÉGÂTS des défenses d'une carte événement. Il
+   ne peut pas être appliqué à la génération comme les PV : les dégâts
+   sont lus dans DEF au moment du tir, et DEF est partagé par toutes
+   les cartes. On le lit donc au coup par coup, à l'unique endroit où
+   une défense décide de ce qu'elle inflige. */
 function multDegatsDefense(){
-  return (jeu && jeu.index === IDX_JUNGLE) ? 1 + EQ.JUNGLE_DEG_BONUS / 100 : 1;
+  if(!jeu || !carteSpeciale(jeu.index)) return 1;
+  return 1 + reglagesEvt(jeu.index).degBonus / 100;
 }
 
 /* ----------------------------------------------------------------
@@ -3052,10 +3158,14 @@ function planEstVide(P){
 }
 
 function mondeVide(index, pvMax, cycle){
-  return { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
-           p:"", pn:0, tg:0, s:"", k:"",
-           je:0, jf:0, jd:"", jq:0, jt:0, jm:EQ.JUNGLE_MIN_JOUEURS, jmn:0, ch:"", t3:"",
-           jb:EQ.JUNGLE_PV_BONUS };
+  var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
+            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"" };
+  /* une voie neuve par carte événement, chacune avec SES défauts */
+  for(var q = 0; q < VOIES_EVT.length; q++){
+    var V = VOIES_EVT[q], R = reglagesEvt(V.i);
+    voiePosee(o, V.P, { e:0, f:0, d:"", q:0, t:0, mj:R.minJoueurs, mn:0, b:R.pvBonus });
+  }
+  return o;
 }
 function mondeValide(m){
   return !!m && typeof m.c === "number" && typeof m.pv === "number" &&
@@ -3447,33 +3557,54 @@ function fusionneChats(a, b){
 }
 
 /* ================================================================
-   LA VOIE DE LA JUNGLE — une progression parallèle à la campagne
+   UNE VOIE D'ÉVÉNEMENT — une progression parallèle à la campagne
 
-   La carte événement ne peut pas vivre dans le champ « c » : ce
-   champ porte la campagne, sa fusion est monotone croissante, et une
-   expédition qui se termine devrait faire REDESCENDRE l'index — ce
-   que la fusion refuse par construction, et à raison.
+   La discipline est celle décrite plus haut, à VOIES_EVT. Lancer,
+   c'est e = max(e,f)+1 ; terminer, c'est f = e. Deux compteurs
+   monotones décrivent un état qui va et vient : c'est ce qui rend la
+   chose fusionnable, et c'est ce qui garantit que dix joueurs qui
+   appuient dans la même seconde ne lancent qu'UNE expédition — ils
+   calculent tous le même nombre.
 
-   Elle a donc sa propre voie, avec exactement la même discipline :
-
-     je  compteur de LANCEMENTS, ne fait qu'augmenter
-     jf  compteur de FINS, ne fait qu'augmenter
-         → une expédition est en cours si, et seulement si, je > jf.
-           Lancer, c'est je = max(je,jf)+1 ; terminer, c'est jf = je.
-           Deux incréments monotones décrivent un état qui va et
-           vient : c'est ce qui rend la chose fusionnable.
-     jd  bâtiments détruits, jq  PV du Brasier de la jungle
-         → portés par l'époque je, comme d et pv le sont par cy.
-     jt  heure de la dernière victoire, en millisecondes epoch
-         → le maximum gagne : une victoire plus récente écrase
-           toujours une plus ancienne, donc le verrou de 48 h ne peut
-           pas être raccourci par un client en retard.
-     jm  minimum de joueurs, jmn son numéro de réglage
-         → même motif que le plan de défense : le numéro tranche,
-           puis la valeur, pour que deux administrateurs simultanés
-           convergent au lieu de se réécrire en boucle.
+   `voieLue` et `voiePosee` sont les deux seuls endroits du programme
+   qui connaissent les noms de champs. Tout le reste manipule la forme
+   canonique { e, f, d, q, t, mj, mn, b }, où rien ne rappelle plus la
+   jungle.
    ================================================================ */
-function jungleEnCours(m){ return !!m && (m.je | 0) > (m.jf | 0); }
+function voieLue(m, P, i){
+  var R = reglagesEvt(i >= 0 ? i : carteDeVoie(P));
+  m = m || {};
+  return {
+    e : m[P + "e"] | 0,
+    f : m[P + "f"] | 0,
+    d : m[P + "d"] || "",
+    q : m[P + "q"] | 0,
+    t : msMonde(m[P + "t"]),
+    mj: (m[P + "m"] | 0) || R.minJoueurs,
+    mn: m[P + "mn"] | 0,
+    b : (m[P + "b"] !== undefined) ? (m[P + "b"] | 0) : R.pvBonus
+  };
+}
+function voiePosee(o, P, v){
+  o[P + "e"]  = v.e;  o[P + "f"]  = v.f;
+  o[P + "d"]  = v.d;  o[P + "q"]  = v.q;
+  o[P + "t"]  = v.t;  o[P + "m"]  = v.mj;
+  o[P + "mn"] = v.mn; o[P + "b"]  = v.b;
+  return o;
+}
+/* Une expédition est-elle en cours sur cette voie ? */
+function evenementEnCours(m, P){ return !!m && ((m[P + "e"] | 0) > (m[P + "f"] | 0)); }
+/* Le cas particulier de la jungle, gardé sous son nom : c'est celui
+   que le reste du programme appelle depuis toujours. */
+function jungleEnCours(m){ return evenementEnCours(m, "j"); }
+/* Y a-t-il une expédition en cours, n'importe où ? Sert à l'accueil,
+   qui doit pouvoir dire « une expédition est partie » sans savoir
+   laquelle. */
+function carteEvenementEnCours(m){
+  for(var k = 0; k < VOIES_EVT.length; k++)
+    if(evenementEnCours(m, VOIES_EVT[k].P)) return VOIES_EVT[k].i;
+  return -1;
+}
 
 /* UNE HEURE EPOCH NE TIENT PAS DANS TRENTE-DEUX BITS. Date.now() vaut
    aujourd'hui 1,77 × 10¹², et « | 0 » — l'idiome employé partout
@@ -3486,14 +3617,22 @@ function msMonde(x){
   return (isFinite(v) && v > 0) ? Math.floor(v) : 0;
 }
 
-/* Le réglage administrateur, tranché comme meilleurPlan : le numéro
-   d'abord, la valeur ensuite. Commutatif, associatif, idempotent. */
+/* Le réglage administrateur d'une voie, tranché comme meilleurPlan :
+   le numéro d'abord, la valeur ensuite. Commutatif, associatif,
+   idempotent — c'est ce qui fait converger deux administrateurs qui
+   règlent en même temps, au lieu de les faire se réécrire en boucle. */
+function meilleurReglage(a, b, P){
+  var va = a ? (a[P + "m"] | 0) : 0, na = a ? (a[P + "mn"] | 0) : 0;
+  var vb = b ? (b[P + "m"] | 0) : 0, nb = b ? (b[P + "mn"] | 0) : 0;
+  if(nb > na) return { mj:vb, mn:nb };
+  if(na > nb) return { mj:va, mn:na };
+  return vb > va ? { mj:vb, mn:nb } : { mj:va, mn:na };
+}
+/* Le même, sous son nom d'origine et dans les noms de champs de la
+   jungle. */
 function meilleurMinJoueurs(a, b){
-  var va = a ? (a.jm | 0) : 0, na = a ? (a.jmn | 0) : 0;
-  var vb = b ? (b.jm | 0) : 0, nb = b ? (b.jmn | 0) : 0;
-  if(nb > na) return { jm:vb, jmn:nb };
-  if(na > nb) return { jm:va, jmn:na };
-  return vb > va ? { jm:vb, jmn:nb } : { jm:va, jmn:na };
+  var r = meilleurReglage(a, b, "j");
+  return { jm:r.mj, jmn:r.mn };
 }
 
 /* ----------------------------------------------------------------
@@ -3669,51 +3808,87 @@ function meilleurPlan(a, b){
    n'ont rien à voir avec ceux de la précédente. À rang égal, une
    défense détruite ne se relève jamais et les PV ne remontent jamais —
    c'est ce qui rend l'ordre d'arrivée des messages sans importance. */
-/* La voie de la jungle se fusionne À PART, et son résultat est posé
-   dans les TROIS branches de fusionneMonde. C'est indispensable :
+/* Les voies d'événement se fusionnent À PART, et leur résultat est
+   posé dans les TROIS branches de fusionneMonde. C'est indispensable :
    un client peut très bien être en avance sur la campagne et en
    retard sur l'expédition. Si la branche « île plus avancée » rendait
    son instantané tel quel, elle emporterait avec elle une jungle
-   périmée — et le verrou de 48 h sauterait chez tout le monde. */
-function fusionneJungle(a, b){
-  var je = Math.max(a.je | 0, b.je | 0);
-  var jf = Math.max(a.jf | 0, b.jf | 0);
-  var mj = meilleurMinJoueurs(a, b);
+   périmée — et le verrou de 48 h sauterait chez tout le monde.
+   Et comme les voies sont indépendantes ENTRE ELLES, le même
+   raisonnement vaut deux fois : on peut être en avance sur la jungle
+   et en retard sur les nuits. */
+function fusionneVoie(a, b, P, i){
+  var va = voieLue(a, P, i), vb = voieLue(b, P, i);
+  var mj = meilleurReglage(a, b, P);
   var o = {
-    je : je,
-    jf : jf,
-    /* jt ne redescend jamais : une victoire plus récente écrase
+    e : Math.max(va.e, vb.e),
+    f : Math.max(va.f, vb.f),
+    /* t ne redescend jamais : une victoire plus récente écrase
        toujours une plus ancienne, donc personne ne peut raccourcir
        le verrou en republiant un vieil instantané. */
-    jt : Math.max(msMonde(a.jt), msMonde(b.jt)),
-    jm : mj.jm, jmn : mj.jmn,
+    t : Math.max(va.t, vb.t),
+    mj: mj.mj, mn: mj.mn,
     /* Le bonus de PV suit le MÊME numéro de réglage que le minimum de
        joueurs : ils se règlent au même endroit, dans le même panneau,
-       donc ils voyagent ensemble. Un seul compteur à tenir. */
-    jb : (mj.jmn === (b.jmn | 0) && b.jb !== undefined) ? (b.jb | 0)
-       : (a.jb !== undefined ? (a.jb | 0) : EQ.JUNGLE_PV_BONUS),
-    ch : fusionneChampions(a.ch, b.ch),
-    t3 : fusionneTop3(a.t3, b.t3)
+       donc ils voyagent ensemble. Un seul compteur à tenir.
+
+       À NUMÉRO ÉGAL, C'EST LA PLUS GRANDE VALEUR QUI L'EMPORTE, et
+       c'est une correction. La règle d'avant était « si les numéros
+       sont à égalité, prends celle de b » — ce qui n'est pas une règle
+       mais un ordre d'arrivée. Deux administrateurs qui règlent dans la
+       même seconde calculent le même numéro et peuvent poser deux
+       valeurs différentes : fusionner A puis B ne donnait alors pas le
+       même monde que B puis A, les deux appareils ne convergeaient
+       jamais et se republiaient l'un l'autre sans fin. Le maximum,
+       lui, est commutatif, associatif et idempotent — exactement comme
+       celui que meilleurReglage applique déjà au minimum de joueurs
+       deux lignes plus haut. */
+    b : (vb.mn > va.mn) ? vb.b : (va.mn > vb.mn) ? va.b : Math.max(va.b, vb.b)
   };
-  /* jd et jq appartiennent à l'époque je, comme d et pv appartiennent
+  /* d et q appartiennent à l'époque e, comme d et pv appartiennent
      à cy : une expédition plus récente balaie les destructions de la
      précédente, qui ne désignent plus rien. */
-  var ea = a.je | 0, eb = b.je | 0;
-  if(eb > ea){ o.jd = b.jd || ""; o.jq = b.jq | 0; }
-  else if(ea > eb){ o.jd = a.jd || ""; o.jq = a.jq | 0; }
+  if(vb.e > va.e){ o.d = vb.d; o.q = vb.q; }
+  else if(va.e > vb.e){ o.d = va.d; o.q = va.q; }
   else{
-    o.jd = unionBits(a.jd, b.jd);
+    o.d = unionBits(va.d, vb.d);
     /* à époque égale, les PV ne remontent jamais — sauf quand l'un
        des deux n'a pas encore vu le lancement et porte encore un 0 */
-    var qa = a.jq | 0, qb = b.jq | 0;
-    o.jq = (qa && qb) ? Math.min(qa, qb) : (qa || qb);
+    o.q = (va.q && vb.q) ? Math.min(va.q, vb.q) : (va.q || vb.q);
   }
   return o;
 }
-/* Recopie les champs de la jungle dans un instantané fusionné. */
+/* TOUT l'état d'événement d'un instantané : chaque voie, plus les deux
+   champs communs à toutes les cartes. */
+function fusionneEvenements(a, b){
+  var E = { v:{}, ch:fusionneChampions(a && a.ch, b && b.ch),
+                  t3:fusionneTop3(a && a.t3, b && b.t3) };
+  for(var k = 0; k < VOIES_EVT.length; k++){
+    var V = VOIES_EVT[k];
+    E.v[V.P] = fusionneVoie(a, b, V.P, V.i);
+  }
+  return E;
+}
+/* Recopie cet état dans un instantané fusionné. */
+function poseEvenements(o, E){
+  for(var k = 0; k < VOIES_EVT.length; k++){
+    var V = VOIES_EVT[k];
+    if(E.v[V.P]) voiePosee(o, V.P, E.v[V.P]);
+  }
+  o.ch = E.ch; o.t3 = E.t3;
+  return o;
+}
+/* Les deux noms d'origine, gardés : la jungle est UN événement, et
+   c'est sous ces noms-là que le reste du programme la connaît. */
+function fusionneJungle(a, b){
+  var E = fusionneEvenements(a, b), j = E.v.j;
+  return { je:j.e, jf:j.f, jd:j.d, jq:j.q, jt:j.t,
+           jm:j.mj, jmn:j.mn, jb:j.b, ch:E.ch, t3:E.t3 };
+}
 function poseJungle(o, j){
-  o.je = j.je; o.jf = j.jf; o.jd = j.jd; o.jq = j.jq;
-  o.jt = j.jt; o.jm = j.jm; o.jmn = j.jmn; o.jb = j.jb; o.ch = j.ch; o.t3 = j.t3;
+  voiePosee(o, "j", { e:j.je, f:j.jf, d:j.jd, q:j.jq,
+                      t:j.jt, mj:j.jm, mn:j.jmn, b:j.jb });
+  o.ch = j.ch; o.t3 = j.t3;
   return o;
 }
 
@@ -3722,7 +3897,7 @@ function fusionneMonde(a, b){
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   var pl = meilleurPlan(a, b);
-  var jg = fusionneJungle(a, b);
+  var jg = fusionneEvenements(a, b);
   /* Une île plus avancée écrase la précédente : ses destructions n'ont
      rien à voir avec celles de la précédente. La jungle, elle, suit sa
      propre voie.
@@ -3746,7 +3921,7 @@ function fusionneMonde(a, b){
   var memeGuerre = (a.cy | 0) === (b.cy | 0) && (a.tg | 0) === (b.tg | 0);
   var sc = memeGuerre ? fusionneScores(a.s, b.s)
                       : ((rb > ra) ? (b.s || "") : (a.s || ""));
-  if(rb > ra) return poseJungle({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
+  if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", g:b.g || "", w:b.w || "",
                        p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "" }, jg);
   if(ra > rb){
@@ -3755,13 +3930,13 @@ function fusionneMonde(a, b){
        bien son plan qui l'emporte — ET si b n'apporte rien à la
        jungle, dont l'état est indépendant de l'avancée de campagne,
        ni au tableau des dégâts, qui ne l'est pas davantage. */
-    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeJungle(a, jg) &&
+    if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
        sc === (a.s || "")) return a;
-    return poseJungle({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
+    return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
              s:sc, k:a.k || "" }, jg);
   }
-  return poseJungle({
+  return poseEvenements({
     v : Math.max(a.v, b.v),
     cy: a.cy | 0,
     c : a.c,
@@ -3778,13 +3953,25 @@ function fusionneMonde(a, b){
     p : pl.p, pn: pl.pn, tg: a.tg | 0
   }, jg);
 }
-/* L'instantané a-t-il déjà exactement l'état de jungle fusionné ? */
+/* L'instantané a-t-il déjà exactement cet état d'événements fusionné ?
+   Sert au raccourci « return a » de fusionneMonde : sans lui, une île
+   plus avancée emporterait avec elle des voies périmées. */
+function memeEvenements(m, E){
+  if((m.ch || "") !== E.ch || (m.t3 || "") !== (E.t3 || "")) return false;
+  for(var k = 0; k < VOIES_EVT.length; k++){
+    var V = VOIES_EVT[k], u = E.v[V.P];
+    if(!u) continue;
+    var w = voieLue(m, V.P, V.i);
+    if(w.e !== u.e || w.f !== u.f || w.d !== u.d || w.q !== u.q ||
+       w.t !== u.t || w.mj !== u.mj || w.mn !== u.mn || w.b !== u.b) return false;
+  }
+  return true;
+}
+/* Le même, dans les noms de champs de la jungle. */
 function memeJungle(m, j){
-  return (m.je | 0) === j.je && (m.jf | 0) === j.jf &&
-         (m.jd || "") === j.jd && (m.jq | 0) === j.jq &&
-         msMonde(m.jt) === j.jt && (m.jm | 0) === j.jm &&
-         (m.jmn | 0) === j.jmn && (m.jb | 0) === (j.jb | 0) &&
-         (m.ch || "") === j.ch && (m.t3 || "") === (j.t3 || "");
+  return memeEvenements(m, { v:{ j:{ e:j.je, f:j.jf, d:j.jd, q:j.jq,
+                                     t:j.jt, mj:j.jm, mn:j.jmn, b:j.jb } },
+                             ch:j.ch, t3:j.t3 });
 }
 /* Deux instantanés décrivent-ils le même monde ? Sert à n'republier
    que lorsqu'on apporte réellement du nouveau — sans quoi deux clients
@@ -3797,12 +3984,22 @@ function memeMonde(a, b){
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0) &&
-         /* ni un lancement d'expédition, ni un champion, ni le verrou */
-         (a.je | 0) === (b.je | 0) && (a.jf | 0) === (b.jf | 0) &&
-         (a.jd || "") === (b.jd || "") && (a.jq | 0) === (b.jq | 0) &&
-         msMonde(a.jt) === msMonde(b.jt) && (a.jm | 0) === (b.jm | 0) &&
-         (a.jmn | 0) === (b.jmn | 0) && (a.jb | 0) === (b.jb | 0) &&
-         (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "");
+         /* ni un champion, ni un podium */
+         (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "") &&
+         /* ni un lancement d'expédition, sur AUCUNE des voies : sans
+            cette boucle, une carte événement neuve serait muette — son
+            lancement ne serait jamais republié, donc personne d'autre
+            ne la verrait partir */
+         memeVoies(a, b);
+}
+function memeVoies(a, b){
+  for(var k = 0; k < VOIES_EVT.length; k++){
+    var V = VOIES_EVT[k];
+    var x = voieLue(a, V.P, V.i), y = voieLue(b, V.P, V.i);
+    if(x.e !== y.e || x.f !== y.f || x.d !== y.d || x.q !== y.q ||
+       x.t !== y.t || x.mj !== y.mj || x.mn !== y.mn || x.b !== y.b) return false;
+  }
+  return true;
 }
 
 /* Précision dégressive de la crible (réglage fin §5.3) */
