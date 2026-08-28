@@ -1291,6 +1291,12 @@ function texteAttente(ms){
 function etatEvt(i){
   var P = voieDeCarte(i);
   if(!P) return "attente";
+  /* LE CHANTIER PASSE AVANT TOUT LE RESTE. C'est ce qui ferme les
+     trois portes d'un coup : le bouton d'entrée ne s'active que sur
+     « prete » ou « encours », donc un état qui n'est ni l'un ni
+     l'autre suffit à interdire le lancement ET la reprise, sans qu'on
+     ait à l'écrire trois fois. */
+  if(carteEnChantier(i)) return "chantier";
   if(evenementEnCours(monde, P)) return "encours";
   if(attenteEvenement(i) > 0) return "cooldown";
   return joueursEnLigne() >= minJoueursEvt(i) ? "prete" : "attente";
@@ -1391,6 +1397,103 @@ function installeAppuisCartes(){
     ev.stopPropagation();
     demandeVisite(+b.getAttribute("data-visite"));
   });
+  installeAppuiChantier(m);
+}
+
+/* ================================================================
+   L'APPUI LONG DES CARTES EN CHANTIER
+
+   Cinq secondes de doigt posé sur la bande « en travaux », puis le
+   mot de passe du salon. C'est le geste qui gardait la visite avant
+   qu'on l'ouvre à tout le monde, et il revient ici pour exactement la
+   même raison : introuvable par hasard, immédiat quand on le connaît.
+
+   TROIS CHOSES QU'IL FAUT, ET QUE LA PREMIÈRE VERSION N'AVAIT PAS.
+
+   1. UN RETOUR VISIBLE. Cinq secondes sans rien à l'écran, on relâche
+      au bout de deux en croyant que ça ne marche pas. La bande se
+      remplit, et c'est elle qui fait tenir le doigt.
+
+   2. SURVIVRE À LA RECONSTRUCTION DU MENU. majMondes() réécrit tout
+      l'innerHTML dès que l'instantané change — toutes les deux
+      secondes quand quelqu'un joue. C'est ce qui tuait l'appui long
+      d'origine : « le chargement s'arrête avant ». L'écouteur est donc
+      posé UNE FOIS sur le conteneur, qui ne bouge jamais, et
+      l'avancement vit dans une variable, pas dans le DOM. La bande
+      est retrouvée à chaque image par son attribut ; si elle a été
+      remplacée entre-temps, on écrit dans la nouvelle sans rien
+      remarquer.
+
+   3. S'ANNULER PROPREMENT. Doigt relevé, doigt qui sort, doigt
+      annulé par le navigateur (un défilement qui démarre) : les trois
+      remettent la bande à zéro.
+   ================================================================ */
+var CHANTIER_DUREE = 5.0;              // secondes de doigt posé
+var chantierCible = -1, chantierT = 0, chantierTic = 0;
+function installeAppuiChantier(m){
+  function debut(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-chantier]") : null;
+    if(!b) return;
+    chantierCible = +b.getAttribute("data-chantier");
+    chantierT = 0;
+    if(!chantierTic) chantierTic = setInterval(battementChantier, 60);
+  }
+  function fin(){
+    if(chantierCible < 0) return;
+    chantierCible = -1; chantierT = 0;
+    if(chantierTic){ clearInterval(chantierTic); chantierTic = 0; }
+    peintChantier(0);
+  }
+  m.addEventListener("pointerdown", debut);
+  m.addEventListener("pointerup", fin);
+  m.addEventListener("pointercancel", fin);
+  m.addEventListener("pointerleave", fin);
+  /* Un doigt qui glisse hors de la bande annule aussi : sans ça, on
+     pourrait démarrer l'appui puis promener son doigt sur la page. */
+  m.addEventListener("pointermove", function(ev){
+    if(chantierCible < 0) return;
+    var b = ev.target.closest ? ev.target.closest("[data-chantier]") : null;
+    if(!b || +b.getAttribute("data-chantier") !== chantierCible) fin();
+  });
+}
+/* La bande de progression, retrouvée à chaque image : elle a pu être
+   remplacée par une reconstruction du menu entre deux battements. */
+function peintChantier(u){
+  var b = document.querySelector('[data-chantier="' + chantierCible + '"]')
+       || document.querySelector('[data-chantier]');
+  if(!b) return;
+  var i = b.querySelector("i"), t = b.querySelector("span");
+  if(i) i.style.width = (u * 100).toFixed(0) + "%";
+  if(t) t.textContent = u > 0.02 ? "ouverture… " + Math.ceil(CHANTIER_DUREE * (1 - u)) + " s"
+                                 : "en travaux";
+}
+function battementChantier(){
+  if(chantierCible < 0) return;
+  chantierT += 0.06;
+  var u = Math.min(1, chantierT / CHANTIER_DUREE);
+  peintChantier(u);
+  if(u < 1) return;
+  var idx = chantierCible;
+  /* on referme AVANT de demander le mot de passe : le prompt bloque
+     la page, et un intervalle qui continue de battre derrière
+     relancerait la question à chaque tour */
+  chantierCible = -1; chantierT = 0;
+  if(chantierTic){ clearInterval(chantierTic); chantierTic = 0; }
+  peintChantier(0);
+  ouvreChantier(idx);
+}
+function ouvreChantier(i){
+  var mot = prompt("« " + CARTES[i].nom + " » est en travaux.\n\n"
+                 + "Mot de passe du salon pour l'ouvrir en visite :");
+  if(mot === null) return;
+  if(!motAdminValide(mot)){
+    alert("Mot de passe incorrect. La carte reste fermée.");
+    return;
+  }
+  /* La VISITE, jamais le lancement : rien de ce qui s'y passe ne
+     quitte l'appareil, aucune expédition n'est ouverte pour le salon,
+     et le verrou de 48 h n'est pas entamé. */
+  ouvreApercuAdmin(i);
 }
 
 /* La vignette de la carte événement. Elle porte quatre informations
@@ -1424,7 +1527,10 @@ function vignetteEvenement(i){
   var e = etatEvt(i), M = motsEvt(i), R = reglagesEvt(i);
   var n = joueursEnLigne(), mini = minJoueursEvt(i);
   var msg, etiq;
-  if(e === "encours"){
+  if(e === "chantier"){
+    etiq = "bientôt disponible";
+    msg = "Cette carte est <b>en travaux</b>. Elle ouvrira bientôt.";
+  }else if(e === "encours"){
     etiq = "expédition en cours";
     msg = "Une expédition est partie. Rejoins-la !";
   }else if(e === "cooldown"){
@@ -1438,10 +1544,12 @@ function vignetteEvenement(i){
     var manque = mini - n;
     msg = "En attente de <b>" + manque + "</b> joueur" + (manque > 1 ? "s" : "") + ".";
   }
-  var frac = Math.min(1, n / Math.max(1, mini));
+  var chantier = (e === "chantier");
+  var frac = chantier ? 0 : Math.min(1, n / Math.max(1, mini));
   var bouton = e === "prete" ? M.entrer
              : e === "encours" ? "REJOINDRE L'EXPÉDITION"
              : e === "cooldown" ? M.repos
+             : chantier ? "BIENTÔT DISPONIBLE"
              : "EN ATTENTE DE JOUEURS";
   var actif = (e === "prete" || e === "encours");
   return '<div class="monde evt ev' + voieDeCarte(i) + ' ' + e + '" id="mondeEvt' + i + '" data-evt="' + i + '">'
@@ -1471,8 +1579,17 @@ function vignetteEvenement(i){
           QUAND ELLE EST FERMÉE : c'est justement le moment où l'on
           aimerait voir à quoi elle ressemble. Le bouton d'entrée, lui,
           reste conditionné au nombre de joueurs — visiter n'est pas
-          jouer. */
-       + boutonVisite(i)
+          jouer.
+          UNE CARTE EN CHANTIER N'A PAS CE BOUTON. À sa place, une
+          bande de progression vide : c'est la cible de l'appui long,
+          et c'est aussi ce qui montre qu'il se passe quelque chose
+          pendant les cinq secondes. Sans retour visible, on relâche
+          au bout de deux — c'est précisément ce qui avait fait
+          abandonner le geste la première fois. */
+       + (chantier
+          ? '<div class="chantierBarre" data-chantier="' + i + '">'
+            + '<i></i><span>en travaux</span></div>'
+          : boutonVisite(i))
        + blocTop3(i) + '</div>';
 }
 

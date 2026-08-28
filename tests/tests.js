@@ -25,7 +25,7 @@ try{
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "VOIES_EVT","voieDeCarte","carteDeVoie","reglagesEvt","voieLue","voiePosee",
     "evenementEnCours","carteEvenementEnCours","fusionneEvenements","poseEvenements",
@@ -2831,6 +2831,72 @@ G("4. Déterminisme de la génération de carte");
        !/palaisNuits|archeNuitsDecor|tenteNuits|domeNuits/.test(html));
     ok("… et sa vignette d'accueil est la sienne, pas celle de la jungle",
        /dessineVignetteNuits/.test(html) && /n:"dessineVignetteNuits"/.test(html));
+
+    /* ================================================================
+       ELLE EST EN CHANTIER, ET C'EST UN VERROU, PAS UNE ÉTIQUETTE
+
+       Tant qu'elle est en travaux, personne ne doit pouvoir la lancer,
+       la rejoindre ni la visiter. Trois portes, et elles se ferment
+       toutes les trois par le même endroit : etatEvt() rend
+       « chantier », et le bouton d'entrée ne s'active que sur
+       « prete » ou « encours ».
+       Le jour de l'ouverture, on efface `chantier` de sa ligne dans
+       CARTES et rien d'autre ne bouge — c'est ce que ce groupe
+       vérifie aussi, en n'épinglant JAMAIS le fait qu'elle soit
+       fermée, seulement la cohérence entre le drapeau et ses effets.
+       ================================================================ */
+    (function(){
+      var enTravaux = N.carteEnChantier(IN);
+      ok("le drapeau de chantier se lit sur la carte, et sur elle seule",
+         N.CARTES.filter(function(c, q2){ return N.carteEnChantier(q2); }).length <= 1 &&
+         !N.carteEnChantier(N.IDX_JUNGLE) && !N.carteEnChantier(0) &&
+         !N.carteEnChantier(999),
+         enTravaux ? "en travaux" : "ouverte");
+      /* La lecture d'etatEvt vit hors du noyau ; on la relit dans le
+         fichier livré, comme periodeRoulement et la foule d'Ibiza. */
+      var d0 = html.indexOf("function etatEvt(");
+      var f0 = d0 < 0 ? -1 : html.indexOf("\n}", d0);
+      ok("etatEvt se relit dans le fichier livré", d0 > 0 && f0 > d0);
+      if(d0 < 0 || f0 < 0) return;
+      var src = html.slice(d0, f0 + 2);
+      function etat(chantier, enCours, attente, joueurs, mini){
+        return new Function("voieDeCarte", "carteEnChantier", "evenementEnCours",
+                            "attenteEvenement", "joueursEnLigne", "minJoueursEvt", "monde",
+                            src + "; return etatEvt(0);")
+               (function(){ return "n"; }, function(){ return chantier; },
+                function(){ return enCours; }, function(){ return attente; },
+                function(){ return joueurs; }, function(){ return mini; }, {});
+      }
+      /* LE CHANTIER PASSE AVANT TOUT : même prête, même en cours, même
+         sans verrou, une carte en travaux reste en travaux. */
+      ok("en chantier, l'état est « chantier » quoi qu'il arrive par ailleurs",
+         etat(1, 0, 0, 99, 1) === "chantier" &&
+         etat(1, 1, 0, 99, 1) === "chantier" &&
+         etat(1, 0, 999, 0, 9) === "chantier");
+      ok("… et hors chantier, les quatre états d'origine sont intacts",
+         etat(0, 1, 0, 0, 9) === "encours" &&
+         etat(0, 0, 999, 99, 1) === "cooldown" &&
+         etat(0, 0, 0, 9, 7) === "prete" &&
+         etat(0, 0, 0, 2, 7) === "attente");
+      /* LE BOUTON D'ENTRÉE ne s'arme que sur deux états. C'est CETTE
+         ligne qui ferme les deux premières portes ; si elle changeait,
+         le chantier ne bloquerait plus rien. */
+      ok("le bouton d'entrée ne s'arme que sur « prete » ou « encours »",
+         /e !== "prete" && e !== "encours"/.test(html) &&
+         /var actif = \(e === "prete" \|\| e === "encours"\)/.test(html));
+      /* LA TROISIÈME PORTE : la visite. En chantier, le bouton
+         « Visiter » est remplacé par la bande d'appui long. */
+      ok("en chantier, le bouton Visiter cède la place à l'appui long",
+         /chantier\s*\n?\s*\?\s*'<div class="chantierBarre"/.test(html) ||
+         /chantier[\s\S]{0,80}chantierBarre[\s\S]{0,120}: boutonVisite\(i\)/.test(html));
+      ok("… et l'appui long demande le mot de passe du salon",
+         /function ouvreChantier\([\s\S]{0,400}motAdminValide/.test(html));
+      ok("… puis ouvre en PRÉVISUALISATION, jamais en partie réelle",
+         /function ouvreChantier\([\s\S]{0,600}ouvreApercuAdmin\(i\)/.test(html) &&
+         !/function ouvreChantier\([\s\S]{0,600}lanceExpedition/.test(html));
+      ok("l'appui dure cinq secondes, pas moins",
+         /var CHANTIER_DUREE = 5(\.0)?;/.test(html));
+    })();
   })();
 
   G("5d. Mily dans la jungle — la carte événement");

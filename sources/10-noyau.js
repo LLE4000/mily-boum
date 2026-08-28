@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.49";
+var VERSION = "v0.50";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -794,8 +794,14 @@ var CARTES = [
      jungle fermée et les nuits ouvertes : c'est même ce qu'on cherche,
      pour qu'il y ait presque toujours quelque chose à prendre.
      ---------------------------------------------------------------- */
+  /* `chantier` : la carte est EN TRAVAUX. Elle apparaît sur l'accueil
+     — c'est même le but, on veut la voir arriver — mais personne ne
+     peut y entrer ni la visiter. Seul un appui long de cinq secondes
+     sur sa vignette, suivi du mot de passe, l'ouvre en prévisualisation.
+     Retirer cette ligne le jour de la sortie suffit à l'ouvrir à tout
+     le monde : c'est un seul mot à effacer, et rien d'autre à toucher. */
   { nom:"Les Mily et une nuits", biome:"nuits", pvQG:75000000,
-    special:1, voie:"n",
+    special:1, voie:"n", chantier:1,
     minJoueurs:7, attenteH:48, pvBonus:130, degBonus:60,
     victoire:"Mily t'emmène voir le jour se lever sur les dômes !" }
 ];
@@ -815,6 +821,27 @@ var IDX_JUNGLE = (function(){
   return -1;
 })();
 function carteSpeciale(i){ return !!(CARTES[i] && CARTES[i].special); }
+
+/* ================================================================
+   UNE CARTE EN CHANTIER
+
+   Une carte peut exister, être générée, être jouable dans le code —
+   et ne pas être PRÊTE. Celle-là s'affiche sur l'accueil avec une
+   étiquette « bientôt disponible », et trois portes lui sont fermées :
+   on ne peut ni la lancer, ni la rejoindre, ni la visiter.
+
+   Il reste une porte, et une seule : cinq secondes de doigt posé sur
+   sa vignette, puis le mot de passe du salon. C'est exactement le
+   geste qui gardait la visite avant qu'on l'ouvre à tout le monde —
+   introuvable par hasard, et immédiat quand on le connaît.
+
+   Pourquoi la montrer plutôt que la cacher : une carte qu'on voit
+   arriver donne envie, une carte qui apparaît un matin surprend. Et
+   surtout, la cacher voudrait dire la retirer de VOIES_EVT, donc de
+   l'instantané partagé — sa voie disparaîtrait des messages, et le
+   jour de l'ouverture tous les salons repartiraient de zéro dessus.
+   ================================================================ */
+function carteEnChantier(i){ return !!(CARTES[i] && CARTES[i].chantier); }
 
 /* ================================================================
    LES VOIES D'ÉVÉNEMENT

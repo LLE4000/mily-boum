@@ -626,6 +626,29 @@ select.champ{cursor:pointer}
 @media (prefers-reduced-motion:reduce){
   .monde.evt.evn.prete .btEvt{animation:none}
 }
+/* ---- UNE CARTE EN CHANTIER ----
+   Elle se voit, elle donne envie, et elle est fermée. L'étiquette est
+   ambrée — ni le vert d'une carte prête, ni le gris d'une carte
+   verrouillée : c'est un troisième état, et il doit se lire comme
+   tel. La vignette est légèrement dessaturée pour dire « pas encore »
+   sans la rendre laide : on veut qu'elle donne envie. */
+.monde.evt.chantier{border-color:rgba(240,200,120,.42)}
+.monde.evt.chantier canvas{filter:saturate(.82) brightness(.92)}
+.monde.evt.chantier .etat{background:rgba(52,36,10,.82);
+  border-color:rgba(245,205,120,.55);color:#f4d79a}
+.monde.evt.chantier .cpt{display:none}
+/* La bande d'appui long, à la place du bouton « Visiter ». Vide, elle
+   dit « en travaux » ; sous le doigt, elle se remplit et décompte. */
+.chantierBarre{position:relative;width:calc(100% - 28px);margin:0 14px 14px;
+  height:34px;border-radius:10px;overflow:hidden;cursor:pointer;
+  border:1px dashed rgba(245,205,120,.4);background:rgba(52,36,10,.34);
+  touch-action:none;-webkit-user-select:none;user-select:none}
+.chantierBarre i{position:absolute;inset:0;width:0;border-radius:9px;
+  background:linear-gradient(90deg,rgba(245,205,120,.28),rgba(245,205,120,.62));
+  transition:width .08s linear}
+.chantierBarre span{position:relative;display:block;line-height:34px;text-align:center;
+  font:800 11px/34px 'Trebuchet MS','Segoe UI',sans-serif;letter-spacing:1.6px;
+  text-transform:uppercase;color:#f0d69c}
 @keyframes pulseJungle{
   0%,100%{box-shadow:0 4px 16px rgba(60,200,120,.35)}
   50%{box-shadow:0 4px 30px rgba(120,255,180,.85)}

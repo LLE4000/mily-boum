@@ -30,7 +30,12 @@ var VN_ETATS = {
   cooldown:{ lum:0.42, lanterne:0.35, etoiles:0.55, filante:0,    pouls:0,   halo:0.30 },
   attente :{ lum:0.82, lanterne:0.80, etoiles:0.95, filante:14.0, pouls:0,   halo:0.62 },
   prete   :{ lum:1.10, lanterne:1.15, etoiles:1.15, filante:5.0,  pouls:1,   halo:1.00 },
-  encours :{ lum:1.00, lanterne:1.00, etoiles:1.05, filante:8.0,  pouls:0.2, halo:0.82 }
+  encours :{ lum:1.00, lanterne:1.00, etoiles:1.05, filante:8.0,  pouls:0.2, halo:0.82 },
+  /* EN CHANTIER : la ville dort. Peu de lanternes, pas d'étoile
+     filante, pas de halo d'appel — mais les étoiles brillent quand
+     même, parce qu'une vignette éteinte ne donne envie à personne et
+     que c'est justement son travail. */
+  chantier:{ lum:0.58, lanterne:0.30, etoiles:0.85, filante:0, pouls:0, halo:0.22 }
 };
 
 var vnFondCv = null, vnFondCle = "";
