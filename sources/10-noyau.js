@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.59";
+var VERSION = "v0.60";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2732,6 +2732,138 @@ function decodeBits(s, n){
   }
   return bits;
 }
+/* ================================================================
+   LES BLESSURES DES BÂTIMENTS
+
+   « Si Roro attaque un Frelon et qu'il l'a détruit à cinquante pour
+   cent, pourquoi est-ce que moi j'aurais cent pour cent à redétruire,
+   et pourquoi est-ce que Roro aussi ? »
+
+   Parce que l'instantané ne savait dire qu'une chose d'un bâtiment :
+   DEBOUT ou TOMBÉ. Un bit chacun, dans `d`. Il n'existait nulle part
+   où écrire « à moitié fait ». Le Brasier, lui, a toujours eu ses
+   points de vie — c'est pour ça que ses dégâts survivaient et que
+   ceux des défenses non.
+
+   ────────────────────────────────────────────────────────────────
+   UNE LISTE CREUSE, ET NON UN TABLEAU PLEIN
+
+   Le réflexe serait d'ajouter la vie de CHAQUE bâtiment. Sur la
+   jungle gravée, c'est 2 158 valeurs : à deux bits chacune, 720
+   caractères ajoutés à un instantané qui en fait quatre cents. On
+   triplerait le message pour décrire deux mille bâtiments dont la
+   quasi-totalité est intacte ou détruite.
+
+   Mesuré pendant un assaut complet, quatre-vingt-quatre Furies
+   lâchées sur une île : à tout instant, il y a UN OU DEUX bâtiments
+   entamés-mais-debout. Pas vingt, pas cent. Deux. Les troupes
+   concentrent leur feu, un bâtiment tombe en quelques secondes, et
+   elles passent au suivant.
+
+   On ne liste donc que les BLESSÉS. Trois caractères chacun — deux
+   pour l'index, un pour le cran de vie — soit six caractères en jeu
+   réel. C'est le poste le moins cher de tout l'instantané.
+
+   ────────────────────────────────────────────────────────────────
+   SOIXANTE-QUATRE CRANS, ET POURQUOI PAS LA VIE EXACTE
+
+   La vie est rangée en soixante-quatre crans, du plein au presque
+   mort — un cran et demi pour cent. Trois raisons, et la troisième
+   est la vraie :
+
+     elle tient sur UN caractère au lieu de trois ;
+     un cran et demi pour cent est en dessous de ce qu'un joueur
+       distingue sur une barre de vie ;
+     et surtout, elle CHANGE RAREMENT. Une valeur exacte changerait à
+       chaque image, donc l'instantané serait « sale » en permanence
+       et l'on republierait sans arrêt pendant tout un assaut. Le cran
+       ne bouge que soixante-quatre fois dans la vie d'un bâtiment.
+
+   L'ARRONDI VA VERS LE BAS, toujours : le cran retenu dit un peu plus
+   de dégâts que la réalité, jamais moins. C'est le sens sûr — une
+   fusion ne peut ainsi jamais rendre de la vie à un bâtiment.
+
+   ────────────────────────────────────────────────────────────────
+   LA FUSION : UNION, ET LE MINIMUM PAR INDEX
+
+   Absent veut dire INTACT. Fusionner, c'est donc prendre l'union des
+   deux listes et, pour un index présent des deux côtés, le plus bas
+   des deux crans. C'est commutatif, associatif et idempotent — les
+   trois propriétés qui font que l'ordre d'arrivée des messages n'a
+   aucune importance, comme pour tout le reste de l'instantané.
+
+   ET `d` GAGNE TOUJOURS. Un bâtiment déclaré détruit ne peut pas être
+   en même temps blessé : au chargement, on éteint d'abord ce que `d`
+   dit mort, et les blessures ne s'appliquent qu'aux survivants.
+   ================================================================ */
+/* Le nombre de crans, moins un : le cran 63 est la pleine vie et ne
+   se transmet jamais — c'est ce que veut dire « absent ». */
+var BLESSURE_CRANS = 63;
+/* Au-delà de cette longueur, on ne garde que les plus abîmés. En jeu
+   réel on en compte un ou deux ; ce plafond n'est pas un réglage, c'est
+   un garde-fou contre un cas qu'on n'a pas su imaginer. Ce qui tombe
+   est ce qui était le MOINS entamé, donc ce qui coûte le moins cher à
+   refaire. */
+var BLESSURES_MAX = 64;
+
+/* Un index sur douze bits — deux caractères — et un cran sur six —
+   un caractère. La jungle gravée compte 2 158 bâtiments, le plafond
+   de douze bits en tient 4 096. */
+function encodeBlessures(liste){
+  if(!liste || !liste.length) return "";
+  var l = liste.slice(0);
+  /* les plus abîmés d'abord : si l'on doit couper, on coupe ce qui
+     compte le moins */
+  l.sort(function(a, b){ return a.n - b.n; });
+  if(l.length > BLESSURES_MAX) l.length = BLESSURES_MAX;
+  /* mais on les range par index : deux clients qui ont les mêmes
+     blessures doivent produire exactement la même chaîne, sinon
+     memeMonde les croit différents et l'on republie en boucle */
+  l.sort(function(a, b){ return a.i - b.i; });
+  var s = "", k;
+  for(k = 0; k < l.length; k++){
+    var i = l[k].i | 0, n = l[k].n | 0;
+    if(i < 0 || i > 4095) continue;
+    if(n < 0) n = 0;
+    if(n >= BLESSURE_CRANS) continue;         // intact : rien à dire
+    s += ALPHA_BITS.charAt(i & 63) + ALPHA_BITS.charAt((i >> 6) & 63)
+       + ALPHA_BITS.charAt(n);
+  }
+  return s;
+}
+function decodeBlessures(s){
+  var o = {};
+  if(typeof s !== "string") return o;
+  for(var k = 0; k + 2 < s.length; k += 3){
+    var a = ALPHA_BITS.indexOf(s.charAt(k));
+    var b = ALPHA_BITS.indexOf(s.charAt(k + 1));
+    var n = ALPHA_BITS.indexOf(s.charAt(k + 2));
+    if(a < 0 || b < 0 || n < 0) continue;
+    var i = a + (b << 6);
+    /* le plus bas gagne, même à l'intérieur d'une seule chaîne : une
+       chaîne malformée qui répéterait un index ne doit pas rendre de
+       la vie */
+    if(o[i] === undefined || n < o[i]) o[i] = n;
+  }
+  return o;
+}
+/* Union des deux listes, minimum par index. Absent = intact. */
+function fusionneBlessures(a, b){
+  var x = decodeBlessures(a), y = decodeBlessures(b), i, out = [];
+  for(i in y) if(x[i] === undefined || y[i] < x[i]) x[i] = y[i];
+  for(i in x) out.push({ i:i | 0, n:x[i] | 0 });
+  return encodeBlessures(out);
+}
+/* Le cran d'un bâtiment, arrondi VERS LE BAS. */
+function cranBlessure(pv, pvMax){
+  if(!(pvMax > 0)) return BLESSURE_CRANS;
+  var f = pv / pvMax;
+  if(!(f > 0)) return 0;
+  if(f >= 1) return BLESSURE_CRANS;
+  var n = Math.floor(f * BLESSURE_CRANS);
+  return n < 0 ? 0 : (n > BLESSURE_CRANS ? BLESSURE_CRANS : n);
+}
+
 /* OU bit à bit de deux bitmaps encodés, sans les décoder entièrement */
 function unionBits(a, b){
   a = typeof a === "string" ? a : "";
@@ -3489,7 +3621,7 @@ function planEstVide(P){
 }
 
 function mondeVide(index, pvMax, cycle){
-  var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", g:"", w:"",
+  var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"" };
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
@@ -4253,7 +4385,7 @@ function fusionneMonde(a, b){
   var sc = memeGuerre ? fusionneScores(a.s, b.s)
                       : ((rb > ra) ? (b.s || "") : (a.s || ""));
   if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
-                       d:b.d || "", g:b.g || "", w:b.w || "",
+                       d:b.d || "", bl:b.bl || "", g:b.g || "", w:b.w || "",
                        p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "" }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
@@ -4264,7 +4396,7 @@ function fusionneMonde(a, b){
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
        sc === (a.s || "")) return a;
     return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
-             g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
+             bl:a.bl || "", g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
              s:sc, k:a.k || "" }, jg);
   }
   return poseEvenements({
@@ -4273,6 +4405,10 @@ function fusionneMonde(a, b){
     c : a.c,
     pv: Math.min(a.pv, b.pv),
     d : unionBits(a.d, b.d),
+    /* LES BLESSURES : union des deux listes, le plus bas cran par
+       index. Absent veut dire intact, donc l'union suffit — et le
+       minimum garantit qu'aucune fusion ne rend de la vie. */
+    bl: fusionneBlessures(a.bl, b.bl),
     /* Gégé et Tweety ne meurent qu'une fois : le premier nom inscrit
        y reste, quel que soit l'ordre d'arrivée des messages. */
     g : a.g || b.g || "",
@@ -4310,7 +4446,8 @@ function memeJungle(m, j){
 function memeMonde(a, b){
   if(!mondeValide(a) || !mondeValide(b)) return false;
   return rangMonde(a) === rangMonde(b) && a.pv === b.pv &&
-         (a.d || "") === (b.d || "") && (a.g || "") === (b.g || "") &&
+         (a.d || "") === (b.d || "") && (a.bl || "") === (b.bl || "") &&
+         (a.g || "") === (b.g || "") &&
          (a.w || "") === (b.w || "") && (a.s || "") === (b.s || "") &&
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */

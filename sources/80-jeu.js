@@ -197,6 +197,28 @@ function nouvelleCarte(index, pvConnu){
     for(var q = 0; q < jeu.batiments.length; q++){
       if(bitsM[q]){ jeu.batiments[q].vivant = 0; jeu.batiments[q].pv = 0; }
     }
+    /* ================================================================
+       ET LES BLESSURES, sur ce qui est encore debout.
+
+       « Si Roro a détruit un Frelon à cinquante pour cent, pourquoi
+       est-ce que j'aurais cent pour cent à redétruire ? » — On les
+       applique donc APRÈS le bitmap des morts, et seulement aux
+       survivants : `d` gagne toujours, un bâtiment tombé ne peut pas
+       être en même temps blessé.
+
+       C'est ici que se ferme la boucle : Roro entame, publie, meurt ;
+       tu débarques, tu lis l'instantané, et tu trouves le Frelon à
+       moitié fait. Et Roro qui revient aussi. Voir le long
+       commentaire des blessures dans 10-noyau.js. */
+    var blM = decodeBlessures(monde.bl);
+    for(var q2 in blM){
+      var bq = jeu.batiments[q2 | 0];
+      if(!bq || !bq.vivant) continue;
+      var pvq = bq.pvMax * (blM[q2] / BLESSURE_CRANS);
+      /* jamais plus haut que ce qu'il a déjà : une fusion ne doit
+         jamais rendre de la vie, même par un arrondi malheureux */
+      if(pvq < bq.pv) bq.pv = Math.max(1, Math.round(pvq));
+    }
     jeu.file.adopteMinimum(monde.pv);
     jeu.qg.pv = jeu.file.pv;
     if(monde.g){

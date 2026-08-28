@@ -496,6 +496,7 @@ function mondeCourant(){
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
     return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
+             bl:monde.bl || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   }
@@ -506,13 +507,24 @@ function mondeCourant(){
   if(carteSpeciale(jeu.index)){
     var mm = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
     return poseEvenements({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
+             bl:mm.bl || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   }
-  var bits = [], i;
-  for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
+  var bits = [], bl = [], i;
+  for(i = 0; i < jeu.batiments.length; i++){
+    var b = jeu.batiments[i];
+    bits.push(b.vivant ? 0 : 1);
+    /* LES BLESSÉS : entamés MAIS DEBOUT. Un bâtiment tombé est déjà
+       dit par `d` et n'a rien à faire ici — c'est `d` qui gagne. Un
+       bâtiment intact non plus : absent veut dire intact. */
+    if(!b.vivant) continue;
+    var n = cranBlessure(b.pv, b.pvMax);
+    if(n < BLESSURE_CRANS) bl.push({ i:i, n:n });
+  }
   return poseEvenements({ v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
            pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
+           bl:encodeBlessures(bl),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
            k:encodeChats(jeu.tueurChats),
            /* Le tableau des dégâts part dans l'instantané RETENU : c'est
@@ -943,7 +955,7 @@ function remetSalonAZero(){
   jg.ch = av.ch || "";
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"", s:"", k:"",
+            pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -993,7 +1005,7 @@ function nouvelleCampagneSalon(){
   jg.ch = av.ch || "";
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
-            pv:CARTES[depart].pvQG, d:"", g:"", w:"", s:"", k:"",
+            pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
@@ -1013,7 +1025,7 @@ function nouveauTirageSalon(){
      effacer son verrou et ses réglages à chaque tirage neuf, sans que
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
             p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
             voiesRemisesAZero());
   sauveMondeLocal();
@@ -1064,7 +1076,7 @@ function enregistrePlan(chaine){
      effacer son verrou et ses réglages à chaque tirage neuf, sans que
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", g:"", w:"",
+            pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
             p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
             voiesRemisesAZero());
   sauveMondeLocal();

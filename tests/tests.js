@@ -23,6 +23,8 @@ try{
     "rayonFormation","ancreFormation","ANGLE_OR","inverseRadical","RAYON_QG",
     "placesNavette","flotteMaximum","texteVictoire","TYPES_TROUPE","VERSION",
     "encodeBits","decodeBits","unionBits","compteBits","fusionneMonde","memeMonde",
+    "encodeBlessures","decodeBlessures","fusionneBlessures","cranBlessure",
+    "BLESSURE_CRANS","BLESSURES_MAX",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
     "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
@@ -4688,6 +4690,169 @@ G("8. Cohérence des règles de jeu");
        N.memeMonde(N.fusionneMonde(null, N.mondeVide(0, 500)), N.mondeVide(0, 500)));
     ok("memeMonde distingue deux mondes différents",
        !N.memeMonde({ v:1, c:0, pv:500, d:"" }, { v:1, c:0, pv:400, d:"" }));
+  })();
+
+  /* ================================================================
+     LES BLESSURES DES BÂTIMENTS
+
+     « Si Roro a détruit un Frelon à cinquante pour cent, pourquoi
+     est-ce que moi j'aurais cent pour cent à redétruire ? »
+
+     L'instantané ne savait dire qu'une chose d'un bâtiment : debout ou
+     tombé. Il porte maintenant, pour les seuls blessés-debout, un cran
+     de vie sur soixante-quatre. Ce groupe garde les six propriétés qui
+     font que ça ne peut pas rendre de la vie à quelqu'un ni
+     réinitialiser quoi que ce soit.
+     ================================================================ */
+  G("9c. Les blessures des bâtiments");
+  (function(){
+    ok("un bâtiment intact ne dit rien : absent veut dire plein",
+       N.cranBlessure(100, 100) === N.BLESSURE_CRANS &&
+       N.encodeBlessures([{ i:3, n:N.BLESSURE_CRANS }]) === "");
+    ok("l'aller-retour rend exactement ce qu'on a mis",
+       (function(){
+         var l = [{ i:0, n:0 }, { i:7, n:31 }, { i:2157, n:62 }];
+         var d = N.decodeBlessures(N.encodeBlessures(l));
+         return d[0] === 0 && d[7] === 31 && d[2157] === 62;
+       })());
+    ok("l'index tient jusqu'au plus gros plan gravé du jeu",
+       (function(){
+         var d = N.decodeBlessures(N.encodeBlessures([{ i:4095, n:1 }]));
+         return d[4095] === 1;
+       })(), "4 095 places pour 2 169 bâtiments au maximum");
+    ok("trois caractères par blessé, et pas un de plus",
+       N.encodeBlessures([{ i:5, n:9 }, { i:9, n:2 }]).length === 6);
+
+    /* L'ARRONDI VA VERS LE BAS. C'est ce qui garantit qu'aucune fusion,
+       aucun aller-retour, aucun rechargement ne peut RENDRE de la vie
+       à un bâtiment. Le cran dit toujours un peu plus de dégâts que la
+       réalité — jamais moins. */
+    (function(){
+      var jamaisPlus = true, det = "";
+      for(var k = 1; k <= 200; k++){
+        var f = k / 200;
+        var n = N.cranBlessure(f * 1000, 1000);
+        if(n / N.BLESSURE_CRANS > f + 1e-9){ jamaisPlus = false; det += k + " "; }
+      }
+      ok("l'arrondi ne rend JAMAIS de la vie : le cran est toujours "
+         + "au-dessous de la vie réelle", jamaisPlus, det || "deux cents niveaux vérifiés");
+      ok("… et un bâtiment à un cheveu de la mort ne repasse pas à plein",
+         N.cranBlessure(1, 100000) === 0);
+    })();
+
+    /* LA FUSION. Les trois propriétés d'un CRDT — commutative,
+       associative, idempotente — plus la quatrième qui compte ici :
+       c'est le PLUS ABÎMÉ qui gagne. */
+    (function(){
+      var a = N.encodeBlessures([{ i:1, n:40 }, { i:5, n:10 }]);
+      var b = N.encodeBlessures([{ i:1, n:12 }, { i:9, n:30 }]);
+      var c = N.encodeBlessures([{ i:5, n:3 }]);
+      ok("fusionner dans les deux sens donne la même chose",
+         N.fusionneBlessures(a, b) === N.fusionneBlessures(b, a));
+      ok("… et le groupement n'y change rien",
+         N.fusionneBlessures(N.fusionneBlessures(a, b), c) ===
+         N.fusionneBlessures(a, N.fusionneBlessures(b, c)));
+      ok("… fusionner deux fois non plus",
+         N.fusionneBlessures(N.fusionneBlessures(a, b), b) ===
+         N.fusionneBlessures(a, b));
+      var f = N.decodeBlessures(N.fusionneBlessures(a, b));
+      ok("c'est le PLUS ABÎMÉ qui gagne, jamais le plus frais",
+         f[1] === 12, "40 et 12 donnent " + f[1]);
+      ok("… et un blessé que l'autre ne connaît pas survit à la fusion",
+         f[5] === 10 && f[9] === 30);
+      ok("fusionner avec rien ne perd rien",
+         N.fusionneBlessures(a, "") === a && N.fusionneBlessures("", a) === a);
+    })();
+
+    /* DEUX CLIENTS QUI ONT LES MÊMES BLESSURES DOIVENT PRODUIRE LA
+       MÊME CHAÎNE. Sinon memeMonde les croit différents, chacun
+       republie pour corriger l'autre, et le salon part en boucle de
+       publication — un défaut qui ne se voit qu'au compteur de
+       messages, jamais à l'écran. */
+    ok("l'ordre d'entrée ne change pas la chaîne produite",
+       N.encodeBlessures([{ i:9, n:2 }, { i:1, n:5 }, { i:4, n:8 }]) ===
+       N.encodeBlessures([{ i:4, n:8 }, { i:1, n:5 }, { i:9, n:2 }]));
+
+    /* LE PLAFOND. En jeu réel on compte un ou deux blessés à la fois —
+       mesuré pendant un assaut complet. Le plafond n'est pas un
+       réglage, c'est un garde-fou ; et ce qu'il coupe est ce qui était
+       le MOINS entamé, donc ce qui coûte le moins cher à refaire. */
+    (function(){
+      var l = [], k;
+      for(k = 0; k < 200; k++) l.push({ i:k, n:k % 62 });
+      var d = N.decodeBlessures(N.encodeBlessures(l));
+      var n = 0, pire = 1e9, meilleur = -1;
+      for(var i in d){ n++; if(d[i] < pire) pire = d[i]; if(d[i] > meilleur) meilleur = d[i]; }
+      ok("deux cents blessés sont ramenés au plafond de " + N.BLESSURES_MAX,
+         n === N.BLESSURES_MAX, "" + n);
+      ok("… et ce sont les PLUS ABÎMÉS qu'on garde",
+         pire === 0 && meilleur < 62, "crans de " + pire + " à " + meilleur);
+    })();
+
+    /* L'INSTANTANÉ. Les blessures y voyagent, la fusion les mêle, et
+       memeMonde les voit changer — sans quoi elles ne partiraient
+       jamais. */
+    (function(){
+      var v0 = N.mondeVide(0, 500, 0);
+      ok("un instantané neuf n'a aucun blessé", (v0.bl || "") === "");
+      var m1 = N.fusionneMonde(v0, { v:1, cy:0, c:0, pv:500, d:"",
+                                     bl:N.encodeBlessures([{ i:2, n:30 }]) });
+      var m2 = N.fusionneMonde(v0, { v:1, cy:0, c:0, pv:500, d:"",
+                                     bl:N.encodeBlessures([{ i:2, n:12 }, { i:8, n:50 }]) });
+      var mm = N.fusionneMonde(m1, m2);
+      var d = N.decodeBlessures(mm.bl);
+      ok("deux joueurs qui abîment le même bâtiment : le plus abîmé compte",
+         d[2] === 12 && d[8] === 50);
+      ok("memeMonde voit une blessure changer, donc elle est republiée",
+         !N.memeMonde(m1, m2));
+      /* LE POINT QUI COMPTE POUR NE RIEN RÉINITIALISER : un instantané
+         d'une version PRÉCÉDENTE n'a pas de champ `bl`. Il doit se lire
+         « aucun blessé », c'est-à-dire ne rien changer — surtout pas
+         remettre des bâtiments à neuf. */
+      var ancien = { v:9, cy:0, c:0, pv:400, d:"AB", g:"", w:"", s:"", k:"" };
+      var apres = N.fusionneMonde(m2, ancien);
+      ok("un instantané SANS blessures ne remet rien à neuf",
+         N.decodeBlessures(apres.bl)[2] === 12,
+         "les blessures de m2 traversent la fusion avec un ancien client");
+      ok("… et une chaîne abîmée ne fait pas tomber le décodage",
+         (function(){
+           var q = N.decodeBlessures("!!!" + N.encodeBlessures([{ i:4, n:7 }]));
+           return typeof q === "object";
+         })());
+    })();
+
+    /* ET `d` GAGNE TOUJOURS. Un bâtiment déclaré détruit ne peut pas
+       être blessé en même temps : c'est ce que fait le chargement de
+       carte, et c'est ce que fait la publication. */
+    ok("un bâtiment détruit n'entre jamais dans la liste des blessés",
+       /if\(!b\.vivant\) continue;[\s\S]{0,200}cranBlessure/.test(html));
+    ok("… et au chargement, les blessures ne touchent que les survivants",
+       /decodeBlessures\(monde\.bl\)[\s\S]{0,260}if\(!bq \|\| !bq\.vivant\) continue;/.test(html));
+    ok("… et jamais pour remonter la vie d'un bâtiment",
+       /if\(pvq < bq\.pv\) bq\.pv =/.test(html));
+    /* LES REMISES À ZÉRO effacent les blessures AVEC le bitmap des
+       morts. Une campagne neuve, un tirage neuf, un plan enregistré :
+       les trois changent la carte, donc les index ne désignent plus
+       rien. */
+    /* L'INVARIANT, ET NON LE COMPTE. La première écriture épinglait
+       « il y a quatre chemins » — et elle a échoué tout de suite,
+       parce que mondeVide en est un cinquième. Compter les chemins
+       n'apprend rien et se périme au premier ajout ; ce qu'il faut
+       garder est que `bl` ne soit JAMAIS effacé sans `d`, ni `d` sans
+       `bl`. Un chemin qui viderait les morts en gardant les blessures
+       ressusciterait des bâtiments à moitié détruits sur une carte
+       neuve — exactement le genre de réinitialisation qu'on s'est
+       interdit. */
+    (function(){
+      /* On ne regarde que les instantanés du monde : chez eux le champ des
+         morts suit toujours les points de vie du QG. Un « d » qui traîne
+         ailleurs (une voie posée, par exemple) n'est pas la même lettre. */
+      var chemins = html.match(/pv:[^,]+, d:""[^\n]*/g) || [];
+      var manquants = chemins.filter(function(l){ return l.indexOf('bl:""') < 0; });
+      ok("aucun chemin n'efface les morts sans effacer les blessures",
+         chemins.length > 0 && manquants.length === 0,
+         chemins.length + " chemins, tous les deux à la fois");
+    })();
   })();
 
   /* --- le drapeau RETAIN, sans lequel rien ne survit --- */
