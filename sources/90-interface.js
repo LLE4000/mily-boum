@@ -426,9 +426,43 @@ function construitMenu(){
     });
   }
   TUILES.forEach(function(t){ dessineIcone(t.m, $("ic_" + t.m).getContext("2d")); });
+  /* la Nova est la seule tuile qui change d'aspect en cours de partie :
+     on force son redessin au prochain rafraîchissement */
+  novaRangTuile = -1;
+  majTuileNova();
+}
+
+/* ================================================================
+   LA TUILE DE LA NOVA CHANGE DE VISAGE À TROIS MILLIONS
+
+   C'est la seule capacité dont le CALIBRE monte pendant la partie, et
+   jusqu'ici rien ne le disait : la même petite ogive grise du début à
+   la fin, alors que les dégâts passent de 130 à 50 000. On tirait une
+   arme quatre cents fois plus forte sans que la tuile bronche.
+
+   Le redessin ne se fait QUE lorsque le rang change. Une icône est un
+   canevas de 76 × 76 repeint à la main ; le refaire à chaque
+   rafraîchissement du menu, soixante fois par seconde, coûterait plus
+   cher que tout le reste du HUD réuni pour une image identique.
+   ================================================================ */
+var novaRangTuile = -1;
+function majTuileNova(){
+  if(!jeu || typeof calibreNova !== "function") return;
+  var r = calibreNova(jeu.palier).rang | 0;
+  if(r === novaRangTuile) return;
+  novaRangTuile = r;
+  var cv = $("ic_nova");
+  if(cv) dessineIcone("nova", cv.getContext("2d"), r);
+  var el = $("caps") && $("caps").querySelector('.cap[data-m="nova"]');
+  if(!el) return;
+  el.classList.toggle("super", r > 0);
+  var nm = el.querySelector(".nm");
+  if(nm) nm.textContent = r > 0 ? "SUPER NOVA" : "Nova";
+  el.title = r > 1 ? "Super Nova, plein calibre" : (r > 0 ? "Super Nova" : "Nova");
 }
 function majMenu(){
   if(!jeu) return;
+  majTuileNova();
   var els = $("caps").querySelectorAll(".cap");
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
@@ -443,13 +477,74 @@ function majMenu(){
    Icônes du menu — dessinées en volume, jamais un caractère émoji.
    Repère : 76×76, origine au centre.
    ---------------------------------------------------------------- */
-function dessineIcone(m, c){
+function dessineIcone(m, c, rang){
+  rang = rang | 0;
   c.clearRect(0, 0, 76, 76);
   c.save();
   c.translate(38, 38);
   c.lineJoin = "round";
 
-  if(m === "nova"){
+  if(m === "nova" && rang > 0){
+    /* ================================================================
+       LA SUPER NOVA — une autre SILHOUETTE, pas un missile recoloré
+
+       La tuile fait trente pixels de côté à l'écran. À cette taille on
+       ne lit ni une bande de danger, ni un trèfle, ni un aileron : on
+       lit une FORME et une COULEUR, et rien d'autre. Repeindre le
+       missile en doré n'aurait donc rien distingué du tout — de loin,
+       deux petits objets sombres identiques.
+
+       L'icône ordinaire est un objet compact et sombre au centre d'une
+       tuile vide. Celle-ci est son contraire exact : un éclat qui
+       REMPLIT la tuile, blanc au cœur et or aux pointes, avec son onde
+       de choc. Les deux ne peuvent pas se confondre, même du coin de
+       l'œil, même sur un téléphone.
+
+       Le missile reste, minuscule et noir, au centre de l'éclat : la
+       case reste la même arme, elle a seulement changé d'échelle. Et
+       le second anneau, au plein calibre de cinq millions, dit la
+       troisième marche sans ajouter un mot.
+       ================================================================ */
+    var plein = rang > 1;
+    /* le halo, qui donne à la tuile son fond chaud */
+    var gh = c.createRadialGradient(0, 0, 0, 0, 0, 34);
+    gh.addColorStop(0,    "rgba(255,252,238,.95)");
+    gh.addColorStop(0.16, "rgba(255,226,140,.72)");
+    gh.addColorStop(0.52, "rgba(255,150,40,.30)");
+    gh.addColorStop(1,    "rgba(255,110,20,0)");
+    c.fillStyle = gh;
+    c.beginPath(); c.arc(0, 0, 34, 0, 6.2832); c.fill();
+    /* LES POINTES : quatre longues et quatre courtes, la même étoile à
+       huit branches que partout ailleurs dans le jeu. */
+    c.fillStyle = "#fff6d8";
+    c.beginPath();
+    for(var s = 0; s < 16; s++){
+      var a = s * Math.PI / 8 - Math.PI / 2;
+      var r = (s & 1) ? 9 : ((s & 2) ? 22 : 35);
+      var px = Math.cos(a) * r, py = Math.sin(a) * r;
+      if(s === 0) c.moveTo(px, py); else c.lineTo(px, py);
+    }
+    c.closePath(); c.fill();
+    /* L'ONDE DE CHOC — un anneau, deux au plein calibre */
+    c.strokeStyle = "rgba(255,214,110,.85)"; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(0, 4, 30, 13, 0, 0, 6.2832); c.stroke();
+    if(plein){
+      c.strokeStyle = "rgba(255,246,214,.55)"; c.lineWidth = 1.8;
+      c.beginPath(); c.ellipse(0, 6, 36, 17, 0, 0, 6.2832); c.stroke();
+    }
+    /* le cœur blanc */
+    c.fillStyle = "#ffffff";
+    c.beginPath(); c.arc(0, 0, plein ? 9.5 : 8, 0, 6.2832); c.fill();
+    /* et l'ogive, noire, au milieu du feu */
+    c.fillStyle = "#231c18";
+    c.beginPath();
+    c.moveTo(0, -7); c.quadraticCurveTo(3.6, -2, 3.2, 5);
+    c.lineTo(-3.2, 5); c.quadraticCurveTo(-3.6, -2, 0, -7);
+    c.closePath(); c.fill();
+    c.restore();
+    return;
+
+  }else if(m === "nova"){
     /* mini missile nucléaire : ogive trapue, bandes de danger, trèfle */
     c.save(); c.rotate(-0.32);
     var g = c.createLinearGradient(-11, 0, 11, 0);

@@ -998,6 +998,22 @@ select.champ{cursor:pointer}
   text-align:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
 }
 .cap.arme{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 18px rgba(255,138,30,.3)}
+/* LA SUPER NOVA. L'icône a déjà changé de silhouette ; la tuile change
+   aussi de cadre, parce que dans un menu de huit cases identiques
+   c'est le CONTOUR qu'on balaie du regard, pas le dessin. Le battement
+   est lent — une seconde et demie — pour attirer l'œil sans jamais
+   demander qu'on le regarde. */
+.cap.super{
+  border-color:#ffd070;
+  background:linear-gradient(180deg,rgba(90,64,18,.55),rgba(46,30,10,.55));
+  animation:superNova 1.6s ease-in-out infinite;
+}
+.cap.super .nm{color:#ffe6a8;font-weight:800;letter-spacing:.1px}
+@keyframes superNova{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,208,112,.5),0 0 10px rgba(255,190,70,.24)}
+  50%    {box-shadow:0 0 0 2px rgba(255,224,150,.85),0 0 22px rgba(255,190,70,.55)}
+}
+@media (prefers-reduced-motion:reduce){ .cap.super{animation:none} }
 .cap.pauvre{opacity:.42}
 .cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
 
@@ -1415,7 +1431,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.64";
+var VERSION = "v0.65";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -36847,10 +36863,12 @@ function majPuissance(){
     jeu.palier = p;
     jeu.puissance = PALIERS_PUISSANCE[p].mult;
     /* on ne fête que la montée, et une seule fois par palier */
-    /* Les deux marches de la Nova s'annoncent, parce qu'elles sont
-       invisibles autrement : rien ne change dans le menu, la charge
-       reste à une, et seul le prochain tir dira que le calibre a
-       doublé. */
+    /* Les deux marches de la Nova s'annoncent. La tuile du menu change
+       maintenant de visage à trois millions — voir majTuileNova dans
+       90-interface.js — mais le message reste : on peut très bien être
+       en train de regarder l'île et non le menu au moment où la marche
+       se franchit, et le passage de 130 à 50 000 dégâts mérite qu'on
+       le dise. */
     if(p > 0 && typeof message === "function")
       message("Palier " + p + " — tes troupes frappent à "
             + Math.round(jeu.puissance * 100) + " %"
@@ -43409,14 +43427,38 @@ function rendu(tps, dt){
       pile.push({ d:j.fantome.gx + j.fantome.gy, k:4, o:j.fantome });
   }
   if(jeu.fantome) pile.push({ d:jeu.fantome.gx + jeu.fantome.gy, k:4, o:jeu.fantome });
+  /* ================================================================
+     LA NOVA SORT DE LA PILE DE PROFONDEUR
+
+     Le tri se fait sur gx + gy : ce qui est au sud passe devant ce qui
+     est au nord. C'est juste pour tout ce qui est POSÉ AU SOL, et faux
+     pour la Nova.
+
+     Le Brasier occupe UNE case — la 9, 68 — mais sa forteresse est
+     peinte six cents unités au-dessus d'elle et déborde largement
+     autour. Viser le corps de la forteresse, c'est donc désigner une
+     case plus au NORD que sa base : l'explosion recevait un rang de
+     tri plus petit, elle était peinte d'abord, et le Brasier la
+     recouvrait entièrement. On tirait la plus grosse arme du jeu sur
+     la cible la plus importante, et on ne voyait rien.
+
+     Ce n'est pas un cas particulier du Brasier, c'est la nature de la
+     Nova : une boule de feu de cette taille est EN L'AIR, et rien sur
+     l'île n'est au-dessus d'elle. Elle quitte donc la pile — le
+     missile avec elle, qui plonge du ciel pour les mêmes raisons — et
+     passe après tout le reste. Voir la passe juste après la boucle.
+     ================================================================ */
+  var novas = [];
   for(i = 0; i < jeu.projectiles.length; i++){
     var pr = jeu.projectiles[i];
     if(!visible(vueL, pr.gx, pr.gy)) continue;
+    if(pr.t === "nova"){ novas.push({ p:pr }); continue; }
     pile.push({ d:pr.gx + pr.gy + 0.3, k:5, o:pr });
   }
   for(i = 0; i < jeu.effets.length; i++){
     var ef = jeu.effets[i];
     if(!visible(vueL, ef.gx, ef.gy)) continue;
+    if(ef.t === "nova"){ novas.push({ e:ef }); continue; }
     pile.push({ d:ef.gx + ef.gy + 0.2, k:6, o:ef });
   }
   for(i = 0; i < jeu.brouillards.length; i++){
@@ -43480,6 +43522,16 @@ function rendu(tps, dt){
       case 15: dessineSceneIbiza(ctx, tps); break;
       case 16: dessineVoeuMonde(ctx, it.o, tps); break;
     }
+  }
+  /* LA NOVA, APRÈS TOUT LE RESTE — voir le long commentaire au moment
+     où on la retire de la pile. Le missile d'abord, l'explosion
+     ensuite : dans cet ordre, la boule de feu recouvre la fin de la
+     trajectoire au lieu de laisser un bout de fusée dépasser. */
+  for(i = 0; i < novas.length; i++){
+    if(novas[i].p) dessineProjectile(ctx, novas[i].p, tps);
+  }
+  for(i = 0; i < novas.length; i++){
+    if(novas[i].e) dessineEffet(ctx, novas[i].e, tps);
   }
   /* ================================================================
      LE CLAIR DE LUNE, PASSÉ SUR TOUTE LA CARTE
@@ -44852,9 +44904,43 @@ function construitMenu(){
     });
   }
   TUILES.forEach(function(t){ dessineIcone(t.m, $("ic_" + t.m).getContext("2d")); });
+  /* la Nova est la seule tuile qui change d'aspect en cours de partie :
+     on force son redessin au prochain rafraîchissement */
+  novaRangTuile = -1;
+  majTuileNova();
+}
+
+/* ================================================================
+   LA TUILE DE LA NOVA CHANGE DE VISAGE À TROIS MILLIONS
+
+   C'est la seule capacité dont le CALIBRE monte pendant la partie, et
+   jusqu'ici rien ne le disait : la même petite ogive grise du début à
+   la fin, alors que les dégâts passent de 130 à 50 000. On tirait une
+   arme quatre cents fois plus forte sans que la tuile bronche.
+
+   Le redessin ne se fait QUE lorsque le rang change. Une icône est un
+   canevas de 76 × 76 repeint à la main ; le refaire à chaque
+   rafraîchissement du menu, soixante fois par seconde, coûterait plus
+   cher que tout le reste du HUD réuni pour une image identique.
+   ================================================================ */
+var novaRangTuile = -1;
+function majTuileNova(){
+  if(!jeu || typeof calibreNova !== "function") return;
+  var r = calibreNova(jeu.palier).rang | 0;
+  if(r === novaRangTuile) return;
+  novaRangTuile = r;
+  var cv = $("ic_nova");
+  if(cv) dessineIcone("nova", cv.getContext("2d"), r);
+  var el = $("caps") && $("caps").querySelector('.cap[data-m="nova"]');
+  if(!el) return;
+  el.classList.toggle("super", r > 0);
+  var nm = el.querySelector(".nm");
+  if(nm) nm.textContent = r > 0 ? "SUPER NOVA" : "Nova";
+  el.title = r > 1 ? "Super Nova, plein calibre" : (r > 0 ? "Super Nova" : "Nova");
 }
 function majMenu(){
   if(!jeu) return;
+  majTuileNova();
   var els = $("caps").querySelectorAll(".cap");
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
@@ -44869,13 +44955,74 @@ function majMenu(){
    Icônes du menu — dessinées en volume, jamais un caractère émoji.
    Repère : 76×76, origine au centre.
    ---------------------------------------------------------------- */
-function dessineIcone(m, c){
+function dessineIcone(m, c, rang){
+  rang = rang | 0;
   c.clearRect(0, 0, 76, 76);
   c.save();
   c.translate(38, 38);
   c.lineJoin = "round";
 
-  if(m === "nova"){
+  if(m === "nova" && rang > 0){
+    /* ================================================================
+       LA SUPER NOVA — une autre SILHOUETTE, pas un missile recoloré
+
+       La tuile fait trente pixels de côté à l'écran. À cette taille on
+       ne lit ni une bande de danger, ni un trèfle, ni un aileron : on
+       lit une FORME et une COULEUR, et rien d'autre. Repeindre le
+       missile en doré n'aurait donc rien distingué du tout — de loin,
+       deux petits objets sombres identiques.
+
+       L'icône ordinaire est un objet compact et sombre au centre d'une
+       tuile vide. Celle-ci est son contraire exact : un éclat qui
+       REMPLIT la tuile, blanc au cœur et or aux pointes, avec son onde
+       de choc. Les deux ne peuvent pas se confondre, même du coin de
+       l'œil, même sur un téléphone.
+
+       Le missile reste, minuscule et noir, au centre de l'éclat : la
+       case reste la même arme, elle a seulement changé d'échelle. Et
+       le second anneau, au plein calibre de cinq millions, dit la
+       troisième marche sans ajouter un mot.
+       ================================================================ */
+    var plein = rang > 1;
+    /* le halo, qui donne à la tuile son fond chaud */
+    var gh = c.createRadialGradient(0, 0, 0, 0, 0, 34);
+    gh.addColorStop(0,    "rgba(255,252,238,.95)");
+    gh.addColorStop(0.16, "rgba(255,226,140,.72)");
+    gh.addColorStop(0.52, "rgba(255,150,40,.30)");
+    gh.addColorStop(1,    "rgba(255,110,20,0)");
+    c.fillStyle = gh;
+    c.beginPath(); c.arc(0, 0, 34, 0, 6.2832); c.fill();
+    /* LES POINTES : quatre longues et quatre courtes, la même étoile à
+       huit branches que partout ailleurs dans le jeu. */
+    c.fillStyle = "#fff6d8";
+    c.beginPath();
+    for(var s = 0; s < 16; s++){
+      var a = s * Math.PI / 8 - Math.PI / 2;
+      var r = (s & 1) ? 9 : ((s & 2) ? 22 : 35);
+      var px = Math.cos(a) * r, py = Math.sin(a) * r;
+      if(s === 0) c.moveTo(px, py); else c.lineTo(px, py);
+    }
+    c.closePath(); c.fill();
+    /* L'ONDE DE CHOC — un anneau, deux au plein calibre */
+    c.strokeStyle = "rgba(255,214,110,.85)"; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(0, 4, 30, 13, 0, 0, 6.2832); c.stroke();
+    if(plein){
+      c.strokeStyle = "rgba(255,246,214,.55)"; c.lineWidth = 1.8;
+      c.beginPath(); c.ellipse(0, 6, 36, 17, 0, 0, 6.2832); c.stroke();
+    }
+    /* le cœur blanc */
+    c.fillStyle = "#ffffff";
+    c.beginPath(); c.arc(0, 0, plein ? 9.5 : 8, 0, 6.2832); c.fill();
+    /* et l'ogive, noire, au milieu du feu */
+    c.fillStyle = "#231c18";
+    c.beginPath();
+    c.moveTo(0, -7); c.quadraticCurveTo(3.6, -2, 3.2, 5);
+    c.lineTo(-3.2, 5); c.quadraticCurveTo(-3.6, -2, 0, -7);
+    c.closePath(); c.fill();
+    c.restore();
+    return;
+
+  }else if(m === "nova"){
     /* mini missile nucléaire : ogive trapue, bandes de danger, trèfle */
     c.save(); c.rotate(-0.32);
     var g = c.createLinearGradient(-11, 0, 11, 0);

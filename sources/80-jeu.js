@@ -3311,10 +3311,12 @@ function majPuissance(){
     jeu.palier = p;
     jeu.puissance = PALIERS_PUISSANCE[p].mult;
     /* on ne fête que la montée, et une seule fois par palier */
-    /* Les deux marches de la Nova s'annoncent, parce qu'elles sont
-       invisibles autrement : rien ne change dans le menu, la charge
-       reste à une, et seul le prochain tir dira que le calibre a
-       doublé. */
+    /* Les deux marches de la Nova s'annoncent. La tuile du menu change
+       maintenant de visage à trois millions — voir majTuileNova dans
+       90-interface.js — mais le message reste : on peut très bien être
+       en train de regarder l'île et non le menu au moment où la marche
+       se franchit, et le passage de 130 à 50 000 dégâts mérite qu'on
+       le dise. */
     if(p > 0 && typeof message === "function")
       message("Palier " + p + " — tes troupes frappent à "
             + Math.round(jeu.puissance * 100) + " %"

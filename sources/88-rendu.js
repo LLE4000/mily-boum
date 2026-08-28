@@ -2492,14 +2492,38 @@ function rendu(tps, dt){
       pile.push({ d:j.fantome.gx + j.fantome.gy, k:4, o:j.fantome });
   }
   if(jeu.fantome) pile.push({ d:jeu.fantome.gx + jeu.fantome.gy, k:4, o:jeu.fantome });
+  /* ================================================================
+     LA NOVA SORT DE LA PILE DE PROFONDEUR
+
+     Le tri se fait sur gx + gy : ce qui est au sud passe devant ce qui
+     est au nord. C'est juste pour tout ce qui est POSÉ AU SOL, et faux
+     pour la Nova.
+
+     Le Brasier occupe UNE case — la 9, 68 — mais sa forteresse est
+     peinte six cents unités au-dessus d'elle et déborde largement
+     autour. Viser le corps de la forteresse, c'est donc désigner une
+     case plus au NORD que sa base : l'explosion recevait un rang de
+     tri plus petit, elle était peinte d'abord, et le Brasier la
+     recouvrait entièrement. On tirait la plus grosse arme du jeu sur
+     la cible la plus importante, et on ne voyait rien.
+
+     Ce n'est pas un cas particulier du Brasier, c'est la nature de la
+     Nova : une boule de feu de cette taille est EN L'AIR, et rien sur
+     l'île n'est au-dessus d'elle. Elle quitte donc la pile — le
+     missile avec elle, qui plonge du ciel pour les mêmes raisons — et
+     passe après tout le reste. Voir la passe juste après la boucle.
+     ================================================================ */
+  var novas = [];
   for(i = 0; i < jeu.projectiles.length; i++){
     var pr = jeu.projectiles[i];
     if(!visible(vueL, pr.gx, pr.gy)) continue;
+    if(pr.t === "nova"){ novas.push({ p:pr }); continue; }
     pile.push({ d:pr.gx + pr.gy + 0.3, k:5, o:pr });
   }
   for(i = 0; i < jeu.effets.length; i++){
     var ef = jeu.effets[i];
     if(!visible(vueL, ef.gx, ef.gy)) continue;
+    if(ef.t === "nova"){ novas.push({ e:ef }); continue; }
     pile.push({ d:ef.gx + ef.gy + 0.2, k:6, o:ef });
   }
   for(i = 0; i < jeu.brouillards.length; i++){
@@ -2563,6 +2587,16 @@ function rendu(tps, dt){
       case 15: dessineSceneIbiza(ctx, tps); break;
       case 16: dessineVoeuMonde(ctx, it.o, tps); break;
     }
+  }
+  /* LA NOVA, APRÈS TOUT LE RESTE — voir le long commentaire au moment
+     où on la retire de la pile. Le missile d'abord, l'explosion
+     ensuite : dans cet ordre, la boule de feu recouvre la fin de la
+     trajectoire au lieu de laisser un bout de fusée dépasser. */
+  for(i = 0; i < novas.length; i++){
+    if(novas[i].p) dessineProjectile(ctx, novas[i].p, tps);
+  }
+  for(i = 0; i < novas.length; i++){
+    if(novas[i].e) dessineEffet(ctx, novas[i].e, tps);
   }
   /* ================================================================
      LE CLAIR DE LUNE, PASSÉ SUR TOUTE LA CARTE

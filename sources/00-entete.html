@@ -998,6 +998,22 @@ select.champ{cursor:pointer}
   text-align:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
 }
 .cap.arme{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.45),0 0 18px rgba(255,138,30,.3)}
+/* LA SUPER NOVA. L'icône a déjà changé de silhouette ; la tuile change
+   aussi de cadre, parce que dans un menu de huit cases identiques
+   c'est le CONTOUR qu'on balaie du regard, pas le dessin. Le battement
+   est lent — une seconde et demie — pour attirer l'œil sans jamais
+   demander qu'on le regarde. */
+.cap.super{
+  border-color:#ffd070;
+  background:linear-gradient(180deg,rgba(90,64,18,.55),rgba(46,30,10,.55));
+  animation:superNova 1.6s ease-in-out infinite;
+}
+.cap.super .nm{color:#ffe6a8;font-weight:800;letter-spacing:.1px}
+@keyframes superNova{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,208,112,.5),0 0 10px rgba(255,190,70,.24)}
+  50%    {box-shadow:0 0 0 2px rgba(255,224,150,.85),0 0 22px rgba(255,190,70,.55)}
+}
+@media (prefers-reduced-motion:reduce){ .cap.super{animation:none} }
 .cap.pauvre{opacity:.42}
 .cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
 
