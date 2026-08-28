@@ -1128,8 +1128,30 @@ G("4. Déterminisme de la génération de carte");
        remplacer : il en faut plus qu'avant, sans que les Frelons
        cessent d'être l'échine. */
     ok("les Silos sont là, en nombre", (par.silo || 0) > 180, (par.silo || 0) + " Silos");
-    ok("… et les Frelons tiennent la ligne", (par.frelon || 0) > 200,
+    /* « QUE DEUX CENTS. » On ne peut pas viser 200 pile : la grille pose
+       une tour toutes les cinq cases, si bien que la largeur de la bande
+       fait sauter le compte par paliers — 208 ou 241, rien entre. */
+    ok("… et les Frelons sont deux cents, pas deux cent soixante",
+       (par.frelon || 0) >= 190 && (par.frelon || 0) <= 220,
        (par.frelon || 0) + " Frelons");
+    /* « ET TU LES RÉPARTIS CORRECTEMENT. » C'était le vrai défaut : le
+       tracé relevé sur la capture couvrait la moitié est, et les deux
+       quartiers derrière le Brasier n'avaient pas UNE batterie à longue
+       portée. On découpe l'île en neuf et l'on regarde le plus pauvre. */
+    (function(){
+      var fr = c.batiments.filter(function(b){ return b.t === "frelon"; });
+      var pire = 1e9, ou = "";
+      for(var by = 0; by < 3; by++) for(var bx = 0; bx < 3; bx++){
+        var n = fr.filter(function(f){
+          return f.gx >= bx * N.GW / 3 && f.gx < (bx + 1) * N.GW / 3
+              && f.gy >= by * N.GH / 3 && f.gy < (by + 1) * N.GH / 3;
+        }).length;
+        if(n < pire){ pire = n; ou = ["nord", "milieu", "sud"][by] + "-"
+                                  + ["ouest", "centre", "est"][bx]; }
+      }
+      ok("… et aucun neuvième de l'île n'est sans Frelon",
+         pire >= 8, "le plus pauvre est le " + ou + " avec " + pire);
+    })();
 
     /* LE MÉDAILLON SURVIT. Tracées au plus court, les diagonales
        passaient à douze cases du bassin et emportaient les deux tiers
@@ -4204,6 +4226,52 @@ G("4. Déterminisme de la génération de carte");
        manque === "" && trop === "", manque + trop);
     ok("aucun n'est collé au Brasier", pres === "", pres);
   })();
+  /* ================================================================
+     ILS NE NAISSENT PLUS DANS UN MUR
+
+     Leur semis est le seul du fichier qui ne consulte ni l'occupation
+     ni le plan : mesuré, SOIXANTE POUR CENT des chats naissaient sous
+     un bâtiment. Un appât qu'on ne voit pas, dont la mort déclenche
+     pourtant la vengeance — la spec demandait exactement l'inverse :
+     « visuellement mignons, bien lisibles, et facilement repérables ».
+
+     ET LE DÉGAGEMENT NE TIRE PAS. C'est la contrainte dure : le semis
+     s'arrête à la première place qui passe, donc un test plus sévère
+     consommerait plus de tirages, décalerait les champs de cellules
+     — qui posent des BÂTIMENTS — et ferait glisser l'indice de tous
+     les suivants. On tire comme avant, on corrige après, à pas fixes.
+     ================================================================ */
+  (function(){
+    var d = html.indexOf("function degageLesProteges(");
+    var f = d < 0 ? -1 : html.indexOf("\n}", d);
+    ok("le dégagement des protégés se relit dans le fichier livré", d > 0 && f > d);
+    if(d > 0 && f > d){
+      ok("… et il ne consomme PAS un seul tirage",
+         !/\bal\s*\(/.test(html.slice(d, f)));
+    }
+    var coinces = 0, total = 0;
+    for(var i = 0; i < N.CARTES.length; i++){
+      for(var tir = 0; tir < 3; tir++){
+        var ck = N.genereCarte("MILY", i, N.planDeCarte(i, null), tir);
+        var occ = {};
+        ck.batiments.forEach(function(b){
+          if(b.t === "cellule") return;
+          var ax = Math.round(b.gx), ay = Math.round(b.gy), r = Math.ceil((b.e || 2) * 0.5);
+          for(var dx = -r; dx <= r; dx++)
+            for(var dy = -r; dy <= r; dy++) occ[(ax + dx) + "," + (ay + dy)] = 1;
+        });
+        ck.creatures.forEach(function(k){
+          if(!N.CRE[k.t] || !N.CRE[k.t].protege) return;
+          total++;
+          if(occ[Math.round(k.gx) + "," + Math.round(k.gy)]) coinces++;
+        });
+      }
+    }
+    ok("presque aucun chat ne naît sous un bâtiment",
+       total > 0 && coinces / total < 0.10,
+       coinces + " sur " + total + " (" + (100 * coinces / total).toFixed(1) + " %)");
+  })();
+
   /* LA PEINE. 90 % des PV, et surtout : JAMAIS la mort. Une barge
      amputée revient, une barge effacée fait fermer l'onglet — et les
      braises laissées derrière ne doivent pas achever ce que le rayon

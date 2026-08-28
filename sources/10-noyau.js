@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.70";
+var VERSION = "v0.71";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1991,6 +1991,12 @@ function genereCarte(codeSalon, index, plan, tirage){
     }
   }
 
+  /* --- LES CHATS DE MILY SORTENT DES MURS ---
+     Ici, et pas plus haut : à cette place tous les bâtiments sont
+     posés, cellules peintes comprises, et rien de ce qui suit ne lit
+     la position des chats. */
+  degageLesProteges(c);
+
   /* --- LA JUNGLE : SA FLORE, SA FAUNE, SES GEYSERS ---
      Tout à la fin, après les cellules peintes : peupleLaJungle lit
      c.batiments pour ne rien planter sur une défense, et il doit
@@ -2146,6 +2152,69 @@ var ECH_ARBRE_MIN     = 0.52;
 var ECH_ARBRE_ETENDUE = 0.26;   // 0,52 à 0,78 — deux fois et demie plus petit
 var RENFORT_ARBRES    = 900;    // dans l'île, en plus des 420 d'origine
 var RENFORT_POURTOUR  = 1500;   // dans la ceinture, en plus des 2 810
+
+/* ================================================================
+   LES TROIS CHATS NE NAISSENT PLUS DANS UNE TOURELLE
+
+   Leur semis est le seul du fichier qui ne consulte ni l'occupation
+   ni le plan : il tire une place, vérifie qu'elle est loin du
+   Brasier, et pose la bête. Sur une île à mille deux cent cinquante
+   bâtiments, un chat sur trois pouvait donc naître SOUS un Pilon —
+   un appât qu'on ne voit pas, dont la mort déclenche pourtant la
+   vengeance.
+
+   ────────────────────────────────────────────────────────────────
+   POURQUOI ON NE CORRIGE PAS LE TIRAGE, MAIS SON RÉSULTAT
+
+   Ajouter un test d'occupation à la boucle de semis serait la façon
+   naturelle de faire, et elle est interdite ici. Le semis tire deux
+   nombres par tentative et s'arrête à la première qui passe : rendre
+   le test plus sévère fait échouer plus de tentatives, donc consommer
+   plus de tirages, donc DÉCALER tout ce qui suit — et ce qui suit,
+   ce sont les champs de cellules peints, qui posent des BÂTIMENTS.
+   Un bâtiment décalé, c'est l'indice de tous les suivants qui glisse,
+   et le bitmap des destructions de tous les salons en cours qui ne
+   veut plus rien dire.
+
+   On tire donc exactement comme avant, et l'on DÉGAGE ensuite : une
+   spirale à pas fixes, sans un seul appel au générateur. C'est la
+   règle de la maison, celle des tornades jumelles — on tire d'abord,
+   on corrige après.
+   ================================================================ */
+function degageLesProteges(c){
+  /* la grille des cases occupées, dressée une fois */
+  var occ = {}, i, dx, dy;
+  for(i = 0; i < c.batiments.length; i++){
+    var b = c.batiments[i];
+    if(b.t === "cellule") continue;          // une cellule ne cache pas un chat
+    var ax = Math.round(b.gx), ay = Math.round(b.gy), r = Math.ceil((b.e || 2) * 0.5);
+    for(dx = -r; dx <= r; dx++)
+      for(dy = -r; dy <= r; dy++) occ[(ax + dx) + "," + (ay + dy)] = 1;
+  }
+  function libre(x, y){
+    return x > 4 && x < PLAGE_X0 - 2 && y > 3 && y < GH - 4 &&
+           !occ[Math.round(x) + "," + Math.round(y)];
+  }
+  for(i = 0; i < c.creatures.length; i++){
+    var k = c.creatures[i];
+    if(!CRE[k.t] || !CRE[k.t].protege) continue;
+    if(libre(k.gx, k.gy)) continue;
+    /* LA SPIRALE. Pas fixes, sans hasard : le premier point libre
+       gagne, et le chat ne s'éloigne jamais de plus de six cases de
+       l'endroit qu'il avait tiré. */
+    for(var t = 1; t <= 6; t++){
+      var trouve = 0;
+      for(var a = 0; a < 12; a++){
+        var an = a / 12 * 6.2832 + t * 0.4;
+        var nx = k.gx + Math.cos(an) * t, ny = k.gy + Math.sin(an) * t;
+        if(libre(nx, ny) && Math.hypot(nx - QG_GX, ny - QG_GY) >= 16){
+          k.gx = nx; k.gy = ny; trouve = 1; break;
+        }
+      }
+      if(trouve) break;
+    }
+  }
+}
 
 /* ================================================================
    LE PEUPLEMENT DES MILY ET UNE NUITS
@@ -3569,13 +3638,52 @@ function planNuits(){
     for(var i = 0; i + 1 < pts.length; i++)
       trait(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], e, C, 5, 1);
   }
+  /* ════════════════════════════════════════════════════════════
+     DEUX CENTS FRELONS, ET RÉPARTIS
+
+     « Tu peux en mettre que deux cents — entre guillemets, que deux
+     cents — et tu les répartis correctement. »
+
+     Les deux moitiés de la phrase demandaient deux gestes opposés, et
+     c'est la seconde qui a commandé.
+
+     LE COMPTE. L'échine passe de sept cases à quatre et demie : 263
+     Frelons deviennent 208. On ne peut pas viser 200 pile — la grille
+     des défenses pose une tour toutes les cinq cases, si bien que la
+     largeur de la bande fait sauter le compte par paliers : 208 ou
+     241, rien entre les deux.
+
+     LA RÉPARTITION, et c'est là qu'était le vrai défaut. Mesuré en
+     découpant l'île en neuf : le nord-ouest et le sud-ouest portaient
+     ZÉRO Frelon. Le tracé relevé sur la capture couvrait la moitié
+     est — c'est celle que le joueur avait sous les yeux quand il a
+     dessiné — et les deux quartiers derrière le Brasier restaient
+     sans une seule batterie à longue portée.
+
+     On complète donc la figure plutôt que de la corriger : les deux
+     diagonales qui partent des flancs du Brasier vers l'est reçoivent
+     leurs deux SŒURS vers l'ouest. Ce n'est plus une croix, c'est une
+     étoile à six branches dont le Brasier est le centre — et c'est ce
+     que le tracé demandait sans le dire, puisqu'il ne pouvait tracer
+     que ce qui tenait dans l'écran.
+
+     Résultat mesuré, par neuvième d'île :
+         13  24  15          0  34  23
+         41  27  32   contre  51  44  51
+         13  24  19          0  30  30
+     Le neuvième le plus pauvre passe de zéro à treize, et la ligne de
+     plage reste continue — quarante-neuf Frelons, pas un trou de plus
+     de 3,4 cases.
+     ════════════════════════════════════════════════════════════ */
   var HAIES = [
     [[132, 8], [132, 128]],                                  // la plage, continue
     [[20, 55], [100, 101]],                                  // du Brasier à l'œil sud
     [[20, 87], [100, 33]],                                   // du Brasier à l'œil nord
-    [[68, 21], [100, 50], [112, 66], [104, 100], [82, 119]]  // l'arc de l'est
+    [[68, 21], [100, 50], [112, 66], [104, 100], [82, 119]], // l'arc de l'est
+    [[20, 55], [32, 26], [64, 16]],                          // la branche du nord-ouest
+    [[20, 87], [32, 116], [64, 126]]                         // et celle du sud-ouest
   ];
-  var HAIE_SILO = 12, HAIE_FRELON = 7;
+  var HAIE_SILO = 12, HAIE_FRELON = 4.4;
   for(var h = 0; h < HAIES.length; h++) chemin(HAIES[h], HAIE_SILO,   UN(PN_SILO));
   for(h = 0; h < HAIES.length; h++)     chemin(HAIES[h], HAIE_FRELON, UN(PN_FRELON));
 
