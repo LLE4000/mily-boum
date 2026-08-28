@@ -453,9 +453,19 @@ function etatEvenements(){
     poseBonusPvEvt(V.P, (m[V.P + "b"] !== undefined) ? (m[V.P + "b"] | 0) : undefined);
     var o = voieLue(m, V.P, V.i);
     if(jeu && jeu.index === V.i && evenementEnCours(m, V.P)){
-      var bits = [], i;
-      for(i = 0; i < jeu.batiments.length; i++) bits.push(jeu.batiments[i].vivant ? 0 : 1);
+      var bits = [], bl = [], i;
+      for(i = 0; i < jeu.batiments.length; i++){
+        var b = jeu.batiments[i];
+        bits.push(b.vivant ? 0 : 1);
+        /* LES BLESSÉS de l'expédition : entamés mais debout. Mêmes
+           règles que pour la campagne — un bâtiment tombé est déjà dit
+           par d, un bâtiment intact est dit par son absence. */
+        if(!b.vivant) continue;
+        var n = cranBlessure(b.pv, b.pvMax);
+        if(n < BLESSURE_CRANS) bl.push({ i:i, n:n });
+      }
       o.d = encodeBits(bits);
+      o.bl = encodeBlessures(bl);
       o.q = Math.max(0, Math.round(jeu.qg.pv));
     }
     E.v[V.P] = o;
@@ -472,7 +482,7 @@ function voiesRemisesAZero(){
   var E = etatEvenements(), k;
   for(k = 0; k < VOIES_EVT.length; k++){
     var u = E.v[VOIES_EVT[k].P];
-    u.e = 0; u.f = 0; u.d = ""; u.q = 0;
+    u.e = 0; u.f = 0; u.d = ""; u.bl = ""; u.q = 0;
   }
   E.ch = (monde && monde.ch) || "";
   E.t3 = (monde && monde.t3) || "";
@@ -482,7 +492,7 @@ function voiesRemisesAZero(){
    que les tests et l'ancien code connaissent. */
 function jungleCourante(){
   var E = etatEvenements(), j = E.v.j;
-  return { je:j.e, jf:j.f, jd:j.d, jq:j.q, jt:j.t,
+  return { je:j.e, jf:j.f, jd:j.d, jbl:j.bl, jq:j.q, jt:j.t,
            jm:j.mj, jmn:j.mn, jb:j.b, ch:E.ch, t3:E.t3 };
 }
 
@@ -543,6 +553,40 @@ function tableauScores(){
   return encodeScores(scoresAJour());
 }
 
+/* ================================================================
+   CET INSTANTANÉ PARLE-T-IL DE LA CARTE OÙ L'ON JOUE ?
+
+   LA PORTE ÉTAIT FERMÉE POUR LES EXPÉDITIONS, et c'est ici qu'elle
+   l'était. Le test tenait en une ligne — « monde.c === jeu.index » —
+   et il était juste tant qu'il n'y avait que la campagne.
+
+   Mais `c` désigne une ÎLE DE CAMPAGNE, et une carte spéciale n'y
+   figure jamais : elle vit dans sa voie. La ligne était donc FAUSSE
+   pendant toute une expédition, et comme c'est le seul appel à
+   appliqueMondeAuJeu du programme, sa branche « carte spéciale » —
+   écrite, juste, testée de l'œil — n'a jamais été atteinte une seule
+   fois.
+
+   Conséquence mesurée avant correction : deux joueurs dans la même
+   jungle ne se partageaient RIEN. Ni les défenses détruites, ni les PV
+   du Brasier. Chacun menait son expédition en privé pendant que
+   l'instantané, lui, portait fidèlement les dégâts de tout le monde.
+   L'écriture était bonne depuis toujours ; personne ne lisait.
+
+   La condition porte maintenant un nom, et c'est le vrai sujet de la
+   correction : on peut la rejouer dans les tests, donc on ne peut plus
+   refermer la porte sans que quelque chose crie.
+
+   Une carte spéciale n'a pas à se comparer au cycle de campagne : son
+   époque à elle est le compteur de lancements de sa voie, et c'est
+   fusionneVoie qui la tranche.
+   ================================================================ */
+function instantanePourMaCarte(m){
+  if(!jeu || !m) return false;
+  if(carteSpeciale(jeu.index)) return true;
+  return m.c === jeu.index && (m.cy | 0) === cycleSalon;
+}
+
 /* Adopte un instantané venu d'ailleurs : on le FUSIONNE, jamais on ne
    le recopie. La fusion étant monotone, l'ordre d'arrivée n'a aucune
    importance et deux clients qui publient en même temps convergent. */
@@ -574,7 +618,7 @@ function adopteMonde(m, source){
   /* si notre partie en cours ignore des destructions annoncées, on les
      applique tout de suite ; si c'est nous qui en savons plus, on le
      fera savoir à la prochaine publication */
-  if(jeu && monde.c === jeu.index && (monde.cy | 0) === cycleSalon){
+  if(instantanePourMaCarte(monde)){
     appliqueMondeAuJeu(monde);
     if(!memeMonde(monde, mondeCourant())) mondeSale = true;
   }
@@ -648,6 +692,10 @@ function appliqueMondeAuJeu(m){
       change++;
     }
   }
+  /* LES BLESSURES arrivent en cours de partie comme les morts : si
+     quelqu'un entame un Frelon pendant qu'on joue, on le voit baisser
+     tout de suite au lieu d'attendre le prochain chargement. */
+  change += appliqueBlessuresAuJeu(m.bl);
   /* le bonus de PV du salon, pour CHAQUE événement : genereCarte le
      lira au moment de bâtir la carte */
   for(var kb = 0; kb < VOIES_EVT.length; kb++){
@@ -704,6 +752,8 @@ function appliqueEvenementAuJeu(m, idx){
       change++;
     }
   }
+  /* et les blessures de l'expédition, sur les survivants */
+  change += appliqueBlessuresAuJeu(m[P + "bl"] || "");
   var q = m[P + "q"] | 0;
   if(q){ jeu.file.adopteMinimum(q); jeu.qg.pv = jeu.file.pv; }
   if(change){
@@ -730,8 +780,14 @@ function appliqueJungleAuJeu(m){ return appliqueEvenementAuJeu(m, IDX_JUNGLE); }
    l'instantané courant, on ne change QUE ce qu'on vient changer, et
    toutes les voies repartent avec. */
 function publieEtat(m, jg){
+  /* `bl` voyage avec `d`, TOUJOURS. On repart de l'instantané courant
+     pour ne changer que la voie, et oublier les blessures ici les
+     effacerait de la campagne à chaque lancement d'expédition — une
+     défense laissée à moitié faite se retrouverait intacte parce que
+     quelqu'un est parti dans la jungle. */
   monde = poseEvenements({ v:(m.v | 0) + 1, cy:m.cy | 0, c:m.c | 0, pv:m.pv,
-                       d:m.d || "", g:m.g || "", w:m.w || "", s:m.s || "",
+                       d:m.d || "", bl:m.bl || "",
+                       g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
                        tg:tirageSalon | 0 }, jg);
   sauveMondeLocal();

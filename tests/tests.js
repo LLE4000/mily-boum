@@ -4826,10 +4826,53 @@ G("8. Cohérence des règles de jeu");
        carte, et c'est ce que fait la publication. */
     ok("un bâtiment détruit n'entre jamais dans la liste des blessés",
        /if\(!b\.vivant\) continue;[\s\S]{0,200}cranBlessure/.test(html));
-    ok("… et au chargement, les blessures ne touchent que les survivants",
-       /decodeBlessures\(monde\.bl\)[\s\S]{0,260}if\(!bq \|\| !bq\.vivant\) continue;/.test(html));
-    ok("… et jamais pour remonter la vie d'un bâtiment",
-       /if\(pvq < bq\.pv\) bq\.pv =/.test(html));
+    /* ON REJOUE LA VRAIE FONCTION, ET NON SON ORTHOGRAPHE. Les deux
+       vérifications d'avant épinglaient des noms de variables — `bq`,
+       `pvq`, `monde.bl` — et elles ont cassé à la première mise en
+       commun du code, alors que rien de ce qu'elles décrivaient
+       n'avait bougé. Un test qui tombe quand on renomme une variable
+       ne teste pas le programme, il teste sa frappe.
+       On extrait donc appliqueBlessuresAuJeu du fichier LIVRÉ et on la
+       fait tourner sur des bâtiments fabriqués ici. */
+    (function(){
+      var src = html.match(/function appliqueBlessuresAuJeu\([\s\S]*?\n\}/);
+      if(!src){
+        ok("appliqueBlessuresAuJeu est dans le fichier livré", false);
+        return;
+      }
+      ok("appliqueBlessuresAuJeu est dans le fichier livré", true);
+      var faire = new Function("jeu", "decodeBlessures", "BLESSURE_CRANS",
+                               src[0] + "\nreturn appliqueBlessuresAuJeu;");
+      function bat(pv, vivant){ return { pvMax:1000, pv:pv, vivant:vivant }; }
+      /* index 0 : mort et pourtant listé comme blessé — `d` doit gagner
+         index 1 : intact, on l'abîme à moitié
+         index 2 : déjà à 10 %, l'instantané le dit à 80 % — on ne rend
+                   jamais de vie
+         index 3 : absent de la liste, donc intact, donc intouché */
+      var j = { batiments:[ bat(0, 0), bat(1000, 1), bat(100, 1), bat(1000, 1) ] };
+      var chaine = N.encodeBlessures([
+        { i:0, n:(N.BLESSURE_CRANS * 0.5) | 0 },
+        { i:1, n:(N.BLESSURE_CRANS * 0.5) | 0 },
+        { i:2, n:(N.BLESSURE_CRANS * 0.8) | 0 }
+      ]);
+      var n = faire(j, N.decodeBlessures, N.BLESSURE_CRANS)(chaine);
+      ok("… au chargement, un bâtiment DÉTRUIT reste détruit",
+         j.batiments[0].pv === 0 && !j.batiments[0].vivant,
+         "pv " + j.batiments[0].pv);
+      ok("… un bâtiment intact descend bien au cran reçu",
+         j.batiments[1].pv > 400 && j.batiments[1].pv < 600,
+         "" + j.batiments[1].pv + " PV");
+      ok("… et jamais pour remonter la vie d'un bâtiment",
+         j.batiments[2].pv === 100, "" + j.batiments[2].pv + " PV");
+      ok("… un bâtiment absent de la liste ne bouge pas",
+         j.batiments[3].pv === 1000 && n === 1, n + " touché(s)");
+      /* IDEMPOTENCE : rejouer le même instantané ne change plus rien.
+         C'est ce qui autorise à l'appliquer à chaque message reçu. */
+      var avant = j.batiments.map(function(b){ return b.pv; });
+      faire(j, N.decodeBlessures, N.BLESSURE_CRANS)(chaine);
+      ok("… et rejouer le même instantané ne change plus rien",
+         j.batiments.every(function(b, k){ return b.pv === avant[k]; }));
+    })();
     /* LES REMISES À ZÉRO effacent les blessures AVEC le bitmap des
        morts. Une campagne neuve, un tirage neuf, un plan enregistré :
        les trois changent la carte, donc les index ne désignent plus
@@ -4892,6 +4935,217 @@ G("8. Cohérence des règles de jeu");
        retour.pv === pvMax - 4000000);
     ok("un monde neuf n'efface jamais un monde entamé",
        N.fusionneMonde(salon, N.mondeVide(0, pvMax)).pv === pvMax - 4000000);
+  })();
+})();
+
+/* ================================================================
+   9d. LES BLESSURES EN EXPÉDITION — et la porte qui était fermée
+
+   La campagne vit dans `c`, une expédition dans sa voie. En y ajoutant
+   les blessures on a découvert que la voie était ÉCRITE mais jamais
+   RELUE : le seul appel du programme à appliqueMondeAuJeu était gardé
+   par « monde.c === jeu.index », test toujours faux sur une carte
+   spéciale. Deux joueurs dans la même jungle ne se partageaient donc
+   rien — ni les défenses détruites, ni les PV du Brasier.
+
+   Ce groupe garde les deux moitiés : la voie transporte et fusionne
+   les blessures comme le fait la campagne, et la lecture existe.
+   ================================================================ */
+(function(){
+  G("9d. Les blessures en expédition");
+
+  /* LA VOIE TRANSPORTE. voieLue et voiePosee sont les deux seuls
+     endroits qui connaissent les noms de champs : ce qui entre par
+     l'un doit ressortir par l'autre. */
+  (function(){
+    var P = "j", i = N.IDX_JUNGLE;
+    var v = { e:3, f:2, d:"AB", bl:N.encodeBlessures([{ i:7, n:20 }]),
+              q:5000, t:1700000000000, mj:2, mn:4, b:0 };
+    var o = N.voiePosee({}, P, v);
+    var w = N.voieLue(o, P, i);
+    ok("la voie transporte les blessures comme le reste",
+       w.bl === v.bl && w.d === v.d && w.q === v.q);
+    /* LE PIÈGE DES NOMS : <P>b est le bonus de PV, <P>bl les
+       blessures. Deux clés voisines, deux champs sans rapport. */
+    ok("le bonus de PV et les blessures ne se confondent pas",
+       o[P + "b"] === 0 && o[P + "bl"] === v.bl && w.b === 0);
+    var vieux = { je:3, jf:2, jd:"AB", jq:5000 };
+    ok("une voie d'avant, sans blessures, se lit « aucun blessé »",
+       N.voieLue(vieux, P, i).bl === "");
+  })();
+
+  /* LA FUSION. Mêmes trois propriétés que pour la campagne, plus la
+     règle d'époque : une expédition neuve balaie tout. */
+  (function(){
+    var P = "j";
+    function voie(e, bl){
+      return N.voiePosee({}, P, { e:e, f:0, d:"", bl:bl, q:0, t:0, mj:2, mn:0, b:0 });
+    }
+    var A = voie(1, N.encodeBlessures([{ i:2, n:40 }, { i:9, n:10 }]));
+    var B = voie(1, N.encodeBlessures([{ i:2, n:15 }, { i:5, n:33 }]));
+    var ab = N.fusionneEvenements(A, B).v[P];
+    var ba = N.fusionneEvenements(B, A).v[P];
+    ok("fusionner dans les deux sens donne la même voie", ab.bl === ba.bl);
+    var d = N.decodeBlessures(ab.bl);
+    ok("… et c'est le plus abîmé qui gagne, index par index",
+       d[2] === 15 && d[9] === 10 && d[5] === 33,
+       JSON.stringify(d));
+    ok("fusionner deux fois ne change rien",
+       N.fusionneEvenements(A, N.voiePosee({}, P, ab)).v[P].bl === ab.bl);
+    /* L'ÉPOQUE. `d`, `bl` et `q` appartiennent au compteur de
+       lancements : une expédition neuve ne garde rien de la
+       précédente, sans quoi elle ouvrirait avec des défenses déjà à
+       moitié détruites. */
+    var neuve = voie(2, "");
+    var apres = N.fusionneEvenements(A, neuve).v[P];
+    ok("une expédition neuve n'hérite d'aucune blessure de l'ancienne",
+       apres.e === 2 && apres.bl === "" && apres.d === "");
+    /* … et l'inverse : une voie EN RETARD ne peut pas ressusciter les
+       défenses d'une expédition en cours. */
+    var enRetard = N.fusionneEvenements(voie(2, N.encodeBlessures([{ i:1, n:5 }])),
+                                        voie(1, "")).v[P];
+    ok("… et une voie en retard ne remet rien à neuf",
+       enRetard.e === 2 && N.decodeBlessures(enRetard.bl)[1] === 5);
+  })();
+
+  /* MEMEEVENEMENTS. Sans cette comparaison, une défense qu'on vient
+     d'entamer ne rendrait pas l'instantané « sale » et personne ne la
+     verrait jamais : le message ne partirait pas. */
+  (function(){
+    var P = "j";
+    var E = { v:{}, ch:"", t3:"" };
+    E.v[P] = { e:1, f:0, d:"", bl:N.encodeBlessures([{ i:4, n:20 }]),
+               q:0, t:0, mj:2, mn:0, b:0 };
+    var m = N.voiePosee({ ch:"", t3:"" }, P,
+              { e:1, f:0, d:"", bl:"", q:0, t:0, mj:2, mn:0, b:0 });
+    ok("une blessure neuve rend l'instantané à republier",
+       N.memeEvenements(m, E) === false);
+    var m2 = N.voiePosee({ ch:"", t3:"" }, P, E.v[P]);
+    ok("… et deux voies identiques ne se republient pas en boucle",
+       N.memeEvenements(m2, E) === true);
+  })();
+
+  /* LE POINT FIXE. Les PV donnent un cran, le cran repose des PV. Si
+     ce cycle n'est pas stable, chaque publication rabote un peu de vie
+     — des dégâts offerts par l'arrondi. Mesuré avant correction sur
+     une défense de 720 PV : 75,0 → 74,6 → 73,1 %. */
+  (function(){
+    /* ON REPOSE AVEC LA VRAIE FONCTION. Simuler le repose ici laisserait
+       passer le retour de l'arrondi : c'est appliqueBlessuresAuJeu qui
+       porte l'une des deux moitiés de la correction. */
+    var srcBl = html.match(/function appliqueBlessuresAuJeu\([\s\S]*?\n\}/);
+    if(!srcBl){ ok("appliqueBlessuresAuJeu se relit", false); return; }
+    function repose(pvMax, c){
+      var j = { batiments:[{ pvMax:pvMax, pv:pvMax, vivant:1 }] };
+      new Function("jeu", "decodeBlessures", "BLESSURE_CRANS",
+                   srcBl[0] + "\nreturn appliqueBlessuresAuJeu;")(
+        j, N.decodeBlessures, N.BLESSURE_CRANS)(N.encodeBlessures([{ i:0, n:c }]));
+      return j.batiments[0].pv;
+    }
+    var pires = [], pvMax, c, k;
+    var tailles = [63, 120, 700, 720, 760, 1400, 2446, 60000000];
+    for(k = 0; k < tailles.length; k++){
+      pvMax = tailles[k];
+      for(c = 1; c < N.BLESSURE_CRANS; c++){
+        if(N.cranBlessure(repose(pvMax, c), pvMax) !== c) pires.push(pvMax + "/" + c);
+      }
+    }
+    ok("reposer un cran puis le relire redonne le MÊME cran",
+       pires.length === 0, pires.length + " cas dérivent : "
+       + pires.slice(0, 4).join(" "));
+    /* et la perte du premier pas ne dépasse jamais un cran */
+    var pire = 0;
+    for(k = 0; k < 2000; k++){
+      var f = (k + 1) / 2001;
+      var n = N.cranBlessure(f * 720, 720);
+      var perte = f - n / N.BLESSURE_CRANS;
+      if(perte > pire) pire = perte;
+    }
+    ok("… et le premier pas ne coûte jamais plus d'un cran",
+       pire < 1 / N.BLESSURE_CRANS + 1e-9,
+       (pire * 100).toFixed(2) + " % de perte au pire");
+  })();
+
+  /* LA PORTE. C'est la condition qui interdisait la lecture : elle
+     comparait `monde.c` — une île de campagne — à l'index d'une carte
+     spéciale, qui n'y figure jamais. On la rejoue du fichier livré. */
+  (function(){
+    var src = html.match(/function instantanePourMaCarte\([\s\S]*?\n\}/);
+    if(!src){ ok("instantanePourMaCarte est dans le fichier livré", false); return; }
+    ok("instantanePourMaCarte est dans le fichier livré", true);
+    function porte(idx, cycle, m){
+      return new Function("jeu", "cycleSalon", "carteSpeciale",
+                          src[0] + "\nreturn instantanePourMaCarte;")(
+        idx === null ? null : { index:idx }, cycle, N.carteSpeciale)(m);
+    }
+    var J = N.IDX_JUNGLE;
+    ok("en expédition, l'instantané du salon nous concerne",
+       porte(J, 0, { c:2, cy:0 }) === true,
+       "monde.c vaut 2 (l'île de campagne), on joue sur la carte " + J);
+    ok("… même si le cycle de campagne a bougé sans nous",
+       porte(J, 0, { c:7, cy:3 }) === true);
+    ok("sur notre île de campagne, il nous concerne aussi",
+       porte(2, 0, { c:2, cy:0 }) === true);
+    ok("sur une AUTRE île de campagne, non",
+       porte(2, 0, { c:3, cy:0 }) === false);
+    ok("… ni sur une autre campagne", porte(2, 0, { c:2, cy:1 }) === false);
+    ok("et sans partie en cours, rien à appliquer",
+       porte(null, 0, { c:2, cy:0 }) === false);
+  })();
+
+  /* LA LECTURE EXISTE. On rejoue appliqueEvenementAuJeu du fichier
+     LIVRÉ, sur des bâtiments fabriqués ici : c'est la fonction qui
+     n'était atteinte par personne. */
+  (function(){
+    var src = html.match(/function appliqueEvenementAuJeu\([\s\S]*?\n\}/);
+    var srcBl = html.match(/function appliqueBlessuresAuJeu\([\s\S]*?\n\}/);
+    if(!src || !srcBl){
+      ok("appliqueEvenementAuJeu est dans le fichier livré", false);
+      return;
+    }
+    ok("appliqueEvenementAuJeu est dans le fichier livré", true);
+    function bat(pv){ return { pvMax:1000, pv:pv, vivant:1 }; }
+    function scene(){
+      return { index:5, batiments:[bat(1000), bat(1000), bat(1000), bat(1000)],
+               qg:{ pv:9000 }, balise:null,
+               file:{ pv:9000, adopteMinimum:function(v){ if(v < this.pv) this.pv = v; } } };
+    }
+    var fini = 0;
+    function lance(j, m){
+      return new Function("jeu", "voieDeCarte", "evenementEnCours", "decodeBits",
+                          "marqueEmprise", "demandeMajBarres", "decodeBlessures",
+                          "BLESSURE_CRANS", "finExpeditionLocale",
+        srcBl[0] + "\n" + src[0] + "\nreturn appliqueEvenementAuJeu;")(
+        j, function(){ return "j"; }, N.evenementEnCours, N.decodeBits,
+        function(){}, function(){}, N.decodeBlessures, N.BLESSURE_CRANS,
+        function(){ fini++; })(m, 5);
+    }
+    /* une expédition en cours : index 0 détruit, index 1 blessé à
+       moitié, index 2 déjà plus bas que ce qu'on annonce */
+    var j = scene();
+    j.batiments[2].pv = 100;
+    var m = N.voiePosee({}, "j", {
+      e:1, f:0, d:N.encodeBits([1, 0, 0, 0]),
+      bl:N.encodeBlessures([{ i:1, n:(N.BLESSURE_CRANS * 0.5) | 0 },
+                            { i:2, n:(N.BLESSURE_CRANS * 0.8) | 0 }]),
+      q:7000, t:0, mj:2, mn:0, b:0 });
+    lance(j, m);
+    ok("en expédition, une défense détruite ailleurs tombe ici aussi",
+       !j.batiments[0].vivant && j.batiments[0].pv === 0);
+    ok("… une défense entamée ailleurs arrive entamée",
+       j.batiments[1].pv > 400 && j.batiments[1].pv < 600,
+       j.batiments[1].pv.toFixed(0) + " PV");
+    ok("… et on ne rend jamais de vie à celle qu'on a mieux abîmée",
+       j.batiments[2].pv === 100);
+    ok("… les PV du Brasier suivent la voie", j.qg.pv === 7000);
+    ok("… et une défense intacte reste intacte",
+       j.batiments[3].pv === 1000 && j.batiments[3].vivant === 1);
+    /* une expédition TERMINÉE ne touche à rien et renvoie au campement */
+    var j2 = scene();
+    lance(j2, N.voiePosee({}, "j", { e:1, f:1, d:N.encodeBits([1, 1, 1, 1]),
+            bl:"", q:1, t:0, mj:2, mn:0, b:0 }));
+    ok("une expédition terminée ne détruit plus rien et renvoie au campement",
+       j2.batiments.every(function(b){ return b.vivant === 1; }) && fini === 1);
   })();
 })();
 

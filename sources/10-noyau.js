@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.60";
+var VERSION = "v0.61";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1061,16 +1061,23 @@ function carteEnChantier(i){ return !!(CARTES[i] && CARTES[i].chantier); }
    Il y en a maintenant PLUSIEURS, et c'est le seul changement de fond
    de tout ce remaniement : la voie n'est plus « la jungle », c'est une
    LETTRE. Chaque carte événement porte la sienne dans CARTES, et les
-   huit champs se déduisent d'elle :
+   neuf champs se déduisent d'elle :
 
      <P>e   compteur de LANCEMENTS, ne fait qu'augmenter
      <P>f   compteur de FINS, ne fait qu'augmenter
             → une expédition est en cours si et seulement si e > f
-     <P>d   bâtiments détruits,  <P>q  PV du Brasier
-            → portés par l'époque <P>e, comme d et pv le sont par cy
+     <P>d   bâtiments détruits,  <P>bl  bâtiments ENTAMÉS mais debout,
+     <P>q   PV du Brasier
+            → tous les trois portés par l'époque <P>e, comme d, bl et
+              pv le sont par cy
      <P>t   heure de la dernière victoire, en ms epoch (le max gagne)
      <P>m   minimum de joueurs,  <P>mn  son numéro de réglage
      <P>b   bonus de PV des défenses, réglé avec le même numéro
+
+   ATTENTION AUX NOMS : <P>b et <P>bl sont DEUX champs différents, le
+   bonus de PV et les blessures. C'est la même discipline que <P>m et
+   <P>mn, qui cohabitent depuis toujours — les clés d'un objet ne se
+   confondent pas par leur préfixe.
 
    POURQUOI UNE LETTRE ET PAS UN TABLEAU. Parce que l'instantané est
    fusionné champ par champ par des clients qui ne connaissent pas
@@ -2854,13 +2861,31 @@ function fusionneBlessures(a, b){
   for(i in x) out.push({ i:i | 0, n:x[i] | 0 });
   return encodeBlessures(out);
 }
-/* Le cran d'un bâtiment, arrondi VERS LE BAS. */
+/* ----------------------------------------------------------------
+   LE CRAN D'UN BÂTIMENT, ARRONDI VERS LE BAS
+
+   ET LE POINT FIXE. Un bâtiment blessé fait l'aller-retour sans arrêt :
+   ses PV donnent un cran, le cran repose des PV, qui redonnent un cran.
+   Si ce cycle n'est pas STABLE, chaque tour rabote un peu de vie — des
+   dégâts gratuits, offerts par l'arrondi et non par une troupe.
+
+   Mesuré avant correction, sur une défense de 720 PV publiée toutes les
+   deux secondes : 75,0 → 74,6 → 73,1 %. Deux crans perdus pour rien, et
+   l'ampleur dépendait des PV max du bâtiment — 700 PV en perdait trois.
+   La cause était un Math.round sur les PV reposés : 47/63 de 720 vaut
+   537,14, arrondi à 537, qui redonne le cran 46 et non 47.
+
+   Deux gestes suffisent, et il faut les deux : les PV reposés restent
+   FRACTIONNAIRES (voir appliqueBlessuresAuJeu), et le plancher ici se
+   prend avec un epsilon qui absorbe le bruit du flottant. Le cycle est
+   alors un point fixe atteint en UN pas, quels que soient les PV max.
+   ---------------------------------------------------------------- */
 function cranBlessure(pv, pvMax){
   if(!(pvMax > 0)) return BLESSURE_CRANS;
   var f = pv / pvMax;
   if(!(f > 0)) return 0;
   if(f >= 1) return BLESSURE_CRANS;
-  var n = Math.floor(f * BLESSURE_CRANS);
+  var n = Math.floor(f * BLESSURE_CRANS + 1e-6);
   return n < 0 ? 0 : (n > BLESSURE_CRANS ? BLESSURE_CRANS : n);
 }
 
@@ -3626,7 +3651,7 @@ function mondeVide(index, pvMax, cycle){
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
     var V = VOIES_EVT[q], R = reglagesEvt(V.i);
-    voiePosee(o, V.P, { e:0, f:0, d:"", q:0, t:0, mj:R.minJoueurs, mn:0, b:R.pvBonus });
+    voiePosee(o, V.P, { e:0, f:0, d:"", bl:"", q:0, t:0, mj:R.minJoueurs, mn:0, b:R.pvBonus });
   }
   return o;
 }
@@ -4031,8 +4056,8 @@ function fusionneChats(a, b){
 
    `voieLue` et `voiePosee` sont les deux seuls endroits du programme
    qui connaissent les noms de champs. Tout le reste manipule la forme
-   canonique { e, f, d, q, t, mj, mn, b }, où rien ne rappelle plus la
-   jungle.
+   canonique { e, f, d, bl, q, t, mj, mn, b }, où rien ne rappelle plus
+   la jungle.
    ================================================================ */
 function voieLue(m, P, i){
   var R = reglagesEvt(i >= 0 ? i : carteDeVoie(P));
@@ -4041,6 +4066,7 @@ function voieLue(m, P, i){
     e : m[P + "e"] | 0,
     f : m[P + "f"] | 0,
     d : m[P + "d"] || "",
+    bl: m[P + "bl"] || "",
     q : m[P + "q"] | 0,
     t : msMonde(m[P + "t"]),
     mj: (m[P + "m"] | 0) || R.minJoueurs,
@@ -4053,6 +4079,7 @@ function voiePosee(o, P, v){
   o[P + "d"]  = v.d;  o[P + "q"]  = v.q;
   o[P + "t"]  = v.t;  o[P + "m"]  = v.mj;
   o[P + "mn"] = v.mn; o[P + "b"]  = v.b;
+  o[P + "bl"] = v.bl || "";
   return o;
 }
 /* Une expédition est-elle en cours sur cette voie ? */
@@ -4308,13 +4335,19 @@ function fusionneVoie(a, b, P, i){
        deux lignes plus haut. */
     b : (vb.mn > va.mn) ? vb.b : (va.mn > vb.mn) ? va.b : Math.max(va.b, vb.b)
   };
-  /* d et q appartiennent à l'époque e, comme d et pv appartiennent
-     à cy : une expédition plus récente balaie les destructions de la
-     précédente, qui ne désignent plus rien. */
-  if(vb.e > va.e){ o.d = vb.d; o.q = vb.q; }
-  else if(va.e > vb.e){ o.d = va.d; o.q = va.q; }
+  /* d, bl et q appartiennent à l'époque e, comme d, bl et pv
+     appartiennent à cy : une expédition plus récente balaie les
+     destructions ET LES BLESSURES de la précédente, qui ne désignent
+     plus rien. Les trois voyagent donc toujours ensemble — séparer les
+     blessures des morts laisserait des bâtiments à moitié détruits sur
+     une expédition toute neuve. */
+  if(vb.e > va.e){ o.d = vb.d; o.bl = vb.bl; o.q = vb.q; }
+  else if(va.e > vb.e){ o.d = va.d; o.bl = va.bl; o.q = va.q; }
   else{
     o.d = unionBits(va.d, vb.d);
+    /* Même règle que pour la campagne : union des deux listes, et le
+       plus bas cran par index. Absent veut dire intact. */
+    o.bl = fusionneBlessures(va.bl, vb.bl);
     /* à époque égale, les PV ne remontent jamais — sauf quand l'un
        des deux n'a pas encore vu le lancement et porte encore un 0 */
     o.q = (va.q && vb.q) ? Math.min(va.q, vb.q) : (va.q || vb.q);
@@ -4345,11 +4378,11 @@ function poseEvenements(o, E){
    c'est sous ces noms-là que le reste du programme la connaît. */
 function fusionneJungle(a, b){
   var E = fusionneEvenements(a, b), j = E.v.j;
-  return { je:j.e, jf:j.f, jd:j.d, jq:j.q, jt:j.t,
+  return { je:j.e, jf:j.f, jd:j.d, jbl:j.bl, jq:j.q, jt:j.t,
            jm:j.mj, jmn:j.mn, jb:j.b, ch:E.ch, t3:E.t3 };
 }
 function poseJungle(o, j){
-  voiePosee(o, "j", { e:j.je, f:j.jf, d:j.jd, q:j.jq,
+  voiePosee(o, "j", { e:j.je, f:j.jf, d:j.jd, bl:j.jbl || "", q:j.jq,
                       t:j.jt, mj:j.jm, mn:j.jmn, b:j.jb });
   o.ch = j.ch; o.t3 = j.t3;
   return o;
@@ -4429,14 +4462,18 @@ function memeEvenements(m, E){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;
     var w = voieLue(m, V.P, V.i);
+    /* les blessures comptent comme le reste : sans cette comparaison,
+       une défense qu'on vient d'entamer en expédition ne rendrait pas
+       l'instantané « sale », et personne ne la verrait jamais */
     if(w.e !== u.e || w.f !== u.f || w.d !== u.d || w.q !== u.q ||
+       w.bl !== (u.bl || "") ||
        w.t !== u.t || w.mj !== u.mj || w.mn !== u.mn || w.b !== u.b) return false;
   }
   return true;
 }
 /* Le même, dans les noms de champs de la jungle. */
 function memeJungle(m, j){
-  return memeEvenements(m, { v:{ j:{ e:j.je, f:j.jf, d:j.jd, q:j.jq,
+  return memeEvenements(m, { v:{ j:{ e:j.je, f:j.jf, d:j.jd, bl:j.jbl || "", q:j.jq,
                                      t:j.jt, mj:j.jm, mn:j.jmn, b:j.jb } },
                              ch:j.ch, t3:j.t3 });
 }

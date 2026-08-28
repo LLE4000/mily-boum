@@ -197,28 +197,9 @@ function nouvelleCarte(index, pvConnu){
     for(var q = 0; q < jeu.batiments.length; q++){
       if(bitsM[q]){ jeu.batiments[q].vivant = 0; jeu.batiments[q].pv = 0; }
     }
-    /* ================================================================
-       ET LES BLESSURES, sur ce qui est encore debout.
-
-       « Si Roro a détruit un Frelon à cinquante pour cent, pourquoi
-       est-ce que j'aurais cent pour cent à redétruire ? » — On les
-       applique donc APRÈS le bitmap des morts, et seulement aux
-       survivants : `d` gagne toujours, un bâtiment tombé ne peut pas
-       être en même temps blessé.
-
-       C'est ici que se ferme la boucle : Roro entame, publie, meurt ;
-       tu débarques, tu lis l'instantané, et tu trouves le Frelon à
-       moitié fait. Et Roro qui revient aussi. Voir le long
-       commentaire des blessures dans 10-noyau.js. */
-    var blM = decodeBlessures(monde.bl);
-    for(var q2 in blM){
-      var bq = jeu.batiments[q2 | 0];
-      if(!bq || !bq.vivant) continue;
-      var pvq = bq.pvMax * (blM[q2] / BLESSURE_CRANS);
-      /* jamais plus haut que ce qu'il a déjà : une fusion ne doit
-         jamais rendre de la vie, même par un arrondi malheureux */
-      if(pvq < bq.pv) bq.pv = Math.max(1, Math.round(pvq));
-    }
+    /* ET LES BLESSURES, sur ce qui est encore debout — APRÈS le bitmap
+       des morts, et seulement sur les survivants. */
+    appliqueBlessuresAuJeu(monde.bl);
     jeu.file.adopteMinimum(monde.pv);
     jeu.qg.pv = jeu.file.pv;
     if(monde.g){
@@ -242,6 +223,39 @@ function nouvelleCarte(index, pvConnu){
       }
     }
   }
+  /* ================================================================
+     ON DÉBARQUE DANS UNE EXPÉDITION DÉJÀ COMMENCÉE
+
+     La campagne vit dans `c`, une expédition dans sa voie — et le test
+     ci-dessus, écrit du temps où il n'y avait que la campagne, ne
+     pouvait pas la reconnaître : `monde.c` désigne l'île, jamais la
+     carte spéciale. Un joueur qui rejoignait une expédition en cours
+     bâtissait donc une jungle INTACTE, avec un Brasier plein, pendant
+     que les autres se battaient dans les ruines. Chacun sa jungle.
+
+     Mesuré : Roro détruit six défenses, publie ; la voie porte bien
+     ses 360 caractères de destructions ; Lu rejoint et les six sont
+     DEBOUT chez lui. L'écriture était juste, la lecture n'existait
+     nulle part.
+
+     Les destructions, les blessures et les PV du Brasier viennent donc
+     de la voie, exactement comme ils viennent de `d`, `bl` et `pv`
+     pour la campagne.
+     ================================================================ */
+  if(typeof monde !== "undefined" && monde && carteSpeciale(index) &&
+     !(typeof modeApercu !== "undefined" && modeApercu) &&
+     typeof voieDeCarte === "function" && voieDeCarte(index) &&
+     evenementEnCours(monde, voieDeCarte(index))){
+    var ve = voieLue(monde, voieDeCarte(index), index);
+    var bitsE = decodeBits(ve.d, jeu.batiments.length);
+    for(var qe = 0; qe < jeu.batiments.length; qe++){
+      if(bitsE[qe]){ jeu.batiments[qe].vivant = 0; jeu.batiments[qe].pv = 0; }
+    }
+    appliqueBlessuresAuJeu(ve.bl);
+    /* q vaut 0 tant que personne n'a encore publié depuis la carte :
+       le Brasier reste alors plein, ce qui est la vérité. */
+    if(ve.q){ jeu.file.adopteMinimum(ve.q); jeu.qg.pv = jeu.file.pv; }
+  }
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
     jeu.qg.pv = jeu.file.pv;
@@ -256,6 +270,58 @@ function nouvelleCarte(index, pvConnu){
   construitContourIle();
   construitSol(carte);
   centreSurPlage();
+}
+
+/* ================================================================
+   POSER LES BLESSURES SUR LA CARTE
+
+   « Si Roro a détruit un Frelon à cinquante pour cent, pourquoi
+   est-ce que j'aurais cent pour cent à redétruire ? »
+
+   Trois endroits en ont besoin, et ils veulent tous exactement la
+   même chose : le chargement d'une carte de campagne, le chargement
+   d'une expédition en cours, et l'arrivée d'un instantané pendant
+   qu'on joue. D'où une seule fonction.
+
+   DEUX RÈGLES, ET ELLES NE SE DISCUTENT PAS.
+
+   `d` GAGNE. Un bâtiment que l'instantané déclare tombé ne peut pas
+   être en même temps blessé : on éteint les morts d'abord, et ce qui
+   suit ne touche plus qu'aux survivants. Sans cet ordre, une vieille
+   blessure ressusciterait un bâtiment détruit avec un point de vie.
+
+   ON NE REND JAMAIS DE VIE. Le cran reçu n'est appliqué que s'il
+   descend plus bas que ce qu'on a déjà. C'est ce qui rend l'opération
+   monotone, donc rejouable dans n'importe quel ordre, autant de fois
+   qu'on veut — la même discipline que `adopteMinimum` pour le Brasier
+   et que `unionBits` pour les morts. Un instantané en retard ne peut
+   pas défaire le travail d'un instantané en avance.
+
+   Le plancher à 1 PV est l'autre face de la même règle : le cran 0
+   veut dire « à l'agonie », pas « mort ». Seule une destruction tue,
+   et une destruction passe par `d`.
+
+   ET LES PV RESTENT FRACTIONNAIRES. Les arrondir semblait propre : un
+   bâtiment à 537,14 PV valait bien 537. Sauf que 537 sur 720 ne rend
+   plus le cran 47 mais le cran 46, et qu'on republie toutes les deux
+   secondes — le bâtiment perdait donc de la vie à chaque tour, sans
+   que personne ne lui tire dessus. Mesuré : 75,0 → 74,6 → 73,1 %.
+   Sans l'arrondi, le cycle se referme sur lui-même dès le premier pas.
+   Voir cranBlessure dans 10-noyau.js, qui porte l'autre moitié de la
+   correction. Les PV du jeu sont flottants partout ailleurs — les
+   dégâts se comptent en points par seconde — donc rien ne réclamait
+   cet entier.
+   ================================================================ */
+function appliqueBlessuresAuJeu(chaine){
+  if(!jeu || !chaine) return 0;
+  var bl = decodeBlessures(chaine), n = 0;
+  for(var i in bl){
+    var b = jeu.batiments[i | 0];
+    if(!b || !b.vivant) continue;
+    var pv = b.pvMax * (bl[i] / BLESSURE_CRANS);
+    if(pv < b.pv){ b.pv = Math.max(1, pv); n++; }
+  }
+  return n;
 }
 
 /* ---------------------------------------------------------------
