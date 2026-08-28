@@ -214,14 +214,16 @@ function chargeCarteDansEditeur(){
 function chargeChaineDansEditeur(s){
   planZones = partieQuadrillage(s) ? decodePlan(partieQuadrillage(s)) : planVide();
   planFormes = decodeFormes(partieFormes(s));
+  planPieces = decodePieces(partiePieces(s));
   planSel = planFormes.length ? 0 : -1;
-  planTrace = null; planPoly = null; planPoignee = -1;
+  planPieceSel = -1;
+  planTrace = null; planPoly = null; planPoignee = -1; planPiecePrise = null;
   planApercuSale = true;
 }
 /* Et la chaîne que l'éditeur produit. Symétrique de la précédente,
    et pour la même raison. */
 function chainePlanCourante(){
-  return encodePlanComplet(planZones, planFormes);
+  return encodePlanComplet(planZones, planFormes, planPieces);
 }
 /* Passer d'une carte à l'autre sans quitter l'éditeur. C'est ce qui
    permet de les COMPARER, et donc de vérifier qu'elles ont bien des
@@ -230,14 +232,14 @@ function choisitCartePlan(i){
   if(i === planCarteIdx) return;
   var enCours = chainePlanCourante();
   var gardee = planCarte(planSalon, planCarteIdx) || planDefaut(planCarteIdx);
-  if(enCours !== gardee && (zonesPeintes(planZones) || planFormes.length) &&
+  if(enCours !== gardee && (zonesPeintes(planZones) || planFormes.length || planPieces.length) &&
      !confirm("La carte « " + CARTES[planCarteIdx].nom + " » a des modifications\n"
             + "qui ne sont pas enregistrées. Les abandonner ?")) return;
   planCarteIdx = i | 0;
   chargeCarteDansEditeur();
   construitOngletsCartes();
   ajustePlanCv();
-  construitListeFormes(); construitFicheForme();
+  construitListeFormes(); construitFicheForme(); construitListePieces();
   majPanneauPlan();
   dessinePlan();
 }
@@ -330,14 +332,18 @@ var ICONE_FORME = ["◯", "◎", "▭", "╱", "⬠"];
 
 function basculeModePlan(m){
   planMode = m | 0;
-  planTrace = null; planPoly = null; planPoignee = -1;
-  $("planBlocPinceau").style.display = planMode ? "none" : "";
-  $("planBlocFormes").style.display  = planMode ? "" : "none";
+  planTrace = null; planPoly = null; planPoignee = -1; planPiecePrise = null;
+  $("planBlocPinceau").style.display = (planMode === 0) ? "" : "none";
+  $("planBlocFormes").style.display  = (planMode === 1) ? "" : "none";
+  var bp = $("planBlocPieces");
+  if(bp) bp.style.display = (planMode === 2) ? "" : "none";
   var e = $("planModes").querySelectorAll("[data-mode]"), i;
   for(i = 0; i < e.length; i++) e[i].classList.toggle("on", (+e[i].getAttribute("data-mode")) === planMode);
   construitOutilsFormes();
   construitListeFormes();
   construitFicheForme();
+  construitOutilsPieces();
+  construitListePieces();
   majPanneauPlan();
   dessinePlan();
 }
@@ -484,8 +490,14 @@ function formeModifiee(){
   dessinePlan(); majPanneauPlan();
 }
 function poussePile(){
-  planPile.push({ z:planZones.slice(), f:copieFormes(planFormes) });
+  planPile.push({ z:planZones.slice(), f:copieFormes(planFormes),
+                  p:copiePieces(planPieces) });
   if(planPile.length > 40) planPile.shift();
+}
+function copiePieces(l){
+  var o = [], i;
+  for(i = 0; i < l.length; i++) o.push({ t:l[i].t, gx:l[i].gx, gy:l[i].gy });
+  return o;
 }
 function copieFormes(l){
   var o = [], i;
@@ -499,6 +511,211 @@ function copieFormes(l){
 function choisitForme(i){
   planSel = (i === planSel) ? planSel : i;
   construitListeFormes(); construitFicheForme(); dessinePlan();
+}
+
+
+/* =================================================================
+   LA PINCE — POSER LES DÉFENSES UNE À UNE
+
+   « Ajoute-moi l'option d'ajouter des défenses une à une : je
+   sélectionne une défense, je l'ajoute où je veux, et je l'ajuste
+   comme j'en ai envie. »
+
+   Le pinceau peint des intentions, le compas trace des formes ; ni
+   l'un ni l'autre ne sait dire « celle-là, ici, exactement ». La
+   pince, si. Elle pose une tourelle au dixième de case, la déplace
+   sous le doigt, et la retire d'un appui.
+
+   CE QU'ELLE A DE PARTICULIER, ET QUI COMMANDE TOUT LE RESTE : une
+   pièce posée à la main ne demande rien au générateur. Elle ne
+   consomme aucun tirage, elle ne respecte ni la densité de sa zone ni
+   l'encombrement de ses voisines, et elle s'ajoute TOUT À LA FIN du
+   tableau des bâtiments (voir `genereCarte`). En ajouter une ne
+   déplace donc rien de ce qui existait — ce qui est exactement ce
+   qu'on attend d'un outil de retouche.
+
+   TROIS GESTES, ET PAS UN DE PLUS :
+     APPUYER SUR LE VIDE     pose une pièce du genre choisi
+     APPUYER SUR UNE PIÈCE   la sélectionne
+     GLISSER                 la déplace, au dixième de case
+   Le bouton ✕ de la liste la retire, et ⧉ la duplique. Pas d'appui
+   long : il se confondrait avec le début d'un glissé, et l'on
+   effacerait en voulant ajuster.
+   ================================================================= */
+var planPieces = [];         // les pièces de la carte en cours d'édition
+var planPieceSel = -1;       // celle qu'on tient, -1 si aucune
+var planPiecePrise = null;   // { dx, dy } l'écart au moment de la prise
+var planPieceOutil = 3;      // indice dans TYPES_PLAN — le Frelon par défaut
+
+/* Le rayon d'une pièce à l'écran de l'éditeur, et celui où le doigt
+   l'attrape. Le second est plus large : une tourelle fait deux ou
+   trois cases, et à l'île entière cela ne pèse que quelques pixels. */
+function rPiecePlan(t){
+  var n = TYPES_PLAN[t], f = n && DEF[n];
+  return Math.max(1.6, (f ? f.emprise : 2) * planEch * 0.42);
+}
+function prisePiecePlan(t){
+  return Math.max(rPiecePlan(t), 11 * planDpr);
+}
+/* La pièce sous le doigt, la DERNIÈRE posée d'abord : c'est celle
+   qu'on voit au-dessus, donc celle qu'on croit attraper. */
+function piecePlanSous(gx, gy){
+  for(var i = planPieces.length - 1; i >= 0; i--){
+    var P = planPieces[i];
+    var d = Math.hypot((P.gx - gx) * planEch, (P.gy - gy) * planEch);
+    if(d <= prisePiecePlan(P.t)) return i;
+  }
+  return -1;
+}
+/* Le dixième de case est le grain du format enregistré : on y arrondit
+   dès la pose, pour que ce qu'on voit soit exactement ce qui sera
+   écrit. Sans cela, une pièce se décalait d'un cheveu entre l'éditeur
+   et la partie. */
+function grainPiece(v){ return Math.round(v * 10) / 10; }
+
+function choisitOutilPiece(i){
+  planPieceOutil = i | 0;
+  construitOutilsPieces();
+  majPanneauPlan();
+}
+function construitOutilsPieces(){
+  var e = $("planPiecesOutils");
+  if(!e) return;
+  var h = "", i;
+  for(i = 0; i < TYPES_PLAN.length; i++){
+    if(!pieceEstPosable(i)) continue;      // ni « auto », ni la gomme forte
+    h += '<div class="pz' + (i === planPieceOutil ? " on" : "") + '" data-piece="' + i + '">'
+       + '<i style="background:' + coulOutilPlan(i) + '"></i>' + nomOutilPlan(i) + '</div>';
+  }
+  e.innerHTML = h;
+}
+/* La liste, la dernière posée en tête — comme celle des formes, et
+   pour la même raison : c'est celle qu'on vient de toucher. */
+function construitListePieces(){
+  var e = $("planPiecesListe");
+  if(!e) return;
+  if(!planPieces.length){
+    e.innerHTML = '<div class="planAide">Aucune pièce. Choisis une défense ci-dessus '
+      + 'et <b>appuie sur la carte</b> pour la poser. Glisse-la pour l\'ajuster, '
+      + '✕ pour la retirer.</div>';
+    return;
+  }
+  var h = "", i;
+  for(i = planPieces.length - 1; i >= 0; i--){
+    var P = planPieces[i];
+    h += '<div class="pfo' + (i === planPieceSel ? " on" : "") + '" data-piece-i="' + i + '">'
+       + '<span class="g"><s style="background:' + coulOutilPlan(P.t) + '"></s></span>'
+       + '<span class="n"><b>' + echappe(nomOutilPlan(P.t)) + '</b> '
+       + '<span class="g">' + P.gx.toFixed(1) + " ; " + P.gy.toFixed(1) + '</span></span>'
+       + '<button class="pfa" data-pdup="' + i + '" title="Dupliquer">⧉</button>'
+       + '<button class="pfa danger" data-psup="' + i + '" title="Supprimer">✕</button>'
+       + '</div>';
+  }
+  e.innerHTML = h;
+}
+function choisitPiece(i){
+  planPieceSel = i;
+  construitListePieces();
+  dessinePlan();
+  majPanneauPlan();
+}
+function supprimePiece(i){
+  if(i < 0 || i >= planPieces.length) return;
+  poussePile();
+  planPieces.splice(i, 1);
+  if(planPieceSel === i) planPieceSel = -1;
+  else if(planPieceSel > i) planPieceSel--;
+  planApercuSale = true;
+  construitListePieces(); dessinePlan(); majPanneauPlan();
+}
+function dupliquePiece(i){
+  if(i < 0 || i >= planPieces.length) return;
+  poussePile();
+  var P = planPieces[i];
+  /* décalée d'une case et demie : posée pile dessus, on ne verrait pas
+     qu'il y en a deux et l'on croirait le bouton cassé */
+  planPieces.push({ t:P.t, gx:grainPiece(P.gx + 1.5), gy:grainPiece(P.gy + 1.5) });
+  planPieceSel = planPieces.length - 1;
+  planApercuSale = true;
+  construitListePieces(); dessinePlan(); majPanneauPlan();
+}
+
+/* ---- LE GESTE ----
+   Trois fonctions, appelées par le même trio que le pinceau et le
+   compas : début, glissé, fin. */
+function debutPiece(sx, sy){
+  var p = planVersCase(sx, sy);
+  var i = piecePlanSous(p.gx, p.gy);
+  if(i >= 0){
+    /* on ATTRAPE, on ne repose pas : le décalage de prise est retenu
+       pour que la pièce suive le doigt au lieu de sauter dessous. */
+    planPieceSel = i;
+    planPiecePrise = { dx:planPieces[i].gx - p.gx, dy:planPieces[i].gy - p.gy };
+    planDejaEmpile = 0;
+    construitListePieces(); dessinePlan(); majPanneauPlan();
+    return;
+  }
+  /* le vide : on pose. Hors de la terre bâtissable, on ne pose rien —
+     le générateur refuserait la pièce et l'éditeur mentirait. */
+  if(!piecePosableEn(p.gx, p.gy)) return;
+  poussePile();
+  planPieces.push({ t:planPieceOutil, gx:grainPiece(p.gx), gy:grainPiece(p.gy) });
+  planPieceSel = planPieces.length - 1;
+  planPiecePrise = { dx:0, dy:0 };
+  planDejaEmpile = 1;
+  planApercuSale = true;
+  construitListePieces(); dessinePlan(); majPanneauPlan();
+}
+function bougePiece(sx, sy){
+  if(planPieceSel < 0 || !planPiecePrise) return;
+  var p = planVersCase(sx, sy);
+  var nx = grainPiece(p.gx + planPiecePrise.dx), ny = grainPiece(p.gy + planPiecePrise.dy);
+  if(!piecePosableEn(nx, ny)) return;
+  var P = planPieces[planPieceSel];
+  if(P.gx === nx && P.gy === ny) return;
+  /* UNE SEULE ENTRÉE D'HISTORIQUE PAR GESTE : un glissé envoie cent
+     événements, et « Annuler » doit défaire le déplacement, pas le
+     pixel. */
+  if(!planDejaEmpile){ poussePile(); planDejaEmpile = 1; }
+  P.gx = nx; P.gy = ny;
+  planApercuSale = true;
+  construitListePieces(); dessinePlan(); majPanneauPlan();
+}
+function finPiece(){
+  planPiecePrise = null;
+  planDejaEmpile = 0;
+}
+/* Les deux bornes du générateur, recopiées ici pour que l'éditeur ne
+   promette rien qu'il ne tienne : hors de la terre bâtissable ou dans
+   l'emprise du Brasier, `genereCarte` jette la pièce. */
+function piecePosableEn(gx, gy){
+  if(gx < 6 || gx > PLAGE_X0 - 3 || gy < 3 || gy > GH - 4) return false;
+  return !(Math.abs(gx - QG_GX) <= 10 && Math.abs(gy - QG_GY) <= 10);
+}
+
+/* ---- LE DESSIN ----
+   Les pièces se dessinent PAR-DESSUS tout le reste, et se distinguent
+   des défenses générées par un liseré clair : sur une carte qui en
+   porte huit cents, il faut pouvoir retrouver les cinq qu'on a posées
+   soi-même. */
+function dessinePiecesPlan(c, e, ox, oy){
+  if(!planPieces.length) return;
+  for(var i = 0; i < planPieces.length; i++){
+    var P = planPieces[i], x = ox + P.gx * e, y = oy + P.gy * e;
+    var r = rPiecePlan(P.t), choisie = (i === planPieceSel && planMode === 2);
+    c.fillStyle = coulOutilPlan(P.t);
+    c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+    c.strokeStyle = choisie ? "#ffffff" : "rgba(255,255,255,.72)";
+    c.lineWidth = Math.max(1, e * (choisie ? 0.22 : 0.13));
+    c.beginPath(); c.arc(x, y, r + c.lineWidth, 0, 6.2832); c.stroke();
+    if(choisie){
+      /* la poignée : un anneau large, à la taille du doigt, qui dit
+         « celle-ci se tient et se glisse » */
+      c.strokeStyle = "rgba(255,255,255,.35)";
+      c.lineWidth = Math.max(1, planDpr);
+      c.beginPath(); c.arc(x, y, prisePiecePlan(P.t), 0, 6.2832); c.stroke();
+    }
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -739,6 +956,10 @@ function dessinePlan(){
   /* les formes, PAR-DESSUS les défenses : c'est l'ordre dans lequel
      elles agissent, l'éditeur doit le montrer tel quel */
   dessineFormes(c, e, ox, oy);
+  /* et les pièces posées à la main tout au-dessus : elles sont
+     ajoutées en dernier par le générateur, et ce sont elles qu'on
+     manipule */
+  dessinePiecesPlan(c, e, ox, oy);
 
   /* le Brasier */
   var qx = ox + QG_GX * e, qy = oy + QG_GY * e;
@@ -1334,7 +1555,10 @@ function installePlan(){
     var p = deuxDoigts(ev);
     if(!p) return false;
     /* on lâche le trait en cours, proprement */
-    if(planDoigt !== null){ if(planMode) finForme(); planDoigt = null; }
+    if(planDoigt !== null){
+      if(planMode === 2) finPiece(); else if(planMode === 1) finForme();
+      planDoigt = null;
+    }
     pince = p;
     return true;
   }
@@ -1362,7 +1586,8 @@ function installePlan(){
        qui empile, et seulement quand le geste modifie vraiment quelque
        chose : sans ça, chaque simple sélection consommerait une place
        et « Annuler » ne remonterait plus nulle part. */
-    if(planMode) debutForme(t.clientX, t.clientY);
+    if(planMode === 2) debutPiece(t.clientX, t.clientY);
+    else if(planMode === 1) debutForme(t.clientX, t.clientY);
     else{
       poussePile();
       if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
@@ -1374,7 +1599,8 @@ function installePlan(){
     if(planDoigt === null) return;
     var t = ev.changedTouches ? ev.changedTouches[0] : ev;
     if(ev.changedTouches && t.identifier !== planDoigt) return;
-    if(planMode) bougeForme(t.clientX, t.clientY);
+    if(planMode === 2) bougePiece(t.clientX, t.clientY);
+    else if(planMode === 1) bougeForme(t.clientX, t.clientY);
     else if(peintZoneEn(t.clientX, t.clientY)){ dessinePlan(); majPanneauPlan(); }
     ev.preventDefault();
   }
@@ -1393,7 +1619,8 @@ function installePlan(){
     }
     if(planDoigt === null) return;
     planDoigt = null;
-    if(planMode) finForme();
+    if(planMode === 2) finPiece();
+    else if(planMode === 1) finForme();
     ev.preventDefault();
   }
   /* La molette, pour qui édite à la souris. Le zoom se fait sous le
@@ -1556,18 +1783,48 @@ function installePlan(){
     ouvrePlan(carteSalon);
   });
   $("btPlanFerme").addEventListener("click", fermePlan);
+  /* ---- LA PINCE : sa palette et sa liste ----
+     Délégués sur le conteneur, comme tout le reste de l'éditeur : les
+     listes se reconstruisent à chaque geste, et rebrancher un
+     écouteur par bouton en fuirait un à chaque fois. */
+  var bpo = $("planPiecesOutils");
+  if(bpo) bpo.addEventListener("click", function(ev){
+    var e = ev.target.closest ? ev.target.closest("[data-piece]") : null;
+    if(e) choisitOutilPiece(+e.getAttribute("data-piece"));
+  });
+  var bpl = $("planPiecesListe");
+  if(bpl) bpl.addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    var b;
+    if((b = ev.target.closest("[data-psup]"))){
+      ev.stopPropagation();
+      supprimePiece(+b.getAttribute("data-psup"));
+      return;
+    }
+    if((b = ev.target.closest("[data-pdup]"))){
+      ev.stopPropagation();
+      dupliquePiece(+b.getAttribute("data-pdup"));
+      return;
+    }
+    if((b = ev.target.closest("[data-piece-i]"))) choisitPiece(+b.getAttribute("data-piece-i"));
+  });
+
   $("btPlanAnnule").addEventListener("click", function(){
     if(!planPile.length) return;
     var av = planPile.pop();
-    planZones = av.z; planFormes = av.f;
+    planZones = av.z; planFormes = av.f; planPieces = av.p || [];
     if(planSel >= planFormes.length) planSel = planFormes.length - 1;
+    if(planPieceSel >= planPieces.length) planPieceSel = planPieces.length - 1;
     planApercuSale = true;
+    construitListePieces();
     dessinePlan(); majPanneauPlan();
   });
   $("btPlanVide").addEventListener("click", function(){
     poussePile();
     planZones = planVide(); planFormes = []; planSel = -1;
+    planPieces = []; planPieceSel = -1;
     planApercuSale = true;
+    construitListePieces();
     dessinePlan(); majPanneauPlan();
   });
   /* Garder par défaut : rien ne part sur le réseau, rien ne change
@@ -1650,7 +1907,7 @@ function comptePlan(){
     par[t] = (par[t] || 0) + 1; n++;
   }
   return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
-           formes:planFormes.length,
+           formes:planFormes.length, pieces:planPieces.length,
            /* LA VIE TOTALE DES DÉFENSES, blindage et bonus compris.
               C'est le seul chiffre qui dise vraiment ce que le plan
               coûtera à démonter, et il doit être donné en UNE valeur —
@@ -1707,6 +1964,8 @@ function majPanneauPlan(){
     "<b>" + c.peintes + "</b> zone" + (c.peintes > 1 ? "s" : "") + " peinte"
     + (c.peintes > 1 ? "s" : "") + " sur " + NB_ZONES
     + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
+    + (c.pieces ? " · <b>" + c.pieces + "</b> pièce" + (c.pieces > 1 ? "s" : "")
+                + " à la main" : "")
     + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
     /* LA VIE TOTALE, EN UN SEUL CHIFFRE. Blindage et bonus
@@ -1739,6 +1998,24 @@ function majPanneauPlan(){
           + (tirageSalon | 0) + "</b>")
     + "</span>";
 
+  /* EN MODE PINCE, l'aide dit ce qu'on tient et ce que ça coûte : la
+     fiche de la défense choisie, comme au pinceau, plus le rappel des
+     trois gestes. */
+  if(planMode === 2){
+    var tp = TYPES_PLAN[planPieceOutil];
+    var sel = (planPieceSel >= 0 && planPieceSel < planPieces.length)
+            ? planPieces[planPieceSel] : null;
+    $("planInfo").innerHTML =
+      "<b>" + echappe(nomOutilPlan(planPieceOutil)) + "</b><br>" + ficheDefense(tp)
+      + '<br><span style="color:#8f86a0">Appuie sur la carte pour la poser, '
+      + "glisse pour l'ajuster. Une pièce posée à la main ne suit ni la densité "
+      + "ni le tirage : elle est là où tu l'as mise, et elle s'ajoute "
+      + "APRÈS tout le reste.</span>"
+      + (sel ? '<br><b style="color:#8ff0b4">' + echappe(nomOutilPlan(sel.t))
+               + " tenu en " + sel.gx.toFixed(1) + " ; " + sel.gy.toFixed(1) + "</b>" : "");
+    majAvertPlan(c);
+    return;
+  }
   /* En mode compas, l'aide parle de ce qu'on est en train de faire :
      l'outil choisi, ou la forme qu'on règle. */
   if(planMode){

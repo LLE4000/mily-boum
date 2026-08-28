@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.81";
+var VERSION = "v0.82";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1870,7 +1870,29 @@ function genereCarte(codeSalon, index, plan, tirage){
   /* P porte TOUT ce que le plan sait dire : le quadrillage peint au
      doigt et les formes tracées au compas. genereCarte ne les
      distingue plus — il pose une question, planEn répond. */
-  var P = (plan && typeof plan === "string" && plan.length) ? litPlan(plan, tirage) : null;
+  /* ════════════════════════════════════════════════════════════════
+     UN PLAN QUI NE DIT RIEN AU QUADRILLAGE NE DOIT PAS LE REBATTRE.
+
+     Les deux branches du quadrillage — avec plan et sans plan — ne
+     consomment PAS le tirage dans le même ordre : c'est voulu, et
+     c'est ce qui garantit qu'un coup de pinceau ne décale que ce qu'il
+     touche. Mais cela veut dire que la seule PRÉSENCE d'un plan refait
+     l'île entière.
+
+     Or une pièce posée à la main ne dit rien au quadrillage. Ajouter un
+     Frelon dans un coin rebattait pourtant les huit cents autres
+     défenses — mesuré : vingt-trois bâtiments d'écart pour une seule
+     pièce ajoutée. C'est exactement le contraire de ce qu'on attend
+     d'un outil qu'on manie à la main.
+
+     On sépare donc les deux : `P` est ce que le plan dit au
+     QUADRILLAGE, et il vaut null quand le plan n'a ni zone peinte ni
+     forme ; `PIECES` est la liste posée à la main, qui ne consomme
+     aucun tirage et s'ajoute tout à la fin.
+     ════════════════════════════════════════════════════════════════ */
+  var PL = (plan && typeof plan === "string" && plan.length) ? litPlan(plan, tirage) : null;
+  var PIECES = (PL && PL.pieces && PL.pieces.length) ? PL.pieces : null;
+  var P = (PL && (PL.zones || PL.formes.length)) ? PL : null;
   var c = {
     index:index, graine:gr, nom:fic.nom, biome:fic.biome, tirage:tirage,
     batiments:[], rochers:[], decors:[], creatures:[],
@@ -2509,6 +2531,56 @@ function genereCarte(codeSalon, index, plan, tirage){
     saleIbiza(c, alI);
     ouvreLaFete(c, avantIbiza, PAVOIS_POCHE, 1, PAVOIS_PASSES_RENFORT);
     degraisseIbiza(c, avantIbiza);
+  }
+
+  /* ================================================================
+     LES PIÈCES POSÉES À LA MAIN — EN TOUT DERNIER, ET C'EST LA RÈGLE
+
+     « Je sélectionne une défense, je l'ajoute où je veux, et je
+     l'ajuste comme j'en ai envie. »
+
+     Elles s'ajoutent APRÈS TOUT LE RESTE, y compris les miradors, les
+     cellules et les figures d'Ibiza et de la guinguette. C'est la
+     discipline de la maison, et ici elle a une vertu de plus : le
+     créateur peut ajouter, déplacer ou retirer une pièce sans jamais
+     toucher au rang de ce qui existait avant elle. Seules les pièces
+     qui la suivent DANS SA PROPRE LISTE se décalent — et l'éditeur
+     prévient déjà qu'un plan validé refait la carte.
+
+     ELLES NE DEMANDENT RIEN À PERSONNE. Ni le pas du quadrillage, ni
+     la gomme forte, ni l'encombrement des voisines : on les a posées
+     là exprès, à la case et au dixième près. Deux garde-fous
+     seulement, et ils ne sont pas négociables :
+       — LE TERRAIN. Hors de la terre bâtissable, une tourelle serait
+         dans la mer ou dans la roche du bord.
+       — L'EMPRISE DU BRASIER. Le QG a son carré, et une défense
+         plantée dedans le rendrait imprenable.
+     Ce sont exactement les deux bornes que le quadrillage respecte
+     lui-même.
+
+     ET AUCUN TIRAGE N'EST CONSOMMÉ ICI : la liste est écrite dans le
+     plan, elle ne dépend pas du hasard. Ajouter une pièce ne rebat
+     donc rien de ce qui précède — ce qui est précisément ce qu'on veut
+     d'un outil qu'on manie à la main.
+     ================================================================ */
+  if(PIECES){
+    for(var ip = 0; ip < PIECES.length; ip++){
+      var PC = PIECES[ip], tp = TYPES_PLAN[PC.t | 0];
+      if(!tp || !DEF[tp]) continue;
+      var pgx = PC.gx, pgy = PC.gy;
+      if(pgx < 6 || pgx > PLAGE_X0 - 3 || pgy < 3 || pgy > GH - 4) continue;
+      if(Math.abs(pgx - QG_GX) <= 10 && Math.abs(pgy - QG_GY) <= 10) continue;
+      var fp = DEF[tp];
+      c.batiments.push({
+        t:tp, gx:pgx, gy:pgy, pv:fp.pv, pvMax:fp.pv, e:fp.emprise,
+        /* L'ORIENTATION VIENT DE LA POSITION, et non d'un tirage : une
+           pièce déplacée d'un dixième de case ne doit pas se remettre
+           à tourner sur elle-même sous le doigt du créateur. Le hachage
+           est stable, et deux voisines ne regardent pas du même côté. */
+        ang:((Math.round(pgx * 10) * 73 + Math.round(pgy * 10) * 149) % 360) * 0.017453,
+        vivant:1, main:1, n:c.batiments.length
+      });
+    }
   }
 
   /* --- LES CHATS DE MILY SORTENT DES MURS ---
@@ -5771,6 +5843,26 @@ var REPARTITIONS = [
    des six cartes), ni un caractère d'ALPHA_BITS : elle ne peut donc
    apparaître nulle part ailleurs par accident. */
 var MARQUE_FORMES = "*";
+/* ================================================================
+   ET LA MARQUE DES PIÈCES POSÉES UNE À UNE
+
+   « Dans l'éditeur, ajoute-moi l'option d'ajouter des défenses une à
+   une : je sélectionne une défense, je l'ajoute où je veux, et je
+   l'ajuste comme j'en ai envie. »
+
+   Le plan savait dire deux choses : « peins cette zone comme ceci »
+   (le pinceau) et « remplis cette forme comme cela » (le compas). Il
+   ne savait pas dire « celle-là, ici, exactement ». C'est la troisième
+   section, et elle vient après les deux autres dans la même chaîne
+   enregistrée, séparée par « + ».
+
+   Le caractère est choisi comme les deux précédents : il n'appartient
+   ni à l'alphabet d'encodeBits, ni aux séparateurs du paquet des
+   cartes (« : » et « | »), ni aux marques déjà prises (« ~ », « * »).
+   Une chaîne écrite avant cette version n'en contient donc aucun, et
+   se relit inchangée — les anciens plans continuent de fonctionner.
+   ================================================================ */
+var MARQUE_PIECES = "+";
 
 /* ----------------------------------------------------------------
    LE HACHAGE DE POSITION
@@ -6095,20 +6187,78 @@ function decodeFormes(s){
   }
   return l;
 }
-/* Une chaîne de plan complète : le quadrillage, puis les formes. */
-function encodePlanComplet(zones, formes){
-  var a = encodePlan(zones), b = encodeFormes(formes);
-  return b ? (a + MARQUE_FORMES + b) : a;
+/* ----------------------------------------------------------------
+   LES PIÈCES POSÉES UNE À UNE
+
+   Une pièce tient en trois nombres : le type (indice dans TYPES_PLAN)
+   et sa position, en DIXIÈMES DE CASE. Le dixième est le bon grain :
+   c'est plus fin que l'œil ne distingue à l'écran, et cela tient en
+   quatre chiffres au lieu d'un flottant à rallonge. Trente pièces
+   coûtent moins de quatre cents caractères.
+
+     « 3.762.681 » — un Frelon en (76,2 ; 68,1)
+
+   Défensif de bout en bout, comme les formes : une pièce illisible est
+   JETÉE, pas devinée. Un type qui n'est pas une défense — « auto », la
+   gomme forte — est jeté aussi : on ne pose pas une intention à
+   l'unité, on pose une tourelle.
+   ---------------------------------------------------------------- */
+function pieceEstPosable(t){
+  var n = TYPES_PLAN[t];
+  return !!(n && n !== "auto" && n !== "vide" && DEF[n]);
 }
+function encodePieces(l){
+  if(!l || !l.length) return "";
+  var out = [], i;
+  for(i = 0; i < l.length; i++){
+    var P = l[i];
+    if(!pieceEstPosable(P.t | 0)) continue;
+    out.push((P.t | 0) + "." + Math.round(P.gx * 10) + "." + Math.round(P.gy * 10));
+  }
+  return out.join(";");
+}
+function decodePieces(s){
+  var l = [];
+  if(!s || typeof s !== "string") return l;
+  var p = s.split(";"), i;
+  for(i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var ch = p[i].split(".");
+    if(ch.length !== 3) continue;
+    var t = parseInt(ch[0], 10), x = parseInt(ch[1], 10), y = parseInt(ch[2], 10);
+    if(!pieceEstPosable(t) || !isFinite(x) || !isFinite(y)) continue;
+    l.push({ t:t, gx:x / 10, gy:y / 10 });
+  }
+  return l;
+}
+/* Une chaîne de plan complète : le quadrillage, les formes, les pièces. */
+function encodePlanComplet(zones, formes, pieces){
+  var a = encodePlan(zones), b = encodeFormes(formes), c = encodePieces(pieces);
+  var s = b ? (a + MARQUE_FORMES + b) : a;
+  return c ? (s + MARQUE_PIECES + c) : s;
+}
+/* LES TROIS DÉCOUPES, ET ELLES SE LISENT DANS L'ORDRE. La marque des
+   pièces vient toujours APRÈS celle des formes : chercher la première
+   suffit donc à borner chaque section, et une chaîne d'avant cette
+   version — qui n'a pas de « + » — rend une liste de pièces vide sans
+   qu'aucun test de version soit nécessaire. */
 function partieQuadrillage(s){
   if(typeof s !== "string") return "";
-  var i = s.indexOf(MARQUE_FORMES);
-  return i < 0 ? s : s.substr(0, i);
+  var i = s.indexOf(MARQUE_FORMES), j = s.indexOf(MARQUE_PIECES);
+  if(i < 0) i = (j < 0) ? s.length : j;
+  return s.substr(0, i);
 }
 function partieFormes(s){
   if(typeof s !== "string") return "";
   var i = s.indexOf(MARQUE_FORMES);
-  return i < 0 ? "" : s.substr(i + 1);
+  if(i < 0) return "";
+  var j = s.indexOf(MARQUE_PIECES);
+  return (j < 0) ? s.substr(i + 1) : s.substring(i + 1, j);
+}
+function partiePieces(s){
+  if(typeof s !== "string") return "";
+  var j = s.indexOf(MARQUE_PIECES);
+  return (j < 0) ? "" : s.substr(j + 1);
 }
 
 /* ----------------------------------------------------------------
@@ -6123,8 +6273,10 @@ function litPlan(chaine, tirage){
   var zones = (q && q.length) ? decodePlan(q) : null;
   if(zones && !zonesPeintes(zones)) zones = null;
   var formes = decodeFormes(partieFormes(chaine));
-  if(!zones && !formes.length) return null;      // aucune intention : carte d'origine
-  return { zones:zones, formes:formes, tirage:tirage | 0 };
+  var pieces = decodePieces(partiePieces(chaine));
+  /* aucune intention : carte d'origine */
+  if(!zones && !formes.length && !pieces.length) return null;
+  return { zones:zones, formes:formes, pieces:pieces, tirage:tirage | 0 };
 }
 /* La dernière forme posée l'emporte : c'est l'ordre d'une pile de
    calques, celui que l'œil attend quand on empile des dessins. */
@@ -6161,7 +6313,8 @@ function planEn(P, gx, gy){
 /* Combien de formes, et combien de zones : de quoi dire à l'éditeur
    si un plan est vide sans avoir à le regarder en détail. */
 function planEstVide(P){
-  return !P || (!P.formes.length && (!P.zones || !zonesPeintes(P.zones)));
+  return !P || (!P.formes.length && !(P.pieces && P.pieces.length) &&
+                (!P.zones || !zonesPeintes(P.zones)));
 }
 
 /* ================================================================

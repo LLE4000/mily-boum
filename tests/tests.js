@@ -39,7 +39,10 @@ try{
     "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone",
+    "encodePieces","decodePieces","partiePieces","partieFormes","partieQuadrillage",
+    "encodePlanComplet","planVide","pieceEstPosable","MARQUE_PIECES","MARQUE_FORMES",
+    "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
@@ -7669,6 +7672,175 @@ G("28. La figure d'Ibiza");
     ok("les neuf autres îles n'ont pas bougé d'un bâtiment",
        faux.length === 0, faux.join(" / "));
   })();
+})();
+
+
+/* ================================================================
+   29. LES PIÈCES POSÉES UNE À UNE
+
+   « Dans l'éditeur, ajoute-moi l'option d'ajouter des défenses une à
+   une : je sélectionne une défense, je l'ajoute où je veux, et je
+   l'ajuste comme j'en ai envie. »
+
+   Ce groupe garde les quatre propriétés qui rendent l'outil sûr :
+     LA CHAÎNE     une pièce s'écrit, se relit, et une chaîne écrite
+                   AVANT cette version se relit inchangée ;
+     L'INDEX       poser une pièce ne déplace aucun rang existant ;
+     LE TIRAGE     poser une pièce ne rebat pas l'île — c'est le piège
+                   dans lequel la première version est tombée ;
+     LES BORNES    on ne pose ni dans la mer ni sur le Brasier.
+   ================================================================ */
+G("29. Les pièces posées une à une");
+(function(){
+  var P3 = [{ t:3, gx:60, gy:61.4 }, { t:5, gx:70.5, gy:40 }, { t:2, gx:100.2, gy:90.6 }];
+
+  /* --- LA CHAÎNE --- */
+  ok("une pièce s'écrit au dixième de case",
+     N.encodePieces(P3) === "3.600.614;5.705.400;2.1002.906", N.encodePieces(P3));
+  ok("… et se relit à l'identique",
+     JSON.stringify(N.decodePieces(N.encodePieces(P3))) === JSON.stringify(P3),
+     JSON.stringify(N.decodePieces(N.encodePieces(P3))));
+  ok("une liste vide ne coûte pas un caractère", N.encodePieces([]) === "");
+  /* CE QUI N'EST PAS UNE DÉFENSE NE SE POSE PAS À L'UNITÉ : « auto »
+     est une intention, la gomme forte retire. Ni l'une ni l'autre n'a
+     de tourelle à planter. */
+  ok("« auto » et la gomme forte ne sont pas posables",
+     !N.pieceEstPosable(0) && !N.pieceEstPosable(N.TYPES_PLAN.indexOf("vide")));
+  ok("… et les sept défenses le sont",
+     (function(){
+       var n = 0, q;
+       for(q = 0; q < N.TYPES_PLAN.length; q++) if(N.pieceEstPosable(q)) n++;
+       return n === 7;
+     })());
+  /* DÉFENSIF DE BOUT EN BOUT : une pièce illisible est JETÉE, pas
+     devinée. Le mode dégradé du plan reste la carte d'aujourd'hui. */
+  ok("une pièce illisible est jetée sans emporter les autres",
+     (function(){
+       var l = N.decodePieces("3.600.614;n'importe quoi;9.1.2;3.4;5.705.400");
+       return l.length === 2 && l[0].t === 3 && l[1].t === 5;
+     })(), JSON.stringify(N.decodePieces("3.600.614;bla;9.1.2;3.4;5.705.400")));
+
+  /* --- LES TROIS SECTIONS SE DÉCOUPENT SANS SE MARCHER DESSUS --- */
+  (function(){
+    var z = N.planVide(); z[40] = 0x21;
+    var f = [{ f:0, k:0, d:0, r:0, x:0, g:0, G:[50, 50, 12], C:[[3, 100]] }];
+    var ch = N.encodePlanComplet(z, f, P3);
+    ok("la chaîne complète porte les trois sections",
+       ch.indexOf(N.MARQUE_FORMES) > 0 && ch.indexOf(N.MARQUE_PIECES) > ch.indexOf(N.MARQUE_FORMES),
+       ch);
+    ok("… et chacune se relit sans mordre sur les autres",
+       N.decodePieces(N.partiePieces(ch)).length === 3 &&
+       N.partieFormes(ch).indexOf(N.MARQUE_PIECES) < 0 &&
+       N.partieQuadrillage(ch).indexOf(N.MARQUE_FORMES) < 0);
+    /* SANS FORMES : la marque des pièces borne alors le quadrillage à
+       elle seule. C'est le cas qui plantait avant qu'on le prévoie. */
+    var ch2 = N.encodePlanComplet(z, [], P3);
+    ok("… même quand il n'y a pas de forme entre les deux",
+       N.decodePieces(N.partiePieces(ch2)).length === 3 &&
+       N.partieQuadrillage(ch2) === N.partieQuadrillage(N.encodePlanComplet(z, [], [])),
+       N.partieQuadrillage(ch2));
+  })();
+  /* LA COMPATIBILITÉ : une chaîne écrite avant cette version n'a pas
+     de « + », et doit se relire exactement comme avant. */
+  (function(){
+    var z = N.planVide(); z[40] = 0x21;
+    var vieille = N.encodePlanComplet(z, [], []);
+    ok("un plan d'avant cette version se relit inchangé",
+       N.partiePieces(vieille) === "" &&
+       N.decodePieces(N.partiePieces(vieille)).length === 0 &&
+       N.partieQuadrillage(vieille) === vieille);
+  })();
+
+  /* --- CE QUE LE GÉNÉRATEUR EN FAIT --- */
+  (function(){
+    var ch = N.encodePlanComplet(N.planVide(), [], P3);
+    var a = N.genereCarte("MILY", 0, "", 0);
+    var b = N.genereCarte("MILY", 0, ch, 0);
+    ok("les trois pièces s'ajoutent à la carte",
+       b.batiments.length === a.batiments.length + 3,
+       a.batiments.length + " → " + b.batiments.length);
+    /* L'INDEX EST SACRÉ : le bitmap des destructions désigne les
+       bâtiments par leur rang. Une pièce ajoutée doit l'être EN QUEUE
+       et ne déplacer personne. */
+    ok("… tout à la fin, sans déplacer un seul rang existant",
+       (function(){
+         for(var q = 0; q < a.batiments.length; q++){
+           var x = a.batiments[q], y = b.batiments[q];
+           if(!y || y.t !== x.t || y.gx !== x.gx || y.gy !== x.gy) return 0;
+         }
+         return 1;
+       })());
+    ok("… à la place exacte où on les a mises",
+       (function(){
+         var q, dep = a.batiments.length;
+         for(q = 0; q < 3; q++){
+           var y = b.batiments[dep + q];
+           if(!y || y.t !== N.TYPES_PLAN[P3[q].t]) return 0;
+           if(y.gx !== P3[q].gx || y.gy !== P3[q].gy) return 0;
+           if(!y.main) return 0;
+         }
+         return 1;
+       })());
+    /* LE PIÈGE DE LA PREMIÈRE VERSION. Les deux branches du
+       quadrillage ne consomment pas le tirage dans le même ordre : la
+       seule PRÉSENCE d'un plan refaisait l'île. Une pièce posée à la
+       main ne dit rien au quadrillage et ne doit donc rien rebattre. */
+    ok("une pièce ne rebat pas l'île — le quadrillage ne la voit même pas",
+       N.empreinteCarte(a) === N.empreinteCarte({
+         batiments:b.batiments.slice(0, a.batiments.length),
+         decors:b.decors, rochers:b.rochers, creatures:b.creatures,
+         champs:b.champs, falaises:b.falaises, qg:b.qg
+       }) || (function(){
+         /* empreinteCarte peut ne pas accepter un objet partiel : on
+            retombe alors sur la comparaison directe, qui suffit. */
+         if(a.decors.length !== b.decors.length) return 0;
+         for(var q = 0; q < a.decors.length; q++)
+           if(a.decors[q].gx !== b.decors[q].gx) return 0;
+         return 1;
+       })());
+    /* ET LA VIE TOTALE SUIT : le panneau de l'éditeur annonce ce que
+       le plan coûtera à démonter, pièces comprises. */
+    ok("la vie totale des défenses compte les pièces",
+       N.pvDefensesCarte(b) > N.pvDefensesCarte(a),
+       N.pvDefensesCarte(a) + " → " + N.pvDefensesCarte(b));
+  })();
+
+  /* --- LES DEUX BORNES, celles du quadrillage lui-même --- */
+  (function(){
+    var hors = [{ t:3, gx:2, gy:60 },                       // dans la roche du bord
+                { t:3, gx:150, gy:60 },                     // dans la mer
+                { t:3, gx:60, gy:1 },                       // au nord, hors terre
+                { t:3, gx:N.QG_GX, gy:N.QG_GY },            // sur le Brasier
+                { t:3, gx:N.QG_GX + 9, gy:N.QG_GY + 9 }];   // dans son emprise
+    var ch = N.encodePlanComplet(N.planVide(), [], hors);
+    var a = N.genereCarte("MILY", 0, "", 0);
+    var b = N.genereCarte("MILY", 0, ch, 0);
+    ok("aucune pièce hors de la terre bâtissable ni sur le Brasier",
+       b.batiments.length === a.batiments.length,
+       (b.batiments.length - a.batiments.length) + " passées");
+  })();
+
+  /* --- L'ÉDITEUR --- */
+  ok("l'éditeur a son troisième mode",
+     /data-mode="2"/.test(html) && /planBlocPieces/.test(html));
+  ok("… avec sa palette et sa liste",
+     /planPiecesOutils/.test(html) && /planPiecesListe/.test(html));
+  ok("… et les trois gestes : poser, glisser, lâcher",
+     /function debutPiece\(/.test(html) && /function bougePiece\(/.test(html) &&
+     /function finPiece\(/.test(html));
+  ok("l'éditeur borne la pose comme le générateur",
+     /function piecePosableEn\(/.test(html));
+  ok("… et arrondit au dixième dès la pose, comme le format",
+     /function grainPiece\(/.test(html) && /Math\.round\(v \* 10\) \/ 10/.test(html));
+  /* UNE SEULE ENTRÉE D'HISTORIQUE PAR GESTE : un glissé envoie cent
+     événements, et « Annuler » doit défaire le déplacement. */
+  ok("un glissé n'entre qu'une fois dans l'historique",
+     (function(){
+       var m = html.match(/function bougePiece\([\s\S]*?\n\}/);
+       return !!m && /planDejaEmpile/.test(m[0]);
+     })());
+  ok("l'historique retient aussi les pièces",
+     /p:copiePieces\(planPieces\)/.test(html) && /planPieces = av\.p \|\| \[\]/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

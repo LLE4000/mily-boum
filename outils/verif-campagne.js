@@ -145,7 +145,9 @@ catch(e){
         des autres.
    ================================================================ */
 var REFONTES = [
-  { i:8, version:"v0.81", pourquoi:"les secteurs remplis à ras bord — plus de mille défenses, 40 % de Frelons" }
+  /* v0.82 n'a REFONDU AUCUNE carte : la pince ajoute des pièces au plan,
+     elle ne redessine rien. La déclaration de v0.81 est donc retirée, et
+     l'index d'Ibiza redevient intouchable comme celui des autres. */
 ];
 function refonteDeclaree(i){
   for(var r = 0; r < REFONTES.length; r++)

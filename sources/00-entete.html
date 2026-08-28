@@ -218,13 +218,13 @@ select.champ{cursor:pointer}
 }
 .pz i{width:11px;height:11px;border-radius:3px;flex:none}
 .pz.on{border-color:var(--braise);background:#2c1c34;box-shadow:0 0 0 2px rgba(255,138,30,.22)}
-#planBlocPinceau,#planBlocFormes{display:flex;flex-direction:column;gap:10px}
+#planBlocPinceau,#planBlocFormes,#planBlocPieces{display:flex;flex-direction:column;gap:10px}
 
 /* ---- LA LISTE DES FORMES ----
    Une ligne par forme, la dernière posée en haut : c'est elle qui
    recouvre les autres, et l'œil attend de la trouver au sommet de la
    pile. Les boutons de rangement sont à droite, larges au doigt. */
-#planListe{display:flex;flex-direction:column;gap:4px;max-height:30vh;overflow-y:auto}
+#planListe,#planPiecesListe{display:flex;flex-direction:column;gap:4px;max-height:30vh;overflow-y:auto}
 .pfo{
   display:flex;align-items:center;gap:6px;cursor:pointer;
   background:#1d1428;border:1px solid rgba(255,168,72,.18);border-radius:9px;
@@ -1363,6 +1363,7 @@ select.champ{cursor:pointer}
       <div class="pzs" id="planModes">
         <div class="pz on" data-mode="0"><i style="background:#8f86a0"></i>Pinceau</div>
         <div class="pz" data-mode="1"><i style="background:#5adc8c"></i>Formes</div>
+        <div class="pz" data-mode="2"><i style="background:#ffd84a"></i>À l'unité</div>
       </div>
       <div id="planInfo">Choisis une défense, puis peins la carte au doigt.</div>
 
@@ -1378,6 +1379,16 @@ select.champ{cursor:pointer}
         <div class="pzs" id="planFormesOutils"></div>
         <div id="planListe"></div>
         <div id="planFiche"></div>
+      </div>
+
+      <!-- ---- LA PINCE : une défense à la fois, là où on la veut ----
+           Ni densité ni tirage : on choisit un genre, on appuie, on
+           glisse. Ces pièces s'ajoutent à la FIN du tableau des
+           bâtiments, donc en poser une ne déplace rien de ce qui
+           existait déjà. -->
+      <div id="planBlocPieces" style="display:none">
+        <div class="pzs" id="planPiecesOutils"></div>
+        <div id="planPiecesListe"></div>
       </div>
 
       <div id="planCompte"></div>
