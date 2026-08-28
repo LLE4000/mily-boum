@@ -2367,8 +2367,24 @@ G("4. Déterminisme de la génération de carte");
          return true;
        })(),
        N.ORDRE_CAMPAGNE.map(function(i){ return N.CARTES[i].pvQG / 1e6; }).join(" < "));
-    ok("et la jungle reste au-dessus de toutes",
-       N.CARTES.every(function(cc, i){ return i === N.IDX_JUNGLE || cc.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG; }));
+    /* LA VRAIE PROMESSE : aucune île de CAMPAGNE ne rivalise avec une
+       carte événement. Ce test disait « la jungle est au-dessus de
+       toutes », ce qui était vrai tant qu'elle était le seul
+       événement — et faux le jour où un second arrive, sans que la
+       promesse ait bougé d'un cran. Une carte événement doit rester
+       l'objectif collectif le plus lourd du jeu ; entre deux
+       événements, rien n'oblige à un ordre. */
+    ok("aucune île de campagne ne rivalise avec une carte événement",
+       (function(){
+         var pire = 0, q;
+         for(q = 0; q < N.CARTES.length; q++)
+           if(!N.carteSpeciale(q) && N.CARTES[q].pvQG > pire) pire = N.CARTES[q].pvQG;
+         for(q = 0; q < N.CARTES.length; q++)
+           if(N.carteSpeciale(q) && N.CARTES[q].pvQG <= pire) return false;
+         return true;
+       })(),
+       N.CARTES.filter(function(c){ return c.special; })
+         .map(function(c){ return c.nom + " " + (c.pvQG / 1e6) + " M"; }).join(", "));
 
     /* ================================================================
        LES TORNADES DE FLAMMES
@@ -2711,6 +2727,112 @@ G("4. Déterminisme de la génération de carte");
     })();
   })();
 
+  /* ================================================================
+     5i. LES MILY ET UNE NUITS
+
+     La deuxième carte événement. Ce groupe ne juge pas si elle est
+     belle — ça, on le regarde — il monte la garde sur les trois
+     choses qu'une retouche du dessin pourrait casser sans bruit :
+     qu'elle reste HORS de la campagne, qu'elle n'emprunte le temps
+     d'AUCUNE autre île, et qu'elle se génère vraiment.
+     ================================================================ */
+  G("5i. Les Mily et une nuits");
+  (function(){
+    var IN = -1, q;
+    for(q = 0; q < N.CARTES.length; q++) if(N.CARTES[q].biome === "nuits") IN = q;
+    ok("elle existe, et elle s'écrit MILY", IN >= 0 &&
+       N.CARTES[IN].nom === "Les Mily et une nuits" &&
+       !/Mill?ie|Milly|Miley/i.test(N.CARTES[IN].nom),
+       IN < 0 ? "absente" : N.CARTES[IN].nom);
+    if(IN < 0) return;
+    ok("c'est une carte ÉVÉNEMENT, hors de l'enchaînement",
+       N.carteSpeciale(IN) && N.ORDRE_CAMPAGNE.indexOf(IN) < 0 && N.carteSuivante(IN) === -1);
+    ok("elle a sa propre voie dans l'instantané, distincte de celle de la jungle",
+       N.voieDeCarte(IN) === "n" && N.voieDeCarte(N.IDX_JUNGLE) === "j" &&
+       N.carteDeVoie("n") === IN);
+    ok("c'est l'objectif le plus lourd du jeu (" + (N.CARTES[IN].pvQG / 1e6) + " M)",
+       N.CARTES.every(function(c, i){ return i === IN || c.pvQG < N.CARTES[IN].pvQG; }));
+    ok("ses réglages sont les SIENS, pas ceux de la jungle",
+       N.reglagesEvt(IN).pvBonus !== N.reglagesEvt(N.IDX_JUNGLE).pvBonus &&
+       N.reglagesEvt(IN).degBonus !== N.reglagesEvt(N.IDX_JUNGLE).degBonus,
+       "+" + N.reglagesEvt(IN).pvBonus + "% PV / +" + N.reglagesEvt(IN).degBonus + "% dégâts"
+       + " contre +" + N.reglagesEvt(N.IDX_JUNGLE).pvBonus + " / +"
+       + N.reglagesEvt(N.IDX_JUNGLE).degBonus);
+    ok("… et son verrou tourne indépendamment de celui de la jungle",
+       N.reglagesEvt(IN).attenteH > 0 && N.reglagesEvt(N.IDX_JUNGLE).attenteH > 0);
+    /* ELLE N'EMPRUNTE LA MÉTÉO DE PERSONNE. Chacune de ces quatre
+       questions se lit sur le BIOME ; il a suffi d'un « nuits » oublié
+       dans une table pour qu'une île hérite de la pluie d'une autre. */
+    ok("ni orage, ni foudre, ni tornades, ni scène de DJ",
+       !N.carteOrageuse(IN) && !N.carteFoudre(IN) &&
+       !N.carteTornades(IN) && !N.carteScene(IN));
+    ok("mais elle a SON ciel, qui n'appartient qu'à elle",
+       N.styleCiel(IN) === "etoile" &&
+       N.CARTES.filter(function(c, i){ return N.styleCiel(i) === "etoile"; }).length === 1);
+    ok("son biome n'appartient qu'à elle",
+       N.CARTES.filter(function(c){ return c.biome === "nuits"; }).length === 1);
+    /* LA VRAIE ÉPREUVE : elle se génère, et elle est peuplée. */
+    var m = N.genereCarte("MILY", IN, "", 0);
+    ok("elle se génère : " + m.batiments.length + " bâtiments, " + m.decors.length
+       + " décors, " + m.rochers.length + " rochers, " + m.creatures.length + " bestioles",
+       m.batiments.length > 600 && m.decors.length > 400 && m.creatures.length > 60,
+       m.batiments.length + "/" + m.decors.length + "/" + m.creatures.length);
+    ok("… ses décors tirent bien les QUATRE variantes",
+       (function(){
+         var vus = {};
+         for(var k = 0; k < m.decors.length; k++) vus[m.decors[k].v] = 1;
+         return vus[0] && vus[1] && vus[2] && vus[3];
+       })());
+    ok("… ses cinq cellules électriques sont là", m.reacteurs.length === N.NB_REACTEURS);
+    /* LE DURCISSEMENT. C'est une carte événement : ses défenses
+       doivent être plus dures que celles d'une île de campagne, et
+       plus dures que celles de la jungle. Le Brasier, lui, ne bouge
+       pas — c'est une carte mieux défendue, pas une carte plus
+       longue. */
+    (function(){
+      var normale = N.genereCarte("MILY", 0, "", 0);
+      function pvMoyen(c){
+        var t = 0, n = 0;
+        for(var k = 0; k < c.batiments.length; k++){
+          var b = c.batiments[k];
+          if(b.t === "cellule" || b.t === "reacteur") continue;
+          t += b.pvMax; n++;
+        }
+        return n ? t / n : 0;
+      }
+      var jungle = N.genereCarte("MILY", N.IDX_JUNGLE, "", 0);
+      ok("ses défenses sont plus dures que celles d'une île de campagne",
+         pvMoyen(m) > pvMoyen(normale) * 1.5,
+         Math.round(pvMoyen(normale)) + " → " + Math.round(pvMoyen(m)) + " PV en moyenne");
+      ok("… et plus dures que celles de la jungle",
+         pvMoyen(m) > pvMoyen(jungle),
+         Math.round(pvMoyen(jungle)) + " (jungle) contre " + Math.round(pvMoyen(m)));
+      ok("… mais le Brasier garde exactement sa vie",
+         N.CARTES[IN].pvQG === 75000000);
+    })();
+    /* LES PALETTES vivent hors du noyau ; on les relit dans le fichier
+       livré, comme periodeRoulement et la foule d'Ibiza. Ce qui compte
+       ici : qu'elles EXISTENT. Une carte dont le biome n'a pas de
+       palette n'affiche pas une île moche — elle laisse un écran noir
+       et une tablette qui ne répond plus, parce que construitBriefing
+       tourne avant la boucle de rendu. */
+    ok("son biome a bien sa palette de terrain et sa palette de matières",
+       /nuits:\s*\{/.test(html.slice(html.indexOf("var BIOMES"), html.indexOf("var BIOMES") + 9000)) &&
+       /nuits:\s*\{/.test(html.slice(html.indexOf("var MATIERES"), html.indexOf("var MATIERES") + 9000)));
+    ok("… et ses quatre décors sont branchés dans dessineDecor",
+       /jardinNuits/.test(html) && /lanternesNuits/.test(html) &&
+       /fontaineNuits/.test(html) && /tapisNuits/.test(html));
+    /* ET AUCUN BÂTIMENT DANS LE DÉCOR. C'est une décision, pas un
+       oubli : la carte porte déjà des bâtiments — les défenses — et
+       leur en ajouter de petits donnait deux architectures à deux
+       échelles sur la même image. Ce test empêche qu'ils reviennent
+       par mégarde. */
+    ok("… et aucun faux bâtiment n'est revenu dans le décor",
+       !/palaisNuits|archeNuitsDecor|tenteNuits|domeNuits/.test(html));
+    ok("… et sa vignette d'accueil est la sienne, pas celle de la jungle",
+       /dessineVignetteNuits/.test(html) && /n:"dessineVignetteNuits"/.test(html));
+  })();
+
   G("5d. Mily dans la jungle — la carte événement");
   /* LA PROPRIÉTÉ QUI PORTE TOUT : la jungle ne doit RIEN changer à
      l'enchaînement des cinq îles. */
@@ -2719,9 +2841,12 @@ G("4. Déterminisme de la génération de carte");
      pas déplacer le sien. C'est l'ORDRE qui dit l'enchaînement. */
   ok("la jungle n'est pas dans l'enchaînement des îles",
      N.ORDRE_CAMPAGNE.indexOf(N.IDX_JUNGLE) < 0 && N.carteSuivante(N.IDX_JUNGLE) === -1);
-  ok("elle a plus de vie que toutes les autres",
+  /* Elle domine toute la CAMPAGNE — c'est ce que « carte événement »
+     veut dire. Elle ne domine plus toutes les cartes du jeu : « Mily
+     et les mille et une nuits » est plus lourde encore, exprès. */
+  ok("elle a plus de vie que toutes les îles de campagne",
      N.CARTES.every(function(c, i){
-       return i === N.IDX_JUNGLE || c.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG;
+       return N.carteSpeciale(i) || c.pvQG < N.CARTES[N.IDX_JUNGLE].pvQG;
      }));
   ok("elle s'écrit MILY DANS LA JUNGLE, jamais autrement",
      N.CARTES[N.IDX_JUNGLE].nom === "Mily dans la jungle" &&
@@ -3466,9 +3591,11 @@ G("8. Cohérence des règles de jeu");
        la campagne de tout le monde. */
     ok("la campagne compte huit îles", N.NB_CARTES_NORMALES === 8,
        "" + N.NB_CARTES_NORMALES);
-    ok("et une seule carte événement s'y ajoute",
-       N.CARTES.length === 9 && N.CARTES.filter(function(c){ return c.special; }).length === 1,
-       N.CARTES.length + " cartes");
+    ok("et deux cartes événement s'y ajoutent",
+       N.CARTES.length === 10 && N.CARTES.filter(function(c){ return c.special; }).length === 2,
+       N.CARTES.length + " cartes, dont "
+       + N.CARTES.filter(function(c){ return c.special; })
+           .map(function(c){ return c.nom; }).join(" et "));
     ok("aucune île de l'enchaînement n'est marquée spéciale",
        N.ORDRE_CAMPAGNE.every(function(i){ return !N.CARTES[i].special; }));
     /* ================================================================

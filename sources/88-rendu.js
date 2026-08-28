@@ -2250,6 +2250,59 @@ function rendu(tps, dt){
       case 15: dessineSceneIbiza(ctx, tps); break;
     }
   }
+  /* ================================================================
+     LE CLAIR DE LUNE, PASSÉ SUR TOUTE LA CARTE
+
+     Le problème que ça règle, et il ne se voit qu'une fois la carte
+     bâtie : le SOL et le DÉCOR des mille et une nuits sont nocturnes,
+     mais les DÉFENSES, les troupes et le QG sont les mêmes objets que
+     sur les huit autres îles — du bois brun, de l'acier gris, des
+     bâches kaki, peints pour du plein jour. Une île de nuit couverte
+     d'objets de jour ne se lit pas comme une nuit : elle se lit comme
+     un décor de nuit sur lequel on aurait collé une autre partie.
+
+     Repeindre chaque défense pour une seule carte était exclu — c'est
+     tout le fichier 40-defenses.js, et il est partagé. On passe donc
+     un FILTRE, comme un étalonnage de cinéma : une multiplication par
+     un bleu de lune sur tout ce qui vient d'être dessiné. Le brun
+     devient prune, le gris devient ardoise, le kaki devient bleu
+     sombre — et rien n'a été retouché.
+
+     DEUX PRÉCAUTIONS. Il passe APRÈS le monde et AVANT le ciel : les
+     nuages, les étoiles et les lasers n'ont rien à faire sous un
+     filtre de nuit, ils SONT la nuit. Et il est rendu en deux temps —
+     la multiplication qui refroidit, puis une nappe additive très
+     faible qui redonne aux lumières ce que la multiplication leur a
+     pris. Sans le second temps, les lanternes s'éteignaient avec le
+     reste.
+     ================================================================ */
+  if(carte.biome === "nuits"){
+    repereEcran(ctx);
+    ctx.save();
+    /* SOFT-LIGHT, ET SURTOUT PAS MULTIPLY.
+       Le premier essai multipliait tout par un bleu de lune. Ça
+       refroidissait bien le bois et l'acier — et ça détruisait
+       exactement ce qu'il fallait sauver. Une multiplication ne peut
+       qu'assombrir : l'or d'une lanterne, (255, 196, 110), multiplié
+       par (0,44 · 0,45 · 0,80) tombait à (112, 88, 88). Un gris
+       violacé. Toutes les lumières chaudes de l'île — les lanternes,
+       les braseros, le thé — viraient au lilas éteint, et il ne
+       restait qu'une carte bleue.
+       Soft-light fait ce qu'un étalonneur fait : il pousse les
+       DEMI-TONS vers la teinte et laisse les extrêmes tranquilles.
+       Le bois brun et l'acier gris sont des demi-tons, ils refroidissent ;
+       la flamme d'une lanterne est un haut, elle ne bouge pas. */
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.fillStyle = "rgba(52,64,182,.74)";
+    ctx.fillRect(-40, -40, W + 80, H + 80);
+    /* puis un voile sombre très léger, pour l'heure qu'il est. Assez
+       faible pour qu'aucune lumière ne s'y perde. */
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "rgba(182,182,228,.30)";
+    ctx.fillRect(-40, -40, W + 80, H + 80);
+    ctx.restore();
+    repereMonde(ctx);
+  }
   if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs */

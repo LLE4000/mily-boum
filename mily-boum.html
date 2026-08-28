@@ -551,9 +551,20 @@ select.champ{cursor:pointer}
    Elle occupe toute la largeur de la grille et vit sous une autre
    lumière : un vert profond, un liseré qui respire, et un halo. Il
    faut qu'on la distingue AVANT de savoir lire ce qu'elle raconte. */
+/* LES DEUX CARTES SPÉCIALES, CÔTE À CÔTE. Elles prenaient chacune
+   toute la largeur et se suivaient l'une sous l'autre : la seconde
+   passait sous la ligne de flottaison, et l'on ne voyait jamais les
+   deux ensemble. Sur une grille de quatre colonnes, chacune en prend
+   deux — elles se regardent, et l'on choisit. En dessous de 1240 px la
+   grille n'a plus que trois colonnes, qui ne se partagent pas en deux :
+   elles reprennent alors toute la largeur, l'une sur l'autre. */
 .monde.evt{grid-column:1/-1;opacity:1;background:#08150f;
   border-color:rgba(90,220,140,.34);box-shadow:0 0 0 1px rgba(90,220,140,.14),0 8px 26px rgba(0,0,0,.6)}
 .monde.evt canvas{height:150px}
+@media (min-width:1241px){
+  .monde.evt{grid-column:span 2}
+  .monde.evt canvas{height:132px}
+}
 .monde.evt .nom{font-size:17px;letter-spacing:.4px}
 .monde.evt .etat{background:rgba(4,26,14,.78);border-color:rgba(90,220,140,.5);color:#7ce8a6}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
@@ -583,6 +594,38 @@ select.champ{cursor:pointer}
    coup d'œil qu'il n'y a plus qu'à appuyer. */
 .monde.evt.prete{border-color:rgba(140,255,180,.75)}
 .monde.evt.prete .btEvt{animation:pulseJungle 1.5s ease-in-out infinite}
+/* ---- LA VIGNETTE DES MILLE ET UNE NUITS ----
+   Tout ce qui précède était écrit pour LA carte spéciale, au singulier :
+   un vert de jungle sur le bandeau, le liseré, la jauge et le bouton.
+   Posé tel quel sous un tableau de nuit orientale, ce vert ne disait
+   plus « carte spéciale », il disait « jungle » — et la deuxième carte
+   annonçait la première. Elle porte donc sa classe, et sa palette :
+   violet de nuit et or. Rien n'est redéfini de plus que la COULEUR ;
+   la mise en page reste commune, parce que ce sont bien deux objets
+   de même nature. */
+.monde.evt.evn{background:#0b0820;
+  border-color:rgba(190,160,255,.34);
+  box-shadow:0 0 0 1px rgba(190,160,255,.14),0 8px 26px rgba(0,0,0,.6)}
+.monde.evt.evn .etat{background:rgba(16,10,42,.8);border-color:rgba(190,160,255,.5);color:#d7c4ff}
+.monde.evt.evn .bandeau{color:#1a0f36;
+  background:linear-gradient(180deg,#e8d49a,#b98ce8)}
+.monde.evt.evn .cpt{color:#e2d1ff}
+.monde.evt.evn .cpt small{color:#8a7cb0}
+.monde.evt.evn .msg{color:#bdb0d8}
+.monde.evt.evn .barreJ i{background:linear-gradient(90deg,#6a4aa8,#f2dc9a)}
+.monde.evt.evn .btEvt{color:#160e30;
+  background:linear-gradient(180deg,#f4e2ae,#a874e0);
+  box-shadow:0 4px 16px rgba(170,120,230,.38)}
+.monde.evt.evn .btEvt:disabled{background:#241d3a;color:#6b6188;box-shadow:none}
+.monde.evt.evn.prete{border-color:rgba(230,200,140,.8)}
+.monde.evt.evn.prete .btEvt{animation:pulseNuits 1.5s ease-in-out infinite}
+@keyframes pulseNuits{
+  0%,100%{box-shadow:0 4px 16px rgba(170,120,230,.38)}
+  50%{box-shadow:0 4px 32px rgba(245,220,150,.85)}
+}
+@media (prefers-reduced-motion:reduce){
+  .monde.evt.evn.prete .btEvt{animation:none}
+}
 @keyframes pulseJungle{
   0%,100%{box-shadow:0 4px 16px rgba(60,200,120,.35)}
   50%{box-shadow:0 4px 30px rgba(120,255,180,.85)}
@@ -620,6 +663,23 @@ select.champ{cursor:pointer}
 }
 @media (prefers-reduced-motion:reduce){
   #voletJungle.on .ecl{animation:none}
+}
+/* LE VOLET DES MILLE ET UNE NUITS. Même mécanique, autre nuit : le
+   fond passe de la jungle noire au bleu de minuit, et le « flash »
+   n'est plus un éclair mais une montée de lumière lunaire — il n'y a
+   pas d'orage sur cette carte, et un éclair blanc l'aurait annoncée
+   comme la précédente. */
+#voletJungle.voln{
+  background:radial-gradient(120% 90% at 50% 38%,#1d1550 0%,#0a0824 58%,#000 100%)}
+#voletJungle.voln .ecl{background:#d8ccff}
+#voletJungle.voln.on .ecl{animation:eclairN 2.6s ease-out forwards}
+#voletJungle.voln .ttr{color:#d6cbf2}
+#voletJungle.voln .ttr b{color:#f2dc9a;text-shadow:0 0 30px rgba(240,200,120,.65)}
+@keyframes eclairN{
+  0%{opacity:0} 30%{opacity:.30} 60%{opacity:.10} 100%{opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  #voletJungle.voln.on .ecl{animation:none}
 }
 
 /* navettes — LA RANGÉE COMPACTE
@@ -1102,7 +1162,7 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Les huit îles… et la jungle</h2>
+      <h2>Les huit îles… et les deux cartes spéciales</h2>
       <div class="mondes" id="mondes"></div>
       <div id="objBouclier">
         <b>⚡ Le Brasier est sous bouclier.</b>
@@ -1332,7 +1392,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.48";
+var VERSION = "v0.49";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2100,7 +2160,27 @@ var CARTES = [
   { nom:"Mily dans les ténèbres", biome:"tenebres",   pvQG:50000000,
     victoire:"Mily te ramène vers la lumière !" },
   { nom:"Mily à Ibiza",           biome:"ibiza",      pvQG:56000000,
-    victoire:"Mily t'emmène finir la nuit au beach club !" }
+    victoire:"Mily t'emmène finir la nuit au beach club !" },
+  /* ----------------------------------------------------------------
+     LA DEUXIÈME CARTE ÉVÉNEMENT — « Mily et les mille et une nuits »
+
+     Elle est presque l'exact opposé de la jungle, et c'est délibéré :
+     là où la jungle est dense, sauvage, végétale, orageuse et
+     chaotique, celle-ci est nocturne, ordonnée, minérale, sereine et
+     féérique. Deux cartes événement qui se ressembleraient ne
+     donneraient qu'une carte jouée deux fois.
+
+     Elle porte la voie « n ». Ses réglages sont les siens : c'est la
+     plus lourde du jeu — l'objectif collectif ultime — donc ses
+     défenses sont plus dures que celles de la jungle, et son verrou
+     court indépendamment du sien. Un salon peut très bien avoir la
+     jungle fermée et les nuits ouvertes : c'est même ce qu'on cherche,
+     pour qu'il y ait presque toujours quelque chose à prendre.
+     ---------------------------------------------------------------- */
+  { nom:"Les Mily et une nuits", biome:"nuits", pvQG:75000000,
+    special:1, voie:"n",
+    minJoueurs:7, attenteH:48, pvBonus:130, degBonus:60,
+    victoire:"Mily t'emmène voir le jour se lever sur les dômes !" }
 ];
 /* Combien de cartes participent à l'enchaînement ordinaire. Tout le
    reste du jeu compte les îles AVEC ce nombre et non CARTES.length :
@@ -2337,7 +2417,8 @@ function periodeEclair(i){
    Quatre ciels, donc, nommés par ce qu'ils sont et choisis sur le
    biome — jamais sur un tirage, jamais sur l'index.
    ================================================================ */
-var CIELS_ILE = { jungle:"orage", tenebres:"fumee", guinguette:"nuit" };
+var CIELS_ILE = { jungle:"orage", tenebres:"fumee", guinguette:"nuit",
+                  nuits:"etoile" };
 function styleCiel(i){
   var b = CARTES[i] && CARTES[i].biome;
   return (b && CIELS_ILE[b]) || "clair";
@@ -5910,6 +5991,41 @@ var BIOMES = {
     herbe:"#96ac72", allee:"#fffaee", roche:"#e8e2d4",
     eauC:"#8ffff0", eau:"#12b6e0", eauO:"#0a4fa8", ecume:"#ffffff",
     fond:"#25c4dc", basFond:"#8df0ec", ciel:"#7fd8f5"
+  },
+  /* LES MILLE ET UNE NUITS — une nuit qu'on regarde, pas une nuit où
+     l'on ne voit rien. C'est toute la difficulté de cette carte, et
+     trois décisions la règlent.
+
+     1. LE SOL N'EST PAS NOIR, IL EST INDIGO. Un sol noir aurait été
+        plus « nocturne » et aurait tout ruiné : sous un ciel sombre,
+        du noir ne se lit plus comme une matière, seulement comme un
+        trou. L'indigo garde une couleur — donc une lumière possible —
+        et c'est sur lui que l'or des lanternes et le turquoise des
+        bassins vont porter.
+
+     2. LA MER EST DE L'ENCRE, ET ELLE REND LE CIEL. C'est la réponse à
+        « je ne veux pas l'eau bleue classique autour de l'île ». Une
+        brume tout autour aurait coûté cher pour un résultat flou ;
+        un miroir noir où se reflètent les étoiles et la lune ne coûte
+        presque rien et donne l'impression que l'île FLOTTE. Les trois
+        niveaux de la houle sont donc du noir bleuté, du bleu de nuit
+        et un violet de crête — la vague ne se voit qu'au reflet.
+
+     3. LE SABLE RESTE PÂLE. C'est la seule zone claire de l'île, et
+        elle est nécessaire : c'est là qu'on débarque, et une plage
+        qu'on ne distingue pas de la mer rend la manœuvre illisible.
+        Un ivoire lilas, comme du sable sous la lune.
+
+     L'« herbe » n'est pas une prairie : ce sont les jardins d'un
+     palais, un vert profond bleuté qui ne s'allume que par taches. */
+  nuits: {
+    sol1:"#2b2352", sol2:"#231c45", sable:"#8b81bd", sableO:"#544a86",
+    herbe:"#2f5f57", allee:"#4b4489", roche:"#3a3369",
+    /* la mer d'encre : presque noire au large, un violet de nuit sur
+       la crête. C'est l'écume qui porte toute la lumière, et elle est
+       lunaire — bleu-blanc, jamais chaude. */
+    eauC:"#3a3f8e", eau:"#0a0c22", eauO:"#030413", ecume:"#dbe2ff",
+    fond:"#121738", basFond:"#2b3170", ciel:"#0a0920"
   }
 };
 
@@ -6081,8 +6197,14 @@ function dessineFalaise(c, f){
      — la falaise éclatait plus fort que le feu posé dessus. Les trois
      teintes descendent donc à du basalte pour cette île, et le feu
      redevient ce qu'il y a de plus clair à l'écran. */
+  /* Et la roche des mille et une nuits est de la pierre bleue sous la
+     lune : le granit gris des autres îles y faisait une ceinture
+     laiteuse tout autour d'une mer d'encre — la falaise éclatait plus
+     fort que les lanternes. */
   var base = (carte.biome === "tenebres")
            ? ["#3a3138", "#443a42", "#2e272d"][f.v % 3]
+           : (carte.biome === "nuits")
+           ? ["#3b3570", "#463f7e", "#2e2a5c"][f.v % 3]
            : ["#6f6878", "#7c7484", "#615a6c"][f.v % 3];
   /* corps de la falaise, en dégradé du bas sombre vers le haut clair */
   var g = c.createLinearGradient(0, p.y - h, 0, p.y + 6);
@@ -6761,6 +6883,15 @@ function dessineDecor(c, biome, d){
     else if(d.v === 1) transatIbiza(c, d.gx, d.gy, d.s);
     else if(d.v === 2) palmierIbiza(c, d.gx, d.gy, d.s);
     else loungeIbiza(c, d.gx, d.gy, d.s);
+  /* LES MILLE ET UNE NUITS. Quatre variantes comme partout, mais
+     chacune change de SILHOUETTE avec sa taille : douze bâtiments
+     différents au lieu de quatre. Le détail vit dans
+     39-nuits-decors.js. */
+  }else if(biome === "nuits"){
+    if(d.v === 0) jardinNuits(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) lanternesNuits(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) fontaineNuits(c, d.gx, d.gy, d.s);
+    else tapisNuits(c, d.gx, d.gy, d.s);
   }
 }
 
@@ -6954,6 +7085,19 @@ var MATIERES = {
     herbe1:"#a8bd82", herbe2:"#7f9660",
     sable1:"#fdf5e2", sable2:"#eddcb8",
     mouille:"#cbae7e", roche1:"#ebe5d6", roche2:"#c8c0ad"
+  },
+  /* Les mille et une nuits : de la pierre bleue de palais, veinée de
+     violet. Les deux taches encadrent le fond d'un cran seulement —
+     un sol trop bavard mangerait les mosaïques et les tapis qu'on va
+     poser dessus, et c'est EUX qui font cette carte. L'« herbe » est
+     celle d'un jardin clos, un vert profond qui tire au bleu : de la
+     verdure de nuit, jamais de la prairie. */
+  nuits: {
+    fond1:"#2b2352", fond2:"#221b44",
+    tache1:"#372e64", tache2:"#191333",
+    herbe1:"#38705f", herbe2:"#204a44",
+    sable1:"#9186c4", sable2:"#7368a6",
+    mouille:"#453c78", roche1:"#3e3775", roche2:"#2a2352"
   }
 };
 
@@ -7336,6 +7480,243 @@ function construitSol(carteC){
       c.stroke();
       c.globalAlpha = 1;
     }
+    c.restore();
+  }
+
+  /* ================================================================
+     LE SOL DES MILLE ET UNE NUITS
+
+     C'est la passe la plus longue du fichier, et c'est assumé : le
+     cahier des charges dit « il faut que même lorsqu'il n'y a pas de
+     défense, le terrain reste intéressant ». Tout ce qui suit est
+     PRÉ-CUIT — peint une fois au chargement de l'île, rien à l'image.
+     C'est ce qui permet d'en mettre autant.
+
+     Six couches, du plus large au plus fin :
+       1. le clair de lune, qui donne le relief ;
+       2. les cours pavées, en mosaïque géométrique ;
+       3. les tapis, posés sur les cours et à côté ;
+       4. les chemins de pierre qui relient tout ça ;
+       5. les bassins, seule eau douce de l'île ;
+       6. les étoiles et les croissants gravés, l'or de la carte.
+     ================================================================ */
+  if(carteC.biome === "nuits"){
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+
+    /* --- 1. LE CLAIR DE LUNE. Sans lui le sol est un aplat indigo et
+       l'île n'a pas de volume. Des nappes froides, larges, et quelques
+       creux plus sombres pour que ce ne soit pas une lueur uniforme. */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < 54; i++){
+      var lx3 = al() * GW, ly3 = al() * GH;
+      var pl3 = iso(lx3, ly3);
+      var rl3 = 150 + al() * 330;
+      var gl3 = c.createRadialGradient(pl3.x, pl3.y, 6, pl3.x, pl3.y, rl3);
+      gl3.addColorStop(0, "rgba(150,160,255,.085)");
+      gl3.addColorStop(0.5, "rgba(120,132,230,.030)");
+      gl3.addColorStop(1, "rgba(110,120,220,0)");
+      c.fillStyle = gl3;
+      c.beginPath(); c.ellipse(pl3.x, pl3.y, rl3, rl3 / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    for(i = 0; i < 30; i++){
+      var ox3 = al() * GW, oy3 = al() * GH;
+      var po3 = iso(ox3, oy3);
+      var ro3 = 120 + al() * 260;
+      var go3 = c.createRadialGradient(po3.x, po3.y, 6, po3.x, po3.y, ro3);
+      go3.addColorStop(0, "rgba(8,6,24,.26)");
+      go3.addColorStop(1, "rgba(8,6,24,0)");
+      c.fillStyle = go3;
+      c.beginPath(); c.ellipse(po3.x, po3.y, ro3, ro3 / 2, 0, 0, 6.2832); c.fill();
+    }
+
+    /* --- 2. LES COURS EN MOSAÏQUE. Le motif est celui des carrelages
+       orientaux : une trame de losanges où une case sur deux est
+       claire, semée d'étoiles à huit branches. Il est tracé DANS le
+       repère isométrique, case par case — une mosaïque dessinée à
+       l'écran puis posée à plat aurait glissé sur la perspective et
+       se serait vue immédiatement.
+       On les pose D'ABORD, parce que tout le reste va dessus. */
+    var MOS = [
+      { a:"#3b4f9e", b:"#22306e", or:"#d8b45c" },   // bleu de Perse
+      { a:"#2f7a72", b:"#1c4c4c", or:"#e0c070" },   // turquoise
+      { a:"#5a3a86", b:"#38235a", or:"#d0a8e8" }    // violet
+    ];
+    for(i = 0; i < 22; i++){
+      var mx3 = LARGEUR_ROCHE + 2 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 16);
+      var my3 = 3 + al() * (GH - 16);
+      var mw3 = 6 + ((al() * 7) | 0), mh3 = 5 + ((al() * 6) | 0);
+      var P3 = MOS[(al() * MOS.length) | 0];
+      var ang3 = al() < 0.5;
+      c.save();
+      c.globalAlpha = 0.62;
+      for(var jj = 0; jj < mh3; jj++){
+        for(var ii = 0; ii < mw3; ii++){
+          var pair = ((ii + jj) & 1) === (ang3 ? 0 : 1);
+          c.fillStyle = pair ? P3.a : P3.b;
+          var k1 = iso(mx3 + ii, my3 + jj), k2 = iso(mx3 + ii + 1, my3 + jj);
+          var k3 = iso(mx3 + ii + 1, my3 + jj + 1), k4 = iso(mx3 + ii, my3 + jj + 1);
+          c.beginPath();
+          c.moveTo(k1.x, k1.y); c.lineTo(k2.x, k2.y);
+          c.lineTo(k3.x, k3.y); c.lineTo(k4.x, k4.y);
+          c.closePath(); c.fill();
+          /* l'étoile à huit branches, au centre d'une case claire sur
+             deux : c'est ELLE qui dit « oriental » plutôt que
+             « damier ». Un simple losange doré à cette taille — quatre
+             pixels — se lit comme une étoile ; y mettre huit branches
+             réelles ne se verrait pas et coûterait huit fois plus. */
+          if(pair && ((ii * 3 + jj * 5) % 3 === 0)){
+            var kc3 = iso(mx3 + ii + 0.5, my3 + jj + 0.5);
+            c.fillStyle = P3.or;
+            c.globalAlpha = 0.55;
+            c.beginPath();
+            c.moveTo(kc3.x, kc3.y - 3.4); c.lineTo(kc3.x + 5.2, kc3.y);
+            c.lineTo(kc3.x, kc3.y + 3.4); c.lineTo(kc3.x - 5.2, kc3.y);
+            c.closePath(); c.fill();
+            c.globalAlpha = 0.62;
+          }
+        }
+      }
+      /* la bordure de la cour, en or */
+      c.globalAlpha = 0.42;
+      c.strokeStyle = P3.or; c.lineWidth = 2.2;
+      var v1 = iso(mx3, my3), v2 = iso(mx3 + mw3, my3);
+      var v3 = iso(mx3 + mw3, my3 + mh3), v4 = iso(mx3, my3 + mh3);
+      c.beginPath();
+      c.moveTo(v1.x, v1.y); c.lineTo(v2.x, v2.y);
+      c.lineTo(v3.x, v3.y); c.lineTo(v4.x, v4.y);
+      c.closePath(); c.stroke();
+      c.restore();
+    }
+
+    /* --- 3. LES TAPIS. Rouge profond, bordure claire, médaillon au
+       centre. Ils sont plus petits que les cours et posés n'importe
+       où : c'est ce qui donne l'impression que quelqu'un vit là. */
+    var TAPIS = [
+      { f:"#7a1f38", b:"#e0b060", m:"#c8843c" },
+      { f:"#25406e", b:"#c8b06a", m:"#6a94c8" },
+      { f:"#5c2a6a", b:"#d8b8e8", m:"#a86ac0" },
+      { f:"#1f5a52", b:"#dcc078", m:"#4c9c8a" }
+    ];
+    for(i = 0; i < 30; i++){
+      var tx3 = LARGEUR_ROCHE + 2 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 8);
+      var ty3 = 2 + al() * (GH - 8);
+      var tw3 = 2.4 + al() * 2.6, th3 = 1.8 + al() * 2.0;
+      var T3 = TAPIS[(al() * TAPIS.length) | 0];
+      function quad(x0, y0, w0, h0){
+        var q1 = iso(x0, y0), q2 = iso(x0 + w0, y0);
+        var q3 = iso(x0 + w0, y0 + h0), q4 = iso(x0, y0 + h0);
+        c.beginPath();
+        c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y);
+        c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y);
+        c.closePath();
+      }
+      c.globalAlpha = 0.68;
+      c.fillStyle = T3.f; quad(tx3, ty3, tw3, th3); c.fill();
+      c.globalAlpha = 0.5;
+      c.strokeStyle = T3.b; c.lineWidth = 2.0;
+      quad(tx3 + 0.22, ty3 + 0.18, tw3 - 0.44, th3 - 0.36); c.stroke();
+      c.globalAlpha = 0.42;
+      c.fillStyle = T3.m;
+      var mc3 = iso(tx3 + tw3 / 2, ty3 + th3 / 2);
+      c.beginPath();
+      c.ellipse(mc3.x, mc3.y, tw3 * 7, th3 * 3.6, 0, 0, 6.2832);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+
+    /* --- 4. LES CHEMINS DE PIERRE. Ils errent d'un bord à l'autre en
+       pas de deux cases, en dalles claires. Un chemin droit aurait
+       fait une route ; celui-ci serpente comme une allée de jardin. */
+    c.save();
+    c.globalAlpha = 0.30;
+    c.strokeStyle = "#8e86c8";
+    c.lineCap = "round"; c.lineJoin = "round";
+    for(i = 0; i < 16; i++){
+      var cx4 = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE);
+      var cy4 = al() * GH;
+      var an4 = al() * 6.2832;
+      c.lineWidth = 5 + al() * 5;
+      c.beginPath();
+      var d4 = iso(cx4, cy4); c.moveTo(d4.x, d4.y);
+      for(j = 0; j < 26; j++){
+        an4 += (al() - 0.5) * 0.9;
+        cx4 += Math.cos(an4) * 2.4; cy4 += Math.sin(an4) * 2.4;
+        if(cx4 < 1 || cx4 > PLAGE_X0 + 4 || cy4 < 0 || cy4 > GH) break;
+        var e4 = iso(cx4, cy4); c.lineTo(e4.x, e4.y);
+      }
+      c.stroke();
+    }
+    c.restore();
+
+    /* --- 5. LES BASSINS. La seule eau douce de l'île, et la seule
+       chose vraiment claire au sol : un turquoise qui brille dans
+       l'indigo. Une margelle de pierre pâle, l'eau dedans, un reflet
+       de lune dessus. */
+    for(i = 0; i < 26; i++){
+      var bx4 = LARGEUR_ROCHE + 3 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 8);
+      var by4 = 3 + al() * (GH - 8);
+      var rb4 = 1.1 + al() * 1.5;
+      var pb4 = iso(bx4, by4);
+      c.globalAlpha = 0.5;
+      c.fillStyle = "#6a63a8";
+      c.beginPath(); c.ellipse(pb4.x, pb4.y, rb4 * RX * 1.16, rb4 * RY * 1.16, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.72;
+      var gb4 = c.createRadialGradient(pb4.x, pb4.y - rb4 * 4, 2, pb4.x, pb4.y, rb4 * RX);
+      gb4.addColorStop(0, "#6ff0e0");
+      gb4.addColorStop(0.6, "#1f9aa8");
+      gb4.addColorStop(1, "#155a78");
+      c.fillStyle = gb4;
+      c.beginPath(); c.ellipse(pb4.x, pb4.y, rb4 * RX, rb4 * RY, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.4;
+      c.fillStyle = "#e8fbff";
+      c.beginPath();
+      c.ellipse(pb4.x - rb4 * 6, pb4.y - rb4 * 3, rb4 * 7, rb4 * 2.2, -0.3, 0, 6.2832);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+
+    /* --- 6. L'OR GRAVÉ. Des étoiles et des croissants tracés à même
+       la pierre, très fins, très dispersés. C'est ce qu'on découvre en
+       zoomant, et c'est pour ça qu'il y en a beaucoup et qu'ils sont
+       petits : de loin ils ne font qu'un chatoiement. */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < 340; i++){
+      var sx4 = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE + 6);
+      var sy4 = al() * GH;
+      var ps4 = iso(sx4, sy4);
+      var tl4 = 3 + al() * 5;
+      c.globalAlpha = 0.18 + al() * 0.3;
+      if(al() < 0.34){
+        /* le croissant : deux arcs, l'un mordant l'autre */
+        c.strokeStyle = "rgba(226,196,120,.9)";
+        c.lineWidth = 1.3;
+        c.beginPath();
+        c.arc(ps4.x, ps4.y, tl4, 0.7, 5.0);
+        c.stroke();
+      }else{
+        /* l'étoile à quatre branches, en losange étiré : c'est la
+           forme la moins chère qui se lise comme une étoile */
+        c.fillStyle = "rgba(240,222,160,.9)";
+        c.beginPath();
+        c.moveTo(ps4.x, ps4.y - tl4);
+        c.lineTo(ps4.x + tl4 * 0.34, ps4.y);
+        c.lineTo(ps4.x, ps4.y + tl4);
+        c.lineTo(ps4.x - tl4 * 0.34, ps4.y);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(ps4.x - tl4 * 1.5, ps4.y);
+        c.lineTo(ps4.x, ps4.y - tl4 * 0.28);
+        c.lineTo(ps4.x + tl4 * 1.5, ps4.y);
+        c.lineTo(ps4.x, ps4.y + tl4 * 0.28);
+        c.closePath(); c.fill();
+      }
+    }
+    c.restore();
+    c.globalAlpha = 1;
     c.restore();
   }
 
@@ -7956,6 +8337,97 @@ function dessineEau(c, t, vue){
     if(vis < 0.4) continue;
     c.globalAlpha = (vis - 0.4) / 0.6 * 0.85;
     c.beginPath(); c.moveTo(x - 8, y); c.lineTo(x + 8, y - 2); c.stroke();
+  }
+  c.restore();
+
+  if(carte.biome === "nuits") dessineMerDEncre(c, t, vue);
+}
+
+/* ================================================================
+   LA MER D'ENCRE — le ciel étoilé, vu d'en bas
+
+   « Je ne veux pas forcément retrouver l'eau bleue classique autour de
+   l'île. » La réponse la moins chère et la plus belle n'est pas une
+   brume : c'est un MIROIR. La mer des mille et une nuits est presque
+   noire, et ce qu'on y voit ce sont les étoiles et la lune —
+   c'est-à-dire le ciel, retourné. L'île donne alors l'impression de
+   flotter dans la nuit plutôt que d'être posée dans de l'eau.
+
+   TROIS RÈGLES QUI FONT QUE ÇA MARCHE.
+
+   1. LES ÉTOILES SONT À DEMEURE, PAS TIRÉES À CHAQUE IMAGE. Leurs
+      places viennent d'une suite déterministe : un tirage par image
+      ferait une neige qui grésille, jamais un reflet.
+   2. ELLES SONT DANS LE REPÈRE DU MONDE, donc elles défilent quand on
+      déplace la caméra — un reflet collé à l'écran serait un voile,
+      pas une surface.
+   3. ELLES ONDULENT. Un reflet sur de l'eau n'est pas un point : il
+      s'étire et se brise. Chacune est donc une petite barre
+      horizontale dont la longueur bat, et dont la hauteur oscille
+      légèrement — c'est ce tremblement qui dit « c'est de l'eau ».
+   ================================================================ */
+var MER_ETOILES = null;
+function construitEtoilesMer(){
+  /* Un pavé de reflets que l'on répète : la mer est immense et l'on
+     n'en voit qu'un morceau, donc on sème dans une tuile de monde et
+     l'on ne dessine que les tuiles visibles. Quatre-vingts reflets par
+     tuile suffisent — au-delà, la mer scintille comme un écran
+     défectueux. */
+  var al = prng(0x51DE), o = [];
+  for(var i = 0; i < 80; i++){
+    o.push({
+      x:al() * MER_TUILE, y:al() * MER_TUILE,
+      /* les grosses sont rares : c'est ce qui donne une profondeur de
+         champ au ciel reflété */
+      r:(al() < 0.12 ? 2.1 + al() * 1.5 : 0.7 + al() * 0.9),
+      ph:al() * 6.2832,
+      vit:0.5 + al() * 1.5,
+      /* trois teintes : blanc lunaire, or, et un bleu très pâle */
+      t:al() < 0.62 ? "220,228,255" : (al() < 0.6 ? "244,214,140" : "168,214,255")
+    });
+  }
+  return o;
+}
+var MER_TUILE = 900;
+function dessineMerDEncre(c, t, vue){
+  if(!MER_ETOILES) MER_ETOILES = construitEtoilesMer();
+  var i0 = Math.floor(vue.x0 / MER_TUILE), i1 = Math.ceil(vue.x1 / MER_TUILE);
+  var j0 = Math.floor(vue.y0 / MER_TUILE), j1 = Math.ceil(vue.y1 / MER_TUILE);
+  /* GARDE-FOU. Très dézoomée, la vue peut couvrir des dizaines de
+     tuiles ; à ce niveau les reflets font moins d'un pixel et ne se
+     voient plus de toute façon. On coupe donc, au lieu de payer. */
+  if((i1 - i0) * (j1 - j0) > 60) return;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var ti = i0; ti <= i1; ti++){
+    for(var tj = j0; tj <= j1; tj++){
+      var ox = ti * MER_TUILE, oy = tj * MER_TUILE;
+      /* chaque tuile est décalée d'un demi-pas une fois sur deux :
+         sinon on lit la grille */
+      var dec = ((ti + tj) & 1) ? MER_TUILE * 0.37 : 0;
+      for(var k = 0; k < MER_ETOILES.length; k++){
+        var e = MER_ETOILES[k];
+        var x = ox + e.x + dec, y = oy + e.y;
+        if(x < vue.x0 - 20 || x > vue.x1 + 20 || y < vue.y0 - 20 || y > vue.y1 + 20) continue;
+        /* le scintillement, et l'ondulation du reflet */
+        var s = 0.55 + 0.45 * Math.sin(t * e.vit + e.ph);
+        var etire = 1 + 1.8 * (0.5 + 0.5 * Math.sin(t * e.vit * 0.7 + e.ph * 1.7));
+        var yy = y + Math.sin(t * 0.9 + e.ph) * 1.6;
+        c.fillStyle = "rgba(" + e.t + "," + (0.18 + s * 0.5) + ")";
+        c.beginPath();
+        c.ellipse(x, yy, e.r * etire * 1.7, e.r * 0.55, 0, 0, 6.2832);
+        c.fill();
+        /* les grosses ont un halo : c'est lui qui les fait lire comme
+           une lumière et non comme un grain */
+        if(e.r > 2){
+          var g = c.createRadialGradient(x, yy, 0, x, yy, e.r * 7);
+          g.addColorStop(0, "rgba(" + e.t + "," + (0.16 * s) + ")");
+          g.addColorStop(1, "rgba(" + e.t + ",0)");
+          c.fillStyle = g;
+          c.beginPath(); c.ellipse(x, yy, e.r * 7, e.r * 3, 0, 0, 6.2832); c.fill();
+        }
+      }
+    }
   }
   c.restore();
 }
@@ -14483,7 +14955,12 @@ var MET_CIELS = {
   orage:{ bas:MET_NUAGE_G,  haut:MET_NUAGE_G_H },
   clair:{ bas:MET_NUAGE_C,  haut:MET_NUAGE_C_H },
   fumee:{ bas:"38,26,26",   haut:"196,92,40"    },
-  nuit :{ bas:"30,24,40",   haut:"140,124,150"  }
+  nuit :{ bas:"30,24,40",   haut:"140,124,150"  },
+  /* etoile : les mille et une nuits. Les masses sont d'un indigo
+     profond mais leur crête prend la LUNE — un liseré lilas très clair
+     qui les détache du ciel. C'est le seul ciel du jeu dont la lumière
+     vient d'en haut sans venir du soleil. */
+  etoile:{ bas:"26,22,58",   haut:"186,178,242"  }
 };
 var metSpNuagesPar = {};
 function spritesNuage(style){
@@ -17043,6 +17520,799 @@ function vjFougere(c, x, y, r, ang, coul, al){
     }
   }
   c.restore();
+}
+
+/* ===== 39-nuits-decors.js ===== */
+/* ================================================================
+   LES DÉCORS DES « MILY ET UNE NUITS »
+
+   PAS DE BÂTIMENTS. C'est la leçon de la première version, et elle
+   valait d'être apprise en la voyant : cette carte porte déjà des
+   bâtiments — les défenses, les tours de guet, les batteries — et ils
+   sont grands, gris et militaires. Y ajouter des petits palais blancs
+   donnait deux architectures à deux échelles sur la même image, et
+   aucune des deux ne gagnait : les palais passaient pour des jouets
+   posés entre les canons.
+
+   Ce fichier ne contient donc plus que de l'ORNEMENT DE SOL — des
+   choses basses, qui décorent la terre au lieu de lui disputer le
+   ciel :
+
+     v = 0   LE JARDIN      fleurs lumineuses, cyprès de nuit, palmes
+     v = 1   LES LANTERNES  bornes, guirlandes, mâts à lanternes
+     v = 2   LA FONTAINE    la pièce maîtresse, à trois tailles
+     v = 3   LE TAPIS       tapis, coussins, brasero, plateau à thé
+
+   LA FONTAINE EST LE SUJET. « Une vraie belle fontaine avec de l'eau
+   magique. » Elle a donc tout ce qu'on peut lui donner : des vasques à
+   huit pans bordées de mosaïque, une eau qui s'éclaire d'elle-même,
+   des anneaux de rides, des jets en arc, des voiles d'eau qui
+   débordent d'un étage à l'autre, de la brume au ras du bassin, des
+   nénuphars, des lotus ouverts et des étoiles qui flottent au-dessus.
+   C'est le seul objet de l'île qui ait le droit d'être compliqué —
+   tout le reste est sobre pour qu'elle puisse ne pas l'être.
+
+   TROIS CONTRAINTES DU MOTEUR, comme pour 31-decors-nouveaux.js :
+     1. Tout est PRÉ-RENDU une fois. Aucun Math.random(), aucun temps :
+        une lanterne est allumée à une heure choisie, pour toujours, et
+        un jet d'eau est figé en plein vol. Ce qu'on cherche n'est donc
+        pas le mouvement mais la SILHOUETTE du mouvement.
+     2. On reçoit gx, gy EN CASES ; iso() donne le point à l'écran, et
+        tout le reste se mesure en pixels multipliés par `s`.
+     3. L'ORDRE dans dessineDecor() est l'identité des objets. On
+        ajoute à la fin, on n'intercale jamais.
+
+   QUATRE EMPLACEMENTS, DOUZE FORMES. Le moteur ne tire que quatre
+   variantes par île et en pré-cuit trois tailles chacune. Chaque
+   variante lit donc SA TAILLE et change de forme avec elle : une
+   vasque, une fontaine à étages et une grande fontaine ne sont pas le
+   même objet agrandi, ce sont trois objets.
+   ================================================================ */
+
+/* La bande de taille : 0 petit, 1 moyen, 2 grand. Elle suit
+   exactement le découpage de dessineDecorMonde, pour que la
+   silhouette pré-cuite soit bien celle qu'on croit. */
+function bandeNuits(s){ return s < 1.0 ? 0 : (s < 1.18 ? 1 : 2); }
+
+/* La palette de l'île, en un seul endroit. Le blanc n'est jamais
+   blanc : c'est de la pierre sous la lune, donc lilas. */
+var NUI = {
+  pierre:"#cdc4ee", pierreO:"#8b82bd", pierreN:"#544c86",
+  ombre:"rgba(10,8,30,.34)",
+  or:"#f2dc9a", orO:"#c39e46", orN:"#8a6c26",
+  turq:"#3fd6cc", turqO:"#1b8a92", turqN:"#0f4c58",
+  lampe:"255,196,110", lampeF:"255,150,60",
+  eau:"120,246,236",
+  soie:["#8c2440", "#4a2a80", "#1f4c7a", "#7a2a68"],
+  soieO:["#5c1228", "#2e1a56", "#12304e", "#4e1642"],
+  feuille:"#2c6a5e", feuilleC:"#3f8f7a",
+  fleur:["#8fd8ff", "#c79cff", "#ffd48a", "#ff9ec8"]
+};
+
+/* Une ombre portée au sol, commune à tout ce qui pose ici. */
+function ombreNuits(c, x, y, rx, ry){
+  c.fillStyle = NUI.ombre;
+  c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.2832); c.fill();
+}
+
+/* lueurRapide veut « r,v,b » et non « #rrggbb ». La conversion vit
+   ici plutôt que dans chaque appel. */
+function hexRgbNuits(h){
+  var n = parseInt(h.slice(1), 16);
+  return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255);
+}
+
+/* Un polygone régulier à N pans, écrasé en isométrie. C'est la forme
+   de toutes les vasques : une vasque ronde est une vasque de square,
+   une vasque à huit pans est une vasque de palais. */
+function pansNuits(c, x, y, rx, ry, n, phase){
+  c.beginPath();
+  for(var i = 0; i < n; i++){
+    var a = phase + i / n * 6.2832;
+    var px = x + Math.cos(a) * rx, py = y + Math.sin(a) * ry;
+    if(i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+  }
+  c.closePath();
+}
+
+/* Une lanterne : le fil, le corps à six pans, la flamme. C'est
+   l'objet le plus répété de l'île — il est donc écrit pour être bon
+   marché, et généreux en lumière : c'est elle qu'on voit de loin,
+   avant toute autre chose.
+   DEUX HALOS, et c'est ce qui la fait exister : un large et pâle qui
+   pose la lumière sur le sol, un serré et vif qui fait le point
+   brûlant. Un seul des deux donne soit une tache molle, soit un point
+   sec. */
+function lanterneNuits(c, x, y, taille, fil, teinte){
+  var t = teinte || NUI.lampe;
+  if(fil > 0){
+    c.strokeStyle = "rgba(190,180,220,.5)";
+    c.lineWidth = Math.max(0.5, taille * 0.13);
+    c.beginPath(); c.moveTo(x, y - fil); c.lineTo(x, y); c.stroke();
+  }
+  /* TROIS HALOS, et c'est l'étalonnage de nuit qui l'exige : le
+     soft-light passé sur la carte pousse les demi-tons vers le bleu,
+     et un halo doré posé à mi-intensité en fait partie. Seul un halo
+     très intense reste de l'or. On empile donc du large et pâle vers
+     l'étroit et brûlant, jusqu'à saturer le cœur. */
+  lueurRapide(c, x, y + taille * 0.7, taille * 10.0, t, 0.34);
+  lueurRapide(c, x, y + taille * 0.7, taille * 4.4, t, 0.72);
+  lueurRapide(c, x, y + taille * 0.7, taille * 1.9, t, 1.0);
+  c.fillStyle = "rgba(" + t + ",.92)";
+  c.beginPath();
+  c.moveTo(x, y);
+  c.lineTo(x + taille * 0.62, y + taille * 0.42);
+  c.lineTo(x + taille * 0.5,  y + taille * 1.34);
+  c.lineTo(x, y + taille * 1.72);
+  c.lineTo(x - taille * 0.5,  y + taille * 1.34);
+  c.lineTo(x - taille * 0.62, y + taille * 0.42);
+  c.closePath(); c.fill();
+  c.fillStyle = NUI.orO;
+  c.fillRect(x - taille * 0.24, y - taille * 0.22, taille * 0.48, taille * 0.3);
+  c.beginPath();
+  c.moveTo(x, y + taille * 1.72);
+  c.lineTo(x + taille * 0.18, y + taille * 2.1);
+  c.lineTo(x - taille * 0.18, y + taille * 2.1);
+  c.closePath(); c.fill();
+  c.fillStyle = "rgba(255,248,220,.92)";
+  c.beginPath();
+  c.ellipse(x, y + taille * 0.86, taille * 0.26, taille * 0.44, 0, 0, 6.2832);
+  c.fill();
+}
+
+/* Une borne à lanterne : la colonnette torsadée et sa lampe. */
+function borneNuits(c, x, y, h, ep, taille, teinte){
+  c.fillStyle = NUI.pierreN;
+  c.beginPath(); c.ellipse(x, y, ep * 3.0, ep * 1.4, 0, 0, 6.2832); c.fill();
+  c.fillStyle = NUI.pierreO;
+  c.fillRect(x - ep, y - h, ep * 2, h);
+  c.fillStyle = NUI.pierre;
+  c.fillRect(x - ep, y - h, ep * 0.72, h);
+  c.strokeStyle = "rgba(30,22,62,.35)";
+  c.lineWidth = ep * 0.5;
+  for(var t = 1; t < 6; t++){
+    var yt = y - h * t / 6;
+    c.beginPath(); c.moveTo(x - ep, yt); c.lineTo(x + ep, yt - ep); c.stroke();
+  }
+  c.fillStyle = NUI.orO;
+  c.fillRect(x - ep * 1.8, y - h - ep, ep * 3.6, ep * 1.1);
+  lanterneNuits(c, x, y - h - ep * 0.7, taille, 0, teinte);
+}
+
+/* Un brasero : la vasque sur trois pieds, les braises, la fumée.
+   C'est la seule flamme de l'île, et c'est ce qui la réchauffe. */
+function braseroNuits(c, x, y, s){
+  ombreNuits(c, x, y, 7 * s, 3.2 * s);
+  c.strokeStyle = NUI.orN;
+  c.lineWidth = 1.1 * s;
+  for(var i = -1; i <= 1; i += 1){
+    c.beginPath();
+    c.moveTo(x + i * 3.4 * s, y);
+    c.lineTo(x + i * 1.4 * s, y - 6 * s);
+    c.stroke();
+  }
+  c.fillStyle = NUI.orO;
+  c.beginPath(); c.ellipse(x, y - 6.4 * s, 5.4 * s, 2.2 * s, 0, 0, 6.2832); c.fill();
+  c.fillStyle = NUI.or;
+  c.beginPath(); c.ellipse(x, y - 7.0 * s, 5.4 * s, 2.0 * s, 0, 0, 6.2832); c.fill();
+  lueurRapide(c, x, y - 8 * s, 26 * s, NUI.lampeF, 0.62);
+  c.fillStyle = "rgba(255,170,70,.95)";
+  c.beginPath(); c.ellipse(x, y - 7.6 * s, 3.6 * s, 1.5 * s, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,236,180,.95)";
+  c.beginPath(); c.ellipse(x - 0.6 * s, y - 8.4 * s, 1.9 * s, 1.5 * s, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(210,190,230,.12)";
+  c.lineWidth = 1.6 * s;
+  c.lineCap = "round";
+  for(var k = -1; k <= 1; k += 2){
+    c.beginPath();
+    c.moveTo(x + k * 1.2 * s, y - 9 * s);
+    c.quadraticCurveTo(x + k * 5 * s, y - 15 * s, x + k * 1.6 * s, y - 21 * s);
+    c.stroke();
+  }
+}
+
+/* Une fleur lumineuse : cinq pétales, un cœur clair, un halo. Cinq
+   parce qu'à cette taille six font une roue et quatre une croix. */
+function fleurNuits(c, x, y, r, coul){
+  lueurRapide(c, x, y, r * 6.5, hexRgbNuits(coul), 0.42);
+  c.fillStyle = coul;
+  for(var i = 0; i < 5; i++){
+    var a = i / 5 * 6.2832 - 1.2;
+    c.beginPath();
+    c.ellipse(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.5,
+              r * 0.52, r * 0.34, a, 0, 6.2832);
+    c.fill();
+  }
+  c.fillStyle = "rgba(255,250,225,.9)";
+  c.beginPath(); c.ellipse(x, y, r * 0.3, r * 0.24, 0, 0, 6.2832); c.fill();
+}
+
+/* ================================================================
+   VARIANTE 0 — LE JARDIN
+   De la verdure « élégante, pas dense » : rien ne pousse en masse
+   ici, tout est planté. Trois massifs selon la taille.
+   ================================================================ */
+function jardinNuits(c, gx, gy, s){
+  var p = iso(gx, gy), x = p.x, y = p.y, b = bandeNuits(s);
+  var k = s * (b === 2 ? 1.22 : b === 1 ? 1.36 : 1.55);
+
+  /* Une touffe : des feuilles en éventail depuis un point. */
+  function touffe(cx, cy, h, larg, n, coul){
+    c.strokeStyle = coul;
+    c.lineCap = "round";
+    c.lineWidth = 1.5 * k;
+    for(var i = 0; i < n; i++){
+      var u = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;
+      c.beginPath();
+      c.moveTo(cx, cy);
+      c.quadraticCurveTo(cx + u * larg * 0.5, cy - h * 0.75,
+                         cx + u * larg, cy - h * (1 - Math.abs(u) * 0.42));
+      c.stroke();
+    }
+  }
+  /* La bordure de pierre d'un massif : un ovale de dalles pâles avec
+     de la terre sombre dedans. C'est elle qui dit « planté » plutôt
+     que « poussé tout seul ». */
+  function bordure(cx, cy, rx, ry){
+    c.fillStyle = NUI.pierreN;
+    c.beginPath(); c.ellipse(cx, cy + 1.2 * k, rx, ry, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.pierreO;
+    c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "#241d4a";
+    c.beginPath(); c.ellipse(cx, cy, rx * 0.82, ry * 0.78, 0, 0, 6.2832); c.fill();
+  }
+
+  if(b === 0){
+    /* LE MASSIF FLEURI. Bas, large, très éclairé : c'est lui qui sème
+       la couleur au sol entre les défenses. */
+    ombreNuits(c, x, y, 13 * k, 6 * k);
+    bordure(x, y, 12 * k, 5.6 * k);
+    touffe(x, y - 1 * k, 9 * k, 8 * k, 7, NUI.feuille);
+    touffe(x - 4 * k, y, 7 * k, 6 * k, 5, NUI.feuilleC);
+    fleurNuits(c, x - 5 * k, y - 6 * k, 2.6 * k, NUI.fleur[0]);
+    fleurNuits(c, x + 3 * k, y - 8 * k, 2.9 * k, NUI.fleur[1]);
+    fleurNuits(c, x + 6 * k, y - 4 * k, 2.3 * k, NUI.fleur[3]);
+    fleurNuits(c, x - 1 * k, y - 4 * k, 2.1 * k, NUI.fleur[2]);
+
+  }else if(b === 1){
+    /* LE CYPRÈS DE NUIT. Une seule verticale sombre et fine — c'est
+       ce qui donne du rythme à une carte entièrement basse. Piqué de
+       deux fleurs pour ne pas être un trou noir. */
+    ombreNuits(c, x, y, 8 * k, 3.6 * k);
+    bordure(x, y, 7.4 * k, 3.4 * k);
+    var h1 = 40 * k;
+    var g1 = c.createLinearGradient(x - 5 * k, 0, x + 5 * k, 0);
+    g1.addColorStop(0, "#3c7e6e");
+    g1.addColorStop(0.45, "#1f4c46");
+    g1.addColorStop(1, "#132f2e");
+    c.fillStyle = g1;
+    c.beginPath();
+    c.moveTo(x, y - h1);
+    c.bezierCurveTo(x + 5.4 * k, y - h1 * 0.55, x + 4.2 * k, y - h1 * 0.12, x + 2.6 * k, y);
+    c.lineTo(x - 2.6 * k, y);
+    c.bezierCurveTo(x - 4.2 * k, y - h1 * 0.12, x - 5.4 * k, y - h1 * 0.55, x, y - h1);
+    c.closePath(); c.fill();
+    /* les écailles du feuillage */
+    c.strokeStyle = "rgba(150,230,205,.16)";
+    c.lineWidth = 0.9 * k;
+    for(var j = 1; j < 8; j++){
+      var yy = y - h1 * j / 8, ww = 4.6 * k * (1 - Math.abs(j / 8 - 0.35) * 0.7);
+      c.beginPath();
+      c.moveTo(x - ww, yy + 1.6 * k); c.quadraticCurveTo(x, yy - 1 * k, x + ww, yy + 1.6 * k);
+      c.stroke();
+    }
+    lueurRapide(c, x + 2 * k, y - h1 * 0.7, 12 * k, "150,240,210", 0.3);
+    fleurNuits(c, x - 5 * k, y - 3 * k, 2.4 * k, NUI.fleur[1]);
+    fleurNuits(c, x + 5 * k, y - 2 * k, 2.1 * k, NUI.fleur[0]);
+
+  }else{
+    /* LE PETIT JARDIN. Deux palmes, un massif, quatre fleurs et une
+       borne à lanterne : « en zoomant on découvre de véritables
+       petites scènes ». En voici une. */
+    ombreNuits(c, x, y, 22 * k, 10 * k);
+    bordure(x, y, 20 * k, 9 * k);
+    for(var q = -1; q <= 1; q += 2){
+      var px2 = x + q * 11 * k, hp = 34 * k;
+      c.strokeStyle = "#4a4076";
+      c.lineWidth = 2.0 * k; c.lineCap = "round";
+      c.beginPath();
+      c.moveTo(px2, y - 1 * k);
+      c.quadraticCurveTo(px2 + q * 3 * k, y - hp * 0.55, px2 + q * 1.4 * k, y - hp);
+      c.stroke();
+      for(var i2 = 0; i2 < 6; i2++){
+        var a2 = -0.35 + i2 * 0.6;
+        c.strokeStyle = i2 % 2 ? NUI.feuille : NUI.feuilleC;
+        c.lineWidth = 1.8 * k;
+        c.beginPath();
+        c.moveTo(px2 + q * 1.4 * k, y - hp);
+        c.quadraticCurveTo(px2 + q * 1.4 * k + Math.cos(a2) * 7 * k,
+                           y - hp - 3.4 * k + Math.sin(a2) * 4 * k,
+                           px2 + q * 1.4 * k + Math.cos(a2) * 12 * k,
+                           y - hp + 6 * k + Math.sin(a2) * 7 * k);
+        c.stroke();
+      }
+    }
+    touffe(x, y - 1 * k, 12 * k, 11 * k, 9, NUI.feuille);
+    touffe(x - 5 * k, y, 9 * k, 8 * k, 6, NUI.feuilleC);
+    fleurNuits(c, x - 6 * k, y - 8 * k, 3.0 * k, NUI.fleur[0]);
+    fleurNuits(c, x + 2 * k, y - 11 * k, 3.2 * k, NUI.fleur[1]);
+    fleurNuits(c, x + 7 * k, y - 6 * k, 2.6 * k, NUI.fleur[3]);
+    fleurNuits(c, x - 2 * k, y - 5 * k, 2.4 * k, NUI.fleur[2]);
+    borneNuits(c, x + 17 * k, y, 15 * k, 1.4 * k, 3.0 * k);
+  }
+}
+
+/* ================================================================
+   VARIANTE 1 — LES LANTERNES
+   « Les lanternes doivent jouer un rôle majeur dans la décoration :
+   au sol, suspendues, en guirlandes, le long des chemins. » C'est
+   leur variante entière, et c'est elle qui allume l'île.
+   ================================================================ */
+var NUI_TEINTES = ["255,196,110", "255,150,90", "150,220,255", "210,150,255"];
+function lanternesNuits(c, gx, gy, s){
+  var p = iso(gx, gy), x = p.x, y = p.y, b = bandeNuits(s);
+  var k = s * (b === 2 ? 1.15 : b === 1 ? 1.35 : 1.55);
+
+  if(b === 0){
+    /* LA BORNE. La plus fréquente des trois — c'est elle qui borde
+       les chemins et qui, répétée cent fois, fait la constellation
+       qu'on voit quand on regarde l'île entière. */
+    ombreNuits(c, x, y, 6 * k, 2.8 * k);
+    borneNuits(c, x, y, 20 * k, 1.5 * k, 3.4 * k);
+
+  }else if(b === 1){
+    /* LA GUIRLANDE entre deux mâts. La corde pend en parabole et les
+       lanternes suivent sa courbe : c'est ce détail-là qui fait qu'on
+       y croit — une guirlande dont les lampes sont alignées est une
+       rampe d'éclairage. */
+    ombreNuits(c, x, y, 20 * k, 7 * k);
+    pieuDecor(c, x - 18 * k, y, 30 * k, 1.5 * k, NUI.pierre, NUI.pierreN);
+    pieuDecor(c, x + 18 * k, y, 30 * k, 1.5 * k, NUI.pierre, NUI.pierreN);
+    c.strokeStyle = "rgba(180,170,220,.55)";
+    c.lineWidth = 0.9 * k;
+    c.beginPath();
+    c.moveTo(x - 18 * k, y - 30 * k);
+    c.quadraticCurveTo(x, y - 18 * k, x + 18 * k, y - 30 * k);
+    c.stroke();
+    for(var i = 0; i < 5; i++){
+      var u = (i + 0.5) / 5;
+      var lx = x - 18 * k + u * 36 * k;
+      var ly = y - 30 * k + (1 - (2 * u - 1) * (2 * u - 1)) * 12 * k;
+      lanterneNuits(c, lx, ly, 2.8 * k, 0, NUI_TEINTES[i % 4]);
+    }
+    /* deux fanions de soie entre les lanternes */
+    for(var f = 0; f < 2; f++){
+      var uf = (f + 1) / 3;
+      var fx = x - 18 * k + uf * 36 * k;
+      var fy = y - 30 * k + (1 - (2 * uf - 1) * (2 * uf - 1)) * 12 * k;
+      c.globalAlpha = 0.7;
+      c.fillStyle = NUI.soie[(f + 1) % 4];
+      c.beginPath();
+      c.moveTo(fx - 2.4 * k, fy); c.lineTo(fx + 2.4 * k, fy);
+      c.lineTo(fx, fy + 5 * k);
+      c.closePath(); c.fill();
+      c.globalAlpha = 1;
+    }
+
+  }else{
+    /* LE MÂT À LANTERNES. Un poteau, un croissant d'or à la pointe,
+       trois cordes qui descendent en étoile, neuf lampes. C'est le
+       repère lumineux de l'île — ce qu'on vise quand on cherche où
+       aller. */
+    ombreNuits(c, x, y, 24 * k, 10 * k);
+    var hm = 46 * k;
+    c.fillStyle = NUI.pierreN;
+    c.beginPath(); c.ellipse(x, y, 7 * k, 3.2 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.pierreO;
+    c.fillRect(x - 2.2 * k, y - hm, 4.4 * k, hm);
+    c.fillStyle = NUI.pierre;
+    c.fillRect(x - 2.2 * k, y - hm, 1.5 * k, hm);
+    c.fillStyle = NUI.orO;
+    c.fillRect(x - 3.6 * k, y - hm - 2 * k, 7.2 * k, 2.2 * k);
+    c.fillStyle = NUI.or;
+    c.beginPath();
+    c.arc(x, y - hm - 6 * k, 3.4 * k, 0, 6.2832);
+    c.arc(x + 1.6 * k, y - hm - 6.8 * k, 3.0 * k, 0, 6.2832, true);
+    c.fill();
+    lueurRapide(c, x, y - hm - 6 * k, 22 * k, NUI.lampe, 0.4);
+    /* les trois cordes et leurs lanternes. Le point courant d'une
+       corde est calculé sur la MÊME courbe de Bézier que celle qu'on
+       trace — sinon les lampes flottent à côté du fil. */
+    var ancres = [[-22, -8], [0, -26], [22, -8]];
+    for(var q2 = 0; q2 < 3; q2++){
+      var ax = x + ancres[q2][0] * k, ay = y + ancres[q2][1] * k;
+      var mx = (x + ax) / 2, my = y - hm * 0.42;
+      c.strokeStyle = "rgba(180,170,220,.45)";
+      c.lineWidth = 0.8 * k;
+      c.beginPath();
+      c.moveTo(x, y - hm + 1 * k);
+      c.quadraticCurveTo(mx, my, ax, ay);
+      c.stroke();
+      for(var j2 = 1; j2 <= 3; j2++){
+        var u2 = j2 / 4, v2 = 1 - u2;
+        var bx2 = v2 * v2 * x + 2 * v2 * u2 * mx + u2 * u2 * ax;
+        var by2 = v2 * v2 * (y - hm + 1 * k) + 2 * v2 * u2 * my + u2 * u2 * ay;
+        lanterneNuits(c, bx2, by2, 2.6 * k, 0, NUI_TEINTES[(q2 + j2) & 3]);
+      }
+    }
+  }
+}
+
+/* ================================================================
+   VARIANTE 2 — LA FONTAINE
+   ================================================================ */
+function fontaineNuits(c, gx, gy, s){
+  var p = iso(gx, gy), x = p.x, y = p.y, b = bandeNuits(s);
+  var k = s * (b === 2 ? 1.10 : b === 1 ? 1.32 : 1.55);
+
+  /* ---- L'EAU MAGIQUE. Cinq couches, et l'ordre compte : chacune
+     corrige ce que la précédente ne peut pas faire.
+       1. le halo, SOUS la nappe : c'est ce qui éclaire la pierre
+          autour et fait que l'eau ÉCLAIRE au lieu d'être éclairée.
+          C'est toute la différence entre « magique » et « bleue » ;
+       2. la nappe, en dégradé du centre clair vers le bord sombre —
+          l'inverse d'un reflet, parce que la lumière vient de
+          l'intérieur ;
+       3. les anneaux de rides, concentriques et décalés vers le bas ;
+       4. le croissant de reflet, décentré : sans lui la nappe est un
+          disque peint, avec lui c'est une surface ;
+       5. les étincelles, quelques points blancs sur la ride. ---- */
+  function nappe(cx, cy, rx, ry, force){
+    lueurRapide(c, cx, cy, rx * 4.2, NUI.eau, force === undefined ? 0.55 : force);
+    var g = c.createRadialGradient(cx, cy - ry * 0.5, rx * 0.06, cx, cy, rx);
+    g.addColorStop(0, "#ddfffb");
+    g.addColorStop(0.28, "#7ff0e6");
+    g.addColorStop(0.68, NUI.turq);
+    g.addColorStop(1, NUI.turqN);
+    c.fillStyle = g;
+    c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(230,255,252,.28)";
+    for(var i = 1; i <= 4; i++){
+      var u = i / 5;
+      c.lineWidth = Math.max(0.5, rx * 0.028 * (1 - u * 0.5));
+      c.beginPath();
+      c.ellipse(cx, cy + ry * 0.06 * i, rx * u, ry * u, 0, 0, 6.2832);
+      c.stroke();
+    }
+    c.fillStyle = "rgba(245,255,255,.5)";
+    c.beginPath();
+    c.ellipse(cx - rx * 0.26, cy - ry * 0.36, rx * 0.38, ry * 0.22, -0.35, 0, 6.2832);
+    c.fill();
+    c.fillStyle = "rgba(255,255,255,.85)";
+    for(var e = 0; e < 5; e++){
+      var ae = 0.6 + e * 1.15;
+      c.beginPath();
+      c.ellipse(cx + Math.cos(ae) * rx * 0.55, cy + Math.sin(ae) * ry * 0.55,
+                rx * 0.035, ry * 0.05, 0, 0, 6.2832);
+      c.fill();
+    }
+  }
+  /* ---- LE JET. Un filet central, quatre arcs qui retombent, des
+     gouttes en suspension. Il est FIGÉ, donc ce qu'on cherche n'est
+     pas le mouvement mais la SILHOUETTE d'un jet : montée fine,
+     sommet arrondi, retombée qui s'écarte. ---- */
+  function jet(cx, cy, h){
+    c.lineCap = "round";
+    c.strokeStyle = "rgba(226,255,252,.72)";
+    c.lineWidth = 1.5 * k;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx, cy - h); c.stroke();
+    c.strokeStyle = "rgba(190,250,244,.5)";
+    c.lineWidth = 1.0 * k;
+    for(var i = -1; i <= 1; i += 2){
+      c.beginPath();
+      c.moveTo(cx, cy - h * 0.14);
+      c.quadraticCurveTo(cx + i * h * 0.46, cy - h * 1.18, cx + i * h * 0.82, cy + h * 0.06);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(cx, cy - h * 0.2);
+      c.quadraticCurveTo(cx + i * h * 0.26, cy - h * 0.96, cx + i * h * 0.46, cy + h * 0.04);
+      c.stroke();
+    }
+    c.fillStyle = "rgba(230,255,252,.7)";
+    for(var d = 0; d < 7; d++){
+      var ad = 0.35 + d * 0.85, rd = h * (0.34 + (d % 3) * 0.22);
+      c.beginPath();
+      c.ellipse(cx + Math.cos(ad) * rd, cy - h * 0.72 + Math.sin(ad) * rd * 0.4,
+                0.7 * k, 1.0 * k, 0, 0, 6.2832);
+      c.fill();
+    }
+    lueurRapide(c, cx, cy - h * 0.72, h * 2.4, NUI.eau, 0.5);
+  }
+  /* ---- LA MARGELLE À HUIT PANS, et sa frise de mosaïque : une
+     pastille d'or et de turquoise en alternance sur le bord. C'est
+     elle qui dit « palais » et non « bassin ». ---- */
+  function margelle(cx, cy, rx, ry, ep){
+    c.fillStyle = NUI.pierreN;
+    pansNuits(c, cx, cy + ep, rx, ry, 8, 0.3927); c.fill();
+    c.fillStyle = NUI.pierreO;
+    pansNuits(c, cx, cy, rx, ry, 8, 0.3927); c.fill();
+    c.fillStyle = NUI.pierre;
+    pansNuits(c, cx, cy - ep * 0.34, rx * 0.99, ry * 0.99, 8, 0.3927); c.fill();
+    for(var i = 0; i < 24; i++){
+      var a = i / 24 * 6.2832;
+      c.fillStyle = (i & 1) ? NUI.orO : NUI.turqO;
+      c.beginPath();
+      c.ellipse(cx + Math.cos(a) * rx * 0.9, cy - ep * 0.34 + Math.sin(a) * ry * 0.9,
+                Math.max(0.5, rx * 0.05), Math.max(0.4, ry * 0.07), 0, 0, 6.2832);
+      c.fill();
+    }
+  }
+  /* ---- LES NÉNUPHARS ET LES LOTUS, posés sur l'eau. ---- */
+  function lotus(cx, cy, r, ouvert){
+    c.fillStyle = "rgba(22,74,68,.72)";
+    c.beginPath(); c.ellipse(cx, cy, r * 1.5, r * 0.72, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(60,140,124,.5)";
+    c.beginPath(); c.ellipse(cx - r * 0.3, cy - r * 0.14, r * 0.8, r * 0.36, 0, 0, 6.2832); c.fill();
+    if(!ouvert) return;
+    for(var i = 0; i < 6; i++){
+      var a = i / 6 * 6.2832;
+      c.fillStyle = i % 2 ? "#ffd0e8" : "#f2b8dc";
+      c.beginPath();
+      c.ellipse(cx + Math.cos(a) * r * 0.5, cy - r * 0.3 + Math.sin(a) * r * 0.24,
+                r * 0.42, r * 0.26, a, 0, 6.2832);
+      c.fill();
+    }
+    c.fillStyle = "#fff2c8";
+    c.beginPath(); c.ellipse(cx, cy - r * 0.34, r * 0.2, r * 0.14, 0, 0, 6.2832); c.fill();
+    lueurRapide(c, cx, cy - r * 0.34, r * 4, "255,190,225", 0.36);
+  }
+  /* ---- LES ÉTOILES QUI FLOTTENT au-dessus de l'eau. C'est le mot
+     « magique » du cahier des charges, et c'est ce qui sépare cette
+     fontaine d'une fontaine de square. Leurs places viennent d'une
+     spirale d'or (l'angle 2,399 rad) : réparties sans jamais
+     s'aligner, et sans un seul tirage. ---- */
+  function etoilesAuDessus(cx, cy, rx, h, n){
+    for(var i = 0; i < n; i++){
+      var a = i * 2.399, d = (0.25 + ((i * 7) % 10) / 13) * rx;
+      var ex = cx + Math.cos(a) * d;
+      var ey = cy - h * (0.25 + ((i * 5) % 9) / 12);
+      var r = k * (0.6 + ((i * 3) % 5) * 0.24);
+      lueurRapide(c, ex, ey, r * 9, "220,240,255", 0.5);
+      c.fillStyle = "rgba(250,252,255,.95)";
+      c.beginPath();
+      c.moveTo(ex, ey - r * 2.2); c.lineTo(ex + r * 0.5, ey);
+      c.lineTo(ex, ey + r * 2.2); c.lineTo(ex - r * 0.5, ey);
+      c.closePath(); c.fill();
+      c.beginPath();
+      c.moveTo(ex - r * 2.6, ey); c.lineTo(ex, ey - r * 0.42);
+      c.lineTo(ex + r * 2.6, ey); c.lineTo(ex, ey + r * 0.42);
+      c.closePath(); c.fill();
+    }
+  }
+  /* ---- LE VOILE D'EAU qui déborde d'un étage sur l'autre. C'est ce
+     détail qui RELIE les vasques : sans lui, ce sont deux fontaines
+     empilées. ---- */
+  function voile(cx, y0, y1, l0, l1){
+    c.fillStyle = "rgba(190,250,244,.32)";
+    for(var v = -1; v <= 1; v += 2){
+      c.beginPath();
+      c.moveTo(cx + v * l0, y0);
+      c.quadraticCurveTo(cx + v * l1 * 1.1, (y0 + y1) / 2, cx + v * l1, y1);
+      c.lineTo(cx + v * l1 * 0.62, y1);
+      c.quadraticCurveTo(cx + v * l1 * 0.72, (y0 + y1) / 2, cx + v * l0 * 0.66, y0);
+      c.closePath(); c.fill();
+    }
+  }
+
+  if(b === 0){
+    /* LA VASQUE SUR PIED. La plus petite, et la plus fréquente. */
+    ombreNuits(c, x, y, 11 * k, 5 * k);
+    c.fillStyle = NUI.pierreN;
+    c.beginPath(); c.ellipse(x, y, 6 * k, 2.8 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.pierreO;
+    c.fillRect(x - 2.4 * k, y - 10 * k, 4.8 * k, 10 * k);
+    c.fillStyle = NUI.pierre;
+    c.fillRect(x - 2.4 * k, y - 10 * k, 1.6 * k, 10 * k);
+    margelle(x, y - 10 * k, 10 * k, 4.6 * k, 1.8 * k);
+    nappe(x, y - 11.2 * k, 8.2 * k, 3.6 * k, 0.5);
+    jet(x, y - 11.6 * k, 12 * k);
+    etoilesAuDessus(x, y - 12 * k, 9 * k, 16 * k, 3);
+
+  }else if(b === 1){
+    /* LA FONTAINE À DEUX ÉTAGES. */
+    ombreNuits(c, x, y, 19 * k, 9 * k);
+    margelle(x, y, 18 * k, 8.4 * k, 3 * k);
+    nappe(x, y - 1.4 * k, 15 * k, 6.8 * k, 0.62);
+    lotus(x - 8 * k, y + 1 * k, 2.4 * k, 0);
+    lotus(x + 7 * k, y - 3 * k, 2.2 * k, 1);
+    c.fillStyle = NUI.pierreO;
+    c.fillRect(x - 2.8 * k, y - 22 * k, 5.6 * k, 21 * k);
+    c.fillStyle = NUI.pierre;
+    c.fillRect(x - 2.8 * k, y - 22 * k, 1.9 * k, 21 * k);
+    margelle(x, y - 22 * k, 9 * k, 4 * k, 1.6 * k);
+    nappe(x, y - 23 * k, 7.2 * k, 3.0 * k, 0.42);
+    voile(x, y - 22.6 * k, y - 3 * k, 6 * k, 9 * k);
+    jet(x, y - 23.4 * k, 15 * k);
+    etoilesAuDessus(x, y - 24 * k, 13 * k, 22 * k, 5);
+    for(var q3 = -1; q3 <= 1; q3 += 2)
+      lanterneNuits(c, x + q3 * 16 * k, y - 6 * k, 2.6 * k, 0);
+
+  }else{
+    /* LA GRANDE FONTAINE. Trois vasques, sept jets, deux voiles
+       d'eau, de la brume au ras du bassin, quatre lotus, neuf étoiles
+       et quatre bornes à lanterne autour du parvis. C'est le seul
+       objet de l'île qui ait le droit d'être compliqué, et il l'est. */
+    ombreNuits(c, x, y, 34 * k, 15 * k);
+    /* le parvis : une dalle à huit pans qui POSE la fontaine. Sans
+       elle, la vasque a l'air d'avoir été déposée sur l'herbe. */
+    c.fillStyle = "rgba(120,110,190,.22)";
+    pansNuits(c, x, y + 1 * k, 33 * k, 15 * k, 8, 0.3927); c.fill();
+    c.strokeStyle = "rgba(210,190,255,.24)";
+    c.lineWidth = 1.4 * k;
+    pansNuits(c, x, y + 1 * k, 33 * k, 15 * k, 8, 0.3927); c.stroke();
+
+    margelle(x, y, 27 * k, 12.4 * k, 3.6 * k);
+    nappe(x, y - 1.8 * k, 23 * k, 10.4 * k, 0.78);
+    lotus(x - 13 * k, y + 2 * k, 3.0 * k, 1);
+    lotus(x + 12 * k, y - 5 * k, 2.6 * k, 0);
+    lotus(x - 4 * k, y + 4 * k, 2.4 * k, 1);
+    lotus(x + 6 * k, y + 2.6 * k, 2.2 * k, 0);
+
+    c.fillStyle = NUI.pierreO;
+    c.fillRect(x - 3.6 * k, y - 20 * k, 7.2 * k, 19 * k);
+    c.fillStyle = NUI.pierre;
+    c.fillRect(x - 3.6 * k, y - 20 * k, 2.4 * k, 19 * k);
+    margelle(x, y - 20 * k, 14 * k, 6.4 * k, 2.2 * k);
+    nappe(x, y - 21.4 * k, 11.4 * k, 4.8 * k, 0.55);
+
+    c.fillStyle = NUI.pierreO;
+    c.fillRect(x - 2.4 * k, y - 34 * k, 4.8 * k, 13 * k);
+    c.fillStyle = NUI.pierre;
+    c.fillRect(x - 2.4 * k, y - 34 * k, 1.6 * k, 13 * k);
+    margelle(x, y - 34 * k, 7.4 * k, 3.4 * k, 1.4 * k);
+    nappe(x, y - 35 * k, 5.6 * k, 2.4 * k, 0.4);
+
+    voile(x, y - 35 * k, y - 21 * k, 4.4 * k, 8 * k);
+    voile(x, y - 20.6 * k, y - 3.5 * k, 9 * k, 14 * k);
+
+    jet(x, y - 35.6 * k, 22 * k);
+    for(var j3 = 0; j3 < 6; j3++){
+      var aj = j3 / 6 * 6.2832 + 0.5;
+      jet(x + Math.cos(aj) * 18 * k, y - 2.4 * k + Math.sin(aj) * 8 * k, 9 * k);
+    }
+    /* LA BRUME au ras de l'eau. Une fontaine sans brume est une
+       fontaine ; avec, c'est une fontaine enchantée. */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for(var m = 0; m < 3; m++){
+      var ym = y - (3 + m * 3) * k, rm = (26 - m * 5) * k;
+      var gm = c.createRadialGradient(x, ym, 2 * k, x, ym, rm);
+      gm.addColorStop(0, "rgba(180,240,255,.14)");
+      gm.addColorStop(1, "rgba(150,220,255,0)");
+      c.fillStyle = gm;
+      c.beginPath(); c.ellipse(x, ym, rm, (9 - m * 2) * k, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    etoilesAuDessus(x, y - 36 * k, 22 * k, 34 * k, 9);
+    for(var q4 = 0; q4 < 4; q4++){
+      var a4 = 0.7854 + q4 * 1.5708;
+      borneNuits(c, x + Math.cos(a4) * 29 * k, y + 1 * k + Math.sin(a4) * 13 * k,
+                 13 * k, 1.4 * k, 2.8 * k);
+    }
+  }
+}
+
+/* ================================================================
+   VARIANTE 3 — LE TAPIS
+   Ce qui rend l'île HABITÉE. Rien ne se dresse : un tapis, des
+   coussins, un brasero, un plateau à thé. On s'assoit ici.
+   ================================================================ */
+function tapisNuits(c, gx, gy, s){
+  var p = iso(gx, gy), x = p.x, y = p.y, b = bandeNuits(s);
+  var k = s * (b === 2 ? 1.20 : b === 1 ? 1.40 : 1.60);
+  var ic = b % NUI.soie.length;
+
+  /* Un tapis posé à plat : le losange isométrique, sa bordure d'or,
+     son médaillon, et les franges au bout. */
+  function tapis(cx, cy, w, h, i0){
+    c.fillStyle = NUI.soieO[i0 % 4];
+    c.beginPath();
+    c.moveTo(cx - w, cy); c.lineTo(cx, cy - h);
+    c.lineTo(cx + w, cy); c.lineTo(cx, cy + h);
+    c.closePath(); c.fill();
+    c.fillStyle = NUI.soie[i0 % 4];
+    c.beginPath();
+    c.moveTo(cx - w * 0.9, cy); c.lineTo(cx, cy - h * 0.9);
+    c.lineTo(cx + w * 0.9, cy); c.lineTo(cx, cy + h * 0.9);
+    c.closePath(); c.fill();
+    c.strokeStyle = "rgba(240,214,140,.6)";
+    c.lineWidth = 1.2 * k;
+    c.beginPath();
+    c.moveTo(cx - w * 0.74, cy); c.lineTo(cx, cy - h * 0.74);
+    c.lineTo(cx + w * 0.74, cy); c.lineTo(cx, cy + h * 0.74);
+    c.closePath(); c.stroke();
+    c.fillStyle = "rgba(240,214,140,.34)";
+    c.beginPath(); c.ellipse(cx, cy, w * 0.4, h * 0.4, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,238,190,.55)";
+    c.beginPath();
+    c.moveTo(cx, cy - h * 0.3); c.lineTo(cx + w * 0.22, cy);
+    c.lineTo(cx, cy + h * 0.3); c.lineTo(cx - w * 0.22, cy);
+    c.closePath(); c.fill();
+    c.strokeStyle = "rgba(240,222,170,.45)";
+    c.lineWidth = 0.7 * k;
+    for(var f = -3; f <= 3; f++){
+      c.beginPath();
+      c.moveTo(cx + f * w * 0.2, cy + h * (0.9 - Math.abs(f) * 0.12));
+      c.lineTo(cx + f * w * 0.22, cy + h * (1.06 - Math.abs(f) * 0.12));
+      c.stroke();
+    }
+  }
+  /* Un coussin : un ovale bombé avec un bouton d'or au centre. */
+  function coussin(cx, cy, r, i0){
+    c.fillStyle = NUI.soieO[i0 % 4];
+    c.beginPath(); c.ellipse(cx, cy + r * 0.16, r * 1.25, r * 0.66, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.soie[i0 % 4];
+    c.beginPath(); c.ellipse(cx, cy, r * 1.2, r * 0.62, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,240,200,.30)";
+    c.beginPath(); c.ellipse(cx - r * 0.3, cy - r * 0.2, r * 0.5, r * 0.24, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.orO;
+    c.beginPath(); c.ellipse(cx, cy, r * 0.16, r * 0.12, 0, 0, 6.2832); c.fill();
+  }
+
+  if(b === 0){
+    /* LE TAPIS SEUL, avec deux coussins. */
+    ombreNuits(c, x, y, 14 * k, 6.4 * k);
+    tapis(x, y, 14 * k, 7 * k, ic);
+    coussin(x - 5 * k, y - 1 * k, 2.6 * k, ic + 1);
+    coussin(x + 4 * k, y + 1 * k, 2.4 * k, ic + 2);
+
+  }else if(b === 1){
+    /* LE TAPIS ET LE BRASERO. */
+    ombreNuits(c, x, y, 19 * k, 8.6 * k);
+    tapis(x, y, 19 * k, 9.4 * k, ic);
+    coussin(x - 8 * k, y - 1 * k, 3.0 * k, ic + 1);
+    coussin(x - 3 * k, y + 2.4 * k, 2.8 * k, ic + 2);
+    coussin(x + 6 * k, y - 2 * k, 2.6 * k, ic + 3);
+    braseroNuits(c, x + 9 * k, y + 2 * k, 0.95 * k);
+    lanterneNuits(c, x - 12 * k, y - 4 * k, 2.4 * k, 0);
+
+  }else{
+    /* LE GRAND CAMPEMENT. Un tapis large, un second en biais dessus,
+       six coussins, un plateau à thé sur une table basse, deux
+       braseros et deux lanternes posées. C'est la scène qu'on
+       découvre en zoomant. */
+    ombreNuits(c, x, y, 28 * k, 12.6 * k);
+    tapis(x, y, 27 * k, 13.4 * k, ic);
+    tapis(x + 6 * k, y + 3 * k, 11 * k, 5.4 * k, ic + 2);
+    /* la table basse et son plateau */
+    var tx = x - 2 * k, ty = y - 1 * k;
+    c.fillStyle = "#3a2a52";
+    c.beginPath(); c.ellipse(tx, ty + 2.2 * k, 6.4 * k, 3.0 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.orO;
+    c.beginPath(); c.ellipse(tx, ty, 6.4 * k, 3.0 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = NUI.or;
+    c.beginPath(); c.ellipse(tx, ty - 0.7 * k, 6.0 * k, 2.7 * k, 0, 0, 6.2832); c.fill();
+    /* la théière, son bec, son couvercle, et deux verres */
+    c.fillStyle = "#d8c07a";
+    c.beginPath(); c.ellipse(tx - 1 * k, ty - 3.2 * k, 2.2 * k, 2.0 * k, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "#d8c07a"; c.lineWidth = 0.8 * k;
+    c.beginPath();
+    c.moveTo(tx + 0.9 * k, ty - 3.6 * k);
+    c.quadraticCurveTo(tx + 3.4 * k, ty - 4.6 * k, tx + 3.0 * k, ty - 6.2 * k);
+    c.stroke();
+    c.fillStyle = "#f2dc9a";
+    c.beginPath();
+    c.moveTo(tx - 1.4 * k, ty - 5.2 * k); c.lineTo(tx - 0.6 * k, ty - 5.2 * k);
+    c.lineTo(tx - 1.0 * k, ty - 6.6 * k);
+    c.closePath(); c.fill();
+    for(var g = -1; g <= 1; g += 2){
+      c.fillStyle = "rgba(255,236,190,.85)";
+      c.beginPath();
+      c.ellipse(tx + g * 3.6 * k, ty - 1.4 * k, 0.9 * k, 1.2 * k, 0, 0, 6.2832);
+      c.fill();
+    }
+    lueurRapide(c, tx, ty - 3 * k, 16 * k, NUI.lampe, 0.24);
+    coussin(x - 13 * k, y - 2 * k, 3.4 * k, ic + 1);
+    coussin(x - 8 * k, y + 3.4 * k, 3.0 * k, ic + 2);
+    coussin(x - 1 * k, y + 5.4 * k, 2.8 * k, ic + 3);
+    coussin(x + 8 * k, y - 3.4 * k, 3.0 * k, ic);
+    coussin(x + 13 * k, y + 1 * k, 3.2 * k, ic + 1);
+    coussin(x + 3 * k, y - 5 * k, 2.6 * k, ic + 2);
+    braseroNuits(c, x - 20 * k, y + 2 * k, 1.0 * k);
+    braseroNuits(c, x + 19 * k, y - 3 * k, 0.9 * k);
+    lanterneNuits(c, x - 16 * k, y - 6 * k, 3.0 * k, 0);
+    lanterneNuits(c, x + 14 * k, y + 5 * k, 2.8 * k, 0, "150,220,255");
+  }
 }
 
 /* ===== 40-defenses.js ===== */
@@ -20621,6 +21891,353 @@ function dessineBatiment(c, b, tps, z){
   if(fr < 0.999 && z > 0.24){
     barreVie(c, p.x, p.y - 46 * z, 34 * z, fr);
   }
+}
+
+/* ===== 41-nuits-vignette.js ===== */
+/* ================================================================
+   LA VIGNETTE DE « MILY ET LES MILLE ET UNE NUITS »
+
+   Sept cent vingt sur trois cents pixels, en haut de l'accueil, à
+   côté de celle de la jungle. C'est la première chose qu'on voit de
+   cette carte — souvent la seule, pendant les heures où elle est
+   verrouillée — et elle doit dire en une seconde : nuit, palais,
+   étoiles, violet, doré, magie.
+
+   POURQUOI ELLE N'EST PAS UN APERÇU DE LA CARTE. La vignette
+   ordinaire des huit îles peint une petite île vue de trois quarts,
+   avec sa palette et ses silhouettes de décor. À 720×300 sur une
+   carte dont tout le propos est la LUMIÈRE, ça ne donnerait qu'une
+   tache indigo. On peint donc une SCÈNE : un horizon de coupoles
+   devant une grande lune, une eau qui les rend, et des lanternes.
+   C'est un tableau, pas une carte.
+
+   LE FOND EST PRÉ-CUIT, exactement comme celui de la jungle : la
+   silhouette, la lune et le reflet ne bougent jamais, et les
+   redessiner soixante fois par seconde pour rien serait absurde. Seuls
+   les scintillements, les lanternes qui respirent et l'étoile filante
+   sont calculés à l'image.
+
+   L'ÉTAT DE LA CARTE CHANGE L'HEURE QU'IL EST. Verrouillée, la scène
+   est froide et la lune basse ; prête, tout s'allume et une étoile
+   filante traverse. C'est le même procédé que pour la jungle, dont
+   l'orage force selon l'état.
+   ================================================================ */
+var VN_ETATS = {
+  cooldown:{ lum:0.42, lanterne:0.35, etoiles:0.55, filante:0,    pouls:0,   halo:0.30 },
+  attente :{ lum:0.82, lanterne:0.80, etoiles:0.95, filante:14.0, pouls:0,   halo:0.62 },
+  prete   :{ lum:1.10, lanterne:1.15, etoiles:1.15, filante:5.0,  pouls:1,   halo:1.00 },
+  encours :{ lum:1.00, lanterne:1.00, etoiles:1.05, filante:8.0,  pouls:0.2, halo:0.82 }
+};
+
+var vnFondCv = null, vnFondCle = "";
+
+/* Le fond : le ciel, la lune, l'horizon de coupoles, l'eau. */
+function vnConstruitFond(w, h){
+  vnFondCv = nouveauCanvas(w, h);
+  var c = vnFondCv.getContext("2d");
+  var al = prng(0x1001A1);
+  var i;
+
+  /* --- le ciel, d'un indigo profond en haut vers un violet chaud à
+     l'horizon : c'est ce dégradé qui donne l'heure — la fin de la
+     nuit, pas minuit. --- */
+  var g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, "#0a0824");
+  g.addColorStop(0.42, "#1a1246");
+  g.addColorStop(0.72, "#39205e");
+  g.addColorStop(1, "#150e30");
+  c.fillStyle = g;
+  c.fillRect(0, 0, w, h);
+
+  /* --- les étoiles fixes. Trois tailles : la poussière, les
+     ordinaires, et une douzaine de brillantes qui portent des
+     branches. --- */
+  for(i = 0; i < 260; i++){
+    var sx = al() * w, sy = al() * h * 0.7;
+    var r = 0.4 + al() * 0.9;
+    c.fillStyle = "rgba(230,236,255," + (0.2 + al() * 0.5) + ")";
+    c.beginPath(); c.arc(sx, sy, r, 0, 6.2832); c.fill();
+  }
+
+  /* --- LA LUNE. Grande, haute à gauche, avec son halo et ses mers.
+     C'est elle qui éclaire toute la vignette : tout ce qui suit a son
+     côté gauche clair. --- */
+  var lx = w * 0.235, ly = h * 0.30, lr = h * 0.20;
+  var gh = c.createRadialGradient(lx, ly, lr * 0.6, lx, ly, lr * 4.2);
+  gh.addColorStop(0, "rgba(206,214,255,.34)");
+  gh.addColorStop(0.4, "rgba(150,160,240,.12)");
+  gh.addColorStop(1, "rgba(120,130,220,0)");
+  c.fillStyle = gh;
+  c.beginPath(); c.arc(lx, ly, lr * 4.2, 0, 6.2832); c.fill();
+  var gl = c.createRadialGradient(lx - lr * 0.32, ly - lr * 0.34, lr * 0.1, lx, ly, lr);
+  gl.addColorStop(0, "#fffdf2");
+  gl.addColorStop(0.6, "#ece7ff");
+  gl.addColorStop(1, "#b9b2e4");
+  c.fillStyle = gl;
+  c.beginPath(); c.arc(lx, ly, lr, 0, 6.2832); c.fill();
+  /* les mers : quatre taches à peine plus sombres. Sans elles, la
+     lune est un disque ; avec elles, c'est la Lune. */
+  c.fillStyle = "rgba(150,142,198,.30)";
+  for(i = 0; i < 5; i++){
+    var mr = lr * (0.12 + al() * 0.2);
+    var ma = al() * 6.2832, md = al() * lr * 0.62;
+    c.beginPath();
+    c.arc(lx + Math.cos(ma) * md, ly + Math.sin(ma) * md, mr, 0, 6.2832);
+    c.fill();
+  }
+
+  /* --- L'HORIZON DE COUPOLES. Trois plans : le plus lointain est
+     presque du ciel, le plus proche est presque noir. C'est cette
+     étagement qui donne la profondeur, bien plus que le détail. --- */
+  /* LES TROIS PLANS, ET LEURS DEUX RÉGLAGES DÉCISIFS.
+     `ech` est l'échelle du plan, et elle était trop timide : à 0,62 /
+     0,86 / 1,16 la ville faisait une frise basse au bas de l'image,
+     avec des coupoles grosses comme des clous. Une skyline se lit à sa
+     SILHOUETTE, et une silhouette a besoin de hauteur. Les trois plans
+     montent donc de moitié, et le plus proche mord franchement dans le
+     ciel.
+     `col` sépare les plans par la VALEUR, pas par la teinte : le plus
+     lointain est presque du ciel, le plus proche presque noir. C'est
+     cet étagement — et lui seul — qui donne la profondeur. */
+  var horizon = h * 0.70;
+  var PLANS = [
+    { y:horizon - h * 0.05, col:"#312560", ech:0.95, n:15, or:"rgba(210,170,90,.35)" },
+    { y:horizon + h * 0.03, col:"#1e1544", ech:1.30, n:11, or:"rgba(235,195,115,.6)" },
+    { y:horizon + h * 0.11, col:"#0e0926", ech:1.75, n:7,  or:"rgba(248,220,150,.85)" }
+  ];
+  for(var pi = 0; pi < PLANS.length; pi++){
+    var P = PLANS[pi];
+    for(i = 0; i < P.n; i++){
+      var bx = (i + 0.5) / P.n * w + (al() - 0.5) * w * 0.09;
+      /* DES CORPS TRÈS ÉTROITS, ET C'EST LE CSS QUI LE COMMANDE.
+         Le canevas fait 720 × 300 et la vignette l'affiche sur toute
+         la largeur en 150 pixels de haut : l'image est donc étirée
+         d'environ trois fois en largeur avant d'arriver à l'œil. Une
+         tour dessinée carrée ici sort trapue à l'écran, et c'est
+         exactement ce qu'on voyait. On dessine donc pour l'étirement,
+         pas pour le canevas : étroit et haut ici, juste là-bas. */
+      var bw = (5 + al() * 7) * P.ech;
+      var bh = (34 + al() * 44) * P.ech;
+      c.fillStyle = P.col;
+      /* le corps */
+      c.fillRect(bx - bw / 2, P.y - bh, bw, bh + h);
+      /* le dôme en bulbe */
+      /* LE DÔME EST HAUT, PAS LARGE. C'est la hauteur qui fait le
+         bulbe oriental — une coupole européenne est large et basse.
+         Attention au rayon : les points de contrôle des deux courbes
+         sortent à 1,16 fois le rayon, donc le bulbe est en réalité un
+         sixième plus large que `dr`. Écrit à 0,66 de la largeur du
+         corps, il débordait d'un tiers de chaque côté et le bâtiment
+         ressemblait à un champignon. À 0,44, la panse du bulbe affleure
+         exactement les murs — et c'est là qu'elle doit être. */
+      var dr = bw * 0.44, dh = bw * 1.25;
+      c.beginPath();
+      c.moveTo(bx - dr, P.y - bh);
+      c.bezierCurveTo(bx - dr * 1.16, P.y - bh - dh * 0.52,
+                      bx - dr * 0.52, P.y - bh - dh * 0.92, bx, P.y - bh - dh);
+      c.bezierCurveTo(bx + dr * 0.52, P.y - bh - dh * 0.92,
+                      bx + dr * 1.16, P.y - bh - dh * 0.52, bx + dr, P.y - bh);
+      c.closePath(); c.fill();
+      /* la flèche */
+      c.strokeStyle = P.or; c.lineWidth = 1.2 * P.ech;
+      c.beginPath();
+      c.moveTo(bx, P.y - bh - dh);
+      c.lineTo(bx, P.y - bh - dh - 9 * P.ech);
+      c.stroke();
+      /* le bord éclairé par la lune, à gauche */
+      c.fillStyle = "rgba(190,190,255,.10)";
+      c.fillRect(bx - bw / 2, P.y - bh, bw * 0.22, bh + h);
+      /* deux ou trois fenêtres allumées, sur le plan le plus proche */
+      if(pi === 2){
+        c.fillStyle = P.or;
+        for(var f = 0; f < 3; f++)
+          c.fillRect(bx - bw * 0.28 + f * bw * 0.26, P.y - bh * 0.62, bw * 0.13, bh * 0.2);
+      }
+      /* un minaret une fois sur trois */
+      if(i % 3 === 1){
+        var mx2 = bx + bw * (al() < 0.5 ? -0.86 : 0.86);
+        var mh2 = bh * 1.7;
+        c.fillStyle = P.col;
+        c.fillRect(mx2 - 3.2 * P.ech, P.y - mh2, 6.4 * P.ech, mh2 + h);
+        c.beginPath();
+        c.moveTo(mx2 - 5 * P.ech, P.y - mh2);
+        c.lineTo(mx2, P.y - mh2 - 11 * P.ech);
+        c.lineTo(mx2 + 5 * P.ech, P.y - mh2);
+        c.closePath(); c.fill();
+        c.fillStyle = P.or;
+        c.fillRect(mx2 - 4 * P.ech, P.y - mh2 + 4 * P.ech, 8 * P.ech, 1.6 * P.ech);
+      }
+    }
+  }
+
+  /* --- L'EAU, en bas, qui rend tout. On recopie la moitié haute de
+     la vignette, retournée, écrasée et voilée : c'est le reflet le
+     moins cher qui existe, et le seul qui soit juste — un reflet
+     peint à la main ne correspond jamais à ce qu'il reflète. --- */
+  var eau = h * 0.84;
+  c.save();
+  c.beginPath(); c.rect(0, eau, w, h - eau); c.clip();
+  c.globalAlpha = 0.34;
+  c.save();
+  c.translate(0, eau * 2);
+  c.scale(1, -0.55);
+  c.drawImage(vnFondCv, 0, 0);
+  c.restore();
+  c.globalAlpha = 1;
+  /* l'encre par-dessus, pour que le reflet reste un reflet */
+  var ge = c.createLinearGradient(0, eau, 0, h);
+  ge.addColorStop(0, "rgba(8,6,26,.30)");
+  ge.addColorStop(1, "rgba(4,3,16,.86)");
+  c.fillStyle = ge;
+  c.fillRect(0, eau, w, h - eau);
+  /* les rides : trois traits clairs qui cassent le reflet */
+  c.strokeStyle = "rgba(190,200,255,.16)";
+  c.lineWidth = 1;
+  for(i = 0; i < 12; i++){
+    var ry = eau + (i / 12) * (h - eau);
+    c.beginPath();
+    c.moveTo(al() * w * 0.5, ry);
+    c.lineTo(al() * w * 0.5 + w * 0.3, ry);
+    c.stroke();
+  }
+  c.restore();
+  /* la ligne de rivage */
+  c.fillStyle = "rgba(150,140,220,.22)";
+  c.fillRect(0, eau - 1.5, w, 2.5);
+
+  vnFondCle = w + "x" + h;
+}
+
+function dessineVignetteNuits(c, w, h, tps, etat){
+  var E = VN_ETATS[etat] || VN_ETATS.attente;
+  var i;
+  if(!vnFondCv || vnFondCle !== w + "x" + h) vnConstruitFond(w, h);
+
+  c.save();
+  c.beginPath(); c.rect(0, 0, w, h); c.clip();
+  c.drawImage(vnFondCv, 0, 0, w, h);
+
+  /* --- les étoiles qui scintillent, par-dessus les fixes. Elles sont
+     déterministes elles aussi — c'est leur ÉCLAT qui bouge, pas leur
+     place, sinon on verrait de la neige. --- */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < 46; i++){
+    var sx = ((i * 137.5) % 100) / 100 * w;
+    var sy = ((i * 71.3) % 100) / 100 * h * 0.66;
+    var b = 0.5 + 0.5 * Math.sin(tps * (0.7 + (i % 5) * 0.3) + i * 1.7);
+    var r = (0.8 + (i % 3) * 0.7) * (0.6 + b * 0.8);
+    c.fillStyle = "rgba(226,232,255," + (0.18 + b * 0.55) * E.etoiles + ")";
+    c.beginPath(); c.arc(sx, sy, r, 0, 6.2832); c.fill();
+    /* les branches, sur une sur six : c'est ce qui les fait lire
+       comme des ÉTOILES et non comme des points */
+    if(i % 6 === 0 && b > 0.5){
+      c.strokeStyle = "rgba(226,232,255," + ((b - 0.5) * 0.7 * E.etoiles) + ")";
+      c.lineWidth = 0.8;
+      var br = r * 4.4;
+      c.beginPath();
+      c.moveTo(sx - br, sy); c.lineTo(sx + br, sy);
+      c.moveTo(sx, sy - br); c.lineTo(sx, sy + br);
+      c.stroke();
+    }
+  }
+  c.restore();
+
+  /* --- L'ÉTOILE FILANTE. Rare, exprès : « pas toutes les cinq
+     secondes, cela doit rester assez rare pour être joli lorsqu'on la
+     remarque ». Elle traverse en six dixièmes de seconde et laisse une
+     traînée qui s'efface. --- */
+  if(E.filante > 0){
+    var cyc = tps % E.filante;
+    if(cyc < 0.75){
+      var u = cyc / 0.75;
+      var num = Math.floor(tps / E.filante);
+      /* elle part d'un point différent à chaque passage, sans tirage :
+         le numéro du cycle suffit à la déplacer */
+      var fx0 = w * (0.15 + ((num * 0.37) % 1) * 0.6);
+      var fy0 = h * (0.04 + ((num * 0.61) % 1) * 0.22);
+      var lg = w * 0.26;
+      var fx = fx0 + u * lg, fy = fy0 + u * lg * 0.34;
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var op = Math.sin(u * 3.1416);
+      var gf = c.createLinearGradient(fx - lg * 0.22, fy - lg * 0.075, fx, fy);
+      gf.addColorStop(0, "rgba(190,210,255,0)");
+      gf.addColorStop(1, "rgba(255,252,235," + (0.85 * op) + ")");
+      c.strokeStyle = gf;
+      c.lineWidth = 1.8;
+      c.lineCap = "round";
+      c.beginPath();
+      c.moveTo(fx - lg * 0.22, fy - lg * 0.075);
+      c.lineTo(fx, fy);
+      c.stroke();
+      c.fillStyle = "rgba(255,255,245," + (0.9 * op) + ")";
+      c.beginPath(); c.arc(fx, fy, 1.7, 0, 6.2832); c.fill();
+      c.restore();
+    }
+  }
+
+  /* --- LES LANTERNES DE LA RIVE. Six points chauds alignés sur
+     l'horizon, qui respirent chacun à son rythme. Ce sont eux qui
+     réchauffent une image entièrement bleue — sans eux la vignette est
+     belle et froide. --- */
+  var horizon = h * 0.70;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < 7; i++){
+    var lx2 = (i + 0.5) / 7 * w + (i % 3 - 1) * 14;
+    var ly2 = horizon + h * (0.055 + (i % 3) * 0.02);
+    var r2 = 0.72 + 0.28 * Math.sin(tps * (1.1 + i * 0.27) + i);
+    var f2 = E.lanterne * r2;
+    var gg = c.createRadialGradient(lx2, ly2, 0, lx2, ly2, 26 * f2);
+    gg.addColorStop(0, "rgba(255,206,132," + (0.5 * f2) + ")");
+    gg.addColorStop(0.4, "rgba(255,170,90," + (0.16 * f2) + ")");
+    gg.addColorStop(1, "rgba(255,150,70,0)");
+    c.fillStyle = gg;
+    c.beginPath(); c.arc(lx2, ly2, 26 * f2, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,238,196," + (0.85 * f2) + ")";
+    c.beginPath(); c.arc(lx2, ly2, 1.7, 0, 6.2832); c.fill();
+    /* le reflet dans l'eau, juste dessous : une traînée verticale,
+       c'est ainsi qu'une lumière se reflète sur une eau ridée */
+    var ge2 = c.createLinearGradient(lx2, h * 0.84, lx2, h);
+    ge2.addColorStop(0, "rgba(255,190,110," + (0.30 * f2) + ")");
+    ge2.addColorStop(1, "rgba(255,170,90,0)");
+    c.fillStyle = ge2;
+    c.fillRect(lx2 - 2.2, h * 0.84, 4.4, h * 0.16);
+  }
+  c.restore();
+
+  /* --- LA POUSSIÈRE MAGIQUE : quelques paillettes qui montent
+     lentement devant toute la scène. Elles ne coûtent rien et elles
+     font toute la différence entre une belle image fixe et un endroit
+     où il se passe quelque chose. --- */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < 26; i++){
+    var px = ((i * 97.3) % 100) / 100 * w;
+    var vy = 8 + (i % 5) * 5;
+    var py = h - ((tps * vy + i * 137) % (h * 1.1));
+    var d = 0.5 + 0.5 * Math.sin(tps * 1.6 + i);
+    c.fillStyle = "rgba(255,232,180," + (0.14 + d * 0.34) * E.lum + ")";
+    c.beginPath();
+    c.arc(px + Math.sin(tps * 0.6 + i) * 9, py, 0.8 + d * 0.9, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* --- LE HALO DE LA CARTE PRÊTE. Un liseré chaud sur tout le bord :
+     la même grammaire que la vignette de la jungle, pour qu'on
+     comprenne sans lire que c'est le moment d'entrer. --- */
+  if(E.halo > 0){
+    var puls = E.pouls ? (0.72 + 0.28 * Math.sin(tps * 2.2)) : 1;
+    var gb = c.createLinearGradient(0, 0, 0, h);
+    gb.addColorStop(0, "rgba(190,150,255," + (0.16 * E.halo * puls) + ")");
+    gb.addColorStop(0.5, "rgba(190,150,255,0)");
+    gb.addColorStop(1, "rgba(255,196,120," + (0.14 * E.halo * puls) + ")");
+    c.fillStyle = gb;
+    c.fillRect(0, 0, w, h);
+  }
+  c.restore();
 }
 
 /* ===== 50-qg.js ===== */
@@ -36141,6 +37758,59 @@ function rendu(tps, dt){
       case 15: dessineSceneIbiza(ctx, tps); break;
     }
   }
+  /* ================================================================
+     LE CLAIR DE LUNE, PASSÉ SUR TOUTE LA CARTE
+
+     Le problème que ça règle, et il ne se voit qu'une fois la carte
+     bâtie : le SOL et le DÉCOR des mille et une nuits sont nocturnes,
+     mais les DÉFENSES, les troupes et le QG sont les mêmes objets que
+     sur les huit autres îles — du bois brun, de l'acier gris, des
+     bâches kaki, peints pour du plein jour. Une île de nuit couverte
+     d'objets de jour ne se lit pas comme une nuit : elle se lit comme
+     un décor de nuit sur lequel on aurait collé une autre partie.
+
+     Repeindre chaque défense pour une seule carte était exclu — c'est
+     tout le fichier 40-defenses.js, et il est partagé. On passe donc
+     un FILTRE, comme un étalonnage de cinéma : une multiplication par
+     un bleu de lune sur tout ce qui vient d'être dessiné. Le brun
+     devient prune, le gris devient ardoise, le kaki devient bleu
+     sombre — et rien n'a été retouché.
+
+     DEUX PRÉCAUTIONS. Il passe APRÈS le monde et AVANT le ciel : les
+     nuages, les étoiles et les lasers n'ont rien à faire sous un
+     filtre de nuit, ils SONT la nuit. Et il est rendu en deux temps —
+     la multiplication qui refroidit, puis une nappe additive très
+     faible qui redonne aux lumières ce que la multiplication leur a
+     pris. Sans le second temps, les lanternes s'éteignaient avec le
+     reste.
+     ================================================================ */
+  if(carte.biome === "nuits"){
+    repereEcran(ctx);
+    ctx.save();
+    /* SOFT-LIGHT, ET SURTOUT PAS MULTIPLY.
+       Le premier essai multipliait tout par un bleu de lune. Ça
+       refroidissait bien le bois et l'acier — et ça détruisait
+       exactement ce qu'il fallait sauver. Une multiplication ne peut
+       qu'assombrir : l'or d'une lanterne, (255, 196, 110), multiplié
+       par (0,44 · 0,45 · 0,80) tombait à (112, 88, 88). Un gris
+       violacé. Toutes les lumières chaudes de l'île — les lanternes,
+       les braseros, le thé — viraient au lilas éteint, et il ne
+       restait qu'une carte bleue.
+       Soft-light fait ce qu'un étalonneur fait : il pousse les
+       DEMI-TONS vers la teinte et laisse les extrêmes tranquilles.
+       Le bois brun et l'acier gris sont des demi-tons, ils refroidissent ;
+       la flamme d'une lanterne est un haut, elle ne bouge pas. */
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.fillStyle = "rgba(52,64,182,.74)";
+    ctx.fillRect(-40, -40, W + 80, H + 80);
+    /* puis un voile sombre très léger, pour l'heure qu'il est. Assez
+       faible pour qu'aucune lumière ne s'y perde. */
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "rgba(182,182,228,.30)";
+    ctx.fillRect(-40, -40, W + 80, H + 80);
+    ctx.restore();
+    repereMonde(ctx);
+  }
   if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs */
@@ -38424,8 +40094,12 @@ function installeAppuisCartes(){
    première. */
 var MOTS_EVT = {
   j:{ ecusson:"🌿", prete:"LA JUNGLE EST PRÊTE.", entrer:"ENTRER DANS LA JUNGLE",
-      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" }
+      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" },
+  n:{ ecusson:"🌙", prete:"LA NUIT EST OUVERTE.", entrer:"ENTRER DANS LA NUIT",
+      repos:"LA NUIT SE REFERME", ambiance:"✨ Nuit enchantée" }
 };
+/* Le peintre de la grande vignette, par voie. */
+var PEINTRES_EVT = { j:"dessineVignetteJungle", n:"dessineVignetteNuits" };
 function motsEvt(i){
   var m = MOTS_EVT[voieDeCarte(i)] || {};
   var nom = (CARTES[i] && CARTES[i].nom) || "";
@@ -38579,9 +40253,18 @@ function dessineApercu(i){
      de l'expédition — c'est la première chose que le joueur voit de
      la jungle. Tant que le sculpteur n'a pas livré, on retombe sur
      l'aperçu ordinaire plutôt que sur un carré vide. */
-  if(carteSpeciale(i) && typeof dessineVignetteJungle === "function"){
-    dessineVignetteJungle(c, el.width, el.height, tempsGlobal, etatEvt(i));
-    return;
+  /* CHAQUE CARTE ÉVÉNEMENT A SON TABLEAU. Il y avait un seul peintre,
+     celui de la jungle, appelé pour toute carte spéciale : la seconde
+     aurait affiché un orage tropical pour annoncer une nuit
+     orientale. Le peintre se choisit donc sur la VOIE, et une carte
+     sans peintre retombe sur l'aperçu ordinaire plutôt que sur un
+     carré vide. */
+  if(carteSpeciale(i)){
+    var peintre = PEINTRES_EVT[voieDeCarte(i)];
+    if(peintre && typeof window[peintre] === "function"){
+      window[peintre](c, el.width, el.height, tempsGlobal, etatEvt(i));
+      return;
+    }
   }
   /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
      démarrage : construitBriefing() se lance avant la boucle de rendu, si
@@ -38776,7 +40459,10 @@ function basculePlein(){
    la jungle quand on entre en expédition. */
 /* Le premier mot d'une carte événement : ce qu'elle dit quand on y
    arrive. */
-var MSG_ENTREE = { j:"L'orage gronde. Choisis une navette et débarque." };
+var MSG_ENTREE = {
+  j:"L'orage gronde. Choisis une navette et débarque.",
+  n:"Les étoiles sont basses. Choisis une navette et débarque."
+};
 function lancePartie(ou){
   if(!pseudoSaisi()) return signalePseudoManquant();
   monNom = pseudoSaisi();
@@ -38909,7 +40595,8 @@ function reprendCombat(){
    son qui l'annonce. La jungle garde le tonnerre ; ce qu'une autre
    carte joue est à elle. */
 var VOLETS_EVT = {
-  j:{ titre:"MILY<br><b>DANS LA JUNGLE</b>", son:"tonnerre", relance:1400 }
+  j:{ titre:"MILY<br><b>DANS LA JUNGLE</b>", son:"tonnerre", relance:1400 },
+  n:{ titre:"LES<br><b>MILY ET UNE NUITS</b>", son:"", relance:0 }
 };
 function entreDansEvenement(i){
   var P = voieDeCarte(i);

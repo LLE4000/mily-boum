@@ -1403,8 +1403,12 @@ function installeAppuisCartes(){
    première. */
 var MOTS_EVT = {
   j:{ ecusson:"🌿", prete:"LA JUNGLE EST PRÊTE.", entrer:"ENTRER DANS LA JUNGLE",
-      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" }
+      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" },
+  n:{ ecusson:"🌙", prete:"LA NUIT EST OUVERTE.", entrer:"ENTRER DANS LA NUIT",
+      repos:"LA NUIT SE REFERME", ambiance:"✨ Nuit enchantée" }
 };
+/* Le peintre de la grande vignette, par voie. */
+var PEINTRES_EVT = { j:"dessineVignetteJungle", n:"dessineVignetteNuits" };
 function motsEvt(i){
   var m = MOTS_EVT[voieDeCarte(i)] || {};
   var nom = (CARTES[i] && CARTES[i].nom) || "";
@@ -1558,9 +1562,18 @@ function dessineApercu(i){
      de l'expédition — c'est la première chose que le joueur voit de
      la jungle. Tant que le sculpteur n'a pas livré, on retombe sur
      l'aperçu ordinaire plutôt que sur un carré vide. */
-  if(carteSpeciale(i) && typeof dessineVignetteJungle === "function"){
-    dessineVignetteJungle(c, el.width, el.height, tempsGlobal, etatEvt(i));
-    return;
+  /* CHAQUE CARTE ÉVÉNEMENT A SON TABLEAU. Il y avait un seul peintre,
+     celui de la jungle, appelé pour toute carte spéciale : la seconde
+     aurait affiché un orage tropical pour annoncer une nuit
+     orientale. Le peintre se choisit donc sur la VOIE, et une carte
+     sans peintre retombe sur l'aperçu ordinaire plutôt que sur un
+     carré vide. */
+  if(carteSpeciale(i)){
+    var peintre = PEINTRES_EVT[voieDeCarte(i)];
+    if(peintre && typeof window[peintre] === "function"){
+      window[peintre](c, el.width, el.height, tempsGlobal, etatEvt(i));
+      return;
+    }
   }
   /* Une île dont le biome n'a pas sa palette ne doit PAS emporter tout le
      démarrage : construitBriefing() se lance avant la boucle de rendu, si
@@ -1755,7 +1768,10 @@ function basculePlein(){
    la jungle quand on entre en expédition. */
 /* Le premier mot d'une carte événement : ce qu'elle dit quand on y
    arrive. */
-var MSG_ENTREE = { j:"L'orage gronde. Choisis une navette et débarque." };
+var MSG_ENTREE = {
+  j:"L'orage gronde. Choisis une navette et débarque.",
+  n:"Les étoiles sont basses. Choisis une navette et débarque."
+};
 function lancePartie(ou){
   if(!pseudoSaisi()) return signalePseudoManquant();
   monNom = pseudoSaisi();
@@ -1888,7 +1904,8 @@ function reprendCombat(){
    son qui l'annonce. La jungle garde le tonnerre ; ce qu'une autre
    carte joue est à elle. */
 var VOLETS_EVT = {
-  j:{ titre:"MILY<br><b>DANS LA JUNGLE</b>", son:"tonnerre", relance:1400 }
+  j:{ titre:"MILY<br><b>DANS LA JUNGLE</b>", son:"tonnerre", relance:1400 },
+  n:{ titre:"LES<br><b>MILY ET UNE NUITS</b>", son:"", relance:0 }
 };
 function entreDansEvenement(i){
   var P = voieDeCarte(i);

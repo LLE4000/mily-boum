@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.48";
+var VERSION = "v0.49";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -777,7 +777,27 @@ var CARTES = [
   { nom:"Mily dans les ténèbres", biome:"tenebres",   pvQG:50000000,
     victoire:"Mily te ramène vers la lumière !" },
   { nom:"Mily à Ibiza",           biome:"ibiza",      pvQG:56000000,
-    victoire:"Mily t'emmène finir la nuit au beach club !" }
+    victoire:"Mily t'emmène finir la nuit au beach club !" },
+  /* ----------------------------------------------------------------
+     LA DEUXIÈME CARTE ÉVÉNEMENT — « Mily et les mille et une nuits »
+
+     Elle est presque l'exact opposé de la jungle, et c'est délibéré :
+     là où la jungle est dense, sauvage, végétale, orageuse et
+     chaotique, celle-ci est nocturne, ordonnée, minérale, sereine et
+     féérique. Deux cartes événement qui se ressembleraient ne
+     donneraient qu'une carte jouée deux fois.
+
+     Elle porte la voie « n ». Ses réglages sont les siens : c'est la
+     plus lourde du jeu — l'objectif collectif ultime — donc ses
+     défenses sont plus dures que celles de la jungle, et son verrou
+     court indépendamment du sien. Un salon peut très bien avoir la
+     jungle fermée et les nuits ouvertes : c'est même ce qu'on cherche,
+     pour qu'il y ait presque toujours quelque chose à prendre.
+     ---------------------------------------------------------------- */
+  { nom:"Les Mily et une nuits", biome:"nuits", pvQG:75000000,
+    special:1, voie:"n",
+    minJoueurs:7, attenteH:48, pvBonus:130, degBonus:60,
+    victoire:"Mily t'emmène voir le jour se lever sur les dômes !" }
 ];
 /* Combien de cartes participent à l'enchaînement ordinaire. Tout le
    reste du jeu compte les îles AVEC ce nombre et non CARTES.length :
@@ -1014,7 +1034,8 @@ function periodeEclair(i){
    Quatre ciels, donc, nommés par ce qu'ils sont et choisis sur le
    biome — jamais sur un tirage, jamais sur l'index.
    ================================================================ */
-var CIELS_ILE = { jungle:"orage", tenebres:"fumee", guinguette:"nuit" };
+var CIELS_ILE = { jungle:"orage", tenebres:"fumee", guinguette:"nuit",
+                  nuits:"etoile" };
 function styleCiel(i){
   var b = CARTES[i] && CARTES[i].biome;
   return (b && CIELS_ILE[b]) || "clair";

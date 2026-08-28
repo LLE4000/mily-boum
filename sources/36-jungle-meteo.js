@@ -911,7 +911,12 @@ var MET_CIELS = {
   orage:{ bas:MET_NUAGE_G,  haut:MET_NUAGE_G_H },
   clair:{ bas:MET_NUAGE_C,  haut:MET_NUAGE_C_H },
   fumee:{ bas:"38,26,26",   haut:"196,92,40"    },
-  nuit :{ bas:"30,24,40",   haut:"140,124,150"  }
+  nuit :{ bas:"30,24,40",   haut:"140,124,150"  },
+  /* etoile : les mille et une nuits. Les masses sont d'un indigo
+     profond mais leur crête prend la LUNE — un liseré lilas très clair
+     qui les détache du ciel. C'est le seul ciel du jeu dont la lumière
+     vient d'en haut sans venir du soleil. */
+  etoile:{ bas:"26,22,58",   haut:"186,178,242"  }
 };
 var metSpNuagesPar = {};
 function spritesNuage(style){

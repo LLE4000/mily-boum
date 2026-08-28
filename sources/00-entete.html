@@ -551,9 +551,20 @@ select.champ{cursor:pointer}
    Elle occupe toute la largeur de la grille et vit sous une autre
    lumière : un vert profond, un liseré qui respire, et un halo. Il
    faut qu'on la distingue AVANT de savoir lire ce qu'elle raconte. */
+/* LES DEUX CARTES SPÉCIALES, CÔTE À CÔTE. Elles prenaient chacune
+   toute la largeur et se suivaient l'une sous l'autre : la seconde
+   passait sous la ligne de flottaison, et l'on ne voyait jamais les
+   deux ensemble. Sur une grille de quatre colonnes, chacune en prend
+   deux — elles se regardent, et l'on choisit. En dessous de 1240 px la
+   grille n'a plus que trois colonnes, qui ne se partagent pas en deux :
+   elles reprennent alors toute la largeur, l'une sur l'autre. */
 .monde.evt{grid-column:1/-1;opacity:1;background:#08150f;
   border-color:rgba(90,220,140,.34);box-shadow:0 0 0 1px rgba(90,220,140,.14),0 8px 26px rgba(0,0,0,.6)}
 .monde.evt canvas{height:150px}
+@media (min-width:1241px){
+  .monde.evt{grid-column:span 2}
+  .monde.evt canvas{height:132px}
+}
 .monde.evt .nom{font-size:17px;letter-spacing:.4px}
 .monde.evt .etat{background:rgba(4,26,14,.78);border-color:rgba(90,220,140,.5);color:#7ce8a6}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
@@ -583,6 +594,38 @@ select.champ{cursor:pointer}
    coup d'œil qu'il n'y a plus qu'à appuyer. */
 .monde.evt.prete{border-color:rgba(140,255,180,.75)}
 .monde.evt.prete .btEvt{animation:pulseJungle 1.5s ease-in-out infinite}
+/* ---- LA VIGNETTE DES MILLE ET UNE NUITS ----
+   Tout ce qui précède était écrit pour LA carte spéciale, au singulier :
+   un vert de jungle sur le bandeau, le liseré, la jauge et le bouton.
+   Posé tel quel sous un tableau de nuit orientale, ce vert ne disait
+   plus « carte spéciale », il disait « jungle » — et la deuxième carte
+   annonçait la première. Elle porte donc sa classe, et sa palette :
+   violet de nuit et or. Rien n'est redéfini de plus que la COULEUR ;
+   la mise en page reste commune, parce que ce sont bien deux objets
+   de même nature. */
+.monde.evt.evn{background:#0b0820;
+  border-color:rgba(190,160,255,.34);
+  box-shadow:0 0 0 1px rgba(190,160,255,.14),0 8px 26px rgba(0,0,0,.6)}
+.monde.evt.evn .etat{background:rgba(16,10,42,.8);border-color:rgba(190,160,255,.5);color:#d7c4ff}
+.monde.evt.evn .bandeau{color:#1a0f36;
+  background:linear-gradient(180deg,#e8d49a,#b98ce8)}
+.monde.evt.evn .cpt{color:#e2d1ff}
+.monde.evt.evn .cpt small{color:#8a7cb0}
+.monde.evt.evn .msg{color:#bdb0d8}
+.monde.evt.evn .barreJ i{background:linear-gradient(90deg,#6a4aa8,#f2dc9a)}
+.monde.evt.evn .btEvt{color:#160e30;
+  background:linear-gradient(180deg,#f4e2ae,#a874e0);
+  box-shadow:0 4px 16px rgba(170,120,230,.38)}
+.monde.evt.evn .btEvt:disabled{background:#241d3a;color:#6b6188;box-shadow:none}
+.monde.evt.evn.prete{border-color:rgba(230,200,140,.8)}
+.monde.evt.evn.prete .btEvt{animation:pulseNuits 1.5s ease-in-out infinite}
+@keyframes pulseNuits{
+  0%,100%{box-shadow:0 4px 16px rgba(170,120,230,.38)}
+  50%{box-shadow:0 4px 32px rgba(245,220,150,.85)}
+}
+@media (prefers-reduced-motion:reduce){
+  .monde.evt.evn.prete .btEvt{animation:none}
+}
 @keyframes pulseJungle{
   0%,100%{box-shadow:0 4px 16px rgba(60,200,120,.35)}
   50%{box-shadow:0 4px 30px rgba(120,255,180,.85)}
@@ -620,6 +663,23 @@ select.champ{cursor:pointer}
 }
 @media (prefers-reduced-motion:reduce){
   #voletJungle.on .ecl{animation:none}
+}
+/* LE VOLET DES MILLE ET UNE NUITS. Même mécanique, autre nuit : le
+   fond passe de la jungle noire au bleu de minuit, et le « flash »
+   n'est plus un éclair mais une montée de lumière lunaire — il n'y a
+   pas d'orage sur cette carte, et un éclair blanc l'aurait annoncée
+   comme la précédente. */
+#voletJungle.voln{
+  background:radial-gradient(120% 90% at 50% 38%,#1d1550 0%,#0a0824 58%,#000 100%)}
+#voletJungle.voln .ecl{background:#d8ccff}
+#voletJungle.voln.on .ecl{animation:eclairN 2.6s ease-out forwards}
+#voletJungle.voln .ttr{color:#d6cbf2}
+#voletJungle.voln .ttr b{color:#f2dc9a;text-shadow:0 0 30px rgba(240,200,120,.65)}
+@keyframes eclairN{
+  0%{opacity:0} 30%{opacity:.30} 60%{opacity:.10} 100%{opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  #voletJungle.voln.on .ecl{animation:none}
 }
 
 /* navettes — LA RANGÉE COMPACTE
@@ -1102,7 +1162,7 @@ select.champ{cursor:pointer}
     </div>
 
     <div class="carteP">
-      <h2>Les huit îles… et la jungle</h2>
+      <h2>Les huit îles… et les deux cartes spéciales</h2>
       <div class="mondes" id="mondes"></div>
       <div id="objBouclier">
         <b>⚡ Le Brasier est sous bouclier.</b>

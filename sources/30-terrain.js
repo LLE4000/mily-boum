@@ -125,6 +125,41 @@ var BIOMES = {
     herbe:"#96ac72", allee:"#fffaee", roche:"#e8e2d4",
     eauC:"#8ffff0", eau:"#12b6e0", eauO:"#0a4fa8", ecume:"#ffffff",
     fond:"#25c4dc", basFond:"#8df0ec", ciel:"#7fd8f5"
+  },
+  /* LES MILLE ET UNE NUITS — une nuit qu'on regarde, pas une nuit où
+     l'on ne voit rien. C'est toute la difficulté de cette carte, et
+     trois décisions la règlent.
+
+     1. LE SOL N'EST PAS NOIR, IL EST INDIGO. Un sol noir aurait été
+        plus « nocturne » et aurait tout ruiné : sous un ciel sombre,
+        du noir ne se lit plus comme une matière, seulement comme un
+        trou. L'indigo garde une couleur — donc une lumière possible —
+        et c'est sur lui que l'or des lanternes et le turquoise des
+        bassins vont porter.
+
+     2. LA MER EST DE L'ENCRE, ET ELLE REND LE CIEL. C'est la réponse à
+        « je ne veux pas l'eau bleue classique autour de l'île ». Une
+        brume tout autour aurait coûté cher pour un résultat flou ;
+        un miroir noir où se reflètent les étoiles et la lune ne coûte
+        presque rien et donne l'impression que l'île FLOTTE. Les trois
+        niveaux de la houle sont donc du noir bleuté, du bleu de nuit
+        et un violet de crête — la vague ne se voit qu'au reflet.
+
+     3. LE SABLE RESTE PÂLE. C'est la seule zone claire de l'île, et
+        elle est nécessaire : c'est là qu'on débarque, et une plage
+        qu'on ne distingue pas de la mer rend la manœuvre illisible.
+        Un ivoire lilas, comme du sable sous la lune.
+
+     L'« herbe » n'est pas une prairie : ce sont les jardins d'un
+     palais, un vert profond bleuté qui ne s'allume que par taches. */
+  nuits: {
+    sol1:"#2b2352", sol2:"#231c45", sable:"#8b81bd", sableO:"#544a86",
+    herbe:"#2f5f57", allee:"#4b4489", roche:"#3a3369",
+    /* la mer d'encre : presque noire au large, un violet de nuit sur
+       la crête. C'est l'écume qui porte toute la lumière, et elle est
+       lunaire — bleu-blanc, jamais chaude. */
+    eauC:"#3a3f8e", eau:"#0a0c22", eauO:"#030413", ecume:"#dbe2ff",
+    fond:"#121738", basFond:"#2b3170", ciel:"#0a0920"
   }
 };
 
@@ -296,8 +331,14 @@ function dessineFalaise(c, f){
      — la falaise éclatait plus fort que le feu posé dessus. Les trois
      teintes descendent donc à du basalte pour cette île, et le feu
      redevient ce qu'il y a de plus clair à l'écran. */
+  /* Et la roche des mille et une nuits est de la pierre bleue sous la
+     lune : le granit gris des autres îles y faisait une ceinture
+     laiteuse tout autour d'une mer d'encre — la falaise éclatait plus
+     fort que les lanternes. */
   var base = (carte.biome === "tenebres")
            ? ["#3a3138", "#443a42", "#2e272d"][f.v % 3]
+           : (carte.biome === "nuits")
+           ? ["#3b3570", "#463f7e", "#2e2a5c"][f.v % 3]
            : ["#6f6878", "#7c7484", "#615a6c"][f.v % 3];
   /* corps de la falaise, en dégradé du bas sombre vers le haut clair */
   var g = c.createLinearGradient(0, p.y - h, 0, p.y + 6);
@@ -976,6 +1017,15 @@ function dessineDecor(c, biome, d){
     else if(d.v === 1) transatIbiza(c, d.gx, d.gy, d.s);
     else if(d.v === 2) palmierIbiza(c, d.gx, d.gy, d.s);
     else loungeIbiza(c, d.gx, d.gy, d.s);
+  /* LES MILLE ET UNE NUITS. Quatre variantes comme partout, mais
+     chacune change de SILHOUETTE avec sa taille : douze bâtiments
+     différents au lieu de quatre. Le détail vit dans
+     39-nuits-decors.js. */
+  }else if(biome === "nuits"){
+    if(d.v === 0) jardinNuits(c, d.gx, d.gy, d.s);
+    else if(d.v === 1) lanternesNuits(c, d.gx, d.gy, d.s);
+    else if(d.v === 2) fontaineNuits(c, d.gx, d.gy, d.s);
+    else tapisNuits(c, d.gx, d.gy, d.s);
   }
 }
 
@@ -1169,6 +1219,19 @@ var MATIERES = {
     herbe1:"#a8bd82", herbe2:"#7f9660",
     sable1:"#fdf5e2", sable2:"#eddcb8",
     mouille:"#cbae7e", roche1:"#ebe5d6", roche2:"#c8c0ad"
+  },
+  /* Les mille et une nuits : de la pierre bleue de palais, veinée de
+     violet. Les deux taches encadrent le fond d'un cran seulement —
+     un sol trop bavard mangerait les mosaïques et les tapis qu'on va
+     poser dessus, et c'est EUX qui font cette carte. L'« herbe » est
+     celle d'un jardin clos, un vert profond qui tire au bleu : de la
+     verdure de nuit, jamais de la prairie. */
+  nuits: {
+    fond1:"#2b2352", fond2:"#221b44",
+    tache1:"#372e64", tache2:"#191333",
+    herbe1:"#38705f", herbe2:"#204a44",
+    sable1:"#9186c4", sable2:"#7368a6",
+    mouille:"#453c78", roche1:"#3e3775", roche2:"#2a2352"
   }
 };
 
@@ -1551,6 +1614,243 @@ function construitSol(carteC){
       c.stroke();
       c.globalAlpha = 1;
     }
+    c.restore();
+  }
+
+  /* ================================================================
+     LE SOL DES MILLE ET UNE NUITS
+
+     C'est la passe la plus longue du fichier, et c'est assumé : le
+     cahier des charges dit « il faut que même lorsqu'il n'y a pas de
+     défense, le terrain reste intéressant ». Tout ce qui suit est
+     PRÉ-CUIT — peint une fois au chargement de l'île, rien à l'image.
+     C'est ce qui permet d'en mettre autant.
+
+     Six couches, du plus large au plus fin :
+       1. le clair de lune, qui donne le relief ;
+       2. les cours pavées, en mosaïque géométrique ;
+       3. les tapis, posés sur les cours et à côté ;
+       4. les chemins de pierre qui relient tout ça ;
+       5. les bassins, seule eau douce de l'île ;
+       6. les étoiles et les croissants gravés, l'or de la carte.
+     ================================================================ */
+  if(carteC.biome === "nuits"){
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+
+    /* --- 1. LE CLAIR DE LUNE. Sans lui le sol est un aplat indigo et
+       l'île n'a pas de volume. Des nappes froides, larges, et quelques
+       creux plus sombres pour que ce ne soit pas une lueur uniforme. */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < 54; i++){
+      var lx3 = al() * GW, ly3 = al() * GH;
+      var pl3 = iso(lx3, ly3);
+      var rl3 = 150 + al() * 330;
+      var gl3 = c.createRadialGradient(pl3.x, pl3.y, 6, pl3.x, pl3.y, rl3);
+      gl3.addColorStop(0, "rgba(150,160,255,.085)");
+      gl3.addColorStop(0.5, "rgba(120,132,230,.030)");
+      gl3.addColorStop(1, "rgba(110,120,220,0)");
+      c.fillStyle = gl3;
+      c.beginPath(); c.ellipse(pl3.x, pl3.y, rl3, rl3 / 2, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+    for(i = 0; i < 30; i++){
+      var ox3 = al() * GW, oy3 = al() * GH;
+      var po3 = iso(ox3, oy3);
+      var ro3 = 120 + al() * 260;
+      var go3 = c.createRadialGradient(po3.x, po3.y, 6, po3.x, po3.y, ro3);
+      go3.addColorStop(0, "rgba(8,6,24,.26)");
+      go3.addColorStop(1, "rgba(8,6,24,0)");
+      c.fillStyle = go3;
+      c.beginPath(); c.ellipse(po3.x, po3.y, ro3, ro3 / 2, 0, 0, 6.2832); c.fill();
+    }
+
+    /* --- 2. LES COURS EN MOSAÏQUE. Le motif est celui des carrelages
+       orientaux : une trame de losanges où une case sur deux est
+       claire, semée d'étoiles à huit branches. Il est tracé DANS le
+       repère isométrique, case par case — une mosaïque dessinée à
+       l'écran puis posée à plat aurait glissé sur la perspective et
+       se serait vue immédiatement.
+       On les pose D'ABORD, parce que tout le reste va dessus. */
+    var MOS = [
+      { a:"#3b4f9e", b:"#22306e", or:"#d8b45c" },   // bleu de Perse
+      { a:"#2f7a72", b:"#1c4c4c", or:"#e0c070" },   // turquoise
+      { a:"#5a3a86", b:"#38235a", or:"#d0a8e8" }    // violet
+    ];
+    for(i = 0; i < 22; i++){
+      var mx3 = LARGEUR_ROCHE + 2 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 16);
+      var my3 = 3 + al() * (GH - 16);
+      var mw3 = 6 + ((al() * 7) | 0), mh3 = 5 + ((al() * 6) | 0);
+      var P3 = MOS[(al() * MOS.length) | 0];
+      var ang3 = al() < 0.5;
+      c.save();
+      c.globalAlpha = 0.62;
+      for(var jj = 0; jj < mh3; jj++){
+        for(var ii = 0; ii < mw3; ii++){
+          var pair = ((ii + jj) & 1) === (ang3 ? 0 : 1);
+          c.fillStyle = pair ? P3.a : P3.b;
+          var k1 = iso(mx3 + ii, my3 + jj), k2 = iso(mx3 + ii + 1, my3 + jj);
+          var k3 = iso(mx3 + ii + 1, my3 + jj + 1), k4 = iso(mx3 + ii, my3 + jj + 1);
+          c.beginPath();
+          c.moveTo(k1.x, k1.y); c.lineTo(k2.x, k2.y);
+          c.lineTo(k3.x, k3.y); c.lineTo(k4.x, k4.y);
+          c.closePath(); c.fill();
+          /* l'étoile à huit branches, au centre d'une case claire sur
+             deux : c'est ELLE qui dit « oriental » plutôt que
+             « damier ». Un simple losange doré à cette taille — quatre
+             pixels — se lit comme une étoile ; y mettre huit branches
+             réelles ne se verrait pas et coûterait huit fois plus. */
+          if(pair && ((ii * 3 + jj * 5) % 3 === 0)){
+            var kc3 = iso(mx3 + ii + 0.5, my3 + jj + 0.5);
+            c.fillStyle = P3.or;
+            c.globalAlpha = 0.55;
+            c.beginPath();
+            c.moveTo(kc3.x, kc3.y - 3.4); c.lineTo(kc3.x + 5.2, kc3.y);
+            c.lineTo(kc3.x, kc3.y + 3.4); c.lineTo(kc3.x - 5.2, kc3.y);
+            c.closePath(); c.fill();
+            c.globalAlpha = 0.62;
+          }
+        }
+      }
+      /* la bordure de la cour, en or */
+      c.globalAlpha = 0.42;
+      c.strokeStyle = P3.or; c.lineWidth = 2.2;
+      var v1 = iso(mx3, my3), v2 = iso(mx3 + mw3, my3);
+      var v3 = iso(mx3 + mw3, my3 + mh3), v4 = iso(mx3, my3 + mh3);
+      c.beginPath();
+      c.moveTo(v1.x, v1.y); c.lineTo(v2.x, v2.y);
+      c.lineTo(v3.x, v3.y); c.lineTo(v4.x, v4.y);
+      c.closePath(); c.stroke();
+      c.restore();
+    }
+
+    /* --- 3. LES TAPIS. Rouge profond, bordure claire, médaillon au
+       centre. Ils sont plus petits que les cours et posés n'importe
+       où : c'est ce qui donne l'impression que quelqu'un vit là. */
+    var TAPIS = [
+      { f:"#7a1f38", b:"#e0b060", m:"#c8843c" },
+      { f:"#25406e", b:"#c8b06a", m:"#6a94c8" },
+      { f:"#5c2a6a", b:"#d8b8e8", m:"#a86ac0" },
+      { f:"#1f5a52", b:"#dcc078", m:"#4c9c8a" }
+    ];
+    for(i = 0; i < 30; i++){
+      var tx3 = LARGEUR_ROCHE + 2 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 8);
+      var ty3 = 2 + al() * (GH - 8);
+      var tw3 = 2.4 + al() * 2.6, th3 = 1.8 + al() * 2.0;
+      var T3 = TAPIS[(al() * TAPIS.length) | 0];
+      function quad(x0, y0, w0, h0){
+        var q1 = iso(x0, y0), q2 = iso(x0 + w0, y0);
+        var q3 = iso(x0 + w0, y0 + h0), q4 = iso(x0, y0 + h0);
+        c.beginPath();
+        c.moveTo(q1.x, q1.y); c.lineTo(q2.x, q2.y);
+        c.lineTo(q3.x, q3.y); c.lineTo(q4.x, q4.y);
+        c.closePath();
+      }
+      c.globalAlpha = 0.68;
+      c.fillStyle = T3.f; quad(tx3, ty3, tw3, th3); c.fill();
+      c.globalAlpha = 0.5;
+      c.strokeStyle = T3.b; c.lineWidth = 2.0;
+      quad(tx3 + 0.22, ty3 + 0.18, tw3 - 0.44, th3 - 0.36); c.stroke();
+      c.globalAlpha = 0.42;
+      c.fillStyle = T3.m;
+      var mc3 = iso(tx3 + tw3 / 2, ty3 + th3 / 2);
+      c.beginPath();
+      c.ellipse(mc3.x, mc3.y, tw3 * 7, th3 * 3.6, 0, 0, 6.2832);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+
+    /* --- 4. LES CHEMINS DE PIERRE. Ils errent d'un bord à l'autre en
+       pas de deux cases, en dalles claires. Un chemin droit aurait
+       fait une route ; celui-ci serpente comme une allée de jardin. */
+    c.save();
+    c.globalAlpha = 0.30;
+    c.strokeStyle = "#8e86c8";
+    c.lineCap = "round"; c.lineJoin = "round";
+    for(i = 0; i < 16; i++){
+      var cx4 = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE);
+      var cy4 = al() * GH;
+      var an4 = al() * 6.2832;
+      c.lineWidth = 5 + al() * 5;
+      c.beginPath();
+      var d4 = iso(cx4, cy4); c.moveTo(d4.x, d4.y);
+      for(j = 0; j < 26; j++){
+        an4 += (al() - 0.5) * 0.9;
+        cx4 += Math.cos(an4) * 2.4; cy4 += Math.sin(an4) * 2.4;
+        if(cx4 < 1 || cx4 > PLAGE_X0 + 4 || cy4 < 0 || cy4 > GH) break;
+        var e4 = iso(cx4, cy4); c.lineTo(e4.x, e4.y);
+      }
+      c.stroke();
+    }
+    c.restore();
+
+    /* --- 5. LES BASSINS. La seule eau douce de l'île, et la seule
+       chose vraiment claire au sol : un turquoise qui brille dans
+       l'indigo. Une margelle de pierre pâle, l'eau dedans, un reflet
+       de lune dessus. */
+    for(i = 0; i < 26; i++){
+      var bx4 = LARGEUR_ROCHE + 3 + al() * (PLAGE_X0 - LARGEUR_ROCHE - 8);
+      var by4 = 3 + al() * (GH - 8);
+      var rb4 = 1.1 + al() * 1.5;
+      var pb4 = iso(bx4, by4);
+      c.globalAlpha = 0.5;
+      c.fillStyle = "#6a63a8";
+      c.beginPath(); c.ellipse(pb4.x, pb4.y, rb4 * RX * 1.16, rb4 * RY * 1.16, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.72;
+      var gb4 = c.createRadialGradient(pb4.x, pb4.y - rb4 * 4, 2, pb4.x, pb4.y, rb4 * RX);
+      gb4.addColorStop(0, "#6ff0e0");
+      gb4.addColorStop(0.6, "#1f9aa8");
+      gb4.addColorStop(1, "#155a78");
+      c.fillStyle = gb4;
+      c.beginPath(); c.ellipse(pb4.x, pb4.y, rb4 * RX, rb4 * RY, 0, 0, 6.2832); c.fill();
+      c.globalAlpha = 0.4;
+      c.fillStyle = "#e8fbff";
+      c.beginPath();
+      c.ellipse(pb4.x - rb4 * 6, pb4.y - rb4 * 3, rb4 * 7, rb4 * 2.2, -0.3, 0, 6.2832);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+
+    /* --- 6. L'OR GRAVÉ. Des étoiles et des croissants tracés à même
+       la pierre, très fins, très dispersés. C'est ce qu'on découvre en
+       zoomant, et c'est pour ça qu'il y en a beaucoup et qu'ils sont
+       petits : de loin ils ne font qu'un chatoiement. */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < 340; i++){
+      var sx4 = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE + 6);
+      var sy4 = al() * GH;
+      var ps4 = iso(sx4, sy4);
+      var tl4 = 3 + al() * 5;
+      c.globalAlpha = 0.18 + al() * 0.3;
+      if(al() < 0.34){
+        /* le croissant : deux arcs, l'un mordant l'autre */
+        c.strokeStyle = "rgba(226,196,120,.9)";
+        c.lineWidth = 1.3;
+        c.beginPath();
+        c.arc(ps4.x, ps4.y, tl4, 0.7, 5.0);
+        c.stroke();
+      }else{
+        /* l'étoile à quatre branches, en losange étiré : c'est la
+           forme la moins chère qui se lise comme une étoile */
+        c.fillStyle = "rgba(240,222,160,.9)";
+        c.beginPath();
+        c.moveTo(ps4.x, ps4.y - tl4);
+        c.lineTo(ps4.x + tl4 * 0.34, ps4.y);
+        c.lineTo(ps4.x, ps4.y + tl4);
+        c.lineTo(ps4.x - tl4 * 0.34, ps4.y);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(ps4.x - tl4 * 1.5, ps4.y);
+        c.lineTo(ps4.x, ps4.y - tl4 * 0.28);
+        c.lineTo(ps4.x + tl4 * 1.5, ps4.y);
+        c.lineTo(ps4.x, ps4.y + tl4 * 0.28);
+        c.closePath(); c.fill();
+      }
+    }
+    c.restore();
+    c.globalAlpha = 1;
     c.restore();
   }
 
@@ -2171,6 +2471,97 @@ function dessineEau(c, t, vue){
     if(vis < 0.4) continue;
     c.globalAlpha = (vis - 0.4) / 0.6 * 0.85;
     c.beginPath(); c.moveTo(x - 8, y); c.lineTo(x + 8, y - 2); c.stroke();
+  }
+  c.restore();
+
+  if(carte.biome === "nuits") dessineMerDEncre(c, t, vue);
+}
+
+/* ================================================================
+   LA MER D'ENCRE — le ciel étoilé, vu d'en bas
+
+   « Je ne veux pas forcément retrouver l'eau bleue classique autour de
+   l'île. » La réponse la moins chère et la plus belle n'est pas une
+   brume : c'est un MIROIR. La mer des mille et une nuits est presque
+   noire, et ce qu'on y voit ce sont les étoiles et la lune —
+   c'est-à-dire le ciel, retourné. L'île donne alors l'impression de
+   flotter dans la nuit plutôt que d'être posée dans de l'eau.
+
+   TROIS RÈGLES QUI FONT QUE ÇA MARCHE.
+
+   1. LES ÉTOILES SONT À DEMEURE, PAS TIRÉES À CHAQUE IMAGE. Leurs
+      places viennent d'une suite déterministe : un tirage par image
+      ferait une neige qui grésille, jamais un reflet.
+   2. ELLES SONT DANS LE REPÈRE DU MONDE, donc elles défilent quand on
+      déplace la caméra — un reflet collé à l'écran serait un voile,
+      pas une surface.
+   3. ELLES ONDULENT. Un reflet sur de l'eau n'est pas un point : il
+      s'étire et se brise. Chacune est donc une petite barre
+      horizontale dont la longueur bat, et dont la hauteur oscille
+      légèrement — c'est ce tremblement qui dit « c'est de l'eau ».
+   ================================================================ */
+var MER_ETOILES = null;
+function construitEtoilesMer(){
+  /* Un pavé de reflets que l'on répète : la mer est immense et l'on
+     n'en voit qu'un morceau, donc on sème dans une tuile de monde et
+     l'on ne dessine que les tuiles visibles. Quatre-vingts reflets par
+     tuile suffisent — au-delà, la mer scintille comme un écran
+     défectueux. */
+  var al = prng(0x51DE), o = [];
+  for(var i = 0; i < 80; i++){
+    o.push({
+      x:al() * MER_TUILE, y:al() * MER_TUILE,
+      /* les grosses sont rares : c'est ce qui donne une profondeur de
+         champ au ciel reflété */
+      r:(al() < 0.12 ? 2.1 + al() * 1.5 : 0.7 + al() * 0.9),
+      ph:al() * 6.2832,
+      vit:0.5 + al() * 1.5,
+      /* trois teintes : blanc lunaire, or, et un bleu très pâle */
+      t:al() < 0.62 ? "220,228,255" : (al() < 0.6 ? "244,214,140" : "168,214,255")
+    });
+  }
+  return o;
+}
+var MER_TUILE = 900;
+function dessineMerDEncre(c, t, vue){
+  if(!MER_ETOILES) MER_ETOILES = construitEtoilesMer();
+  var i0 = Math.floor(vue.x0 / MER_TUILE), i1 = Math.ceil(vue.x1 / MER_TUILE);
+  var j0 = Math.floor(vue.y0 / MER_TUILE), j1 = Math.ceil(vue.y1 / MER_TUILE);
+  /* GARDE-FOU. Très dézoomée, la vue peut couvrir des dizaines de
+     tuiles ; à ce niveau les reflets font moins d'un pixel et ne se
+     voient plus de toute façon. On coupe donc, au lieu de payer. */
+  if((i1 - i0) * (j1 - j0) > 60) return;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var ti = i0; ti <= i1; ti++){
+    for(var tj = j0; tj <= j1; tj++){
+      var ox = ti * MER_TUILE, oy = tj * MER_TUILE;
+      /* chaque tuile est décalée d'un demi-pas une fois sur deux :
+         sinon on lit la grille */
+      var dec = ((ti + tj) & 1) ? MER_TUILE * 0.37 : 0;
+      for(var k = 0; k < MER_ETOILES.length; k++){
+        var e = MER_ETOILES[k];
+        var x = ox + e.x + dec, y = oy + e.y;
+        if(x < vue.x0 - 20 || x > vue.x1 + 20 || y < vue.y0 - 20 || y > vue.y1 + 20) continue;
+        /* le scintillement, et l'ondulation du reflet */
+        var s = 0.55 + 0.45 * Math.sin(t * e.vit + e.ph);
+        var etire = 1 + 1.8 * (0.5 + 0.5 * Math.sin(t * e.vit * 0.7 + e.ph * 1.7));
+        var yy = y + Math.sin(t * 0.9 + e.ph) * 1.6;
+        c.fillStyle = "rgba(" + e.t + "," + (0.18 + s * 0.5) + ")";
+        c.beginPath();
+        c.ellipse(x, yy, e.r * etire * 1.7, e.r * 0.55, 0, 0, 6.2832);
+        c.fill();
+        /* les grosses ont un halo : c'est lui qui les fait lire comme
+           une lumière et non comme un grain */
+        if(e.r > 2){
+          var g = c.createRadialGradient(x, yy, 0, x, yy, e.r * 7);
+          g.addColorStop(0, "rgba(" + e.t + "," + (0.16 * s) + ")");
+          g.addColorStop(1, "rgba(" + e.t + ",0)");
+          c.fillStyle = g;
+          c.beginPath(); c.ellipse(x, yy, e.r * 7, e.r * 3, 0, 0, 6.2832); c.fill();
+        }
+      }
+    }
   }
   c.restore();
 }
