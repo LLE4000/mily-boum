@@ -2495,6 +2495,33 @@ G("4. Déterminisme de la génération de carte");
     ok("foudre et tornades des ténèbres ont des périodes bien distinctes",
        Math.abs(N.periodeEclair(7) - N.EQ.TORNADE_PERIODE) > 5,
        N.periodeEclair(7) + " s contre " + N.EQ.TORNADE_PERIODE + " s");
+    /* LE RYTHME DES GRONDEMENTS est deux fois plus rapide dans les
+       ténèbres. La fonction vit hors du noyau (36-jungle-meteo.js) ;
+       on la relit dans le fichier livré, comme les palettes.
+       Ce qui compte ici : le SON et l'IMAGE lisent la même période. Si
+       chacun comptait ses propres cycles, on verrait un éclat sans
+       l'entendre, ou l'inverse. */
+    (function(){
+      var d = html.indexOf("function periodeRoulement(");
+      var f = html.indexOf("\n}", d);
+      if(d < 0 || f < 0){ ok("periodeRoulement se relit dans le fichier livré", false); return; }
+      var src = html.slice(d, f + 2);
+      ok("periodeRoulement se relit dans le fichier livré", src.length > 40);
+      /* on la rejoue à la main : deux fois plus vite sur l'île à
+         tornades, inchangée ailleurs */
+      var base = 5.2;
+      function faux(ile){
+        return new Function("MET_ROULEMENT", "jeu", "carteTornades",
+                            src + "; return periodeRoulement();")
+               (base, { index:ile }, function(i){ return i === 7; });
+      }
+      ok("les ténèbres grondent DEUX FOIS plus souvent que la jungle",
+         Math.abs(faux(7) - base / 2) < 1e-9, faux(7) + " s contre " + faux(5));
+      ok("la jungle garde exactement son rythme",
+         Math.abs(faux(5) - base) < 1e-9, "" + faux(5));
+      ok("les îles sans ciel gardent le rythme de référence",
+         Math.abs(faux(0) - base) < 1e-9);
+    })();
 
     /* LES CIELS. Une seule île est orageuse ; les autres se partagent
        trois teintes de nuages, et aucune ne doit retomber par défaut
