@@ -771,6 +771,45 @@ select.champ{cursor:pointer}
 #carriereListe:empty::after{
   content:"Personne n'a encore marqué.";font-size:12px;color:var(--gris);
 }
+/* ══ LA PAGE DES PASSAGES ══
+   Elle emprunte toute son ossature au classement — même boîte, même
+   en-tête, même corps défilant — et n'ajoute que ce qui lui est
+   propre : la barre des trente derniers jours et la ligne d'un
+   appareil. */
+#vusP{
+  position:fixed;inset:0;z-index:34;display:none;
+  background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
+  align-items:center;justify-content:center;padding:16px;
+  overscroll-behavior:contain;
+}
+#vusP.on{display:flex}
+/* LES TRENTE DERNIERS JOURS, en trente barres. Une barre par jour,
+   la part sombre pour les visites, la part claire pour les parties
+   jouées : on lit d'un coup d'œil si le salon vit ou s'il défile. */
+#vusJours{
+  display:flex;align-items:flex-end;gap:2px;height:64px;padding:10px 14px 6px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+#vusJours .vj{flex:1 1 0;display:flex;flex-direction:column;justify-content:flex-end;
+  height:100%;min-width:0}
+#vusJours .vj i{display:block;background:rgba(255,255,255,.16);border-radius:2px 2px 0 0}
+#vusJours .vj b{display:block;background:var(--braise);border-radius:2px 2px 0 0}
+#vusJours .vj.vide i{background:rgba(255,255,255,.05)}
+/* une ligne par APPAREIL : c'est lui qui tient le journal, et deux
+   personnes qui se renomment ne doivent pas se confondre */
+.vusL{
+  display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+  padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.vusL .vn{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0}
+.vusL .vq{font-size:11px;color:#8f86a0;text-align:right;white-space:nowrap}
+.vusL .vd{grid-column:1 / -1;font-size:11.5px;color:#a99cb4}
+.vusL .vd b{color:#e8e0ee;font-weight:700}
+.vusL .vp{color:var(--braise)}
+.vusL .vr{color:#7fb2ff}
+#vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
+
 #classP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
@@ -1248,6 +1287,13 @@ select.champ{cursor:pointer}
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminBlindage" class="bt">🛡 Blinder une île</button>
       </div>
+      <h3>Passages</h3>
+      <div class="admNote">Qui est venu, et quand. Un appareil note ses
+        propres passages et les publie ; cette page les rassemble.
+        Aucune durée n'est mesurée.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminVus" class="bt">👣 Qui est venu</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1256,6 +1302,24 @@ select.champ{cursor:pointer}
      Frère de #adminP : même ossature, même façon de s'ouvrir. Une page
      à part plutôt qu'une liste qui s'allonge sous l'accueil — à vingt
      joueurs, le bouton DÉBARQUER se serait retrouvé sous l'horizon. -->
+<!-- ==================== LES PASSAGES ====================
+     Sœur de #classP : même ossature, même façon de s'ouvrir. Elle ne
+     s'abonne aux journaux des autres appareils qu'à son ouverture —
+     un joueur ordinaire ne télécharge jamais rien de tout ça. -->
+<div id="vusP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">👣 Qui est venu</div>
+      <button id="btVusFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous" id="vusSous">Chargement des journaux…</div>
+    <div class="clCorps">
+      <div id="vusJours"></div>
+      <div id="vusListe"></div>
+    </div>
+  </div>
+</div>
+
 <div id="classP">
   <div class="clBoite">
     <div class="clHaut">

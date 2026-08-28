@@ -755,6 +755,13 @@ function poseBarge(gx, gy){
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
   demandeMajBarres();
   son.debarque();
+  /* ET CE PASSAGE COMPTE COMME UNE PARTIE JOUÉE. C'est ICI qu'on le
+     note, et pas à l'entrée sur la carte : ouvrir une île pour la
+     regarder n'est pas y jouer, et c'est justement la distinction que
+     la page des passages doit savoir faire. La navette qui accoste,
+     elle, ne laisse aucun doute. La fonction ne republie qu'une fois
+     par visite — les navettes suivantes ne diraient rien de plus. */
+  if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
 function majNavettes(dt){

@@ -10,6 +10,13 @@ var SUJET = "khiao/mily/" + CODE_SALON;
    nouvel abonné — c'est ce qui fait qu'on reprend le monde là où il en
    était, même après que tout le monde a fermé son navigateur. */
 var SUJET_MONDE = SUJET + "/monde";
+/* UN SUJET PAR APPAREIL, et c'est ce qui rend le journal des passages
+   si simple : personne n'écrit dans celui d'un autre, donc il n'y a
+   rien à fusionner et aucun conflit possible. La page
+   d'administration s'abonne aux DEUX POINTS d'un coup — le joker du
+   courtier — et reçoit d'office tous les messages retenus. */
+var SUJET_VUS   = SUJET + "/vus";
+function sujetMonJournal(){ return SUJET_VUS + "/" + (monSeau || "?"); }
 var CLE_MONDE = "milyboum:monde:" + CODE_SALON;
 
 var monde = null;            // dernier instantané connu
@@ -354,6 +361,13 @@ function connecteRelais(url){
           reseau.abonneMonde = true;
           envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
           if(monNom) envoie({ t:"bonjour", nom:monNom });
+          /* et l'on inscrit ce passage dans son propre journal. Une
+             fois par connexion au relais, pas une fois par image. */
+          noteMonPassage();
+          /* si la page des passages était ouverte quand le réseau a
+             sauté, on se réabonne sans que l'admin ait à y penser */
+          if(typeof pageVusOuverte !== "undefined" && pageVusOuverte)
+            abonneAuxJournaux();
           /* si l'on a du retard à rattraper localement, on le publie :
              notre miroir peut être plus frais que celui du courtier */
           if(monde) mondeSale = true;
@@ -362,6 +376,7 @@ function connecteRelais(url){
         var m = litPublish(p.corps);
         if(m.sujet === SUJET) recoit(m.message);
         else if(m.sujet === SUJET_MONDE) recoitMonde(m.message);
+        else if(m.sujet.indexOf(SUJET_VUS + "/") === 0) recoitJournal(m.sujet, m.message);
       }
     }
   };
@@ -383,6 +398,10 @@ function fermeRelais(){
   reseau.ws = null;
   reseau.connecte = false;
   reseau.abonneMonde = false;
+  /* et l'abonnement aux journaux : il faudra le refaire à la
+     reconnexion, sinon la page d'administration resterait muette
+     après une coupure de réseau */
+  abonneVus = 0;
 }
 function envoieTrame(u8){
   if(reseau.ws && reseau.ws.readyState === 1){
@@ -814,6 +833,110 @@ function appliqueJungleAuJeu(m){ return appliqueEvenementAuJeu(m, IDX_JUNGLE); }
 /* Le squelette commun aux quatre écritures d'événement : on repart de
    l'instantané courant, on ne change QUE ce qu'on vient changer, et
    toutes les voies repartent avec. */
+/* ================================================================
+   MON JOURNAL DE PASSAGES
+
+   Un objet, deux écritures par visite au plus : une à l'arrivée, une
+   le jour où l'on débarque vraiment. C'est tout ce que ça coûte.
+
+   IL VIT DANS LE STOCKAGE LOCAL AUTANT QUE CHEZ LE COURTIER. Le
+   local sert de brouillon entre deux connexions ; le retenu sert de
+   mémoire commune. Au démarrage on relit le local, on y ajoute le
+   passage du jour, et on publie le tout : le courtier n'a jamais
+   qu'à conserver la dernière version, comme pour l'instantané.
+   ================================================================ */
+var CLE_JOURNAL = "milyVus";
+var monJournal = null;
+/* Les journaux des autres, rangés par sujet. Ils n'arrivent QUE si
+   l'on s'est abonné — c'est-à-dire uniquement quand la page
+   d'administration est ouverte. Un joueur ordinaire ne les télécharge
+   jamais. */
+var journauxVus = {};
+var abonneVus = 0;
+
+function chargeMonJournal(){
+  if(monJournal) return monJournal;
+  var brut = null;
+  try{ brut = localStorage.getItem(CLE_JOURNAL); }catch(e){}
+  monJournal = (brut ? decodeJournal(brut) : null) || journalVide(monSeau, monNom);
+  monJournal.sq = monSeau || monJournal.sq;
+  return monJournal;
+}
+function sauveMonJournal(){
+  if(!monJournal) return;
+  try{ localStorage.setItem(CLE_JOURNAL, encodeJournal(monJournal)); }catch(e){}
+}
+function publieMonJournal(){
+  if(!monJournal || !reseau.connecte || !monSeau) return;
+  envoieTrame(paquetPublish(sujetMonJournal(), encodeJournal(monJournal), true));
+}
+/* Un passage de plus. Appelé à la connexion au relais, et une seule
+   fois : deux reconnexions à trois minutes d'écart, c'est la même
+   visite, pas deux. */
+var DELAI_MEME_VISITE = 20 * 60000;   // vingt minutes
+var derniereNote = 0;
+function noteMonPassage(){
+  var n = Date.now();
+  if(derniereNote && n - derniereNote < DELAI_MEME_VISITE) return;
+  derniereNote = n;
+  var d = new Date();
+  chargeMonJournal();
+  monJournal.n = monNom || monJournal.n;
+  ajouteVisite(monJournal, jourDe(d), heureDe(d), monde ? (monde.c | 0) : 0);
+  sauveMonJournal();
+  publieMonJournal();
+}
+/* Et celui-ci a débarqué. On ne republie que le jour où le drapeau
+   change : les débarquements suivants de la même visite ne diraient
+   rien de plus. */
+function noteQueJeJoue(index){
+  chargeMonJournal();
+  if(!monJournal.p.length){
+    var d = new Date();
+    ajouteVisite(monJournal, jourDe(d), heureDe(d), index | 0);
+  }
+  if(!marqueJoue(monJournal, index)) return;
+  monJournal.n = monNom || monJournal.n;
+  sauveMonJournal();
+  publieMonJournal();
+}
+/* Le pseudo a changé : le journal porte le DERNIER connu, puisque
+   c'est celui sous lequel on reconnaîtra la personne. */
+function renommeMonJournal(){
+  if(!monJournal || monJournal.n === monNom || !monNom) return;
+  monJournal.n = monNom;
+  sauveMonJournal();
+  publieMonJournal();
+}
+
+function recoitJournal(sujet, message){
+  var j = decodeJournal(message);
+  if(!j) return;                       // chaîne douteuse : on la jette
+  journauxVus[sujet] = j;
+  if(typeof majPageVus === "function") majPageVus();
+}
+/* L'ABONNEMENT EST À LA DEMANDE, et c'est délibéré : ces journaux ne
+   servent qu'à la page d'administration, et il n'y a aucune raison
+   que les dix appareils du salon téléchargent l'historique de tous
+   les autres à chaque partie. On s'abonne quand la page s'ouvre, une
+   fois, et le courtier sert alors tous les messages retenus d'un
+   coup. */
+function abonneAuxJournaux(){
+  if(abonneVus || !reseau.connecte) return 0;
+  abonneVus = 1;
+  envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_VUS + "/+"));
+  return 1;
+}
+function tousLesJournaux(){
+  var l = [], k;
+  for(k in journauxVus) if(journauxVus.hasOwnProperty(k)) l.push(journauxVus[k]);
+  /* le nôtre en fait partie, même si le courtier ne nous l'a pas
+     encore renvoyé */
+  if(monJournal && monJournal.p && monJournal.p.length && !journauxVus[sujetMonJournal()])
+    l.push(monJournal);
+  return l;
+}
+
 function publieEtat(m, jg){
   /* `bl` voyage avec `d`, TOUJOURS. On repart de l'instantané courant
      pour ne changer que la voie, et oublier les blessures ici les

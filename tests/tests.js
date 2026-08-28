@@ -27,7 +27,9 @@ try{
     "BLESSURE_CRANS","BLESSURES_MAX",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
+    "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
+    "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "VOIES_EVT","voieDeCarte","carteDeVoie","reglagesEvt","voieLue","voiePosee",
     "evenementEnCours","carteEvenementEnCours","fusionneEvenements","poseEvenements",
@@ -41,7 +43,9 @@ try{
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
-    "ORDRE_CAMPAGNE",
+    "ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
+    "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
+    "encodeJournal","decodeJournal","statsJournaux",
     "pavoiseLaGuinguette","PAVOIS_COURONNES","PAVOIS_ALLEE","PAVOIS_PAS","PAVOIS_CX",
     "PAVOIS_CY","PAVOIS_PISTE","PAVOIS_HAUSSE","PAVOIS_ECART","cordeGuinguette",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -7026,6 +7030,217 @@ G("8. Cohérence des règles de jeu");
   ok("la table est remise à zéro pour la suite des tests",
      N.blindageDeCarte(0) === sauve && N.blindageDeCarte(0) === 0 &&
      N.degatsDeCarte(0) === 0);
+})();
+
+/* ================================================================
+   LE JOURNAL DES PASSAGES
+
+   « Une page avec des stats des gens qui se sont déjà connectés,
+   savoir qui et quand. » Puis, en le précisant : « je préfère que ça
+   ne soit pas mentionné, juste voir qui se connecte, alors pas les
+   temps. »
+
+   Deux choses se vérifient ici. Que le calendrier est juste — c'est
+   la moitié du travail d'une statistique par jour, et c'est là qu'on
+   se trompe. Et qu'AUCUNE DURÉE n'est mesurée nulle part : c'était
+   une demande explicite, et un test vaut mieux qu'une intention.
+   ================================================================ */
+(function(){
+  G("27. Le journal des passages");
+
+  /* ---------------------------------------------------------------
+     1. LE CALENDRIER. Un écart de dates ne se calcule pas en
+     soustrayant deux nombres AAAAMMJJ : entre le 31 janvier et le
+     1er février, la soustraction annonce soixante-dix jours.
+     --------------------------------------------------------------- */
+  (function(){
+    ok("un jour s'écrit AAAAMMJJ",
+       N.jourDe(new Date(2026, 7, 28)) === 20260828);
+    ok("… et une heure HHMM", N.heureDe(new Date(2026, 7, 28, 22, 5)) === 2205);
+    ok("… minuit compris", N.heureDe(new Date(2026, 7, 28, 0, 0)) === 0);
+    ok("un jour se relit en date",
+       N.jourEnDate(20260828).getDate() === 28 &&
+       N.jourEnDate(20260828).getMonth() === 7);
+    ok("l'écart d'un jour vaut un", N.ecartJours(20260828, 20260827) === 1);
+    /* LE PIÈGE DU CHANGEMENT DE MOIS */
+    ok("… y compris d'un mois à l'autre", N.ecartJours(20260201, 20260131) === 1,
+       "31 janvier → 1er février");
+    ok("… et d'une année à l'autre", N.ecartJours(20260101, 20251231) === 1);
+    /* et celui d'une année bissextile */
+    ok("… et le 29 février d'une bissextile",
+       N.ecartJours(20240301, 20240228) === 2, "2024 est bissextile");
+    ok("un même jour donne zéro", N.ecartJours(20260828, 20260828) === 0);
+  })();
+
+  /* ---------------------------------------------------------------
+     2. LE JOURNAL LUI-MÊME.
+     --------------------------------------------------------------- */
+  (function(){
+    var j = N.journalVide("a7k2", "Roro");
+    ok("un journal neuf est vide", j.p.length === 0 && j.sq === "a7k2");
+    N.ajouteVisite(j, 20260828, 2205, 4);
+    ok("un passage s'y ajoute", j.p.length === 1 && j.p[0][0] === 20260828);
+    ok("… et il n'est pas joué tant qu'on n'a pas débarqué", j.p[0][2] === 0);
+    ok("le débarquement le marque", N.marqueJoue(j, 6) === 1 && j.p[0][2] === 1);
+    ok("… et une seule fois : le second ne republie rien",
+       N.marqueJoue(j, 6) === 0);
+    ok("… il retient l'île", j.p[0][3] === 6);
+
+    /* LE GRENIER SE VIDE. Rien de plus vieux que six mois, et jamais
+       plus de deux cents passages : un journal qui grossit sans fin
+       finirait par peser plus lourd que le jeu. */
+    var g = N.journalVide("x", "X"), i;
+    for(i = 0; i < 260; i++) N.ajouteVisite(g, 20260828, 1200, 0);
+    ok("le journal se plafonne", g.p.length === N.JOURNAL_MAX,
+       g.p.length + " passages");
+    var v = N.journalVide("y", "Y");
+    v.p.push([20250101, 1200, 1, 0]);      // très ancien
+    v.p.push([20260827, 1200, 1, 0]);      // hier
+    N.elagueJournal(v, 20260828);
+    ok("… et oublie ce qui a plus de six mois", v.p.length === 1 &&
+       v.p[0][0] === 20260827);
+  })();
+
+  /* ---------------------------------------------------------------
+     3. TOUT CE QUI ENTRE EST SUSPECT. Ces journaux arrivent d'un
+     relais PUBLIC : n'importe qui peut y publier n'importe quoi.
+     --------------------------------------------------------------- */
+  (function(){
+    ["", "pas du json", "null", "42", '"texte"', "[]", "{}",
+     '{"p":"pas un tableau"}',
+     '{"p":[[20260828]]}',                       // trop court
+     '{"p":[["a","b","c"]]}',                    // pas des nombres
+     '{"p":[[19700101,1200,1,0]]}',              // date préhistorique
+     '{"p":[[21500101,1200,1,0]]}',              // date d'après-demain
+     '{"p":[[20260828,9999,1,0]]}',              // heure impossible
+     '{"p":[[20260828,1200,1,99999]]}'           // île qui n'existe pas
+    ].forEach(function(x){
+      var j = N.decodeJournal(x);
+      if(!j) return;                             // rejeté : très bien
+      for(var i = 0; i < j.p.length; i++){
+        var e = j.p[i];
+        if(!(e[0] >= 20200101 && e[0] <= 21001231)) ok("date filtrée : " + x, false);
+        if(!(e[1] >= 0 && e[1] <= 2359)) ok("heure filtrée : " + x, false);
+        if(!(e[3] >= 0 && e[3] < 100)) ok("île filtrée : " + x, false);
+      }
+    });
+    ok("aucune chaîne hostile ne fait sortir une valeur folle", true);
+    /* et un journal de mille passages ne peut pas gonfler la page */
+    var gros = { p:[] };
+    for(var i = 0; i < 1000; i++) gros.p.push([20260828, 1200, 1, 0]);
+    ok("un journal démesuré est coupé au plafond",
+       N.decodeJournal(JSON.stringify(gros)).p.length === N.JOURNAL_MAX);
+    /* le tour complet ne perd rien */
+    var j2 = N.journalVide("a7k2", "Roro");
+    N.ajouteVisite(j2, 20260828, 2205, 4);
+    N.marqueJoue(j2, 4);
+    var r = N.decodeJournal(N.encodeJournal(j2));
+    ok("un journal honnête fait l'aller-retour sans perte",
+       r.sq === "a7k2" && r.p.length === 1 && r.p[0][2] === 1 && r.p[0][3] === 4);
+  })();
+
+  /* ---------------------------------------------------------------
+     4. LE DÉPOUILLEMENT — ce que la page montre vraiment.
+     --------------------------------------------------------------- */
+  (function(){
+    var AU = 20260828;
+    function jr(sq, nom, l){
+      var j = N.journalVide(sq, nom);
+      for(var i = 0; i < l.length; i++) j.p.push(l[i]);
+      return j;
+    }
+    var S = N.statsJournaux([
+      jr("a", "Roro", [[20260828, 2205, 1, 4], [20260828, 1830, 1, 4],
+                       [20260827, 2140, 1, 4], [20260826, 1950, 0, 4],
+                       [20260719, 1200, 1, 0]]),
+      jr("b", "Max",  [[20260827, 1905, 0, 4], [20260823, 2230, 0, 4]]),
+      jr("c", "Vide", [])
+    ], AU);
+    ok("un appareil sans passage ne fait pas de ligne", S.lignes.length === 2);
+    ok("le plus récemment venu est en tête", S.lignes[0].nom === "Roro");
+    var R = S.lignes[0], M = S.lignes[1];
+    ok("les passages sont comptés", R.visites === 5 && M.visites === 2);
+    /* LA QUESTION D'ORIGINE : qui vient voir sans jouer. */
+    ok("… et l'on voit qui joue et qui regarde",
+       R.jouees === 4 && R.regardees === 1 &&
+       M.jouees === 0 && M.regardees === 2,
+       "Max : 0 joué, 2 vus");
+    ok("aujourd'hui se compte à part", R.aujourdhui === 2 && M.aujourdhui === 0);
+    ok("la semaine aussi", R.j7 === 4 && M.j7 === 2);
+    ok("… et le mois", R.j30 === 4 && M.j30 === 2, "le 19 juillet est dehors");
+    ok("le dernier passage porte son heure",
+       R.dernier === 20260828 && R.derniereHeure === 2205);
+    ok("l'île la plus fréquentée est retenue", R.iles[4] === 3);
+    ok("le compte par jour ne garde que trente jours",
+       S.parJour[20260828].n === 2 && S.parJour[20260828].joue === 2 &&
+       S.parJour[20260719] === undefined);
+    /* une date en avant — horloge déréglée — ne casse rien */
+    var F = N.statsJournaux([jr("z", "Futur", [[20270101, 1200, 1, 0]])], AU);
+    ok("une date en avance est ignorée plutôt que de fausser le compte",
+       F.lignes.length === 0);
+  })();
+
+  /* ---------------------------------------------------------------
+     5. AUCUNE DURÉE NULLE PART. C'était la demande, mot pour mot :
+     « juste voir qui se connecte, alors pas les temps ». On le
+     vérifie sur le fichier livré, pas sur une bonne intention.
+     --------------------------------------------------------------- */
+  (function(){
+    var mod = html.match(/var CLE_JOURNAL[\s\S]*?function tousLesJournaux[\s\S]*?\n\}/);
+    ok("le module du journal est dans le fichier livré", !!mod);
+    if(mod){
+      /* un passage tient en quatre nombres, et pas un de plus :
+         jour, heure, joué, île. Aucune place pour une durée. */
+      ok("un passage ne porte que jour, heure, joué et île",
+         /ajouteVisite\(monJournal, jourDe\(d\), heureDe\(d\)/.test(mod[0]));
+      ok("… et rien ne mesure une durée",
+         mod[0].indexOf("duree") < 0 && mod[0].indexOf("Duree") < 0 &&
+         mod[0].indexOf("tempsPasse") < 0);
+    }
+    var aj = html.match(/function ajouteVisite[\s\S]*?\n\}/);
+    if(aj) ok("le passage enregistré n'a que quatre nombres",
+              /j\.p\.push\(\[jour \| 0, heure \| 0, 0, carte \| 0\]\)/.test(aj[0]));
+    /* et la page le dit à qui la regarde */
+    ok("la page l'annonce elle-même",
+       /Aucune durée n'est mesurée/.test(html));
+  })();
+
+  /* ---------------------------------------------------------------
+     6. LE CHEMIN COMPLET, relu dans le fichier livré.
+     --------------------------------------------------------------- */
+  (function(){
+    ok("chaque appareil a son propre sujet retenu",
+       /var SUJET_VUS   = SUJET \+ "\/vus";/.test(html) &&
+       /function sujetMonJournal\(\)\{ return SUJET_VUS \+ "\/" \+ \(monSeau/.test(html));
+    ok("… et l'on publie EN RETENU, sinon rien ne survivrait",
+       /paquetPublish\(sujetMonJournal\(\), encodeJournal\(monJournal\), true\)/.test(html));
+    /* L'ABONNEMENT EST À LA DEMANDE : un joueur ordinaire ne
+       télécharge jamais l'historique des autres. */
+    ok("on ne s'abonne aux journaux qu'en ouvrant la page",
+       /function ouvreVus[\s\S]{0,400}abonneAuxJournaux\(\)/.test(html));
+    var ab = html.match(/function abonneAuxJournaux[\s\S]*?\n\}/);
+    if(ab){
+      ok("… une seule fois par connexion", /if\(abonneVus \|\| !reseau\.connecte\) return 0/.test(ab[0]));
+      ok("… et avec le joker, pour tous les appareils d'un coup",
+         /SUJET_VUS \+ "\/\+"/.test(ab[0]));
+    }
+    ok("une coupure de réseau réarme l'abonnement",
+       /abonneVus = 0;/.test(html));
+    /* LE PASSAGE SE NOTE À LA CONNEXION, LE JEU AU DÉBARQUEMENT.
+       Ouvrir une île pour la regarder n'est pas y jouer — et c'est
+       justement la distinction que la page doit savoir faire. */
+    ok("le passage se note en se connectant au relais",
+       /noteMonPassage\(\);/.test(html));
+    var pb = html.match(/function poseBarge[\s\S]*?\n\}/);
+    if(pb) ok("… et la partie se note quand une navette accoste vraiment",
+              /noteQueJeJoue\(jeu\.index\)/.test(pb[0]));
+    ok("deux reconnexions rapprochées restent le même passage",
+       /DELAI_MEME_VISITE/.test(html));
+    /* et rien n'est dit aux autres joueurs : c'était le choix */
+    ok("rien n'est annoncé aux joueurs dans le jeu",
+       html.indexOf("tes passages sont enregistrés") < 0 &&
+       html.indexOf("présence enregistrée") < 0);
+  })();
 })();
 
 /* ---------------- bilan ---------------- */

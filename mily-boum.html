@@ -771,6 +771,45 @@ select.champ{cursor:pointer}
 #carriereListe:empty::after{
   content:"Personne n'a encore marqué.";font-size:12px;color:var(--gris);
 }
+/* ══ LA PAGE DES PASSAGES ══
+   Elle emprunte toute son ossature au classement — même boîte, même
+   en-tête, même corps défilant — et n'ajoute que ce qui lui est
+   propre : la barre des trente derniers jours et la ligne d'un
+   appareil. */
+#vusP{
+  position:fixed;inset:0;z-index:34;display:none;
+  background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
+  align-items:center;justify-content:center;padding:16px;
+  overscroll-behavior:contain;
+}
+#vusP.on{display:flex}
+/* LES TRENTE DERNIERS JOURS, en trente barres. Une barre par jour,
+   la part sombre pour les visites, la part claire pour les parties
+   jouées : on lit d'un coup d'œil si le salon vit ou s'il défile. */
+#vusJours{
+  display:flex;align-items:flex-end;gap:2px;height:64px;padding:10px 14px 6px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+#vusJours .vj{flex:1 1 0;display:flex;flex-direction:column;justify-content:flex-end;
+  height:100%;min-width:0}
+#vusJours .vj i{display:block;background:rgba(255,255,255,.16);border-radius:2px 2px 0 0}
+#vusJours .vj b{display:block;background:var(--braise);border-radius:2px 2px 0 0}
+#vusJours .vj.vide i{background:rgba(255,255,255,.05)}
+/* une ligne par APPAREIL : c'est lui qui tient le journal, et deux
+   personnes qui se renomment ne doivent pas se confondre */
+.vusL{
+  display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+  padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.vusL .vn{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0}
+.vusL .vq{font-size:11px;color:#8f86a0;text-align:right;white-space:nowrap}
+.vusL .vd{grid-column:1 / -1;font-size:11.5px;color:#a99cb4}
+.vusL .vd b{color:#e8e0ee;font-weight:700}
+.vusL .vp{color:var(--braise)}
+.vusL .vr{color:#7fb2ff}
+#vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
+
 #classP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
@@ -1248,6 +1287,13 @@ select.champ{cursor:pointer}
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminBlindage" class="bt">🛡 Blinder une île</button>
       </div>
+      <h3>Passages</h3>
+      <div class="admNote">Qui est venu, et quand. Un appareil note ses
+        propres passages et les publie ; cette page les rassemble.
+        Aucune durée n'est mesurée.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminVus" class="bt">👣 Qui est venu</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1256,6 +1302,24 @@ select.champ{cursor:pointer}
      Frère de #adminP : même ossature, même façon de s'ouvrir. Une page
      à part plutôt qu'une liste qui s'allonge sous l'accueil — à vingt
      joueurs, le bouton DÉBARQUER se serait retrouvé sous l'horizon. -->
+<!-- ==================== LES PASSAGES ====================
+     Sœur de #classP : même ossature, même façon de s'ouvrir. Elle ne
+     s'abonne aux journaux des autres appareils qu'à son ouverture —
+     un joueur ordinaire ne télécharge jamais rien de tout ça. -->
+<div id="vusP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">👣 Qui est venu</div>
+      <button id="btVusFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous" id="vusSous">Chargement des journaux…</div>
+    <div class="clCorps">
+      <div id="vusJours"></div>
+      <div id="vusListe"></div>
+    </div>
+  </div>
+</div>
+
 <div id="classP">
   <div class="clBoite">
     <div class="clHaut">
@@ -1427,7 +1491,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.77";
+var VERSION = "v0.78";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -6882,6 +6946,188 @@ function pvDefensesCarte(c){
     n += b.pvMax;
   }
   return n;
+}
+
+/* ================================================================
+   LE JOURNAL DES PASSAGES — QUI EST VENU, ET QUAND
+
+   « C'est possible dans le tableau admin de faire une page avec des
+   stats des gens qui se sont déjà connectés, savoir qui et quand ? »
+
+   ────────────────────────────────────────────────────────────────
+   IL N'Y A PAS DE SERVEUR, ET ÇA DÉCIDE DE TOUT
+
+   Le jeu est un fichier posé sur une page statique, et le relais ne
+   fait que faire passer des messages : il n'enregistre rien, il
+   n'écoute personne. Aucune machine ne peut donc tenir un registre
+   des connexions — sauf les appareils des joueurs eux-mêmes.
+
+   D'où la seule construction possible, et elle a l'avantage d'être
+   aussi la plus simple : CHAQUE APPAREIL TIENT SON PROPRE JOURNAL et
+   le publie sur SON propre sujet retenu. Personne n'écrit dans le
+   journal d'un autre, donc il n'y a rien à fusionner, rien à
+   arbitrer, aucun conflit possible. La page d'administration
+   s'abonne à tous les sujets d'un coup — le courtier lui sert les
+   messages retenus — et fait la somme.
+
+   C'est exactement la discipline du « seau » des scores, qui vit
+   dans ce fichier depuis longtemps : on n'écrit que le sien.
+
+   DEUX LIMITES, DITES FRANCHEMENT. Les statistiques commencent le
+   jour où cette version est installée — rien ne peut être
+   reconstitué d'avant. Et un joueur qui efface les données de son
+   navigateur efface son journal ; le dernier publié reste toutefois
+   chez le courtier, donc son passé ne disparaît pas pour autant.
+
+   ────────────────────────────────────────────────────────────────
+   CE QU'ON NOTE, ET CE QU'ON NE NOTE PAS
+
+   On note : la DATE, l'HEURE, le pseudo du moment, l'île, et si le
+   passage a donné lieu à une bataille ou seulement à un coup d'œil.
+
+   ON NE NOTE AUCUNE DURÉE. C'était demandé, et c'est aussi le bon
+   choix : mesurer combien de temps quelqu'un reste devant un écran
+   demande de le surveiller en continu, alors qu'un passage se note
+   en une ligne au moment où il arrive. « Joué ou seulement
+   regardé » n'est pas une durée — c'est un fait, connu dès qu'une
+   bataille commence — et c'est lui qui répond vraiment à la
+   question posée : qui vient voir sans jouer.
+
+   ────────────────────────────────────────────────────────────────
+   LE FORMAT
+
+   Un passage tient en quatre nombres : jour (AAAAMMJJ), heure
+   (HHMM), joué (0 ou 1), île. Deux cents passages par appareil, et
+   rien de plus vieux que six mois — au-delà, ce n'est plus une
+   statistique, c'est un grenier.
+
+   TOUT CE QUI ENTRE EST SUSPECT. Ces journaux arrivent d'un relais
+   public : n'importe qui peut y publier n'importe quoi. Le décodeur
+   ne fait donc confiance à rien — ni au type, ni aux bornes, ni à la
+   longueur — et rend un journal vide plutôt qu'un journal douteux.
+   ================================================================ */
+var JOURNAL_MAX   = 200;    // passages gardés par appareil
+var JOURNAL_JOURS = 180;    // et rien de plus vieux que ça
+
+/* Le jour d'une date, en AAAAMMJJ, et l'heure en HHMM. On lit
+   l'horloge LOCALE de l'appareil : c'est l'heure que son porteur a
+   sous les yeux, et c'est la seule qui ait un sens quand on demande
+   « qui s'est connecté hier soir ». */
+function jourDe(d){
+  return (d.getFullYear() * 10000) + ((d.getMonth() + 1) * 100) + d.getDate();
+}
+function heureDe(d){ return d.getHours() * 100 + d.getMinutes(); }
+
+/* Combien de jours séparent deux dates AAAAMMJJ. Passe par un vrai
+   calendrier — un simple écart de nombres croirait qu'il y a
+   soixante-dix-sept jours entre le 31 janvier et le 1er février. */
+function jourEnDate(j){
+  j = j | 0;
+  return new Date(((j / 10000) | 0), (((j / 100) | 0) % 100) - 1, j % 100);
+}
+function ecartJours(a, b){
+  return Math.round((jourEnDate(a) - jourEnDate(b)) / 86400000);
+}
+
+function journalVide(sq, nom){
+  return { v:1, sq:String(sq || ""), n:String(nom || ""), p:[] };
+}
+
+/* Un passage de plus. Le dernier de la liste est le plus récent. */
+function ajouteVisite(j, jour, heure, carte){
+  if(!j || !j.p) return j;
+  j.p.push([jour | 0, heure | 0, 0, carte | 0]);
+  return elagueJournal(j, jour);
+}
+/* Ce passage-ci a donné lieu à une bataille. On marque le DERNIER,
+   celui qui est en cours — et une seule fois : republier à chaque
+   débarquement d'une même visite ne dirait rien de plus. */
+function marqueJoue(j, carte){
+  if(!j || !j.p || !j.p.length) return 0;
+  var d = j.p[j.p.length - 1];
+  if(d[2]) return 0;
+  d[2] = 1;
+  d[3] = carte | 0;
+  return 1;
+}
+function elagueJournal(j, aujourdhui){
+  if(!j || !j.p) return j;
+  var l = [];
+  for(var i = 0; i < j.p.length; i++){
+    var e = j.p[i];
+    if(ecartJours(aujourdhui, e[0]) > JOURNAL_JOURS) continue;
+    l.push(e);
+  }
+  if(l.length > JOURNAL_MAX) l = l.slice(l.length - JOURNAL_MAX);
+  j.p = l;
+  return j;
+}
+
+function encodeJournal(j){ return JSON.stringify(j); }
+/* Et le décodeur, qui ne croit personne. */
+function decodeJournal(s){
+  var o = null;
+  try{ o = JSON.parse(s); }catch(e){ return null; }
+  if(!o || typeof o !== "object" || !o.p || !o.p.length && o.p.length !== 0) return null;
+  if(Object.prototype.toString.call(o.p) !== "[object Array]") return null;
+  var j = journalVide(
+    (typeof o.sq === "string") ? o.sq.slice(0, 12) : "",
+    (typeof o.n === "string") ? nettoieNomScore(o.n) : "");
+  for(var i = 0; i < o.p.length && j.p.length < JOURNAL_MAX; i++){
+    var e = o.p[i];
+    if(Object.prototype.toString.call(e) !== "[object Array]" || e.length < 3) continue;
+    var jour = e[0] | 0, h = e[1] | 0, joue = e[2] ? 1 : 0, c = e[3] | 0;
+    /* des bornes de calendrier, pas des bornes de confiance */
+    if(jour < 20200101 || jour > 21001231) continue;
+    if(h < 0 || h > 2359) continue;
+    if(c < 0 || c > 99) c = 0;
+    j.p.push([jour, h, joue, c]);
+  }
+  return j;
+}
+
+/* ================================================================
+   LE DÉPOUILLEMENT
+
+   Une ligne par APPAREIL et non par pseudo : c'est l'appareil qui
+   tient le journal, et deux personnes qui se renomment ne doivent
+   pas fusionner. Le pseudo affiché est le dernier connu.
+   ================================================================ */
+function statsJournaux(journaux, aujourdhui){
+  var lignes = [], parJour = {}, i, k;
+  for(k = 0; k < journaux.length; k++){
+    var j = journaux[k];
+    if(!j || !j.p) continue;
+    var L = { sq:j.sq, nom:j.n || "?", visites:0, jouees:0, regardees:0,
+              dernier:0, derniereHeure:0, premier:0,
+              j7:0, j30:0, aujourdhui:0, iles:{} };
+    for(i = 0; i < j.p.length; i++){
+      var e = j.p[i], d = ecartJours(aujourdhui, e[0]);
+      if(d < 0) continue;                        // une date en avant : on ignore
+      L.visites++;
+      if(e[2]){ L.jouees++; L.iles[e[3]] = (L.iles[e[3]] || 0) + 1; }
+      else L.regardees++;
+      if(d === 0) L.aujourdhui++;
+      if(d < 7) L.j7++;
+      if(d < 30) L.j30++;
+      if(!L.premier || e[0] < L.premier) L.premier = e[0];
+      if(e[0] > L.dernier || (e[0] === L.dernier && e[1] > L.derniereHeure)){
+        L.dernier = e[0]; L.derniereHeure = e[1];
+      }
+      if(d < 30){
+        var c = parJour[e[0]] || (parJour[e[0]] = { n:0, joue:0 });
+        c.n++; if(e[2]) c.joue++;
+      }
+    }
+    if(L.visites) lignes.push(L);
+  }
+  /* le plus récemment venu en tête : c'est la question qu'on se pose
+     en ouvrant la page */
+  lignes.sort(function(a, b){
+    return (b.dernier - a.dernier) || (b.derniereHeure - a.derniereHeure)
+        || (b.visites - a.visites);
+  });
+  return { lignes:lignes, parJour:parJour };
 }
 
 function mondeVide(index, pvMax, cycle){
@@ -37447,6 +37693,13 @@ function poseBarge(gx, gy){
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
   demandeMajBarres();
   son.debarque();
+  /* ET CE PASSAGE COMPTE COMME UNE PARTIE JOUÉE. C'est ICI qu'on le
+     note, et pas à l'entrée sur la carte : ouvrir une île pour la
+     regarder n'est pas y jouer, et c'est justement la distinction que
+     la page des passages doit savoir faire. La navette qui accoste,
+     elle, ne laisse aucun doute. La fonction ne republie qu'une fois
+     par visite — les navettes suivantes ne diraient rien de plus. */
+  if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
 function majNavettes(dt){
@@ -40360,6 +40613,13 @@ var SUJET = "khiao/mily/" + CODE_SALON;
    nouvel abonné — c'est ce qui fait qu'on reprend le monde là où il en
    était, même après que tout le monde a fermé son navigateur. */
 var SUJET_MONDE = SUJET + "/monde";
+/* UN SUJET PAR APPAREIL, et c'est ce qui rend le journal des passages
+   si simple : personne n'écrit dans celui d'un autre, donc il n'y a
+   rien à fusionner et aucun conflit possible. La page
+   d'administration s'abonne aux DEUX POINTS d'un coup — le joker du
+   courtier — et reçoit d'office tous les messages retenus. */
+var SUJET_VUS   = SUJET + "/vus";
+function sujetMonJournal(){ return SUJET_VUS + "/" + (monSeau || "?"); }
 var CLE_MONDE = "milyboum:monde:" + CODE_SALON;
 
 var monde = null;            // dernier instantané connu
@@ -40704,6 +40964,13 @@ function connecteRelais(url){
           reseau.abonneMonde = true;
           envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_MONDE));
           if(monNom) envoie({ t:"bonjour", nom:monNom });
+          /* et l'on inscrit ce passage dans son propre journal. Une
+             fois par connexion au relais, pas une fois par image. */
+          noteMonPassage();
+          /* si la page des passages était ouverte quand le réseau a
+             sauté, on se réabonne sans que l'admin ait à y penser */
+          if(typeof pageVusOuverte !== "undefined" && pageVusOuverte)
+            abonneAuxJournaux();
           /* si l'on a du retard à rattraper localement, on le publie :
              notre miroir peut être plus frais que celui du courtier */
           if(monde) mondeSale = true;
@@ -40712,6 +40979,7 @@ function connecteRelais(url){
         var m = litPublish(p.corps);
         if(m.sujet === SUJET) recoit(m.message);
         else if(m.sujet === SUJET_MONDE) recoitMonde(m.message);
+        else if(m.sujet.indexOf(SUJET_VUS + "/") === 0) recoitJournal(m.sujet, m.message);
       }
     }
   };
@@ -40733,6 +41001,10 @@ function fermeRelais(){
   reseau.ws = null;
   reseau.connecte = false;
   reseau.abonneMonde = false;
+  /* et l'abonnement aux journaux : il faudra le refaire à la
+     reconnexion, sinon la page d'administration resterait muette
+     après une coupure de réseau */
+  abonneVus = 0;
 }
 function envoieTrame(u8){
   if(reseau.ws && reseau.ws.readyState === 1){
@@ -41164,6 +41436,110 @@ function appliqueJungleAuJeu(m){ return appliqueEvenementAuJeu(m, IDX_JUNGLE); }
 /* Le squelette commun aux quatre écritures d'événement : on repart de
    l'instantané courant, on ne change QUE ce qu'on vient changer, et
    toutes les voies repartent avec. */
+/* ================================================================
+   MON JOURNAL DE PASSAGES
+
+   Un objet, deux écritures par visite au plus : une à l'arrivée, une
+   le jour où l'on débarque vraiment. C'est tout ce que ça coûte.
+
+   IL VIT DANS LE STOCKAGE LOCAL AUTANT QUE CHEZ LE COURTIER. Le
+   local sert de brouillon entre deux connexions ; le retenu sert de
+   mémoire commune. Au démarrage on relit le local, on y ajoute le
+   passage du jour, et on publie le tout : le courtier n'a jamais
+   qu'à conserver la dernière version, comme pour l'instantané.
+   ================================================================ */
+var CLE_JOURNAL = "milyVus";
+var monJournal = null;
+/* Les journaux des autres, rangés par sujet. Ils n'arrivent QUE si
+   l'on s'est abonné — c'est-à-dire uniquement quand la page
+   d'administration est ouverte. Un joueur ordinaire ne les télécharge
+   jamais. */
+var journauxVus = {};
+var abonneVus = 0;
+
+function chargeMonJournal(){
+  if(monJournal) return monJournal;
+  var brut = null;
+  try{ brut = localStorage.getItem(CLE_JOURNAL); }catch(e){}
+  monJournal = (brut ? decodeJournal(brut) : null) || journalVide(monSeau, monNom);
+  monJournal.sq = monSeau || monJournal.sq;
+  return monJournal;
+}
+function sauveMonJournal(){
+  if(!monJournal) return;
+  try{ localStorage.setItem(CLE_JOURNAL, encodeJournal(monJournal)); }catch(e){}
+}
+function publieMonJournal(){
+  if(!monJournal || !reseau.connecte || !monSeau) return;
+  envoieTrame(paquetPublish(sujetMonJournal(), encodeJournal(monJournal), true));
+}
+/* Un passage de plus. Appelé à la connexion au relais, et une seule
+   fois : deux reconnexions à trois minutes d'écart, c'est la même
+   visite, pas deux. */
+var DELAI_MEME_VISITE = 20 * 60000;   // vingt minutes
+var derniereNote = 0;
+function noteMonPassage(){
+  var n = Date.now();
+  if(derniereNote && n - derniereNote < DELAI_MEME_VISITE) return;
+  derniereNote = n;
+  var d = new Date();
+  chargeMonJournal();
+  monJournal.n = monNom || monJournal.n;
+  ajouteVisite(monJournal, jourDe(d), heureDe(d), monde ? (monde.c | 0) : 0);
+  sauveMonJournal();
+  publieMonJournal();
+}
+/* Et celui-ci a débarqué. On ne republie que le jour où le drapeau
+   change : les débarquements suivants de la même visite ne diraient
+   rien de plus. */
+function noteQueJeJoue(index){
+  chargeMonJournal();
+  if(!monJournal.p.length){
+    var d = new Date();
+    ajouteVisite(monJournal, jourDe(d), heureDe(d), index | 0);
+  }
+  if(!marqueJoue(monJournal, index)) return;
+  monJournal.n = monNom || monJournal.n;
+  sauveMonJournal();
+  publieMonJournal();
+}
+/* Le pseudo a changé : le journal porte le DERNIER connu, puisque
+   c'est celui sous lequel on reconnaîtra la personne. */
+function renommeMonJournal(){
+  if(!monJournal || monJournal.n === monNom || !monNom) return;
+  monJournal.n = monNom;
+  sauveMonJournal();
+  publieMonJournal();
+}
+
+function recoitJournal(sujet, message){
+  var j = decodeJournal(message);
+  if(!j) return;                       // chaîne douteuse : on la jette
+  journauxVus[sujet] = j;
+  if(typeof majPageVus === "function") majPageVus();
+}
+/* L'ABONNEMENT EST À LA DEMANDE, et c'est délibéré : ces journaux ne
+   servent qu'à la page d'administration, et il n'y a aucune raison
+   que les dix appareils du salon téléchargent l'historique de tous
+   les autres à chaque partie. On s'abonne quand la page s'ouvre, une
+   fois, et le courtier sert alors tous les messages retenus d'un
+   coup. */
+function abonneAuxJournaux(){
+  if(abonneVus || !reseau.connecte) return 0;
+  abonneVus = 1;
+  envoieTrame(paquetSubscribe(reseau.idPaquet++, SUJET_VUS + "/+"));
+  return 1;
+}
+function tousLesJournaux(){
+  var l = [], k;
+  for(k in journauxVus) if(journauxVus.hasOwnProperty(k)) l.push(journauxVus[k]);
+  /* le nôtre en fait partie, même si le courtier ne nous l'a pas
+     encore renvoyé */
+  if(monJournal && monJournal.p && monJournal.p.length && !journauxVus[sujetMonJournal()])
+    l.push(monJournal);
+  return l;
+}
+
 function publieEtat(m, jg){
   /* `bl` voyage avec `d`, TOUJOURS. On repart de l'instantané courant
      pour ne changer que la voie, et oublier les blessures ici les
@@ -49971,6 +50347,133 @@ function majCarriere(){
   /* le bouton ne sert à rien tant que tout tient dans l'aperçu */
   if(b) b.style.display = l.length > CARRIERE_APERCU ? "" : "none";
 }
+/* ================================================================
+   LA PAGE DES PASSAGES — QUI EST VENU, ET QUAND
+
+   Elle ne mesure AUCUNE durée, et c'était le choix : un passage se
+   note en une ligne au moment où il arrive, là où mesurer un temps
+   demanderait de surveiller quelqu'un en continu. Ce qu'elle sait
+   dire — et qui répond à la vraie question — c'est si le passage a
+   donné lieu à une bataille ou seulement à un coup d'œil.
+
+   UNE LIGNE PAR APPAREIL, pas par pseudo. C'est l'appareil qui tient
+   le journal ; deux personnes qui se renomment ne doivent pas se
+   confondre, et une même personne sur deux appareils reste deux
+   lignes — ce qui est la vérité de ce qu'on peut savoir.
+
+   L'ABONNEMENT SE FAIT ICI, À L'OUVERTURE. Les journaux des autres
+   appareils n'arrivent qu'à ce moment-là : un joueur ordinaire ne
+   télécharge jamais rien de tout ça.
+   ================================================================ */
+var pageVusOuverte = 0;
+
+/* « il y a deux jours », « hier », « aujourd'hui à 22 h 05 ». Une date
+   brute demande un calcul de tête ; on veut lire, pas calculer. */
+function ditQuand(jour, heure, aujourdhui){
+  var d = ecartJours(aujourdhui, jour);
+  var hh = Math.floor(heure / 100), mm = heure % 100;
+  var h = hh + " h " + (mm < 10 ? "0" : "") + mm;
+  if(d <= 0) return "aujourd'hui à " + h;
+  if(d === 1) return "hier à " + h;
+  if(d < 7) return "il y a " + d + " jours, à " + h;
+  var D = jourEnDate(jour);
+  var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+              "août", "septembre", "octobre", "novembre", "décembre"];
+  return "le " + D.getDate() + " " + MOIS[D.getMonth()]
+       + (ecartJours(aujourdhui, jour) > 300 ? " " + D.getFullYear() : "")
+       + " à " + h;
+}
+
+/* Les trente derniers jours en trente barres. La part claire compte
+   les parties jouées, la part sombre les simples coups d'œil. */
+function barresDesJours(parJour, aujourdhui){
+  var h = "", i, max = 1, jours = [], d;
+  for(i = 29; i >= 0; i--){
+    d = new Date(jourEnDate(aujourdhui).getTime() - i * 86400000);
+    var k = jourDe(d), c = parJour[k] || { n:0, joue:0 };
+    jours.push({ k:k, n:c.n, joue:c.joue, d:d });
+    if(c.n > max) max = c.n;
+  }
+  for(i = 0; i < jours.length; i++){
+    var J = jours[i];
+    var hj = Math.round(J.joue / max * 100);
+    var hv = Math.round((J.n - J.joue) / max * 100);
+    h += '<span class="vj' + (J.n ? "" : " vide") + '" title="'
+       + J.d.getDate() + "/" + (J.d.getMonth() + 1) + " — " + J.n + " passage"
+       + (J.n > 1 ? "s" : "") + ", " + J.joue + ' joué' + (J.joue > 1 ? "s" : "") + '">'
+       + '<i style="height:' + Math.max(J.n && !J.joue ? 3 : 0, hv) + '%"></i>'
+       + '<b style="height:' + Math.max(J.joue ? 3 : 0, hj) + '%"></b>'
+       + '</span>';
+  }
+  return h;
+}
+
+function majPageVus(){
+  if(!pageVusOuverte) return;
+  var aujourdhui = jourDe(new Date());
+  var S = statsJournaux(tousLesJournaux(), aujourdhui);
+  var e = $("vusListe"), b = $("vusJours"), sous = $("vusSous");
+  if(!e) return;
+  b.innerHTML = barresDesJours(S.parJour, aujourdhui);
+
+  var h = "", i, totV = 0, totJ = 0;
+  for(i = 0; i < S.lignes.length; i++){
+    var L = S.lignes[i];
+    totV += L.visites; totJ += L.jouees;
+    /* l'île la plus fréquentée par cet appareil, s'il en a une */
+    var meilleure = -1, mieux = 0, k;
+    for(k in L.iles) if(L.iles[k] > mieux){ mieux = L.iles[k]; meilleure = k | 0; }
+    h += '<div class="vusL">'
+       + '<div class="vn">' + echappe(L.nom) + '</div>'
+       + '<div class="vq">' + L.visites + " passage" + (L.visites > 1 ? "s" : "")
+       +   '</div>'
+       + '<div class="vd">' + ditQuand(L.dernier, L.derniereHeure, aujourdhui)
+       +   ' · <b class="vp">' + L.jouees + '</b> joué' + (L.jouees > 1 ? "s" : "")
+       +   ' · <b class="vr">' + L.regardees + '</b> vu' + (L.regardees > 1 ? "s" : "")
+       +   " sans jouer"
+       +   (L.j7 ? " · <b>" + L.j7 + "</b> cette semaine" : "")
+       +   (meilleure >= 0 && CARTES[meilleure]
+             ? " · surtout " + echappe(CARTES[meilleure].nom) : "")
+       +   '</div>'
+       + '</div>';
+  }
+  e.innerHTML = h || '<div id="vusVide">Aucun journal reçu pour l\'instant.<br><br>'
+    + "Chaque appareil publie le sien quand il se connecte au relais. "
+    + "Les passages commencent à être notés à partir de cette version — "
+    + "rien ne peut être reconstitué d'avant. Reviens quand quelqu'un "
+    + "aura ouvert le jeu.</div>";
+  if(sous)
+    sous.innerHTML = S.lignes.length
+      ? ("<b>" + S.lignes.length + "</b> appareil" + (S.lignes.length > 1 ? "s" : "")
+         + " · <b>" + totV + "</b> passage" + (totV > 1 ? "s" : "")
+         + ", dont <b>" + totJ + "</b> avec une bataille. "
+         + "Aucune durée n'est mesurée.")
+      : "Chargement des journaux…";
+}
+
+function ouvreVus(){
+  var p = $("vusP");
+  if(!p) return;
+  pageVusOuverte = 1;
+  /* c'est ici, et seulement ici, qu'on demande les journaux des autres
+     appareils : le courtier sert alors tous ses messages retenus */
+  if(typeof abonneAuxJournaux === "function") abonneAuxJournaux();
+  majPageVus();
+  p.classList.add("on");
+}
+function fermeVus(){
+  pageVusOuverte = 0;
+  var p = $("vusP");
+  if(p) p.classList.remove("on");
+}
+function installeVus(){
+  var b = $("btAdminVus"), f = $("btVusFerme"), p = $("vusP");
+  if(b) b.addEventListener("click", function(){ fermeAdminP(); ouvreVus(); });
+  if(f) f.addEventListener("click", fermeVus);
+  /* le fond ferme aussi, comme partout ailleurs dans ce jeu */
+  if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeVus(); });
+}
+
 function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
@@ -50059,6 +50562,9 @@ function lancePartie(ou){
   monNom = pseudoSaisi();
   $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
+  /* le journal des passages porte le DERNIER pseudo connu : c'est
+     celui sous lequel on reconnaîtra la personne */
+  if(typeof renommeMonJournal === "function") renommeMonJournal();
   son.reveille();
   $("brief").style.display = "none";
   $("hud").classList.add("on");
@@ -51150,6 +51656,7 @@ function demarre(){
   installeListeEnLigne();
   installeQuiSalon();
   installeClassement();
+  installeVus();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

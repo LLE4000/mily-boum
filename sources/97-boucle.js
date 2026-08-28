@@ -35,6 +35,7 @@ function demarre(){
   installeListeEnLigne();
   installeQuiSalon();
   installeClassement();
+  installeVus();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

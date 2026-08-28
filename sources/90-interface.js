@@ -1886,6 +1886,133 @@ function majCarriere(){
   /* le bouton ne sert à rien tant que tout tient dans l'aperçu */
   if(b) b.style.display = l.length > CARRIERE_APERCU ? "" : "none";
 }
+/* ================================================================
+   LA PAGE DES PASSAGES — QUI EST VENU, ET QUAND
+
+   Elle ne mesure AUCUNE durée, et c'était le choix : un passage se
+   note en une ligne au moment où il arrive, là où mesurer un temps
+   demanderait de surveiller quelqu'un en continu. Ce qu'elle sait
+   dire — et qui répond à la vraie question — c'est si le passage a
+   donné lieu à une bataille ou seulement à un coup d'œil.
+
+   UNE LIGNE PAR APPAREIL, pas par pseudo. C'est l'appareil qui tient
+   le journal ; deux personnes qui se renomment ne doivent pas se
+   confondre, et une même personne sur deux appareils reste deux
+   lignes — ce qui est la vérité de ce qu'on peut savoir.
+
+   L'ABONNEMENT SE FAIT ICI, À L'OUVERTURE. Les journaux des autres
+   appareils n'arrivent qu'à ce moment-là : un joueur ordinaire ne
+   télécharge jamais rien de tout ça.
+   ================================================================ */
+var pageVusOuverte = 0;
+
+/* « il y a deux jours », « hier », « aujourd'hui à 22 h 05 ». Une date
+   brute demande un calcul de tête ; on veut lire, pas calculer. */
+function ditQuand(jour, heure, aujourdhui){
+  var d = ecartJours(aujourdhui, jour);
+  var hh = Math.floor(heure / 100), mm = heure % 100;
+  var h = hh + " h " + (mm < 10 ? "0" : "") + mm;
+  if(d <= 0) return "aujourd'hui à " + h;
+  if(d === 1) return "hier à " + h;
+  if(d < 7) return "il y a " + d + " jours, à " + h;
+  var D = jourEnDate(jour);
+  var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+              "août", "septembre", "octobre", "novembre", "décembre"];
+  return "le " + D.getDate() + " " + MOIS[D.getMonth()]
+       + (ecartJours(aujourdhui, jour) > 300 ? " " + D.getFullYear() : "")
+       + " à " + h;
+}
+
+/* Les trente derniers jours en trente barres. La part claire compte
+   les parties jouées, la part sombre les simples coups d'œil. */
+function barresDesJours(parJour, aujourdhui){
+  var h = "", i, max = 1, jours = [], d;
+  for(i = 29; i >= 0; i--){
+    d = new Date(jourEnDate(aujourdhui).getTime() - i * 86400000);
+    var k = jourDe(d), c = parJour[k] || { n:0, joue:0 };
+    jours.push({ k:k, n:c.n, joue:c.joue, d:d });
+    if(c.n > max) max = c.n;
+  }
+  for(i = 0; i < jours.length; i++){
+    var J = jours[i];
+    var hj = Math.round(J.joue / max * 100);
+    var hv = Math.round((J.n - J.joue) / max * 100);
+    h += '<span class="vj' + (J.n ? "" : " vide") + '" title="'
+       + J.d.getDate() + "/" + (J.d.getMonth() + 1) + " — " + J.n + " passage"
+       + (J.n > 1 ? "s" : "") + ", " + J.joue + ' joué' + (J.joue > 1 ? "s" : "") + '">'
+       + '<i style="height:' + Math.max(J.n && !J.joue ? 3 : 0, hv) + '%"></i>'
+       + '<b style="height:' + Math.max(J.joue ? 3 : 0, hj) + '%"></b>'
+       + '</span>';
+  }
+  return h;
+}
+
+function majPageVus(){
+  if(!pageVusOuverte) return;
+  var aujourdhui = jourDe(new Date());
+  var S = statsJournaux(tousLesJournaux(), aujourdhui);
+  var e = $("vusListe"), b = $("vusJours"), sous = $("vusSous");
+  if(!e) return;
+  b.innerHTML = barresDesJours(S.parJour, aujourdhui);
+
+  var h = "", i, totV = 0, totJ = 0;
+  for(i = 0; i < S.lignes.length; i++){
+    var L = S.lignes[i];
+    totV += L.visites; totJ += L.jouees;
+    /* l'île la plus fréquentée par cet appareil, s'il en a une */
+    var meilleure = -1, mieux = 0, k;
+    for(k in L.iles) if(L.iles[k] > mieux){ mieux = L.iles[k]; meilleure = k | 0; }
+    h += '<div class="vusL">'
+       + '<div class="vn">' + echappe(L.nom) + '</div>'
+       + '<div class="vq">' + L.visites + " passage" + (L.visites > 1 ? "s" : "")
+       +   '</div>'
+       + '<div class="vd">' + ditQuand(L.dernier, L.derniereHeure, aujourdhui)
+       +   ' · <b class="vp">' + L.jouees + '</b> joué' + (L.jouees > 1 ? "s" : "")
+       +   ' · <b class="vr">' + L.regardees + '</b> vu' + (L.regardees > 1 ? "s" : "")
+       +   " sans jouer"
+       +   (L.j7 ? " · <b>" + L.j7 + "</b> cette semaine" : "")
+       +   (meilleure >= 0 && CARTES[meilleure]
+             ? " · surtout " + echappe(CARTES[meilleure].nom) : "")
+       +   '</div>'
+       + '</div>';
+  }
+  e.innerHTML = h || '<div id="vusVide">Aucun journal reçu pour l\'instant.<br><br>'
+    + "Chaque appareil publie le sien quand il se connecte au relais. "
+    + "Les passages commencent à être notés à partir de cette version — "
+    + "rien ne peut être reconstitué d'avant. Reviens quand quelqu'un "
+    + "aura ouvert le jeu.</div>";
+  if(sous)
+    sous.innerHTML = S.lignes.length
+      ? ("<b>" + S.lignes.length + "</b> appareil" + (S.lignes.length > 1 ? "s" : "")
+         + " · <b>" + totV + "</b> passage" + (totV > 1 ? "s" : "")
+         + ", dont <b>" + totJ + "</b> avec une bataille. "
+         + "Aucune durée n'est mesurée.")
+      : "Chargement des journaux…";
+}
+
+function ouvreVus(){
+  var p = $("vusP");
+  if(!p) return;
+  pageVusOuverte = 1;
+  /* c'est ici, et seulement ici, qu'on demande les journaux des autres
+     appareils : le courtier sert alors tous ses messages retenus */
+  if(typeof abonneAuxJournaux === "function") abonneAuxJournaux();
+  majPageVus();
+  p.classList.add("on");
+}
+function fermeVus(){
+  pageVusOuverte = 0;
+  var p = $("vusP");
+  if(p) p.classList.remove("on");
+}
+function installeVus(){
+  var b = $("btAdminVus"), f = $("btVusFerme"), p = $("vusP");
+  if(b) b.addEventListener("click", function(){ fermeAdminP(); ouvreVus(); });
+  if(f) f.addEventListener("click", fermeVus);
+  /* le fond ferme aussi, comme partout ailleurs dans ce jeu */
+  if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeVus(); });
+}
+
 function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
@@ -1974,6 +2101,9 @@ function lancePartie(ou){
   monNom = pseudoSaisi();
   $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
+  /* le journal des passages porte le DERNIER pseudo connu : c'est
+     celui sous lequel on reconnaîtra la personne */
+  if(typeof renommeMonJournal === "function") renommeMonJournal();
   son.reveille();
   $("brief").style.display = "none";
   $("hud").classList.add("on");
