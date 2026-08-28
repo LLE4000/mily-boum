@@ -30,7 +30,7 @@ try{
     "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene",
     "ETOILE_R","ETOILE_R2","ETOILE_G","ETOILE_POINTES","dansLeFaisceau","videIbiza","videIbizaLarge",
     "largeurFaisceau","largeurFaisceau2","FAISC_N","FAISC2_R0","ecartAuRayon","NB_REACTEURS","FAISC_R0","FAISC_R1","FAISC_LARG0","FAISC_EVASE","IBIZA_PART",
-    "IBIZA_ANNEAU","IBIZA_ARC","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
+    "IBIZA_BANDE_F","IBIZA_BANDE_P","IBIZA_RUE","bandeIbiza","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","largeurPeinte","FAISC_PEINT","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
     "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
     "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
@@ -7399,13 +7399,21 @@ G("28. La figure d'Ibiza");
      !N.dansLeFaisceau(N.SCENE_GX + N.FAISC_R1 + 3, N.SCENE_GY));
   ok("la réserve des néons élargit le couloir sans le déplacer",
      (function(){
-       var pas = 6.2832 / N.FAISC_N, a = -0.5236, r = 50;
+       var a = -0.5236, r = 50;
        var w = N.largeurFaisceau(r);
        /* juste en dehors du couloir vrai, mais dans la réserve */
-       var t = w + 1.2, ca = Math.cos(a), sa = Math.sin(a);
+       var t = w + N.IBIZA_RESERVE * 0.5, ca = Math.cos(a), sa = Math.sin(a);
        var x = N.SCENE_GX + ca * r - sa * t, y = N.SCENE_GY + sa * r + ca * t;
        return !N.dansLeFaisceau(x, y) && N.videIbizaLarge(x, y) && !N.videIbiza(x, y);
      })());
+  /* LA LUMIÈRE EST PLUS LARGE QUE LE VIDE, et c'est voulu : le cœur du
+     faisceau est du sable nu, le halo déborde sur les premières rangées
+     de tourelles. C'est ce découplage qui a rendu cent défenses au
+     remplissage sans éteindre la figure. */
+  ok("la lumière peinte déborde du couloir creusé",
+     N.FAISC_PEINT > N.FAISC_EVASE &&
+     N.largeurPeinte(70) > N.largeurFaisceau(70) + 1,
+     N.largeurFaisceau(70).toFixed(2) + " creusé, " + N.largeurPeinte(70).toFixed(2) + " peint");
 
   /* --- LE VIDE EST RÉEL SUR LA CARTE LIVRÉE --- */
   (function(){
@@ -7466,27 +7474,23 @@ G("28. La figure d'Ibiza");
      l'écart serré et les allées fines : sans elles, `ouvreLaFete`
      rouvrait de force et emportait deux cent trente-neuf bâtiments. */
   ok("l'écart d'Ibiza est bien plus serré que celui de la guinguette",
-     N.IBIZA_SERRE < 0.3 && N.IBIZA_SERRE < 0.6, "" + N.IBIZA_SERRE);
-  ok("les anneaux sont au pas minimal de deux Frelons",
-     N.IBIZA_ANNEAU >= N.DEF.frelon.emprise + N.IBIZA_SERRE &&
-     N.IBIZA_ANNEAU < N.DEF.frelon.emprise + N.IBIZA_SERRE + 0.2,
-     N.IBIZA_ANNEAU + " pour un minimum de "
-       + (N.DEF.frelon.emprise + N.IBIZA_SERRE).toFixed(2));
-  /* AUCUNE MOITIÉ DE QUARTIER N'EXCÈDE LA PORTÉE D'UNE FURIE. C'est la
-     propriété qui autorise à remplir : entre un grand faisceau et
-     l'allée fine voisine, il n'y a jamais plus de cinq cases et demie
-     de profondeur, donc rien n'y devient inatteignable. */
-  ok("aucune demi-largeur de quartier ne dépasse la portée d'une troupe",
+     N.IBIZA_SERRE < 0.2, "" + N.IBIZA_SERRE);
+  /* LES BANDES CONCENTRIQUES, ET LA RUELLE QUI LES SÉPARE. C'est la
+     ruelle qui autorise à remplir : sans elle, un quartier plein
+     enferme son milieu et `ouvreLaFete` en arrache un quart. */
+  ok("les bandes alternent Frelons et petites pièces autour de la scène",
      (function(){
-       var pire = 0, r;
-       for(r = 24; r <= 66; r += 2){
-         /* la demi-largeur entre un grand faisceau et l'allée voisine */
-         var arc = 6.2832 * r / (N.FAISC_N * 2);
-         var creux = (arc - N.largeurFaisceau(r) - N.largeurFaisceau2(r)) / 2;
-         if(creux > pire) pire = creux;
-       }
-       return pire <= 5.6;
+       var a = -0.5236 + 6.2832 / (N.FAISC_N * 4);   // au milieu d'un quartier
+       var vus = {}, r;
+       for(r = N.FAISC_R0 + 1; r < 60; r += 0.5)
+         vus[N.bandeIbiza(N.SCENE_GX + Math.cos(a) * r, N.SCENE_GY + Math.sin(a) * r)] = 1;
+       return vus[0] && vus[1] && vus[2];           // Frelons, petites pièces, ruelle
      })());
+  ok("aucune bande n'est plus profonde que la portée d'une troupe",
+     Math.max(N.IBIZA_BANDE_F, N.IBIZA_BANDE_P) / 2 <= N.DEF.frelon.porteeMin + 0.5,
+     (Math.max(N.IBIZA_BANDE_F, N.IBIZA_BANDE_P) / 2).toFixed(2) + " cases");
+  ok("… et la ruelle est assez large pour qu'on y marche",
+     N.IBIZA_RUE >= 1.5, N.IBIZA_RUE + " cases");
 
   /* --- LA DENSITÉ --- */
   (function(){
@@ -7511,8 +7515,12 @@ G("28. La figure d'Ibiza");
        dIbiza > maxO, dIbiza + " vs " + maxO);
     /* ET ELLE L'EST MALGRÉ SON VIDE, qui lui retire un bon quart du
        terrain bâtissable : c'est là toute la performance. */
-    ok("… et elle porte plus de sept cent cinquante défenses",
-       dIbiza > 750, "" + dIbiza);
+    /* LE COMPTE VARIE D'UN SALON À L'AUTRE — la graine décide où
+       tombent les obstacles, et la phase des bandes avec eux. Mesuré
+       sur une dizaine de salons : entre huit cent cinquante et mille.
+       Le seuil est posé sous le plancher observé, pas sur la moyenne. */
+    ok("… et elle porte plus de huit cent cinquante défenses",
+       dIbiza > 850, "" + dIbiza);
     /* ET ELLE LES PORTE MALGRÉ SON VIDE : l'étoile et les vingt-quatre
        couloirs lui retirent près de la moitié du terrain bâtissable.
        C'est là toute la performance de la disposition. */
@@ -7591,13 +7599,18 @@ G("28. La figure d'Ibiza");
      d'Ibiza avec les allées d'une AUTRE île. Elle est devenue un
      paramètre — et voici la preuve qu'elle est bien passée par là. */
   ok("l'atelier reçoit sa zone interdite en paramètre",
-     /function atelierPavois\(c, al, ecart, interdit\)/.test(html) &&
+     /function atelierPavois\(c, al, ecart, interdit, jeu\)/.test(html) &&
      /if\(interdit && interdit\(x, y\)\) return 0;/.test(html));
+  /* ET SON JEU DE POSE : deux dixièmes de tremblement suffisent à faire
+     refuser une place sur deux d'un réseau posé au pas minimal. */
+  ok("… et son jeu de pose, qu'Ibiza met à zéro",
+     /var JEU = \(jeu === undefined\) \? PAVOIS_JEU : jeu;/.test(html) &&
+     /atelierPavois\(c, al, IBIZA_SERRE, videIbiza, 0\)/.test(html));
   ok("… la guinguette lui passe ses allées",
      /atelierPavois\(c, al, undefined, dansAlleeGuinguette\)/.test(html));
   ok("… et Ibiza lui passe son vide, avec son écart serré",
-     /atelierPavois\(c, al, IBIZA_SERRE, videIbiza\)/.test(html) &&
-     /atelierPavois\(c, al, IBIZA_SERRE, videIbizaLarge\)/.test(html));
+     /atelierPavois\(c, al, IBIZA_SERRE, videIbiza, 0\)/.test(html) &&
+     /atelierPavois\(c, al, IBIZA_SERRE, videIbizaLarge, 0\)/.test(html));
 
   /* --- ET LE SOL PORTE LA MÊME FIGURE QUE LES DÉFENSES ---
      Deux tracés calculés séparément se désalignent à la première

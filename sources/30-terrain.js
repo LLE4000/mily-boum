@@ -1810,26 +1810,53 @@ function construitSol(carteC){
       var aI = (jI + (finI ? 0.5 : 0)) / FAISC_N * 6.2832 - 0.5236;
       var caI = Math.cos(aI), saI = Math.sin(aI);
       var r0I = (finI ? FAISC2_R0 : FAISC_R0) - 1, r1I = FAISC_R1;
-      var w0I = (finI ? largeurFaisceau2(r0I) : largeurFaisceau(r0I)) + (finI ? 0.7 : 1.1);
-      var w1I = (finI ? largeurFaisceau2(r1I) : largeurFaisceau(r1I)) + (finI ? 0.7 : 1.1);
+      /* LA LUMIÈRE EST PLUS LARGE QUE LE VIDE — voir `largeurPeinte` :
+         le cœur du faisceau est du sable nu, le halo déborde sur les
+         premières rangées de tourelles et les baigne de couleur. */
+      var w0I = (finI ? largeurFaisceau2(r0I) : largeurPeinte(r0I)) + (finI ? 0.7 : 1.1);
+      var w1I = (finI ? largeurFaisceau2(r1I) : largeurPeinte(r1I)) + (finI ? 0.7 : 1.1);
       var vifI = finI ? 0.45 : 1;               // les minces éclairent moins
       var A0 = iso(SCENE_GX + caI * r0I, SCENE_GY + saI * r0I);
       var A1 = iso(SCENE_GX + caI * r1I, SCENE_GY + saI * r1I);
       var gI = c.createLinearGradient(A0.x, A0.y, A1.x, A1.y);
-      gI.addColorStop(0, tI(jI, 0.52 * vifI));
-      gI.addColorStop(0.34, tI(jI, 0.31 * vifI));
-      gI.addColorStop(0.68, tI(jI, 0.18 * vifI));
-      gI.addColorStop(0.90, tI(jI, 0.07 * vifI));
+      /* LE HALO RESTE DISCRET : il couvre près de la moitié de l'île
+         depuis qu'il déborde sur la foule, et à pleine intensité il
+         délavait le sable au lieu de dessiner un rayon. C'est le CŒUR
+         qui porte la couleur ; le halo ne fait que la laisser
+         deviner. */
+      gI.addColorStop(0, tI(jI, 0.30 * vifI));
+      gI.addColorStop(0.34, tI(jI, 0.18 * vifI));
+      gI.addColorStop(0.68, tI(jI, 0.10 * vifI));
+      gI.addColorStop(0.90, tI(jI, 0.04 * vifI));
       gI.addColorStop(1, tI(jI, 0));
-      c.fillStyle = gI;
-      c.beginPath();
-      var QI = [[r0I, w0I], [r1I, w1I], [r1I, -w1I], [r0I, -w0I]];
-      for(j = 0; j < 4; j++){
-        var qI = iso(SCENE_GX + caI * QI[j][0] - saI * QI[j][1],
-                     SCENE_GY + saI * QI[j][0] + caI * QI[j][1]);
-        if(j) c.lineTo(qI.x, qI.y); else c.moveTo(qI.x, qI.y);
+      /* DEUX COUCHES, ET C'EST CE QUI FAIT UN FAISCEAU PLUTÔT QU'UNE
+         TACHE. La large est le HALO : elle déborde sur les premières
+         rangées de tourelles et les teinte. L'étroite est le CŒUR :
+         elle suit le couloir vrai, celui qui est vide de tout, et c'est
+         elle qui donne au rayon son arête franche. Peintes de la même
+         couleur, l'une sur l'autre, en lumière ajoutée. */
+      function coin(rr, tt){
+        return iso(SCENE_GX + caI * rr - saI * tt, SCENE_GY + saI * rr + caI * tt);
       }
-      c.closePath(); c.fill();
+      function rayon(wa, wb, g){
+        c.fillStyle = g;
+        c.beginPath();
+        var QI = [[r0I, wa], [r1I, wb], [r1I, -wb], [r0I, -wa]];
+        for(j = 0; j < 4; j++){
+          var qI = coin(QI[j][0], QI[j][1]);
+          if(j) c.lineTo(qI.x, qI.y); else c.moveTo(qI.x, qI.y);
+        }
+        c.closePath(); c.fill();
+      }
+      rayon(w0I, w1I, gI);
+      if(!finI){
+        var gC = c.createLinearGradient(A0.x, A0.y, A1.x, A1.y);
+        gC.addColorStop(0, tI(jI, 0.46));
+        gC.addColorStop(0.40, tI(jI, 0.30));
+        gC.addColorStop(0.78, tI(jI, 0.15));
+        gC.addColorStop(1, tI(jI, 0));
+        rayon(largeurFaisceau(r0I) + 0.5, largeurFaisceau(r1I) + 0.5, gC);
+      }
 
       /* --- 2. LES DEUX NÉONS DU BORD ---
          À la même distance que les Bobines qui les portent : le trait

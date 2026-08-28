@@ -121,10 +121,11 @@ catch(e){
 
    Il arrive qu'on demande de REDESSINER une île — pas de retoucher son
    décor, mais de redisposer ses défenses. C'est ce qui est arrivé à
-   Ibiza en v0.79 : « dispose toi-même les défenses selon une forme
-   ultra-graphique ». Un tel travail DÉPLACE forcément des rangs, et cet
-   outil a raison de le crier : c'est exactement le genre de changement
-   qui casse une campagne en cours.
+   Ibiza deux fois de suite : « dispose toi-même les défenses selon une
+   forme ultra-graphique » en v0.79, puis « remplis entièrement les
+   secteurs » en v0.80. Un tel travail DÉPLACE forcément des rangs, et
+   cet outil a raison de le crier : c'est exactement le genre de
+   changement qui casse une campagne en cours.
 
    On ne le fait donc passer qu'à trois conditions, et elles sont
    écrites ici pour qu'on ait à les relire avant d'en ajouter une
@@ -144,7 +145,7 @@ catch(e){
         des autres.
    ================================================================ */
 var REFONTES = [
-  { i:8, version:"v0.79", pourquoi:"la figure ultra-graphique demandée — étoile vide, douze faisceaux, 40 % de Frelons" }
+  { i:8, version:"v0.80", pourquoi:"les secteurs remplis entièrement — bandes concentriques, ruelles, 40 % de Frelons, douze cellules" }
 ];
 function refonteDeclaree(i){
   for(var r = 0; r < REFONTES.length; r++)
