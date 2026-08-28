@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.62";
+var VERSION = "v0.63";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3115,6 +3115,214 @@ function planJungle(){
   planJungleCache = encodePlan(z);
   return planJungleCache;
 }
+/* ================================================================
+   LE JARDIN DE MILY — le plan gravé des « Mily et une nuits »
+
+   « Il faut mettre cinquante pour cent de défenses en plus, et les
+   disposer de manière élégante. »
+
+   Les deux moitiés de la phrase se battent. Une île plus dense est
+   une île plus UNIFORME : on remplit, et le remplissage n'a pas de
+   forme. C'est exactement ce qu'ont donné les premiers essais —
+   huit cent quarante défenses réparties au petit bonheur, soit une
+   moquette. Le compte était juste et il n'y avait rien à regarder.
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI REND UN MOTIF VISIBLE, ET CE N'EST PAS SA COULEUR
+   ────────────────────────────────────────────────────────────────
+
+   Premier essai : tout le monde à la même densité, et les motifs
+   décrits par leurs TYPES — un croissant « 40 % de Bobines, 34 % de
+   Cribles, 26 % de Silos » sur un fond lui aussi mélangé. Invisible.
+   Mesuré sur une carte tracée à plat : on ne distinguait rien du
+   tout. Un mélange sur un mélange ne fait pas une frontière.
+
+   Il a fallu deux choses, et les deux ensemble :
+
+     UN SEUL TYPE PAR MOTIF. Un croissant n'est plus « surtout des
+     Bobines », il est FAIT de Bobines, à cent pour cent. La bordure
+     est faite de Cribles et de Pilons, les étoiles de Chalumeaux, le
+     bassin de Cuves, la garde du Brasier de Frelons. Le motif se lit
+     alors comme une couleur pleine sur un fond tramé.
+
+     DU VIDE AUTOUR. Les allées ne sont pas un ornement : ce sont
+     elles qui donnent aux motifs un bord. Une île pleine du bord à
+     bord n'a pas de dessin, elle a une surface. On perd des défenses
+     dans les allées, et on les reprend en saturant les carrés — le
+     compte final est le même, la lecture n'a rien à voir.
+
+   ────────────────────────────────────────────────────────────────
+   LE BUDGET PAR TYPE, ET POURQUOI IL COMMANDE LA GÉOMÉTRIE
+   ────────────────────────────────────────────────────────────────
+
+   Il y a ONZE Frelons sur cette carte aujourd'hui. Un premier jet
+   faisait une bordure de Frelons tout autour de l'île : deux cent
+   cinquante-cinq. Vingt-trois fois plus, sur la défense à longue
+   portée — la carte devenait injouable, et « cinquante pour cent en
+   plus » aurait voulu dire tout autre chose.
+
+   Chaque type garde donc sa part d'aujourd'hui, à cinquante pour
+   cent près, et c'est CE BUDGET qui décide de la taille des motifs :
+   les Frelons sont rares, donc leur anneau est mince et c'est la
+   garde rapprochée du Brasier ; les Cribles sont nombreux, donc ils
+   font la bordure. La géométrie sort de l'équilibrage, et non
+   l'inverse.
+
+   ────────────────────────────────────────────────────────────────
+   LA COMPOSITION — un tapis persan, et sa lecture
+   ────────────────────────────────────────────────────────────────
+
+   Le fond, la bordure, quatre carrés séparés par deux allées, un
+   médaillon au croisement. C'est le plan d'un chahar bagh, le jardin
+   à quatre parterres, et il tombe juste ici pour une raison qui n'a
+   rien de décorative : l'allée d'honneur va de la plage au Brasier.
+   Elle offre à l'assaillant un chemin dégagé — qui passe entre les
+   quatre carrés saturés, sous le feu croisé des croissants.
+
+   La pile de calques, du fond vers le dessus (le dernier posé
+   l'emporte, comme dans l'éditeur) :
+
+     1. LE FOND          le mélange d'aujourd'hui, fourni
+     2. LA BORDURE       le rempart du palais, Cribles et Pilons
+     3. LES QUATRE CARRÉS saturés — c'est là que sont les cinquante
+                          pour cent en plus
+     4. LA ROSACE        trois anneaux d'un seul type autour du
+                          Brasier, et sept rayons de vide qui les
+                          traversent
+     5. LES CROISSANTS   deux, à l'ouest, ouverts vers la plage
+     6. LES ÉTOILES      deux khatim à huit branches, à l'est
+     7. LE MÉDAILLON     l'étoile centrale, son anneau et son bassin
+     8. LES ALLÉES       taillées EN DERNIER, sinon elles ne
+                          couperaient rien
+
+   Mesuré : 849 défenses contre 559, soit +51,9 %, et chaque type à
+   moins de vingt pour cent de sa part d'origine.
+   ================================================================ */
+/* Les indices de TYPES_PLAN, écrits une fois pour que la composition
+   se lise comme un dessin et non comme une suite de nombres. */
+var PN_CRIBLE = 1, PN_CHALUMEAU = 2, PN_FRELON = 3, PN_PILON = 4,
+    PN_BOBINE = 5, PN_CUVE = 6, PN_SILO = 7, PN_VIDE = 8;
+var planNuitsCache = null;
+function planNuits(){
+  if(planNuitsCache !== null) return planNuitsCache;
+  var AX = 68;                     // l'axe de symétrie : celui du Brasier
+  var F = [], g = 1;
+  /* Les cinq formes, sous les noms du dessin. `x:1` fige la graine :
+     un motif gravé ne doit pas se rejouer d'une partie à l'autre. */
+  function cercle(x, y, r, C, d, rep){
+    F.push({ f:0, k:0, d:d, r:rep | 0, x:1, g:g++, G:[x, y, r], C:C }); }
+  function anneau(x, y, ri, re, C, d, rep){
+    F.push({ f:1, k:0, d:d, r:rep | 0, x:1, g:g++, G:[x, y, ri, re], C:C }); }
+  function pave(x, y, w, h, C, d, rep){
+    F.push({ f:2, k:0, d:d, r:rep | 0, x:1, g:g++, G:[x, y, w, h], C:C }); }
+  function trait(x1, y1, x2, y2, e, C, d, rep){
+    F.push({ f:3, k:0, d:d, r:rep | 0, x:1, g:g++, G:[x1, y1, x2, y2, e], C:C }); }
+  /* L'étoile à huit branches — le khatim, celui des mosaïques. Un
+     polygone de seize sommets qui alternent le rayon long et le
+     rayon court. */
+  function etoile(x, y, re, ri, n, C, d, rep){
+    var P = [], k;
+    for(k = 0; k < n * 2; k++){
+      var a = k * Math.PI / n - Math.PI / 2, R = (k & 1) ? ri : re;
+      P.push(Math.round(x + Math.cos(a) * R), Math.round(y + Math.sin(a) * R));
+    }
+    F.push({ f:4, k:0, d:d, r:rep | 0, x:1, g:g++, G:P, C:C });
+  }
+  var UN = function(t){ return [[t, 100]]; };
+  var VIDE = UN(PN_VIDE);
+  /* Le mélange du fond garde les proportions d'aujourd'hui : c'est
+     lui qui porte le gros des effectifs, donc c'est lui qui tient
+     l'équilibrage. */
+  var FOND = [[PN_CRIBLE, 31], [PN_PILON, 26], [PN_BOBINE, 15],
+              [PN_CHALUMEAU, 14], [PN_SILO, 12], [PN_FRELON, 2]];
+
+  /* 1. LE FOND */
+  pave(4, 2, 134, 130, FOND, 1, 1);
+
+  /* 2. LA BORDURE — un rempart de NEUF cases tout autour. On peint
+     l'île entière, puis on rend l'intérieur au fond : c'est ainsi
+     qu'on obtient un cadre, faute d'opération de soustraction.
+
+     SON ÉPAISSEUR EST LE RÉGLAGE FIN DU TOTAL, et c'est une surprise
+     de la mesure : ni la taille des carrés — de vingt à cinquante
+     cases de côté, le total ne bouge que de cinquante défenses — ni
+     la densité du fond ne pèsent grand-chose. Le rempart, lui, court
+     sur tout le pourtour de l'île : chaque case d'épaisseur en plus
+     vaut vingt défenses. C'est donc par lui qu'on atterrit sur les
+     cinquante pour cent, à sept près. */
+  pave(4, 2, 134, 130, [[PN_PILON, 50], [PN_CRIBLE, 50]], 5, 2);
+  pave(13, 11, 116, 112, FOND, 1, 1);
+
+  /* 3. LES QUATRE CARRÉS DU JARDIN, saturés. Ils donnent au jardin
+     ses quatre parterres, et pèsent bien moins qu'on ne croirait sur
+     le total : voir la bordure ci-dessus. */
+  pave(22, 20, 41, 37, FOND, 5, 1);
+  pave(85, 20, 37, 37, FOND, 5, 1);
+  pave(22, 80, 41, 37, FOND, 5, 1);
+  pave(85, 80, 37, 37, FOND, 5, 1);
+
+  /* 4. LA GARDE DU BRASIER, et pourquoi ce n'est pas une rosace.
+     Le premier dessin faisait trois anneaux concentriques traversés
+     de sept rayons — sur le papier, une rosace de cathédrale. À
+     l'écran, rien du tout, et la raison est arithmétique : il y a UNE
+     défense toutes les cinq cases, donc un anneau de six cases
+     d'épaisseur est épais d'UNE tour. Une rosace de traits fins ne
+     peut pas exister sur cette grille.
+     Les Frelons imposaient d'ailleurs leur propre limite : il y en a
+     onze sur la carte d'origine, et un anneau autour du Brasier en
+     aurait demandé quatre-vingts. Ils font donc ce qu'ils savent
+     faire de mieux — un poing serré devant la porte. */
+  cercle(9, AX, 14, UN(PN_FRELON), 5, 1);
+  anneau(9, AX, 22, 34, UN(PN_PILON),  5, 1);
+  anneau(9, AX, 43, 56, UN(PN_CRIBLE), 5, 1);
+
+  /* 5 et 6. LES DEUX COMPARTIMENTS DE CHAQUE CÔTÉ DE L'AXE.
+     Un croissant à l'ouest, un œil à l'est, et le tout en miroir : la
+     symétrie est ce qui distingue un jardin d'un terrain vague. */
+  for(var k = -1; k <= 1; k += 2){
+    var y = AX + k * 30;
+    /* LE CROISSANT, obtenu comme un vrai : un disque, moins un
+       disque décalé. Le second ne pose pas du vide mais LE FOND —
+       creuser au vide arrachait la moitié de l'île, mesuré. Le
+       décalage est calculé pour que le limbe reste épais de trois
+       tours au plus mince : en dessous, il se rompt. */
+    cercle(42, y, 24, UN(PN_BOBINE), 5, 1);
+    cercle(55, y - k * 8, 21, FOND, 1, 1);
+    /* L'ŒIL : un disque plein et son anneau. L'étoile à huit branches
+       qu'il remplace était le bon symbole et la mauvaise échelle —
+       ses pointes faisaient dix cases, donc deux tours, et il n'en
+       restait qu'une tache. */
+    cercle(103, y, 17, UN(PN_CHALUMEAU), 5, 1);
+    anneau(103, y, 24, 29, UN(PN_SILO), 5, 1);
+  }
+
+  /* 7. LE MÉDAILLON, au croisement des deux allées */
+  anneau(74, AX, 16, 28, UN(PN_CRIBLE), 5, 1);
+  anneau(74, AX,  9, 13, UN(PN_CUVE), 5, 1);
+  cercle(74, AX, 7, VIDE, 0, 0);                // le bassin
+
+  /* 8. LES ALLÉES, taillées en dernier, et LARGES : quatorze cases,
+     soit trois pas de la grille. À neuf elles ne se lisaient pas —
+     une allée d'une tour de large n'est pas une allée, c'est un
+     trou. */
+  /* LES ALLÉES S'ARRÊTENT AU BASSIN, et ce n'est pas une coquetterie :
+     tracées d'un bord à l'autre, elles passaient par-dessus le
+     médaillon et l'effaçaient — mesuré, il ne restait pas une seule
+     Cuve sur l'île. Une allée de jardin mène au bassin, elle ne le
+     traverse pas. */
+  trait(134, AX, 104, AX, 14, VIDE, 0, 0);      // l'allée d'honneur, côté plage
+  trait(44, AX, 30, AX, 14, VIDE, 0, 0);        // et côté Brasier
+  trait(74, 22, 74, 46, 14, VIDE, 0, 0);        // la transversale, au nord
+  trait(74, 90, 74, 114, 14, VIDE, 0, 0);       // et au sud
+  /* L'allée circulaire n'est PAS vide : elle est clairsemée, et
+     c'est là que tiennent les miradors — le même tour que dans la
+     jungle. Vidée pour de bon, il n'en restait plus deux sur l'île. */
+  anneau(74, AX, 30, 38, [], 1, 0);
+
+  planNuitsCache = encodePlanComplet(planVide(), F);
+  return planNuitsCache;
+}
+
 /* ----------------------------------------------------------------
    UN PLAN PAR CARTE
 
@@ -3182,6 +3390,11 @@ function planDeCarte(index, paquetSalon){
     /* La jungle porte un plan gravé, mais il reste éditable : un plan
        enregistré pour elle l'emporte sur celui du code. */
     return planCarte(paquetSalon, index) || planJungle();
+  }
+  /* Les Mily et une nuits portent le leur — le jardin. Même règle :
+     un plan enregistré pour cette carte reprend la main. */
+  if(CARTES[index] && CARTES[index].biome === "nuits"){
+    return planCarte(paquetSalon, index) || planNuits();
   }
   return planCarte(paquetSalon, index);
 }

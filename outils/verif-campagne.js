@@ -68,13 +68,48 @@ catch(e){
   process.exit(2);
 }
 
-/* On éprouve les six cartes, et chacune DEUX FOIS : sans plan — la
-   carte d'origine — et avec le plan gravé de la jungle, qui est le
-   cas le plus chargé du jeu. */
+/* ================================================================
+   CE QU'ON ÉPROUVE, ET UN ANGLE MORT QU'ON VIENT DE FERMER
+
+   Chaque carte passe TROIS fois :
+
+     sans plan          la carte d'origine, le cas de référence ;
+     plan de la jungle  le cas le plus chargé du jeu, en résistance ;
+     LE PLAN DU JEU     celui que planDeCarte rend vraiment quand le
+                        salon n'a rien enregistré.
+
+   Le troisième manquait, et c'était un vrai trou. Les deux premiers
+   appellent genereCarte AVEC UN PLAN CHOISI ICI ; une carte qui porte
+   un plan gravé dans le code — la jungle, et maintenant les Mily et
+   une nuits — n'était donc jamais éprouvée telle qu'elle est jouée.
+   On aurait pu regraver le jardin de fond en comble sans que l'outil
+   dise un mot.
+
+   ────────────────────────────────────────────────────────────────
+   ET L'EXCEPTION DU CHANTIER
+
+   Une carte marquée `chantier` est fermée : personne ne peut la
+   lancer, la rejoindre ni la visiter. Son index de bâtiments ne
+   désigne donc AUCUNE destruction enregistrée, nulle part, puisqu'il
+   n'y a jamais eu de partie. Le changer ne coûte rien.
+
+   L'exception est attachée au drapeau, et c'est le point important :
+   le jour où l'on retire `chantier` pour ouvrir la carte, elle
+   disparaît d'elle-même et l'index redevient intouchable, sans que
+   personne ait à s'en souvenir.
+   ================================================================ */
 var cas = [];
 for(var i = 0; i < A.CARTES.length; i++){
-  cas.push({ i:i, nom:A.CARTES[i].nom, plan:"", quoi:"carte d'origine" });
-  if(A.carteSpeciale(i)) cas.push({ i:i, nom:A.CARTES[i].nom, plan:A.planJungle(), quoi:"plan gravé" });
+  var enChantier = !!(A.CARTES[i].chantier && B.CARTES[i] && B.CARTES[i].chantier);
+  cas.push({ i:i, nom:A.CARTES[i].nom, plan:"", quoi:"carte d'origine",
+             chantier:enChantier });
+  if(A.carteSpeciale(i)){
+    cas.push({ i:i, nom:A.CARTES[i].nom, plan:A.planJungle(), quoi:"plan gravé",
+               chantier:enChantier });
+    /* le plan que le jeu emploie vraiment, des deux côtés */
+    cas.push({ i:i, nom:A.CARTES[i].nom, quoi:"plan du jeu", chantier:enChantier,
+               planA:A.planDeCarte(i, ""), planB:B.planDeCarte(i, "") });
+  }
 }
 
 var soucis = [], lignes = [];
@@ -90,14 +125,20 @@ if(A.VERSION === B.VERSION){
     + "recevrait cette mise à jour.");
 }
 cas.forEach(function(k){
-  var a = A.genereCarte("MILY", k.i, k.plan, 0);
-  var b = B.genereCarte("MILY", k.i, k.plan, 0);
+  var a = A.genereCarte("MILY", k.i, (k.planA !== undefined) ? k.planA : k.plan, 0);
+  var b = B.genereCarte("MILY", k.i, (k.planB !== undefined) ? k.planB : k.plan, 0);
   var ba = a.batiments || [], bb = b.batiments || [];
   var etat = "ok", detail = "";
+  /* Un changement sur une carte en chantier se DIT, mais ne bloque
+     pas : il n'y a aucune partie derrière cet index. */
+  function ennui(m){
+    if(k.chantier){ etat = "chantier"; return; }
+    soucis.push(m);
+  }
   if(ba.length !== bb.length){
     etat = "LONGUEUR";
     detail = ba.length + " → " + bb.length;
-    soucis.push(k.nom + " (" + k.quoi + ") : le tableau des bâtiments change de longueur, "
+    ennui(k.nom + " (" + k.quoi + ") : le tableau des bâtiments change de longueur, "
       + detail + ". Les destructions enregistrées ne désignent plus les mêmes bâtiments.");
   }else{
     var decale = -1;
@@ -108,7 +149,7 @@ cas.forEach(function(k){
       etat = "DÉCALAGE";
       detail = "au rang " + decale + " : " + empreinteBat(ba[decale])
              + " → " + empreinteBat(bb[decale]);
-      soucis.push(k.nom + " (" + k.quoi + ") : un bâtiment change de place dans le tableau, "
+      ennui(k.nom + " (" + k.quoi + ") : un bâtiment change de place dans le tableau, "
         + detail + ". Les destructions enregistrées désigneraient le mauvais bâtiment.");
     }
   }
@@ -138,6 +179,11 @@ lignes.forEach(function(l){
     + "  " + (l.etat === "ok" ? "intact  " : l.etat.padEnd(8))
     + "      " + l.visuel + (l.detail ? "  — " + l.detail : ""));
 });
+if(lignes.some(function(l){ return l.etat === "chantier"; })){
+  console.log("\n  « chantier » : la carte est fermée, personne n'y a jamais joué,");
+  console.log("  et son index ne désigne donc aucune destruction enregistrée. Le");
+  console.log("  jour où l'on retire le drapeau, ce laissez-passer disparaît.");
+}
 
 if(soucis.length){
   console.error("\n╔═══════════════════════════════════════════════════════════════");
