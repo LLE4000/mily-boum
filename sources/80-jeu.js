@@ -679,9 +679,157 @@ function creeUnite(type, gx, gy){
        bonne moitié du groupe abandonnait la Balise en chemin pour
        tirer sur ce qui passait. */
     baliseSeuil:7.0 + Math.random() * 4.0,
-    pousse:{ x:0, y:0 }
+    pousse:{ x:0, y:0 },
+    /* LES CINQ CHAMPS DU CHAR. Ils ne coûtent rien aux autres troupes
+       — cinq nombres par unité — et les avoir ici plutôt que créés à
+       la volée évite la classe cachée qui change en cours de partie.
+         angBase / angTour  les deux caps, lissés vers capBase / capTour
+         chenille           la distance parcourue : c'est elle, et pas
+                            l'horloge, qui fait défiler les maillons
+         recul / flash      le départ du coup, qui retombe vers zéro */
+    angBase:0, angTour:0, capBase:0, capTour:0,
+    chenille:0, recul:0, flash:0, roule:0, gxP:gx, gyP:gy,
+    /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
+       qui décide. Une roquette de Frelon sur deux — le compteur, pas
+       un tirage au sort : voir UNI.tank dans 10-noyau.js. */
+    angInter:0, capInter:0, interFlash:0, interCompte:0
   });
   return jeu.unites[jeu.unites.length - 1];
+}
+
+/* ================================================================
+   LE CAP D'UNE UNITÉ
+
+   Pour presque toutes, c'est un booléen : elle regarde à gauche ou à
+   droite, et son dessin est retourné. Le Tank est le premier qui ait
+   besoin d'un VRAI angle — et même de deux, parce que sa tourelle
+   pointe la défense qu'il vise pendant que sa caisse suit sa route.
+
+   L'angle est celui de la GRILLE, pas de l'écran : l'isométrie est
+   appliquée au moment du dessin (voir ptT dans 61-tank.js). Le
+   convertir ici reviendrait à le convertir deux fois.
+
+   `marche` dit si l'unité avance. À l'arrêt, la caisse GARDE le cap
+   où elle s'est immobilisée — un char arrêté ne pivote pas sur place
+   pour rien —, mais la tourelle continue de suivre sa cible. C'est
+   précisément cet écart-là qu'on veut voir.
+   ================================================================ */
+function capUnite(u, dx, dy, marche){
+  u.droite = (dx - dy) > 0;
+  if(!UNI[u.t].tourelle) return;
+  u.capTour = Math.atan2(dy, dx);
+  if(marche) u.capBase = u.capTour;
+}
+/* Le même, quand la direction de MARCHE diffère de la direction de
+   VISÉE : la troupe aborde son objectif en éventail, donc elle ne
+   marche pas exactement vers lui. */
+function capMarcheUnite(u, dx, dy){
+  if(!UNI[u.t].tourelle) return;
+  if(dx || dy) u.capBase = Math.atan2(dy, dx);
+}
+
+/* ================================================================
+   LE CHAR, D'UNE IMAGE À L'AUTRE
+
+   Trois choses, et elles tiennent en quinze lignes parce qu'elles
+   sont toutes les trois des mesures et non des décisions.
+
+   LES CHENILLES SE LISENT SUR LE DÉPLACEMENT RÉEL, pas sur une
+   horloge. On mesure de combien l'unité a bougé depuis l'image
+   précédente : un char à l'arrêt a des chenilles à l'arrêt, un char
+   englué les fait défiler au ralenti, un char poussé par un sanglier
+   les fait défiler aussi. Aucune de ces trois situations n'aurait été
+   juste avec un compteur de temps, et il aurait fallu y penser trois
+   fois.
+
+   LES DEUX CAPS SONT LISSÉS, à deux vitesses différentes. La tourelle
+   balaye vite — deux tours par seconde et demie —, la caisse manœuvre
+   lentement : c'est ce contraste, et lui seul, qui fait sentir qu'il
+   y a deux pièces et non une.
+
+   LE RECUL ET LA LUEUR retombent vers zéro. Ils sont posés à 1 au
+   départ du coup, dans tireUnite.
+   ================================================================ */
+var TANK_TOURELLE = 2.6;      // rad/s : la tourelle balaye
+var TANK_CAISSE   = 1.5;      // rad/s : la caisse manœuvre
+var TANK_INTER    = 4.2;      // rad/s : l'intercepteur, le plus vif des trois
+var TANK_ALIGNE   = 0.13;     // rad : au-delà, le canon n'est pas en ligne
+var TANK_VEILLE   = 0.55;     // rad/s : le balayage de veille de l'intercepteur
+function majTank(u, dt){
+  /* LE DÉPLACEMENT RÉEL, mesuré. Vingt-six pixels par case : c'est la
+     demi-largeur d'une tuile, donc l'unité dans laquelle le dessin du
+     char est exprimé (voir ptT dans 61-tank.js). */
+  var d = Math.hypot(u.gx - u.gxP, u.gy - u.gyP);
+  u.chenille += d * 26;
+  /* la vitesse lissée : elle sert à lever la poussière derrière les
+     chenilles, et un simple d/dt sautillerait d'une image à l'autre */
+  u.roule += ((dt > 0 ? d / dt : 0) - u.roule) * Math.min(1, dt * 8);
+  u.gxP = u.gx; u.gyP = u.gy;
+  u.angTour += borne(ecartAngulaire(u.capTour, u.angTour), -TANK_TOURELLE * dt, TANK_TOURELLE * dt);
+  u.angBase += borne(ecartAngulaire(u.capBase, u.angBase), -TANK_CAISSE * dt, TANK_CAISSE * dt);
+  /* L'INTERCEPTEUR. Il n'a de cap désigné que le temps d'une
+     interception ; le reste du temps il BALAYE — lentement, dans le
+     même sens, sans jamais s'arrêter. C'est ce balayage de veille qui
+     dit qu'il est allumé, et c'est ce qui rend son brusque
+     braquage lisible quand une roquette arrive. */
+  if(u.capInter) u.angInter += borne(ecartAngulaire(u.capInter, u.angInter),
+                                     -TANK_INTER * dt, TANK_INTER * dt);
+  else u.angInter += TANK_VEILLE * dt;
+  if(u.recul > 0) u.recul = Math.max(0, u.recul - dt * 3.4);
+  if(u.flash > 0) u.flash = Math.max(0, u.flash - dt * 9);
+  if(u.interFlash > 0){
+    u.interFlash = Math.max(0, u.interFlash - dt * 6);
+    if(u.interFlash === 0) u.capInter = 0;      // il retourne en veille
+  }
+}
+/* ================================================================
+   L'INTERCEPTION D'UNE ROQUETTE
+
+   Appelée au moment où une roquette de Frelon naît, une seule fois,
+   et le verdict est posé sur la roquette elle-même. La décision
+   pouvait se prendre à trois moments ; celui-ci est le seul qui
+   tienne :
+
+     À LA NAISSANCE (retenu) — le verdict est stable pour toute la
+       durée du vol, et il ne dépend d'aucune position. La roquette
+       porte son sort avec elle.
+     À CHAQUE IMAGE — il aurait fallu tirer à chaque image sans
+       jamais intercepter deux fois la même, donc y remettre un
+       drapeau : la même chose en plus compliqué.
+     À L'APPROCHE — le plus tentant, et le pire : une roquette qui
+       change de cible en vol (le Frelon a un verrou, mais le
+       Brouillard le casse) serait comptée deux fois par deux chars
+       différents, et la moitié promise n'en serait plus une.
+
+   LE COMPTEUR PLUTÔT QUE LE HASARD. `intercepteur: 2` est un
+   DIVISEUR : une roquette sur deux, exactement, pour chaque char.
+   Voir le commentaire de UNI.tank — un tirage au sort donnerait
+   parfois quatre échecs d'affilée, et un joueur qui perd un char
+   pour cette raison n'a rien appris.
+   ================================================================ */
+function marqueInterception(cible){
+  if(!cible || !cible.t) return 0;
+  var f = UNI[cible.t];
+  if(!f || !f.intercepteur) return 0;
+  cible.interCompte = (cible.interCompte || 0) + 1;
+  return (cible.interCompte % f.intercepteur) === 0 ? 1 : 0;
+}
+/* La roquette est arrivée dans le périmètre de l'intercepteur : il se
+   braque dessus, tire, et elle éclate en l'air. Elle ne touche donc
+   NI la cible, NI le sol : c'est une destruction, pas un détournement. */
+var TANK_INTER_PORTEE = 2.4;      // en cases : là où la charge la cueille
+function abatRoquette(p, u){
+  u.capInter = Math.atan2(p.gy - u.gy, p.gx - u.gx) || 0.0001;
+  u.interFlash = 1;
+  jeu.effets.push({ t:"interception", gx:p.gx, gy:p.gy, z:p.z || 0, age:0, duree:0.42 });
+  if(son.interception) son.interception();
+}
+/* Le canon est-il en ligne ? Tant qu'il ne l'est pas, le char ne tire
+   pas — il n'attend pas non plus, il garde le doigt sur la détente.
+   C'est ce qui donne au tir sa gravité : on VOIT la tourelle se poser
+   sur la cible avant que le coup parte. */
+function tankAligne(u){
+  return Math.abs(ecartAngulaire(u.capTour, u.angTour)) <= TANK_ALIGNE;
 }
 
 /* ---------------------------------------------------------------
@@ -697,7 +845,17 @@ function creeUnite(type, gx, gy){
    passent jamais par ici. */
 function multVuln(u, arme){
   var f = UNI[u.t];
-  return (f && f.vuln && f.vuln[arme]) || 1;
+  if(!f || !f.vuln) return 1;
+  var m = f.vuln[arme];
+  /* ZÉRO EST UNE VALEUR — L'IMMUNITÉ —, PAS UNE ABSENCE.
+     L'écriture d'origine était `(f.vuln[arme]) || 1` : elle allait
+     très bien tant que toutes les vulnérabilités étaient des
+     multiplicateurs supérieurs à un. Le Tank est immunisé aux
+     bestioles, c'est-à-dire vuln.bete = 0, et ce zéro-là serait
+     retombé à 1 en silence : les sangliers auraient continué de le
+     charger pour soixante-dix points, et rien dans le code n'aurait
+     eu l'air faux. */
+  return (typeof m === "number") ? m : 1;
 }
 function toucheUnite(u, degats, opt){
   if(u.pv <= 0) return;
@@ -710,6 +868,18 @@ function toucheUnite(u, degats, opt){
   }
   if(u.pv <= 0 && !u.leurre){
     jeu.effets.push({ t:"mort", gx:u.gx, gy:u.gy, age:0, duree:0.55, typ:u.t });
+    /* UN CHAR NE DISPARAÎT PAS. Les autres troupes tombent et
+       s'effacent en une demi-seconde ; une masse pareille qui
+       s'évaporerait laisserait un trou dans l'image et dans la tête
+       du joueur. On laisse donc une ÉPAVE qui fume six secondes —
+       assez pour qu'on voie où la colonne s'est arrêtée, et pour que
+       le joueur comprenne d'où venait le coup. */
+    if(u.t === "tank"){
+      jeu.effets.push({ t:"epaveTank", gx:u.gx, gy:u.gy, age:0, duree:6.0,
+                        ang:u.angBase || 0, angT:u.angTour || 0, n:u.n });
+      jeu.secousse = Math.min(8, jeu.secousse + 3.0);
+      if(son.tankDetruit) son.tankDetruit();
+    }
     /* Un Ogre abattu d'une seule balle, ça doit se VOIR : sans marque
        propre, le joueur voit sa plus grosse unité disparaître d'une
        image à l'autre sans comprendre ce qui l'a touchée. */
@@ -1331,6 +1501,12 @@ function majUnites(dt){
     }
 
     var f = UNI[u.t];
+    /* LE CHAR : ses chenilles, ses deux caps et son recul, AVANT tout
+       le reste. Ici et nulle part ailleurs : le déplacement de
+       l'image précédente est déjà inscrit dans gx/gy, quelle que soit
+       la branche qui l'a produit — la marche ordinaire, la balise, la
+       poussée d'un sanglier. */
+    if(f.tourelle) majTank(u, dt);
 
     /* --- SOUS BROUILLARD : postée, muette ---------------------------
        Tant que l'unité est dans la fumée, elle est cachée. Elle
@@ -1367,10 +1543,11 @@ function majUnites(dt){
         var rc = qgVise ? RAYON_QG : bc.e * 0.42;
         var dxb = bc.gx - u.gx, dyb = bc.gy - u.gy;
         var db = Math.hypot(dxb, dyb) - rc;
-        u.droite = (dxb - dyb) > 0;
+        capUnite(u, dxb, dyb, db > f.arret);
         u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
+          capMarcheUnite(u, dxb + u.ancX * eb, dyb + u.ancY * eb);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
         }else{
@@ -1379,9 +1556,13 @@ function majUnites(dt){
           if(cachee){
             armeSansTirer(u);
           }else if(u.prochainTir <= 0){
-            u.prochainTir = f.cadence;
-            u.tir = 1;
-            tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
+            /* le char attend que sa tourelle soit en ligne */
+            if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
+            else{
+              u.prochainTir = f.cadence;
+              u.tir = 1;
+              tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
+            }
           }
         }
         continue;
@@ -1418,7 +1599,7 @@ function majUnites(dt){
         if(!arrivee){
           deplace(u, dxf, dyf, vit * dt);
           u.phase += dt * 9;
-          u.droite = (dxf - dyf) > 0;
+          capUnite(u, dxf, dyf, 1);
           u.cible = null;
           continue;                       // rien d'autre ne la concerne
         }
@@ -1456,7 +1637,7 @@ function majUnites(dt){
     }
     var dx = but.gx - u.gx, dy = but.gy - u.gy;
     var d = Math.hypot(dx, dy) - rayonCible;
-    u.droite = (dx - dy) > 0;
+    capUnite(u, dx, dy, d > portee);
 
     if(d > portee){
       /* on marche vers SA place autour de la cible, pas vers le centre :
@@ -1464,6 +1645,12 @@ function majUnites(dt){
          sur l'arc le plus proche. La portée, elle, reste mesurée au
          centre — le décalage n'avantage ni ne pénalise personne. */
       var etal = Math.min(rayonFormation() * 0.55, (portee + rayonCible) * 0.7);
+      /* LA CAISSE SUIT LA ROUTE, PAS LA CIBLE. Elle ne marche pas vers
+         le centre de l'objectif mais vers SA place dans l'éventail :
+         c'est cette direction-là que le char doit prendre, et c'est
+         elle qui, un peu écartée de la visée, met en évidence que la
+         tourelle ne regarde pas où l'on va. */
+      capMarcheUnite(u, dx + u.ancX * etal, dy + u.ancY * etal);
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
       /* Cadence du cycle de marche, en radians par seconde. Elle dit le
          NOMBRE de pas, pas la vitesse : l'Ogre avance plus vite qu'une
@@ -1491,10 +1678,18 @@ function majUnites(dt){
         u.arme = 1;
         u.tir = 1;
       }else if(u.prochainTir <= 0){
-        u.prochainTir = f.cadence;
-        u.arme = 0;
-        u.tir = 1;
-        tireUnite(u, but, c);
+        /* LE CHAR NE TIRE PAS DE TRAVERS. Tant que sa tourelle n'est
+           pas posée sur la cible, le coup ne part pas — le compteur
+           reste à zéro, donc il partira à l'image même où l'alignement
+           se fait, sans délai ajouté. C'est ce qui donne son poids au
+           tir : on voit le canon venir se poser avant qu'il tonne. */
+        if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
+        else{
+          u.prochainTir = f.cadence;
+          u.arme = 0;
+          u.tir = 1;
+          tireUnite(u, but, c);
+        }
       }
     }
   }
@@ -1564,6 +1759,27 @@ function tireUnite(u, but, c){
       z0:30 * ech, ang:Math.atan2(but.gy - u.gy, but.gx - u.gx), n:jeu.nSuiv++
     });
     if(son.hache) son.hache();
+    return;
+  }
+  if(u.t === "tank"){
+    /* L'OBUS PART DE LA BOUCHE DU TUBE, jamais du nombril du char.
+       Le canon fait vingt-quatre pixels et la tourelle neuf : à
+       l'échelle de la carte, une case et demie. Un obus qui naît au
+       centre du char lui traverse visiblement sa propre tourelle à
+       l'image du départ — c'est la faute qu'on remarque tout de
+       suite sans savoir la nommer. */
+    var ct = Math.cos(u.angTour), st = Math.sin(u.angTour);
+    var db2 = (TK.toR - 1.5 + TK.caL) / 26;        // pixels → cases
+    jeu.projectiles.push({
+      t:"obusTank", gx:u.gx + ct * db2, gy:u.gy + st * db2,
+      cible:c, but:but, degats:f.degats, vit:f.vitesseObus, age:0,
+      ang:u.angTour
+    });
+    /* le recul, la lueur de bouche, et la secousse : un canon de char
+       n'est pas un fusil, ça se sent jusque dans la caméra */
+    u.recul = 1; u.flash = 1;
+    jeu.secousse = Math.min(6, jeu.secousse + 0.9);
+    if(son.canonTank) son.canonTank();
     return;
   }
   if(u.t === "furie"){
@@ -1808,6 +2024,12 @@ function tireDefense(b, f, c, d, tps){
       z:34, cible:c, but:{ gx:c.gx, gy:c.gy },
       degats:f.degats, vit:f.vitesseProj, age:0, brouillard:0,
       vol:vol0, apogee:26 + Math.min(110, d * 4.5) + (b.tube % 3) * 12,
+      /* SON SORT EST SCELLÉ ICI, à sa naissance, et il ne changera
+         plus : une roquette de Frelon sur deux visant un TX-90 sera
+         abattue en vol par son intercepteur. Le verdict voyage avec
+         la roquette — voir marqueInterception, qui explique pourquoi
+         il ne peut pas être pris plus tard. */
+      abattue:marqueInterception(c),
       tr:[] });
     jeu.effets.push({ t:"souffle", gx:b.gx, gy:b.gy, ang:b.angle, age:0, duree:0.5 });
     son.tirFrelon();
@@ -1896,7 +2118,13 @@ function majProjectiles(dt){
       }
       continue;
     }
-    if(p.t === "roquetteJ" || p.t === "roquette"){
+    /* L'OBUS DE CHAR suit le même chemin qu'une roquette de Furie :
+       il poursuit sa cible, et il applique ses dégâts par
+       appliqueDegatsCible — donc la montée en puissance s'y applique
+       comme au reste. Ce qui diffère est ailleurs : il va plus vite,
+       il laisse un traceur au lieu d'une flamme, et son impact est
+       un choc d'acier et non une gerbe de feu. */
+    if(p.t === "roquetteJ" || p.t === "roquette" || p.t === "obusTank"){
       var bx = p.but.gx, by = p.but.gy;
       if(p.cible){
         if(p.cible.k){ if(p.cible.o && (p.cible.o.vivant !== 0)){ bx = p.cible.o.gx; by = p.cible.o.gy; } }
@@ -1915,8 +2143,31 @@ function majProjectiles(dt){
       var dx = bx - p.gx, dy = by - p.gy, d = Math.hypot(dx, dy);
       var pas = p.vit * dt;
       p.ang = Math.atan2(dy, dx);
+      /* L'INTERCEPTION. Elle se joue AVANT le test d'impact : une
+         roquette cueillie à deux cases et demie ne doit ni toucher sa
+         cible ni retomber au sol. La cible doit être encore vivante et
+         encore la même — un char mort n'intercepte plus rien, et une
+         roquette qui a perdu le contact dans le Brouillard n'est plus
+         adressée à personne. */
+      if(p.abattue && p.cible && p.cible.pv > 0 && !p.cible.k &&
+         d <= TANK_INTER_PORTEE){
+        abatRoquette(p, p.cible);
+        jeu.projectiles.splice(i, 1);
+        continue;
+      }
       if(d <= pas || p.age > 6){
-        if(p.t === "roquetteJ") appliqueDegatsCible(p.cible, p.degats, p.but);
+        if(p.t === "roquetteJ" || p.t === "obusTank"){
+          appliqueDegatsCible(p.cible, p.degats, p.but);
+          if(p.t === "obusTank"){
+            /* L'IMPACT D'UN OBUS DE CHAR. Un choc d'acier, pas une
+               gerbe de feu : une étincelle blanche, un anneau de
+               poussière court, et une secousse. */
+            jeu.effets.push({ t:"obusBoum", gx:bx, gy:by, age:0, duree:0.36 });
+            jeu.effets.push({ t:"onde", gx:bx, gy:by, age:0, duree:0.28, r:0.9 });
+            jeu.secousse = Math.min(6, jeu.secousse + 0.8);
+            if(son.impactObus) son.impactObus();
+          }
+        }
         else{
           /* ceinture et bretelles : la cible est déjà lâchée dès
              qu'elle entre dans la fumée, mais si elle s'y glisse à
@@ -2077,7 +2328,13 @@ function majCreatures(dt, tps){
         k.prochainTir -= dt * 1000;
         if(k.prochainTir <= 0){
           k.prochainTir = f.cadence;
-          toucheUnite(c, f.degats, k.t === "braisard" ? { brulure:0 } : null);
+          /* arme:"bete" — LE DRAPEAU DES BESTIOLES. Il ne change rien
+             pour personne, sauf pour le Tank, qui porte vuln.bete = 0.
+             Un blindé n'a rien à craindre d'un Braisard ni d'un
+             Piqueur, et c'est ici que ça se décide : au point où la
+             bestiole frappe, pas dans une liste d'exceptions ailleurs. */
+          toucheUnite(c, f.degats,
+                      k.t === "braisard" ? { brulure:0, arme:"bete" } : { arme:"bete" });
           if(k.t === "braisard"){
             jeu.effets.push({ t:"cone", gx:k.gx, gy:k.gy, ang:Math.atan2(dy, dx),
                               portee:f.portee, ouv:0.4, age:0, duree:0.18 });
@@ -2205,7 +2462,14 @@ function majSanglier(k, f, c, dt){
       if(u.touchePar === k.n) continue;
       if(Math.hypot(u.gx - k.gx, u.gy - k.gy) < 1.1){
         u.touchePar = k.n;
-        toucheUnite(u, f.degats, { pousse:{ x:Math.cos(k.ang) * 2.4, y:Math.sin(k.ang) * 2.4 } });
+        /* LA CHARGE DU SANGLIER. Elle porte le même drapeau que les
+           autres bestioles : soixante-dix points contre une Furie,
+           zéro contre un char. La POUSSÉE, elle, s'applique quand
+           même — quatre cents kilos lancés à quatre cases par
+           seconde bousculent tout, blindé compris. Ce n'est pas une
+           blessure, c'est de la mécanique. */
+        toucheUnite(u, f.degats, { arme:"bete",
+                                   pousse:{ x:Math.cos(k.ang) * 2.4, y:Math.sin(k.ang) * 2.4 } });
       }
     }
     if(k.chargeT <= 0){ k.etat = "retourne"; k.minuteur2 = 1.6; }

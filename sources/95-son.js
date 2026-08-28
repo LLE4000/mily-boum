@@ -100,6 +100,43 @@ var son = {
     this.bip("sawtooth", 190, 44, 0.17, 0.13);
     this.bip("square", 720, 180, 0.05, 0.05);
   },
+  /* LE CANON DU TANK. Il ne tire qu'une fois toutes les quatre
+     secondes : il a droit à un vrai son, contrairement au Crible qui
+     doit pouvoir crépiter cent fois sans saturer.
+     Trois couches, et c'est l'ordre des trois qui fait une bouche à
+     feu et non un bip : le CLAQUEMENT sec de la mise à feu, la
+     DÉTONATION grave qui s'effondre en dessous, et le souffle de gaz
+     qui s'échappe derrière. Chacune séparément ne serait rien. */
+  canonTank:function(){
+    this.bip("square", 1500, 300, 0.045, 0.055);
+    this.bip("sawtooth", 210, 38, 0.30, 0.15);
+    this.bip("sine", 96, 34, 0.34, 0.12);
+    this.souffle(1200, 240, 0.26, 0.09);
+  },
+  /* L'INTERCEPTION. Deux temps très courts et très hauts : le départ
+     de la charge, puis la roquette qui casse. Aigu, sec, et bref —
+     c'est une bonne nouvelle qui doit s'entendre au milieu du
+     vacarme sans y ajouter du grave, dont l'oreille du joueur est
+     déjà saturée par les canons et les Pilons. */
+  interception:function(){
+    this.bip("square", 2400, 1100, 0.035, 0.040);
+    this.bip("sawtooth", 1300, 320, 0.09, 0.055, 0.04);
+    this.souffle(3200, 900, 0.14, 0.05);
+  },
+  /* L'obus qui arrive : de l'acier qui s'arrête. Court, dur, et une
+     octave au-dessus du départ, sinon on confond les deux. */
+  impactObus:function(){
+    this.bip("square", 900, 210, 0.05, 0.05);
+    this.bip("sawtooth", 260, 60, 0.15, 0.10);
+  },
+  /* Un char qui meurt : les munitions partent. Une détonation plus
+     longue et plus basse que son propre canon — c'est ce qui la
+     distingue d'un tir, et c'est ce qui la rend triste. */
+  tankDetruit:function(){
+    this.bip("sawtooth", 170, 28, 0.55, 0.16);
+    this.bip("sine", 70, 26, 0.70, 0.13);
+    this.souffle(700, 120, 0.60, 0.11);
+  },
   tirFrelon:function(){ this.souffle(900, 220, 0.35, 0.12); },
   tirPilon:function(){ this.bip("sine", 190, 70, 0.22, 0.13); },
   /* Le Mirador : un claquement sec et court, pas une déflagration.

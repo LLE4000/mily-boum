@@ -164,6 +164,87 @@ function dessineEffet(c, e, tps){
     c.fillStyle = "#7a6a4c";
     c.beginPath(); c.ellipse(p.x, p.y, 2.6 * z, 1.3 * z, 0, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "interception"){
+    /* ---- UNE ROQUETTE ABATTUE EN VOL ----
+       Elle éclate EN L'AIR, et c'est tout le sujet : l'effet est
+       décalé vers le haut de la hauteur qu'avait la roquette, sinon
+       le joueur croit voir un impact au sol et ne comprend pas
+       pourquoi son char n'a rien pris.
+       Un éclat blanc très court, un anneau qui s'ouvre, et des débris
+       qui RETOMBENT — ce sont eux qui disent que quelque chose a été
+       cassé en plein ciel. */
+    var zi = (e.z || 30) * z;
+    var ai2 = 1 - t;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var ri = (4 + t * 15) * z;
+    var gi = c.createRadialGradient(p.x, p.y - zi, 0, p.x, p.y - zi, ri);
+    gi.addColorStop(0, "rgba(255,255,240," + (0.95 * ai2 * ai2) + ")");
+    gi.addColorStop(0.30, "rgba(255,222,140," + (0.6 * ai2 * ai2) + ")");
+    gi.addColorStop(1, "rgba(255,140,40,0)");
+    c.fillStyle = gi;
+    c.beginPath(); c.arc(p.x, p.y - zi, ri, 0, 6.2832); c.fill();
+    /* l'anneau de souffle, plat comme un anneau vu de biais */
+    c.globalAlpha = ai2 * 0.7;
+    c.strokeStyle = "rgba(255,236,180,.9)"; c.lineWidth = 1.6 * z * ai2;
+    c.beginPath();
+    c.ellipse(p.x, p.y - zi, (5 + t * 22) * z, (2.4 + t * 11) * z, 0, 0, 6.2832);
+    c.stroke();
+    c.restore();
+    /* LES DÉBRIS QUI TOMBENT. Ils partent en étoile et la pesanteur
+       les reprend — un t² sur la descente. C'est le seul détail qui
+       distingue une interception d'un simple flash. */
+    var ald = prng(((e.gx * 613 + e.gy * 271) | 0) || 5);
+    c.save();
+    c.globalAlpha = ai2;
+    c.fillStyle = "#4a4238";
+    for(var di = 0; di < 6; di++){
+      var adi = ald() * 6.2832, dd2 = t * (9 + ald() * 16) * z;
+      c.beginPath();
+      c.arc(p.x + Math.cos(adi) * dd2,
+            p.y - zi + Math.sin(adi) * dd2 * 0.5 + t * t * 34 * z,
+            1.2 * z * (1 - t * 0.5), 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }else if(e.t === "obusBoum"){
+    /* ---- L'IMPACT D'UN OBUS DE CHAR ----
+       Un choc d'ACIER, et c'est ce qui le sépare de tout le reste :
+       ni gerbe de feu comme une roquette, ni gerbe de sable comme une
+       mitrailleuse. Une étincelle blanche très brève, une couronne
+       d'éclats sombres, et un souffle de poussière grise. Le blanc
+       part le premier — un impact de perforant dure moins longtemps
+       qu'une explosion, et c'est cette brièveté qui le rend sec. */
+    var ao = 1 - t;
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var reo = (3 + t * 13) * z;
+    var go = c.createRadialGradient(p.x, p.y - 4 * z, 0, p.x, p.y - 4 * z, reo);
+    go.addColorStop(0, "rgba(255,252,236," + (0.92 * ao * ao) + ")");
+    go.addColorStop(0.34, "rgba(255,214,150," + (0.5 * ao * ao) + ")");
+    go.addColorStop(1, "rgba(210,150,80,0)");
+    c.fillStyle = go;
+    c.beginPath(); c.arc(p.x, p.y - 4 * z, reo, 0, 6.2832); c.fill();
+    c.restore();
+    c.save();
+    /* les éclats : sombres, parce qu'ils sont arrachés au blindage */
+    var alo = prng(((e.gx * 419 + e.gy * 877) | 0) || 11);
+    c.globalAlpha = ao;
+    c.fillStyle = "#3b3630";
+    for(var eo = 0; eo < 7; eo++){
+      var aeo = alo() * 6.2832, deo = t * (7 + alo() * 15) * z;
+      c.beginPath();
+      c.arc(p.x + Math.cos(aeo) * deo, p.y - 3 * z + Math.sin(aeo) * deo * 0.5 - t * 11 * z,
+            1.3 * z * (1 - t * 0.7), 0, 6.2832);
+      c.fill();
+    }
+    /* le souffle de poussière, gris et bas */
+    c.globalAlpha = ao * 0.34;
+    c.fillStyle = "#9a958c";
+    c.beginPath();
+    c.ellipse(p.x, p.y - 2 * z, (4 + t * 14) * z, (2 + t * 6) * z, 0, 0, 6.2832);
+    c.fill();
+    c.restore();
   }else if(e.t === "poussiere"){
     c.save();
     c.globalAlpha = (1 - t) * 0.55;
@@ -431,6 +512,58 @@ function dessineEffet(c, e, tps){
       c.arc(p.x + Math.cos(a3) * t * 18 * z, p.y - 12 * z + Math.sin(a3) * t * 10 * z - t * 8 * z,
             2.2 * z * (1 - t), 0, 6.2832);
       c.fill();
+    }
+    c.restore();
+  }else if(e.t === "epaveTank"){
+    /* ---- L'ÉPAVE D'UN CHAR ----
+       Trois temps, et c'est leur enchaînement qui raconte la mort :
+       une déflagration jaune très brève — les munitions —, puis la
+       carcasse noircie qui reste, tourelle de travers, et la colonne
+       de fumée qui monte pendant six secondes.
+       La carcasse est dessinée par le MÊME code que le char vivant :
+       on lui passe simplement une teinte brûlée et un canon abaissé.
+       Refaire un dessin d'épave à part aurait donné, tôt ou tard,
+       deux chars qui ne se ressemblent plus. */
+    c.save();
+    /* la boule de feu : les huit premiers pour cent, pas plus */
+    if(t < 0.09){
+      var tb = t / 0.09;
+      c.globalCompositeOperation = "lighter";
+      var rb = (10 + tb * 34) * z;
+      var gb = c.createRadialGradient(p.x, p.y - 14 * z, 0, p.x, p.y - 14 * z, rb);
+      gb.addColorStop(0, "rgba(255,252,220," + (0.95 * (1 - tb)) + ")");
+      gb.addColorStop(0.3, "rgba(255,182,60," + (0.7 * (1 - tb)) + ")");
+      gb.addColorStop(0.7, "rgba(214,70,24," + (0.4 * (1 - tb)) + ")");
+      gb.addColorStop(1, "rgba(90,20,10,0)");
+      c.fillStyle = gb;
+      c.beginPath(); c.arc(p.x, p.y - 14 * z, rb, 0, 6.2832); c.fill();
+      c.globalCompositeOperation = "source-over";
+    }
+    /* la carcasse : elle apparaît dès que la boule s'ouvre, et
+       s'efface tout à la fin */
+    if(t > 0.05 && typeof charTank === "function"){
+      c.save();
+      c.globalAlpha = Math.min(1, (t - 0.05) * 14) * Math.min(1, (1 - t) * 6);
+      c.translate(p.x, p.y);
+      c.scale(z, z);
+      /* LA SUIE PASSE PAR LA PALETTE, PAS PAR UN VOILE.
+         Le premier essai repeignait la silhouette en noir avec un
+         source-atop et un fillRect : un mode de composition ne
+         s'applique pas au dernier dessin, il s'applique à TOUT ce
+         qui est déjà sur le canevas — et l'écran s'est couvert de
+         rectangles gris à chaque char détruit. On assombrit donc les
+         couleurs à la source ; c'est le même dessin, dans une autre
+         teinte, et rien ne déborde. */
+      charTank(c, e.ang, e.angT + 0.5, 0, 0, 0, 3, 1);
+      c.restore();
+    }
+    /* la colonne de fumée : quatre bouffées échelonnées qui montent
+       et s'élargissent. C'est elle qu'on voit de loin. */
+    for(var fb = 0; fb < 4; fb++){
+      var pf = (t * 1.5 + fb * 0.25) % 1;
+      if(t * 1.5 + fb * 0.25 < 0.1) continue;
+      bouffee(c, p.x + Math.sin(pf * 3 + fb) * 6 * z, p.y - (12 + pf * 46) * z,
+              (4 + pf * 13) * z, (1 - pf) * 0.44 * (1 - t * 0.7), "#2e2b28");
     }
     c.restore();
   }else if(e.t === "frappe"){
@@ -1005,6 +1138,34 @@ function dessineProjectile(c, p, tps){
       /* lueur du moteur, projetée derrière la roquette */
       lueurRapide(c, hx - Math.cos(angV) * 7 * z, hy - Math.sin(angV) * 7 * z,
                   11 * z, "#ffb24a", 0.5);
+      return;
+    }
+
+    /* --- L'OBUS DE CHAR : un traceur, pas une flamme ---------------
+       Une roquette a un moteur, donc une queue de feu. Un obus n'a
+       rien : il est déjà parti quand on le voit, et tout ce qu'on en
+       perçoit est la ligne qu'il laisse. On le dessine donc comme un
+       TRAIT, orienté et étiré, avec une pointe chaude — et surtout
+       pas comme une petite fusée. */
+    if(p.t === "obusTank"){
+      var dt2 = vecteurEcran(p.ang || 0);
+      var nq = Math.hypot(dt2.x, dt2.y) || 1;
+      var ux2 = dt2.x / nq, uy2 = dt2.y / nq;
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      c.lineCap = "round";
+      var g3 = c.createLinearGradient(hx - ux2 * 26 * z, hy - uy2 * 26 * z, hx, hy);
+      g3.addColorStop(0, "rgba(255,190,110,0)");
+      g3.addColorStop(0.7, "rgba(255,206,140,.34)");
+      g3.addColorStop(1, "rgba(255,244,206,.85)");
+      c.strokeStyle = g3; c.lineWidth = 2.2 * z;
+      c.beginPath();
+      c.moveTo(hx - ux2 * 26 * z, hy - uy2 * 26 * z);
+      c.lineTo(hx + ux2 * 2 * z, hy + uy2 * 2 * z);
+      c.stroke();
+      c.fillStyle = "rgba(255,250,226,.95)";
+      c.beginPath(); c.arc(hx, hy, 2.1 * z, 0, 6.2832); c.fill();
+      c.restore();
       return;
     }
 

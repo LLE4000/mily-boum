@@ -956,6 +956,12 @@ function dessineUnite(c, type, phase, variante, tir){
      fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
   if(type === "doc" && typeof dessineDoc === "function"){ dessineDoc(c, phase, variante, tir); return; }
+  /* Le Tank : une POSE FIXE, de trois quarts. Ce chemin-ci ne sert
+     qu'aux dessins figés — les silhouettes grises des autres joueurs
+     et le portrait du briefing. Le char vivant, lui, ne passe jamais
+     par ici : il a besoin de ses deux angles, et dessineUniteMonde le
+     confie directement à dessineTankMonde. */
+  if(type === "tank" && typeof dessineTank === "function"){ dessineTank(c, phase, variante, tir); return; }
   if(type === "commando") dessineCommando(c, phase, variante, tir);
   else dessineFurie(c, phase, variante, tir);
 }
@@ -971,7 +977,7 @@ function dessineUnite(c, type, phase, variante, tir){
 var VIG_W = 150, VIG_H = 168, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["furie", "commando", "ogre", "doc"];
+var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank"];
 
 function construitVignettesGrises(){
   vignettes = [];
@@ -1014,6 +1020,15 @@ function vignette(type, droite, phase){
 function dessineUniteMonde(c, u, tps){
   var p = versEcran(cam, u.gx, u.gy);
   var z = cam.z;
+  /* LE TANK NE SE RETOURNE PAS. Toutes les autres troupes sont des
+     silhouettes de profil que le c.scale(-1, 1) ci-dessous renvoie
+     vers la gauche ; un char, lui, a une caisse et une tourelle qui
+     pointent chacune dans une direction quelconque. Il prend donc sa
+     propre sortie, avant le miroir — et récupère au retour les
+     décorations communes (brûlure, ralenti, barre de vie). */
+  if(u.t === "tank" && typeof dessineTankMonde === "function"){
+    dessineTankMonde(c, u, tps);
+  }else{
   c.save();
   /* Postée sous Brouillard : on l'estompe. Le joueur doit deviner où
      sont ses troupes sans les voir nettement — c'est le pendant visuel
@@ -1024,6 +1039,7 @@ function dessineUniteMonde(c, u, tps){
   if(!u.droite) c.scale(-1, 1);
   dessineUnite(c, u.t, u.phase, u.var, u.tir > 0);
   c.restore();
+  }
 
   /* brûlure : halo orange + fumée */
   if(u.brulure > 0){
@@ -1045,7 +1061,10 @@ function dessineUniteMonde(c, u, tps){
   }
   /* barre de vie si blessée */
   var fr = u.pv / u.pvMax;
-  if(fr < 0.999 && z > 0.2) barreVie(c, p.x, p.y - 36 * z, 20 * z, fr);
+  /* La barre passe AU-DESSUS de l'unité, donc plus haut pour un char :
+     à trente-six, elle lui traversait la tourelle et l'antenne. */
+  if(fr < 0.999 && z > 0.2)
+    barreVie(c, p.x, p.y - (u.t === "tank" ? 48 : 36) * z, (u.t === "tank" ? 28 : 20) * z, fr);
 }
 
 /* Unité d'un autre joueur : vignette grise, même tri de profondeur */

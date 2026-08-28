@@ -512,7 +512,101 @@ var UNI = {
             dont rêve un tireur posé.
             mortier — l'obus du Pilon : on ne rate pas une cible pareille
             avec une gerbe, et il n'a nulle part où se mettre à couvert. */
-         vuln:{ precision:5, mortier:2 } }
+         vuln:{ precision:5, mortier:2 } },
+
+  /* ------------------------------------------------------------
+     LE TANK. La troupe lourde : lente, blindée, régulière.
+
+     ═══ CE QU'IL FAUT VALOIR ═══════════════════════════════════
+     La composition visée est SEPT BARGES DE TANKS ET UNE DE DOCS,
+     à DEUX TANKS PAR BARGE — quatorze chars. La référence est la
+     même flotte en Furies : sept barges de douze, quatre-vingt-
+     quatre Furies.
+
+       84 Furies : 84 × 110       =  9 240 PV
+                   84 × 54/1,3 s  =  3 489 dégâts/s
+
+     Ce qui décide de ce qu'une flotte détruit avant de mourir n'est
+     ni sa vie ni ses dégâts, c'est LE PRODUIT DES DEUX : sous un feu
+     donné, elle tient PV/feu secondes et frappe dps × PV/feu. Les
+     Furies valent donc 3 489 × 9 240 = 32,2 millions.
+
+       14 Tanks : 14 × 1300       = 18 200 PV   (×1,97 les Furies)
+                  14 × 480/4 s    =  1 680 dégâts/s (0,48 ×)
+                  produit         = 30,6 millions, soit 95 %.
+
+     C'est exactement ce qu'on cherchait : une flotte de puissance
+     ÉQUIVALENTE, obtenue par l'autre bout — deux fois plus de vie
+     pour deux fois moins de dégâts. On ne joue pas plus fort, on
+     joue autrement : lentement, en encaissant.
+
+     ═══ 480 PAR OBUS, ET PAS UN DE PLUS ════════════════════════
+     « Sans détruire les défenses en un seul coup. » La défense la
+     plus fragile de l'île est le Mirador, 640 PV : à 480, il en
+     faut deux. Et la plus solide est le Frelon, 840 : à 960 pour
+     deux obus, il en faut deux aussi.
+     TOUTE défense tombe en EXACTEMENT DEUX OBUS. C'est une règle
+     qu'un joueur lit en deux minutes de jeu et sur laquelle il peut
+     compter — et elle interdit le coup unique par construction :
+     monter les dégâts au-delà de 640 la casserait.
+
+     ═══ LE COUPLE DE FORCE ET DE FAIBLESSE ═════════════════════
+     `vuln` porte les deux, et c'est la table de l'Ogre qui sert :
+       bete: 0        les bestioles ne peuvent RIEN contre un blindé.
+                      Ni le Braisard, ni le Piqueur, ni la charge du
+                      Sanglier. Zéro, pas « peu » : un char n'a pas
+                      à craindre un cochon.
+       precision: 3,2 le tireur d'élite du Mirador. 70 × 3,2 = 224
+                      par balle, toutes les 2,2 s : un char seul sous
+                      un Mirador meurt en treize secondes. C'est LE
+                      contre, et il doit faire peur.
+       mortier: 2     l'obus du Pilon. Un canon contre un char, c'est
+                      la réponse logique — et le Pilon est la défense
+                      la plus nombreuse de l'île.
+     Ce qui reste au tarif plein : les mitrailleuses du Crible, le
+     Chalumeau, la Bobine. Un char les traverse. C'est voulu.
+
+     ═══ LE RESTE ═══════════════════════════════════════════════
+     vitesse  1,30 contre 1,62 : vingt pour cent plus lent qu'une
+              Furie, mais bien loin du Commando (1,008). « Un peu
+              plus lent », pas injouable.
+     portee   5,5 — un canon porte plus loin qu'une mitrailleuse. Il
+              dépasse d'un cheveu le Crible (5,15), et reste sous le
+              Chalumeau. C'est sa seule impunité, et elle est mince.
+     rayon    1,22, contre 0,34 pour une Furie. C'est l'ENCOMBREMENT,
+              l'écart que deux unités s'imposent — et un char en
+              occupe la place. À 0,95, quatorze chars se
+              chevauchaient d'un tiers et la colonne devenait une
+              tache ; mesuré à l'image, corrigé à l'image.
+     tourelle Le drapeau qui change tout au dessin ET au tir : le
+              char ne fait feu qu'une fois sa tourelle ALIGNÉE. Voir
+              61-tank.js et majUnites.
+
+     ═══ L'INTERCEPTEUR ═════════════════════════════════════════
+     « À l'arrière, un intercepteur qui explose les roquettes des
+     Frelons. Ça doit intercepter 50 % des Frelons. »
+
+     `intercepteur: 2` — UNE ROQUETTE SUR DEUX, PAS « À PEU PRÈS
+     LA MOITIÉ ». Le champ est le DIVISEUR, et c'est un choix, pas
+     une commodité : un tirage au sort à 50 % aurait donné, sur une
+     poignée de roquettes, tantôt trois interceptions sur quatre et
+     tantôt zéro sur quatre. Un joueur qui perd deux chars parce
+     que le hasard lui a refusé quatre interceptions d'affilée n'a
+     rien appris ; il a seulement été puni. Un compteur qui
+     alterne donne exactement la moitié, à chaque char, à chaque
+     partie — et il se teste au lieu de se sonder.
+
+     Le Frelon reste dangereux : ses roquettes portent le drapeau
+     `precision`, donc celles qui passent font 40 × 3,2 = 128. Une
+     sur deux interceptée ramène cela à 64 en moyenne — encore
+     plus qu'une Furie ne prend (40). Le Mirador, lui, n'est pas
+     intercepté du tout : il reste LE contre du char, et c'est bien
+     ainsi qu'on l'a voulu.
+     ------------------------------------------------------------ */
+  tank:{ nom:"TX-90", role:"blindé lourd à canon", pv:1300, portee:5.5, arret:5.2,
+         degats:480, cadence:4000, vitesse:1.30, rayon:1.22, places:2,
+         tourelle:1, vitesseObus:16, ech:2, intercepteur:2,
+         vuln:{ bete:0, precision:3.2, mortier:2 } }
 };
 /* ================================================================
    LE DOC — la quatrième troupe, et la première qui ne tire pas.
@@ -537,7 +631,12 @@ var UNI = {
    capacité Soin, qui est ponctuelle et coûte de l'énergie. C'est le
    chiffre à bouger si l'équilibre ne va pas ; tout le reste est de la
    plomberie. */
-var TYPES_TROUPE = ["furie", "commando", "ogre", "doc"];
+/* L'ORDRE EST UNE CLÉ, PAS UN CLASSEMENT. C'est l'INDICE dans cette
+   liste qui part sur le réseau pour dire de quelle troupe il s'agit
+   (voir 85-reseau.js). Un type qu'on intercale renomme toutes les
+   troupes des joueurs déjà connectés : on ajoute À LA FIN, jamais
+   ailleurs. */
+var TYPES_TROUPE = ["furie", "commando", "ogre", "doc", "tank"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },
