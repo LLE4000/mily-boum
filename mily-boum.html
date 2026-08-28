@@ -1427,7 +1427,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.76";
+var VERSION = "v0.77";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3645,8 +3645,19 @@ function bonusPvDeCarte(i){
    les cartes. On le lit donc au coup par coup, à l'unique endroit où
    une défense décide de ce qu'elle inflige. */
 function multDegatsDefense(){
-  if(!jeu || !carteSpeciale(jeu.index)) return 1;
-  return 1 + reglagesEvt(jeu.index).degBonus / 100;
+  if(!jeu) return 1;
+  /* DEUX FACTEURS, COMME POUR LA VIE. Le bonus gravé d'une carte
+     événement — qui ne vaut que pour elle — et le pourcentage réglé à
+     l'accueil, qui vaut pour n'importe quelle île. Ils se multiplient :
+     ils répondent à deux questions différentes, et rien n'oblige à
+     choisir.
+     Et c'est ici, à l'unique endroit où une défense décide de ce
+     qu'elle inflige, que tout se joue : rien n'est rangé dans les
+     bâtiments, donc rien n'est à mettre à l'échelle. Le premier coup
+     tiré après le réglage porte déjà la nouvelle valeur. */
+  var ke = carteSpeciale(jeu.index)
+         ? (1 + reglagesEvt(jeu.index).degBonus / 100) : 1;
+  return ke * facteurDegats(jeu.index);
 }
 
 /* ----------------------------------------------------------------
@@ -6734,7 +6745,52 @@ function planEstVide(P){
    ================================================================ */
 var BLINDAGE_MAX = 900;
 
-function encodeBlindages(o){
+/* ================================================================
+   ET LE SECOND POURCENTAGE : CE QUE LES DÉFENSES INFLIGENT
+
+   « Je sais mettre des pourcentages de santé supplémentaire sur les
+   défenses des maps, mais je ne sais pas mettre de pourcentage de
+   dégâts des défenses. »
+
+   Le premier réglage dit combien elles ENCAISSENT, celui-ci combien
+   elles FRAPPENT. Ce sont deux boutons différents sur la même île, et
+   ils ne durcissent pas du tout de la même façon : monter la vie
+   allonge la bataille, monter les dégâts la rend mortelle. Une île à
+   +200 % de vie se démonte deux fois plus lentement ; à +200 % de
+   dégâts, elle tue trois fois plus vite. Le panneau le dit.
+
+   IL S'APPLIQUE ENCORE PLUS SIMPLEMENT QUE LA VIE, et c'est une chance
+   d'architecture : les dégâts ne sont pas rangés dans les bâtiments,
+   ils sont LUS dans DEF au moment du tir, en un seul endroit du jeu
+   (voir multDegatsDefense). Il n'y a donc rien à mettre à l'échelle,
+   rien à convertir, rien qui puisse se perdre : le premier coup tiré
+   après le réglage porte déjà la nouvelle valeur, y compris en pleine
+   bataille.
+
+   ET IL NE TOUCHE PAS AU SCORE, contrairement à la vie. Le TOP DÉGÂTS
+   compte ce que le JOUEUR retire, pas ce que les défenses infligent :
+   doubler leur puissance de feu ne change pas d'un point la valeur
+   d'un score, ni passé ni futur. C'est le réglage le plus sûr des
+   deux.
+
+   ────────────────────────────────────────────────────────────────
+   LES DEUX VOYAGENT DANS LE MÊME CHAMP, ET C'EST VOULU
+
+   La table `bd` portait « index:vie » ; elle porte maintenant
+   « index:vie:dégâts », le troisième membre étant omis quand il vaut
+   zéro. Un seul champ, un seul compteur, une seule fusion à
+   raisonner.
+
+   ET UN CLIENT DE LA v0.76 S'EN SORT SANS RIEN CASSER : son
+   `parseInt("20:50")` rend 20, donc il lit la vie correctement et
+   ignore les dégâts. S'il republie, il écrit « index:vie » et perd la
+   partie qu'il ne comprenait pas — que le premier client à jour
+   restaure à sa publication suivante, puisque son compteur est plus
+   grand. C'est exactement le comportement qu'on veut d'un client en
+   retard : il ne comprend pas, il ne casse pas, et il se fait
+   corriger.
+   ================================================================ */
+function encodeReglagesCarte(o){
   if(!o) return "";
   var l = [], k, cles = [];
   /* ON PARCOURT LES CLÉS DE LA TABLE, PAS LE TABLEAU DES CARTES. La
@@ -6751,31 +6807,44 @@ function encodeBlindages(o){
      différents et l'on republie en boucle */
   cles.sort(function(a, b){ return a - b; });
   for(var i = 0; i < cles.length; i++){
-    var v = borne(Math.round(o[cles[i]] || 0), 0, BLINDAGE_MAX);
-    if(v > 0) l.push(cles[i] + ":" + v);
+    var e = o[cles[i]] || {};
+    var pv = borne(Math.round(e.pv || 0), 0, BLINDAGE_MAX);
+    var dg = borne(Math.round(e.dg || 0), 0, BLINDAGE_MAX);
+    if(!pv && !dg) continue;
+    /* le troisième membre n'est écrit que s'il sert : une île réglée
+       en vie seulement produit la même chaîne qu'avant, au caractère
+       près, et l'instantané ne grossit pas pour rien */
+    l.push(dg ? (cles[i] + ":" + pv + ":" + dg) : (cles[i] + ":" + pv));
   }
   return l.join("|");
 }
-function decodeBlindages(s){
+function decodeReglagesCarte(s){
   var o = {};
   if(!s || typeof s !== "string") return o;
   var p = s.split("|");
   for(var i = 0; i < p.length; i++){
-    var j = p[i].indexOf(":");
-    if(j <= 0) continue;
-    var idx = parseInt(p[i].substr(0, j), 10);
-    var v = parseInt(p[i].substr(j + 1), 10);
-    if(!(idx >= 0) || !(v > 0)) continue;
-    o[idx] = borne(Math.round(v), 0, BLINDAGE_MAX);
+    var m = p[i].split(":");
+    if(m.length < 2) continue;
+    var idx = parseInt(m[0], 10);
+    var pv = parseInt(m[1], 10), dg = (m.length > 2) ? parseInt(m[2], 10) : 0;
+    if(!(idx >= 0)) continue;
+    if(!(pv > 0)) pv = 0;
+    if(!(dg > 0)) dg = 0;
+    if(!pv && !dg) continue;
+    o[idx] = { pv:borne(pv, 0, BLINDAGE_MAX), dg:borne(dg, 0, BLINDAGE_MAX) };
   }
   return o;
 }
-/* Le blindage d'UNE carte, tiré d'une table encodée. */
+/* Les deux réglages d'UNE carte, tirés d'une table encodée. */
 function blindageDans(s, index){
-  var t = decodeBlindages(s);
-  return t[index] | 0;
+  var t = decodeReglagesCarte(s);
+  return t[index] ? (t[index].pv | 0) : 0;
 }
-/* Lequel des deux instantanés porte le blindage qui fait foi. Copie
+function degatsDans(s, index){
+  var t = decodeReglagesCarte(s);
+  return t[index] ? (t[index].dg | 0) : 0;
+}
+/* Lequel des deux instantanés porte les réglages qui font foi. Copie
    conforme de meilleurPlan : le numéro tranche, et à numéro égal la
    chaîne la plus grande — pour que deux clients convergent. */
 function meilleurBlindage(a, b){
@@ -6796,9 +6865,11 @@ function poseBlindageSalon(bd, bn){
   numeroBlindage = bn | 0;
   return blindageSalon;
 }
-/* Le facteur en vigueur pour une carte : 1 si rien n'est réglé. */
+/* Les facteurs en vigueur pour une carte : 1 si rien n'est réglé. */
 function blindageDeCarte(i){ return blindageDans(blindageSalon, i); }
 function facteurBlindage(i){ return 1 + blindageDeCarte(i) / 100; }
+function degatsDeCarte(i){ return degatsDans(blindageSalon, i); }
+function facteurDegats(i){ return 1 + degatsDeCarte(i) / 100; }
 
 /* La vie totale des DÉFENSES d'une carte, blindage compris — c'est
    ce chiffre-là que l'accueil doit montrer, et un seul : « six
@@ -41227,18 +41298,26 @@ function regleMinJoueurs(n, pv){ return regleReglagesEvt(IDX_JUNGLE, n, pv); }
    changer tout de suite. Les autres l'auront à l'instantané suivant,
    par le chemin d'à côté (voir l'adoption dans recoitMonde).
    ================================================================ */
-function regleBlindage(index, pourcent){
-  if(!(index >= 0) || index >= CARTES.length) return 0;
-  var t = decodeBlindages(blindageSalon);
-  var avant = t[index] | 0;
-  t[index] = borne(Math.round(pourcent), 0, BLINDAGE_MAX);
-  var chaine = encodeBlindages(t);
-  if(chaine === blindageSalon && (t[index] | 0) === avant) return avant;
+function regleBlindage(index, pourcentPv, pourcentDegats){
+  if(!(index >= 0) || index >= CARTES.length) return null;
+  var t = decodeReglagesCarte(blindageSalon);
+  var avant = t[index] ? (t[index].pv | 0) : 0;
+  var avantDg = t[index] ? (t[index].dg | 0) : 0;
+  t[index] = { pv:borne(Math.round(pourcentPv), 0, BLINDAGE_MAX),
+               dg:borne(Math.round(pourcentDegats), 0, BLINDAGE_MAX) };
+  var chaine = encodeReglagesCarte(t);
+  if(chaine === blindageSalon) return { pv:avant, dg:avantDg };
   poseBlindageSalon(chaine, (numeroBlindage | 0) + 1);
-  if(jeu) reblindeLeJeu(index, avant, t[index] | 0);
+  /* LA VIE SE MET À L'ÉCHELLE, LES DÉGÂTS NON — et c'est toute la
+     différence entre les deux réglages. Les points de vie sont rangés
+     dans chaque bâtiment, il faut donc les convertir ; les dégâts sont
+     lus dans DEF au moment du tir, donc le premier coup tiré après ce
+     réglage porte déjà la nouvelle valeur, sans qu'on touche à quoi
+     que ce soit. */
+  if(jeu) reblindeLeJeu(index, avant, t[index].pv);
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   publieEtat(m, etatEvenements());
-  return t[index] | 0;
+  return { pv:t[index].pv, dg:t[index].dg };
 }
 /* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
@@ -49439,8 +49518,22 @@ function hausseTotalePv(i){
   return Math.round((k - 1) * 100);
 }
 
+/* Et la hausse totale de DÉGÂTS, les deux facteurs multipliés eux
+   aussi : le bonus gravé d'une carte spéciale et le pourcentage réglé
+   à l'accueil. Un seul chiffre, comme pour la vie. */
+function hausseTotaleDegats(i){
+  var ke = carteSpeciale(i) ? (1 + reglagesEvt(i).degBonus / 100) : 1;
+  return Math.round((ke * facteurDegats(i) - 1) * 100);
+}
+
 function pastilleBlindage(i){
-  var b = hausseTotalePv(i);
+  var b = hausseTotalePv(i), d = hausseTotaleDegats(i);
+  if(b > 0 && d > 0)
+    return '<div class="durci"><span class="dz pv">Défenses +' + b
+         + '% PV</span><span class="dz dg">+' + d + '% dégâts</span></div>';
+  if(d > 0)
+    return '<div class="durci"><span class="dz dg">Défenses +' + d
+         + '% dégâts</span></div>';
   if(!(b > 0)) return "";
   /* PAS D'ÉMOJI DANS LA PASTILLE. Le bouclier ne fait pas partie des
      polices de tous les appareils, et un carré vide ou un cœur à la
@@ -49626,7 +49719,7 @@ function vignetteEvenement(i){
           voit pas trois mille plus trois mille, on verra six mille ».
           On multiplie les deux facteurs et l'on affiche le résultat. */
        +   '<span class="dz pv">Défenses +' + hausseTotalePv(i) + '% PV</span>'
-       +   '<span class="dz dg">+' + R.degBonus + '% dégâts</span>'
+       +   '<span class="dz dg">+' + hausseTotaleDegats(i) + '% dégâts</span>'
        +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
        + '</div>'
        + '<div class="jauge">'
@@ -50239,9 +50332,10 @@ function regleBlindageAdmin(){
   for(i = 0; i < ORDRE_CAMPAGNE.length; i++) ordre.push(ORDRE_CAMPAGNE[i]);
   for(i = 0; i < CARTES.length; i++) if(ordre.indexOf(i) < 0) ordre.push(i);
   for(i = 0; i < ordre.length; i++){
-    var k = ordre[i], bl = blindageDeCarte(k);
+    var k = ordre[i], bl = blindageDeCarte(k), dg = degatsDeCarte(k);
     l += "  " + (i + 1) + " — " + CARTES[k].nom
-       + (bl > 0 ? "   [+" + bl + " %]" : "")
+       + (bl > 0 || dg > 0
+            ? "   [vie +" + bl + " % · dégâts +" + dg + " %]" : "")
        + (carteSpeciale(k) ? "   (carte spéciale)" : "")
        + "\n";
   }
@@ -50265,8 +50359,9 @@ function regleBlindageAdmin(){
       + "nouveaux ne se compareront plus tout à fait.\n"
     : "\nCette île n'a pas encore été jouée : rien à comparer,\n"
       + "le blindage y est sans conséquence pour le classement.\n";
+  var actuelDg = degatsDeCarte(idx);
   var rp = prompt(
-    "BLINDER " + nom.toUpperCase() + "\n\n"
+    "BLINDER " + nom.toUpperCase() + " — 1 sur 2 : LA VIE\n\n"
     + "Pourcentage de vie EN PLUS sur ses défenses.\n"
     + "Le Brasier garde exactement la sienne, ainsi que les cellules\n"
     + "à récolter et les réacteurs du bouclier.\n\n"
@@ -50280,17 +50375,43 @@ function regleBlindageAdmin(){
         + ". Rien n'a été changé.");
     return;
   }
-  var pose = regleBlindage(idx, v);
+  /* ET LE SECOND POURCENTAGE, celui de la PUISSANCE DE FEU. Les deux
+     ne durcissent pas du tout de la même façon, et le panneau doit le
+     dire : monter la vie allonge la bataille, monter les dégâts la
+     rend mortelle. On les règle ensemble parce qu'on les pense
+     ensemble. */
+  var rd = prompt(
+    "BLINDER " + nom.toUpperCase() + " — 2 sur 2 : LES DÉGÂTS\n\n"
+    + "Pourcentage de dégâts EN PLUS pour ses défenses.\n"
+    + "Toutes tirent plus fort : Crible, Chalumeau, Frelon, Pilon,\n"
+    + "Bobine, Mirador. Leur portée et leur cadence ne changent pas.\n\n"
+    + "Valeur actuelle : +" + actuelDg + " %.\n\n"
+    + "⚠ Ce réglage-ci ne touche PAS au classement : le TOP DÉGÂTS\n"
+    + "compte ce que TU retires, pas ce que les défenses infligent.\n"
+    + "Il est sans conséquence sur les scores, passés ou futurs.\n\n"
+    + "Il s'applique au coup suivant, même en pleine bataille.\n\n"
+    + "Entre un pourcentage entre 0 et " + BLINDAGE_MAX + " :", "" + actuelDg);
+  if(rd === null) return;
+  var w = parseInt(rd, 10);
+  if(!(w >= 0 && w <= BLINDAGE_MAX)){
+    alert("Il faut un pourcentage entre 0 et " + BLINDAGE_MAX
+        + ". Rien n'a été changé.");
+    return;
+  }
+  var pose = regleBlindage(idx, v, w);
   evtEtat = "";
   majMondes();
   if(typeof rafraichitPlan === "function") rafraichitPlan();
-  alert("Blindage enregistré pour " + nom + " : +" + pose + " %.\n\n"
-      + "Il vaut pour TOUT LE SALON, voyage dans l'instantané partagé\n"
-      + "et survit à la fermeture du navigateur.\n\n"
-      + "Il s'applique IMMÉDIATEMENT, y compris à une partie en cours :\n"
-      + "les défenses sont remises à l'échelle sans que rien ne soit\n"
-      + "réinitialisé — les ruines restent des ruines, et un bâtiment\n"
-      + "à moitié abattu reste à moitié abattu.");
+  alert("Réglages enregistrés pour " + nom + " :\n\n"
+      + "  • défenses à +" + pose.pv + " % de vie\n"
+      + "  • défenses à +" + pose.dg + " % de dégâts\n\n"
+      + "Ils valent pour TOUT LE SALON, voyagent dans l'instantané\n"
+      + "partagé et survivent à la fermeture du navigateur.\n\n"
+      + "Ils s'appliquent IMMÉDIATEMENT, y compris à une partie en\n"
+      + "cours : la vie est remise à l'échelle sans que rien ne soit\n"
+      + "réinitialisé — les ruines restent des ruines, un bâtiment à\n"
+      + "moitié abattu reste à moitié abattu — et les dégâts prennent\n"
+      + "effet au coup suivant.");
 }
 
 /* Cette île a-t-elle déjà été jouée dans ce salon ? On le lit sur

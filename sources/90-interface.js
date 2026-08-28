@@ -1433,8 +1433,22 @@ function hausseTotalePv(i){
   return Math.round((k - 1) * 100);
 }
 
+/* Et la hausse totale de DÉGÂTS, les deux facteurs multipliés eux
+   aussi : le bonus gravé d'une carte spéciale et le pourcentage réglé
+   à l'accueil. Un seul chiffre, comme pour la vie. */
+function hausseTotaleDegats(i){
+  var ke = carteSpeciale(i) ? (1 + reglagesEvt(i).degBonus / 100) : 1;
+  return Math.round((ke * facteurDegats(i) - 1) * 100);
+}
+
 function pastilleBlindage(i){
-  var b = hausseTotalePv(i);
+  var b = hausseTotalePv(i), d = hausseTotaleDegats(i);
+  if(b > 0 && d > 0)
+    return '<div class="durci"><span class="dz pv">Défenses +' + b
+         + '% PV</span><span class="dz dg">+' + d + '% dégâts</span></div>';
+  if(d > 0)
+    return '<div class="durci"><span class="dz dg">Défenses +' + d
+         + '% dégâts</span></div>';
   if(!(b > 0)) return "";
   /* PAS D'ÉMOJI DANS LA PASTILLE. Le bouclier ne fait pas partie des
      polices de tous les appareils, et un carré vide ou un cœur à la
@@ -1620,7 +1634,7 @@ function vignetteEvenement(i){
           voit pas trois mille plus trois mille, on verra six mille ».
           On multiplie les deux facteurs et l'on affiche le résultat. */
        +   '<span class="dz pv">Défenses +' + hausseTotalePv(i) + '% PV</span>'
-       +   '<span class="dz dg">+' + R.degBonus + '% dégâts</span>'
+       +   '<span class="dz dg">+' + hausseTotaleDegats(i) + '% dégâts</span>'
        +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
        + '</div>'
        + '<div class="jauge">'
@@ -2233,9 +2247,10 @@ function regleBlindageAdmin(){
   for(i = 0; i < ORDRE_CAMPAGNE.length; i++) ordre.push(ORDRE_CAMPAGNE[i]);
   for(i = 0; i < CARTES.length; i++) if(ordre.indexOf(i) < 0) ordre.push(i);
   for(i = 0; i < ordre.length; i++){
-    var k = ordre[i], bl = blindageDeCarte(k);
+    var k = ordre[i], bl = blindageDeCarte(k), dg = degatsDeCarte(k);
     l += "  " + (i + 1) + " — " + CARTES[k].nom
-       + (bl > 0 ? "   [+" + bl + " %]" : "")
+       + (bl > 0 || dg > 0
+            ? "   [vie +" + bl + " % · dégâts +" + dg + " %]" : "")
        + (carteSpeciale(k) ? "   (carte spéciale)" : "")
        + "\n";
   }
@@ -2259,8 +2274,9 @@ function regleBlindageAdmin(){
       + "nouveaux ne se compareront plus tout à fait.\n"
     : "\nCette île n'a pas encore été jouée : rien à comparer,\n"
       + "le blindage y est sans conséquence pour le classement.\n";
+  var actuelDg = degatsDeCarte(idx);
   var rp = prompt(
-    "BLINDER " + nom.toUpperCase() + "\n\n"
+    "BLINDER " + nom.toUpperCase() + " — 1 sur 2 : LA VIE\n\n"
     + "Pourcentage de vie EN PLUS sur ses défenses.\n"
     + "Le Brasier garde exactement la sienne, ainsi que les cellules\n"
     + "à récolter et les réacteurs du bouclier.\n\n"
@@ -2274,17 +2290,43 @@ function regleBlindageAdmin(){
         + ". Rien n'a été changé.");
     return;
   }
-  var pose = regleBlindage(idx, v);
+  /* ET LE SECOND POURCENTAGE, celui de la PUISSANCE DE FEU. Les deux
+     ne durcissent pas du tout de la même façon, et le panneau doit le
+     dire : monter la vie allonge la bataille, monter les dégâts la
+     rend mortelle. On les règle ensemble parce qu'on les pense
+     ensemble. */
+  var rd = prompt(
+    "BLINDER " + nom.toUpperCase() + " — 2 sur 2 : LES DÉGÂTS\n\n"
+    + "Pourcentage de dégâts EN PLUS pour ses défenses.\n"
+    + "Toutes tirent plus fort : Crible, Chalumeau, Frelon, Pilon,\n"
+    + "Bobine, Mirador. Leur portée et leur cadence ne changent pas.\n\n"
+    + "Valeur actuelle : +" + actuelDg + " %.\n\n"
+    + "⚠ Ce réglage-ci ne touche PAS au classement : le TOP DÉGÂTS\n"
+    + "compte ce que TU retires, pas ce que les défenses infligent.\n"
+    + "Il est sans conséquence sur les scores, passés ou futurs.\n\n"
+    + "Il s'applique au coup suivant, même en pleine bataille.\n\n"
+    + "Entre un pourcentage entre 0 et " + BLINDAGE_MAX + " :", "" + actuelDg);
+  if(rd === null) return;
+  var w = parseInt(rd, 10);
+  if(!(w >= 0 && w <= BLINDAGE_MAX)){
+    alert("Il faut un pourcentage entre 0 et " + BLINDAGE_MAX
+        + ". Rien n'a été changé.");
+    return;
+  }
+  var pose = regleBlindage(idx, v, w);
   evtEtat = "";
   majMondes();
   if(typeof rafraichitPlan === "function") rafraichitPlan();
-  alert("Blindage enregistré pour " + nom + " : +" + pose + " %.\n\n"
-      + "Il vaut pour TOUT LE SALON, voyage dans l'instantané partagé\n"
-      + "et survit à la fermeture du navigateur.\n\n"
-      + "Il s'applique IMMÉDIATEMENT, y compris à une partie en cours :\n"
-      + "les défenses sont remises à l'échelle sans que rien ne soit\n"
-      + "réinitialisé — les ruines restent des ruines, et un bâtiment\n"
-      + "à moitié abattu reste à moitié abattu.");
+  alert("Réglages enregistrés pour " + nom + " :\n\n"
+      + "  • défenses à +" + pose.pv + " % de vie\n"
+      + "  • défenses à +" + pose.dg + " % de dégâts\n\n"
+      + "Ils valent pour TOUT LE SALON, voyagent dans l'instantané\n"
+      + "partagé et survivent à la fermeture du navigateur.\n\n"
+      + "Ils s'appliquent IMMÉDIATEMENT, y compris à une partie en\n"
+      + "cours : la vie est remise à l'échelle sans que rien ne soit\n"
+      + "réinitialisé — les ruines restent des ruines, un bâtiment à\n"
+      + "moitié abattu reste à moitié abattu — et les dégâts prennent\n"
+      + "effet au coup suivant.");
 }
 
 /* Cette île a-t-elle déjà été jouée dans ce salon ? On le lit sur

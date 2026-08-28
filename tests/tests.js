@@ -38,7 +38,8 @@ try{
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
-    "BLINDAGE_MAX","encodeBlindages","decodeBlindages","blindageDans","meilleurBlindage",
+    "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
+    "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "ORDRE_CAMPAGNE",
     "pavoiseLaGuinguette","PAVOIS_COURONNES","PAVOIS_ALLEE","PAVOIS_PAS","PAVOIS_CX",
@@ -6558,21 +6559,45 @@ G("8. Cohérence des règles de jeu");
      différents et l'on republie en boucle.
      --------------------------------------------------------------- */
   (function(){
-    ok("une table vide s'encode en rien", N.encodeBlindages({}) === "");
-    ok("un zéro ne s'écrit pas", N.encodeBlindages({ 3:0 }) === "");
-    var a = N.encodeBlindages({ 6:120, 2:50 });
-    var b = N.encodeBlindages({ 2:50, 6:120 });
+    ok("une table vide s'encode en rien", N.encodeReglagesCarte({}) === "");
+    ok("un zéro ne s'écrit pas", N.encodeReglagesCarte({ 3:{pv:0, dg:0} }) === "");
+    var a = N.encodeReglagesCarte({ 6:{pv:120}, 2:{pv:50} });
+    var b = N.encodeReglagesCarte({ 2:{pv:50}, 6:{pv:120} });
     ok("l'ordre d'insertion ne change pas la chaîne", a === b, a);
     ok("… et elle se relit à l'identique",
-       N.decodeBlindages(a)[2] === 50 && N.decodeBlindages(a)[6] === 120);
-    ok("le plafond tient", N.encodeBlindages({ 1:99999 }) === "1:" + N.BLINDAGE_MAX);
-    ok("… et le plancher aussi", N.encodeBlindages({ 1:-40 }) === "");
+       N.blindageDans(a, 2) === 50 && N.blindageDans(a, 6) === 120);
+    ok("le plafond tient",
+       N.encodeReglagesCarte({ 1:{pv:99999} }) === "1:" + N.BLINDAGE_MAX);
+    ok("… et le plancher aussi", N.encodeReglagesCarte({ 1:{pv:-40} }) === "");
+    /* ══ LE SECOND POURCENTAGE, CELUI DES DÉGÂTS ══
+       Il voyage dans le MÊME champ, en troisième membre, et n'est
+       écrit que s'il sert : une île réglée en vie seulement produit la
+       chaîne d'avant au caractère près. C'est ce qui permet à un
+       client de la v0.76 de continuer à lire la vie correctement. */
+    ok("une île réglée en vie seulement s'écrit comme avant",
+       N.encodeReglagesCarte({ 6:{pv:20, dg:0} }) === "6:20");
+    ok("… et avec des dégâts, le troisième membre apparaît",
+       N.encodeReglagesCarte({ 6:{pv:20, dg:50} }) === "6:20:50");
+    ok("… les deux se relisent séparément",
+       N.blindageDans("6:20:50", 6) === 20 && N.degatsDans("6:20:50", 6) === 50);
+    ok("… et des dégâts seuls s'écrivent avec une vie nulle",
+       N.encodeReglagesCarte({ 6:{pv:0, dg:80} }) === "6:0:80" &&
+       N.degatsDans("6:0:80", 6) === 80 && N.blindageDans("6:0:80", 6) === 0);
+    /* UN CLIENT DE LA v0.76 LIT « 6:20:50 » COMME « 6:20 » : son
+       parseInt s'arrête au deux-points. Il ne comprend pas les dégâts,
+       mais il ne casse pas la vie — et le compteur le corrige. */
+    ok("un client d'avant y lirait la vie sans se tromper",
+       parseInt("20:50", 10) === 20);
     /* une chaîne venue du relais peut être n'importe quoi */
     ["", null, undefined, "n'importe quoi", "2:", ":50", "2:abc", "|||", "-1:50",
-     "2:50|2:70"].forEach(function(x){
-      var t = N.decodeBlindages(x);
-      for(var k in t) if(!(t[k] >= 0 && t[k] <= N.BLINDAGE_MAX)) t.mauvais = 1;
-      if(t.mauvais) ok("une chaîne malformée ne passe pas : " + x, false);
+     "2:50|2:70", "2:50:abc", "2::50", "2:50:70:90", "2:-5:-9"].forEach(function(x){
+      var t = N.decodeReglagesCarte(x), mauvais = 0;
+      for(var k in t){
+        var e = t[k];
+        if(!(e.pv >= 0 && e.pv <= N.BLINDAGE_MAX)) mauvais = 1;
+        if(!(e.dg >= 0 && e.dg <= N.BLINDAGE_MAX)) mauvais = 1;
+      }
+      if(mauvais) ok("une chaîne malformée ne passe pas : " + x, false);
     });
     ok("aucune chaîne malformée ne fait sortir une valeur folle", true);
     ok("et une carte sans réglage vaut zéro", N.blindageDans("6:120", 2) === 0);
@@ -6625,8 +6650,8 @@ G("8. Cohérence des règles de jeu");
     for(i = 0; i < N.CARTES.length; i++)
       nus.push(N.genereCarte("BL", i, N.planDeCarte(i, ""), 0));
 
-    N.poseBlindageSalon(N.encodeBlindages((function(){
-      var t = {}; for(var k = 0; k < N.CARTES.length; k++) t[k] = 100; return t;
+    N.poseBlindageSalon(N.encodeReglagesCarte((function(){
+      var t = {}; for(var k = 0; k < N.CARTES.length; k++) t[k] = { pv:100 }; return t;
     })()), 1);
 
     var memeIndex = 1, memeNombre = 1, doubles = 1, inertes = 1, qg = 1;
@@ -6776,10 +6801,20 @@ G("8. Cohérence des règles de jeu");
       ok("… et il avertit quand l'île porte déjà des scores",
          adm[0].indexOf("ATTENTION") > 0 && adm[0].indexOf("dejaJouee") > 0);
     }
-    ok("le poseur publie et incrémente son numéro",
-       /function regleBlindage\(index, pourcent\)[\s\S]{0,900}numeroBlindage \| 0\) \+ 1/.test(html));
-    ok("… et applique tout de suite à la partie en cours",
-       /function regleBlindage\(index, pourcent\)[\s\S]{0,900}reblindeLeJeu\(/.test(html));
+    var pos = html.match(/function regleBlindage[\s\S]*?\n\}/);
+    ok("le poseur est dans le fichier livré", !!pos);
+    if(pos){
+      ok("… il publie et incrémente son numéro",
+         /numeroBlindage \| 0\) \+ 1/.test(pos[0]));
+      ok("… il remet la VIE à l'échelle sur la partie en cours",
+         /reblindeLeJeu\(index, avant, t\[index\]\.pv\)/.test(pos[0]));
+      /* LES DÉGÂTS N'ONT RIEN À METTRE À L'ÉCHELLE : ils ne sont pas
+         rangés dans les bâtiments, ils sont lus dans DEF au moment du
+         tir. Le poseur ne doit donc RIEN faire pour eux — et s'il
+         faisait quelque chose, ce serait un défaut. */
+      ok("… et ne touche à rien pour les dégâts, qui se lisent au tir",
+         pos[0].indexOf("degats") < 0 || pos[0].indexOf("reblindeDegats") < 0);
+    }
     /* L'ORDRE COMPTE, ET DANS LA SEULE FONCTION QUI REÇOIT : on adopte
        le blindage AVANT d'adopter le plan et AVANT d'appliquer les
        destructions. Si la carte doit être refaite parce que le plan a
@@ -6892,19 +6927,105 @@ G("8. Cohérence des règles de jeu");
        jour où une île s'ajoute, un client resté en arrière relit la
        table, la ré-encode, et efface le réglage de la carte qu'il ne
        connaît pas. */
-    var loin = {}; loin[N.CARTES.length + 3] = 60; loin[1] = 20;
-    var enc = N.encodeBlindages(loin);
+    var loin = {}; loin[N.CARTES.length + 3] = { pv:60 }; loin[1] = { pv:20 };
+    var enc = N.encodeReglagesCarte(loin);
     ok("l'encodage garde un réglage pour une carte qu'on ne connaît pas",
        enc.indexOf((N.CARTES.length + 3) + ":60") >= 0, enc);
     ok("… et le tour complet ne perd rien",
-       N.encodeBlindages(N.decodeBlindages(enc)) === enc);
+       N.encodeReglagesCarte(N.decodeReglagesCarte(enc)) === enc);
     ok("… tout en restant trié, donc stable d'un client à l'autre",
-       N.encodeBlindages({ 9:5, 1:20 }) === N.encodeBlindages({ 1:20, 9:5 }));
+       N.encodeReglagesCarte({ 9:{pv:5}, 1:{pv:20} }) ===
+       N.encodeReglagesCarte({ 1:{pv:20}, 9:{pv:5} }));
+    ok("… dégâts compris",
+       N.encodeReglagesCarte(N.decodeReglagesCarte("1:20:30|9:0:5")) === "1:20:30|9:0:5");
+  })();
+
+  /* ---------------------------------------------------------------
+     8. LE POURCENTAGE DE DÉGÂTS. « Je sais mettre des pourcentages de
+     santé supplémentaire sur les défenses des maps, mais je ne sais
+     pas mettre de pourcentage de dégâts des défenses. »
+
+     C'est le frère du blindage, et il est plus simple : les dégâts ne
+     sont pas rangés dans les bâtiments, ils sont LUS dans DEF au
+     moment du tir, en un seul endroit. Rien à mettre à l'échelle,
+     rien à convertir — et rien à craindre pour le classement.
+     --------------------------------------------------------------- */
+  (function(){
+    N.poseBlindageSalon("", 0);
+    ok("sans réglage, une carte ne majore aucun dégât",
+       N.degatsDeCarte(2) === 0 && N.facteurDegats(2) === 1);
+    N.poseBlindageSalon("2:0:150|6:20:80", 1);
+    ok("les dégâts se règlent carte par carte",
+       N.degatsDeCarte(2) === 150 && N.degatsDeCarte(6) === 80 &&
+       N.degatsDeCarte(3) === 0);
+    ok("… et n'empiètent pas sur la vie",
+       N.blindageDeCarte(2) === 0 && N.blindageDeCarte(6) === 20);
+    ok("… le facteur suit", Math.abs(N.facteurDegats(2) - 2.5) < 1e-9);
+
+    /* LA VIE NE BOUGE PAS QUAND ON RÈGLE LES DÉGÂTS. Deux boutons,
+       deux effets, aucun mélange. */
+    var nu = (function(){ N.poseBlindageSalon("", 0);
+      return N.pvDefensesCarte(N.genereCarte("DG", 2, "", 0)); })();
+    N.poseBlindageSalon("2:0:300", 1);
+    ok("régler les dégâts ne change pas un point de vie",
+       N.pvDefensesCarte(N.genereCarte("DG", 2, "", 0)) === nu,
+       nu + " PV des deux côtés");
+
+    /* ET LE MULTIPLICATEUR, RELU DEPUIS LE FICHIER LIVRÉ. Il vaut pour
+       TOUTES les cartes maintenant, pas seulement les spéciales — et
+       il multiplie les deux facteurs au lieu d'en choisir un. */
+    var md = html.match(/function multDegatsDefense[\s\S]*?\n\}/);
+    ok("le multiplicateur de dégâts est dans le fichier livré", !!md);
+    if(md){
+      ok("… il ne se limite plus aux cartes spéciales",
+         md[0].indexOf("!carteSpeciale(jeu.index)) return 1") < 0);
+      ok("… et il multiplie le bonus d'expédition par le réglage",
+         /facteurDegats\(jeu\.index\)/.test(md[0]) &&
+         /reglagesEvt\(jeu\.index\)\.degBonus/.test(md[0]));
+    }
+    /* UN SEUL ENDROIT LE LIT, et c'est ce qui rend le réglage instantané */
+    var lus = (html.match(/multDegatsDefense\(\)/g) || []).length;
+    ok("une seule défense au monde lit ce multiplicateur, au moment du tir",
+       lus === 2, lus + " occurrence(s) — la définition et l'appel");
+
+    /* LE CLASSEMENT NE BOUGE PAS. Le TOP DÉGÂTS compte ce que le
+       JOUEUR retire, pas ce que les défenses infligent : c'est le seul
+       des deux réglages qui soit sans conséquence sur les scores. */
+    var tou = html.match(/function toucheBatiment[\s\S]*?\n\}/);
+    if(tou)
+      ok("le score compte les dégâts du joueur, jamais ceux des défenses",
+         /jeu\.degatsMoi \+= Math\.max\(0, Math\.min\(d, b\.pv\)\)/.test(tou[0]) &&
+         tou[0].indexOf("multDegatsDefense") < 0);
+
+    /* L'AFFICHAGE : un seul chiffre là aussi, jamais deux à multiplier */
+    ok("la hausse totale de dégâts se calcule en un seul chiffre",
+       /function hausseTotaleDegats/.test(html));
+    var vg = html.match(/function vignetteEvenement[\s\S]*?\n\}/);
+    if(vg)
+      ok("… et la vignette d'une carte spéciale montre le total, pas le bonus seul",
+         vg[0].indexOf("hausseTotaleDegats(i)") > 0 &&
+         vg[0].indexOf("R.degBonus + '% dégâts") < 0);
+    ok("une île de campagne réglée en dégâts porte sa pastille",
+       /Défenses \+' \+ d\n?\s*\+ '% dégâts/.test(html) ||
+       /'% dégâts<\/span><\/div>'/.test(html));
+
+    /* LE PANNEAU POSE LES DEUX QUESTIONS, dans cet ordre */
+    var adm = html.match(/function regleBlindageAdmin[\s\S]*?\n\}\n/);
+    if(adm){
+      ok("le panneau demande la vie, puis les dégâts",
+         adm[0].indexOf("1 sur 2 : LA VIE") > 0 &&
+         adm[0].indexOf("2 sur 2 : LES DÉGÂTS") > 0 &&
+         adm[0].indexOf("1 sur 2 : LA VIE") < adm[0].indexOf("2 sur 2 : LES DÉGÂTS"));
+      ok("… et dit que les dégâts, eux, ne touchent pas au classement",
+         adm[0].indexOf("ne touche PAS au classement") > 0);
+    }
+    N.poseBlindageSalon("", 0);
   })();
 
   N.poseBlindageSalon("", 0);
   ok("la table est remise à zéro pour la suite des tests",
-     N.blindageDeCarte(0) === sauve && N.blindageDeCarte(0) === 0);
+     N.blindageDeCarte(0) === sauve && N.blindageDeCarte(0) === 0 &&
+     N.degatsDeCarte(0) === 0);
 })();
 
 /* ---------------- bilan ---------------- */

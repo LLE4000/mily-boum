@@ -948,18 +948,26 @@ function regleMinJoueurs(n, pv){ return regleReglagesEvt(IDX_JUNGLE, n, pv); }
    changer tout de suite. Les autres l'auront à l'instantané suivant,
    par le chemin d'à côté (voir l'adoption dans recoitMonde).
    ================================================================ */
-function regleBlindage(index, pourcent){
-  if(!(index >= 0) || index >= CARTES.length) return 0;
-  var t = decodeBlindages(blindageSalon);
-  var avant = t[index] | 0;
-  t[index] = borne(Math.round(pourcent), 0, BLINDAGE_MAX);
-  var chaine = encodeBlindages(t);
-  if(chaine === blindageSalon && (t[index] | 0) === avant) return avant;
+function regleBlindage(index, pourcentPv, pourcentDegats){
+  if(!(index >= 0) || index >= CARTES.length) return null;
+  var t = decodeReglagesCarte(blindageSalon);
+  var avant = t[index] ? (t[index].pv | 0) : 0;
+  var avantDg = t[index] ? (t[index].dg | 0) : 0;
+  t[index] = { pv:borne(Math.round(pourcentPv), 0, BLINDAGE_MAX),
+               dg:borne(Math.round(pourcentDegats), 0, BLINDAGE_MAX) };
+  var chaine = encodeReglagesCarte(t);
+  if(chaine === blindageSalon) return { pv:avant, dg:avantDg };
   poseBlindageSalon(chaine, (numeroBlindage | 0) + 1);
-  if(jeu) reblindeLeJeu(index, avant, t[index] | 0);
+  /* LA VIE SE MET À L'ÉCHELLE, LES DÉGÂTS NON — et c'est toute la
+     différence entre les deux réglages. Les points de vie sont rangés
+     dans chaque bâtiment, il faut donc les convertir ; les dégâts sont
+     lus dans DEF au moment du tir, donc le premier coup tiré après ce
+     réglage porte déjà la nouvelle valeur, sans qu'on touche à quoi
+     que ce soit. */
+  if(jeu) reblindeLeJeu(index, avant, t[index].pv);
   var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
   publieEtat(m, etatEvenements());
-  return t[index] | 0;
+  return { pv:t[index].pv, dg:t[index].dg };
 }
 /* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
