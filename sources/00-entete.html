@@ -575,20 +575,20 @@ select.champ{cursor:pointer}
   flex-basis:100%;margin-top:2px}
 .monde.evt .barreJ i{display:block;height:100%;border-radius:4px;
   background:linear-gradient(90deg,#2f8f5e,#8ff0b4);transition:width .4s}
-#btJungle{width:calc(100% - 20px);margin:0 10px 10px;padding:12px;font-size:15px;font-weight:900;
+.btEvt{width:calc(100% - 20px);margin:0 10px 10px;padding:12px;font-size:15px;font-weight:900;
   letter-spacing:1.2px;border-radius:12px;border:0;cursor:pointer;color:#06180e;
   background:linear-gradient(180deg,#9bf6bd,#2fb872);box-shadow:0 4px 16px rgba(60,200,120,.35)}
-#btJungle:disabled{background:#232c26;color:#5f6b63;box-shadow:none;cursor:default}
+.btEvt:disabled{background:#232c26;color:#5f6b63;box-shadow:none;cursor:default}
 /* Prête : le liseré et le bouton respirent, pour qu'on comprenne d'un
    coup d'œil qu'il n'y a plus qu'à appuyer. */
 .monde.evt.prete{border-color:rgba(140,255,180,.75)}
-.monde.evt.prete #btJungle{animation:pulseJungle 1.5s ease-in-out infinite}
+.monde.evt.prete .btEvt{animation:pulseJungle 1.5s ease-in-out infinite}
 @keyframes pulseJungle{
   0%,100%{box-shadow:0 4px 16px rgba(60,200,120,.35)}
   50%{box-shadow:0 4px 30px rgba(120,255,180,.85)}
 }
 @media (prefers-reduced-motion:reduce){
-  .monde.evt.prete #btJungle{animation:none}
+  .monde.evt.prete .btEvt{animation:none}
 }
 
 /* ---- LE VOLET D'ENTRÉE DANS LA JUNGLE ----
