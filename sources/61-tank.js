@@ -213,7 +213,11 @@ function cheminT(c, pts, ca, sa){
 var C_TANK = {
   /* la peinture d'usine */
   coque:"#6e6c47", coqueO:"#4f4d31", coqueN:"#34331f",
-  toit:"#87855c", liseré:"#1d1c11", jupe:"#4a4930",
+  /* Il n'y a plus de teinte de JUPE : les jupes latérales et les
+     garde-boue ont été retirés, parce qu'ils cachaient les chenilles.
+     La couleur part avec eux — une entrée de palette que plus rien ne
+     lit finit par être réemployée par mégarde. */
+  toit:"#87855c", liseré:"#1d1c11",
   /* la tourelle est d'un demi-ton plus claire : elle est plus haut,
      elle prend plus de ciel */
   tourelle:"#787650", tourelleT:"#96946a",

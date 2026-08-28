@@ -1629,17 +1629,33 @@ G("4. Déterminisme de la génération de carte");
     ok("il est aussi discret qu'une petite troupe",
        D.rayon < N.UNI.ogre.rayon && D.rayon <= N.UNI.commando.rayon);
 
-    /* LE FIL — deux bits pour le type, et la compatibilité dans les
-       deux sens. Le bit 0 reste l'orientation ; au-dessus vient
-       l'INDICE dans TYPES_TROUPE. Tout tient à l'ORDRE de cette table :
-       furie en 0 et commando en 1 sont les deux valeurs qu'un ancien
-       client sait produire, et elles gardent leur sens. */
+    /* LE FIL — l'INDICE du type, et la compatibilité dans les deux
+       sens. Le bit 0 reste l'orientation ; au-dessus vient l'indice
+       dans TYPES_TROUPE. Tout tient à l'ORDRE de cette table : furie
+       en 0 et commando en 1 sont les deux valeurs qu'un ancien client
+       sait produire, et elles gardent leur sens.
+
+       DEUX DE CES VÉRIFICATIONS DISAIENT AUTRE CHOSE, et elles ont
+       menti le jour où une cinquième troupe est arrivée.
+
+       « Quatre troupes exactement » n'a jamais été une propriété du
+       jeu : c'était le nombre qu'il y avait le jour où le test a été
+       écrit. Ce qui doit être gardé n'est pas le NOMBRE, c'est que le
+       PRÉFIXE de la table ne bouge jamais — un type qu'on intercale
+       renomme toutes les troupes des joueurs déjà connectés.
+
+       « Le type tient sur deux bits » était faux dès l'origine : le
+       code part en JSON, c'est un NOMBRE, et un nombre n'a pas de
+       largeur. Deux bits suffisaient à quatre types, voilà tout. Ce
+       qui compte vraiment est que l'aller-retour soit exact quel que
+       soit le nombre de types — et c'est la vérification suivante,
+       celle qui n'a jamais eu besoin d'être corrigée. */
     var T = N.TYPES_TROUPE;
-    ok("quatre troupes exactement", T.length === 4, T.join(","));
-    ok("l'ordre historique est intact : furie=0, commando=1",
-       T[0] === "furie" && T[1] === "commando", T.join(","));
-    ok("le type tient sur deux bits — au-delà, le format du fil casse",
-       T.length <= 4, T.length + " types");
+    ok("le préfixe historique de la table est intact",
+       T[0] === "furie" && T[1] === "commando" && T[2] === "ogre" && T[3] === "doc",
+       T.join(","));
+    ok("… et les nouvelles troupes s'ajoutent APRÈS lui (" + T.length + " types)",
+       T.length >= 4 && T.indexOf("tank") >= 4, T.join(","));
     var rond = true, det = "";
     for(var i = 0; i < T.length; i++){
       for(var d = 0; d < 2; d++){
@@ -1653,6 +1669,12 @@ G("4. Déterminisme de la génération de carte");
        Commando — une silhouette approchée, jamais une erreur. */
     ok("un ancien client voit l'Ogre en Furie, le Doc en Commando",
        !(((T.indexOf("ogre") << 1) + 1) & 2) && !!(((T.indexOf("doc") << 1) + 1) & 2));
+    /* Et le TX-90, qu'un ancien client ne connaît pas du tout : son
+       indice 4 met le bit 3, pas le bit 1 — il le lit donc en Furie.
+       Une silhouette approchée, jamais un plantage : c'est tout ce
+       qu'on demande à la compatibilité descendante. */
+    ok("… et le TX-90 en Furie, faute de mieux",
+       !(((T.indexOf("tank") << 1) + 1) & 2));
     /* Et ce qu'un client NEUF comprend en recevant les anciens codes. */
     ok("les quatre anciens codes gardent exactement leur sens",
        T[0 >> 1] === "furie" && T[1 >> 1] === "furie" &&
@@ -1662,6 +1684,276 @@ G("4. Déterminisme de la génération de carte");
        `undefined` et faire planter le dessin. */
     var horsTable = Math.min(Math.max(9 >> 1, 0), T.length - 1);
     ok("un type inconnu retombe sur une troupe existante", !!T[horsTable], T[horsTable]);
+  })();
+
+  /* ================================================================
+     4f. LE TX-90
+
+     La troupe lourde. Ce groupe garde quatre choses, et aucune n'est
+     une question de goût :
+
+       SON ÉQUILIBRAGE, qui a été calculé et non deviné — la
+       composition visée est sept barges de chars contre sept barges
+       de Furies, et les deux doivent valoir autant ;
+       SA PROMESSE, « il ne détruit aucune défense en un seul coup » ;
+       SES CONTRES, qui sont ce qui l'empêche d'être une troupe sans
+       réponse ;
+       ET QUE LES QUATRE AUTRES TROUPES N'AIENT RIEN CHANGÉ.
+     ================================================================ */
+  G("4f. Le TX-90");
+  (function(){
+    var K = N.UNI.tank, F = N.UNI.furie, CO = N.UNI.commando;
+    ok("le TX-90 existe, et il s'appelle TX-90", !!K && K.nom === "TX-90");
+    if(!K) return;
+    ok("il est proposé au briefing", N.TYPES_TROUPE.indexOf("tank") >= 0);
+    ok("deux par barge, comme demandé", N.placesNavette("tank") === 2,
+       "" + N.placesNavette("tank"));
+    ok("il ne gonfle pas la flotte maximale",
+       N.flotteMaximum() === N.EQ.NB_BARGES * N.placesNavette("commando"),
+       "" + N.flotteMaximum());
+
+    /* ---- SON CARACTÈRE : lourd, lent, régulier ---- */
+    ok("il a bien plus de vie qu'une Furie (" + F.pv + " → " + K.pv + ")",
+       K.pv > F.pv * 6, "×" + (K.pv / F.pv).toFixed(1));
+    ok("… et plus qu'un Commando, la seule autre troupe résistante",
+       K.pv > CO.pv, K.pv + " contre " + CO.pv);
+    ok("il est plus lent qu'une Furie", K.vitesse < F.vitesse,
+       K.vitesse + " contre " + F.vitesse);
+    ok("… mais « un peu », pas comme un Commando",
+       K.vitesse > CO.vitesse && K.vitesse > F.vitesse * 0.72,
+       "×" + (K.vitesse / F.vitesse).toFixed(2) + " la Furie");
+    ok("il tire toutes les quatre secondes", K.cadence === 4000, K.cadence + " ms");
+    ok("il tire de plus loin qu'une mitrailleuse ne porte",
+       K.portee > N.DEF.crible.portee, K.portee + " contre " + N.DEF.crible.portee);
+    ok("… mais il s'arrête toujours en deçà de sa portée",
+       K.arret < K.portee, K.arret + " < " + K.portee);
+
+    /* ---- LA PROMESSE : PAS DE COUP UNIQUE ----
+       « De bons dégâts, mais pas trop explosifs. Sans détruire les
+       défenses en un seul coup. » La borne haute est donc la défense
+       la plus FRAGILE : au-delà, le char la pulvérise d'un obus. */
+    (function(){
+      var mini = 1e9, nomMini = "", maxi = 0, nomMaxi = "", coups = {};
+      Object.keys(N.DEF).forEach(function(t){
+        var b = N.DEF[t];
+        if(!(b.degats > 0) || !b.tourelle) return;
+        coups[t] = Math.ceil(b.pv / K.degats);
+        if(b.pv < mini){ mini = b.pv; nomMini = b.nom; }
+        if(b.pv > maxi){ maxi = b.pv; nomMaxi = b.nom; }
+      });
+      ok("un obus ne suffit à abattre AUCUNE défense (la plus fragile, "
+         + nomMini + ", a " + mini + " PV pour " + K.degats + " de dégâts)",
+         K.degats < mini, K.degats + " < " + mini);
+      ok("… et deux obus suffisent à TOUTES (la plus solide, "
+         + nomMaxi + ", a " + maxi + " PV)",
+         K.degats * 2 >= maxi, (K.degats * 2) + " ≥ " + maxi);
+      ok("… donc exactement deux obus par défense, sans exception",
+         Object.keys(coups).every(function(t){ return coups[t] === 2; }),
+         Object.keys(coups).map(function(t){ return t + ":" + coups[t]; }).join(" "));
+    })();
+
+    /* ---- L'ÉQUILIBRAGE, REFAIT ICI ----
+       Ce qui décide de ce qu'une flotte détruit avant de mourir n'est
+       ni sa vie ni ses dégâts, c'est LE PRODUIT DES DEUX : sous un feu
+       donné, elle tient PV/feu secondes et frappe dps × PV/feu.
+       La composition visée : sept barges de chars et une de Docs,
+       contre sept barges de Furies et une de Docs. */
+    (function(){
+      var nb = 7;
+      var nT = nb * N.placesNavette("tank"), nF = nb * N.placesNavette("furie");
+      var dpsT = K.degats / (K.cadence / 1000), dpsF = F.degats / (F.cadence / 1000);
+      var puisT = (nT * K.pv) * (nT * dpsT), puisF = (nF * F.pv) * (nF * dpsF);
+      var r = puisT / puisF;
+      ok("sept barges donnent bien " + nT + " chars contre " + nF + " Furies",
+         nT === 14 && nF === 84);
+      ok("les deux flottes valent autant à " + Math.round(Math.abs(1 - r) * 100)
+         + " % près (" + (puisT / 1e6).toFixed(1) + " M contre "
+         + (puisF / 1e6).toFixed(1) + " M)",
+         r > 0.80 && r < 1.15, "rapport " + r.toFixed(3));
+      ok("… mais par l'autre bout : bien plus de vie, bien moins de dégâts",
+         nT * K.pv > nF * F.pv * 1.5 && nT * dpsT < nF * dpsF * 0.7,
+         "vie ×" + ((nT * K.pv) / (nF * F.pv)).toFixed(2)
+         + ", dégâts ×" + ((nT * dpsT) / (nF * dpsF)).toFixed(2));
+    })();
+
+    /* ---- LA TABLE DE VULNÉRABILITÉ ----
+       LE ZÉRO EST LE SUJET. multVuln s'écrivait `(f.vuln[arme]) || 1`,
+       ce qui allait très bien tant que toutes les vulnérabilités
+       étaient des multiplicateurs supérieurs à un. L'immunité du char
+       aux bestioles est un ZÉRO, et ce zéro serait retombé à 1 en
+       silence : les sangliers auraient continué de le charger, et
+       rien dans le code n'aurait eu l'air faux.
+       On rejoue donc multVuln depuis le fichier livré. */
+    (function(){
+      var d = html.indexOf("function multVuln(");
+      var f = d < 0 ? -1 : html.indexOf("\n}", d);
+      ok("multVuln se relit dans le fichier livré", d > 0 && f > d);
+      if(d < 0 || f < 0) return;
+      var mv = new Function("UNI", html.slice(d, f + 2) + "; return multVuln;")(N.UNI);
+      ok("ZÉRO EST UNE IMMUNITÉ, pas une absence : les bestioles ne "
+         + "peuvent rien contre un blindé",
+         mv({ t:"tank" }, "bete") === 0, "×" + mv({ t:"tank" }, "bete"));
+      ok("le tireur d'élite, lui, fait très mal au char",
+         mv({ t:"tank" }, "precision") >= 3, "×" + mv({ t:"tank" }, "precision"));
+      ok("… et le canon de siège aussi, mais moins",
+         mv({ t:"tank" }, "mortier") > 1 &&
+         mv({ t:"tank" }, "mortier") < mv({ t:"tank" }, "precision"),
+         "×" + mv({ t:"tank" }, "mortier"));
+      ok("une arme sans entrée dans la table reste au tarif plein",
+         mv({ t:"tank" }, "") === 1 && mv({ t:"tank" }, "inconnue") === 1);
+      /* ET RIEN N'A CHANGÉ POUR LES AUTRES. C'est la moitié du travail
+         d'un correctif : prouver qu'il n'a corrigé QUE ce qu'il visait. */
+      ok("les quatre autres troupes encaissent exactement comme avant",
+         ["furie", "commando", "doc"].every(function(t){
+           return mv({ t:t }, "bete") === 1 && mv({ t:t }, "precision") === 1 &&
+                  mv({ t:t }, "mortier") === 1;
+         }) && mv({ t:"ogre" }, "precision") === 5 &&
+              mv({ t:"ogre" }, "mortier") === 2 && mv({ t:"ogre" }, "bete") === 1);
+    })();
+
+    /* ---- LE MIRADOR RESTE LE CONTRE ----
+       « Les snipers doivent faire énormément de dégâts aux Tanks. » On
+       ne le vérifie pas sur le multiplicateur — il pourrait être élevé
+       et sans effet — mais sur le TEMPS DE SURVIE, qui est ce que le
+       joueur ressent. */
+    (function(){
+      var pire = 1e9, nomPire = "";
+      Object.keys(N.DEF).forEach(function(t){
+        var b = N.DEF[t];
+        if(!(b.degats > 0) || !(b.cadence > 0)) return;
+        var arme = b.precision ? "precision" : (b.mortier ? "mortier" : "");
+        var m = (arme && K.vuln[arme]) || 1;
+        var s = K.pv / (b.degats * m / (b.cadence / 1000));
+        if(s < pire){ pire = s; nomPire = b.nom; }
+      });
+      ok("la défense qui tue le plus vite un TX-90 est le Mirador, "
+         + "le tireur d'élite (" + pire.toFixed(1) + " s)",
+         nomPire === "Mirador", nomPire + " en " + pire.toFixed(1) + " s");
+      var sF = F.pv / (N.DEF.mirador.degats / (N.DEF.mirador.cadence / 1000));
+      var sK = K.pv / (N.DEF.mirador.degats * K.vuln.precision
+                       / (N.DEF.mirador.cadence / 1000));
+      ok("… et le char n'y tient que " + (sK / sF).toFixed(1)
+         + " fois plus longtemps qu'une Furie, pour douze fois sa vie",
+         sK / sF < K.pv / F.pv * 0.45,
+         sF.toFixed(1) + " s contre " + sK.toFixed(1) + " s");
+    })();
+
+    /* ---- L'INTERCEPTEUR : UNE ROQUETTE SUR DEUX, EXACTEMENT ----
+       Pas « à peu près la moitié ». Un tirage au sort à 50 % aurait
+       donné, sur une poignée de roquettes, tantôt trois interceptions
+       sur quatre et tantôt zéro — et un joueur qui perd un char pour
+       cette raison n'a rien appris, il a été puni.
+       On rejoue marqueInterception depuis le fichier livré. */
+    (function(){
+      ok("le char porte un intercepteur, et lui seul",
+         K.intercepteur === 2 &&
+         Object.keys(N.UNI).filter(function(t){ return N.UNI[t].intercepteur; }).length === 1,
+         "une roquette sur " + K.intercepteur);
+      var d = html.indexOf("function marqueInterception(");
+      var f = d < 0 ? -1 : html.indexOf("\n}", d);
+      ok("marqueInterception se relit dans le fichier livré", d > 0 && f > d);
+      if(d < 0 || f < 0) return;
+      var mi = new Function("UNI", html.slice(d, f + 2) + "; return marqueInterception;")(N.UNI);
+      var ch = { t:"tank" }, fu = { t:"furie" }, og = { t:"ogre" };
+      var nT = 0, nF = 0, nO = 0, suite = "";
+      for(var i = 0; i < 50; i++){
+        var v = mi(ch);
+        nT += v; nF += mi(fu); nO += mi(og);
+        if(i < 10) suite += v;
+      }
+      ok("sur cinquante roquettes, le char en abat exactement vingt-cinq",
+         nT === 25, nT + "/50");
+      ok("… en alternant strictement, jamais au hasard",
+         suite === "0101010101", suite);
+      ok("les autres troupes n'interceptent rien du tout",
+         nF === 0 && nO === 0, "Furie " + nF + ", Ogre " + nO);
+      ok("une cible qui n'est pas une troupe ne casse rien",
+         mi(null) === 0 && mi({ k:"bat" }) === 0 && mi({}) === 0);
+      /* ELLE EST POSÉE À LA NAISSANCE DE LA ROQUETTE, et c'est le seul
+         moment qui tienne : une décision prise à l'approche serait
+         comptée deux fois si la roquette changeait de cible en vol. */
+      ok("le verdict est scellé à la naissance de la roquette",
+         /t:"roquette",[\s\S]{0,700}abattue:marqueInterception\(c\)/.test(html));
+      ok("… et la roquette abattue n'inflige RIEN, ni à la cible ni au sol",
+         /if\(p\.abattue[\s\S]{0,320}abatRoquette\(p, p\.cible\);[\s\S]{0,120}splice\(i, 1\);[\s\S]{0,40}continue;/.test(html));
+    })();
+
+    /* ---- LE DESSIN : trois pièces qui tournent séparément ----
+       C'est la raison d'être de tout le fichier 61-tank.js. Ce qu'on
+       garde ici n'est pas la beauté — ça, on le regarde — mais les
+       trois invariants qu'une retouche pourrait casser sans bruit. */
+    (function(){
+      ok("le char est la SEULE troupe qui échappe au miroir de profil",
+         /u\.t === "tank" && typeof dessineTankMonde === "function"/.test(html) &&
+         /function dessineTankMonde\(/.test(html));
+      ok("il porte le drapeau tourelle, et il est seul",
+         K.tourelle === 1 &&
+         Object.keys(N.UNI).filter(function(t){ return N.UNI[t].tourelle; }).length === 1);
+      ok("il ne tire pas tant que sa tourelle n'est pas alignée",
+         (html.match(/f\.tourelle && !tankAligne\(u\)/g) || []).length === 2,
+         "les deux branches de tir, la balise et la chasse");
+      ok("… et l'attente ne coûte aucun délai : le compteur reste à zéro",
+         /f\.tourelle && !tankAligne\(u\)\)\{ u\.prochainTir = 0; \}/.test(html));
+      /* LES CHENILLES SONT ANIMÉES PAR LE DÉPLACEMENT, PAS PAR
+         L'HORLOGE. C'est ce qui fait qu'un char à l'arrêt a des
+         chenilles à l'arrêt et qu'un char englué les fait défiler au
+         ralenti — trois comportements justes pour un seul calcul. */
+      var d2 = html.indexOf("function chenilleT(");
+      var f2 = d2 < 0 ? -1 : html.indexOf("\nfunction ", d2 + 10);
+      ok("chenilleT se relit dans le fichier livré", d2 > 0 && f2 > d2);
+      if(d2 > 0 && f2 > d2){
+        var src = html.slice(d2, f2);
+        ok("aucune horloge dans le dessin des chenilles : c'est le "
+           + "déplacement qui les anime",
+           !/\btps\b|Date\.now|performance\.now/.test(src));
+      }
+      ok("le compteur de chenille se nourrit du déplacement réel",
+         /var d = Math\.hypot\(u\.gx - u\.gxP, u\.gy - u\.gyP\);[\s\S]{0,200}u\.chenille \+= d \* 26;/
+           .test(html));
+      /* LA LARGEUR DES DEUX CHENILLES. Elles sont symétriques dans le
+         modèle ; ce qui les avait rendues inégales à l'écran était un
+         garde-boue qui passait devant l'une et pas l'autre. Le test
+         garde les deux faits : la symétrie du modèle, et l'absence du
+         garde-boue. */
+      var dp = html.indexOf("function profilChenille(");
+      var fp = dp < 0 ? -1 : html.indexOf("\n}", dp);
+      if(dp > 0 && fp > dp){
+        var TKl = /var TK = \{[\s\S]*?\n\};/.exec(html);
+        var mk = new Function("prng",
+          "var TK_PROFIL = null;\n" +
+          (TKl ? TKl[0] : "var TK={};") +
+          html.slice(html.indexOf("function ptT("), html.indexOf("\n}", html.indexOf("function ptT(")) + 2) +
+          html.slice(dp, fp + 2) +
+          "; return { TK:TK, ptT:ptT, profilChenille:profilChenille };")(N.prng);
+        var egal = true, det2 = "";
+        for(var g = 0; g < 12; g++){
+          var ab = g * 0.5236, ca = Math.cos(ab), sa = Math.sin(ab);
+          function larg(cote){
+            var a = mk.ptT(0, mk.TK.chYi * cote, mk.TK.chZ, ca, sa);
+            var b = mk.ptT(0, mk.TK.chYe * cote, mk.TK.chZ, ca, sa);
+            return Math.hypot(b.x - a.x, b.y - a.y);
+          }
+          if(Math.abs(larg(1) - larg(-1)) > 1e-9){ egal = false; det2 += g * 30 + "° "; }
+        }
+        ok("les deux chenilles ont exactement la même largeur, à tous les caps",
+           egal, det2 || "écart nul aux douze caps");
+        var PR = mk.profilChenille();
+        ok("leur contour est une CAPSULE : les deux bouts sont ronds et fermés",
+           PR.R > 0 && Math.abs(PR.R - mk.TK.chZ / 2) < 1e-9 && PR.p.length >= 14,
+           PR.p.length + " points, rayon " + PR.R);
+        ok("… et les tuiles font le tour complet de la boucle",
+           PR.L > mk.TK.chX * 3, PR.L.toFixed(0) + " px de boucle");
+      }
+      /* NI JUPE NI GARDE-BOUE. C'est ce qui rendait les deux chenilles
+         inégales à l'écran : la tôle passait devant celle du fond,
+         dessinée avant elle, et pas devant celle de devant, dessinée
+         après. La teinte part avec la pièce — une entrée de palette
+         que plus rien ne lit finit par être réemployée par mégarde. */
+      var dpal = html.indexOf("var C_TANK = {");
+      var fpal = dpal < 0 ? -1 : html.indexOf("\n};", dpal);
+      ok("la palette du char n'a plus de teinte de jupe",
+         dpal > 0 && fpal > dpal && !/jupe\s*:/.test(html.slice(dpal, fpal)));
+    })();
   })();
 
   /* ---- LES CINQ CELLULES ÉLECTRIQUES ----
