@@ -4226,6 +4226,111 @@ G("4. Déterminisme de la génération de carte");
      "écart au bout : "
      + (2 * Math.sin(N.EQ.VENG_ECART) * N.EQ.VENG_TRAINEE).toFixed(1) + " cases");
 
+  /* ================================================================
+     LES TRAÎNÉES QUI BRÛLENT ENCORE
+
+     Deux phrases de la spécification, que le code ne tenait qu'à
+     moitié, et qu'on rejoue ici avec la VRAIE fonction extraite du
+     fichier livré plutôt qu'avec une copie :
+
+       « toutes les troupes touchées, soit par l'impact, SOIT PAR LES
+        TRAÎNÉES ENFLAMMÉES DERRIÈRE, perdent 90 % de leur vie » — une
+        troupe qui entrait dans une traînée une image après le tir ne
+        prenait que neuf dégâts par seconde, c'est-à-dire rien ;
+
+       « 90 % des PV, JAMAIS la mort » — le commentaire l'affirmait et
+        c'était faux : à onze points de vie, une Furie mourait en une
+        seconde et quart de braise.
+     ================================================================ */
+  (function(){
+    var d = html.indexOf("function brulureVengeance(");
+    var f = d < 0 ? -1 : html.indexOf("\n}", d);
+    ok("brulureVengeance se relit dans le fichier livré", d > 0 && f > d);
+    if(d < 0 || f < 0) return;
+    var src = html.slice(d, f + 2);
+    /* on rejoue la fonction avec des unités de test et les vraies
+       constantes : ce qui est vérifié est le code LIVRÉ */
+    function brule(unites, fl, dt, n){
+      var brulure = new Function("EQ", "unitesAutour", "toucheUnite", "Math",
+        src + "; return brulureVengeance;")(
+          N.EQ,
+          function(gx, gy, r, out){ for(var i = 0; i < unites.length; i++) out.push(unites[i]); },
+          function(u, deg){ u.pv -= deg; },
+          Math);
+      for(var k = 0; k < (n || 1); k++) brulure(fl, dt);
+      return unites;
+    }
+    /* 1. LA DÉCOUVERTE. Une troupe qui n'était pas là au moment du
+          tir et qui entre dans la traînée prend ses 90 %. */
+    (function(){
+      var u = { gx:0, gy:0, pv:560, pvMax:560 };
+      brule([u], { gx:0, gy:0, r:2, veng:7 }, 0.016);
+      ok("une troupe qui ENTRE dans une traînée perd bien ses 90 %",
+         Math.abs(u.pv - 56) < 0.001, u.pv.toFixed(1) + " PV sur 560");
+      ok("… et elle est marquée, donc elle ne les reperd pas à l'image suivante",
+         u.vengPuni === 7);
+    })();
+    /* 2. UNE SEULE FOIS. Cent images de plus ne doivent pas répéter
+          la peine — sinon la traînée ne blesse plus, elle efface. */
+    (function(){
+      var u = { gx:0, gy:0, pv:560, pvMax:560 };
+      brule([u], { gx:0, gy:0, r:2, veng:7 }, 0.016, 100);
+      var attendu = 56 - N.EQ.VENG_BRAISE_DPS * 0.016 * 99;
+      ok("cent images de braise ne rejouent pas la peine",
+         u.pv > attendu - 1 && u.pv < 57,
+         u.pv.toFixed(1) + " PV, soit 56 moins la seule braise");
+    })();
+    /* 3. JAMAIS LA MORT. C'est la promesse la plus dure à tenir,
+          parce qu'elle doit valoir même pour la troupe la plus
+          fragile restée cinq secondes dans le feu. */
+    (function(){
+      var pvF = N.UNI.furie.pv;
+      var u = { gx:0, gy:0, pv:pvF, pvMax:pvF, vengPuni:7 };
+      u.pv = pvF * (1 - N.EQ.VENG_PERTE);          // elle sort du rayon
+      brule([u], { gx:0, gy:0, r:2, veng:7 }, 0.05, Math.ceil(N.EQ.VENG_BRAISE_DUREE / 0.05) + 40);
+      ok("une Furie qui reste dans les braises jusqu'au bout ne meurt pas",
+         u.pv >= 1, u.pv.toFixed(2) + " PV");
+    })();
+    /* 4. HORS DU DISQUE, RIEN. Le test de distance est le seul
+          garde-fou entre « traînée » et « tapis de bombes ». */
+    (function(){
+      var loin = { gx:9, gy:0, pv:560, pvMax:560 };
+      brule([loin], { gx:0, gy:0, r:2, veng:7 }, 0.016);
+      ok("une troupe hors de la traînée n'est pas touchée", loin.pv === 560);
+    })();
+  })();
+
+  /* LE LIEU DU CRIME VOYAGE. Les créatures ne transitent jamais par le
+     réseau et fuient les troupes LOCALES : sans ces deux nombres, deux
+     joueurs voyaient la même riposte tomber à deux endroits. */
+  ok("le coupable envoie la position du chat avec son aveu",
+     /function envoieVengeance\(espece, kx, ky\)\{[\s\S]{0,400}kx:Math\.round/.test(html) &&
+     /declencheVengeance\(m\.e, jeu\.tueurChats\[m\.e\], m\.kx, m\.ky\)/.test(html));
+  ok("… et la fabrique s'en sert quand elle les reçoit",
+     /function declencheVengeance\(espece, tueur, kx, ky\)\{[\s\S]{0,1400}kx:vx, ky:vy/.test(html));
+
+  /* LA COULEUR DE LA COLÈRE suit la forteresse — mais le rouge des
+     onze citadelles ne bouge pas d'un chiffre. */
+  ok("la palette de la vengeance se lit sur le style de la forteresse",
+     /function palVeng\(\)\{[\s\S]{0,200}SQ\.veng[\s\S]{0,60}VENG_ROUGE/.test(html));
+  ok("… et le rouge d'origine est intact, au chiffre près",
+     /noyau:"255,236,214", chair:"255,74,38", sang:"214,12,6"/.test(html) &&
+     /veng:null/.test(html));
+  ok("… le corps du faisceau a sa propre couleur, sans quoi l'or disparaît",
+     /var V_CORPS = PV\.corps \|\| V_SANG;/.test(html) &&
+     /\{ l:larg,\s+col:V_CORPS/.test(html));
+  /* L'effet du cratère était POSÉ et jamais DESSINÉ. */
+  ok("la brûlure au sol de la vengeance est enfin dessinée",
+     /e\.t === "vengBoum"/.test(html) &&
+     /t:"vengBoum", gx:V\.cx, gy:V\.cy/.test(html));
+  /* LE DESSIN GROSSIT, LA PEINE NON — la convention des tornades. */
+  ok("l'échelle spectaculaire ne touche QUE le dessin",
+     N.EQ.VENG_ECH_VISUEL > 1 &&
+     /var ECH = EQ\.VENG_ECH_VISUEL \|\| 1;/.test(html) &&
+     !/VENG_RAYON \* EQ\.VENG_ECH_VISUEL/.test(html) &&
+     !/VENG_LARGEUR \* EQ\.VENG_ECH_VISUEL/.test(html),
+     "×" + N.EQ.VENG_ECH_VISUEL);
+
   /* LES TROIS CASES DE L'INSTANTANÉ. Même contrat que Gégé : le
      premier nom inscrit y reste, quel que soit l'ordre d'arrivée. */
   ok("un instantané neuf n'accuse personne", N.mondeVide(0, 100, 0).k === "");

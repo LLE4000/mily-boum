@@ -1318,7 +1318,7 @@ function recoit(txt){
     if(jeu && !jeu.fin && (typeof m.c !== "number" || m.c === jeu.index) &&
        ESPECES_PROTEGEES.indexOf(m.e) >= 0 && !jeu.tueurChats[m.e]){
       jeu.tueurChats[m.e] = (m.nom || "?").substr(0, 14);
-      declencheVengeance(m.e, jeu.tueurChats[m.e]);
+      declencheVengeance(m.e, jeu.tueurChats[m.e], m.kx, m.ky);
       tueCreatureLocale(m.e);
       signaleMonde();
       demandeMajBarres();
@@ -1475,8 +1475,12 @@ function envoieTweety(){ envoie({ t:"tweety", nom:monNom, c:jeu ? jeu.index : 0 
 /* La vengeance ne transporte AUCUNE coordonnée : chaque client vise
    lui-même, au moment du tir, la troupe du coupable la plus proche du
    chat. Le message dit qui, et quel chat — le reste se déduit. */
-function envoieVengeance(espece){
-  envoie({ t:"veng", nom:monNom, e:espece, c:jeu ? jeu.index : 0 });
+/* On envoie le LIEU DU CRIME avec le nom du coupable : les créatures
+   ne transitent jamais par le réseau, donc sans ces deux nombres
+   chaque client viserait son propre chat, à sa propre place. */
+function envoieVengeance(espece, kx, ky){
+  envoie({ t:"veng", nom:monNom, e:espece, c:jeu ? jeu.index : 0,
+           kx:Math.round((kx || 0) * 10) / 10, ky:Math.round((ky || 0) * 10) / 10 });
 }
 function envoieDestruction(n){ envoie({ t:"det", n:n, c:jeu ? jeu.index : 0 }); signaleMonde(); }
 function envoieCarte(c){ envoie({ t:"carte", c:c }); }

@@ -1120,8 +1120,8 @@ function abimeCreature(c, d){
     /* Un des trois chats de Mily. Là, il ne s'agit plus de deuil. */
     if(CRE[c.t].protege && !jeu.tueurChats[c.t]){
       jeu.tueurChats[c.t] = monNom;
-      declencheVengeance(c.t, monNom);
-      envoieVengeance(c.t);
+      declencheVengeance(c.t, monNom, c.gx, c.gy);
+      envoieVengeance(c.t, c.gx, c.gy);
       signaleMonde();
     }
     demandeMajBarres();
@@ -1150,18 +1150,32 @@ function abimeCreature(c, d){
    d'envoyer de coordonnées, et chaque client reste seul juge des
    dégâts subis par SES troupes — c'est le modèle du reste du jeu.
    ================================================================ */
-function declencheVengeance(espece, tueur){
+/* LE COMPTEUR DE VENGEANCES. Il sert à marquer les troupes déjà
+   punies et les braises d'une même riposte : sans lui, une troupe
+   punie par la première vengeance reprendrait 90 % en marchant dans
+   les braises de la seconde, et une troupe punie tout court les
+   reprendrait à chaque image. Il ne sort jamais de l'appareil. */
+var vengN = 0;
+function declencheVengeance(espece, tueur, kx, ky){
   if(!jeu || jeu.fin) return;
   var k = null;
   for(var i = 0; i < jeu.creatures.length; i++)
     if(jeu.creatures[i].t === espece){ k = jeu.creatures[i]; break; }
+  /* LE LIEU DU CRIME VOYAGE AVEC LE MESSAGE, et il le faut.
+     Les créatures ne transitent jamais par le réseau : elles fuient
+     les troupes LOCALES, chacune sur son appareil, si bien que le
+     même chat n'est pas au même endroit chez deux joueurs. En
+     cherchant le chat localement, chaque client visait un point
+     différent et voyait une autre riposte. Le coupable envoie donc
+     SES coordonnées, et tout le salon regarde le même tir. */
+  var vx = (typeof kx === "number" && isFinite(kx)) ? kx : (k ? k.gx : jeu.qg.gx);
+  var vy = (typeof ky === "number" && isFinite(ky)) ? ky : (k ? k.gy : jeu.qg.gy);
   jeu.vengeance = {
-    ph:"message", t:0,
+    ph:"message", t:0, id:++vengN,
     espece:espece,
     nomBete:CRE[espece].nom,
     tueur:String(tueur || "?").substr(0, 14),
-    /* le lieu du crime : c'est de là que part la recherche de coupable */
-    kx:k ? k.gx : jeu.qg.gx, ky:k ? k.gy : jeu.qg.gy,
+    kx:vx, ky:vy,
     cx:0, cy:0,                 // point d'impact, fixé au moment du tir
     dir:[], puni:0
   };
@@ -1195,7 +1209,23 @@ function cibleVengeance(V){
   return { x:mx, y:my };
 }
 
-/* Distance d'un point au segment [a,b] — le test de brûlure des
+/* LES TRAÎNÉES QUI BRÛLENT ENCORE, et les deux règles qu'elles
+   tiennent — deux règles écrites noir sur blanc dans la
+   spécification, et que le code ne tenait qu'à moitié.
+
+   « TOUTES LES TROUPES TOUCHÉES, soit par l'impact, soit par les
+   traînées enflammées derrière, perdent 90 % de leur vie. » La peine
+   ne tombait qu'à l'instant du tir : une troupe qui entrait dans une
+   traînée une image plus tard ne prenait que les neuf dégâts par
+   seconde de la braise, c'est-à-dire rien. Elle prend maintenant ses
+   90 %, UNE FOIS — le marquage `vengPuni` sert exactement à ça.
+
+   « 90 % DES PV, JAMAIS LA MORT. » Le commentaire de EQ.VENG_BRAISE_DPS
+   l'affirmait déjà, et c'était faux : à onze points de vie, une Furie
+   mourait en une seconde et quart de braise. La brûlure s'arrête donc
+   à un point de vie. On doit dégager ; on ne doit pas y rester.
+
+   Distance d'un point au segment [a,b] — le test de brûlure des
    traînées. Écrit ici plutôt qu'appelé partout : c'est la seule
    géométrie du jeu qui en ait besoin. */
 function distSegment(px, py, ax, ay, bx, by){
@@ -1204,6 +1234,26 @@ function distSegment(px, py, ax, ay, bx, by){
   if(l2 < 1e-9) return Math.hypot(px - ax, py - ay);
   var t = borne(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1);
   return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+}
+
+function brulureVengeance(fl, dt){
+  var tmp = [];
+  unitesAutour(fl.gx, fl.gy, fl.r + 1, tmp);
+  for(var i = 0; i < tmp.length; i++){
+    var u = tmp[i];
+    if(u.pv <= 0) continue;
+    if(Math.hypot(u.gx - fl.gx, u.gy - fl.gy) > fl.r) continue;
+    if(u.vengPuni !== fl.veng){
+      /* elle découvre la traînée : c'est le même châtiment que pour
+         celles qui étaient là au moment du tir */
+      u.vengPuni = fl.veng;
+      toucheUnite(u, u.pv * EQ.VENG_PERTE);
+      continue;
+    }
+    /* déjà punie : il ne reste que la braise, et elle ne tue pas */
+    var perte = Math.min(EQ.VENG_BRAISE_DPS * dt, Math.max(0, u.pv - 1));
+    if(perte > 0) toucheUnite(u, perte);
+  }
 }
 
 /* La peine. 90 % des PV, jamais la mort : une barge amputée revient,
@@ -1222,6 +1272,7 @@ function punitVengeance(V){
     }
     if(!pris) continue;
     toucheUnite(u, u.pv * EQ.VENG_PERTE);
+    u.vengPuni = V.id;                 // punie par CETTE riposte, une fois
     n++;
   }
   /* les traînées continuent de brûler après coup */
@@ -1229,15 +1280,15 @@ function punitVengeance(V){
     var s = V.dir[e];
     for(var p = 0.12; p <= 1.001; p += 0.16){
       jeu.flaques.push({ gx:V.cx + (s.x1 - V.cx) * p, gy:V.cy + (s.y1 - V.cy) * p,
-                         r:EQ.VENG_LARGEUR, age:0, duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+                         r:EQ.VENG_LARGEUR, age:0, duree:EQ.VENG_BRAISE_DUREE, veng:V.id });
     }
   }
   jeu.flaques.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON, age:0,
-                     duree:EQ.VENG_BRAISE_DUREE, veng:1 });
+                     duree:EQ.VENG_BRAISE_DUREE, veng:V.id });
   jeu.crateres.push({ gx:V.cx, gy:V.cy, r:EQ.VENG_RAYON * 0.8 });
   jeu.effets.push({ t:"vengBoum", gx:V.cx, gy:V.cy, age:0, duree:0.9 });
   jeu.effets.push({ t:"onde", gx:V.cx, gy:V.cy, age:0, duree:0.55, r:EQ.VENG_RAYON });
-  jeu.secousse = Math.min(9, jeu.secousse + 6.5);
+  jeu.secousse = Math.min(9, jeu.secousse + 8.2);
   if(son.vengeanceImpact) son.vengeanceImpact();
   return n;
 }
@@ -2685,8 +2736,8 @@ function majZones(dt){
   for(i = jeu.flaques.length - 1; i >= 0; i--){
     var fl = jeu.flaques[i]; fl.age += dt;
     if(fl.age > fl.duree){ jeu.flaques.splice(i, 1); continue; }
-    degatsZone(fl.gx, fl.gy, fl.r,
-               (fl.veng ? EQ.VENG_BRAISE_DPS : EQ.QG_FLAQUE_DPS) * dt);
+    if(fl.veng) brulureVengeance(fl, dt);
+    else degatsZone(fl.gx, fl.gy, fl.r, EQ.QG_FLAQUE_DPS * dt);
   }
   for(i = jeu.brouillards.length - 1; i >= 0; i--){
     jeu.brouillards[i].age += dt;

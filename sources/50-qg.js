@@ -92,7 +92,11 @@ var STYLES_QG = {
     portail:["rgba(255,232,176,.95)", "rgba(255,120,30,.95)", "rgba(120,16,4,.98)"],
     fournaise:["255,225,160", "255,110,25", "255,60,10"],
     fissure:["255,190,70", "255,60,10"],
-    voile:["rgba(20,10,24,.34)", "rgba(20,10,24,0)", "rgba(12,6,14,.30)"]
+    voile:["rgba(20,10,24,.34)", "rgba(20,10,24,0)", "rgba(12,6,14,.30)"],
+    /* LA COLÈRE DE MILY. `null` veut dire : le rouge d'origine, celui
+       de VENG_ROUGE dans 74-vengeance.js. Onze îles sur douze le
+       gardent. */
+    veng:null
   },
   /* LE PALAIS DES MILY ET UNE NUITS — marbre, or et lumière d'étoile. */
   palais: {
@@ -115,7 +119,35 @@ var STYLES_QG = {
     portail:["rgba(238,252,255,.95)", "rgba(110,206,255,.95)", "rgba(22,52,132,.98)"],
     fournaise:["226,246,255", "96,190,255", "40,90,220"],
     fissure:["190,235,255", "80,150,255"],
-    voile:["rgba(24,20,58,.22)", "rgba(24,20,58,0)", "rgba(14,12,40,.20)"]
+    voile:["rgba(24,20,58,.22)", "rgba(24,20,58,0)", "rgba(14,12,40,.20)"],
+    /* ════════════════════════════════════════════════════════════
+       LA COLÈRE DE MILY, AUX COULEURS DU PALAIS
+
+       « Des rayons aux couleurs du palais. » Le doute était légitime
+       et il faut l'écrire : le rouge n'est PAS la couleur de
+       l'architecture, c'est celle de la colère — et une colère qui
+       change de teinte selon le décor risque de ne plus être lue
+       comme une colère.
+
+       Ce qui sauve la traduction, c'est que l'or n'est pas une
+       couleur douce. Sur cette île, l'or est le métal du palais et le
+       violet celui du ciel : deux faisceaux d'or à noyau blanc, bordés
+       d'un halo violet, sortent des yeux de la même souveraine — et
+       ce sont ses matériaux à elle qu'elle retourne contre le
+       coupable. La menace ne vient plus du sang, elle vient de la
+       DISPROPORTION : tout le reste de l'île est bleu et calme.
+
+       Trois crans, mêmes rôles que le rouge :
+         noyau  le cœur incandescent, presque blanc
+         chair  la masse du faisceau — l'or
+         sang   le halo et le voile — le violet du ciel
+       ════════════════════════════════════════════════════════════ */
+    veng:{
+      noyau:"255,252,236", chair:"255,222,150", sang:"122,86,255",
+      corps:"255,196,64",
+      flaque:["255,250,226", "255,206,92", "122,86,255"],
+      surtitre:["255,196,96", "255,240,190"], menace:"255,214,120", plaque:"8,6,26"
+    }
   }
 };
 /* Le style en vigueur, et sa palette. `CQ` reste le nom que tout le

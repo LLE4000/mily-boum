@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.69";
+var VERSION = "v0.70";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -65,8 +65,30 @@ var EQ = {
   VENG_PERTE           : 0.90,  // 90 % des PV, jamais la mort
   VENG_RAYON           : 2.6,   // rayon de l'impact, en cases
   VENG_LARGEUR         : 1.7,   // demi-largeur d'une traînée
-  VENG_TRAINEE         : 15,    // longueur des traînées, en cases
+  VENG_TRAINEE         : 19,    // longueur des traînées, en cases
   VENG_ECART           : 0.17,  // demi-angle du V des deux rayons, en radians
+  /* ════════════════════════════════════════════════════════════
+     LA TAILLE DESSINÉE — LE DESSIN GROSSIT, LA PEINE NON
+
+     « Les rendre plus spectaculaires. » On applique ici la convention
+     déjà écrite pour les tornades, et pour la même raison : ce facteur
+     ne grossit QUE le dessin — la largeur des faisceaux, l'étoile de
+     l'impact, l'anneau de souffle, le voile à l'écran. Le RAYON qui
+     punit et la demi-largeur des traînées n'y touchent pas.
+
+     Ce n'est pas de la prudence, c'est la promesse faite au joueur :
+     la peine est de 90 % des PV sur ce qui se trouve dans le disque
+     ou sous les traînées, et ces deux mesures-là sont annoncées.
+     Grossir le dessin sans grossir la zone continue la convention du
+     jeu — on voit une grosse tornade et un petit anneau, et c'est
+     l'anneau qui dit la vérité.
+
+     LA LONGUEUR DES TRAÎNÉES, ELLE, A BOUGÉ — quinze à dix-neuf
+     cases — et c'est délibéré : la spécification demande des traînées
+     « longues et visibles », et la longueur est la seule mesure de la
+     peine que le joueur voit venir de loin. Il peut courir devant.
+     ════════════════════════════════════════════════════════════ */
+  VENG_ECH_VISUEL      : 1.40,
   /* Les braises qui restent ne sont PAS un second châtiment : à
      90 % de PV perdus, une troupe finit à onze points de vie, et un
      brasier à trente dégâts par seconde la tuerait sans qu'elle ait

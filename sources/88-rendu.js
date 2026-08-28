@@ -349,6 +349,41 @@ function dessineEffet(c, e, tps){
     c.fillStyle = gt2;
     c.beginPath(); c.arc(xb, yb, 5.5 * z, 0, 6.2832); c.fill();
     c.restore();
+  }else if(e.t === "vengBoum"){
+    /* LA BRÛLURE AU SOL DE LA VENGEANCE.
+       Cet effet était POSÉ et jamais DESSINÉ : punitVengeance le
+       poussait dans jeu.effets, et dessineEffet n'avait aucune
+       branche pour lui — neuf dixièmes de seconde d'objet mort à
+       chaque riposte. Il existe maintenant, et il fait ce que son nom
+       promet : la marque incandescente que les deux rayons laissent
+       sur la terre, aux couleurs de la colère de cette île-là.
+       Elle est PLATE et COUCHÉE dans le plan de l'île — une ellipse
+       isométrique, pas un disque : ce qui brûle est le sol. */
+    var PV2 = (typeof palVeng === "function" ? palVeng() : null) ||
+              { noyau:"255,236,214", chair:"255,74,38", sang:"214,12,6" };
+    var av2 = (1 - t) * (1 - t);
+    var rb2 = EQ.VENG_RAYON * RX * z * (0.55 + t * 1.35);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var gb2 = c.createRadialGradient(p.x, p.y, rb2 * 0.06, p.x, p.y, rb2);
+    gb2.addColorStop(0, "rgba(255,255,255," + (0.85 * av2) + ")");
+    gb2.addColorStop(0.22, "rgba(" + PV2.noyau + "," + (0.70 * av2) + ")");
+    gb2.addColorStop(0.55, "rgba(" + PV2.chair + "," + (0.46 * av2) + ")");
+    gb2.addColorStop(1, "rgba(" + PV2.sang + ",0)");
+    c.fillStyle = gb2;
+    c.beginPath(); c.ellipse(p.x, p.y, rb2, rb2 * 0.5, 0, 0, 6.2832); c.fill();
+    /* et quelques langues qui montent du cratère, le temps que la
+       terre comprenne ce qui vient de la traverser */
+    if(t < 0.7){
+      var nl2 = 6, al2 = (1 - t / 0.7);
+      for(var l2 = 0; l2 < nl2; l2++){
+        var aa2 = l2 / nl2 * 6.2832 + tps * 0.6;
+        flamme(c, p.x + Math.cos(aa2) * rb2 * 0.42,
+                  p.y + Math.sin(aa2) * rb2 * 0.21,
+                  26 * z * al2, tps + l2, 0.7 * z + 0.25);
+      }
+    }
+    c.restore();
   }else if(e.t === "onde"){
     /* onde de choc au sol : un anneau qui s'élargit et s'efface */
     var ao = (1 - t) * (1 - t);
@@ -2060,9 +2095,15 @@ function dessineZonesSol(c, tps){
        Brasier : plus blanc au cœur, franchement rouge au bord. On les
        reconnaît d'un coup d'œil parmi les flaques ordinaires. */
     if(f.veng){
-      g.addColorStop(0, "rgba(255,244,222," + (0.78 * a) + ")");
-      g.addColorStop(0.45, "rgba(255,74,38," + (0.52 * a) + ")");
-      g.addColorStop(1, "rgba(214,12,6,0)");
+      /* Les traînées de Mily brûlent de SA couleur, celle que porte
+         la forteresse de cette île : rouge sur les onze citadelles de
+         lave, or et violet sur le palais des nuits. Voir palVeng()
+         dans 74-vengeance.js. */
+      var FL = (typeof palVeng === "function" ? palVeng() : null);
+      FL = (FL && FL.flaque) || ["255,244,222", "255,74,38", "214,12,6"];
+      g.addColorStop(0, "rgba(" + FL[0] + "," + (0.78 * a) + ")");
+      g.addColorStop(0.45, "rgba(" + FL[1] + "," + (0.52 * a) + ")");
+      g.addColorStop(1, "rgba(" + FL[2] + ",0)");
     }else{
       g.addColorStop(0, "rgba(255,200,90," + (0.55 * a) + ")");
       g.addColorStop(0.6, "rgba(255,90,20," + (0.35 * a) + ")");

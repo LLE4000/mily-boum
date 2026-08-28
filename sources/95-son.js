@@ -1,8 +1,40 @@
 /* ================================================================
    LE SON — tout est synthétisé, aucun fichier
    ================================================================ */
+/* Le volume du nœud maître quand le son est allumé. Nommé parce que
+   la bascule doit pouvoir y revenir. */
+var SON_MAITRE = 0.62;
 var son = {
   actif:true, ac:null, maitre:null, bruit:null, dernierBoum:0,
+
+  /* ================================================================
+     LE BOUTON « SON COUPÉ » COUPE VRAIMENT
+
+     `actif` n'était lu qu'à un seul endroit — ok(), qui garde
+     l'entrée des sons PONCTUELS. Cela suffisait tant que tout le jeu
+     était fait de coups : rien ne partait, donc plus rien ne
+     s'entendait.
+
+     Ce n'est plus vrai depuis qu'il existe des NAPPES CONTINUES.
+     Elles sont déjà branchées sur le maître quand on appuie sur le
+     bouton, et personne ne les rappelle : l'ambiance de la jungle
+     continuait de pleuvoir sur un jeu qui s'annonçait muet. On baisse
+     donc le MAÎTRE, ce qui coupe à la fois ce qui joue et ce qui va
+     jouer, et l'on remonte au même endroit en rallumant.
+
+     Un quart de seconde de rampe : coupé net, un son s'entend comme
+     une panne, et l'on croit avoir cassé quelque chose.
+     ================================================================ */
+  bascule:function(){
+    this.actif = !this.actif;
+    if(this.ac && this.maitre){
+      var t = this.ac.currentTime;
+      this.maitre.gain.cancelScheduledValues(t);
+      this.maitre.gain.setValueAtTime(this.maitre.gain.value, t);
+      this.maitre.gain.linearRampToValueAtTime(this.actif ? SON_MAITRE : 0.0001, t + 0.25);
+    }
+    return this.actif;
+  },
 
   reveille:function(){
     if(this.ac){ if(this.ac.state === "suspended") this.ac.resume(); return; }
@@ -10,7 +42,7 @@ var son = {
     if(!AC) return;
     this.ac = new AC();
     this.maitre = this.ac.createGain();
-    this.maitre.gain.value = 0.62;
+    this.maitre.gain.value = this.actif ? SON_MAITRE : 0.0001;
     this.maitre.connect(this.ac.destination);
     /* buffer de bruit blanc, réutilisé */
     var n = this.ac.sampleRate * 2;

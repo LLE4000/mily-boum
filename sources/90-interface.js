@@ -1165,8 +1165,10 @@ function construitBriefing(){
     }
   });
   $("btSon").addEventListener("click", function(){
-    son.actif = !son.actif;
-    this.textContent = son.actif ? "🔊 Son activé" : "🔇 Son coupé";
+    /* son.bascule() et non « son.actif = !son.actif » : la bascule
+       descend aussi le nœud maître, seule façon d'éteindre une nappe
+       déjà en train de jouer. Appelée SUR `son`, jamais détachée. */
+    this.textContent = son.bascule() ? "🔊 Son activé" : "🔇 Son coupé";
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
@@ -1436,6 +1438,19 @@ function majMondes(){
   for(i = 0; i < CARTES.length; i++)
     if(carteSpeciale(i)) h += vignetteEvenement(i);
   $("mondes").innerHTML = h;
+  /* LA FORTERESSE DES VIGNETTES EST CELLE DU BRASIER, TOUJOURS.
+     dessineApercu peint la silhouette du QG dans chaque vignette
+     d'île, et il peint le sprite QUI SE TROUVE EN MÉMOIRE. Depuis
+     qu'il y en a deux, ce détail est devenu un défaut : on visite les
+     Mily et une nuits, le palais est bâti, on revient à l'accueil —
+     et les huit îles ordinaires s'affichent avec un palais bleu et or
+     à la place de leur citadelle. Mesuré à l'écran, les huit d'un
+     coup.
+     On redemande donc la bonne forteresse avant de peindre. Hors
+     partie, `jeu` est nul et styleQGdeCarte rend « brasier » : la
+     reconstruction n'a lieu qu'au retour des nuits, et elle ne coûte
+     rien les autres fois — une comparaison de chaînes. */
+  if(typeof assureSpriteQG === "function") assureSpriteQG();
   for(var k = 0; k < CARTES.length; k++) dessineApercu(k);
   installeBoutonJungle();
   installeAppuisCartes();

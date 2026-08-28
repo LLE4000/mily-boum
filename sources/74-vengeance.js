@@ -32,10 +32,54 @@ function yeuxDuBrasier(){
   ];
 }
 
-/* Rouge de la colère : trois crans, du noyau blanc au halo sourd. */
-var V_NOYAU = "255,236,214";
-var V_CHAIR = "255,74,38";
-var V_SANG  = "214,12,6";
+/* ================================================================
+   LA COULEUR DE LA COLÈRE
+
+   Rouge de la colère : trois crans, du noyau blanc au halo sourd.
+   C'est la palette d'origine, celle des onze îles à forteresse de
+   lave, et elle ne bouge pas.
+
+   MAIS ELLE SUIT LA FORTERESSE, et c'est un choix qu'il faut
+   assumer : les rayons sortent des yeux du visage, le visage est
+   serti dans la maçonnerie, et sur le palais des Mily et une nuits
+   cette maçonnerie est de marbre et d'or. Le style de la forteresse
+   porte donc sa propre colère — voir STYLES_QG dans 50-qg.js, champ
+   `veng`. Une île sans palette propre retombe ici, sur le rouge.
+
+   ON LIT LA PALETTE À CHAQUE APPEL, jamais une fois pour toutes :
+   `SQ` change quand on change d'île, et une constante figée au
+   chargement aurait donné du rouge sur le palais et de l'or sur le
+   Brasier au premier changement de carte.
+   ================================================================ */
+var VENG_ROUGE = {
+  noyau:"255,236,214", chair:"255,74,38", sang:"214,12,6",
+  /* LE CORPS DU FAISCEAU, et c'est le réglage qui a tout décidé.
+     traitRayon peint quatre passes de la plus large à la plus fine ;
+     les deux plus larges portaient toutes les deux `sang`. Sur du
+     rouge, cela marche — le sang est sombre, l'or du noyau ressort.
+     Sur le palais, le halo est VIOLET et le corps devait être OR : en
+     additif, un violet large sous un blanc étroit donne un rayon
+     blanc-violet, et l'or disparaissait complètement. Mesuré à
+     l'écran, pas deviné. Le corps a donc sa propre couleur, qui vaut
+     `sang` sur le rouge — donc rien ne change pour les onze îles. */
+  corps:"214,12,6",
+  flaque:["255,244,222", "255,74,38", "214,12,6"],
+  /* le panneau du message : le surtitre bat entre ces deux teintes,
+     la menace est fixe, la plaque est le fond presque noir */
+  surtitre:["255,90,70", "255,180,130"], menace:"255,120,86", plaque:"10,3,5"
+};
+function palVeng(){
+  return (typeof SQ === "object" && SQ && SQ.veng) ? SQ.veng : VENG_ROUGE;
+}
+/* Mélange deux couleurs écrites « r,g,b ». Les utilitaires de
+   20-outils.js travaillent en hexadécimal ; ici tout est en triplets
+   parce que tout finit dans une rgba(). */
+function melangeVeng(a, b, t){
+  var x = a.split(","), y = b.split(",");
+  return Math.round(+x[0] + (+y[0] - +x[0]) * t) + ","
+       + Math.round(+x[1] + (+y[1] - +x[1]) * t) + ","
+       + Math.round(+x[2] + (+y[2] - +x[2]) * t);
+}
 
 /* ---------------------------------------------------------------
    1. LES YEUX QUI VIRENT AU ROUGE
@@ -46,6 +90,8 @@ function dessineYeuxVengeance(c, tps){
   if(!jeu.vengeance || jeu.fin) return;
   var ch = chargeVengeance();
   if(ch <= 0.001) return;
+  var PV = palVeng(), V_NOYAU = PV.noyau, V_CHAIR = PV.chair, V_SANG = PV.sang;
+  var ECH = EQ.VENG_ECH_VISUEL || 1;
   var z = cam.z;
   if(z < 0.05) return;
   var p = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
@@ -73,7 +119,7 @@ function dessineYeuxVengeance(c, tps){
   for(var i = 0; i < 2; i++){
     var o = yx[i];
     /* halo large — c'est lui qu'on voit de loin */
-    var r = (16 + e * 54) * bat;
+    var r = (16 + e * 54) * bat * ECH;
     var g1 = c.createRadialGradient(o.x, o.y, 0.5, o.x, o.y, r);
     g1.addColorStop(0, "rgba(" + V_NOYAU + "," + (0.55 * e) + ")");
     g1.addColorStop(0.22, "rgba(" + V_CHAIR + "," + (0.62 * e) + ")");
@@ -98,8 +144,8 @@ function dessineYeuxVengeance(c, tps){
       c.strokeStyle = "rgba(" + V_NOYAU + "," + (0.16 + 0.30 * e) + ")";
       c.lineWidth = 1.1 + e * 1.4;
       c.lineCap = "round";
-      for(var a = 0; a < 5; a++){
-        var an = a / 5 * 6.2832 + tps * (1.6 + i * 0.7) + i * 1.1;
+      for(var a = 0; a < 7; a++){
+        var an = a / 7 * 6.2832 + tps * (1.6 + i * 0.7) + i * 1.1;
         var r0 = rp * 1.25, r1 = rp + 5 + e * 15 + Math.sin(tps * 17 + a * 2.3) * 4;
         c.beginPath();
         c.moveTo(o.x + Math.cos(an) * r0, o.y + Math.sin(an) * r0 * 0.85);
@@ -125,9 +171,11 @@ function dessineYeuxVengeance(c, tps){
    dixième de la largeur — juste de quoi donner la brûlure — et les
    trois quarts de l'énergie sont rouges. */
 function traitRayon(c, pts, larg, alpha){
+  var PV = palVeng(), V_NOYAU = PV.noyau, V_CHAIR = PV.chair, V_SANG = PV.sang;
+  var V_CORPS = PV.corps || V_SANG;
   var passes = [
     { l:larg * 1.7,  col:V_SANG,  a:0.20 * alpha },
-    { l:larg,        col:V_SANG,  a:0.46 * alpha },
+    { l:larg,        col:V_CORPS, a:0.46 * alpha },
     { l:larg * 0.42, col:V_CHAIR, a:0.66 * alpha },
     { l:larg * 0.10, col:V_NOYAU, a:0.95 * alpha }
   ];
@@ -162,6 +210,13 @@ function pointsTrainee(V, k, fraction){
 function dessineRayonsVengeance(c, tps){
   var V = jeu.vengeance;
   if(!V || V.ph === "message") return;
+  /* Le même garde-fou que pour les yeux : pendant la séquence finale
+     la forteresse s'enfonce et penche, et les rayons, eux, partiraient
+     encore des yeux d'AVANT l'effondrement — deux traits accrochés au
+     ciel au-dessus d'une ruine. */
+  if(jeu.fin) return;
+  var PV = palVeng(), V_NOYAU = PV.noyau, V_CHAIR = PV.chair, V_SANG = PV.sang;
+  var ECH = EQ.VENG_ECH_VISUEL || 1;
   var z = cam.z;
   var t = V.t;
   /* Fondu : plein pendant tout le tir, extinction ensuite. */
@@ -190,7 +245,7 @@ function dessineRayonsVengeance(c, tps){
      pour voir les deux bouts du tir à la fois — et c'est justement
      à ce moment-là qu'on les regarde. Un plancher franc, plus une
      part qui grandit avec le zoom. */
-  var larg = (15 + 26 * z) * (0.88 + 0.12 * Math.sin(tps * 33));
+  var larg = (15 + 26 * z) * (0.88 + 0.12 * Math.sin(tps * 33)) * ECH;
 
   for(var k = 0; k < 2; k++){
     var ox = pq.x + yx[k].x * z, oy = pq.y + yx[k].y * z;
@@ -214,7 +269,7 @@ function dessineRayonsVengeance(c, tps){
   if(lance >= 1){
     var age = Math.max(0, t - 0.16);
     var ec = Math.exp(-age * 3.4);
-    var r = (26 + 48 * z) * (0.7 + ec * 1.5);
+    var r = (26 + 48 * z) * (0.7 + ec * 1.5) * ECH;
     var gi = c.createRadialGradient(pi.x, pi.y, 0, pi.x, pi.y, r);
     gi.addColorStop(0, "rgba(255,255,255," + (0.95 * alpha * (0.35 + ec * 0.65)) + ")");
     gi.addColorStop(0.16, "rgba(" + V_NOYAU + "," + (0.70 * alpha * ec) + ")");
@@ -224,11 +279,14 @@ function dessineRayonsVengeance(c, tps){
     c.fillStyle = gi;
     c.beginPath(); c.arc(pi.x, pi.y, r, 0, 6.2832); c.fill();
     /* étoile à quatre branches, la signature d'une lumière trop forte */
+    /* SIX BRANCHES, pas quatre. Une étoile à quatre branches se lit
+       comme une croix ; à six, elle se lit comme une lumière qui
+       déborde de l'objectif — et c'est ce qu'on veut dire. */
     c.strokeStyle = "rgba(255,255,255," + (0.5 * alpha * ec) + ")";
-    c.lineWidth = Math.max(1, 3 * z);
-    for(var b = 0; b < 4; b++){
-      var ab = b * 1.5708 + 0.4;
-      var lb = r * (b % 2 ? 1.5 : 2.6);
+    c.lineWidth = Math.max(1, 3.4 * z * ECH);
+    for(var b = 0; b < 6; b++){
+      var ab = b * 1.0472 + 0.4;
+      var lb = r * (b % 2 ? 1.6 : 2.9);
       c.beginPath();
       c.moveTo(pi.x - Math.cos(ab) * lb, pi.y - Math.sin(ab) * lb * 0.6);
       c.lineTo(pi.x + Math.cos(ab) * lb, pi.y + Math.sin(ab) * lb * 0.6);
@@ -238,7 +296,7 @@ function dessineRayonsVengeance(c, tps){
     if(age < 0.6){
       var ao = age / 0.6;
       c.strokeStyle = "rgba(" + V_NOYAU + "," + (0.5 * (1 - ao) * alpha) + ")";
-      c.lineWidth = Math.max(1, 5 * z * (1 - ao));
+      c.lineWidth = Math.max(1, 5 * z * (1 - ao) * ECH);
       c.beginPath();
       c.ellipse(pi.x, pi.y, EQ.VENG_RAYON * RX * z * (0.4 + ao * 2.1),
                 EQ.VENG_RAYON * RY * z * (0.4 + ao * 2.1), 0, 0, 6.2832);
@@ -250,11 +308,11 @@ function dessineRayonsVengeance(c, tps){
   /* Voile rouge sur tout l'écran au moment de l'impact : trois
      dixièmes de seconde, pas plus — c'est un coup de poing, pas une
      ambiance. */
-  if(V.ph === "tir" && t > 0.16 && t < 0.5){
-    var vv = 1 - (t - 0.16) / 0.34;
+  if(V.ph === "tir" && t > 0.16 && t < 0.62){
+    var vv = 1 - (t - 0.16) / 0.46;
     c.save();
     c.globalCompositeOperation = "lighter";
-    c.fillStyle = "rgba(" + V_SANG + "," + (0.26 * vv) + ")";
+    c.fillStyle = "rgba(" + V_SANG + "," + (0.34 * vv) + ")";
     c.fillRect(0, 0, W, H);
     c.restore();
   }
@@ -270,6 +328,8 @@ function dessineRayonsVengeance(c, tps){
 function dessineMessageVengeance(c, tps){
   var V = jeu.vengeance;
   if(!V) return;
+  var PV = palVeng(), V_NOYAU = PV.noyau, V_SANG = PV.sang;
+  var ECH_TXT = 1;
   var ch = chargeVengeance();
   if(V.ph !== "message" && ch <= 0.01) return;
   var mien = V.tueur === monNom;
@@ -313,7 +373,7 @@ function dessineMessageVengeance(c, tps){
   c.globalAlpha = al;
 
   /* plaque : presque noire, cerclée d'un rouge qui s'allume */
-  c.fillStyle = "rgba(10,3,5,.80)";
+  c.fillStyle = "rgba(" + (PV.plaque || "10,3,5") + ",.80)";
   cadreArrondi(c, px, py, pw, phh, 6 * ech);
   c.fill();
   c.strokeStyle = "rgba(" + V_SANG + "," + (0.35 + 0.55 * ch) + ")";
@@ -328,7 +388,8 @@ function dessineMessageVengeance(c, tps){
   var ys = py + 22 * ech;
   c.font = "700 " + (12 * ech) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
   var pouls = 0.55 + 0.45 * Math.sin(tps * (5 + ch * 14));
-  c.fillStyle = "rgba(255," + Math.round(90 + 90 * pouls) + "," + Math.round(70 + 60 * pouls) + ",1)";
+  var ST = PV.surtitre || ["255,90,70", "255,180,130"];
+  c.fillStyle = "rgba(" + melangeVeng(ST[0], ST[1], pouls) + ",1)";
   espaceLettres(c, "M I L Y   A   V U", W / 2, ys, 2.6 * ech);
 
   /* le fait, sobrement */
@@ -342,7 +403,7 @@ function dessineMessageVengeance(c, tps){
     var am = Math.min(1, (ch - 0.42) / 0.20);
     c.globalAlpha = al * am;
     c.font = "italic 700 " + (15 * ech) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
-    c.fillStyle = "rgba(255,120,86," + (0.55 + 0.45 * pouls) + ")";
+    c.fillStyle = "rgba(" + (PV.menace || "255,120,86") + "," + (0.55 + 0.45 * pouls) + ")";
     c.fillText("Elle ne pardonne pas.", W / 2, py + 82 * ech);
     c.globalAlpha = al;
   }
