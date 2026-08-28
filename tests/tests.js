@@ -5587,6 +5587,320 @@ G("8. Cohérence des règles de jeu");
   })();
 })();
 
+/* ================================================================
+   L'AMBIANCE DES « MILY ET UNE NUITS »
+
+   Le joueur a posé une contrainte qui n'est pas de goût mais de
+   durée : « je ne veux pas des sons qui deviennent insupportables
+   après dix minutes ». Ce groupe ne juge pas la beauté du résultat —
+   il vérifie les trois choses qui, seules, décident de la dixième
+   minute : le PLAFOND (jamais plus fort que ça), les RÉGIMES (le
+   décor se tait quand il doit) et la RÉPÉTITION (aucun intervalle
+   fixe, aucune note qui revient).
+
+   On fait tourner le VRAI objet livré sur un faux contexte audio :
+   un graphe qui note tout ce qu'on lui écrit. C'est la seule façon
+   de mesurer un volume au lieu de le relire.
+   ================================================================ */
+(function(){
+  G("22. L'ambiance sonore des nuits");
+
+  var srcAmb = html.match(/var ambianceNuits = \{[\s\S]*?\n\};/);
+  var srcGamme = html.match(/var NUITS_GAMME = \[[\s\S]*?\];/);
+  var srcHaut = html.match(/var NUITS_EAU_HAUT = \d+;/);
+  ok("ambianceNuits et sa gamme sont dans le fichier livré",
+     !!srcAmb && !!srcGamme && !!srcHaut);
+  if(!srcAmb || !srcGamme || !srcHaut) return;
+
+  /* ---- un faux contexte audio qui garde la trace de tout ---- */
+  function faitParam(v){
+    var p = { value:v, cible:v, rampes:[] };
+    p.setValueAtTime = function(x){ this.value = x; this.cible = x; };
+    p.linearRampToValueAtTime = function(x){ this.cible = x; this.rampes.push(x); };
+    p.setTargetAtTime = function(x){ this.cible = x; this.value = x; };
+    p.cancelScheduledValues = function(){};
+    return p;
+  }
+  function faitContexte(){
+    var ac = { currentTime:1000, noeuds:[] };
+    function note(o){ ac.noeuds.push(o); return o; }
+    ac.createGain = function(){
+      return note({ genre:"gain", gain:faitParam(1), connect:function(){} });
+    };
+    ac.createBufferSource = function(){
+      return note({ genre:"source", buffer:null, loop:false,
+                    playbackRate:faitParam(1), connect:function(){},
+                    start:function(){}, stop:function(){} });
+    };
+    ac.createBiquadFilter = function(){
+      return note({ genre:"filtre", type:"", frequency:faitParam(0),
+                    Q:faitParam(1), connect:function(){} });
+    };
+    ac.createOscillator = function(){
+      return note({ genre:"lfo", type:"", frequency:faitParam(0),
+                    connect:function(){}, start:function(){}, stop:function(){} });
+    };
+    return ac;
+  }
+
+  /* Le banc. `son` est un mouchard : on compte les appels au lieu de
+     produire du son. `cam`, `carte` et la pluie sont pilotés depuis
+     l'extérieur pour visiter les quatre régimes. */
+  function banc(opt){
+    opt = opt || {};
+    var ac = faitContexte();
+    var compte = { cloche:0, goutte:0, note:0 }, degres = [], protection = 0;
+    var faux = {
+      ac:ac, maitre:{}, bruit:{ nom:"bruit" }, dernierBoum:-999,
+      ok:function(){ return true; },
+      clocheNuits:function(){ compte.cloche++; },
+      goutteNuits:function(p){ compte.goutte++; },
+      noteMagique:function(){ compte.note++; }
+    };
+    var etat = { z:opt.z === undefined ? 0.9 : opt.z,
+                 decors:opt.decors || [], gx:opt.gx || 0, gy:opt.gy || 0,
+                 pluie:opt.pluie ? 1 : 0 };
+    var A = new Function("son", "cam", "carte", "centreCameraGx", "centreCameraGy",
+                         "bandeNuits", "phasePluie", "horlogePluie", "ETAT",
+      srcGamme[0] + "\n" + srcHaut[0] + "\n" + srcAmb[0] +
+      "\nreturn ambianceNuits;")(
+        faux,
+        { get z(){ return etat.z; } },
+        { get decors(){ return etat.decors; } },
+        function(){ return etat.gx; }, function(){ return etat.gy; },
+        function(s){ return s | 0; },
+        function(){ return { phase:etat.pluie }; },
+        function(){ return 0; },
+        etat);
+    return { A:A, ac:ac, son:faux, compte:compte, etat:etat,
+             /* fait tourner n secondes à 60 images */
+             tourne:function(secondes){
+               for(var i = 0; i < secondes * 60; i++) A.suit(1 / 60);
+             } };
+  }
+
+  /* ---------------------------------------------------------------
+     1. LE PLAFOND. Annoncé dans l'en-tête du fichier : aucune source
+     continue au-dessus de 0,018 et leur somme sous 0,032. On ne relit
+     pas la constante — on lit ce qui est ÉCRIT dans le graphe, au
+     régime le plus fort qui existe (zoom à fond, caméra dans un
+     bassin, aucun combat).
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    b.A.demarre();
+    ok("le lit démarre et se branche", !!b.A.noeuds);
+    b.tourne(2);
+    var n = b.A.noeuds;
+    var vent = n.gVent.gain.rampes.length ? Math.max.apply(null, n.gVent.gain.rampes) : 0;
+    var eau = n.gEau.gain.cible;
+    ok("le vent reste sous le plafond d'une source continue",
+       vent > 0 && vent <= 0.018, vent.toFixed(4));
+    ok("l'eau aussi, au plus près d'un grand bassin",
+       eau > 0 && eau <= 0.018, eau.toFixed(4));
+    ok("et la somme des continus tient sous 0,032",
+       vent + eau <= 0.032, (vent + eau).toFixed(4));
+    /* Le repère, écrit noir sur blanc : la jungle est à 0,035 pour sa
+       pluie et 0,055 pour son vent, le plus petit tir du jeu à 0,045.
+       Le décor entier doit rester sous le plus petit tir. */
+    ok("le décor entier reste plus faible que le plus petit tir du jeu",
+       vent + eau < 0.045, (vent + eau).toFixed(4) + " < 0,045");
+  })();
+
+  /* ---------------------------------------------------------------
+     2. LES RÉGIMES. C'est la vraie réponse aux dix minutes : ce qu'on
+     entend doit CHANGER. Quatre situations, quatre volumes.
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    b.A.demarre(); b.tourne(1);
+    var fort = b.A.noeuds.groupe.gain.cible;
+    ok("de près, le jardin s'entend", fort > 0.9, fort.toFixed(3));
+
+    b.etat.z = 0.18; b.tourne(1);
+    var loin = b.A.noeuds.groupe.gain.cible;
+    ok("dézoomé sur la carte, il se tait complètement",
+       loin <= 0.001, loin.toFixed(4));
+    ok("… et l'eau se coupe avec lui", b.A.noeuds.gEau.gain.cible <= 0.001);
+
+    b.etat.z = 1.0; b.tourne(1);
+    b.son.dernierBoum = b.ac.currentTime;
+    b.tourne(0.5);
+    var combat = b.A.noeuds.groupe.gain.cible;
+    ok("pendant un assaut, le décor fait place au fracas",
+       combat > 0.3 && combat < 0.5, combat.toFixed(3));
+
+    /* le zoom éteint aussi les évènements, pas seulement le lit */
+    var c = banc({ z:0.18, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    c.A.demarre(); c.tourne(200);
+    ok("dézoomé, aucune clochette, aucune goutte, aucune note",
+       c.compte.cloche === 0 && c.compte.goutte === 0 && c.compte.note === 0,
+       JSON.stringify(c.compte));
+  })();
+
+  /* ---------------------------------------------------------------
+     3. LA PLUIE D'ÉTOILES A TOUTE L'OREILLE. C'est la signature de la
+     carte : pendant le phénomène, le jardin se tait.
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }], pluie:true });
+    b.A.demarre(); b.tourne(300);
+    ok("pendant la pluie d'étoiles, plus une clochette ni une note",
+       b.compte.cloche === 0 && b.compte.note === 0, JSON.stringify(b.compte));
+    b.etat.pluie = 0; b.tourne(300);
+    ok("… et le jardin reprend quand elle est finie", b.compte.cloche > 0);
+  })();
+
+  /* ---------------------------------------------------------------
+     4. LA DENSITÉ. Trop peu et il n'y a pas d'ambiance ; trop et il y
+     a un métronome. On mesure sur dix minutes — la durée même que le
+     joueur a citée.
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    b.A.demarre(); b.tourne(600);
+    var C = b.compte;
+    ok("en dix minutes près d'un bassin : les clochettes restent rares",
+       C.cloche >= 12 && C.cloche <= 48, C.cloche + " clochettes");
+    ok("… les gouttes font le fond sonore sans le saturer",
+       C.goutte >= 90 && C.goutte <= 400, C.goutte + " gouttes");
+    ok("… et les notes magiques restent une ponctuation",
+       C.note >= 3 && C.note <= 18, C.note + " notes");
+
+    /* LOIN DE L'EAU, le paysage est un autre : pas de gouttes du tout.
+       C'est ce qui fait qu'on entend un LIEU et pas une carte. */
+    var s = banc({ z:1.0, decors:[{ v:2, s:2, gx:80, gy:80 }] });
+    s.A.demarre(); s.tourne(600);
+    ok("loin de toute fontaine, l'eau se tait", s.compte.goutte === 0,
+       s.compte.goutte + " gouttes");
+    ok("… mais les clochettes, elles, sont partout", s.compte.cloche > 0);
+  })();
+
+  /* ---------------------------------------------------------------
+     5. AUCUN MÉTRONOME. Un intervalle fixe s'entend en moins d'une
+     minute. On relit le tirage lui-même dans le fichier livré.
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    b.A.demarre();
+    var vus = {}, min = 1e9, max = 0, pire = 0;
+    for(var i = 0; i < 4000; i++){
+      b.A.tClochette = 0; b.A.suit(1 / 60);
+      var v = b.A.tClochette, cle = v.toFixed(2);
+      vus[cle] = (vus[cle] || 0) + 1;
+      if(vus[cle] > pire) pire = vus[cle];
+      if(v < min) min = v;
+      if(v > max) max = v;
+    }
+    /* Un métronome, c'est UNE valeur qui domine. Au centième de
+       seconde près, aucune ne doit revenir plus d'une fois sur cent :
+       à quatre mille tirages, le hasard seul en donne cinq ou six. */
+    ok("l'intervalle des clochettes ne se fixe sur aucune valeur",
+       pire < 40, "la plus fréquente sort " + pire + " fois sur 4000");
+    ok("… et il varie dans un rapport large, pas autour d'une moyenne",
+       max / min > 6, min.toFixed(1) + " s à " + max.toFixed(1) + " s");
+  })();
+
+  /* ---------------------------------------------------------------
+     6. LE COÛT. Le battement tourne soixante fois par seconde sur une
+     carte déjà lourde. Le balayage des décors ne doit pas y être à
+     chaque image, et l'AudioParam de l'eau ne doit pas être réécrit
+     soixante fois par seconde pour la même valeur.
+     --------------------------------------------------------------- */
+  (function(){
+    var scans = 0;
+    var decors = [];
+    for(var i = 0; i < 500; i++) decors.push({ v:2, s:1, gx:i % 40, gy:(i * 7) % 40 });
+    var b = banc({ z:1.0, decors:decors });
+    b.A.demarre();
+    var vrai = b.A.majProximite;
+    b.A.majProximite = function(){ scans++; return vrai.apply(this, arguments); };
+    b.tourne(1);
+    ok("les bassins ne sont balayés qu'une image sur quatre",
+       scans <= 16 && scans >= 14, scans + " balayages en 60 images");
+
+    var ecrits = 0, g = b.A.noeuds.gEau.gain, vraiE = g.setTargetAtTime;
+    g.setTargetAtTime = function(){ ecrits++; return vraiE.apply(this, arguments); };
+    b.tourne(5);
+    ok("… et le volume de l'eau n'est pas réécrit à chaque image",
+       ecrits < 10, ecrits + " écritures en 300 images");
+  })();
+
+  /* ---------------------------------------------------------------
+     7. UNE AMBIANCE QU'ON COUPE. Deux pièges anciens : une nappe qui
+     survit au retour au campement, et une nappe qui ne se coupe pas
+     avec le bouton du son. Les deux ont déjà mordu.
+     --------------------------------------------------------------- */
+  (function(){
+    var b = banc({ z:1.0, decors:[{ v:2, s:2, gx:0, gy:0 }] });
+    b.A.demarre();
+    var n = b.A.noeuds;
+    b.A.arrete();
+    ok("on peut arrêter l'ambiance", b.A.noeuds === null);
+    ok("… en fondu, jamais net", n.groupe.gain.rampes.indexOf(0.0001) >= 0);
+    b.A.demarre();
+    ok("… et la relancer proprement", !!b.A.noeuds && b.A.noeuds !== n);
+
+    ok("le retour au campement coupe la nappe des nuits",
+       /quitteVersBriefing[\s\S]{0,1400}ambianceNuits\.arrete\(\)/.test(html));
+    ok("la boucle ne bat l'ambiance que sur la carte à l'air magique",
+       /carteAirMagique\(jeu\.index\)\)\s*majAmbianceNuits\(dt\)/.test(html));
+    /* Le bouton du son doit agir sur le gain MAÎTRE : couper `actif`
+       seul laissait les nappes continues tourner sur une partie
+       annoncée comme muette. */
+    ok("le bouton du son coupe le gain maître, donc les nappes",
+       /bascule:function\(\)\{[\s\S]{0,400}this\.maitre\.gain\.linearRampToValueAtTime/.test(html));
+  })();
+
+  /* ---------------------------------------------------------------
+     8. LA PLUIE D'ÉTOILES SONNE PAREIL CHEZ TOUT LE MONDE. Elle part
+     de l'heure murale : deux joueurs doivent entendre les MÊMES
+     notes, sinon la phrase « tu as entendu ? » n'a plus de sens. Un
+     seul Math.random dans ces deux fonctions et c'est fini.
+     --------------------------------------------------------------- */
+  (function(){
+    var a = html.match(/pluieAnnonce:function\([\s\S]*?\n  \},/);
+    var v = html.match(/voeuPose:function\([\s\S]*?\n  \},/);
+    ok("l'annonce et la pose sont dans le fichier livré", !!a && !!v);
+    if(!a || !v) return;
+    ok("l'annonce de la pluie ne tire rien localement",
+       a[0].indexOf("Math.random") < 0);
+    ok("… elle passe par la graine du créneau", a[0].indexOf("grainePluie") > 0);
+    ok("la note d'un vœu qui se pose ne tire rien localement non plus",
+       v[0].indexOf("Math.random") < 0);
+    ok("… elle aussi vient de la graine du créneau", v[0].indexOf("grainePluie") > 0);
+    /* mais le VOLUME, lui, est local : c'est la distance à la caméra */
+    ok("… seul son volume est local, par la distance", v[0].indexOf("att") > 0);
+    /* et un retardataire n'entend que ce qui reste */
+    ok("un joueur qui arrive en retard n'entend que la fin de l'annonce",
+       /son\.pluieAnnonce\(n, P\.t\)/.test(html));
+  })();
+
+  /* ---------------------------------------------------------------
+     9. « pas de message pour la prévenir ! et les étoiles 2 fois plus
+     petites ». Le bandeau couvrait le ciel à l'instant précis où il
+     fallait le regarder ; c'est le son qui prévient maintenant.
+     --------------------------------------------------------------- */
+  (function(){
+    /* le texte survit dans un commentaire, qui explique pourquoi il
+       n'est plus affiché : c'est l'APPEL qu'on traque, pas la chaîne */
+    ok("plus aucun bandeau n'annonce la pluie d'étoiles",
+       !/message\(\s*["'][^"']*toiles descendent/.test(html));
+    ok("mais le son, lui, prévient toujours",
+       /son\.pluieAnnonce/.test(html));
+    ok("l'étoile qui tombe est deux fois plus petite",
+       /var PLUIE_ECH\s*=\s*0\.5;/.test(html));
+    var chute = html.match(/var R = 52 \* e\.ech \* PLUIE_ECH;/);
+    var train = html.match(/\(4 \+ f \* 17\) \* e\.ech \* PLUIE_ECH/);
+    ok("… sa tête et sa traînée suivent la réduction", !!chute && !!train);
+    /* LE VŒU POSÉ NE BOUGE PAS : c'est la cible qu'on va chercher, et
+       une cible qu'on ne trouve plus n'est plus une cible. */
+    var pose = html.match(/var R = 31 \* v\.ech \* bat \* z;/);
+    ok("… mais le vœu posé au sol garde sa taille",
+       !!pose && pose[0].indexOf("PLUIE_ECH") < 0);
+  })();
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

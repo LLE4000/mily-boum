@@ -102,6 +102,14 @@ function boucle(maintenant){
      moitié de majMeteoJungle() qui vaut pour toute île dont le ciel
      gronde. */
   else if(carteFoudre(jeu.index)) majTonnerre(dt, tempsGlobal);
+  /* LA TROISIÈME BRANCHE — le jardin des nuits. Elle est ICI et non
+     dans majJeu, et c'est réfléchi : la boucle saute majJeu quand le
+     bilan est ouvert, et une ambiance qui s'arrête parce qu'un
+     panneau s'ouvre s'entend comme une panne. La jungle a déjà
+     tranché dans ce sens.
+     Les trois branches sont exclusives : la jungle est orageuse, les
+     ténèbres ont la foudre, les nuits ne sont ni l'une ni l'autre. */
+  else if(carteAirMagique(jeu.index)) majAmbianceNuits(dt);
   majBilan(dt);
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);

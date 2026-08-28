@@ -99,6 +99,16 @@ var PLUIE_CHUTE   = 2.6;    // s de descente pour une étoile
 var PLUIE_HAUT    = 660;    // sa hauteur de départ, en unités du monde
 
 var VOEU_VIE      = 13;     // s au sol avant de s'éteindre
+/* ════════════════════════════════════════════════════════════
+   LA TAILLE DE L'ÉTOILE QUI TOMBE — « deux fois plus petites »
+
+   Elle ne s'applique QU'À LA CHUTE : la tête, sa traînée et ses
+   branches. Le vœu posé au sol, lui, ne bouge pas — c'est la cible
+   qu'on va chercher, et une cible qu'on ne trouve plus n'est plus
+   une cible. L'étoile arrive donc discrète et s'ouvre en se posant,
+   ce qui, à la réflexion, raconte mieux la chose que l'inverse.
+   ════════════════════════════════════════════════════════════ */
+var PLUIE_ECH     = 0.5;    // l'étoile en chute, deux fois plus petite
 var VOEU_RAYON    = 1.7;    // cases : la portée du ramassage
 var VOEU_ENERGIE  = 12;     // ce qu'il donne à une troupe déjà entière
 var VOEU_HAUT     = 88;     // la hauteur où flotte l'étoile posée
@@ -200,14 +210,25 @@ function majPluieEtoiles(dt){
   if(!jeu.voeux){ jeu.voeux = []; jeu.voeuxVus = {}; jeu.pluieCreneau = -1; }
   var T = horlogePluie(), P = phasePluie(T), n = P.n, s, k, i;
 
-  /* Le message d'annonce, une seule fois par pluie. */
+  /* L'ANNONCE — PAR L'OREILLE, ET PAR ELLE SEULE.
+     Il y avait aussi un bandeau : « Les étoiles descendent. Va
+     cueillir un vœu. » Il est retiré, et c'est un retour à la
+     spécification d'origine, qui le disait mot pour mot : « Cela doit
+     permettre de comprendre qu'un événement spécial arrive SANS AVOIR
+     BESOIN D'UN GROS MESSAGE. »
+     Ce qui reste dit la même chose et mieux : les nuages s'allument,
+     une petite montée cristalline sonne, puis les étoiles tombent. Un
+     joueur qui regarde ailleurs l'entend ; un joueur qui regarde
+     l'île le voit. Le bandeau, lui, ne faisait que couvrir le ciel au
+     moment précis où il fallait le regarder. */
   if(P.phase === 1 && jeu.pluieCreneau !== n){
     jeu.pluieCreneau = n;
     /* on oublie les vœux des pluies passées : la table n'a pas à
        grandir pendant toute une expédition */
     jeu.voeuxVus = {};
-    if(typeof message === "function") message("Les étoiles descendent. Va cueillir un vœu.");
-    if(typeof son !== "undefined" && son.pluieAnnonce) son.pluieAnnonce();
+    /* on passe le créneau ET le temps déjà écoulé : un retardataire
+       n'entend que ce qui reste, à la même seconde que les autres */
+    if(typeof son !== "undefined" && son.pluieAnnonce) son.pluieAnnonce(n, P.t);
   }
 
   /* LA NAISSANCE DES VŒUX. On regarde les deux derniers créneaux :
@@ -225,7 +246,16 @@ function majPluieEtoiles(dt){
       jeu.voeux.push({ gx:e.gx, gy:e.gy, age:T - tPose, ph:e.ph,
                        ech:e.ech, teinte:e.teinte });
       poseEffet(e.gx, e.gy, "etoilePosee", 0.9, { teinte:e.teinte });
-      if(typeof son !== "undefined" && son.voeuPose) son.voeuPose();
+      /* LE VOLUME SUIT LA DISTANCE. Les vingt-six points de chute sont
+         tirés sur toute l'île, et une vue ordinaire en couvre une
+         trentaine de cases : sans cette atténuation, on entendait un
+         carillon de vingt-six clochettes pour des étoiles qu'on ne
+         voyait pas. */
+      var dvx = (typeof centreCameraGx === "function") ? centreCameraGx() : e.gx;
+      var dvy = (typeof centreCameraGy === "function") ? centreCameraGy() : e.gy;
+      var dd = Math.hypot(e.gx - dvx, e.gy - dvy);
+      var att = dd < 18 ? 1 : (dd > 46 ? 0 : (46 - dd) / 28);
+      if(typeof son !== "undefined" && son.voeuPose) son.voeuPose(s, k, att);
     }
   }
 
@@ -398,14 +428,14 @@ function dessineChutesEtoiles(c, tps, vue){
       c.globalAlpha = f * f * 0.6;
       c.fillStyle = "rgba(" + e.teinte + ",1)";
       c.beginPath();
-      c.arc(pp.x + qq.bal, pp.y - qq.haut, (4 + f * 17) * e.ech, 0, 6.2832);
+      c.arc(pp.x + qq.bal, pp.y - qq.haut, (4 + f * 17) * e.ech * PLUIE_ECH, 0, 6.2832);
       c.fill();
     }
     /* LA TÊTE : un halo, un cœur blanc, et huit branches. C'est la même
        étoile que celle du sol et des lanternes — une carte tient à ce
        que sa forme soit la même partout. */
     c.globalAlpha = 1;
-    var R = 52 * e.ech;
+    var R = 52 * e.ech * PLUIE_ECH;
     var g = c.createRadialGradient(x, y, 0, x, y, R * 3.6);
     g.addColorStop(0,    "rgba(255,255,255,.95)");
     g.addColorStop(0.16, "rgba(" + e.teinte + ",.72)");

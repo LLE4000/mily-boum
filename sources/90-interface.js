@@ -2107,6 +2107,10 @@ function quitteVersBriefing(){
      mais les oscillateurs, eux, continueraient tout seuls : c'est un
      son qui se coupe, pas un son qui s'oublie. */
   if(typeof ambianceJungle !== "undefined") ambianceJungle.arrete();
+  /* Sans elle, le vent et l'eau du jardin suivent le joueur au menu,
+     puis par-dessus la jungle — qui monte alors sa propre nappe. Deux
+     ambiances empilées. */
+  if(typeof ambianceNuits !== "undefined") ambianceNuits.arrete();
   $("bilan").classList.remove("on");
   $("hud").classList.remove("on");
   $("hud").classList.remove("fin");

@@ -105,9 +105,12 @@ var son = {
     o.connect(g); g.connect(this.maitre);
     o.start(t); o.stop(t + duree + 0.02);
   },
-  souffle:function(f0, f1, duree, vol){
+  /* `retard` a été ajouté APRÈS coup, comme sur bip() : aucun des
+     appels existants ne passe cinq arguments, donc (retard || 0) est
+     rétrocompatible au caractère près. */
+  souffle:function(f0, f1, duree, vol, retard){
     if(!this.ok()) return;
-    var t = this.ac.currentTime;
+    var t = this.ac.currentTime + (retard || 0);
     var s = this.ac.createBufferSource();
     s.buffer = this.bruit; s.loop = true;
     var f = this.ac.createBiquadFilter();
@@ -117,6 +120,34 @@ var son = {
     var g = this.ac.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+    s.connect(f); f.connect(g); g.connect(this.maitre);
+    s.start(t); s.stop(t + duree + 0.05);
+  },
+
+  /* ================================================================
+     MONTÉE — le souffle qui ENFLE au lieu de s'éteindre
+
+     souffle() balaie sa bande de f0 vers f1, mais son enveloppe
+     DESCEND toujours : monter la fréquence pendant que le volume
+     s'efface ne fait pas une montée, ça fait une fusée qui s'éloigne.
+     Une vraie montée enfle jusqu'à la dernière seconde puis lâche
+     d'un coup — c'est ce qui fait attendre quelque chose. L'enveloppe
+     était déjà écrite à la main dans la vengeance ; elle n'était
+     simplement pas factorisée.
+     ================================================================ */
+  montee:function(f0, f1, duree, vol, retard){
+    if(!this.ok()) return;
+    var t = this.ac.currentTime + (retard || 0);
+    var s = this.ac.createBufferSource();
+    s.buffer = this.bruit; s.loop = true;
+    var f = this.ac.createBiquadFilter();
+    f.type = "bandpass"; f.Q.value = 1.4;
+    f.frequency.setValueAtTime(f0, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + duree);
+    var g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + duree * 0.88);
     g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
     s.connect(f); f.connect(g); g.connect(this.maitre);
     s.start(t); s.stop(t + duree + 0.05);
@@ -173,20 +204,139 @@ var son = {
      sur des intervalles justes — quinte et octave. C'est ce qui les
      rend audibles au milieu du vacarme sans y ajouter de violence.
      ================================================================ */
-  /* L'annonce : le ciel s'ouvre. Trois notes très douces qui montent,
-     largement espacées — on doit lever les yeux, pas sursauter. */
-  pluieAnnonce:function(){
-    this.bip("sine", 523, 523, 0.9, 0.055);
-    this.bip("sine", 784, 784, 0.9, 0.048, 0.35);
-    this.bip("sine", 1046, 1046, 1.4, 0.052, 0.75);
-    this.souffle(2600, 1400, 1.6, 0.022);
+  /* ================================================================
+     LE CRISTAL DE L'ÎLE — le passage obligé de toute note des nuits
+
+     Trois sinus, et le deuxième est tout le sujet : 2,76 fois la
+     fondamentale, un rapport qui n'est PAS un harmonique. Un rapport
+     entier donne une flûte ; l'inharmonicité fait entendre du métal
+     coulé. Et le partiel meurt le premier — c'est cette extinction en
+     escalier qui fait « bronze » plutôt que « sinus ».
+
+     Les six millisecondes d'attaque de bip() sont exactement
+     l'attaque d'une frappe sur du métal. La primitive était faite
+     pour ça sans le savoir.
+     ================================================================ */
+  dernierDegre:-1, dernierCristal:0,
+  cristalNuits:function(i, vol, retard, duree){
+    i = i < 0 ? 0 : (i > 19 ? 19 : i | 0);
+    var f = NUITS_GAMME[i], d = duree || 0.62, r = retard || 0;
+    this.bip("sine", f, f, d, vol, r);
+    this.bip("sine", f * 2.76, f * 2.76, d * 0.34, vol * 0.34, r + 0.004);
+    this.bip("sine", f * 5.42, f * 5.42, d * 0.09, vol * 0.20, r);
   },
-  /* Une étoile se pose : une clochette, courte et haute. Il y en a
-     vingt-six par pluie, donc elle doit être MINCE — un son plein
-     répété vingt-six fois devient un carillon insupportable. */
-  voeuPose:function(){
-    this.bip("sine", 1760, 1760, 0.34, 0.030);
-    this.bip("sine", 2637, 2637, 0.22, 0.016, 0.02);
+  /* UNE CLOCHETTE. Le volume DÉCROÎT avec le registre : l'oreille est
+     deux fois plus sensible à 3,5 kHz qu'à 1 kHz, et une clochette
+     aiguë à volume égal s'entend comme une aiguille. 0,016 à do6,
+     0,009 à la7. Et jamais deux fois le même degré de suite. */
+  clocheNuits:function(){
+    var i = 10 + ((Math.random() * 10) | 0);
+    if(i % 5 === this.dernierDegre) i = 10 + ((i - 9) % 10);
+    this.dernierDegre = i % 5;
+    this.cristalNuits(i, 0.016 * (1 - (i - 10) * 0.045), 0, 1.90);
+  },
+  /* UNE GOUTTE. Sa hauteur MONTE, et c'est contre-intuitif : ce qu'on
+     entend d'une goutte est la résonance d'une bulle d'air qui se
+     referme, et cette résonance monte pendant ses cinquante
+     millisecondes. Une goutte descendante s'entend immédiatement
+     comme une goutte à l'envers.
+     0,011 — le son le plus faible de la carte, à dessein : c'est
+     celui qui revient le plus souvent. */
+  goutteNuits:function(prox){
+    var f = 1500 + Math.random() * 1400;
+    this.bip("sine", f, f * 1.9, 0.055, 0.011 * (prox === undefined ? 1 : prox));
+  },
+  /* UNE PETITE NOTE MAGIQUE. Deux cristaux et une pellicule de savon.
+     L'écart entre les deux notes est de DEUX ou TROIS degrés, jamais
+     un : l'écart d'un degré est le pas de gamme, et c'est lui qui
+     fabrique une ligne mélodique qu'on retient. L'écart de TEMPS est
+     tiré lui aussi — deux notes toujours espacées pareil forment une
+     cellule rythmique, et une cellule rythmique est déjà la moitié
+     d'une mélodie. */
+  noteMagique:function(){
+    var i = 10 + ((Math.random() * 5) | 0);
+    var e = (Math.random() < 0.5) ? 2 : 3;
+    var j = i + (Math.random() < 0.55 ? e : -e);
+    if(j < 8) j = i + e;
+    if(j > 18) j = i - e;
+    this.cristalNuits(i, 0.017, 0, 0.80);
+    this.cristalNuits(j, 0.013, 0.17 + Math.random() * 0.10, 0.95);
+    this.souffle(6200, 3400, 0.16, 0.008, 0.02);
+  },
+  /* ================================================================
+     L'ANNONCE DE LA PLUIE D'ÉTOILES — les trois temps de la demande
+
+     « Une petite montée sonore ; quelques sons cristallins ; puis les
+     étoiles qui tombent. »
+
+     Tout est programmé EN UN SEUL APPEL, par les retards : pas de
+     setTimeout, pas d'état à tenir, la séquence est calée à
+     l'échantillon près dans le contexte audio et elle survit à une
+     image sautée.
+
+     `deja` est le temps déjà écoulé dans l'annonce, et c'est une
+     CORRECTION, pas un ornement : un joueur qui rejoint l'expédition
+     à la quatrième seconde entendait les sept secondes en entier,
+     avec quatre secondes de retard — ses cristaux tombaient APRÈS que
+     les étoiles avaient commencé à tomber. Avec `deja`, tout le monde
+     entend la fin au même instant d'horloge murale, et le retardataire
+     n'entend que ce qui reste.
+
+     ET AUCUN Math.random ICI. Ce son part au même instant chez tout
+     le monde — phasePluie ne lit que l'heure murale — donc il doit
+     partir avec les MÊMES notes. Tout le hasard passe par la graine
+     du créneau, exactement comme les étoiles elles-mêmes.
+
+     LE TROISIÈME TEMPS N'EST PAS UN BRUITAGE : ce sont les vingt-six
+     atterrissages. Entre le dernier cristal et la première étoile il
+     y a deux secondes de silence, et c'est ce silence-là qui fait
+     lever les yeux — la carte a parlé, puis s'est tue.
+     ================================================================ */
+  pluieAnnonce:function(n, deja){
+    if(!this.ok()) return;
+    var d = deja || 0;
+    var al = (typeof grainePluie === "function")
+           ? prng(grainePluie(n | 0, 907)) : function(){ return 0.5; };
+    /* 1. LA MONTÉE, plus une pédale grave : un balayage seul se lit
+          comme un effet spécial ; une note tenue en dessous se lit
+          comme « quelque chose se prépare ». */
+    if(d < 4.6){
+      this.montee(240, 3200, 4.6 - d, 0.030, 0);
+      this.bip("sine", 174.61, 174.61, 4.6 - d, 0.020, 0);
+    }
+    /* 2. LES TROIS CRISTAUX, du même bronze que les clochettes de
+          l'île. La forme est constante — ça monte — et les hauteurs
+          changent à chaque pluie. */
+    var i0 = 10 + ((al() * 3) | 0);
+    var i1 = i0 + 2 + ((al() * 2) | 0);
+    var i2 = i1 + 2 + ((al() * 2) | 0);
+    var r0 = 3.40 - d, r1 = 4.10 + al() * 0.16 - d, r2 = 4.85 + al() * 0.22 - d;
+    if(r0 >= 0) this.cristalNuits(i0, 0.036, r0, 1.50);
+    if(r1 >= 0) this.cristalNuits(i1, 0.032, r1, 1.40);
+    if(r2 >= 0) this.cristalNuits(i2, 0.038, r2, 1.80);
+  },
+  /* UNE ÉTOILE SE POSE. Deux défauts corrigés d'un coup.
+     LA HAUTEUR EST PARTAGÉE, LE VOLUME EST LOCAL. Vingt-six pings sur
+     les deux mêmes notes, on les connaît au troisième : ce sont
+     maintenant vingt-six degrés tirés de la graine du créneau, donc
+     les mêmes chez tous les joueurs — deux joueurs peuvent se dire
+     « tu as entendu ? », ce qui n'aurait aucun sens avec un tirage
+     local. Et l'atténuation par la distance fait qu'on entend les
+     quatre ou huit étoiles qui tombent AUTOUR DE SOI, au lieu des
+     vingt-six réparties sur toute l'île. C'est déjà la règle du
+     ramassage, qui est local.
+     Le plancher de neuf centièmes est le même garde-fou que celui du
+     souffle : la double boucle des naissances peut faire apparaître
+     dix vœux dans la même image après un onglet réveillé. */
+  voeuPose:function(s, k, att){
+    if(!this.ok() || !(att > 0)) return;
+    var t = this.ac.currentTime;
+    if(t - this.dernierCristal < 0.09) return;
+    this.dernierCristal = t;
+    var al = (typeof grainePluie === "function")
+           ? prng(grainePluie(s | 0, 500 + (k | 0))) : function(){ return 0.5; };
+    var i = 12 + ((al() * 6) | 0);
+    this.cristalNuits(i, (0.020 - (i - 12) * 0.0015) * att, 0, 0.40);
   },
   /* Un vœu cueilli : la même clochette, mais qui MONTE d'une octave,
      et deux notes au lieu d'une. C'est le seul son du jeu qui monte
