@@ -37,6 +37,9 @@ try{
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
+    "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
+    "pavoiseLaGuinguette","PAVOIS_COURONNES","PAVOIS_ALLEE","PAVOIS_PAS","PAVOIS_CX",
+    "PAVOIS_CY","PAVOIS_PISTE","PAVOIS_HAUSSE","PAVOIS_ECART","cordeGuinguette",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
     "encodePlans","decodePlans","planCarte","faitZone","zoneType","zoneDens","zoneChamp","zoneEstVide","sautRenfort","MARQUE_PLAN2",
     "encodeChats","decodeChats","fusionneChats","ESPECES_PROTEGEES",
@@ -5898,6 +5901,375 @@ G("8. Cohérence des règles de jeu");
     var pose = html.match(/var R = 31 \* v\.ech \* bat \* z;/);
     ok("… mais le vœu posé au sol garde sa taille",
        !!pose && pose[0].indexOf("PLUIE_ECH") < 0);
+  })();
+})();
+
+/* ================================================================
+   LA GUINGUETTE PAVOISÉE
+
+   « À la guinguette il faut mettre 50 % de défenses en plus et les
+   disposer de manière graphique guinguette. »
+
+   Trois choses peuvent mal tourner, et une seule est cosmétique.
+
+     L'INDEX. La guinguette est une île OUVERTE et jouée : son
+     tableau de bâtiments porte le sens de chaque bit de destruction
+     des parties en cours. La figure n'a donc le droit que d'AJOUTER
+     EN QUEUE — et ce groupe le vérifie autrement qu'en croyant le
+     commentaire.
+
+     LA TRAVERSÉE. Une courbe fermée partitionne un plan. Cinq
+     festons enfermaient deux mille trois cents cases à la première
+     écriture : une troupe entrée dans un secteur n'en serait plus
+     ressortie. On remesure ici, sur la grille du jeu.
+
+     LE COMPTE. Cinquante pour cent, c'est un nombre, et il se
+     vérifie.
+   ================================================================ */
+(function(){
+  G("23. La guinguette pavoisée");
+
+  var IG = -1;
+  for(var ig = 0; ig < N.CARTES.length; ig++)
+    if(N.CARTES[ig].biome === "guinguette") IG = ig;
+  ok("l'île de la guinguette est là", IG >= 0);
+  if(IG < 0) return;
+
+  function defenses(c){
+    var n = 0;
+    for(var i = 0; i < c.batiments.length; i++){
+      var t = c.batiments[i].t;
+      if(t !== "cellule" && t !== "reacteur") n++;
+    }
+    return n;
+  }
+  /* la grille d'occupation du jeu, à l'identique de marqueEmprise */
+  function grille(c){
+    var occ = [], i, x, y;
+    for(i = 0; i < N.GW * N.GH; i++) occ.push(0);
+    for(i = 0; i < c.batiments.length; i++){
+      var b = c.batiments[i], r = b.e / 2;
+      for(x = Math.floor(b.gx - r); x <= Math.ceil(b.gx + r) - 1; x++)
+        for(y = Math.floor(b.gy - r); y <= Math.ceil(b.gy + r) - 1; y++)
+          if(x >= 0 && x < N.GW && y >= 0 && y < N.GH) occ[y * N.GW + x] = 1;
+    }
+    return occ;
+  }
+  /* l'inondation depuis la plage, en huit voisins : c'est ainsi que
+     les troupes se déplacent, avanceUnite retombant sur un axe quand
+     la diagonale est prise */
+  var VOIS = [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]];
+  function inonde(occ){
+    var vu = [], pile = [], i, y;
+    for(i = 0; i < N.GW * N.GH; i++) vu.push(0);
+    for(y = 0; y < N.GH; y++){
+      var k = y * N.GW + N.PLAGE_X0;
+      if(!occ[k]){ vu[k] = 1; pile.push(k); }
+    }
+    while(pile.length){
+      var q = pile.pop(), qx = q % N.GW, qy = (q / N.GW) | 0;
+      for(var j = 0; j < 8; j++){
+        var nx = qx + VOIS[j][0], ny = qy + VOIS[j][1];
+        if(nx < 0 || nx >= N.GW || ny < 0 || ny >= N.GH) continue;
+        var kk = ny * N.GW + nx;
+        if(vu[kk] || occ[kk]) continue;
+        vu[kk] = 1; pile.push(kk);
+      }
+    }
+    return vu;
+  }
+
+  /* ---------------------------------------------------------------
+     1. LA FIGURE. Elle est de la géométrie pure : aucun tirage, aucun
+     état, donc la même chez tous les joueurs et à toutes les
+     versions. C'est ce qui permet au SOL de la peindre exactement là
+     où les défenses se posent.
+     --------------------------------------------------------------- */
+  (function(){
+    var F = N.figureGuinguette(), G2 = N.figureGuinguette();
+    ok("la figure ne tire rien : deux appels donnent le même dessin",
+       JSON.stringify(F) === JSON.stringify(G2));
+    ok("elle porte cinq couronnes", F.couronnes.length === 5,
+       F.couronnes.length + " couronnes");
+    ok("… et un plancher de bal au milieu de l'île",
+       F.piste > 8 && Math.abs(F.cx - N.GW * 0.5) < 20 && Math.abs(F.cy - N.GH * 0.5) < 20);
+
+    var deuxCordes = 1, versDehors = 1, pasJuste = 1, sorties = 0;
+    for(var i = 0; i < F.couronnes.length; i++){
+      var K = F.couronnes[i];
+      if(K.cordes.length !== K.mats.length * 2) deuxCordes = 0;
+      for(var j = 0; j < K.cordes.length; j++){
+        var C = K.cordes[j], m = C.pts[(C.pts.length / 2) | 0];
+        /* LE CREUX POINTE VERS LE DEHORS : c'est ce qui fait lire
+           « guirlande » et non « polygone ». Le milieu de la corde
+           doit être PLUS LOIN du centre que le milieu des deux mâts. */
+        var rMil = Math.hypot(m[0] - F.cx, m[1] - F.cy);
+        var rCorde = Math.hypot((C.a[0] + C.b[0]) * 0.5 - F.cx,
+                                (C.a[1] + C.b[1]) * 0.5 - F.cy);
+        if(rMil <= rCorde + 1) versDehors = 0;
+        for(var k = 1; k < C.pts.length; k++){
+          var d = Math.hypot(C.pts[k][0] - C.pts[k-1][0], C.pts[k][1] - C.pts[k-1][1]);
+          if(Math.abs(d - N.PAVOIS_PAS) > 0.35) pasJuste = 0;
+        }
+        for(k = 0; k < C.pts.length; k++)
+          if(C.pts[k][0] < 2 || C.pts[k][0] > N.PLAGE_X0 + 2 ||
+             C.pts[k][1] < -2 || C.pts[k][1] > N.GH + 2) sorties++;
+      }
+    }
+    ok("deux cordes par travée, comme un vrai pavois", deuxCordes);
+    ok("chaque corde PEND vers l'extérieur", versDehors);
+    /* à longueur d'arc constante, et non à paramètre constant : sinon
+       les perles s'entassent aux mâts et le fond du feston se vide —
+       or le fond du feston est exactement ce qu'on regarde */
+    ok("les perles sont espacées régulièrement le long du fil", pasJuste);
+    ok("et aucune corde ne sort de l'île", sorties === 0, sorties + " points dehors");
+  })();
+
+  /* ---------------------------------------------------------------
+     2. LES QUATRE ALLÉES. Elles ne sont pas décoratives : sans elles
+     l'île se referme. Elles doivent partir du plancher de bal et
+     sortir, et rien ne doit y être posé.
+     --------------------------------------------------------------- */
+  (function(){
+    var F = N.figureGuinguette();
+    ok("le milieu de la piste est dans une allée — c'est leur croisée",
+       N.dansAlleeGuinguette(F.cx, F.cy));
+    var u = 0.70711, dedans = 1, dehors = 0;
+    for(var r = 4; r < 62; r += 2){
+      /* sur les quatre rayons */
+      if(!N.dansAlleeGuinguette(F.cx + r * u, F.cy + r * u)) dedans = 0;
+      if(!N.dansAlleeGuinguette(F.cx - r * u, F.cy + r * u)) dedans = 0;
+      if(!N.dansAlleeGuinguette(F.cx + r * u, F.cy - r * u)) dedans = 0;
+      if(!N.dansAlleeGuinguette(F.cx - r * u, F.cy - r * u)) dedans = 0;
+      /* et entre eux, à mi-chemin, on est dehors */
+      if(N.dansAlleeGuinguette(F.cx + r, F.cy)) dehors++;
+      if(N.dansAlleeGuinguette(F.cx, F.cy + r)) dehors++;
+    }
+    ok("les quatre allées courent du centre jusqu'au bord", dedans);
+    ok("… et ne mangent pas le reste de l'île", dehors === 0, dehors + " écarts");
+
+    var c = N.genereCarte("ALLEE", IG, "", 0), dansAllee = 0;
+    for(var i = 0; i < c.batiments.length; i++)
+      if(N.dansAlleeGuinguette(c.batiments[i].gx, c.batiments[i].gy)) dansAllee++;
+    /* le semis d'origine, lui, y est : on n'a pas le droit d'y
+       toucher, son rang porte le bitmap. Ce qui compte est qu'aucun
+       bâtiment NEUF ne s'y ajoute — et le seul moyen de le voir
+       depuis ici est que le compte n'ait pas explosé. */
+    ok("les allées ne reçoivent que le semis d'origine, jamais le pavois",
+       dansAllee < 150, dansAllee + " bâtiments dans les allées");
+  })();
+
+  /* ---------------------------------------------------------------
+     3. LA TRAVERSÉE — le test qui a fait réécrire la figure trois
+     fois. On rejoue la grille d'occupation du jeu et l'on inonde
+     depuis la plage.
+     --------------------------------------------------------------- */
+  (function(){
+    var pireHors = 0, pirePoches = 0, pireTaux = 1, brasier = 1;
+    for(var g = 0; g < 4; g++){
+      var c = N.genereCarte("PASSE" + g, IG, "", 0);
+      var occ = grille(c), vu = inonde(occ);
+      var libres = 0, atteintes = 0, poches = 0, i, x, y;
+      for(i = 0; i < N.GW * N.GH; i++){ if(!occ[i]) libres++; if(vu[i]) atteintes++; }
+      for(y = 0; y < N.GH; y++)
+        for(x = 6; x < N.PLAGE_X0; x++){
+          var k = y * N.GW + x;
+          if(!occ[k] && !vu[k]) poches++;
+        }
+      /* le Brasier doit rester joignable, sinon la carte est
+         imprenable et la campagne bloquée sur elle */
+      var qgOk = 0;
+      for(var dx = -3; dx <= 3; dx++)
+        for(var dy = -3; dy <= 3; dy++){
+          var qx = N.QG_GX + dx, qy = N.QG_GY + dy;
+          if(qx >= 0 && qx < N.GW && qy >= 0 && qy < N.GH && vu[qy * N.GW + qx]) qgOk = 1;
+        }
+      if(!qgOk) brasier = 0;
+      /* ET SURTOUT : aucun bâtiment ne doit se retrouver hors de
+         portée de tout point atteignable. Un bâtiment enfermé ne
+         pourrait plus être ni abattu ni récolté — l'île ne serait
+         jamais rasée à cent pour cent, et le score jamais complet.
+         Cinq cases : la plus courte portée du jeu, celle du Crible. */
+      var hors = 0;
+      for(i = 0; i < c.batiments.length; i++){
+        var b = c.batiments[i], vuOk = 0;
+        for(dx = -5; dx <= 5 && !vuOk; dx++)
+          for(dy = -5; dy <= 5 && !vuOk; dy++){
+            if(dx * dx + dy * dy > 25) continue;
+            x = Math.round(b.gx) + dx; y = Math.round(b.gy) + dy;
+            if(x >= 0 && x < N.GW && y >= 0 && y < N.GH && vu[y * N.GW + x]) vuOk = 1;
+          }
+        if(!vuOk) hors++;
+      }
+      if(hors > pireHors) pireHors = hors;
+      if(poches > pirePoches) pirePoches = poches;
+      if(atteintes / libres < pireTaux) pireTaux = atteintes / libres;
+    }
+    ok("le Brasier reste joignable depuis la plage", brasier);
+    ok("aucun bâtiment ne se retrouve enfermé hors de portée",
+       pireHors === 0, pireHors + " bâtiment(s) injoignable(s)");
+    ok("l'île reste franchissable de part en part",
+       pireTaux > 0.97, (pireTaux * 100).toFixed(1) + "% des cases libres atteintes");
+    ok("… et il ne reste que des recoins, pas des secteurs murés",
+       pirePoches < 400, pirePoches + " cases enfermées");
+  })();
+
+  /* ---------------------------------------------------------------
+     4. LE COMPTE. « Cinquante pour cent de défenses en plus » est un
+     nombre. Les cellules à récolter et les réacteurs n'en sont pas :
+     ils ne défendent rien.
+     --------------------------------------------------------------- */
+  (function(){
+    var bas = 1e9, haut = 0, n = 0;
+    for(var g = 0; g < 4; g++){
+      var c = N.genereCarte("COMPTE" + g, IG, "", 0);
+      var d = defenses(c);
+      if(d < bas) bas = d;
+      if(d > haut) haut = d;
+      n += d;
+    }
+    /* on ne peut pas relire la carte d'avant depuis le fichier livré :
+       on compare donc au nombre qu'elle avait, gravé ici. C'est un
+       repère mesuré, pas une constante du jeu. */
+    var AVANT = 668;
+    var moyen = n / 4, hausse = moyen / AVANT - 1;
+    ok("la guinguette porte bien la moitié de défenses en plus",
+       hausse > 0.45 && hausse < 0.56,
+       AVANT + " → " + moyen.toFixed(0) + "  (+" + (hausse * 100).toFixed(1) + "%)");
+    ok("… et d'un salon à l'autre le compte ne s'envole pas",
+       haut - bas < 90, bas + " à " + haut);
+
+    /* LA PORTÉE NE BOUGE PAS. C'était la lecture de la demande : une
+       guinguette mieux gardée, pas une île qu'on ne peut plus
+       aborder. On ne compte pas les Frelons de l'île — leur nombre
+       varie d'un salon à l'autre et la mesure serait floue — on lit
+       la seule chose qui soit exacte : le pavois n'en POSE aucun.
+       Rien de ce qu'il ajoute ne tire à plus de douze cases. */
+    var pav = html.match(/function pavoiseLaGuinguette[\s\S]*?\n\}/);
+    var lam = html.match(/function lampionsGuinguette[\s\S]*?\n\}/);
+    ok("les deux passes de pose sont dans le fichier livré", !!pav && !!lam);
+    if(pav && lam){
+      var deux = pav[0] + lam[0];
+      ok("le pavois ne pose ni Frelon ni Pilon",
+         deux.indexOf('"frelon"') < 0 && deux.indexOf('"pilon"') < 0);
+      /* et la portée la plus longue qu'il pose est celle du mirador */
+      var pose = 0, maxPortee = 0;
+      ["bobine", "cuve", "chalumeau", "silo", "mirador"].forEach(function(t){
+        if(deux.indexOf('"' + t + '"') < 0) return;
+        pose++;
+        if(N.DEF[t].portee > maxPortee) maxPortee = N.DEF[t].portee;
+      });
+      ok("… et rien de ce qu'il pose ne tire à plus de douze cases et demie",
+         pose >= 4 && maxPortee <= 12.5, maxPortee + " cases au plus");
+    }
+  })();
+
+  /* ---------------------------------------------------------------
+     5. LA MÊME CARTE POUR TOUT LE MONDE. La passe d'ouverture RETIRE
+     des bâtiments : si son choix dépendait de l'ordre d'un objet ou
+     d'un tirage, deux joueurs du même salon ne joueraient pas la même
+     île, et leurs bitmaps de destruction ne voudraient plus rien dire.
+     --------------------------------------------------------------- */
+  (function(){
+    function signe(c){
+      var s = "";
+      for(var i = 0; i < c.batiments.length; i++){
+        var b = c.batiments[i];
+        s += b.t + Math.round(b.gx * 100) + "," + Math.round(b.gy * 100) + ";";
+      }
+      return s;
+    }
+    var a = signe(N.genereCarte("MEME", IG, "", 0));
+    var b = signe(N.genereCarte("MEME", IG, "", 0));
+    ok("deux générations du même salon donnent la même île", a === b);
+    var d = signe(N.genereCarte("AUTRE", IG, "", 0));
+    ok("… et deux salons différents, deux îles différentes", a !== d);
+    /* le rang EST l'identité : après les retraits, il doit être
+       renuméroté sans trou */
+    var c = N.genereCarte("MEME", IG, "", 0), rangs = 1;
+    for(var i = 0; i < c.batiments.length; i++) if(c.batiments[i].n !== i) rangs = 0;
+    ok("chaque bâtiment porte son propre rang, sans trou", rangs);
+  })();
+
+  /* ---------------------------------------------------------------
+     6. L'OUVERTURE NE TOUCHE JAMAIS AUX ANCIENS RANGS. C'est la seule
+     chose qui rende la figure posable sur une île déjà jouée : les
+     bâtiments d'avant ont leur bit dans tous les instantanés du
+     salon. On l'éprouve directement, sur une carte fabriquée.
+     --------------------------------------------------------------- */
+  (function(){
+    var faux = { batiments:[] }, i;
+    /* un mur bien fermé : un anneau serré autour d'un creux */
+    for(i = 0; i < 40; i++){
+      var a = i / 40 * 6.2832;
+      faux.batiments.push({ t:"bobine", gx:70 + Math.cos(a) * 9,
+                            gy:60 + Math.sin(a) * 9, e:2, n:i, vivant:1 });
+    }
+    var avant = faux.batiments.length;
+    /* et une seconde muraille, celle-là « neuve » */
+    for(i = 0; i < 40; i++){
+      var a2 = i / 40 * 6.2832;
+      faux.batiments.push({ t:"bobine", gx:70 + Math.cos(a2) * 16,
+                            gy:60 + Math.sin(a2) * 16, e:2,
+                            n:faux.batiments.length, vivant:1 });
+    }
+    var empreintes = [];
+    for(i = 0; i < avant; i++)
+      empreintes.push(faux.batiments[i].t + faux.batiments[i].gx.toFixed(4));
+    N.ouvreLaFete(faux, avant);
+    var garde = faux.batiments.length >= avant, memes = 1;
+    for(i = 0; i < avant && garde; i++)
+      if(faux.batiments[i].t + faux.batiments[i].gx.toFixed(4) !== empreintes[i]) memes = 0;
+    ok("l'ouverture ne retire aucun rang d'avant", garde && memes);
+    ok("… mais elle perce bien la muraille neuve",
+       faux.batiments.length < avant + 40,
+       (avant + 40) + " → " + faux.batiments.length);
+  })();
+
+  /* ---------------------------------------------------------------
+     7. LE SOL PEINT LA MÊME FIGURE. Deux tracés calculés séparément
+     se seraient désalignés à la première retouche d'un rayon — et
+     c'est le genre d'écart qu'on ne voit qu'à l'écran, longtemps
+     après. Une seule géométrie, deux lecteurs.
+     --------------------------------------------------------------- */
+  (function(){
+    var sol = html.match(/if\(carteC\.biome === "guinguette"\)\{[\s\S]*?\n  \}/);
+    ok("le sol de la guinguette est dans le fichier livré", !!sol);
+    if(!sol) return;
+    ok("il prend sa figure à la même fonction que les défenses",
+       sol[0].indexOf("figureGuinguette()") > 0);
+    ok("… il coupe les guirlandes peintes dans les allées",
+       sol[0].indexOf("dansAlleeGuinguette") > 0);
+    ok("… et il peint bien un plancher de bal", sol[0].indexOf("FG.piste") > 0);
+    /* la racine de deux : un cercle du quadrillage se projette en
+       ellipse de demi-axes 26 R √2 et 13 R √2. Sans elle, le plancher
+       est trop petit d'un tiers et l'anneau de torches tombe dehors. */
+    ok("… au bon rayon, racine de deux comprise",
+       /FG\.piste \* TW \* 0\.5 \* 1\.41421/.test(sol[0]));
+  })();
+
+  /* ---------------------------------------------------------------
+     8. ET RIEN QUE LA GUINGUETTE. La figure ne doit toucher aucune
+     autre île : elles ont toutes des parties en cours.
+     --------------------------------------------------------------- */
+  (function(){
+    var pave = 0;
+    for(var i = 0; i < N.CARTES.length; i++){
+      if(i === IG) continue;
+      var c = N.genereCarte("AILLEURS", i, N.planDeCarte(i, ""), 0);
+      /* la signature du pavois : des cuves en nombre. Aucune île n'en
+         porte plus d'une poignée — c'est le bâtiment le plus rare du
+         jeu, et c'est pour ça qu'il fait une bonne guirlande. */
+      var cuves = 0;
+      for(var j = 0; j < c.batiments.length; j++)
+        if(c.batiments[j].t === "cuve") cuves++;
+      if(cuves > 40) pave++;
+    }
+    ok("aucune autre île n'a été pavoisée", pave === 0);
+    var cg = N.genereCarte("AILLEURS", IG, "", 0), cuvesG = 0;
+    for(var k = 0; k < cg.batiments.length; k++)
+      if(cg.batiments[k].t === "cuve") cuvesG++;
+    ok("… et la guinguette, elle, l'est bien", cuvesG > 80, cuvesG + " cuves");
   })();
 })();
 

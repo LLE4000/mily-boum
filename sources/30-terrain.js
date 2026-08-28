@@ -1500,6 +1500,134 @@ function construitSol(carteC){
       }
     }
     c.globalAlpha = 1;
+
+    /* ================================================================
+       3. LE PAVOIS — LES GUIRLANDES, PEINTES
+
+       Les défenses ajoutées à cette île dessinent quatre festons
+       autour d'une piste de bal. À l'écran, elles ne le disaient pas :
+       mille tourelles serrées font un tapis, et l'œil ne distingue une
+       ligne dense d'un semis régulier qu'en s'approchant beaucoup.
+
+       On peint donc la figure elle-même. C'est du SOL, donc du décor :
+       aucun index, aucun bit de destruction, rien qui coûte à l'image
+       — le canevas est calculé une fois au débarquement. Et c'est la
+       MÊME géométrie que les défenses, prise à la même fonction :
+       deux tracés calculés séparément se seraient désalignés à la
+       première retouche d'un rayon, et c'est le genre d'écart qu'on ne
+       voit qu'à l'écran, longtemps après.
+
+       Résultat : la fête se lit de haut — quatre guirlandes qui
+       pendent entre leurs mâts, un plancher de bal au milieu — et
+       chaque tourelle qu'on rencontre est visiblement accrochée à
+       quelque chose. C'est la différence entre « il y a plus de
+       défenses » et « il y a une fête ». */
+    var FG = figureGuinguette();
+    var pP = iso(FG.cx, FG.cy);
+    /* LE RAYON À L'ÉCRAN, ET LA RACINE DE DEUX QU'ON OUBLIE. Un cercle
+       du quadrillage se projette en ellipse DROITE — la rotation de
+       quarante-cinq degrés de la projection l'y ramène — mais ses
+       demi-axes valent 26 R √2 et 13 R √2, pas 26 R et 13 R. Sans le
+       facteur, le plancher est trop petit d'un tiers et l'anneau de
+       torches tombe nettement en dehors. */
+    var rP = FG.piste * TW * 0.5 * 1.41421;
+
+    /* LE PLANCHER DE BAL. Un vrai disque de bois clair, ses lames
+       dans le sens de la projection, et un liseré chaud au bord :
+       c'est le seul endroit de l'île qui soit VIDE de guirlande, donc
+       le seul qui se lise comme un lieu et non comme une allée. */
+    /* une nappe de lumière sous le plancher : l'île est sombre, et
+       c'est la LUEUR qui porte de loin, jamais le bois */
+    var gP = c.createRadialGradient(pP.x, pP.y, rP * 0.2, pP.x, pP.y, rP * 1.35);
+    gP.addColorStop(0, "rgba(255,206,140,.30)");
+    gP.addColorStop(0.62, "rgba(255,176,104,.13)");
+    gP.addColorStop(1, "rgba(255,160,90,0)");
+    c.fillStyle = gP;
+    c.beginPath(); c.ellipse(pP.x, pP.y, rP * 1.35, rP * 0.68, 0, 0, 6.2832); c.fill();
+
+    c.save();
+    c.globalAlpha = 0.62;
+    c.fillStyle = "#c8a068";
+    c.beginPath(); c.ellipse(pP.x, pP.y, rP, rP * 0.5, 0, 0, 6.2832); c.fill();
+    c.clip();
+    /* les lames, dans les DEUX sens de la projection : un plancher de
+       bal se pose en damier, et le damier est ce qui le distingue
+       d'une simple flaque de lumière de plus */
+    c.globalAlpha = 0.20;
+    c.strokeStyle = "#4a3624"; c.lineWidth = 1.6;
+    for(j = -FG.piste; j <= FG.piste; j += 1.05){
+      var w1 = iso(FG.cx - FG.piste, FG.cy + j), w2 = iso(FG.cx + FG.piste, FG.cy + j);
+      c.beginPath(); c.moveTo(w1.x, w1.y); c.lineTo(w2.x, w2.y); c.stroke();
+    }
+    c.globalAlpha = 0.10;
+    for(j = -FG.piste; j <= FG.piste; j += 2.1){
+      var w3 = iso(FG.cx + j, FG.cy - FG.piste), w4 = iso(FG.cx + j, FG.cy + FG.piste);
+      c.beginPath(); c.moveTo(w3.x, w3.y); c.lineTo(w4.x, w4.y); c.stroke();
+    }
+    c.restore();
+    c.globalAlpha = 0.85;
+    c.strokeStyle = "#ffd79a"; c.lineWidth = 3.6;
+    c.beginPath(); c.ellipse(pP.x, pP.y, rP, rP * 0.5, 0, 0, 6.2832); c.stroke();
+
+    /* LES QUATRE GUIRLANDES. Trois passes sur le même tracé : un halo
+       large et tiède qui pose la lumière au sol, le fil lui-même, et
+       les lampions. Sans le halo, un trait de deux pixels sur de la
+       terre battue disparaît dès qu'on dézoome — c'est la lueur, et
+       non le fil, qui porte la figure de loin. */
+    for(var ig = 0; ig < FG.couronnes.length; ig++){
+      var KG = FG.couronnes[ig];
+      for(var jg = 0; jg < KG.cordes.length; jg++){
+        var CG = KG.cordes[jg];
+        /* On retrace la parabole finement — les perles sont espacées
+           de trois cases, ce qui ferait une ligne brisée — ET L'ON
+           COUPE LE FIL DANS LES ALLÉES. C'est le même test que pour
+           les défenses : si la guirlande peinte traversait l'entrée
+           que les tourelles laissent libre, l'allée se lirait comme
+           un défaut de la figure au lieu d'une porte. */
+        var brins = [], brin = null;
+        for(var ug = 0; ug <= 30; ug++){
+          var Pg = CG.fil(ug / 30);
+          if(dansAlleeGuinguette(Pg[0], Pg[1])){ brin = null; continue; }
+          if(!brin){ brin = []; brins.push(brin); }
+          brin.push(iso(Pg[0], Pg[1]));
+        }
+        for(var bg = 0; bg < brins.length; bg++){
+          if(brins[bg].length < 2) continue;
+          c.beginPath();
+          for(var vg = 0; vg < brins[bg].length; vg++){
+            var qg = brins[bg][vg];
+            if(vg) c.lineTo(qg.x, qg.y); else c.moveTo(qg.x, qg.y);
+          }
+          c.globalAlpha = 0.30; c.strokeStyle = "#ffb45a"; c.lineWidth = 22;
+          c.lineCap = "round"; c.stroke();
+          c.globalAlpha = 0.88; c.strokeStyle = "#ffe2b4"; c.lineWidth = 3.4;
+          c.stroke();
+        }
+        /* les lampions, aux mêmes points que les perles de défense :
+           chaque tourelle du feston est ainsi posée SUR une lumière.
+           Trois couleurs pour trois types, dans le même ordre que
+           `bille()` — la lumière, le lampion rouge, le brasero. */
+        for(var kg = 0; kg < CG.pts.length; kg++){
+          if(dansAlleeGuinguette(CG.pts[kg][0], CG.pts[kg][1])) continue;
+          var lg = iso(CG.pts[kg][0], CG.pts[kg][1]);
+          c.globalAlpha = 0.80;
+          c.fillStyle = ["#cfe8ff", "#ff7a48", "#ffd07a"][kg % 3];
+          c.beginPath(); c.arc(lg.x, lg.y, 6.2, 0, 6.2832); c.fill();
+        }
+      }
+      /* les mâts : un pied de lumière au sol */
+      for(var mg = 0; mg < KG.mats.length; mg++){
+        if(dansAlleeGuinguette(KG.mats[mg][0], KG.mats[mg][1])) continue;
+        var ng = iso(KG.mats[mg][0], KG.mats[mg][1]);
+        var gg2 = c.createRadialGradient(ng.x, ng.y, 2, ng.x, ng.y, 34);
+        gg2.addColorStop(0, "rgba(255,214,140,.50)");
+        gg2.addColorStop(1, "rgba(255,190,110,0)");
+        c.globalAlpha = 1; c.fillStyle = gg2;
+        c.beginPath(); c.ellipse(ng.x, ng.y, 34, 17, 0, 0, 6.2832); c.fill();
+      }
+    }
+    c.globalAlpha = 1;
+    c.lineCap = "butt";
     c.restore();
   }
 

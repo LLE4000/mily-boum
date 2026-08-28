@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.73";
+var VERSION = "v0.74";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2050,10 +2050,34 @@ function genereCarte(codeSalon, index, plan, tirage){
     }
   }
 
+  /* --- LA GUINGUETTE PAVOISE ---
+     Le dernier bâtiment posé de toute la fonction, et ce n'est pas un
+     hasard : la figure AJOUTE À LA FIN du tableau. Les huit cent
+     trente rangs d'origine ne bougent pas d'un cran, donc pas un bit
+     de destruction des salons en cours ne change de sens, et les
+     rangs neufs — que personne n'a jamais abattus — se lisent
+     « intacts » dans un instantané plus ancien, ce qui est vrai.
+     Son propre flux de tirage, comme la jungle et le jardin : rien de
+     ce qui précède ne peut la décaler, et rien ne vient après elle. */
+  if(CARTES[index] && CARTES[index].biome === "guinguette"){
+    var avantPavois = c.batiments.length;
+    var cible = Math.round(compteDefenses(c) * (1 + PAVOIS_HAUSSE));
+    var alG = prng((gr ^ 0x6A17E7EE) >>> 0);
+    /* On dessine, on rouvre, on complète, on rouvre encore. Deux tours
+       et pas trois : le premier pose la figure, qui ferme des
+       secteurs ; le second pose des lampions isolés, qui n'en ferment
+       pratiquement aucun — mesuré, le deuxième passage d'ouverture ne
+       retire plus qu'une poignée de bâtiments. */
+    pavoiseLaGuinguette(c, alG);
+    ouvreLaFete(c, avantPavois);
+    lampionsGuinguette(c, alG, cible);
+    ouvreLaFete(c, avantPavois);
+  }
+
   /* --- LES CHATS DE MILY SORTENT DES MURS ---
      Ici, et pas plus haut : à cette place tous les bâtiments sont
-     posés, cellules peintes comprises, et rien de ce qui suit ne lit
-     la position des chats. */
+     posés, cellules peintes ET pavois compris, et rien de ce qui suit
+     ne lit la position des chats. */
   degageLesProteges(c);
 
   /* --- LA JUNGLE : SA FLORE, SA FAUNE, SES GEYSERS ---
@@ -2310,6 +2334,618 @@ function degageLesProteges(c){
    POSER une fois l'effectif atteint. Une carte plus encombrée donne
    donc moins de bêtes, jamais une séquence différente.
    ================================================================ */
+/* ================================================================
+   LA GUINGUETTE PAVOISE — cinquante pour cent de défenses en plus,
+   et elles dessinent la fête
+
+   « À la guinguette il faut mettre 50 % de défenses en plus et les
+   disposer de manière graphique guinguette. »
+
+   ────────────────────────────────────────────────────────────────
+   POURQUOI CE N'EST PAS UN PLAN GRAVÉ
+
+   Le jardin des Mily et une nuits a été dessiné par un plan gravé —
+   `planNuits()` — et c'est l'outil fait pour ça. Il est ici
+   INTERDIT, et la raison n'a rien d'un détail de mise en œuvre.
+
+   Un plan gravé passe par le quadrillage : il décide, nœud par nœud,
+   ce qu'on pose et ce qu'on saute. Il REDESSINE donc l'île depuis le
+   premier bâtiment, et le tableau `c.batiments` est un index — c'est
+   lui qui porte le sens de chaque bit de destruction. Le jardin
+   pouvait se permettre : sa carte était en chantier, fermée, aucune
+   partie derrière elle. La guinguette est OUVERTE et jouée. Graver
+   son plan, c'est rendre fausses les ruines de la partie en cours.
+
+   D'où la seule construction admissible : on ne touche à RIEN de ce
+   qui existe, et l'on AJOUTE À LA FIN du tableau. Les huit cent
+   trente bâtiments d'origine gardent leur rang au bit près ; les
+   nouveaux occupent des rangs qui n'ont jamais été employés, et
+   qu'un instantané plus ancien lit donc comme « intact » — ce qui
+   est exactement vrai : personne ne les a encore abattus.
+
+   Deuxième conséquence, moins évidente : la figure ne peut pas faire
+   de place. Elle ne déplace ni ne retire une seule tourelle
+   existante. Elle se lit donc comme un SURCROÎT de densité sur un
+   champ régulier — c'est déjà ce qui a fait les haies du jardin, et
+   c'est ce qui marche : l'œil lit une ligne dense contre un semis
+   régulier bien avant de lire une forme isolée.
+
+   ────────────────────────────────────────────────────────────────
+   LA FIGURE : LE BAL SOUS LES GUIRLANDES
+
+   Une guinguette vue d'en haut, c'est une seule image, et tout le
+   monde l'a en tête : un grand mât planté au milieu, des guirlandes
+   qui rayonnent jusqu'à une couronne de lampadaires, et entre les
+   lampadaires le feston qui retombe. Autour, les guéridons.
+
+     LE PLANCHER DE BAL  au milieu de l'île, cerné de deux anneaux de
+                      chalumeaux — les torches, et la barrière.
+     CINQ FESTONS     des mâts régulièrement espacés, et d'un mât à
+                      l'autre DEUX cordes qui retombent VERS
+                      L'EXTÉRIEUR. C'est ce creux, et lui seul, qui
+                      fait lire « guirlande » plutôt que « cercle » :
+                      une corde tendue n'est pas une guirlande.
+     LES LAMPADAIRES  un mirador à chaque mât.
+     LES GUÉRIDONS    partout sur l'île : un silo — la table ronde —
+                      et cinq cuves autour, les tonneaux.
+     LES LAMPIONS     et, pour finir, des lanternes et des braseros
+                      seuls, semés jusqu'à ce que le compte y soit.
+
+   ET LES PERLES ALTERNENT SUR TROIS TEMPS : bobine, cuve, chalumeau.
+   Une guirlande de fête n'est jamais d'une seule couleur — et c'est
+   aussi le seul réglage d'équilibre de toute la figure, voir plus
+   bas `bille()`.
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI EST AJOUTÉ, ET CE QUE ÇA CHANGE VRAIMENT
+
+   Mesuré sur huit salons : huit cent trente bâtiments deviennent
+   onze cent soixante ; six cent soixante-huit DÉFENSES deviennent
+   mille — cinquante pour cent tout rond, ce qui était la demande.
+   Les dégâts par seconde de l'île montent de trente-huit pour cent,
+   et la vie à démonter d'autant.
+
+   LA PORTÉE, ELLE, NE BOUGE PAS. Rien de neuf ne tire à plus de
+   douze cases : ni Frelon ni Pilon dans la figure. Le tir de loin
+   augmente de huit pour cent, et le tir sur la plage de débarquement
+   de trois. On aborde donc l'île comme avant, et la différence se
+   paie EN ENTRANT DANS LA FÊTE. C'est la lecture juste de la demande
+   — une guinguette mieux gardée, pas une île qu'on ne peut plus
+   approcher.
+
+   L'encombrement. La figure ne pose jamais un bâtiment à moins de
+   `PAVOIS_ECART` d'un autre : c'est la règle des miradors, à
+   l'identique. Les perles refusées laissent des trous dans la
+   guirlande — et une guirlande à trous reste une guirlande.
+
+   ────────────────────────────────────────────────────────────────
+   SON PROPRE FLUX, ET PAS UN TIRAGE À LA SÉQUENCE COMMUNE
+
+   Même précaution que la jungle et le jardin, pour la même raison :
+   un seul `al()` pris à la séquence commune décalerait tout ce qui
+   suit. Ici, en outre, la fonction est appelée APRÈS le dernier
+   bâtiment de toutes les autres passes — rien ne vient derrière elle
+   qui puisse être décalé.
+   ================================================================ */
+var PAVOIS_ECART    = 0.6;   // la marge des miradors, à l'identique
+var PAVOIS_PAS      = 2.9;   // l'écart des perles sur la corde
+var PAVOIS_JEU      = 0.18;  // le frisson d'une perle, en cases
+var PAVOIS_CX       = 72;    // le milieu de la piste
+var PAVOIS_CY       = 67;
+var PAVOIS_PISTE    = 13;    // le rayon du plancher de bal
+var PAVOIS_TABLES   = 150;   // guéridons tentés, sur toute l'île
+var PAVOIS_LAMPIONS = 2400;  // essais de la passe qui tient le compte
+var PAVOIS_HAUSSE   = 0.50;  // « cinquante pour cent de défenses en plus »
+
+/* CINQ COURONNES CONCENTRIQUES, et c'est la deuxième version.
+
+   La première rayonnait : seize guirlandes partant du mât vers une
+   couronne, comme une tente de fête. À l'écran, illisible — seize
+   rayons sur un semis régulier ne font pas une étoile, ils font du
+   bruit, et l'œil n'a rien à quoi se raccrocher. Des FESTONS
+   emboîtés, eux, se lisent d'un coup : le cerveau reconnaît la
+   répétition d'une même courbe bien avant de reconnaître une forme.
+
+   Chaque couronne : des mâts régulièrement espacés, et d'un mât à
+   l'autre une corde qui PEND VERS L'EXTÉRIEUR. C'est ce creux, et lui
+   seul, qui fait lire « guirlande » plutôt que « polygone ».
+
+   Les rayons s'arrêtent à cinquante-sept : au-delà, le creux du
+   feston sort de l'île à l'est et une guirlande coupée par le bord ne
+   se lit plus comme une guirlande. */
+var PAVOIS_COURONNES = [
+  { r:18, mats: 6, creux:5.5 },
+  { r:28, mats: 9, creux:6.5 },
+  { r:38, mats:12, creux:7.0 },
+  { r:48, mats:15, creux:7.0 },
+  { r:57, mats:18, creux:7.0 }
+];
+
+/* COMMENT LE FIL CONTOURNE. Une perle empêchée n'est pas perdue : on
+   la fait glisser PERPENDICULAIREMENT à la corde, d'une case puis de
+   deux, d'un côté puis de l'autre. C'est ce que fait une vraie
+   guirlande quand elle rencontre une branche.
+   Perpendiculairement, et c'est tout le point : la première version
+   drapait le long de la corde, donc poussait chaque perle sur sa
+   voisine — le rendement n'a pas bougé d'un pouce et j'ai mis un
+   moment à voir pourquoi. */
+var PAVOIS_DRAPE = [0, 1.5, -1.5, 3.0, -3.0];
+/* et pour ce qui n'a pas de corde — mâts, torches, guéridons,
+   lampions — seize directions autour de la place visée, à pas fixes :
+   aucun tirage de plus. */
+var PAVOIS_TOUR = [[0,0],
+                   [1.6,0], [-1.6,0], [0,1.6], [0,-1.6],
+                   [1.6,1.6], [-1.6,1.6], [1.6,-1.6], [-1.6,-1.6],
+                   [3.2,0], [-3.2,0], [0,3.2], [0,-3.2],
+                   [2.4,2.4], [-2.4,2.4], [2.4,-2.4], [-2.4,-2.4]];
+
+/* ================================================================
+   LES QUATRE ALLÉES — ET CE N'EST PAS UNE DÉCORATION
+
+   Mesuré sur la grille d'occupation du jeu, celle que `bloque()`
+   consulte : cinq festons posés au pas de trois cases FERMENT l'île.
+   Un bâtiment d'emprise deux occupe deux cases pleines, et deux
+   bâtiments à trois cases d'écart n'en laissent aucune entre eux —
+   la corde n'est pas une file de perles, c'est un mur. L'inondation
+   depuis la plage tombait de quatre-vingt-dix-neuf virgule huit pour
+   cent des cases libres à soixante-dix-huit : deux mille trois cents
+   cases enfermées dans les anneaux, où une troupe entrée ne serait
+   plus ressortie.
+
+   On ouvre donc quatre allées franches, du plancher de bal jusqu'au
+   dehors, à quarante-cinq degrés — sur l'écran, elles tombent droit.
+   Rien n'y est posé : ni perle, ni mât, ni guéridon. Chaque anneau
+   est ainsi coupé en quatre arcs, tous reliés à leurs voisins.
+
+   Et c'est la bonne image, pas un rustine : une guinguette a des
+   entrées. Une guirlande qui ferait le tour complet sans laisser
+   passer personne ne serait pas une guirlande, ce serait une
+   clôture.
+   ================================================================ */
+var PAVOIS_ECHELON = 3.4;    // l'écart entre les deux cordes d'une travée
+var PAVOIS_ALLEE = 2.7;      // demi-largeur d'une allée, en cases
+
+function dansAlleeGuinguette(x, y){
+  var dx = x - PAVOIS_CX, dy = y - PAVOIS_CY;
+  /* les quatre rayons à 45°, 135°, 225°, 315° : leurs directions
+     sont (±1, ±1)/√2, et la distance d'un point à un tel rayon est
+     la valeur absolue du produit vectoriel — pas de trigonométrie,
+     pas d'atan2, et le test tourne mille fois par carte. */
+  var u = 0.70711;
+  if(Math.abs(dx * u - dy * u) <= PAVOIS_ALLEE) return 1;   // les deux à 45°/225°
+  if(Math.abs(dx * u + dy * u) <= PAVOIS_ALLEE) return 1;   // et ceux à 135°/315°
+  return 0;
+}
+
+function cordeGuinguette(A, B, nx, ny, creux, pas){
+  /* la parabole du fil, échantillonnée à LONGUEUR D'ARC constante et
+     non à paramètre constant : avec un creux de sept cases sur une
+     corde de vingt, le paramètre seul entasse les perles aux
+     extrémités et vide le fond du feston — exactement l'endroit qu'on
+     regarde. */
+  function fil(u){
+    var s = 4 * u * (1 - u);
+    return [A[0] + (B[0] - A[0]) * u + nx * creux * s,
+            A[1] + (B[1] - A[1]) * u + ny * creux * s];
+  }
+  var CRANS = 48, L = 0, i, P0 = fil(0), P1, dl = [];
+  for(i = 1; i <= CRANS; i++){
+    P1 = fil(i / CRANS);
+    dl.push(Math.hypot(P1[0] - P0[0], P1[1] - P0[1]));
+    L += dl[i - 1];
+    P0 = P1;
+  }
+  var n = Math.max(3, Math.round(L / pas)), pts = [], k, q, acc, vise, u;
+  for(k = 1; k < n; k++){
+    vise = L * k / n; acc = 0; u = 1;
+    for(q = 0; q < CRANS; q++){
+      if(acc + dl[q] >= vise){ u = (q + (vise - acc) / dl[q]) / CRANS; break; }
+      acc += dl[q];
+    }
+    pts.push(fil(u));
+  }
+  return { pts:pts, fil:fil, L:L };
+}
+
+/* ================================================================
+   LA FIGURE, EN GÉOMÉTRIE PURE — ET UNE SEULE FOIS
+
+   Elle sert DEUX fois : les défenses s'y accrochent, et le sol la
+   peint. Deux tracés calculés séparément se seraient désalignés à la
+   première retouche d'un rayon — c'est le genre d'écart qu'on ne voit
+   qu'à l'écran, longtemps après. Une seule fonction, deux lecteurs.
+
+   Aucun tirage, aucun état : la même figure pour tous les joueurs,
+   pour tous les salons, à toutes les versions.
+   ================================================================ */
+function figureGuinguette(){
+  var CX = PAVOIS_CX, CY = PAVOIS_CY, C = [], ic, i;
+  for(ic = 0; ic < PAVOIS_COURONNES.length; ic++){
+    var K = PAVOIS_COURONNES[ic], mats = [];
+    for(i = 0; i < K.mats; i++){
+      var am = i / K.mats * 6.2832;
+      mats.push([CX + Math.cos(am) * K.r, CY + Math.sin(am) * K.r]);
+    }
+    var cordes = [];
+    for(i = 0; i < mats.length; i++){
+      var A = mats[i], B = mats[(i + 1) % mats.length];
+      var mx = (A[0] + B[0]) * 0.5, my = (A[1] + B[1]) * 0.5;
+      var dm = Math.hypot(mx - CX, my - CY) || 1;
+      var nx = (mx - CX) / dm, ny = (my - CY) / dm;   // la normale sortante
+      /* DEUX CORDES PAR TRAVÉE, accrochées aux mêmes mâts et pendant
+         de trois cases d'écart. C'est ainsi qu'on pavoise vraiment —
+         une seule corde fait une clôture décorée, deux font une fête
+         — et c'est aussi ce qui a permis d'atteindre le compte
+         demandé : le semis d'origine est trop régulier pour qu'on
+         puisse serrer une corde davantage, mais rien n'empêche d'en
+         pendre une seconde. */
+      for(var ib = 0; ib < 2; ib++){
+        var cx2 = K.creux + ib * PAVOIS_ECHELON;
+        var co = cordeGuinguette(A, B, nx, ny, cx2, PAVOIS_PAS);
+        cordes.push({ a:A, b:B, nx:nx, ny:ny, creux:cx2, pts:co.pts, fil:co.fil });
+      }
+    }
+    C.push({ r:K.r, mats:mats, cordes:cordes });
+  }
+  return { cx:CX, cy:CY, piste:PAVOIS_PISTE, couronnes:C };
+}
+
+/* ================================================================
+   L'ATELIER DE POSE — la table des places prises, et le drapage
+
+   Il sert deux fois : au pavois, puis aux lampions qui complètent le
+   compte après la passe d'ouverture. Comme celle-ci retire des
+   bâtiments, l'atelier est RECONSTRUIT entre les deux : une table
+   d'occupation qui garde des places libérées referait poser dans le
+   vide qu'on vient d'ouvrir, et l'on rouvrirait indéfiniment.
+   ================================================================ */
+function atelierPavois(c, al){
+  /* La table des cases prises, dressée une fois : mille bâtiments
+     contre mille candidats feraient un million de comparaisons par
+     carte, et genereCarte tourne aussi pour les vignettes de
+     l'accueil. Une case peut porter plusieurs voisins : on garde la
+     LISTE, sans quoi un bâtiment en cache un autre et la figure se
+     pose dessus. */
+  /* DES SEAUX DE QUATRE CASES, et non une empreinte étalée case par
+     case. La première version inscrivait chaque bâtiment dans les
+     quatre-vingt-une cases de son voisinage : quatre-vingt-dix mille
+     écritures par carte, et l'atelier étant dressé deux fois, la
+     génération de cette île passait de cinquante-huit à deux cent
+     quarante-huit millisecondes — payées à chaque vignette de
+     l'accueil. Un seau par bâtiment, neuf seaux consultés par
+     candidat : le plus grand écart possible entre deux gênes est de
+     3,6 case, donc strictement moins qu'un seau, donc les neuf seaux
+     voisins suffisent et rien ne peut être manqué. */
+  var seaux = {}, i, SEAU = 4;
+  function sac(x, y){ return Math.floor(x / SEAU) + "," + Math.floor(y / SEAU); }
+  function inscris(b){
+    var k = sac(b.gx, b.gy);
+    (seaux[k] || (seaux[k] = [])).push(b);
+  }
+  for(i = 0; i < c.batiments.length; i++) inscris(c.batiments[i]);
+
+  function libre(t, x, y){
+    if(x < 6 || x > PLAGE_X0 - 3 || y < 3 || y > GH - 4) return 0;
+    if(Math.abs(x - QG_GX) <= 10 && Math.abs(y - QG_GY) <= 10) return 0;
+    /* LES ALLÉES RESTENT FRANCHES, drapage compris : c'est le premier
+       des deux garde-fous qui gardent l'île traversable, il ne souffre
+       aucune exception. */
+    if(dansAlleeGuinguette(x, y)) return 0;
+    var e = DEF[t].emprise, sx = Math.floor(x / SEAU), sy = Math.floor(y / SEAU);
+    for(var dx = -1; dx <= 1; dx++)
+      for(var dy = -1; dy <= 1; dy++){
+        var l = seaux[(sx + dx) + "," + (sy + dy)];
+        if(!l) continue;
+        for(var j = 0; j < l.length; j++){
+          var b = l[j];
+          if(Math.hypot(b.gx - x, b.gy - y) < (e + (b.e || 2)) * 0.5 + PAVOIS_ECART) return 0;
+        }
+      }
+    return 1;
+  }
+
+  /* LE TIRAGE VIENT AVANT LE TEST, comme partout dans ce fichier : on
+     consomme les trois nombres de la perle, PUIS on cherche où la
+     pendre. Rien ne dépend de ce flux après lui, mais la règle se
+     tient d'elle-même — c'est elle qui rend une figure modifiable
+     sans tout rebattre.
+     Et L'ENCOMBREMENT NE SE DESSERRE JAMAIS : on drape, on ne serre
+     pas. Une couronne posée au contact ferait un mur que les troupes
+     ne pourraient plus franchir ; une couronne à trous reste une
+     guirlande, et une guirlande, ça se traverse. */
+  function pose(t, x, y, px, py){
+    var jx = x + (al() - 0.5) * PAVOIS_JEU * 2;
+    var jy = y + (al() - 0.5) * PAVOIS_JEU * 2;
+    var ang = al() * 6.2832;
+    var T = (px === undefined) ? PAVOIS_TOUR : null;
+    var n = T ? T.length : PAVOIS_DRAPE.length;
+    for(var d = 0; d < n; d++){
+      var ax = T ? jx + T[d][0] : jx + px * PAVOIS_DRAPE[d];
+      var ay = T ? jy + T[d][1] : jy + py * PAVOIS_DRAPE[d];
+      if(!libre(t, ax, ay)) continue;
+      var f = DEF[t];
+      var b = { t:t, gx:ax, gy:ay, pv:f.pv, pvMax:f.pv, e:f.emprise,
+                ang:ang, vivant:1, n:c.batiments.length };
+      c.batiments.push(b);
+      inscris(b);
+      return b;
+    }
+    return null;
+  }
+  return { libre:libre, pose:pose };
+}
+
+function pavoiseLaGuinguette(c, al){
+  var F = figureGuinguette(), CX = F.cx, CY = F.cy, i;
+  var pose = atelierPavois(c, al).pose;
+
+  var perle = 0;
+  /* LES PERLES ALTERNENT SUR TROIS TEMPS — bobine, cuve, chalumeau.
+     C'est le détail qui fait la guirlande : une guirlande de fête
+     n'est jamais d'une seule couleur.
+
+     ET C'EST AUSSI LE SEUL RÉGLAGE D'ÉQUILIBRE DE TOUTE LA FIGURE.
+     Une corde purement bobine et cuve, mesurée, donnait cinquante
+     pour cent de bâtiments en plus pour douze pour cent de vie à
+     démonter : la Bobine ne fait que douze dégâts par seconde et la
+     Cuve aucun. Le Chalumeau en fait soixante-sept — le plus fort du
+     jeu au contact — et c'est lui qui rend à la fête son mordant.
+     Un tiers de perles inertes, un tiers de lumière, un tiers de feu.
+
+     La Cuve reste, et pas seulement pour l'équilibre : c'est le
+     bâtiment le plus rare de cette île — six exemplaires — donc la
+     ligne se détache du semis au lieu de s'y fondre. Elle est le
+     lampion rouge de la guirlande, celui qu'on voit de loin. */
+  function bille(){
+    var k = perle++ % 3;
+    return k === 0 ? "bobine" : (k === 1 ? "cuve" : "chalumeau");
+  }
+
+  /* --- LE GRAND MÂT ET LE PLANCHER DE BAL ---
+     Un anneau de torches, et le plancher dedans : c'est la piste. On
+     ne peut pas la vider — les tourelles d'origine y sont et l'index
+     les garde — mais on peut la CERNER, et un anneau serré se lit
+     comme un bord. */
+  /* PAS DE MÂT AU MILIEU. Il tombait au croisement des quatre allées,
+     c'est-à-dire à l'endroit précis qu'il ne faut pas boucher — et un
+     plancher de bal vide vaut de toute façon mieux qu'un poteau
+     planté au milieu de la piste. */
+  /* DEUX anneaux : le bord du plancher, et la barrière une brasse
+     plus loin. Un seul anneau à trous ne se lit pas comme un bord —
+     et c'est précisément un bord qu'il faut, puisque le plancher, on
+     ne peut pas le vider de ses tourelles d'origine. */
+  for(var ia = 0; ia < 2; ia++){
+    var ra = F.piste + ia * 3.6;
+    var tPiste = Math.max(8, Math.round(6.2832 * ra / 3.4));
+    for(i = 0; i < tPiste; i++){
+      var ap = i / tPiste * 6.2832 + ia * 0.14;
+      pose("chalumeau", CX + Math.cos(ap) * ra, CY + Math.sin(ap) * ra,
+           Math.cos(ap), Math.sin(ap));
+    }
+  }
+
+  /* --- LES CINQ FESTONS --- */
+  for(var ic = 0; ic < F.couronnes.length; ic++){
+    var K = F.couronnes[ic];
+    /* les mâts d'abord : ce sont eux qui tiennent la figure, et une
+       corde sans ses deux poteaux ne veut plus rien dire */
+    for(i = 0; i < K.mats.length; i++){
+      var M = K.mats[i], dm = Math.hypot(M[0] - CX, M[1] - CY) || 1;
+      pose("mirador", M[0], M[1], (M[0] - CX) / dm, (M[1] - CY) / dm);
+    }
+    for(i = 0; i < K.cordes.length; i++){
+      var CO = K.cordes[i];
+      for(var k = 0; k < CO.pts.length; k++)
+        pose(bille(), CO.pts[k][0], CO.pts[k][1], CO.nx, CO.ny);
+    }
+  }
+
+  /* --- LES GUÉRIDONS ---
+     Un silo — la table ronde — et cinq cuves autour — les tonneaux.
+     Semés au pas d'or entre les couronnes : sur un cercle régulier,
+     trente tables font un cinquième feston et l'on ne comprend plus
+     rien. */
+  for(i = 0; i < PAVOIS_TABLES; i++){
+    /* SUR TOUTE L'ÎLE, et pas seulement autour de la piste. C'est ce
+       qui a permis d'atteindre le compte : les festons sont des
+       courbes FERMÉES, et l'on ne peut pas les serrer indéfiniment
+       sans enfermer des secteurs — la passe d'ouverture reprend
+       aussitôt ce qu'on ajoute. Un guéridon, lui, n'enferme rien :
+       c'est un îlot. On peut donc en semer autant qu'il reste de
+       place, et une guinguette a des tables partout, pas seulement
+       au bord de la piste.
+       Suite de Roberts — deux irrationnels premiers entre eux — et
+       non le hasard : elle couvre l'île à peu près également sans
+       jamais aligner deux tables, là où un tirage laisse des trous
+       et des paquets. */
+    var ux = (i * 0.7548776662) % 1, uy = (i * 0.5698402910) % 1;
+    var T2 = pose("silo", 9 + ux * (PLAGE_X0 - 18), 5 + uy * (GH - 12));
+    var at = i * ANGLE_OR;                          // l'orientation des tonneaux
+    if(!T2) continue;                               // pas de table, pas de tonneaux
+    /* les tonneaux suivent le silo RÉELLEMENT posé, pas la place
+       visée : la table a pu glisser d'une case ou deux */
+    for(var s2 = 0; s2 < 5; s2++){
+      var a5 = s2 / 5 * 6.2832 + at;
+      pose("cuve", T2.gx + Math.cos(a5) * 3.6, T2.gy + Math.sin(a5) * 3.6);
+    }
+  }
+}
+
+
+/* ================================================================
+   LES LAMPIONS — LA PASSE QUI TIENT LE COMPTE
+
+   La demande porte un NOMBRE : cinquante pour cent de défenses en
+   plus. Les festons, eux, ne le tiennent pas — et pour une raison de
+   géométrie, pas de réglage : une courbe fermée partitionne un plan,
+   donc plus on serre les cordes, plus la passe d'ouverture reprend
+   ce qu'on vient de poser. Mesuré : à deux cordes par travée et cent
+   cinquante guéridons, l'île plafonne à quarante-quatre pour cent.
+
+   D'où cette dernière passe, qui ne dessine rien et ne ferme rien :
+   des lampions seuls, semés un par un jusqu'à ce que le compte y
+   soit. Un bâtiment isolé n'enferme personne — c'est un îlot — et
+   une guinguette a des lanternes accrochées partout, pas seulement
+   sur ses guirlandes. La figure porte le dessin, les lampions
+   portent le nombre.
+
+   Suite de Roberts, comme les guéridons, mais décalée d'un demi-pas :
+   elle couvre l'île également sans jamais retomber sur les mêmes
+   places.
+   ================================================================ */
+function compteDefenses(c){
+  var n = 0;
+  for(var i = 0; i < c.batiments.length; i++){
+    var t = c.batiments[i].t;
+    if(t !== "cellule" && t !== "reacteur") n++;
+  }
+  return n;
+}
+
+function lampionsGuinguette(c, al, cible){
+  var pose = atelierPavois(c, al).pose, n = compteDefenses(c), i;
+  for(i = 0; i < PAVOIS_LAMPIONS && n < cible; i++){
+    /* décalée d'un demi-pas par rapport aux guéridons : la suite
+       couvre l'île également sans jamais retomber sur leurs places */
+    var ux = (0.5 + i * 0.7548776662) % 1, uy = (0.5 + i * 0.5698402910) % 1;
+    /* lampion et brasero, en alternance : les deux TIRENT. Cette passe
+       porte le nombre, pas le dessin — elle n'a donc aucune raison de
+       poser des tonneaux inertes. */
+    if(pose((i & 1) ? "chalumeau" : "bobine",
+            9 + ux * (PLAGE_X0 - 18), 5 + uy * (GH - 12))) n++;
+  }
+  return n;
+}
+
+/* ================================================================
+   ON ROUVRE CE QUI S'EST FERMÉ
+
+   Le pavois dessine des courbes FERMÉES, et une courbe fermée
+   partitionne un plan. Mesuré sur la grille d'occupation du jeu — la
+   même que consulte `bloque()` — cinq festons au pas de trois cases
+   enfermaient deux mille trois cents cases : une troupe entrée dans
+   un secteur n'en serait plus ressortie.
+
+   Les quatre allées ne suffisent pas, et il faut dire pourquoi :
+   elles n'écartent que les bâtiments NEUFS. Le semis d'origine, lui,
+   est intouchable — son rang porte le bitmap des destructions — et
+   il pose une tourelle toutes les cinq cases, y compris en travers
+   d'une allée. Élargir l'allée ne rattrape rien : à dix cases de
+   large, il restait encore cinq cents cases enfermées. J'ai essayé,
+   c'est ce qui a mené ici.
+
+   On mesure donc, et l'on ouvre. Inondation depuis la plage, et tout
+   bâtiment DU PAVOIS qui borde une poche isolée est retiré. Quatre
+   passes suffisent à percer la coquille d'un secteur. Les poches que
+   seul le semis d'origine enferme restent — on ne peut pas y toucher
+   — et ce sont exactement les trente-deux cases que l'île avait déjà
+   avant nous.
+
+   L'INDEX RESTE INTACT. On ne retire que des rangs postérieurs à
+   `depart`, c'est-à-dire des bâtiments qui n'ont jamais existé pour
+   personne : aucun instantané enregistré ne les désigne. Les huit
+   cent trente premiers ne bougent pas d'un cran.
+   ================================================================ */
+var PAVOIS_PASSES = 6;      // au plus six percées successives
+var PAVOIS_POCHE  = 3;      // en deçà, c'est un recoin, pas une prison
+
+function ouvreLaFete(c, depart){
+  var n = GW * GH, i, j, k, x, y, nx, ny, kk;
+  var VOIS = [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]];
+
+  /* les quatre tableaux sont alloués UNE fois pour toutes les passes :
+     vingt mille cases recréées six fois coûtaient plus cher que tout
+     le reste de la fonction réunie */
+  var occ = [], qui = [], vu = [], lot = [];
+  for(i = 0; i < n; i++){ occ.push(0); qui.push(-1); vu.push(0); lot.push(0); }
+
+  for(var passe = 0; passe < PAVOIS_PASSES; passe++){
+    /* 1. la grille d'occupation, exactement comme marqueEmprise, et
+          l'on retient QUEL bâtiment tient chaque case — le dernier
+          inscrit, donc le plus neuf, donc celui qu'on a le droit de
+          retirer. */
+    for(i = 0; i < n; i++){ occ[i] = 0; qui[i] = -1; vu[i] = 0; lot[i] = 0; }
+    for(i = 0; i < c.batiments.length; i++){
+      var b = c.batiments[i], r = b.e / 2;
+      for(x = Math.floor(b.gx - r); x <= Math.ceil(b.gx + r) - 1; x++)
+        for(y = Math.floor(b.gy - r); y <= Math.ceil(b.gy + r) - 1; y++)
+          if(x >= 0 && x < GW && y >= 0 && y < GH){
+            k = y * GW + x;
+            occ[k] = 1;
+            if(i >= depart) qui[k] = i;
+          }
+    }
+    /* 2. l'inondation depuis la plage, en huit voisins : c'est ainsi
+          que les troupes se déplacent, `avanceUnite` retombant sur un
+          axe quand la diagonale est prise. */
+    var pile = [];
+    for(y = 0; y < GH; y++){
+      k = y * GW + PLAGE_X0;
+      if(!occ[k]){ vu[k] = 1; pile.push(k); }
+    }
+    while(pile.length){
+      k = pile.pop(); x = k % GW; y = (k / GW) | 0;
+      for(j = 0; j < 8; j++){
+        nx = x + VOIS[j][0]; ny = y + VOIS[j][1];
+        if(nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
+        kk = ny * GW + nx;
+        if(vu[kk] || occ[kk]) continue;
+        vu[kk] = 1; pile.push(kk);
+      }
+    }
+    /* 3. les poches, une par une. UNE SEULE PORTE PAR POCHE ET PAR
+          PASSE : retirer toute la coquille coûtait cent quatre-vingt
+          -quatorze tourelles sur trois cent trente-trois, et rendait
+          le pavois plus troué que dense. On perce, on ne rase pas.
+          La porte préférée est le bâtiment qui touche À LA FOIS la
+          poche et le dehors — c'est là que le mur est mince. */
+    var aOter = {}, combien = 0;
+    for(y = 0; y < GH; y++)
+      for(x = 6; x < PLAGE_X0; x++){
+        k = y * GW + x;
+        if(occ[k] || vu[k] || lot[k]) continue;
+        /* la poche, et ses bâtiments de bordure */
+        var p2 = [k], taille = 0, bord = {};
+        lot[k] = 1;
+        while(p2.length){
+          var q = p2.pop(); taille++;
+          var qx = q % GW, qy = (q / GW) | 0;
+          for(j = 0; j < 8; j++){
+            nx = qx + VOIS[j][0]; ny = qy + VOIS[j][1];
+            if(nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
+            kk = ny * GW + nx;
+            if(occ[kk]){ if(qui[kk] >= 0) bord[qui[kk]] = 1; continue; }
+            if(vu[kk] || lot[kk]) continue;
+            lot[kk] = 1; p2.push(kk);
+          }
+        }
+        if(taille < PAVOIS_POCHE) continue;      // un recoin, pas une prison
+        /* la meilleure porte : celle qui donne déjà sur le dehors */
+        var porte = -1, mieux = -1;
+        for(var cb in bord){
+          var ib = cb | 0, bb = c.batiments[ib], rb = bb.e / 2, dehors = 0;
+          for(var ex = Math.floor(bb.gx - rb) - 1; ex <= Math.ceil(bb.gx + rb); ex++)
+            for(var ey = Math.floor(bb.gy - rb) - 1; ey <= Math.ceil(bb.gy + rb); ey++)
+              if(ex >= 0 && ex < GW && ey >= 0 && ey < GH && vu[ey * GW + ex]) dehors++;
+          /* à égalité, le plus petit rang : la figure doit être la
+             même pour tous les joueurs, donc le choix ne peut pas
+             dépendre de l'ordre d'un objet */
+          if(dehors > mieux || (dehors === mieux && porte >= 0 && ib < porte)){
+            mieux = dehors; porte = ib;
+          }
+        }
+        if(porte >= 0 && !aOter[porte]){ aOter[porte] = 1; combien++; }
+      }
+    if(!combien) break;                          // l'île est ouverte
+    var reste = [];
+    for(i = 0; i < c.batiments.length; i++)
+      if(!(i >= depart && aOter[i])) reste.push(c.batiments[i]);
+    c.batiments = reste;
+  }
+  /* le rang de chaque bâtiment EST son identité : on renumérote */
+  for(i = 0; i < c.batiments.length; i++) c.batiments[i].n = i;
+}
+
 function peupleLesNuits(c, al){
   /* La grille d'occupation, dressée UNE fois. Douze cents bâtiments
      contre quatre-vingts bestioles feraient cent mille comparaisons ;

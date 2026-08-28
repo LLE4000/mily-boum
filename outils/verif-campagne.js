@@ -25,6 +25,24 @@
    indexés par personne : on peut en ajouter, en retirer, les
    redimensionner. C'est là que vivent les changements visuels.
 
+   ────────────────────────────────────────────────────────────────
+   ET L'AJOUT EN QUEUE EST LÉGITIME — le contrôle le sait depuis la
+   guinguette pavoisée.
+
+   Il refusait tout changement de longueur, sans regarder où. C'était
+   trop sévère d'un côté et trop vague de l'autre : trop sévère,
+   parce qu'ajouter À LA FIN est précisément ce que l'en-tête
+   ci-dessus prescrit ; trop vague, parce qu'un raccourcissement et
+   un allongement ne coûtent pas du tout la même chose.
+
+   On compare donc d'abord le RANG COMMUN, un à un. S'il est intact :
+     — plus long qu'avant, c'est un AJOUT. Les rangs neufs n'ont
+       jamais existé pour personne : aucun instantané enregistré ne
+       porte de bit à leur place, `decodeBits` les rend debout, et
+       c'est vrai — personne ne les a encore abattus.
+     — plus court, c'est une PERTE, et elle reste fatale : un
+       bâtiment que quelqu'un a démonté réapparaîtrait intact.
+
    Usage :  node outils/verif-campagne.js [référence]
    La référence est un commit git, HEAD par défaut. On compare la
    version de travail à celle-là, carte par carte, plan du salon
@@ -135,23 +153,39 @@ cas.forEach(function(k){
     if(k.chantier){ etat = "chantier"; return; }
     soucis.push(m);
   }
-  if(ba.length !== bb.length){
-    etat = "LONGUEUR";
+  /* Le rang commun est-il intact ? On le regarde AVANT la longueur :
+     c'est lui qui décide, et la longueur ne fait que dire ensuite si
+     l'on a ajouté ou retiré. */
+  var commun = Math.min(ba.length, bb.length), decale = -1;
+  for(var j = 0; j < commun; j++){
+    if(empreinteBat(ba[j]) !== empreinteBat(bb[j])){ decale = j; break; }
+  }
+  if(decale >= 0){
+    etat = "DÉCALAGE";
+    detail = "au rang " + decale + " : " + empreinteBat(ba[decale])
+           + " → " + empreinteBat(bb[decale]);
+    ennui(k.nom + " (" + k.quoi + ") : un bâtiment change de place dans le tableau, "
+      + detail + ". Les destructions enregistrées désigneraient le mauvais bâtiment.");
+  }else if(bb.length > ba.length){
+    /* L'AJOUT EN QUEUE — le seul changement de longueur qui ne coûte
+       rien, et celui que l'en-tête de ce fichier prescrit depuis le
+       premier jour. Les rangs d'avant sont identiques un à un ; les
+       rangs neufs n'ont jamais existé pour personne, donc aucun
+       instantané enregistré ne porte de bit à leur place, donc
+       `decodeBits` les rend « debout » — ce qui est exactement vrai :
+       personne ne les a encore abattus.
+       Le contrôle refusait ce cas avec les autres, faute de savoir
+       les distinguer. Il sait, maintenant. */
+    etat = "AJOUT";
+    detail = "+" + (bb.length - ba.length) + " en queue";
+  }else if(bb.length < ba.length){
+    /* Le retrait, lui, reste fatal : les bits enregistrés au-delà de
+       la nouvelle longueur ne désignent plus rien, et surtout un
+       bâtiment que quelqu'un a démonté réapparaîtrait intact. */
+    etat = "PERTE";
     detail = ba.length + " → " + bb.length;
-    ennui(k.nom + " (" + k.quoi + ") : le tableau des bâtiments change de longueur, "
-      + detail + ". Les destructions enregistrées ne désignent plus les mêmes bâtiments.");
-  }else{
-    var decale = -1;
-    for(var j = 0; j < ba.length; j++){
-      if(empreinteBat(ba[j]) !== empreinteBat(bb[j])){ decale = j; break; }
-    }
-    if(decale >= 0){
-      etat = "DÉCALAGE";
-      detail = "au rang " + decale + " : " + empreinteBat(ba[decale])
-             + " → " + empreinteBat(bb[decale]);
-      ennui(k.nom + " (" + k.quoi + ") : un bâtiment change de place dans le tableau, "
-        + detail + ". Les destructions enregistrées désigneraient le mauvais bâtiment.");
-    }
+    ennui(k.nom + " (" + k.quoi + ") : le tableau des bâtiments RACCOURCIT, "
+      + detail + ". Des destructions enregistrées ne désigneraient plus rien.");
   }
   /* Le décor, lui, a le droit de bouger : c'est là que vivent les
      changements visuels. On le mesure pour le dire, pas pour s'en
@@ -160,7 +194,7 @@ cas.forEach(function(k){
   var da = (a.decors || []).length, db = (b.decors || []).length;
   var ca = (a.creatures || []).length, cb = (b.creatures || []).length;
   lignes.push({
-    nom:(k.nom + " · " + k.quoi), bat:ba.length, etat:etat, detail:detail,
+    nom:(k.nom + " · " + k.quoi), bat:bb.length, etat:etat, detail:detail,
     visuel:(fa !== fb || da !== db || ca !== cb)
       ? ("flore " + fa + "→" + fb + ", décor " + da + "→" + db + ", bêtes " + ca + "→" + cb)
       : "inchangé"
