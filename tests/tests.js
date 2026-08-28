@@ -32,7 +32,7 @@ try{
     "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAvecTornades","profilTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -2896,6 +2896,90 @@ G("4. Déterminisme de la génération de carte");
          !/function ouvreChantier\([\s\S]{0,600}lanceExpedition/.test(html));
       ok("l'appui dure cinq secondes, pas moins",
          /var CHANTIER_DUREE = 5(\.0)?;/.test(html));
+    })();
+
+    /* ================================================================
+       LE TOURBILLON D'ÉTOILES
+
+       « Duplique la tornade de feu, une fois et demie plus grande, la
+       traînée plus large — mais pas du feu. »
+
+       La mécanique n'est PAS dupliquée : c'est le même moteur, piloté
+       par profilTornade(). Ce groupe garde deux choses — que les deux
+       profils restent bien distincts, et que la promesse de sécurité
+       tient aussi pour le grand : une tornade qu'on ne peut pas
+       esquiver n'est pas un danger, c'est un piège.
+       ================================================================ */
+    (function(){
+      var PN = N.profilTornade(IN), PT = N.profilTornade(N.IDX_JUNGLE);
+      var PF = N.profilTornade(N.CARTES.findIndex(function(c){ return c.biome === "tenebres"; }));
+      ok("les Mily et une nuits ont des tornades, et elles sont d'étoiles",
+         !!PN && PN.style === "etoiles" && N.carteTourbillons(IN));
+      ok("les ténèbres gardent les leurs, et elles sont de feu",
+         !!PF && PF.style === "feu" && N.carteTornades(N.CARTES.findIndex(
+           function(c){ return c.biome === "tenebres"; })));
+      ok("aucune autre île n'en a — ni la jungle, ni la campagne",
+         !PT && !N.profilTornade(0) && !N.profilTornade(999) &&
+         N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); }).length === 2,
+         N.CARTES.filter(function(c, q3){ return N.carteAvecTornades(q3); })
+           .map(function(c){ return c.nom; }).join(", "));
+      ok("une île de campagne n'a pas de profil du tout, pas un profil vide",
+         N.profilTornade(0) === null);
+      /* LA TAILLE : une fois et demie, exactement. */
+      ok("le rayon mortel est une fois et demie celui du feu ("
+         + PF.rayon + " → " + PN.rayon + " cases)",
+         Math.abs(PN.rayon - PF.rayon * N.EQ.TOURBILLON_ECH) < 1e-9);
+      ok("… et sa hauteur aussi (" + PF.haut + " → " + PN.haut + " pixels)",
+         Math.abs(PN.haut - PF.haut * N.EQ.TOURBILLON_ECH) < 1e-9);
+      /* LA TRAÎNÉE : « un petit peu plus large » encore. */
+      ok("la traînée est plus large que le facteur ne le voudrait ("
+         + (PF.traineeR * 1.5).toFixed(2) + " suffirait, elle fait " + PN.traineeR + ")",
+         PN.traineeR > PF.traineeR * N.EQ.TOURBILLON_ECH);
+      ok("… mais jamais plus large que le pied qui la sème",
+         PN.traineeR <= PN.rayon, PN.traineeR + " ≤ " + PN.rayon);
+      /* LA PROMESSE DE SÉCURITÉ, refaite pour le grand. Un couloir une
+         fois et demie plus large à préavis égal serait un piège une
+         fois et demie plus grand : l'avertissement s'allonge donc dans
+         la même proportion, et l'on remesure. */
+      (function(){
+        var lent = 1e9, nom = "", i;
+        for(i in N.UNI) if(N.UNI[i].vitesse < lent){ lent = N.UNI[i].vitesse; nom = N.UNI[i].nom; }
+        var marche = PN.descente * lent;
+        ok("l'avertissement seul suffit à sortir du couloir : le " + nom
+           + " parcourt " + marche.toFixed(1) + " cases pendant que l'entonnoir descend, "
+           + "pour " + PN.rayon + " à franchir",
+           marche > PN.rayon * 1.5, marche.toFixed(2) + " > " + (PN.rayon * 1.5).toFixed(2));
+        ok("… et le préavis a bien grandi avec le couloir",
+           PN.descente / PF.descente >= PN.rayon / PF.rayon * 0.85,
+           "préavis ×" + (PN.descente / PF.descente).toFixed(2)
+           + " pour un couloir ×" + (PN.rayon / PF.rayon).toFixed(2));
+      })();
+      ok("le couloir mortel reste plus étroit qu'un débarquement",
+         PN.rayon * 2 <= N.rayonFormation(),
+         (PN.rayon * 2) + " contre " + N.rayonFormation().toFixed(2));
+      ok("elle est plus lente que celle de feu — une masse plus grande",
+         PN.vitesse < PF.vitesse, PN.vitesse + " contre " + PF.vitesse);
+      ok("et plus rare", PN.periode > PF.periode, PN.periode + " s contre " + PF.periode);
+      ok("la traînée s'éteint bien avant la fin de sa course",
+         PN.trainee < PN.vie * PN.trajetMin * 0.5,
+         PN.trainee + " s de traînée pour " + (PN.vie * PN.trajetMin).toFixed(0) + " s de course");
+      /* LE MOTEUR EST COMMUN, et c'est la raison d'être de tout ce
+         remaniement : deux mises à jour séparées auraient divergé au
+         premier réglage. */
+      ok("il n'y a qu'UNE mise à jour de tornade dans tout le fichier livré",
+         (html.match(/function majTornades\(/g) || []).length === 1);
+      ok("… et qu'UNE fonction qui tue, commune aux deux",
+         (html.match(/function tueDansLeFeu\(/g) || []).length === 1);
+      ok("… qui n'abîme ni bâtiment ni bête : elle ne touche que jeu.unites",
+         /function tueDansLeFeu\([\s\S]{0,900}unitesAutour/.test(html) &&
+         !/function tueDansLeFeu\([\s\S]{0,900}abimeBatiment/.test(html));
+      /* Le dessin, lui, est bien séparé — c'est là que tout diffère. */
+      ok("mais deux dessins distincts, aiguillés par le style",
+         /dessineTourbillonMonde/.test(html) && /dessineTraceEtoileeSol/.test(html) &&
+         /t\.style === "etoiles"/.test(html) && /b\.style === "etoiles"/.test(html));
+      ok("et deux sons distincts : l'une gronde, l'autre tinte",
+         /function tourbillonSon\(/.test(html) && /function tornadeSon\(/.test(html) &&
+         /style === "etoiles"[\s\S]{0,120}tourbillonSon/.test(html));
     })();
   })();
 

@@ -126,7 +126,11 @@ function nouvelleCarte(index, pvConnu){
        jour dans la boucle : leur mouvement est une fonction du temps
        et de leur décalage sur le battement. */
     danseurs:carteScene(index) ? fabriqueDanseurs() : [],
-    prochaineTornade:EQ.TORNADE_PERIODE * (0.55 + 0.5 * Math.random()),
+    /* Le délai avant la première : il vient du PROFIL de l'île, pas de
+       la tornade de feu. Une île sans tornade s'en moque — le compteur
+       descend dans le vide, personne ne le lit. */
+    prochaineTornade:((profilTornade(index) || {}).periode || EQ.TORNADE_PERIODE)
+                     * (0.55 + 0.5 * Math.random()),
     /* QUATRE NUAGES D'ORAGE, et ils vont vite.
        Peu, parce qu'un ciel couvert n'est plus une menace : c'est un
        décor. Des masses qu'on peut suivre du regard, c'est une
@@ -2923,7 +2927,7 @@ function majJeu(dt){
   /* LES TORNADES DES TÉNÈBRES. Posé ici, avec les autres dangers du
      décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
      doit pas tirer une dernière fois dans la même image. */
-  if(carteTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
+  if(carteAvecTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
   majFoudre(dt);
   majDefenses(dt, jeu.tps);
   majCreatures(dt, jeu.tps);

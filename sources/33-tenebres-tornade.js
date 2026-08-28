@@ -45,6 +45,7 @@
    de l'île : partie vers le bord, elle sortirait de la carte en trois
    secondes et n'aurait servi à rien. */
 function creeTornade(){
+  var P = profilTornade(jeu.index);
   var nu = jeu.nuages && jeu.nuages.length
          ? jeu.nuages[(Math.random() * jeu.nuages.length) | 0] : null;
   var gx = nu ? nu.gx : 20 + Math.random() * (PLAGE_X0 - 30);
@@ -67,8 +68,12 @@ function creeTornade(){
        toujours la même distance devient un métronome, et c'est
        justement l'écart entre une petite et une grosse qui fait qu'on
        les regarde. */
-    vie:EQ.TORNADE_VIE * (EQ.TORNADE_TRAJET_MIN
-        + Math.random() * (EQ.TORNADE_TRAJET_MAX - EQ.TORNADE_TRAJET_MIN)),
+    vie:P.vie * (P.trajetMin + Math.random() * (P.trajetMax - P.trajetMin)),
+    /* SA SORTE, PORTÉE PAR L'OBJET LUI-MÊME et non relue sur l'île à
+       chaque image. Le dessin passe par le tri de profondeur, où l'on
+       n'a plus que la tornade en main ; et si un jour deux sortes
+       devaient cohabiter, rien n'aurait à changer. */
+    style:P.style,
     tour:Math.random() * 6.2832,  // sa phase de rotation propre
     posee:0,                      // a-t-elle touché terre ?
     dernier:0                     // distance depuis le dernier point de traînée
@@ -85,11 +90,17 @@ var TORNADE_PAS = 0.55;
 var tornadeAutour = [];
 function majTornades(dt){
   var i, k;
+  /* LE PROFIL DE CETTE ÎLE, lu une fois par image. Tout ce qui suit
+     était écrit en EQ.TORNADE_* — c'est-à-dire en dur pour les
+     ténèbres. Le moteur ne connaît plus la sorte : il applique des
+     nombres, et c'est le noyau qui dit lesquels. */
+  var P = profilTornade(jeu.index);
+  if(!P) return;
 
   /* --- l'apparition --- */
   jeu.prochaineTornade -= dt;
   if(jeu.prochaineTornade <= 0){
-    jeu.prochaineTornade = EQ.TORNADE_PERIODE * (0.72 + Math.random() * 0.56);
+    jeu.prochaineTornade = P.periode * (0.72 + Math.random() * 0.56);
     /* Jamais plus de deux à la fois. Trois entonnoirs sur l'écran,
        ce n'est plus une menace, c'est une météo dont on ne peut rien
        faire. */
@@ -108,7 +119,7 @@ function majTornades(dt){
     t.age += dt;
     t.tour += dt * 5.6;
 
-    if(t.age < EQ.TORNADE_DESCENTE){
+    if(t.age < P.descente){
       /* elle descend encore : elle ne bouge pas et ne tue rien */
       continue;
     }
@@ -127,7 +138,7 @@ function majTornades(dt){
        tornade qui rebondit à angle droit se lirait comme une bille ;
        celle-ci décrit de grandes boucles molles, ce qui est
        exactement ce que fait une vraie. */
-    var m = EQ.TORNADE_MARGE_BORD;
+    var m = P.marge;
     var rx = 0, ry = 0;
     if(t.gx < LARGEUR_ROCHE + m)  rx =  (LARGEUR_ROCHE + m - t.gx) / m;
     if(t.gx > PLAGE_X0 - m)       rx = -(t.gx - (PLAGE_X0 - m)) / m;
@@ -143,7 +154,7 @@ function majTornades(dt){
     }
 
     /* elle avance */
-    var av = EQ.TORNADE_VITESSE * dt;
+    var av = P.vitesse * dt;
     t.gx += t.dx * av;
     t.gy += t.dy * av;
     /* et par sécurité, elle ne franchit jamais la bordure : un cap
@@ -156,14 +167,14 @@ function majTornades(dt){
     t.dernier += av;
     while(t.dernier >= TORNADE_PAS){
       t.dernier -= TORNADE_PAS;
-      jeu.brulures.push({ gx:t.gx, gy:t.gy, age:0,
+      jeu.brulures.push({ gx:t.gx, gy:t.gy, age:0, style:P.style,
                           ph:Math.random() * 6.2832 });
     }
 
     /* CE QUE SON PIED TOUCHE MEURT. Comme la foudre : on ne blesse
        pas, on tue. Une tornade de feu qui laisserait des survivants
        à demi cuits ne se lirait pas. */
-    tueDansLeFeu(t.gx, t.gy, EQ.TORNADE_RAYON);
+    tueDansLeFeu(t.gx, t.gy, P.rayon);
     /* les bêtes ne meurent pas dedans, mais elles la fuient : sans
        cela, un sanglier resterait planté au milieu des flammes */
     t.effroi = (t.effroi || 0) - dt;
@@ -174,20 +185,20 @@ function majTornades(dt){
 
     /* elle ne s'éteint plus QUE par le temps : elle ne peut plus
        sortir de l'île, elle y tourne jusqu'au bout de sa course */
-    if(t.age > EQ.TORNADE_DESCENTE + t.vie) jeu.tornades.splice(i, 1);
+    if(t.age > P.descente + t.vie) jeu.tornades.splice(i, 1);
   }
 
   /* --- la terre qui brûle derrière --- */
   for(k = jeu.brulures.length - 1; k >= 0; k--){
     var b = jeu.brulures[k];
     b.age += dt;
-    if(b.age > EQ.TORNADE_TRAINEE){ jeu.brulures.splice(k, 1); continue; }
+    if(b.age > P.trainee){ jeu.brulures.splice(k, 1); continue; }
     /* La traînée ne tue plus dans son dernier tiers : elle refroidit,
        et l'on doit pouvoir repasser derrière une tornade sans y
        laisser sa flotte. Sans cela, une île traversée deux fois
        devenait un labyrinthe de couloirs interdits. */
-    if(b.age < EQ.TORNADE_TRAINEE * 0.66)
-      tueDansLeFeu(b.gx, b.gy, EQ.TORNADE_TRAINEE_R);
+    if(b.age < P.trainee * 0.66)
+      tueDansLeFeu(b.gx, b.gy, P.traineeR);
   }
 }
 
@@ -225,8 +236,15 @@ function tueDansLeFeu(gx, gy, r){
    du rouge sombre au jaune blanc, plus une cendre noire qui reste
    quand le feu retombe. */
 function dessineBrulureSol(c, b, tps){
+  /* Aiguillage de sorte, comme pour l'entonnoir : la traînée du
+     tourbillon d'étoiles n'est pas du feu et se peint ailleurs. */
+  if(b.style === "etoiles" && typeof dessineTraceEtoileeSol === "function")
+    return dessineTraceEtoileeSol(c, b, tps);
+  var PB = profilTornade(jeu.index) || {};
+  var duree = PB.trainee || EQ.TORNADE_TRAINEE;
+  var largeur = PB.traineeR || EQ.TORNADE_TRAINEE_R;
   var p = iso(b.gx, b.gy);
-  var v = b.age / EQ.TORNADE_TRAINEE;          // 0 neuf → 1 éteint
+  var v = b.age / duree;                       // 0 neuf → 1 éteint
   /* LE FEU TIENT, LA CENDRE ATTEND. Le premier jet éteignait la
      flamme en « 1 - v² » : la traînée virait à la trace de boue en
      une seconde, et l'on ne voyait plus qu'un trait brun derrière la
@@ -245,8 +263,8 @@ function dessineBrulureSol(c, b, tps){
   c.globalAlpha = 0.10 + v * 0.26;
   c.fillStyle = "#140d0e";
   c.beginPath();
-  c.ellipse(p.x, p.y, EQ.TORNADE_TRAINEE_R * RX * 1.06,
-                      EQ.TORNADE_TRAINEE_R * RY * 1.06, 0, 0, 6.2832); c.fill();
+  c.ellipse(p.x, p.y, largeur * RX * 1.06,
+                      largeur * RY * 1.06, 0, 0, 6.2832); c.fill();
   if(vif <= 0.02){ c.globalAlpha = 1; return; }
   /* LE FEU. `globalAlpha` REVIENT À 1 : il portait encore l'opacité de
      la cendre, qui se multipliait avec celle des dégradés — la flamme
@@ -373,13 +391,21 @@ function torSilhouette(c, t, p, z, H, pied, k, haut, tps){
 }
 
 function dessineTornadeMonde(c, t, tps){
+  /* L'AIGUILLAGE DE SORTE. Le tri de profondeur ne connaît qu'un
+     numéro de couche ; c'est ici que les deux tornades se séparent, et
+     nulle part ailleurs. Tout ce qui précède — naissance, marche,
+     traînée, mort — leur est commun. */
+  if(t.style === "etoiles" && typeof dessineTourbillonMonde === "function")
+    return dessineTourbillonMonde(c, t, tps);
+  var P = profilTornade(jeu.index) || {};
   var p = versEcran(cam, t.gx, t.gy);
   var z = cam.z;
-  var descend = t.age < EQ.TORNADE_DESCENTE;
+  var desc = P.descente || EQ.TORNADE_DESCENTE;
+  var descend = t.age < desc;
   /* pendant la descente le pied n'est pas encore arrivé : la colonne
      est coupée par le bas, et elle descend */
-  var pied = descend ? (1 - t.age / EQ.TORNADE_DESCENTE) : 0;
-  var H = TOR_HAUT * z;
+  var pied = descend ? (1 - t.age / desc) : 0;
+  var H = (P.haut || TOR_HAUT) * z;
   var k;
 
   c.save();
@@ -400,7 +426,8 @@ function dessineTornadeMonde(c, t, tps){
     c.strokeStyle = "rgba(255,90,30,.30)";
     c.lineWidth = 1.1 * z;
     c.beginPath();
-    c.ellipse(p.x, p.y, EQ.TORNADE_RAYON * RX * z, EQ.TORNADE_RAYON * RY * z, 0, 0, 6.2832);
+    c.ellipse(p.x, p.y, (P.rayon || EQ.TORNADE_RAYON) * RX * z,
+                        (P.rayon || EQ.TORNADE_RAYON) * RY * z, 0, 0, 6.2832);
     c.stroke();
   }
 
@@ -563,9 +590,15 @@ function tornadeSon(){
   o.connect(go); go.connect(son.maitre);
   o.start(t); o.stop(t + duree);
 }
-var tornadeSonGreffe = false;
 function greffeSonTornade(){
-  if(tornadeSonGreffe || typeof son === "undefined") return;
-  tornadeSonGreffe = true;
-  son.tornade = tornadeSon;
+  if(typeof son === "undefined") return;
+  /* LA GREFFE SUIT L'ÎLE, elle n'est plus posée une fois pour toutes.
+     Les deux tornades n'ont pas du tout le même son — l'une gronde,
+     l'autre tinte — et le drapeau « déjà greffé » d'origine aurait
+     laissé la première entendue imposer son bruit à l'autre pour tout
+     le reste de la session. */
+  var voulu = (profilTornade(jeu ? jeu.index : -1) || {}).style === "etoiles"
+              && typeof tourbillonSon === "function"
+            ? tourbillonSon : tornadeSon;
+  if(son.tornade !== voulu) son.tornade = voulu;
 }

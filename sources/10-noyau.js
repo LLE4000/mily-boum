@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.50";
+var VERSION = "v0.51";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -128,6 +128,29 @@ var EQ = {
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
   TORNADE_TRAINEE_R    : 1.10,  // cases : demi-largeur de la traînée
+  /* ---- LE TOURBILLON D'ÉTOILES, dans les Mily et une nuits ----
+     La même mécanique que la tornade de feu, en une fois et demie plus
+     grand. Ce qui change vraiment tient en quatre nombres :
+       ECH        tout est × 1,5 — le rayon qui tue et la hauteur ;
+       TRAINEE_R  la traînée est PLUS large encore que le facteur ne le
+                  voudrait (1,10 × 1,5 = 1,65, on met 1,80) : c'était
+                  la demande, et c'est ce qui distingue une traînée de
+                  poussière d'étoile d'un simple sillage ;
+       DESCENTE   l'avertissement s'allonge dans la même proportion que
+                  le couloir. Sinon la promesse ne tient plus : un
+                  couloir une fois et demie plus large à préavis égal,
+                  c'est un piège une fois et demie plus grand ;
+       VITESSE    un peu plus lente. Une masse plus grande ne se
+                  déplace pas aussi vif, et cela laisse à l'œil le
+                  temps de la suivre. */
+  TOURBILLON_ECH       : 1.5,
+  TOURBILLON_PERIODE   : 40,    // s entre deux : plus grosse, donc plus rare
+  TOURBILLON_DESCENTE  : 3.4,   // s d'avertissement — 2,6 × 1,3
+  TOURBILLON_VIE       : 13,    // s : la marche au sol de référence
+  TOURBILLON_VITESSE   : 2.6,   // cases/s
+  TOURBILLON_RAYON     : 1.875, // cases : le pied, mortel — 1,25 × 1,5
+  TOURBILLON_TRAINEE   : 5.5,   // s : la traînée reste mortelle
+  TOURBILLON_TRAINEE_R : 1.80,  // cases : demi-largeur, volontairement large
   JUNGLE_PV_BONUS      : 100,   // % de PV en plus sur les défenses
   JUNGLE_DEG_BONUS     : 50,    // % de dégâts en plus sur les défenses
   /* La foudre de la jungle : elle TUE net ce qu'elle touche, puis le
@@ -997,6 +1020,59 @@ function carteOrageuse(i){ return !!(CARTES[i] && CARTES[i].biome === "jungle");
    l'ÎLE, jamais d'un tirage ni d'un tableau qui pourrait revenir
    vide. */
 function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"); }
+
+/* Et où tournent les tourbillons d'étoiles. Même mécanique exactement
+   — c'est le même code qui les fait naître, descendre, marcher et
+   mourir — mais ni la même taille, ni la même couleur, ni la même
+   traînée. */
+function carteTourbillons(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits"); }
+
+/* ================================================================
+   LE PROFIL D'UNE TORNADE
+
+   Il y a deux tornades dans le jeu, et il n'y a qu'un seul moteur.
+   C'était la bonne façon de faire la seconde : dupliquer quatre cents
+   lignes de mise à jour aurait donné deux mécaniques qui divergent au
+   premier réglage — l'une corrigée, l'autre oubliée, et personne pour
+   s'en apercevoir avant qu'un joueur y perde sa flotte.
+
+   Tout ce qui distingue les deux tient donc dans cette table. Le
+   dessin, lui, est bien différent : `style` dit lequel.
+
+     feu      les ténèbres. Une colonne de flammes, une traînée qui
+              brûle la terre.
+     etoiles  les Mily et une nuits. Une fois et demie plus grande,
+              plus lente, avec une traînée plus large qui n'est pas du
+              feu mais de la poussière d'étoile.
+
+   POURQUOI LA GRANDE DESCEND PLUS LENTEMENT. L'avertissement n'est
+   pas de la décoration : c'est ce qui sépare un danger d'un piège. Le
+   couloir mortel du tourbillon fait 3,75 cases contre 2,5 pour la
+   tornade de feu ; à préavis égal, il faudrait courir une fois et
+   demie plus vite pour en sortir. On allonge donc la descente dans la
+   même proportion, et la promesse tient : le Commando, la troupe la
+   plus lente du jeu, parcourt 3,4 cases pendant que l'entonnoir
+   descend — presque le double du rayon qui tue.
+   ================================================================ */
+function profilTornade(i){
+  if(carteTornades(i)) return {
+    periode:EQ.TORNADE_PERIODE, descente:EQ.TORNADE_DESCENTE,
+    vie:EQ.TORNADE_VIE, vitesse:EQ.TORNADE_VITESSE, rayon:EQ.TORNADE_RAYON,
+    trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
+    trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
+    marge:EQ.TORNADE_MARGE_BORD, haut:330, style:"feu"
+  };
+  if(carteTourbillons(i)) return {
+    periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,
+    vie:EQ.TOURBILLON_VIE, vitesse:EQ.TOURBILLON_VITESSE, rayon:EQ.TOURBILLON_RAYON,
+    trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
+    trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
+    marge:EQ.TORNADE_MARGE_BORD, haut:330 * EQ.TOURBILLON_ECH, style:"etoiles"
+  };
+  return null;
+}
+/* Cette île a-t-elle des tornades, quelle qu'en soit la sorte ? */
+function carteAvecTornades(i){ return !!profilTornade(i); }
 
 /* ================================================================
    OÙ LA FOUDRE TOMBE
