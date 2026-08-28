@@ -66,6 +66,28 @@ function tblPoint(t, p, z, H, u, tour, ecart, tps){
   };
 }
 
+/* ================================================================
+   LE FONDU DU SOMMET
+
+   Même défaut, même remède que sur la tornade de poussière : la
+   silhouette s'arrête net à u = 1, là où elle est la plus large, et
+   la coupe donnait un trait horizontal en travers du ciel. Toutes les
+   couches qui montent jusqu'en haut passent donc par un dégradé qui
+   vaut zéro tout en haut et sa valeur pleine douze pour cent plus bas.
+
+   Ici les couleurs sont des triplets « r,v,b » et non des « #rrggbb » :
+   c'est la seule raison pour laquelle cette fonction ne peut pas être
+   celle de l'autre fichier. */
+var FONDU_TBL = 0.12;
+function degradeSommetTbl(c, p, H, col, aHaut, aMil, aBas){
+  var g = c.createLinearGradient(p.x, p.y - H, p.x, p.y);
+  g.addColorStop(0, "rgba(" + col + ",0)");
+  g.addColorStop(FONDU_TBL, "rgba(" + col + "," + aHaut + ")");
+  g.addColorStop(0.55, "rgba(" + col + "," + aMil + ")");
+  g.addColorStop(1, "rgba(" + col + "," + aBas + ")");
+  return g;
+}
+
 /* ---------------------------------------------------------------
    L'ENTONNOIR
    --------------------------------------------------------------- */
@@ -135,8 +157,12 @@ function dessineTourbillonMonde(c, t, tps){
   c.globalCompositeOperation = "lighter";
   for(i = 0; i < 3; i++){
     var k = 1 - i * 0.30;
+    /* le voile change de TEINTE en montant — lilas en haut, bleu au
+       milieu, blanc au pied — et il s'éteint sur les douze derniers
+       pour cent. Un seul dégradé porte les deux. */
     var gv = c.createLinearGradient(p.x, p.y - H, p.x, p.y);
-    gv.addColorStop(0, "rgba(150,140,255," + (0.20 - i * 0.05) + ")");
+    gv.addColorStop(0, "rgba(150,140,255,0)");
+    gv.addColorStop(FONDU_TBL, "rgba(150,140,255," + (0.20 - i * 0.05) + ")");
     gv.addColorStop(0.55, "rgba(120,170,255," + (0.26 - i * 0.06) + ")");
     gv.addColorStop(1, "rgba(220,200,255," + (0.36 - i * 0.09) + ")");
     c.fillStyle = gv;
@@ -146,7 +172,7 @@ function dessineTourbillonMonde(c, t, tps){
   /* le bord, qui donne la SILHOUETTE. Sans un contour, une masse
      translucide n'a pas de forme — c'est la leçon qu'avait déjà donnée
      la tornade de feu, et elle vaut deux fois plus ici. */
-  c.strokeStyle = "rgba(210,200,255,.34)";
+  c.strokeStyle = degradeSommetTbl(c, p, H, "210,200,255", 0.34, 0.34, 0.34);
   c.lineWidth = 1.6 * z;
   torSilhouette(c, t, p, z, H, pied, 1, 1, tps);
   c.stroke();
@@ -168,7 +194,7 @@ function dessineTourbillonMonde(c, t, tps){
          ce voile qui « avale » la partie arrière. */
       if(passe === 1){
         c.globalCompositeOperation = "lighter";
-        c.fillStyle = "rgba(90,90,190,.10)";
+        c.fillStyle = degradeSommetTbl(c, p, H, "90,90,190", 0.10, 0.10, 0.10);
         torSilhouette(c, t, p, z, H, pied, 1, 1, tps);
         c.fill();
       }
@@ -182,7 +208,10 @@ function dessineTourbillonMonde(c, t, tps){
         if(!ouvert){ c.moveTo(pt.x, pt.y); ouvert = true; }
         else c.lineTo(pt.x, pt.y);
       }
-      c.strokeStyle = "rgba(" + col + "," + (passe ? 0.78 : 0.30) + ")";
+      /* le ruban s'éteint au sommet comme le voile : un fil encore
+         vif au ras de la coupe la redessinerait à lui tout seul */
+      var av2 = passe ? 0.78 : 0.30;
+      c.strokeStyle = degradeSommetTbl(c, p, H, col, av2, av2, av2);
       c.lineWidth = (passe ? 4.2 : 2.6) * z * (1 - pied * 0.5);
       c.lineCap = "round";
       c.lineJoin = "round";
@@ -204,7 +233,8 @@ function dessineTourbillonMonde(c, t, tps){
     var pe = tblPoint(t, p, z, H, u, t.tour * 1.6 + ph + u * 7.0, 0.86, tps);
     var av = pe.d;                                  // devant = plus clair
     var taille = (0.9 + u * 2.4) * z * (0.6 + av * 0.7);
-    var op = (0.30 + av * 0.55) * (1 - Math.pow(mu, 3) * 0.7);
+    var fdu2 = mu > (1 - FONDU_TBL) ? (1 - mu) / FONDU_TBL : 1;
+    var op = (0.30 + av * 0.55) * (1 - Math.pow(mu, 3) * 0.5) * fdu2;
     var coul = (i % 5 === 0) ? TBL.or : (i % 3 === 0 ? TBL.froid : TBL.etoile);
     /* le halo */
     var ge = c.createRadialGradient(pe.x, pe.y, 0, pe.x, pe.y, taille * 5);

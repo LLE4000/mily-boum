@@ -85,6 +85,32 @@ function poussiereTeintes(){
   };
 }
 
+/* ================================================================
+   LE FONDU DU SOMMET
+
+   Le défaut qu'il répare se voyait tout de suite une fois qu'on le
+   savait : la silhouette de l'entonnoir est tracée de u = 0 (le pied)
+   à u = 1 (le nuage), et elle s'arrête LÀ. Comme c'est à cette
+   hauteur qu'elle est la plus large, la coupe donnait un trait
+   horizontal franc en travers du ciel — une tornade sciée net, posée
+   sur rien.
+
+   Une vraie tornade n'a pas de sommet : elle se dissout dans le nuage
+   dont elle sort. Toutes les couches qui montent jusqu'en haut
+   passent donc par ce dégradé, qui vaut zéro tout en haut et prend sa
+   valeur pleine dix pour cent plus bas. C'est peu — et c'est
+   exactement assez pour que la limite disparaisse.
+   ================================================================ */
+var FONDU_SOMMET = 0.12;
+function degradeSommet(c, p, H, col, aHaut, aBas){
+  var g = c.createLinearGradient(p.x, p.y - H, p.x, p.y);
+  g.addColorStop(0, rgba(col, 0));
+  g.addColorStop(FONDU_SOMMET, rgba(col, aHaut));
+  g.addColorStop(0.62, rgba(col, aBas));
+  g.addColorStop(1, rgba(col, aBas * 1.15));
+  return g;
+}
+
 /* ---------------------------------------------------------------
    L'ENTONNOIR
    --------------------------------------------------------------- */
@@ -161,11 +187,8 @@ function dessineTornadeTerreMonde(c, t, tps){
     { k:0.44, col:T.sombre, a:0.54 }
   ];
   for(i = 0; i < couches.length; i++){
-    var gv = c.createLinearGradient(p.x, p.y - H, p.x, p.y);
-    gv.addColorStop(0, rgba(couches[i].col, couches[i].a * 0.55));
-    gv.addColorStop(0.62, rgba(couches[i].col, couches[i].a));
-    gv.addColorStop(1, rgba(couches[i].col, couches[i].a * 1.15));
-    c.fillStyle = gv;
+    c.fillStyle = degradeSommet(c, p, H, couches[i].col,
+                                couches[i].a * 0.55, couches[i].a);
     torSilhouette(c, t, p, z, H, pied, couches[i].k, 1, tps);
     c.fill();
   }
@@ -180,12 +203,25 @@ function dessineTornadeTerreMonde(c, t, tps){
   gm.addColorStop(0.42, "rgba(255,248,224,0)");
   gm.addColorStop(1, "rgba(74,58,32,.24)");
   c.fillStyle = gm;
-  c.fillRect(p.x - 9 * RX * z, p.y - H - 10, 18 * RX * z, H + 20);
+  /* LE MODELÉ MONTE PAR TRANCHES. Son dégradé à lui est HORIZONTAL —
+     clair d'un côté, voilé de l'autre — et un dégradé de toile ne peut
+     varier que dans un seul sens. Pour qu'il s'éteigne AUSSI vers le
+     haut, on peint la bande de fondu en huit tranches d'opacité
+     croissante, puis le reste d'un seul coup. Neuf remplissages : le
+     prix est nul, et la coupe disparaît. */
+  var lx3 = p.x - 9 * RX * z, lg3 = 18 * RX * z;
+  var NB = 8, hb = H * FONDU_SOMMET / NB, q3;
+  for(q3 = 0; q3 < NB; q3++){
+    c.globalAlpha = (q3 + 1) / NB;
+    c.fillRect(lx3, p.y - H + q3 * hb, lg3, hb + 1);
+  }
+  c.globalAlpha = 1;
+  c.fillRect(lx3, p.y - H * (1 - FONDU_SOMMET), lg3, H * (1 - FONDU_SOMMET) + 20);
   c.restore();
   /* LE BORD. C'est LUI qui rend la colonne claire lisible sur un champ
      clair — pas la noirceur. Un trait fin, à peine plus sombre que la
      poussière, et la forme apparaît. */
-  c.strokeStyle = "rgba(96,76,44,.34)";
+  c.strokeStyle = degradeSommet(c, p, H, "#604c2c", 0.30, 0.34);
   c.lineWidth = 1.5 * z;
   torSilhouette(c, t, p, z, H, pied, 1, 1, tps);
   c.stroke();
@@ -209,8 +245,13 @@ function dessineTornadeTerreMonde(c, t, tps){
     }
     /* une strie sur deux est claire, l'autre voilée : c'est
        l'alternance qui fait tourner la colonne. Toutes claires, elles
-       se fondaient dans la masse. */
-    c.strokeStyle = (s & 1) ? "rgba(255,250,232,.30)" : "rgba(104,82,46,.22)";
+       se fondaient dans la masse. Et elles s'éteignent au sommet comme
+       tout le reste — une strie qui s'arrête net redessinerait la
+       coupe qu'on vient d'effacer. */
+    c.strokeStyle = degradeSommet(c, p, H,
+                                  (s & 1) ? "#fffae8" : "#68522e",
+                                  (s & 1) ? 0.30 : 0.22,
+                                  (s & 1) ? 0.30 : 0.22);
     c.lineWidth = 5 * z;
     c.lineCap = "round";
     c.stroke();
@@ -224,6 +265,8 @@ function dessineTornadeTerreMonde(c, t, tps){
   var ND = 34;
   for(i = 0; i < ND; i++){
     var ph = i * 2.399;
+    /* et ils s'effacent complètement en haut : un éclat encore net au
+       ras de la coupe la rendrait visible à lui tout seul */
     var mu = ((tps * (0.30 + (i % 4) * 0.07) + i / ND) % 1);
     u = pied + (1 - pied) * mu;
     var prd = torProfil(u, tps, t.tour) * 0.94;
@@ -234,8 +277,9 @@ function dessineTornadeTerreMonde(c, t, tps){
     var devant = (Math.sin(ang) + 1) * 0.5;
     var tl = (2.1 - u * 1.1) * z * (0.7 + devant * 0.6);
     if(tl < 0.35) continue;
+    var fdu = mu > (1 - FONDU_SOMMET) ? (1 - mu) / FONDU_SOMMET : 1;
     c.fillStyle = "rgba(" + hexRgbPous(T.debris) + ","
-                + ((0.44 + devant * 0.46) * (1 - mu * 0.5)) + ")";
+                + ((0.44 + devant * 0.46) * (1 - mu * 0.4) * fdu) + ")";
     c.save();
     c.translate(dx, dy);
     c.rotate(ang * 1.7);
