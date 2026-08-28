@@ -1431,7 +1431,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.66";
+var VERSION = "v0.67";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1578,6 +1578,10 @@ var EQ = {
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
   TORNADE_TRAINEE_R    : 1.10,  // cases : demi-largeur de la traînée
+  /* LE FLOTTEMENT DE LA NAISSANCE, en fraction de la période. Sans
+     lui, les tornades tomberaient à intervalles rigoureusement égaux
+     et l'on entendrait le métronome. */
+  TORNADE_JITTER       : 0.5,
   /* ---- LE TOURBILLON D'ÉTOILES, dans les Mily et une nuits ----
      La même mécanique que la tornade de feu, en une fois et demie plus
      grand. Ce qui change vraiment tient en quatre nombres :
@@ -1627,6 +1631,34 @@ var EQ = {
   TOURBILLON_RAYON     : 1.875, // cases : le pied, mortel — 1,25 × 1,5
   TOURBILLON_TRAINEE   : 5.5,   // s : la traînée reste mortelle
   TOURBILLON_TRAINEE_R : 1.80,  // cases : demi-largeur, volontairement large
+  /* ════════════════════════════════════════════════════════════
+     DEUX À LA FOIS — « pour les Mily et une nuits il faudrait
+     2 tornades en même temps »
+
+     ELLES NAISSENT PAR PAIRES, pas par hasard. Deux tourbillons qui
+     tireraient chacun leur instant de naissance seraient à dix
+     secondes l'un de l'autre : on verrait deux tornades qui se
+     suivent, jamais deux tornades EN MÊME TEMPS. L'instant appartient
+     donc au créneau, et les jumelles le partagent ; ce qu'elles
+     tirent chacune, c'est leur place, leur cap et leur course.
+
+     ET ELLES NE SE SUPERPOSENT PAS. Chacune naît dans SA moitié de
+     l'île, séparées par une bande de trente-quatre cases au milieu :
+     deux entonnoirs collés l'un à l'autre ne feraient qu'un danger
+     pour deux fois le calcul. Leurs trajectoires, elles, visent
+     n'importe où — elles se croisent, et c'est bien.
+
+     LE FLOTTEMENT PASSE DE MOITIÉ À UN QUART, et ce n'est pas un
+     réglage d'humeur, c'est de l'arithmétique. Une paire vit au plus
+     3,4 + 13 × 2 = 29,4 s. Pour qu'une paire soit toujours morte
+     quand la suivante naît — sinon il y aurait QUATRE entonnoirs —
+     il faut période − flottement ≥ 29,4, soit 40 − 10 = 30. Ça
+     tient, avec six dixièmes de seconde de marge, et le test le
+     vérifie sur dix mille créneaux.
+     ════════════════════════════════════════════════════════════ */
+  TOURBILLON_PAIRE     : 2,     // deux entonnoirs par créneau
+  TOURBILLON_JITTER    : 0.25,  // et donc un flottement deux fois moindre
+  TOURBILLON_ECART     : 34,    // cases : la bande vide entre les deux moitiés
   /* ════════════════════════════════════════════════════════════
      LA TAILLE DESSINÉE — 30 % DE PLUS, ET RIEN D'AUTRE
 
@@ -2165,6 +2197,32 @@ CRE.luciole  = { nom:"Luciole",  pv:15,  detection:5.0,  portee:0, degats:0, cad
 CRE.cochon   = { nom:"Cochon d'Inde", pv:40, detection:4.5, portee:0, degats:0, cadence:0, vitesse:2.20, rayon:0.18, fuit:1 };
 
 /* ----------------------------------------------------------------
+   LE BESTIAIRE ENCHANTÉ DES MILY ET UNE NUITS
+
+   La jungle est habitée par des bêtes qui VIVENT là. Ici on ne
+   cherche pas la crédibilité, on cherche l'APPARITION : ces quatre-là
+   ne sont pas des animaux qui habitent l'île, ce sont des animaux
+   qu'on CROISE. Elles émettent leur propre lumière, elles laissent un
+   sillage, et aucune n'est peinte à plein — voir 47-nuits-faune.js,
+   qui les dessine.
+
+   LEURS DÉTECTIONS SONT LONGUES, et c'est le seul réglage qui
+   compte : une apparition qu'on peut approcher n'en est plus une.
+   Le chat de lune a la plus longue de tout le jeu — dix cases : il
+   part avant qu'on ait décidé de le regarder.
+
+   ET AUCUNE N'EST PROTÉGÉE. Le chat de lune n'est pas un chat de
+   Mily : il flotte, il est translucide, il a des yeux d'or. Les trois
+   protégés, eux, marchent au sol et ont un nom. On peut tuer celui-ci
+   sans que personne ne se venge — ce qui ne veut pas dire qu'il
+   faille le faire.
+   ---------------------------------------------------------------- */
+CRE.paon          = { nom:"Paon",           pv:150, detection:8.0,  portee:0, degats:0, cadence:0, vitesse:1.30, rayon:0.34, fuit:1 };
+CRE.chatlune      = { nom:"Chat de lune",   pv:90,  detection:10.0, portee:0, degats:0, cadence:0, vitesse:2.70, rayon:0.24, fuit:1 };
+CRE.fennec        = { nom:"Fennec",         pv:70,  detection:9.5,  portee:0, degats:0, cadence:0, vitesse:3.20, rayon:0.22, fuit:1 };
+CRE.papillongeant = { nom:"Papillon géant", pv:35,  detection:7.0,  portee:0, degats:0, cadence:0, vitesse:1.90, rayon:0.20, fuit:1, vole:1 };
+
+/* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
    Chaque emploi renchérit le suivant : coût = base + pas × usages.
    ---------------------------------------------------------------- */
@@ -2687,7 +2745,8 @@ function profilTornade(i){
     trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu"
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu",
+    paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
   };
   if(carteTourbillons(i)) return {
     periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,
@@ -2695,7 +2754,8 @@ function profilTornade(i){
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles"
+    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles",
+    paire:EQ.TOURBILLON_PAIRE, jitter:EQ.TOURBILLON_JITTER, ecart:EQ.TOURBILLON_ECART
   };
   if(carteTornadeTerre(i)) return {
     periode:EQ.CLASSIQUE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
@@ -2703,10 +2763,15 @@ function profilTornade(i){
     trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere"
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere",
+    paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
   };
   return null;
 }
+/* Combien d'entonnoirs ce profil met au sol d'un coup. Une seule
+   lecture, pour que personne n'ait à se souvenir que « paire »
+   pourrait manquer. */
+function paireTornade(P){ return Math.max(1, (P && P.paire) | 0); }
 /* Cette île a-t-elle des tornades, quelle qu'en soit la sorte ? */
 function carteAvecTornades(i){ return !!profilTornade(i); }
 
@@ -3346,6 +3411,17 @@ function genereCarte(codeSalon, index, plan, tirage){
   if(CARTES[index] && CARTES[index].biome === "jungle")
     peupleLaJungle(c, prng((gr ^ 0x1DEA5EED) >>> 0));
 
+  /* --- LES NUITS : LEUR BESTIAIRE ENCHANTÉ ---
+     Même place et même précaution que la jungle, et pour la même
+     raison : son PROPRE flux de tirage, semé sur la seule graine de
+     la carte. Rien de ce qui précède ne peut le décaler, et comme
+     rien ne vient après lui, il ne décale personne — l'indice de
+     chaque bâtiment, donc chaque bit de destruction de chaque salon
+     en cours, ne bouge pas d'un cran. Le sel diffère de celui de la
+     jungle, sans quoi les deux îles peupleraient aux mêmes endroits. */
+  if(CARTES[index] && CARTES[index].biome === "nuits")
+    peupleLesNuits(c, prng((gr ^ 0x0F17A11E) >>> 0));
+
   /* --- LE DURCISSEMENT DE LA JUNGLE ---
      Les défenses y sont plus dures qu'ailleurs. On applique le bonus
      ICI, en une seule passe finale sur le tableau complet, plutôt qu'à
@@ -3468,6 +3544,102 @@ var ECH_ARBRE_MIN     = 0.52;
 var ECH_ARBRE_ETENDUE = 0.26;   // 0,52 à 0,78 — deux fois et demie plus petit
 var RENFORT_ARBRES    = 900;    // dans l'île, en plus des 420 d'origine
 var RENFORT_POURTOUR  = 1500;   // dans la ceinture, en plus des 2 810
+
+/* ================================================================
+   LE PEUPLEMENT DES MILY ET UNE NUITS
+
+   Quatre-vingts bêtes, contre sept cent soixante-dix-sept pour la
+   jungle, et c'est délibéré. Une jungle doit GROUILLER ; un jardin de
+   palais doit être habité par des apparitions, c'est-à-dire par des
+   bêtes qu'on ne voit pas toutes en même temps. Le chiffre est celui
+   d'une île ordinaire — environ quatre-vingt-cinq — et l'effet n'a
+   rien à voir, parce que chacune de ces quatre-là s'annonce de loin.
+
+   ────────────────────────────────────────────────────────────────
+   CHACUNE A SON QUARTIER, ET LA GÉOMÉTRIE SUFFIT À LE DIRE
+
+   La jungle recense sa flore case par case pour savoir où vit un
+   koala. Ici il n'y a pas de flore : il y a un JARDIN, dont on
+   connaît le plan par cœur puisqu'on l'a gravé. Un cercle et deux
+   bornes suffisent donc, et ça ne coûte pas une grille :
+
+     le paon        au cœur, dans l'enceinte de l'allée circulaire —
+                    c'est la volière du palais, et sa roue mérite le
+                    médaillon derrière elle ;
+     le chat de lune dans le VIDE : les allées, le pourtour du bassin,
+                    tout ce qui n'a pas de tourelle à quatre cases.
+                    Il apparaît donc là où l'on marche, jamais dans
+                    un massif ;
+     le fennec      sur les bords, contre le rempart : c'est le
+                    renard du désert, il vient des dunes ;
+     le papillon    n'importe où — il vole, rien ne le retient.
+
+   ────────────────────────────────────────────────────────────────
+   LE BUDGET DE TIRAGES EST FIXE, comme partout dans ce fichier : on
+   tire toujours le même nombre de groupes et l'on cesse simplement de
+   POSER une fois l'effectif atteint. Une carte plus encombrée donne
+   donc moins de bêtes, jamais une séquence différente.
+   ================================================================ */
+function peupleLesNuits(c, al){
+  /* La grille d'occupation, dressée UNE fois. Douze cents bâtiments
+     contre quatre-vingts bestioles feraient cent mille comparaisons ;
+     une table de cases prises n'en fait aucune. */
+  var occ = {}, i, dx, dy;
+  for(i = 0; i < c.batiments.length; i++){
+    var b = c.batiments[i];
+    var ax = Math.round(b.gx), ay = Math.round(b.gy), r = Math.ceil((b.e || 2) * 0.5);
+    for(dx = -r; dx <= r; dx++)
+      for(dy = -r; dy <= r; dy++) occ[(ax + dx) + "," + (ay + dy)] = 1;
+  }
+  function prise(x, y){ return !!occ[Math.round(x) + "," + Math.round(y)]; }
+  /* « du vide autour » : rien de bâti dans un carré de rayon r */
+  function degage(x, y, r){
+    var ax = Math.round(x), ay = Math.round(y);
+    for(var ex = -r; ex <= r; ex++)
+      for(var ey = -r; ey <= r; ey++) if(occ[(ax + ex) + "," + (ay + ey)]) return 0;
+    return 1;
+  }
+  var MED_X = 74, MED_Y = 68;                    // le médaillon, cœur du jardin
+  var NUITEUX = [
+    { t:"paon",          n:14, gr:2,
+      aime:function(x, y){ return Math.hypot(x - MED_X, y - MED_Y) < 34; } },
+    { t:"chatlune",      n:18, gr:2,
+      aime:function(x, y){ return degage(x, y, 4); } },
+    { t:"fennec",        n:22, gr:3,
+      aime:function(x, y){ return x < 26 || x > 116 || y < 24 || y > 112; } },
+    { t:"papillongeant", n:26, gr:4, aime:null }
+  ];
+  var ESSAIS_NUITS = 4;
+  for(i = 0; i < NUITEUX.length; i++){
+    var B = NUITEUX[i], pose = 0;
+    for(var ess = 0; ess < B.n * 10; ess++){
+      var nb = 1 + ((al() * B.gr) | 0);
+      /* QUATRE CANDIDATS TIRÉS, TOUJOURS LES QUATRE, et l'on garde le
+         premier qui plaît à l'espèce — sinon le premier tout court.
+         C'est le tour de la jungle, et il est là pour la même raison :
+         un `if` qui saute un tirage décale toute la suite. */
+      var cx = 0, cy = 0, choisi = 0;
+      for(var ec = 0; ec < ESSAIS_NUITS; ec++){
+        var ex = 8 + al() * (PLAGE_X0 - 16), ey = 6 + al() * (GH - 12);
+        if(!ec){ cx = ex; cy = ey; }
+        if(!choisi && (!B.aime || B.aime(ex, ey))){ cx = ex; cy = ey; choisi = 1; }
+      }
+      /* le test du Brasier vient APRÈS, comme partout : on consomme
+         les tirages du groupe même si on le jette */
+      var auPied = Math.hypot(cx - QG_GX, cy - QG_GY) < 16;
+      for(var g = 0; g < nb; g++){
+        var bx = cx + (al() - 0.5) * 4.2;
+        var by = cy + (al() - 0.5) * 4.2;
+        var teinte = (al() * 3) | 0;
+        if(auPied || pose >= B.n) continue;
+        /* un papillon géant vole : il passe au-dessus des tourelles */
+        if(!CRE[B.t].vole && prise(bx, by)) continue;
+        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:teinte });
+        pose++;
+      }
+    }
+  }
+}
 
 function peupleLaJungle(c, al){
   /* DEUX GRILLES D'OCCUPATION, ET C'EST TOUT LE SUJET.
@@ -4616,9 +4788,13 @@ function planJungle(){
      7. LE MÉDAILLON     l'étoile centrale, son anneau et son bassin
      8. LES ALLÉES       taillées EN DERNIER, sinon elles ne
                           couperaient rien
+     9. LES HAIES        le tracé du joueur, par-dessus tout — y
+                          compris par-dessus les allées, puisque la
+                          ligne de plage doit être CONTINUE
 
    Mesuré : 849 défenses contre 559, soit +51,9 %, et chaque type à
-   moins de vingt pour cent de sa part d'origine.
+   moins de vingt pour cent de sa part d'origine. Puis les haies, qui
+   portent le total à 1 240 bâtiments contre 788 sur l'île nue.
    ================================================================ */
 /* Les indices de TYPES_PLAN, écrits une fois pour que la composition
    se lise comme un dessin et non comme une suite de nombres. */
@@ -4740,6 +4916,66 @@ function planNuits(){
      c'est là que tiennent les miradors — le même tour que dans la
      jungle. Vidée pour de bon, il n'en restait plus deux sur l'île. */
   anneau(74, AX, 30, 38, [], 1, 0);
+
+  /* ════════════════════════════════════════════════════════════
+     9. LES HAIES — le tracé du joueur
+
+     « Il faudrait rajouter des silos, une ligne bien dense de
+     frelons selon les lignes jaunes que j'ai dessinées, dont une
+     ligne continue le long de la plage. »
+
+     Les lignes ont été relevées sur la capture, en repassant la
+     projection isométrique à l'envers : le portrait de Mily donne le
+     Brasier en (9, 68), et le trait droit du bas retombe sur gx ≈ 139
+     à ses deux bouts — c'est-à-dire exactement le bord de la plage.
+     Les deux repères s'accordent, donc le relevé tient.
+
+     CE QUE LES QUATRE TRACÉS SONT DEVENUS
+       — la ligne de plage, du nord au sud, CONTINUE : elle ne
+         s'interrompt pas pour laisser passer l'allée d'honneur, et
+         c'était la moitié de la demande ;
+       — deux diagonales, des flancs du Brasier aux deux yeux, qui se
+         croisent à l'ouest du médaillon ;
+       — un arc à l'est, qui referme la boucle par le nord et le sud.
+
+     ELLES CONTOURNENT LE MÉDAILLON, et c'est la seule liberté prise
+     sur le relevé : tracées au plus court, les diagonales passaient à
+     douze cases du bassin et emportaient les deux tiers de l'anneau
+     de Cuves — mesuré, 26 Cuves tombaient à 8. On les écarte à
+     dix-sept cases, le croisement ne bouge pas d'une case, et le
+     médaillon reste entier.
+
+     LA HAIE EST DOUBLE, et c'est ainsi qu'on met les Silos demandés
+     sans étouffer le jardin : une bande large de Silos, puis
+     l'échine de Frelons posée dessus. On voit donc une ligne de
+     Frelons bordée de Silos, et non deux dessins qui se disputent.
+     Un premier essai posait une bande de Silos de vingt cases : le
+     compte était bon et les yeux de Chalumeaux disparaissaient.
+
+     CE QUE ÇA CHANGE, MESURÉ, ET IL FAUT LE DIRE. Le feu TOTAL de
+     l'île baisse — 29 995 → 27 995 dégâts par seconde — parce qu'un
+     Frelon tape moins vite qu'un Crible. Mais le feu à LONGUE PORTÉE
+     est multiplié par deux et demi (4 313 → 10 573), et surtout le
+     débarquement se fait arroser quatre fois plus : de 280 dégâts
+     par seconde reçus sur la plage à 1 100 environ, et cette fois sur
+     TOUTE sa longueur. L'île n'est pas plus puissante, elle est
+     beaucoup plus difficile à ABORDER — c'est bien ce qu'une haie de
+     batteries de missiles le long d'une plage veut dire.
+     ════════════════════════════════════════════════════════════ */
+  /* Un tracé du joueur : une ligne brisée, passée deux fois. */
+  function chemin(pts, e, C){
+    for(var i = 0; i + 1 < pts.length; i++)
+      trait(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], e, C, 5, 1);
+  }
+  var HAIES = [
+    [[132, 8], [132, 128]],                                  // la plage, continue
+    [[20, 55], [100, 101]],                                  // du Brasier à l'œil sud
+    [[20, 87], [100, 33]],                                   // du Brasier à l'œil nord
+    [[68, 21], [100, 50], [112, 66], [104, 100], [82, 119]]  // l'arc de l'est
+  ];
+  var HAIE_SILO = 12, HAIE_FRELON = 7;
+  for(var h = 0; h < HAIES.length; h++) chemin(HAIES[h], HAIE_SILO,   UN(PN_SILO));
+  for(h = 0; h < HAIES.length; h++)     chemin(HAIES[h], HAIE_FRELON, UN(PN_FRELON));
 
   planNuitsCache = encodePlanComplet(planVide(), F);
   return planNuitsCache;
@@ -11816,33 +12052,72 @@ function horlogeTornade(){ return Date.now() * 0.001; }
 /* La graine d'un créneau. Elle mêle le salon, l'île et le numéro de
    campagne : deux îles n'ont pas la même météo, et une campagne neuve
    repart sur une autre suite. Le TIRAGE, lui, n'y est pas — il change
-   la disposition des défenses, et la météo n'a rien à voir avec elle. */
-function graineTornade(n){
+   la disposition des défenses, et la météo n'a rien à voir avec elle.
+
+   `j` est le rang de la jumelle dans son créneau. La graine de la
+   PREMIÈRE ne porte pas de suffixe : la météo des ténèbres et de la
+   campagne, qui n'a jamais eu de jumelle, reste au bit près celle
+   d'avant. */
+function graineTornade(n, j){
   return graineTexte(CODE_SALON + "|tornade|" + ((jeu && jeu.index) | 0) + "|"
                      + ((typeof cycleSalon === "number" ? cycleSalon : 0) | 0)
-                     + "|" + n) >>> 0;
+                     + "|" + n + ((j | 0) ? "|" + (j | 0) : "")) >>> 0;
 }
 
-/* LA TORNADE DU CRÉNEAU n. Tout ce qui la définit sort de sa graine,
-   dans un ordre fixe — la règle de la maison : on tire d'abord, on
-   teste ensuite. Un `borne` appliqué au résultat d'un tirage ne
-   décale pas la suite ; un `if` qui saute un tirage, si. */
-function tornadeDuCreneau(n, P){
-  var al = prng(graineTornade(n));
-  var quand = al();
-  var gx = borne(al() * GW, 3, GW - 3);
-  var gy = borne(al() * GH, 6, GH - 6);
-  var vx = 4 + al() * (GW - 8);
-  var vy = 4 + al() * (GH - 8);
-  var course = al();
-  var tour = al() * 6.2832;
+/* LES SEPT TIRAGES D'UNE TORNADE, bruts, dans un ordre fixe — la
+   règle de la maison : on tire d'abord, on teste ensuite. Ils sortent
+   d'ici sans avoir été bornés ni pliés, pour que la mise en place
+   puisse les traiter autrement selon qu'il y a une jumelle ou non
+   sans jamais décaler la suite. */
+function tiragesTornade(n, j){
+  var al = prng(graineTornade(n, j | 0));
+  return { quand:al(), ugx:al(), ugy:al(), uvx:al(), uvy:al(),
+           course:al(), tour:al() };
+}
+
+/* L'INSTANT DE NAISSANCE APPARTIENT AU CRÉNEAU, PAS À LA TORNADE.
+   C'est toute la demande des jumelles : si chacune tirait son propre
+   décalage, elles seraient à dix secondes l'une de l'autre et l'on
+   verrait deux tornades qui se suivent, pas deux tornades EN MÊME
+   TEMPS. Les deux lisent donc le décalage de la première. */
+function naissanceDuCreneau(n, P){
+  return n * P.periode + tiragesTornade(n, 0).quand * P.periode * (P.jitter || 0.5);
+}
+
+/* LA TORNADE n° j DU CRÉNEAU n. */
+function tornadeDuCreneau(n, P, j){
+  j = j | 0;
+  var A = tiragesTornade(n, j);
+  var gx, gy;
+  /* CHAQUE JUMELLE DANS SA MOITIÉ D'ÎLE. Deux places tirées
+     librement peuvent tomber l'une sur l'autre, et deux entonnoirs
+     collés ne font qu'un danger pour deux fois le calcul. On leur
+     donne donc chacune sa bande, séparées par `ecart` cases au
+     milieu — c'est court à écrire et c'est PROUVÉ, là où un « si
+     elles sont trop proches, on écarte » demande de vérifier que
+     l'écartement ne les renvoie pas dans le décor.
+     Qui prend l'ouest et qui prend l'est se tire sur une graine à
+     part : sans cela la paire serait toujours dans le même sens, et
+     l'œil s'en apercevrait au bout de trois. */
+  if(paireTornade(P) > 1){
+    var large = (GW - (P.ecart || 0)) * 0.5 - 3;      // la largeur d'une bande
+    var est = ((graineTornade(n, 9) >>> 3) & 1) ? 1 - j : j;
+    gx = (est ? GW - 3 - large : 3) + A.ugx * large;
+    gy = borne(A.ugy * GH, 6, GH - 6);
+  }else{
+    gx = borne(A.ugx * GW, 3, GW - 3);
+    gy = borne(A.ugy * GH, 6, GH - 6);
+  }
+  var vx = 4 + A.uvx * (GW - 8);
+  var vy = 4 + A.uvy * (GH - 8);
+  var course = A.course, tour = A.tour * 6.2832;
   var dx = vx - gx, dy = vy - gy, d = Math.hypot(dx, dy) || 1;
   return {
-    creneau:n,
+    creneau:n, jumelle:j,
     /* elle ne naît pas au top du créneau : sans ce décalage, les
        tornades tomberaient à intervalles rigoureusement égaux et l'on
        entendrait le métronome */
-    naissance:n * P.periode + quand * P.periode * 0.5,
+    naissance:naissanceDuCreneau(n, P),
     gx:gx, gy:gy,
     cx:gx, cy:gy,                 // d'où elle est sortie, dans le ciel
     dx:dx / d, dy:dy / d,
@@ -11865,7 +12140,7 @@ function tornadeDuCreneau(n, P){
    mise au point. Elle rend celle du créneau courant. */
 function creeTornade(){
   var P = profilTornade(jeu.index) || profilTornade(2);
-  return tornadeDuCreneau(Math.floor(horlogeTornade() / P.periode), P);
+  return tornadeDuCreneau(Math.floor(horlogeTornade() / P.periode), P, 0);
 }
 
 /* ---------------------------------------------------------------
@@ -11977,32 +12252,50 @@ function majTornades(dt){
      partagé quels créneaux sont en cours, et l'on rembobine ceux qu'on
      découvre en retard. */
   var courant = Math.floor(T / P.periode);
+  var NJ = paireTornade(P);                        // 1, ou 2 sur les nuits
   for(n = courant - 2; n <= courant; n++){
     if(n < 0) continue;
     var deja = 0;
     for(i = 0; i < jeu.tornades.length; i++)
       if(jeu.tornades[i].creneau === n){ deja = 1; break; }
     if(deja) continue;
-    /* Jamais plus de deux à la fois. Trois entonnoirs sur l'écran, ce
-       n'est plus une menace, c'est une météo dont on ne peut rien
-       faire. */
-    if(jeu.tornades.length >= 2) continue;
-    var t = tornadeDuCreneau(n, P);
-    var age = T - t.naissance;
+    /* JAMAIS PLUS DE DEUX ENTONNOIRS SUR L'ÎLE, et le compte ne
+       change pas quand elles arrivent par paires : c'est la PAIRE qui
+       remplace la tornade seule, elle ne s'y ajoute pas. Trois
+       entonnoirs, ce n'est plus une menace, c'est une météo dont on ne
+       peut rien faire.
+       ET LE PLAFOND SE JUGE SUR LA PAIRE ENTIÈRE, jamais sur une
+       jumelle à la fois : autrement la place restante en aurait
+       laissé entrer une et refusé l'autre, et le joueur qui verrait
+       une paire quand son voisin n'en voit qu'une aurait raison de
+       ne plus croire à la météo partagée. Une jumelle dont la course
+       est DÉJÀ finie, elle, ne rentre pas — mais celle-là, tout le
+       monde la calcule finie. */
+    if(jeu.tornades.length + NJ > 2) continue;
+    var neuves = [], age = T - naissanceDuCreneau(n, P);
     if(age < 0) continue;                          // elle n'est pas encore née
-    if(age >= P.descente + t.vie) continue;        // elle est déjà finie
-    /* LE REMBOBINAGE. On rejoue sa trajectoire depuis sa naissance,
-       par pas fixes, sans tuer personne. Le plafond n'est pas de la
-       prudence contre un bogue : c'est le garde-fou contre une horloge
-       d'appareil qui aurait sauté d'une heure. */
-    var pasARattraper = Math.floor(age / TORNADE_PAS_FIXE);
-    for(k = 0; k < pasARattraper && k < 2000; k++) pasTornade(t, P, 0, T);
-    jeu.tornades.push(t);
+    for(var j = 0; j < NJ; j++){
+      var t = tornadeDuCreneau(n, P, j);
+      if(age >= P.descente + t.vie) continue;      // celle-ci est déjà finie
+      /* LE REMBOBINAGE. On rejoue sa trajectoire depuis sa naissance,
+         par pas fixes, sans tuer personne. Le plafond n'est pas de la
+         prudence contre un bogue : c'est le garde-fou contre une
+         horloge d'appareil qui aurait sauté d'une heure. */
+      var pasARattraper = Math.floor(age / TORNADE_PAS_FIXE);
+      for(k = 0; k < pasARattraper && k < 2000; k++) pasTornade(t, P, 0, T);
+      neuves.push(t);
+    }
+    if(!neuves.length) continue;
+    for(j = 0; j < neuves.length; j++) jeu.tornades.push(neuves[j]);
     /* le son et l'effroi des bêtes n'ont de sens que pour une tornade
-       qui vient VRAIMENT de naître, pas pour une qu'on rattrape */
+       qui vient VRAIMENT de naître, pas pour une qu'on rattrape. Le
+       son, LUI, ne sonne qu'une fois pour la paire : deux fois, ce
+       n'est pas deux fois plus fort, c'est du battement. */
     if(age < 1.5){
       if(son.tornade) son.tornade();
-      if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 30, jeu.tps);
+      for(j = 0; j < neuves.length; j++)
+        if(typeof effraieFaune === "function")
+          effraieFaune(neuves[j].gx, neuves[j].gy, 30, jeu.tps);
     }
   }
 
@@ -25754,6 +26047,465 @@ function dessineVoeuMonde(c, v, tps){
 function dessineVoeux(c, tps){
   if(!jeu || !jeu.voeux) return;
   for(var i = 0; i < jeu.voeux.length; i++) dessineVoeuMonde(c, jeu.voeux[i], tps);
+}
+
+/* ===== 47-nuits-faune.js ===== */
+/* ================================================================
+   LE BESTIAIRE ENCHANTÉ — « Les Mily et une nuits »
+
+   « Des paons, des chats blancs, des renards lumineux, des papillons
+   géants. »
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI LES SÉPARE DE LA FAUNE DE LA JUNGLE
+   ────────────────────────────────────────────────────────────────
+
+   La jungle est habitée par des bêtes qui VIVENT là : un singe mange,
+   un panda s'assoit, un cochon d'Inde détale. Elles sont crédibles, et
+   c'est tout ce qu'on leur demandait.
+
+   Ici on ne cherche pas la crédibilité, on cherche l'APPARITION. Ces
+   quatre-là ne sont pas des animaux qui habitent l'île, ce sont des
+   animaux qu'on CROISE — et la différence tient en trois règles qui
+   valent pour les quatre :
+
+     ILS ÉMETTENT DE LA LUMIÈRE. Pas un reflet, pas un éclairage : une
+     lueur qui leur appartient et qui se pose sur le sol autour d'eux.
+     C'est ce qui les range du côté des lanternes et des fontaines
+     plutôt que du côté des sangliers.
+
+     ILS LAISSENT UNE TRACE. Un sillage de poussière d'étoile derrière
+     eux, qui s'éteint en deux secondes. Un animal ordinaire passe ; un
+     animal enchanté laisse quelque chose.
+
+     ILS NE SONT JAMAIS TOUT À FAIT OPAQUES. Le chat de lune est le
+     plus transparent des quatre, le paon le moins — mais aucun n'est
+     peint à plein. On doit pouvoir douter de les avoir vus.
+
+   ────────────────────────────────────────────────────────────────
+   ET ILS SONT PAISIBLES
+   ────────────────────────────────────────────────────────────────
+
+   `fuit:1`, comme la faune de la jungle : ils s'écartent, ils
+   n'attaquent pas. Une île déjà défendue par huit cent quarante
+   tourelles n'a pas besoin d'un paon agressif.
+   ================================================================ */
+
+/* Le sillage, commun aux quatre. Il ne mémorise rien : la position
+   passée d'une bête se recalcule à partir de son propre mouvement,
+   qui est une fonction du temps. Le même principe que la traînée des
+   étoiles filantes — gratuit, et jamais désynchronisé. */
+function sillageEnchante(c, x, y, ph, n, tps, teinte, larg){
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var i = 1; i <= 5; i++){
+    var f = 1 - i / 6;
+    var dx = -Math.sin(tps * 0.9 + ph) * i * 2.2 - i * 1.4;
+    var dy = Math.sin(tps * 1.7 + ph + i * 0.6) * 1.2;
+    c.globalAlpha = f * f * 0.42;
+    c.fillStyle = "rgba(" + teinte + ",1)";
+    c.beginPath();
+    c.arc(x + dx, y + dy, larg * f * 0.7, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+}
+
+/* La flaque de lumière au sol. Elle est TRÈS plate — c'est ce qui la
+   pose sur la terre au lieu de la faire flotter autour de la bête. */
+function lueurAuSol(c, x, y, r, teinte, a){
+  var g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, "rgba(" + teinte + "," + a + ")");
+  g.addColorStop(1, "rgba(" + teinte + ",0)");
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(x, y, r, r * 0.38, 0, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* ================================================================
+   LE PAON
+
+   C'est la pièce du bestiaire, et sa roue est tout le sujet. Elle ne
+   s'ouvre pas en permanence : un paon qui fait la roue sans arrêt est
+   un motif de papier peint. Elle s'ouvre par CYCLES longs — une fois
+   toutes les vingt secondes environ, chaque oiseau à son heure — et
+   c'est ce qui en fait un événement qu'on a de la chance de voir.
+
+   L'OCELLE FAIT L'OISEAU. Une roue de plumes vertes sans ses yeux
+   bleus n'est pas une roue de paon, c'est un éventail. Chaque plume
+   porte donc le sien : un disque bleu nuit, un anneau turquoise, un
+   cœur violet. Trois cercles, et l'œil reconnaît l'animal avant
+   d'avoir vu le corps.
+   ================================================================ */
+var PAON_ROUE = 21;                 // la période, en secondes
+function paonOuverture(k, tps){
+  var t = ((tps * 0.5 + (k.ph || 0) * 3.1) % (PAON_ROUE * 0.5)) / (PAON_ROUE * 0.5);
+  /* ouvre en 12 %, tient 30 %, referme en 18 %, dort le reste */
+  if(t < 0.12) return t / 0.12;
+  if(t < 0.42) return 1;
+  if(t < 0.60) return 1 - (t - 0.42) / 0.18;
+  return 0;
+}
+function dessinePaon(c, k, tps){
+  var ph = k.ph || 0, n = k.n || 0;
+  var sur = fauneSursaut(k, tps);
+  var ouv = paonOuverture(k, tps);
+  /* effrayé, il referme d'un coup : c'est la réaction juste, et elle
+     donne au joueur un retour sur son propre passage */
+  ouv *= (1 - sur);
+  var pas = Math.sin(tps * 2.1 + ph) * 0.6;
+  var y0 = -sur * 3;
+
+  lueurAuSol(c, 0, 0, 22 + ouv * 16, "120,220,200", 0.20 + ouv * 0.14);
+  c.fillStyle = "rgba(0,0,0,.22)";
+  c.beginPath(); c.ellipse(0, 0, 6.5, 2.4, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, y0);
+
+  /* ---- LA ROUE, derrière tout le reste ---- */
+  if(ouv > 0.02){
+    c.save();
+    c.translate(-2, -13);
+    var NP = 17, R = (11 + ouv * 25);
+    for(var i = 0; i < NP; i++){
+      var u = i / (NP - 1);                       // 0 → 1 de gauche à droite
+      var a = (-1 + u * 2) * (0.30 + ouv * 1.30);  // l'éventail s'écarte
+      var lg = R * (0.72 + 0.28 * Math.sin(u * 3.1416));
+      var ex = Math.sin(a) * lg, ey = -Math.cos(a) * lg * 0.86;
+      /* la tige */
+      c.strokeStyle = "rgba(64,132,110," + (0.55 * ouv) + ")";
+      c.lineWidth = 1.1;
+      c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(ex * 0.5, ey * 0.42, ex, ey); c.stroke();
+      /* la barbe de la plume */
+      c.fillStyle = "rgba(46,150,128," + (0.34 * ouv) + ")";
+      c.beginPath();
+      c.ellipse(ex * 0.84, ey * 0.84, 3.4 * ouv, 6.2 * ouv, a, 0, 6.2832);
+      c.fill();
+      /* L'OCELLE : trois cercles, et l'oiseau est reconnu. */
+      var oa = 0.9 * ouv;
+      c.fillStyle = "rgba(28,52,96," + oa + ")";
+      c.beginPath(); c.arc(ex, ey, 3.1 * ouv, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(78,214,196," + oa + ")";
+      c.beginPath(); c.arc(ex, ey, 2.1 * ouv, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(126,72,190," + oa + ")";
+      c.beginPath(); c.arc(ex, ey, 1.1 * ouv, 0, 6.2832); c.fill();
+    }
+    c.restore();
+  }
+
+  /* ---- LE CORPS ---- */
+  /* pattes */
+  c.strokeStyle = "#8a6a3e"; c.lineWidth = 1.2; c.lineCap = "round";
+  c.beginPath(); c.moveTo(-1.4, -6); c.lineTo(-1.4 - pas, -0.4); c.stroke();
+  c.beginPath(); c.moveTo(1.4, -6); c.lineTo(1.4 + pas, -0.4); c.stroke();
+  /* le corps, bleu profond */
+  var g = c.createRadialGradient(-1, -12, 1, 0, -9, 8);
+  g.addColorStop(0, "#2f7fb4"); g.addColorStop(0.55, "#1d4f86"); g.addColorStop(1, "#122f5e");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -9, 6.2, 5.0, -0.12, 0, 6.2832); c.fill();
+  /* le cou, long et courbé — c'est lui qui dit « paon » quand la roue
+     est fermée */
+  c.strokeStyle = "#1c62a8"; c.lineWidth = 3.4; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(2.6, -12); c.quadraticCurveTo(7.4, -18, 6.2, -24);
+  c.stroke();
+  /* la tête */
+  c.fillStyle = "#2478c0";
+  c.beginPath(); c.ellipse(6.4, -25.6, 2.6, 2.3, 0, 0, 6.2832); c.fill();
+  /* l'aigrette : trois brins à pompon, l'attribut le plus reconnaissable */
+  c.strokeStyle = "rgba(120,224,206,.9)"; c.lineWidth = 0.7;
+  for(var b = -1; b <= 1; b++){
+    var bx = 6.4 + b * 1.5, by = -27.6;
+    c.beginPath(); c.moveTo(6.4, -27.4); c.lineTo(bx + b * 0.8, by - 3.4); c.stroke();
+    c.fillStyle = "rgba(140,236,216,.95)";
+    c.beginPath(); c.arc(bx + b * 0.8, by - 3.8, 0.85, 0, 6.2832); c.fill();
+  }
+  /* bec et œil */
+  c.fillStyle = "#e8d0a0";
+  c.beginPath(); c.moveTo(8.6, -25.9); c.lineTo(11.4, -25.2); c.lineTo(8.6, -24.6); c.closePath(); c.fill();
+  c.fillStyle = "#0d1a2c";
+  c.beginPath(); c.arc(7.4, -26.2, 0.75, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(255,255,255,.85)";
+  c.beginPath(); c.arc(7.2, -26.4, 0.3, 0, 6.2832); c.fill();
+  c.restore();
+  sillageEnchante(c, -6, -10 + y0, ph, n, tps, "90,220,200", 2.6);
+}
+
+/* ================================================================
+   LE CHAT DE LUNE
+
+   Le plus transparent des quatre, et c'est voulu : il doit se voir
+   comme on voit un chat blanc dans une cour la nuit — d'abord un
+   mouvement, ensuite une forme.
+
+   IL NE MARCHE PAS TOUT À FAIT AU SOL. Deux unités au-dessus, et son
+   ombre est plus petite que lui. Rien dans le jeu ne fait ça, et c'est
+   ce détail-là, plus que sa couleur, qui dit qu'il n'est pas
+   ordinaire.
+   ================================================================ */
+function dessineChatlune(c, k, tps){
+  var ph = k.ph || 0, n = k.n || 0;
+  var sur = fauneSursaut(k, tps);
+  var flot = Math.sin(tps * 1.3 + ph) * 1.6;
+  var y0 = -3 - flot - sur * 6;
+  var bat = Math.sin(tps * 2.4 + ph);
+
+  lueurAuSol(c, 0, 0, 20, "210,232,255", 0.26);
+  c.fillStyle = "rgba(0,0,0,.12)";
+  c.beginPath(); c.ellipse(0, 0, 4.2, 1.5, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, y0);
+  c.globalAlpha = 0.80;
+  /* la queue, haute et ondulante — la signature du chat */
+  c.strokeStyle = "rgba(238,246,255,.85)"; c.lineWidth = 2.2; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-5, -7);
+  c.quadraticCurveTo(-11 - bat * 1.6, -11, -9 + bat * 2.2, -18);
+  c.stroke();
+  /* le corps */
+  var g = c.createRadialGradient(-1, -10, 1, 0, -8, 9);
+  g.addColorStop(0, "rgba(255,255,255,.95)");
+  g.addColorStop(0.6, "rgba(228,240,255,.78)");
+  g.addColorStop(1, "rgba(186,212,246,.45)");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -8, 6.4, 3.9, -0.08, 0, 6.2832); c.fill();
+  /* les pattes, à peine esquissées : un chat de lune n'a pas de pieds
+     nets, sinon il se pose et cesse d'être une apparition */
+  c.strokeStyle = "rgba(226,238,255,.5)"; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(-2.6, -5); c.lineTo(-2.6 + bat, -1.6); c.stroke();
+  c.beginPath(); c.moveTo(2.8, -5); c.lineTo(2.8 - bat, -1.6); c.stroke();
+  /* la tête */
+  c.fillStyle = "rgba(250,253,255,.92)";
+  c.beginPath(); c.ellipse(5.6, -12.4, 3.4, 3.0, 0, 0, 6.2832); c.fill();
+  /* les oreilles */
+  c.beginPath();
+  c.moveTo(3.4, -14.6); c.lineTo(3.9, -18.4); c.lineTo(6.0, -15.2); c.closePath(); c.fill();
+  c.beginPath();
+  c.moveTo(6.6, -15.2); c.lineTo(8.4, -18.0); c.lineTo(8.4, -14.4); c.closePath(); c.fill();
+  /* LES YEUX : deux fentes d'or, la seule couleur chaude du dessin,
+     et c'est par elles qu'on le repère dans le noir.
+     IL LEUR FAUT UN CREUX SOMBRE DESSOUS. Peintes en additif à même
+     la fourrure blanche, elles ressortaient BLANCHES — l'additif
+     ajoute à ce qu'il trouve, et il ne trouvait que du blanc. On
+     creuse donc l'orbite d'abord ; l'or a alors de quoi briller. */
+  c.fillStyle = "rgba(24,34,58,.72)";
+  c.beginPath(); c.ellipse(4.8, -12.9, 1.5, 2.0, 0.2, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(7.4, -12.9, 1.5, 2.0, -0.2, 0, 6.2832); c.fill();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = "rgba(255,196,72,.95)";
+  c.beginPath(); c.ellipse(4.8, -12.9, 0.85, 1.7, 0.2, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(7.4, -12.9, 0.85, 1.7, -0.2, 0, 6.2832); c.fill();
+  /* la pupille, une fente verticale : c'est elle qui fait un chat */
+  c.globalCompositeOperation = "source-over";
+  c.fillStyle = "rgba(20,16,30,.85)";
+  c.beginPath(); c.ellipse(4.8, -12.9, 0.26, 1.35, 0.2, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(7.4, -12.9, 0.26, 1.35, -0.2, 0, 6.2832); c.fill();
+  c.restore();
+  c.restore();
+  sillageEnchante(c, -5, -8 + y0, ph, n, tps, "214,234,255", 2.4);
+}
+
+/* ================================================================
+   LE FENNEC LUMINEUX
+
+   Un renard du désert : de très grandes oreilles, un museau fin, une
+   queue à bout clair. Le choix du fennec plutôt que du renard roux
+   n'est pas cosmétique — c'est le renard de CETTE géographie-là, celle
+   des dunes et des palais, et ses oreilles énormes le rendent
+   reconnaissable à huit pixels de haut, ce qu'un renard ordinaire
+   n'est pas.
+
+   Sa lumière est AMBRÉE, seule chaleur d'un bestiaire par ailleurs
+   bleu et vert : sur une île qui tire au froid, c'est ce qui le fait
+   trouver du coin de l'œil.
+   ================================================================ */
+function dessineFennec(c, k, tps){
+  var ph = k.ph || 0, n = k.n || 0;
+  var sur = fauneSursaut(k, tps);
+  var trot = Math.sin(tps * 3.4 + ph);
+  var y0 = -sur * 4;
+
+  lueurAuSol(c, 0, 0, 19, "255,196,110", 0.30);
+  c.fillStyle = "rgba(0,0,0,.20)";
+  c.beginPath(); c.ellipse(0, 0, 5.2, 1.9, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(0, y0);
+  /* la queue, épaisse, à bout blanc */
+  c.strokeStyle = "#e8b978"; c.lineWidth = 3.4; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-4.4, -6.5);
+  c.quadraticCurveTo(-10 - trot, -8.5, -12.4, -13 + trot * 1.4);
+  c.stroke();
+  c.strokeStyle = "rgba(255,246,226,.95)"; c.lineWidth = 3.0;
+  c.beginPath();
+  c.moveTo(-11.4, -11.6 + trot); c.lineTo(-12.6, -13.6 + trot * 1.4);
+  c.stroke();
+  /* pattes */
+  c.strokeStyle = "#d9a460"; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(-2.2, -4.4); c.lineTo(-2.2 - trot * 1.5, -0.4); c.stroke();
+  c.beginPath(); c.moveTo(2.6, -4.4); c.lineTo(2.6 + trot * 1.5, -0.4); c.stroke();
+  /* le corps */
+  var g = c.createLinearGradient(0, -12, 0, -2);
+  g.addColorStop(0, "#ffd9a0"); g.addColorStop(0.6, "#eab476"); g.addColorStop(1, "#c98d4e");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(0, -7, 5.8, 3.6, -0.06, 0, 6.2832); c.fill();
+  /* le poitrail clair */
+  c.fillStyle = "rgba(255,248,232,.8)";
+  c.beginPath(); c.ellipse(1.6, -5.4, 3.0, 1.7, 0, 0, 6.2832); c.fill();
+  /* la tête, museau fin */
+  c.fillStyle = "#f2c184";
+  c.beginPath(); c.ellipse(5.4, -10.4, 3.2, 2.7, 0, 0, 6.2832); c.fill();
+  c.beginPath();
+  c.moveTo(7.6, -10.2); c.lineTo(11.2, -9.0); c.lineTo(7.6, -8.2); c.closePath(); c.fill();
+  /* LES OREILLES — la moitié de l'animal. Grandes, dressées, avec
+     l'intérieur rose pâle qui capte la lumière. */
+  for(var o = 0; o < 2; o++){
+    var ox = 4.0 + o * 3.0, oi = o ? 1 : -1;
+    c.fillStyle = "#eab476";
+    c.beginPath();
+    c.moveTo(ox - 1.6, -12.2);
+    c.quadraticCurveTo(ox + oi * 1.0, -21.5, ox + 2.2, -12.0);
+    c.closePath(); c.fill();
+    c.fillStyle = "rgba(255,220,214,.85)";
+    c.beginPath();
+    c.moveTo(ox - 0.7, -12.6);
+    c.quadraticCurveTo(ox + oi * 0.7, -19.2, ox + 1.3, -12.5);
+    c.closePath(); c.fill();
+  }
+  /* l'œil, et le museau noir */
+  c.fillStyle = "#2a1c12";
+  c.beginPath(); c.arc(6.2, -11.0, 0.85, 0, 6.2832); c.fill();
+  c.beginPath(); c.arc(11.0, -9.0, 0.7, 0, 6.2832); c.fill();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = "rgba(255,232,180,.9)";
+  c.beginPath(); c.arc(5.9, -11.3, 0.34, 0, 6.2832); c.fill();
+  c.restore();
+  c.restore();
+  sillageEnchante(c, -8, -8 + y0, ph, n, tps, "255,196,110", 2.8);
+}
+
+/* ================================================================
+   LE PAPILLON GÉANT
+
+   Trois fois le papillon de la jungle, et pas seulement en taille :
+   celui-ci a des ailes TRANSLUCIDES nervurées, comme un vitrail, et
+   il bat LENTEMENT. Un grand papillon qui bat vite est un papillon de
+   nuit ordinaire agrandi ; c'est la lenteur qui donne l'envergure.
+
+   Il vole plus haut que celui de la jungle et son ombre est loin
+   au-dessous : c'est cet écart entre la bête et son ombre qui donne
+   la hauteur, bien plus que sa position à l'écran.
+   ================================================================ */
+var PAPG_TEINTES = [
+  ["168,120,255", "226,196,255"],
+  ["96,196,255",  "196,236,255"],
+  ["255,160,214", "255,220,238"]
+];
+function dessinePapillongeant(c, k, tps){
+  var ph = k.ph || 0, n = k.n || 0;
+  var sur = fauneSursaut(k, tps);
+  /* la couleur vient de `teinte`, tirée à la génération : c'est le
+     champ prévu pour ça, et il est le même chez tous les joueurs */
+  var T = PAPG_TEINTES[(k.teinte | 0) % PAPG_TEINTES.length];
+  /* le vol : deux sinus incommensurables, et une montée en escalier —
+     il gagne de l'altitude en battant, il en perd en planant */
+  var t = tps * 0.34 + ph;
+  var x = Math.sin(t * 1.7) * 14 + Math.sin(t * 0.61 + n) * 9;
+  var bat = Math.sin(tps * 1.9 + ph);           // LENT : c'est le sujet
+  var y = -46 - Math.sin(t * 1.1 + n * 0.7) * 11 - bat * 3 - sur * 14;
+  var incl = Math.cos(t * 1.7) * 0.26;
+
+  /* l'ombre, très loin en dessous et très pâle */
+  var f = Math.max(0.10, 1 + y / 78);
+  c.fillStyle = "rgba(0,0,0," + (0.13 * f) + ")";
+  c.beginPath(); c.ellipse(x * 0.6, 0, 5.4 * f + 0.8, 2.0 * f + 0.3, 0, 0, 6.2832); c.fill();
+  lueurAuSol(c, x * 0.6, 0, 16 * f, T[0], 0.18 * f);
+
+  c.save();
+  c.translate(x, y);
+  c.rotate(incl);
+  /* L'AILE : une paire arrière large, une paire avant en pointe, et
+     l'ouverture qui suit le battement. On la peint deux fois — la
+     paire du fond plus sombre — sinon l'insecte est plat. */
+  var ouv = 0.34 + 0.66 * (0.5 + 0.5 * bat);
+  for(var cote = -1; cote <= 1; cote += 2){
+    for(var pa = 0; pa < 2; pa++){                 // 0 : fond, 1 : devant
+      var e = pa ? 1 : 0.86;
+      var al = pa ? 0.62 : 0.36;
+      c.save();
+      c.scale(cote, 1);
+      c.translate(pa ? 0 : -1.4, pa ? 0 : 1.6);
+      /* aile arrière */
+      var g1 = c.createLinearGradient(0, 0, 15 * e, 10 * e);
+      g1.addColorStop(0, "rgba(" + T[1] + "," + al + ")");
+      g1.addColorStop(1, "rgba(" + T[0] + "," + (al * 0.72) + ")");
+      c.fillStyle = g1;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.quadraticCurveTo(13 * e * ouv, 3 * e, 12 * e * ouv, 13 * e);
+      c.quadraticCurveTo(6 * e * ouv, 12 * e, 0, 4 * e);
+      c.closePath(); c.fill();
+      /* aile avant, en pointe */
+      var g2 = c.createLinearGradient(0, -2, 20 * e, -12 * e);
+      g2.addColorStop(0, "rgba(" + T[1] + "," + (al * 1.15) + ")");
+      g2.addColorStop(1, "rgba(" + T[0] + "," + (al * 0.6) + ")");
+      c.fillStyle = g2;
+      c.beginPath();
+      c.moveTo(0, -1);
+      c.quadraticCurveTo(15 * e * ouv, -6 * e, 19 * e * ouv, -13 * e);
+      c.quadraticCurveTo(8 * e * ouv, -9 * e, 0, -3 * e);
+      c.closePath(); c.fill();
+      /* les nervures : trois traits, et l'aile devient un vitrail */
+      if(pa){
+        c.strokeStyle = "rgba(" + T[1] + ",.55)"; c.lineWidth = 0.6;
+        for(var v = 0; v < 3; v++){
+          c.beginPath();
+          c.moveTo(0.5, -1 + v * 1.6);
+          c.lineTo((10 + v * 3) * ouv, (-10 + v * 8));
+          c.stroke();
+        }
+        /* l'ocelle de l'aile, celui qui imite un œil */
+        c.save();
+        c.globalCompositeOperation = "lighter";
+        c.fillStyle = "rgba(" + T[1] + ",.8)";
+        c.beginPath(); c.arc(11 * ouv, -7, 2.2, 0, 6.2832); c.fill();
+        c.fillStyle = "rgba(255,255,255,.75)";
+        c.beginPath(); c.arc(11 * ouv, -7, 0.9, 0, 6.2832); c.fill();
+        c.restore();
+      }
+      c.restore();
+    }
+  }
+  /* le corps et les antennes */
+  c.fillStyle = "rgba(40,30,56,.85)";
+  c.beginPath(); c.ellipse(0, 1, 1.7, 6.2, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = "rgba(60,44,80,.8)"; c.lineWidth = 0.55; c.lineCap = "round";
+  for(var s = -1; s <= 1; s += 2){
+    c.beginPath();
+    c.moveTo(s * 0.6, -5);
+    c.quadraticCurveTo(s * 4, -10, s * 6.4, -8.6);
+    c.stroke();
+  }
+  c.restore();
+  /* la poussière qu'il sème */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var d = 0; d < 4; d++){
+    var fd = 1 - d / 4;
+    c.globalAlpha = fd * fd * 0.5;
+    c.fillStyle = "rgba(" + T[1] + ",1)";
+    c.beginPath();
+    c.arc(x - d * 5 - 4, y + 6 + Math.sin(tps * 2 + d + ph) * 3, 1.5 * fd + 0.4, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
 }
 
 /* ===== 50-qg.js ===== */

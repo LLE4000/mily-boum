@@ -34,7 +34,7 @@ try{
     "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -1068,6 +1068,108 @@ G("4. Déterminisme de la génération de carte");
         if(i === N.IDX_JUNGLE) continue;
         var c = N.genereCarte("MILY", i, N.planDeCarte(i, null), 0);
         if((c.geysers || []).length !== 0) return false;
+      }
+      return true;
+    })());
+  })();
+
+  /* ================================================================
+     3b quater. LE JARDIN DE MILY, ET SES HAIES
+
+     « Il faudrait rajouter des silos, une ligne bien dense de frelons
+     selon les lignes jaunes que j'ai dessinées, dont une ligne
+     continue le long de la plage. »
+
+     Le mot qui compte est CONTINUE, et c'est le seul de la phrase
+     qu'un test peut tenir : on longe la plage case par case et l'on
+     mesure le plus grand trou. Le reste — l'élégance du tracé — se
+     regarde, il ne se mesure pas. Mais deux autres choses se
+     mesurent, et elles ont chacune coûté un essai raté :
+       — le médaillon doit SURVIVRE au passage des diagonales ;
+       — le tracé ne doit pas dévorer les yeux de Chalumeaux.
+     ================================================================ */
+  (function(){
+    var IN = -1, i;
+    for(i = 0; i < N.CARTES.length; i++) if(N.CARTES[i].biome === "nuits") IN = i;
+    if(IN < 0){ ok("l'île des nuits existe", false); return; }
+    var c = N.genereCarte("MILY", IN, N.planDeCarte(IN, null), 0);
+    var par = {};
+    for(i = 0; i < c.batiments.length; i++)
+      par[c.batiments[i].t] = (par[c.batiments[i].t] || 0) + 1;
+
+    /* LA LIGNE DE PLAGE. On relève les Frelons de la bande côtière,
+       on les range du nord au sud, et l'on regarde le plus grand
+       intervalle. Une défense toutes les cinq cases est la résolution
+       de la grille : douze cases de trou, c'est encore une ligne ;
+       trente, c'est une porte ouverte. */
+    var cote = [];
+    for(i = 0; i < c.batiments.length; i++){
+      var b = c.batiments[i];
+      if(b.t === "frelon" && b.gx > 126 && b.gx < 139) cote.push(b.gy);
+    }
+    cote.sort(function(x, y){ return x - y; });
+    var trou = 0;
+    for(i = 1; i < cote.length; i++) if(cote[i] - cote[i - 1] > trou) trou = cote[i] - cote[i - 1];
+    ok("la haie de la plage porte des Frelons du nord au sud",
+       cote.length > 40 && cote[0] < 18 && cote[cote.length - 1] > 118,
+       cote.length + " Frelons, de gy " + (cote[0] || 0).toFixed(0) +
+       " à " + (cote[cote.length - 1] || 0).toFixed(0));
+    ok("… et elle est CONTINUE : pas un trou de plus de douze cases",
+       trou > 0 && trou < 12, "plus grand trou " + trou.toFixed(1) + " cases");
+    /* ELLE NE S'INTERROMPT PAS POUR L'ALLÉE D'HONNEUR. C'était tout
+       l'enjeu du mot « continue » : l'allée débouche sur la plage à
+       gy 68, et une haie taillée avant les allées s'y serait ouverte. */
+    var devantAllee = 0;
+    for(i = 0; i < cote.length; i++) if(Math.abs(cote[i] - 68) < 8) devantAllee++;
+    ok("… y compris devant l'allée d'honneur, qui débouche à gy 68",
+       devantAllee >= 2, devantAllee + " Frelons dans les huit cases");
+
+    /* LES SILOS DEMANDÉS, et ils bordent la haie plutôt que de la
+       remplacer : il en faut plus qu'avant, sans que les Frelons
+       cessent d'être l'échine. */
+    ok("les Silos sont là, en nombre", (par.silo || 0) > 180, (par.silo || 0) + " Silos");
+    ok("… et les Frelons tiennent la ligne", (par.frelon || 0) > 200,
+       (par.frelon || 0) + " Frelons");
+
+    /* LE MÉDAILLON SURVIT. Tracées au plus court, les diagonales
+       passaient à douze cases du bassin et emportaient les deux tiers
+       de l'anneau de Cuves — mesuré, 26 tombaient à 8. */
+    var cuves = 0;
+    for(i = 0; i < c.batiments.length; i++){
+      var b2 = c.batiments[i];
+      if(b2.t === "cuve" && Math.hypot(b2.gx - 74, b2.gy - 68) < 16) cuves++;
+    }
+    ok("les haies contournent le médaillon : son anneau de Cuves tient",
+       cuves >= 12, cuves + " Cuves autour du bassin");
+    /* ET LES DEUX YEUX RESTENT DES YEUX. L'arc les traverse, c'est
+       voulu ; il ne doit pas les effacer. */
+    ok("… et les deux yeux de Chalumeaux restent lisibles",
+       (par.chalumeau || 0) > 60, (par.chalumeau || 0) + " Chalumeaux");
+
+    /* LE BESTIAIRE ENCHANTÉ, semé sur son propre flux. */
+    var bes = {};
+    for(i = 0; i < c.creatures.length; i++)
+      bes[c.creatures[i].t] = (bes[c.creatures[i].t] || 0) + 1;
+    ok("l'île porte ses quatre animaux enchantés",
+       bes.paon > 0 && bes.chatlune > 0 && bes.fennec > 0 && bes.papillongeant > 0,
+       "paon " + bes.paon + " · chat de lune " + bes.chatlune +
+       " · fennec " + bes.fennec + " · papillon " + bes.papillongeant);
+    /* ET AUCUN N'EST PROTÉGÉ : le chat de lune n'est pas un chat de
+       Mily, et sa mort ne doit déclencher aucune vengeance. */
+    ok("… et aucun n'est protégé : seuls les trois chats le sont",
+       !N.CRE.chatlune.protege && !N.CRE.paon.protege &&
+       !N.CRE.fennec.protege && !N.CRE.papillongeant.protege);
+    /* LE SEMIS EST À SA PLACE : les cinq autres îles ne portent pas
+       une seule de ces bêtes, sinon le flux aurait débordé. */
+    ok("… et aucune autre île n'en porte", (function(){
+      for(var k = 0; k < N.CARTES.length; k++){
+        if(k === IN) continue;
+        var ck = N.genereCarte("MILY", k, N.planDeCarte(k, null), 0);
+        for(var m = 0; m < ck.creatures.length; m++){
+          var t = ck.creatures[m].t;
+          if(t === "paon" || t === "chatlune" || t === "fennec" || t === "papillongeant")
+            return false;
+        }
       }
       return true;
     })());
@@ -3370,12 +3472,12 @@ G("4. Déterminisme de la génération de carte");
       if(d < 0 || f < 0) return;
       var src = html.slice(html.indexOf("function graineTornade("), f + 2);
       function moteur(code, index, cycle){
-        return new Function("graineTexte", "prng", "borne", "GW", "GH",
+        return new Function("graineTexte", "prng", "borne", "GW", "GH", "paireTornade",
           "var CODE_SALON = '" + code + "';\n" +
           "var cycleSalon = " + cycle + ";\n" +
           "var jeu = { index:" + index + " };\n" +
           src + "; return tornadeDuCreneau;")
-          (N.graineTexte, N.prng, N.borne, N.GW, N.GH);
+          (N.graineTexte, N.prng, N.borne, N.GW, N.GH, N.paireTornade);
       }
       var P = N.profilTornade(2);
       var A = moteur("MILY", 2, 0), B = moteur("MILY", 2, 0);
@@ -3449,6 +3551,90 @@ G("4. Déterminisme de la génération de carte");
          suffirait à désaccorder tout le salon. */
       ok("aucun Math.random ne subsiste dans la fabrique de tornade",
          !/Math\.random/.test(src));
+
+      /* ================================================================
+         DEUX À LA FOIS — les jumelles des Mily et une nuits
+
+         « Pour les Mily et une nuits il faudrait 2 tornades en même
+         temps. » Trois choses font que c'est vrai, et chacune tombe
+         toute seule si on la retire :
+           — elles naissent au MÊME instant, sinon on voit deux
+             tornades qui se suivent ;
+           — elles naissent LOIN l'une de l'autre, sinon on n'en voit
+             qu'une ;
+           — la paire suivante attend que celle-ci soit morte, sinon
+             il y en a quatre.
+         ================================================================ */
+      (function(){
+        var IN = -1, i2;
+        for(i2 = 0; i2 < N.CARTES.length; i2++)
+          if(N.CARTES[i2].biome === "nuits") IN = i2;
+        var PN = N.profilTornade(IN);
+        ok("les Mily et une nuits lèvent DEUX tourbillons par créneau",
+           N.paireTornade(PN) === 2, "paire " + PN.paire);
+        ok("… et les deux autres îles gardent leur tornade seule",
+           N.paireTornade(N.profilTornade(2)) === 1 &&
+           N.paireTornade(N.profilTornade(N.IDX_JUNGLE < 0 ? 2 : 2)) === 1);
+        /* LE MOTEUR DES NUITS, relu dans le fichier livré comme
+           ci-dessus : on teste ce qui est LIVRÉ, pas une copie. */
+        var W = moteur("MILY", IN, 0);
+        /* 1. LE MÊME INSTANT. C'est toute la demande : si chacune
+              tirait son décalage, elles seraient à dix secondes
+              l'une de l'autre. */
+        var ensemble = true, ecarts = 0, minEcart = 1e9, n4;
+        for(n4 = 2000; n4 < 2400; n4++){
+          var a4 = W(n4, PN, 0), b4 = W(n4, PN, 1);
+          if(a4.naissance !== b4.naissance) ensemble = false;
+          var e4 = Math.abs(a4.gx - b4.gx);
+          if(e4 < minEcart) minEcart = e4;
+          if(e4 < N.EQ.TOURBILLON_ECART) ecarts++;
+        }
+        ok("les deux jumelles naissent au MÊME instant", ensemble);
+        /* 2. LOIN L'UNE DE L'AUTRE. Deux entonnoirs collés ne font
+              qu'un danger pour deux fois le calcul. */
+        ok("… et jamais l'une sur l'autre : chacune dans sa moitié d'île",
+           ecarts === 0, "écart minimum " + minEcart.toFixed(1) +
+           " cases sur 400 paires");
+        /* … mais pas toujours dans le même sens, sinon l'œil
+           apprendrait la paire en trois créneaux. */
+        var ouest = 0;
+        for(n4 = 2000; n4 < 2400; n4++) if(W(n4, PN, 0).gx < N.GW / 2) ouest++;
+        ok("… et ce n'est pas toujours la même qui prend l'ouest",
+           ouest > 120 && ouest < 280, ouest + "/400 fois à l'ouest");
+        /* 3. JAMAIS QUATRE. Une paire doit être éteinte quand la
+              suivante tombe — c'est de l'arithmétique, pas une
+              impression, et c'est le flottement réduit qui la tient. */
+        var chevauche = 0, marge = 1e9;
+        for(n4 = 0; n4 < 10000; n4++){
+          var fin = 0;
+          for(var j4 = 0; j4 < 2; j4++){
+            var t4 = W(n4, PN, j4);
+            var m4 = t4.naissance + PN.descente + t4.vie;
+            if(m4 > fin) fin = m4;
+          }
+          var suiv = W(n4 + 1, PN, 0).naissance;
+          if(fin > suiv) chevauche++;
+          if(suiv - fin < marge) marge = suiv - fin;
+        }
+        ok("une paire est toujours éteinte quand la suivante tombe",
+           chevauche === 0,
+           "sur 10 000 créneaux, marge minimale " + marge.toFixed(2) + " s");
+        /* ET LES DEUX CLIENTS VOIENT LA MÊME PAIRE. Sans quoi tout
+           l'exercice du partage sans réseau tombe pour cette île. */
+        var W2 = moteur("MILY", IN, 0), pareil2 = true;
+        for(n4 = 2000; n4 < 2040; n4++)
+          for(j4 = 0; j4 < 2; j4++)
+            if(JSON.stringify(W(n4, PN, j4)) !== JSON.stringify(W2(n4, PN, j4)))
+              pareil2 = false;
+        ok("… et deux clients calculent la même paire, au bit près", pareil2);
+        /* LA PAIRE ENTRE ENTIÈRE OU PAS DU TOUT, et le plafond reste
+           à deux entonnoirs : c'est la paire qui remplace la tornade
+           seule, elle ne s'y ajoute pas. */
+        ok("le plafond se juge sur la paire entière, jamais sur une jumelle",
+           /jeu\.tornades\.length \+ NJ > 2/.test(html));
+        ok("… et le son ne sonne qu'une fois pour la paire",
+           /if\(son\.tornade\) son\.tornade\(\);\s*\n\s*for\(j = 0; j < neuves\.length/.test(html));
+      })();
     })();
 
     /* ================================================================

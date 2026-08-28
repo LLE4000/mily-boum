@@ -121,33 +121,72 @@ function horlogeTornade(){ return Date.now() * 0.001; }
 /* La graine d'un créneau. Elle mêle le salon, l'île et le numéro de
    campagne : deux îles n'ont pas la même météo, et une campagne neuve
    repart sur une autre suite. Le TIRAGE, lui, n'y est pas — il change
-   la disposition des défenses, et la météo n'a rien à voir avec elle. */
-function graineTornade(n){
+   la disposition des défenses, et la météo n'a rien à voir avec elle.
+
+   `j` est le rang de la jumelle dans son créneau. La graine de la
+   PREMIÈRE ne porte pas de suffixe : la météo des ténèbres et de la
+   campagne, qui n'a jamais eu de jumelle, reste au bit près celle
+   d'avant. */
+function graineTornade(n, j){
   return graineTexte(CODE_SALON + "|tornade|" + ((jeu && jeu.index) | 0) + "|"
                      + ((typeof cycleSalon === "number" ? cycleSalon : 0) | 0)
-                     + "|" + n) >>> 0;
+                     + "|" + n + ((j | 0) ? "|" + (j | 0) : "")) >>> 0;
 }
 
-/* LA TORNADE DU CRÉNEAU n. Tout ce qui la définit sort de sa graine,
-   dans un ordre fixe — la règle de la maison : on tire d'abord, on
-   teste ensuite. Un `borne` appliqué au résultat d'un tirage ne
-   décale pas la suite ; un `if` qui saute un tirage, si. */
-function tornadeDuCreneau(n, P){
-  var al = prng(graineTornade(n));
-  var quand = al();
-  var gx = borne(al() * GW, 3, GW - 3);
-  var gy = borne(al() * GH, 6, GH - 6);
-  var vx = 4 + al() * (GW - 8);
-  var vy = 4 + al() * (GH - 8);
-  var course = al();
-  var tour = al() * 6.2832;
+/* LES SEPT TIRAGES D'UNE TORNADE, bruts, dans un ordre fixe — la
+   règle de la maison : on tire d'abord, on teste ensuite. Ils sortent
+   d'ici sans avoir été bornés ni pliés, pour que la mise en place
+   puisse les traiter autrement selon qu'il y a une jumelle ou non
+   sans jamais décaler la suite. */
+function tiragesTornade(n, j){
+  var al = prng(graineTornade(n, j | 0));
+  return { quand:al(), ugx:al(), ugy:al(), uvx:al(), uvy:al(),
+           course:al(), tour:al() };
+}
+
+/* L'INSTANT DE NAISSANCE APPARTIENT AU CRÉNEAU, PAS À LA TORNADE.
+   C'est toute la demande des jumelles : si chacune tirait son propre
+   décalage, elles seraient à dix secondes l'une de l'autre et l'on
+   verrait deux tornades qui se suivent, pas deux tornades EN MÊME
+   TEMPS. Les deux lisent donc le décalage de la première. */
+function naissanceDuCreneau(n, P){
+  return n * P.periode + tiragesTornade(n, 0).quand * P.periode * (P.jitter || 0.5);
+}
+
+/* LA TORNADE n° j DU CRÉNEAU n. */
+function tornadeDuCreneau(n, P, j){
+  j = j | 0;
+  var A = tiragesTornade(n, j);
+  var gx, gy;
+  /* CHAQUE JUMELLE DANS SA MOITIÉ D'ÎLE. Deux places tirées
+     librement peuvent tomber l'une sur l'autre, et deux entonnoirs
+     collés ne font qu'un danger pour deux fois le calcul. On leur
+     donne donc chacune sa bande, séparées par `ecart` cases au
+     milieu — c'est court à écrire et c'est PROUVÉ, là où un « si
+     elles sont trop proches, on écarte » demande de vérifier que
+     l'écartement ne les renvoie pas dans le décor.
+     Qui prend l'ouest et qui prend l'est se tire sur une graine à
+     part : sans cela la paire serait toujours dans le même sens, et
+     l'œil s'en apercevrait au bout de trois. */
+  if(paireTornade(P) > 1){
+    var large = (GW - (P.ecart || 0)) * 0.5 - 3;      // la largeur d'une bande
+    var est = ((graineTornade(n, 9) >>> 3) & 1) ? 1 - j : j;
+    gx = (est ? GW - 3 - large : 3) + A.ugx * large;
+    gy = borne(A.ugy * GH, 6, GH - 6);
+  }else{
+    gx = borne(A.ugx * GW, 3, GW - 3);
+    gy = borne(A.ugy * GH, 6, GH - 6);
+  }
+  var vx = 4 + A.uvx * (GW - 8);
+  var vy = 4 + A.uvy * (GH - 8);
+  var course = A.course, tour = A.tour * 6.2832;
   var dx = vx - gx, dy = vy - gy, d = Math.hypot(dx, dy) || 1;
   return {
-    creneau:n,
+    creneau:n, jumelle:j,
     /* elle ne naît pas au top du créneau : sans ce décalage, les
        tornades tomberaient à intervalles rigoureusement égaux et l'on
        entendrait le métronome */
-    naissance:n * P.periode + quand * P.periode * 0.5,
+    naissance:naissanceDuCreneau(n, P),
     gx:gx, gy:gy,
     cx:gx, cy:gy,                 // d'où elle est sortie, dans le ciel
     dx:dx / d, dy:dy / d,
@@ -170,7 +209,7 @@ function tornadeDuCreneau(n, P){
    mise au point. Elle rend celle du créneau courant. */
 function creeTornade(){
   var P = profilTornade(jeu.index) || profilTornade(2);
-  return tornadeDuCreneau(Math.floor(horlogeTornade() / P.periode), P);
+  return tornadeDuCreneau(Math.floor(horlogeTornade() / P.periode), P, 0);
 }
 
 /* ---------------------------------------------------------------
@@ -282,32 +321,50 @@ function majTornades(dt){
      partagé quels créneaux sont en cours, et l'on rembobine ceux qu'on
      découvre en retard. */
   var courant = Math.floor(T / P.periode);
+  var NJ = paireTornade(P);                        // 1, ou 2 sur les nuits
   for(n = courant - 2; n <= courant; n++){
     if(n < 0) continue;
     var deja = 0;
     for(i = 0; i < jeu.tornades.length; i++)
       if(jeu.tornades[i].creneau === n){ deja = 1; break; }
     if(deja) continue;
-    /* Jamais plus de deux à la fois. Trois entonnoirs sur l'écran, ce
-       n'est plus une menace, c'est une météo dont on ne peut rien
-       faire. */
-    if(jeu.tornades.length >= 2) continue;
-    var t = tornadeDuCreneau(n, P);
-    var age = T - t.naissance;
+    /* JAMAIS PLUS DE DEUX ENTONNOIRS SUR L'ÎLE, et le compte ne
+       change pas quand elles arrivent par paires : c'est la PAIRE qui
+       remplace la tornade seule, elle ne s'y ajoute pas. Trois
+       entonnoirs, ce n'est plus une menace, c'est une météo dont on ne
+       peut rien faire.
+       ET LE PLAFOND SE JUGE SUR LA PAIRE ENTIÈRE, jamais sur une
+       jumelle à la fois : autrement la place restante en aurait
+       laissé entrer une et refusé l'autre, et le joueur qui verrait
+       une paire quand son voisin n'en voit qu'une aurait raison de
+       ne plus croire à la météo partagée. Une jumelle dont la course
+       est DÉJÀ finie, elle, ne rentre pas — mais celle-là, tout le
+       monde la calcule finie. */
+    if(jeu.tornades.length + NJ > 2) continue;
+    var neuves = [], age = T - naissanceDuCreneau(n, P);
     if(age < 0) continue;                          // elle n'est pas encore née
-    if(age >= P.descente + t.vie) continue;        // elle est déjà finie
-    /* LE REMBOBINAGE. On rejoue sa trajectoire depuis sa naissance,
-       par pas fixes, sans tuer personne. Le plafond n'est pas de la
-       prudence contre un bogue : c'est le garde-fou contre une horloge
-       d'appareil qui aurait sauté d'une heure. */
-    var pasARattraper = Math.floor(age / TORNADE_PAS_FIXE);
-    for(k = 0; k < pasARattraper && k < 2000; k++) pasTornade(t, P, 0, T);
-    jeu.tornades.push(t);
+    for(var j = 0; j < NJ; j++){
+      var t = tornadeDuCreneau(n, P, j);
+      if(age >= P.descente + t.vie) continue;      // celle-ci est déjà finie
+      /* LE REMBOBINAGE. On rejoue sa trajectoire depuis sa naissance,
+         par pas fixes, sans tuer personne. Le plafond n'est pas de la
+         prudence contre un bogue : c'est le garde-fou contre une
+         horloge d'appareil qui aurait sauté d'une heure. */
+      var pasARattraper = Math.floor(age / TORNADE_PAS_FIXE);
+      for(k = 0; k < pasARattraper && k < 2000; k++) pasTornade(t, P, 0, T);
+      neuves.push(t);
+    }
+    if(!neuves.length) continue;
+    for(j = 0; j < neuves.length; j++) jeu.tornades.push(neuves[j]);
     /* le son et l'effroi des bêtes n'ont de sens que pour une tornade
-       qui vient VRAIMENT de naître, pas pour une qu'on rattrape */
+       qui vient VRAIMENT de naître, pas pour une qu'on rattrape. Le
+       son, LUI, ne sonne qu'une fois pour la paire : deux fois, ce
+       n'est pas deux fois plus fort, c'est du battement. */
     if(age < 1.5){
       if(son.tornade) son.tornade();
-      if(typeof effraieFaune === "function") effraieFaune(t.gx, t.gy, 30, jeu.tps);
+      for(j = 0; j < neuves.length; j++)
+        if(typeof effraieFaune === "function")
+          effraieFaune(neuves[j].gx, neuves[j].gy, 30, jeu.tps);
     }
   }
 

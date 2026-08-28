@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.66";
+var VERSION = "v0.67";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -156,6 +156,10 @@ var EQ = {
   TORNADE_RAYON        : 1.25,  // cases : le pied, mortel
   TORNADE_TRAINEE      : 5.0,   // s : la traînée reste mortelle
   TORNADE_TRAINEE_R    : 1.10,  // cases : demi-largeur de la traînée
+  /* LE FLOTTEMENT DE LA NAISSANCE, en fraction de la période. Sans
+     lui, les tornades tomberaient à intervalles rigoureusement égaux
+     et l'on entendrait le métronome. */
+  TORNADE_JITTER       : 0.5,
   /* ---- LE TOURBILLON D'ÉTOILES, dans les Mily et une nuits ----
      La même mécanique que la tornade de feu, en une fois et demie plus
      grand. Ce qui change vraiment tient en quatre nombres :
@@ -205,6 +209,34 @@ var EQ = {
   TOURBILLON_RAYON     : 1.875, // cases : le pied, mortel — 1,25 × 1,5
   TOURBILLON_TRAINEE   : 5.5,   // s : la traînée reste mortelle
   TOURBILLON_TRAINEE_R : 1.80,  // cases : demi-largeur, volontairement large
+  /* ════════════════════════════════════════════════════════════
+     DEUX À LA FOIS — « pour les Mily et une nuits il faudrait
+     2 tornades en même temps »
+
+     ELLES NAISSENT PAR PAIRES, pas par hasard. Deux tourbillons qui
+     tireraient chacun leur instant de naissance seraient à dix
+     secondes l'un de l'autre : on verrait deux tornades qui se
+     suivent, jamais deux tornades EN MÊME TEMPS. L'instant appartient
+     donc au créneau, et les jumelles le partagent ; ce qu'elles
+     tirent chacune, c'est leur place, leur cap et leur course.
+
+     ET ELLES NE SE SUPERPOSENT PAS. Chacune naît dans SA moitié de
+     l'île, séparées par une bande de trente-quatre cases au milieu :
+     deux entonnoirs collés l'un à l'autre ne feraient qu'un danger
+     pour deux fois le calcul. Leurs trajectoires, elles, visent
+     n'importe où — elles se croisent, et c'est bien.
+
+     LE FLOTTEMENT PASSE DE MOITIÉ À UN QUART, et ce n'est pas un
+     réglage d'humeur, c'est de l'arithmétique. Une paire vit au plus
+     3,4 + 13 × 2 = 29,4 s. Pour qu'une paire soit toujours morte
+     quand la suivante naît — sinon il y aurait QUATRE entonnoirs —
+     il faut période − flottement ≥ 29,4, soit 40 − 10 = 30. Ça
+     tient, avec six dixièmes de seconde de marge, et le test le
+     vérifie sur dix mille créneaux.
+     ════════════════════════════════════════════════════════════ */
+  TOURBILLON_PAIRE     : 2,     // deux entonnoirs par créneau
+  TOURBILLON_JITTER    : 0.25,  // et donc un flottement deux fois moindre
+  TOURBILLON_ECART     : 34,    // cases : la bande vide entre les deux moitiés
   /* ════════════════════════════════════════════════════════════
      LA TAILLE DESSINÉE — 30 % DE PLUS, ET RIEN D'AUTRE
 
@@ -743,6 +775,32 @@ CRE.luciole  = { nom:"Luciole",  pv:15,  detection:5.0,  portee:0, degats:0, cad
 CRE.cochon   = { nom:"Cochon d'Inde", pv:40, detection:4.5, portee:0, degats:0, cadence:0, vitesse:2.20, rayon:0.18, fuit:1 };
 
 /* ----------------------------------------------------------------
+   LE BESTIAIRE ENCHANTÉ DES MILY ET UNE NUITS
+
+   La jungle est habitée par des bêtes qui VIVENT là. Ici on ne
+   cherche pas la crédibilité, on cherche l'APPARITION : ces quatre-là
+   ne sont pas des animaux qui habitent l'île, ce sont des animaux
+   qu'on CROISE. Elles émettent leur propre lumière, elles laissent un
+   sillage, et aucune n'est peinte à plein — voir 47-nuits-faune.js,
+   qui les dessine.
+
+   LEURS DÉTECTIONS SONT LONGUES, et c'est le seul réglage qui
+   compte : une apparition qu'on peut approcher n'en est plus une.
+   Le chat de lune a la plus longue de tout le jeu — dix cases : il
+   part avant qu'on ait décidé de le regarder.
+
+   ET AUCUNE N'EST PROTÉGÉE. Le chat de lune n'est pas un chat de
+   Mily : il flotte, il est translucide, il a des yeux d'or. Les trois
+   protégés, eux, marchent au sol et ont un nom. On peut tuer celui-ci
+   sans que personne ne se venge — ce qui ne veut pas dire qu'il
+   faille le faire.
+   ---------------------------------------------------------------- */
+CRE.paon          = { nom:"Paon",           pv:150, detection:8.0,  portee:0, degats:0, cadence:0, vitesse:1.30, rayon:0.34, fuit:1 };
+CRE.chatlune      = { nom:"Chat de lune",   pv:90,  detection:10.0, portee:0, degats:0, cadence:0, vitesse:2.70, rayon:0.24, fuit:1 };
+CRE.fennec        = { nom:"Fennec",         pv:70,  detection:9.5,  portee:0, degats:0, cadence:0, vitesse:3.20, rayon:0.22, fuit:1 };
+CRE.papillongeant = { nom:"Papillon géant", pv:35,  detection:7.0,  portee:0, degats:0, cadence:0, vitesse:1.90, rayon:0.20, fuit:1, vole:1 };
+
+/* ----------------------------------------------------------------
    LES HUIT CAPACITÉS
    Chaque emploi renchérit le suivant : coût = base + pas × usages.
    ---------------------------------------------------------------- */
@@ -1265,7 +1323,8 @@ function profilTornade(i){
     trainee:EQ.TORNADE_TRAINEE, traineeR:EQ.TORNADE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu"
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"feu",
+    paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
   };
   if(carteTourbillons(i)) return {
     periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,
@@ -1273,7 +1332,8 @@ function profilTornade(i){
     trainee:EQ.TOURBILLON_TRAINEE, traineeR:EQ.TOURBILLON_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles"
+    haut:330 * EQ.TOURBILLON_ECH * EQ.TORNADE_ECH_VISUEL, style:"etoiles",
+    paire:EQ.TOURBILLON_PAIRE, jitter:EQ.TOURBILLON_JITTER, ecart:EQ.TOURBILLON_ECART
   };
   if(carteTornadeTerre(i)) return {
     periode:EQ.CLASSIQUE_PERIODE, descente:EQ.CLASSIQUE_DESCENTE,
@@ -1281,10 +1341,15 @@ function profilTornade(i){
     trainee:EQ.CLASSIQUE_TRAINEE, traineeR:EQ.CLASSIQUE_TRAINEE_R,
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
-    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere"
+    haut:330 * EQ.TORNADE_ECH_VISUEL, style:"poussiere",
+    paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
   };
   return null;
 }
+/* Combien d'entonnoirs ce profil met au sol d'un coup. Une seule
+   lecture, pour que personne n'ait à se souvenir que « paire »
+   pourrait manquer. */
+function paireTornade(P){ return Math.max(1, (P && P.paire) | 0); }
 /* Cette île a-t-elle des tornades, quelle qu'en soit la sorte ? */
 function carteAvecTornades(i){ return !!profilTornade(i); }
 
@@ -1924,6 +1989,17 @@ function genereCarte(codeSalon, index, plan, tirage){
   if(CARTES[index] && CARTES[index].biome === "jungle")
     peupleLaJungle(c, prng((gr ^ 0x1DEA5EED) >>> 0));
 
+  /* --- LES NUITS : LEUR BESTIAIRE ENCHANTÉ ---
+     Même place et même précaution que la jungle, et pour la même
+     raison : son PROPRE flux de tirage, semé sur la seule graine de
+     la carte. Rien de ce qui précède ne peut le décaler, et comme
+     rien ne vient après lui, il ne décale personne — l'indice de
+     chaque bâtiment, donc chaque bit de destruction de chaque salon
+     en cours, ne bouge pas d'un cran. Le sel diffère de celui de la
+     jungle, sans quoi les deux îles peupleraient aux mêmes endroits. */
+  if(CARTES[index] && CARTES[index].biome === "nuits")
+    peupleLesNuits(c, prng((gr ^ 0x0F17A11E) >>> 0));
+
   /* --- LE DURCISSEMENT DE LA JUNGLE ---
      Les défenses y sont plus dures qu'ailleurs. On applique le bonus
      ICI, en une seule passe finale sur le tableau complet, plutôt qu'à
@@ -2046,6 +2122,102 @@ var ECH_ARBRE_MIN     = 0.52;
 var ECH_ARBRE_ETENDUE = 0.26;   // 0,52 à 0,78 — deux fois et demie plus petit
 var RENFORT_ARBRES    = 900;    // dans l'île, en plus des 420 d'origine
 var RENFORT_POURTOUR  = 1500;   // dans la ceinture, en plus des 2 810
+
+/* ================================================================
+   LE PEUPLEMENT DES MILY ET UNE NUITS
+
+   Quatre-vingts bêtes, contre sept cent soixante-dix-sept pour la
+   jungle, et c'est délibéré. Une jungle doit GROUILLER ; un jardin de
+   palais doit être habité par des apparitions, c'est-à-dire par des
+   bêtes qu'on ne voit pas toutes en même temps. Le chiffre est celui
+   d'une île ordinaire — environ quatre-vingt-cinq — et l'effet n'a
+   rien à voir, parce que chacune de ces quatre-là s'annonce de loin.
+
+   ────────────────────────────────────────────────────────────────
+   CHACUNE A SON QUARTIER, ET LA GÉOMÉTRIE SUFFIT À LE DIRE
+
+   La jungle recense sa flore case par case pour savoir où vit un
+   koala. Ici il n'y a pas de flore : il y a un JARDIN, dont on
+   connaît le plan par cœur puisqu'on l'a gravé. Un cercle et deux
+   bornes suffisent donc, et ça ne coûte pas une grille :
+
+     le paon        au cœur, dans l'enceinte de l'allée circulaire —
+                    c'est la volière du palais, et sa roue mérite le
+                    médaillon derrière elle ;
+     le chat de lune dans le VIDE : les allées, le pourtour du bassin,
+                    tout ce qui n'a pas de tourelle à quatre cases.
+                    Il apparaît donc là où l'on marche, jamais dans
+                    un massif ;
+     le fennec      sur les bords, contre le rempart : c'est le
+                    renard du désert, il vient des dunes ;
+     le papillon    n'importe où — il vole, rien ne le retient.
+
+   ────────────────────────────────────────────────────────────────
+   LE BUDGET DE TIRAGES EST FIXE, comme partout dans ce fichier : on
+   tire toujours le même nombre de groupes et l'on cesse simplement de
+   POSER une fois l'effectif atteint. Une carte plus encombrée donne
+   donc moins de bêtes, jamais une séquence différente.
+   ================================================================ */
+function peupleLesNuits(c, al){
+  /* La grille d'occupation, dressée UNE fois. Douze cents bâtiments
+     contre quatre-vingts bestioles feraient cent mille comparaisons ;
+     une table de cases prises n'en fait aucune. */
+  var occ = {}, i, dx, dy;
+  for(i = 0; i < c.batiments.length; i++){
+    var b = c.batiments[i];
+    var ax = Math.round(b.gx), ay = Math.round(b.gy), r = Math.ceil((b.e || 2) * 0.5);
+    for(dx = -r; dx <= r; dx++)
+      for(dy = -r; dy <= r; dy++) occ[(ax + dx) + "," + (ay + dy)] = 1;
+  }
+  function prise(x, y){ return !!occ[Math.round(x) + "," + Math.round(y)]; }
+  /* « du vide autour » : rien de bâti dans un carré de rayon r */
+  function degage(x, y, r){
+    var ax = Math.round(x), ay = Math.round(y);
+    for(var ex = -r; ex <= r; ex++)
+      for(var ey = -r; ey <= r; ey++) if(occ[(ax + ex) + "," + (ay + ey)]) return 0;
+    return 1;
+  }
+  var MED_X = 74, MED_Y = 68;                    // le médaillon, cœur du jardin
+  var NUITEUX = [
+    { t:"paon",          n:14, gr:2,
+      aime:function(x, y){ return Math.hypot(x - MED_X, y - MED_Y) < 34; } },
+    { t:"chatlune",      n:18, gr:2,
+      aime:function(x, y){ return degage(x, y, 4); } },
+    { t:"fennec",        n:22, gr:3,
+      aime:function(x, y){ return x < 26 || x > 116 || y < 24 || y > 112; } },
+    { t:"papillongeant", n:26, gr:4, aime:null }
+  ];
+  var ESSAIS_NUITS = 4;
+  for(i = 0; i < NUITEUX.length; i++){
+    var B = NUITEUX[i], pose = 0;
+    for(var ess = 0; ess < B.n * 10; ess++){
+      var nb = 1 + ((al() * B.gr) | 0);
+      /* QUATRE CANDIDATS TIRÉS, TOUJOURS LES QUATRE, et l'on garde le
+         premier qui plaît à l'espèce — sinon le premier tout court.
+         C'est le tour de la jungle, et il est là pour la même raison :
+         un `if` qui saute un tirage décale toute la suite. */
+      var cx = 0, cy = 0, choisi = 0;
+      for(var ec = 0; ec < ESSAIS_NUITS; ec++){
+        var ex = 8 + al() * (PLAGE_X0 - 16), ey = 6 + al() * (GH - 12);
+        if(!ec){ cx = ex; cy = ey; }
+        if(!choisi && (!B.aime || B.aime(ex, ey))){ cx = ex; cy = ey; choisi = 1; }
+      }
+      /* le test du Brasier vient APRÈS, comme partout : on consomme
+         les tirages du groupe même si on le jette */
+      var auPied = Math.hypot(cx - QG_GX, cy - QG_GY) < 16;
+      for(var g = 0; g < nb; g++){
+        var bx = cx + (al() - 0.5) * 4.2;
+        var by = cy + (al() - 0.5) * 4.2;
+        var teinte = (al() * 3) | 0;
+        if(auPied || pose >= B.n) continue;
+        /* un papillon géant vole : il passe au-dessus des tourelles */
+        if(!CRE[B.t].vole && prise(bx, by)) continue;
+        c.creatures.push({ t:B.t, gx:bx, gy:by, teinte:teinte });
+        pose++;
+      }
+    }
+  }
+}
 
 function peupleLaJungle(c, al){
   /* DEUX GRILLES D'OCCUPATION, ET C'EST TOUT LE SUJET.
@@ -3194,9 +3366,13 @@ function planJungle(){
      7. LE MÉDAILLON     l'étoile centrale, son anneau et son bassin
      8. LES ALLÉES       taillées EN DERNIER, sinon elles ne
                           couperaient rien
+     9. LES HAIES        le tracé du joueur, par-dessus tout — y
+                          compris par-dessus les allées, puisque la
+                          ligne de plage doit être CONTINUE
 
    Mesuré : 849 défenses contre 559, soit +51,9 %, et chaque type à
-   moins de vingt pour cent de sa part d'origine.
+   moins de vingt pour cent de sa part d'origine. Puis les haies, qui
+   portent le total à 1 240 bâtiments contre 788 sur l'île nue.
    ================================================================ */
 /* Les indices de TYPES_PLAN, écrits une fois pour que la composition
    se lise comme un dessin et non comme une suite de nombres. */
@@ -3318,6 +3494,66 @@ function planNuits(){
      c'est là que tiennent les miradors — le même tour que dans la
      jungle. Vidée pour de bon, il n'en restait plus deux sur l'île. */
   anneau(74, AX, 30, 38, [], 1, 0);
+
+  /* ════════════════════════════════════════════════════════════
+     9. LES HAIES — le tracé du joueur
+
+     « Il faudrait rajouter des silos, une ligne bien dense de
+     frelons selon les lignes jaunes que j'ai dessinées, dont une
+     ligne continue le long de la plage. »
+
+     Les lignes ont été relevées sur la capture, en repassant la
+     projection isométrique à l'envers : le portrait de Mily donne le
+     Brasier en (9, 68), et le trait droit du bas retombe sur gx ≈ 139
+     à ses deux bouts — c'est-à-dire exactement le bord de la plage.
+     Les deux repères s'accordent, donc le relevé tient.
+
+     CE QUE LES QUATRE TRACÉS SONT DEVENUS
+       — la ligne de plage, du nord au sud, CONTINUE : elle ne
+         s'interrompt pas pour laisser passer l'allée d'honneur, et
+         c'était la moitié de la demande ;
+       — deux diagonales, des flancs du Brasier aux deux yeux, qui se
+         croisent à l'ouest du médaillon ;
+       — un arc à l'est, qui referme la boucle par le nord et le sud.
+
+     ELLES CONTOURNENT LE MÉDAILLON, et c'est la seule liberté prise
+     sur le relevé : tracées au plus court, les diagonales passaient à
+     douze cases du bassin et emportaient les deux tiers de l'anneau
+     de Cuves — mesuré, 26 Cuves tombaient à 8. On les écarte à
+     dix-sept cases, le croisement ne bouge pas d'une case, et le
+     médaillon reste entier.
+
+     LA HAIE EST DOUBLE, et c'est ainsi qu'on met les Silos demandés
+     sans étouffer le jardin : une bande large de Silos, puis
+     l'échine de Frelons posée dessus. On voit donc une ligne de
+     Frelons bordée de Silos, et non deux dessins qui se disputent.
+     Un premier essai posait une bande de Silos de vingt cases : le
+     compte était bon et les yeux de Chalumeaux disparaissaient.
+
+     CE QUE ÇA CHANGE, MESURÉ, ET IL FAUT LE DIRE. Le feu TOTAL de
+     l'île baisse — 29 995 → 27 995 dégâts par seconde — parce qu'un
+     Frelon tape moins vite qu'un Crible. Mais le feu à LONGUE PORTÉE
+     est multiplié par deux et demi (4 313 → 10 573), et surtout le
+     débarquement se fait arroser quatre fois plus : de 280 dégâts
+     par seconde reçus sur la plage à 1 100 environ, et cette fois sur
+     TOUTE sa longueur. L'île n'est pas plus puissante, elle est
+     beaucoup plus difficile à ABORDER — c'est bien ce qu'une haie de
+     batteries de missiles le long d'une plage veut dire.
+     ════════════════════════════════════════════════════════════ */
+  /* Un tracé du joueur : une ligne brisée, passée deux fois. */
+  function chemin(pts, e, C){
+    for(var i = 0; i + 1 < pts.length; i++)
+      trait(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], e, C, 5, 1);
+  }
+  var HAIES = [
+    [[132, 8], [132, 128]],                                  // la plage, continue
+    [[20, 55], [100, 101]],                                  // du Brasier à l'œil sud
+    [[20, 87], [100, 33]],                                   // du Brasier à l'œil nord
+    [[68, 21], [100, 50], [112, 66], [104, 100], [82, 119]]  // l'arc de l'est
+  ];
+  var HAIE_SILO = 12, HAIE_FRELON = 7;
+  for(var h = 0; h < HAIES.length; h++) chemin(HAIES[h], HAIE_SILO,   UN(PN_SILO));
+  for(h = 0; h < HAIES.length; h++)     chemin(HAIES[h], HAIE_FRELON, UN(PN_FRELON));
 
   planNuitsCache = encodePlanComplet(planVide(), F);
   return planNuitsCache;
