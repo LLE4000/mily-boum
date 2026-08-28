@@ -1159,6 +1159,47 @@ G("4. Déterminisme de la génération de carte");
     ok("… et aucun n'est protégé : seuls les trois chats le sont",
        !N.CRE.chatlune.protege && !N.CRE.paon.protege &&
        !N.CRE.fennec.protege && !N.CRE.papillongeant.protege);
+    /* ================================================================
+       LE PALAIS — la forteresse des nuits
+
+       « Le QG de Mily en royaume enchanté. » Un seul moteur, deux
+       styles dans une table. Ce qui se teste ici n'est pas le goût —
+       il se regarde — mais les trois choses qui, si elles cassent,
+       cassent en silence :
+         — le Brasier des onze autres îles ne doit pas bouger d'une
+           virgule de couleur ;
+         — une seule forteresse en mémoire à la fois ;
+         — la flamme froide doit être VRAIMENT froide.
+       ================================================================ */
+    ok("les nuits ont leur palais, les autres îles gardent le Brasier",
+       /function styleQGdeCarte\(i\)\{[\s\S]{0,160}biome === "nuits"[\s\S]{0,40}"palais"[\s\S]{0,20}"brasier"/.test(html));
+    /* LA PALETTE DU BRASIER, AU CARACTÈRE PRÈS. Une « harmonisation »
+       des deux tables repeindrait onze îles en cours de partie. */
+    ok("… et la palette du Brasier est celle d'avant, au caractère près",
+       /pierre:"#463a40", pierreC:"#6d5a60", pierreT:"#7d6a70", pierreO:"#241b21"/.test(html) &&
+       /lave:"#ff7a1e", laveC:"#ffd48a", laveO:"#c02a08"/.test(html) &&
+       /banniere:"#8e1e22", banniereO:"#5d1216", or:"#e8c25a"/.test(html));
+    ok("… et le Brasier ne prend aucun des cinq gestes du palais",
+       /brasier:[\s\S]{0,600}ogive:0, dome:0, croissant:0, froid:0, mosaique:0/.test(html));
+    /* UNE SEULE FORTERESSE EN MÉMOIRE. Deux jeux de sprites, ce sont
+       huit méga-octets de canevas sur la carte déjà la plus lourde. */
+    ok("on ne garde qu'une forteresse à la fois : on rebâtit au changement d'île",
+       /function assureSpriteQG\(\)\{[\s\S]{0,320}FOYERS = null;\s*\n\s*construitSpriteQG\(\);/.test(html) &&
+       (html.match(/spriteQGArriere = nouveauCanvas/g) || []).length === 1);
+    /* LA FLAMME FROIDE. `froide` n'amincissait la langue que de trente
+       pour cent en gardant ses quatre couches orange : une flamme
+       « froide » était une flamme chaude un peu maigre. */
+    ok("la flamme froide a vraiment ses propres couleurs",
+       /var COUCHES_FROIDES = \[/.test(html) &&
+       /var TABLE = froide \? COUCHES_FROIDES : COUCHES_FLAMME;/.test(html));
+    ok("… et elle n'est pas plus mince : le froid est dans la couleur",
+       !/froide \? 0\.7 : 1/.test(html));
+    /* LA TOILE A GRANDI, et la pique de couronne du Brasier n'est
+       plus rognée : elle montait à −616 dans une fenêtre qui
+       s'arrêtait à −600. */
+    ok("la toile du QG laisse passer le sommet des deux forteresses",
+       /var QG_W = 700, QG_H = 880, QG_OX = 350, QG_OY = 760;/.test(html));
+
     /* LE SEMIS EST À SA PLACE : les cinq autres îles ne portent pas
        une seule de ces bêtes, sinon le flux aurait débordé. */
     ok("… et aucune autre île n'en porte", (function(){

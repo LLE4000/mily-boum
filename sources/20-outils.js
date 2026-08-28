@@ -324,6 +324,27 @@ var COUCHES_FLAMME = [
   { c:"#ffd464", a:0.80, s:0.50, d:3.0, w:2.8 },
   { c:"#fff8dc", a:0.72, s:0.27, d:4.4, w:1.6 }
 ];
+/* ---------------------------------------------------------------
+   LA FLAMME FROIDE — le feu du palais des Mily et une nuits
+
+   `froide` existait déjà et ne faisait qu'AMINCIR la langue : les
+   quatre couches restaient orange et le halo aussi, si bien qu'une
+   flamme « froide » était une flamme chaude un peu maigre. Personne
+   ne s'en était aperçu parce que personne ne s'en servait.
+
+   Elle a maintenant ses propres couches, et le principe est le même
+   retourné : le cœur va vers le blanc bleuté au lieu du blanc doré,
+   et le pied vers l'outremer au lieu du rouge. On garde le même
+   dégradé d'opacités et les mêmes proportions de hauteur — c'est ce
+   qui fait qu'elle BOUGE comme un feu, et un feu magique qui ne
+   bougerait pas comme un feu ne serait qu'un néon.
+   --------------------------------------------------------------- */
+var COUCHES_FROIDES = [
+  { c:"#2b5cff", a:0.68, s:1.00, d:0.0, w:5.4 },
+  { c:"#3aa6ff", a:0.74, s:0.76, d:1.6, w:4.2 },
+  { c:"#7ad8ff", a:0.72, s:0.50, d:3.0, w:2.8 },
+  { c:"#d6f2ff", a:0.50, s:0.27, d:4.4, w:1.6 }
+];
 /* att : atténuation d'opacité. Les très grands foyers se recouvrent ;
    sans elle, l'addition des couches sature le rendu en blanc. */
 function flamme(c, x, y, h, t, ech, froide, att){
@@ -336,13 +357,19 @@ function flamme(c, x, y, h, t, ech, froide, att){
   var hh = h * vac;
   var derive = Math.sin(t * 5.1 + x * 0.03) * 1.8 * ech
              + Math.sin(t * 9.7 + 2.1) * 0.9 * ech;
+  var TABLE = froide ? COUCHES_FROIDES : COUCHES_FLAMME;
   c.save();
   c.globalCompositeOperation = "lighter";
   for(var i = 0; i < 4; i++){
-    var k = COUCHES_FLAMME[i];
+    var k = TABLE[i];
     var ond = derive + Math.sin(t * 11 + k.d * 2.3) * 1.5 * ech;
     var hi = hh * k.s * (0.88 + Math.sin(t * 17 + k.d * 3.1) * 0.12);
-    var w = k.w * ech * (froide ? 0.7 : 1);
+    /* ELLE N'EST PAS PLUS MINCE. `froide` amincissait la langue de
+       trente pour cent, et c'est ce qui la faisait lire comme un
+       PANACHE DE VAPEUR : une colonne haute et étroite est de la
+       fumée, pas du feu. Le froid est dans la couleur, pas dans la
+       silhouette. */
+    var w = k.w * ech;
     c.fillStyle = rgba(k.c, k.a * att);
     c.beginPath();
     c.moveTo(x - w, y);
@@ -352,7 +379,8 @@ function flamme(c, x, y, h, t, ech, froide, att){
   }
   /* une langue se détache et monte */
   var ph = (t * 1.9 + x * 0.017) % 1;
-  c.fillStyle = "rgba(255,168,54," + ((1 - ph) * 0.42 * att) + ")";
+  c.fillStyle = (froide ? "rgba(150,226,255," : "rgba(255,168,54,")
+              + ((1 - ph) * 0.42 * att) + ")";
   c.beginPath();
   c.ellipse(x + derive * 1.5, y - hh * (0.95 + ph * 0.75),
             2.6 * ech * (1 - ph * 0.5), 4.4 * ech * (1 - ph * 0.4), 0, 0, 6.2832);
@@ -360,12 +388,17 @@ function flamme(c, x, y, h, t, ech, froide, att){
   c.restore();
   /* le halo est plafonné : sur les très grands foyers il coûtait un
      drawImage de plusieurs centaines de pixels de côté par flamme */
-  lueurRapide(c, x, y - hh * 0.35, Math.min(hh * 1.9, 170), "#ff8a1e",
-              (0.14 + vac * 0.10) * att);
+  lueurRapide(c, x, y - hh * 0.35, Math.min(hh * 1.9, 170),
+              froide ? "#3aa6ff" : "#ff8a1e", (0.14 + vac * 0.10) * att);
 }
 
-/* Braises qui montent au-dessus d'un foyer */
-function braises(c, x, y, t, n, ech, etendue){
+/* Braises qui montent au-dessus d'un foyer.
+   `froides` : au palais des nuits, ce ne sont plus des braises mais
+   des POUSSIÈRES D'ÉTOILE — même montée, même dispersion, mais elles
+   SCINTILLENT (une braise, non : elle refroidit) et une sur trois est
+   dorée. C'est ce battement d'intensité qui les range du côté des
+   étoiles plutôt que du côté du feu. */
+function braises(c, x, y, t, n, ech, etendue, froides){
   ech = ech || 1;
   etendue = etendue || 30;
   c.save();
@@ -375,7 +408,13 @@ function braises(c, x, y, t, n, ech, etendue){
     var dx = Math.sin(t * 1.7 + i * 2.3) * (6 + i % 7) * ech;
     var a = (1 - ph) * (1 - ph) * 0.85;
     var r = (0.7 + (i % 3) * 0.5) * ech * (1 - ph * 0.4);
-    c.fillStyle = "rgba(255," + (140 + (i % 4) * 28) + ",50," + a + ")";
+    if(froides){
+      a *= 0.55 + 0.45 * Math.sin(t * 6.1 + i * 1.9);
+      c.fillStyle = (i % 3) ? "rgba(168,228,255," + a + ")"
+                            : "rgba(255,222,140," + a + ")";
+    }else{
+      c.fillStyle = "rgba(255," + (140 + (i % 4) * 28) + ",50," + a + ")";
+    }
     c.beginPath();
     c.arc(x + dx, y - ph * etendue * ech, r, 0, 6.2832);
     c.fill();

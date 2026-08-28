@@ -23,7 +23,7 @@ function demarre(){
 
   construitSpritesDefenses();
   construitSpriteGardienne();
-  construitSpriteQG();
+  assureSpriteQG();
   construitVignettesGrises();
 
   construitBriefing();
