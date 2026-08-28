@@ -1240,6 +1240,14 @@ select.champ{cursor:pointer}
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminReglages" class="bt">🌿 Régler la jungle</button>
       </div>
+      <h3>Blindage des défenses</h3>
+      <div class="admNote">Un pourcentage de vie EN PLUS sur les défenses
+        d'une île, et sur elles seules : le Brasier garde exactement la
+        sienne. Il s'applique tout de suite, même à une partie en cours,
+        sans rien remettre à zéro.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminBlindage" class="bt">🛡 Blinder une île</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1419,7 +1427,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.75";
+var VERSION = "v0.76";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3572,9 +3580,18 @@ function genereCarte(codeSalon, index, plan, tirage){
   /* Le durcissement vaut pour TOUTE carte événement, chacune avec son
      propre bonus : il se lisait sur le biome « jungle », ce qui aurait
      laissé la deuxième carte spéciale avec des défenses de campagne. */
-  var bpv = bonusPvDeCarte(index);
-  if(bpv > 0){
-    var kpv = 1 + bpv / 100;
+  /* DEUX FACTEURS, UNE SEULE PASSE. Le bonus de la carte événement
+     (réglé par voie, hérité de la jungle) et le BLINDAGE réglé à
+     l'accueil (une carte quelconque, y compris de campagne) se
+     multiplient : ils répondent à deux questions différentes — « cette
+     expédition est-elle plus dure que la campagne ? » et « de combien
+     veut-on durcir CETTE île ? » — et rien n'oblige à choisir.
+     Les trois mêmes exceptions dans les deux cas : la cellule à
+     récolter, le réacteur du bouclier, et le Brasier qui n'est pas
+     dans ce tableau. */
+  var bpv = bonusPvDeCarte(index), kbl = facteurBlindage(index);
+  var kpv = (1 + bpv / 100) * kbl;
+  if(kpv !== 1){
     for(var ib = 0; ib < c.batiments.length; ib++){
       var bb = c.batiments[ib];
       if(bb.t === "cellule" || bb.t === "reacteur") continue;
@@ -6649,9 +6666,156 @@ function planEstVide(P){
   return !P || (!P.formes.length && (!P.zones || !zonesPeintes(P.zones)));
 }
 
+/* ================================================================
+   LE BLINDAGE DES DÉFENSES — UN POURCENTAGE PAR CARTE
+
+   « J'aimerais bien que sur chaque carte on mette à l'accueil un
+   pourcentage, uniquement sur les défenses, pas sur le QG. Ce
+   pourcentage doit être défini dans les paramètres de la page
+   d'accueil, et dès qu'on le modifie ça doit directement être
+   appliqué sur la map. Par exemple, une défense qui a trois mille de
+   vie, si je mets plus cent pour cent, elle en aura six mille. »
+
+   ────────────────────────────────────────────────────────────────
+   POURQUOI C'EST UN POURCENTAGE ET PAS DES POINTS DE VIE
+
+   Parce que les blessures voyagent en FRACTION. `cranBlessure` range
+   la vie d'un bâtiment sur soixante-trois crans de sa vie MAXIMALE,
+   pas en points : un bâtiment à moitié abattu vaut « cran 31 » chez
+   tout le monde, quelle que soit sa vie totale. Multiplier la vie
+   maximale ne touche donc à AUCUNE blessure enregistrée — celui qui
+   était à moitié reste à moitié. C'est cette propriété, et elle
+   seule, qui permet d'appliquer le réglage à une partie EN COURS
+   sans rien réinitialiser. Si les blessures avaient été rangées en
+   points, il aurait fallu choisir entre les perdre et les fausser.
+
+   Le bitmap des destructions, lui, ne connaît que des rangs : il ne
+   voit même pas passer le changement.
+
+   ────────────────────────────────────────────────────────────────
+   CE QU'IL NE TOUCHE PAS, ET C'EST DIT DANS LA DEMANDE
+
+   LE BRASIER. Il n'est pas dans `c.batiments` — sa vie est un chiffre
+   annoncé au joueur sur la vignette d'accueil, et il reste ce qu'il
+   est. « Uniquement sur les défenses, pas sur le QG. »
+
+   LA CELLULE À RÉCOLTER, qui n'est pas une défense mais de la
+   récolte : la blinder rendrait la moisson deux fois plus lente sur
+   la seule carte où l'on en veut.
+
+   LE RÉACTEUR du bouclier, dont les 200 000 PV sont annoncés au
+   briefing — « PROTÉGÉ, 5 cellules électriques ». Un chiffre annoncé
+   ne se multiplie pas dans le dos du joueur.
+
+   Ce sont exactement les trois exceptions du bonus des cartes
+   événement, et pour exactement les mêmes raisons.
+
+   ────────────────────────────────────────────────────────────────
+   ET LE PRIX À CONNAÎTRE : LE SCORE SE COMPTE EN POINTS DE VIE
+
+   `jeu.degatsMoi += Math.min(d, b.pv)` — le TOP DÉGÂTS compte les
+   points de vie réellement retirés. Blinder une carte à +100 %, c'est
+   donc rendre les scores futurs deux fois plus gros que les scores
+   déjà inscrits SUR CETTE CARTE. Ce n'est pas un défaut qu'on pourrait
+   corriger sans changer la nature du classement ; c'est un fait dont
+   il faut tenir compte, et c'est pour cela que le réglage vaut ZÉRO
+   partout par défaut, et que le panneau d'administration le dit en
+   toutes lettres avant de laisser toucher une carte déjà jouée.
+
+   ────────────────────────────────────────────────────────────────
+   COMMENT IL VOYAGE
+
+   Deux champs de l'instantané, sur le modèle exact du plan :
+     bd   la table, encodée « index:pourcentage|index:pourcentage »
+     bn   un compteur monotone — la dernière édition l'emporte
+   À numéro égal, la chaîne la plus grande gagne : deux clients qui
+   éditeraient en même temps convergent au lieu de se renvoyer la
+   balle indéfiniment. C'est mot pour mot meilleurPlan().
+   ================================================================ */
+var BLINDAGE_MAX = 900;
+
+function encodeBlindages(o){
+  if(!o) return "";
+  var l = [], k, cles = [];
+  /* ON PARCOURT LES CLÉS DE LA TABLE, PAS LE TABLEAU DES CARTES. La
+     première écriture bouclait sur CARTES.length, ce qui paraissait
+     plus sûr et l'était moins : le jour où une île s'ajoute, un client
+     resté sur l'ancienne version relit la table, la ré-encode, et
+     efface au passage le réglage de la carte qu'il ne connaît pas. Ici
+     il le recopie sans le comprendre, ce qui est exactement ce qu'on
+     veut d'un client en retard. */
+  for(k in o) if(o.hasOwnProperty(k) && (k | 0) >= 0 && String(k | 0) === String(k))
+    cles.push(k | 0);
+  /* rangé par index : deux clients qui portent la même table doivent
+     produire exactement la même chaîne, sinon memeMonde les croit
+     différents et l'on republie en boucle */
+  cles.sort(function(a, b){ return a - b; });
+  for(var i = 0; i < cles.length; i++){
+    var v = borne(Math.round(o[cles[i]] || 0), 0, BLINDAGE_MAX);
+    if(v > 0) l.push(cles[i] + ":" + v);
+  }
+  return l.join("|");
+}
+function decodeBlindages(s){
+  var o = {};
+  if(!s || typeof s !== "string") return o;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var j = p[i].indexOf(":");
+    if(j <= 0) continue;
+    var idx = parseInt(p[i].substr(0, j), 10);
+    var v = parseInt(p[i].substr(j + 1), 10);
+    if(!(idx >= 0) || !(v > 0)) continue;
+    o[idx] = borne(Math.round(v), 0, BLINDAGE_MAX);
+  }
+  return o;
+}
+/* Le blindage d'UNE carte, tiré d'une table encodée. */
+function blindageDans(s, index){
+  var t = decodeBlindages(s);
+  return t[index] | 0;
+}
+/* Lequel des deux instantanés porte le blindage qui fait foi. Copie
+   conforme de meilleurPlan : le numéro tranche, et à numéro égal la
+   chaîne la plus grande — pour que deux clients convergent. */
+function meilleurBlindage(a, b){
+  var ba = (a && typeof a.bd === "string") ? a.bd : "", na = a ? (a.bn | 0) : 0;
+  var bb = (b && typeof b.bd === "string") ? b.bd : "", nb = b ? (b.bn | 0) : 0;
+  if(nb > na) return { bd:bb, bn:nb };
+  if(na > nb) return { bd:ba, bn:na };
+  return bb > ba ? { bd:bb, bn:nb } : { bd:ba, bn:na };
+}
+
+/* LA TABLE EN VIGUEUR, côté client. Même rôle et même discipline que
+   `planSalon` : le réseau la pose à chaque instantané reçu, et tout
+   ce qui publie la ré-estampille. `genereCarte` la lit — jamais une
+   valeur figée au chargement de la page. */
+var blindageSalon = "", numeroBlindage = 0;
+function poseBlindageSalon(bd, bn){
+  blindageSalon = (typeof bd === "string") ? bd : "";
+  numeroBlindage = bn | 0;
+  return blindageSalon;
+}
+/* Le facteur en vigueur pour une carte : 1 si rien n'est réglé. */
+function blindageDeCarte(i){ return blindageDans(blindageSalon, i); }
+function facteurBlindage(i){ return 1 + blindageDeCarte(i) / 100; }
+
+/* La vie totale des DÉFENSES d'une carte, blindage compris — c'est
+   ce chiffre-là que l'accueil doit montrer, et un seul : « six
+   mille », jamais « trois mille plus trois mille ». */
+function pvDefensesCarte(c){
+  var n = 0;
+  for(var i = 0; i < c.batiments.length; i++){
+    var b = c.batiments[i];
+    if(b.t === "cellule" || b.t === "reacteur") continue;
+    n += b.pvMax;
+  }
+  return n;
+}
+
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
-            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"" };
+            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0 };
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
     var V = VOIES_EVT[q], R = reglagesEvt(V.i);
@@ -7397,6 +7561,10 @@ function fusionneMonde(a, b){
   if(!mondeValide(b)) return a;
   var ra = rangMonde(a), rb = rangMonde(b);
   var pl = meilleurPlan(a, b);
+  /* Le blindage suit son propre numéro, comme le plan : il n'a rien à
+     voir avec l'avancée de la campagne. Un client peut très bien être
+     en retard sur l'île et en avance sur le réglage. */
+  var bd = meilleurBlindage(a, b);
   var jg = fusionneEvenements(a, b);
   /* Une île plus avancée écrase la précédente : ses destructions n'ont
      rien à voir avec celles de la précédente. La jungle, elle, suit sa
@@ -7423,7 +7591,8 @@ function fusionneMonde(a, b){
                       : ((rb > ra) ? (b.s || "") : (a.s || ""));
   if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", bl:b.bl || "", g:b.g || "", w:b.w || "",
-                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "" }, jg);
+                       p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "",
+                       bd:bd.bd, bn:bd.bn }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
@@ -7431,10 +7600,11 @@ function fusionneMonde(a, b){
        jungle, dont l'état est indépendant de l'avancée de campagne,
        ni au tableau des dégâts, qui ne l'est pas davantage. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
+       bd.bd === (a.bd || "") && bd.bn === (a.bn | 0) &&
        sc === (a.s || "")) return a;
     return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              bl:a.bl || "", g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
-             s:sc, k:a.k || "" }, jg);
+             s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn }, jg);
   }
   return poseEvenements({
     v : Math.max(a.v, b.v),
@@ -7454,7 +7624,8 @@ function fusionneMonde(a, b){
     k : fusionneChats(a.k, b.k),
     /* le meilleur score de chacun survit à sa déconnexion */
     s : sc,
-    p : pl.p, pn: pl.pn, tg: a.tg | 0
+    p : pl.p, pn: pl.pn, tg: a.tg | 0,
+    bd: bd.bd, bn: bd.bn
   }, jg);
 }
 /* L'instantané a-t-il déjà exactement cet état d'événements fusionné ?
@@ -7493,6 +7664,9 @@ function memeMonde(a, b){
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0) &&
+         /* ni un blindage : le réglage doit partir sur le réseau à la
+            seconde où on le change, c'est toute la demande */
+         (a.bd || "") === (b.bd || "") && (a.bn | 0) === (b.bn | 0) &&
          /* ni un champion, ni un podium */
          (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "") &&
          /* ni un lancement d'expédition, sur AUCUNE des voies : sans
@@ -36763,6 +36937,63 @@ function nouvelleCarte(index, pvConnu){
    dégâts se comptent en points par seconde — donc rien ne réclamait
    cet entier.
    ================================================================ */
+/* ================================================================
+   LE BLINDAGE CHANGE PENDANT QU'ON JOUE
+
+   « Dès qu'on modifie un paramètre à l'accueil, ça doit directement
+   être appliqué sur la map. »
+
+   ON NE REFAIT PAS LA CARTE. La refaire relèverait tout ce qui est
+   tombé, effacerait les blessures et rendrait au Brasier une vie
+   qu'on lui a prise : ce serait exactement la réinitialisation qu'on
+   s'interdit. On MET LES BÂTIMENTS À L'ÉCHELLE, ce qui est la seule
+   opération qui garde tout.
+
+   LA FRACTION DE VIE EST L'INVARIANT. Un bâtiment à 40 % reste à
+   40 % : on multiplie sa vie maximale ET sa vie courante par le même
+   rapport. C'est aussi ce que le réseau enregistre — `cranBlessure`
+   range la vie sur soixante-trois crans de la vie MAXIMALE — donc le
+   changement ne fait bouger aucune blessure partagée, chez personne.
+   Un bâtiment DÉTRUIT reste détruit : sa vie vaut zéro, et zéro fois
+   n'importe quoi vaut zéro. On n'a même pas à le traiter à part.
+
+   TROIS CHOSES NE BOUGENT PAS, et ce sont celles de la demande : le
+   Brasier (« pas sur le QG »), la cellule à récolter et le réacteur du
+   bouclier, dont les 200 000 PV sont annoncés au briefing.
+
+   LE RAPPORT SE CALCULE D'UN FACTEUR À L'AUTRE — (1 + après) sur
+   (1 + avant) — et non depuis la vie d'origine, qu'on ne garde nulle
+   part. Deux réglages successifs se composent donc, MAIS PAS AU POINT
+   PRÈS : chaque passage arrondit, et une suite de réglages peut
+   laisser quelques points d'écart avec le calcul direct. Mesuré sur
+   mille suites tirées au hasard : jamais plus de trois millièmes de la
+   vie d'un bâtiment, et l'aller-retour d'un réglage vers zéro retombe
+   exactement sur ses pieds tant que le rapport est simple.
+   On ne cherche pas mieux, et il faut dire pourquoi : garder la vie
+   d'origine de chaque bâtiment coûterait un champ de plus sur douze
+   cents bâtiments, qu'il faudrait faire survivre à chaque
+   régénération de carte — beaucoup de mécanique pour trois millièmes
+   qu'aucun joueur ne peut voir.
+   ================================================================ */
+function reblindeLeJeu(index, avant, apres){
+  if(!jeu || jeu.index !== index) return 0;
+  if((avant | 0) === (apres | 0)) return 0;
+  var r = (1 + (apres | 0) / 100) / (1 + (avant | 0) / 100);
+  var n = 0;
+  for(var i = 0; i < jeu.batiments.length; i++){
+    var b = jeu.batiments[i];
+    if(b.t === "cellule" || b.t === "reacteur") continue;
+    b.pvMax = Math.round(b.pvMax * r);
+    b.pv = Math.min(b.pvMax, Math.round(b.pv * r));
+    n++;
+  }
+  if(typeof demandeMajBarres === "function") demandeMajBarres();
+  if(typeof message === "function")
+    message("Blindage des défenses : " + ((apres | 0) >= 0 ? "+" : "")
+            + (apres | 0) + " % — " + n + " défenses remises à l'échelle.");
+  return n;
+}
+
 function appliqueBlessuresAuJeu(chaine){
   if(!jeu || !chaine) return 0;
   var bl = decodeBlessures(chaine), n = 0;
@@ -40551,12 +40782,20 @@ function mondeCourant(){
      un plan tout juste validé ne serait jamais publié. */
   if(!jeu){
     if(!monde) return null;
+    /* LE BLINDAGE COMPTE ICI AUSSI, et l'oublier avait un coût précis :
+       un client à jour resté à l'accueil aurait renvoyé l'instantané
+       tel quel, donc n'aurait JAMAIS republié un blindage qu'un client
+       d'une version plus ancienne venait d'effacer en ne le connaissant
+       pas. Le réglage se serait perdu pour tout le salon tant que
+       personne n'aurait débarqué. */
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
+       (monde.bd || "") === blindageSalon && (monde.bn | 0) === numeroBlindage &&
        (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
     return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              bl:monde.bl || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
-             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   }
   /* En expédition, la campagne ne bouge PAS : on republie l'île
      normale telle que l'instantané la connaît, et c'est la voie de la
@@ -40567,7 +40806,8 @@ function mondeCourant(){
     return poseEvenements({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
              bl:mm.bl || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
-             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   }
   var bits = [], bl = [], i;
   for(i = 0; i < jeu.batiments.length; i++){
@@ -40589,7 +40829,8 @@ function mondeCourant(){
               ce qui le fait survivre à la déconnexion de celui qui les a
               faits, et même à la déconnexion de tout le monde. */
            s:tableauScores(),
-           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -40647,6 +40888,31 @@ function adopteMonde(m, source){
   /* Le plan ou le tirage ont changé ailleurs : notre carte n'est plus
      la bonne. On l'adopte AVANT d'appliquer les destructions, sinon on
      éteindrait des bâtiments d'après les indices de l'ancienne carte. */
+  /* ══ LE BLINDAGE REÇU S'APPLIQUE SUR-LE-CHAMP ══
+     « Dès qu'on modifie un paramètre, ça doit directement être
+     appliqué sur la map. » On l'adopte AVANT le plan et avant les
+     destructions : la carte qu'on va peut-être refaire doit sortir du
+     générateur avec la bonne dureté du premier coup. Et si l'on est
+     déjà en jeu sur la carte concernée, on ne la refait pas — on
+     REMET SES BÂTIMENTS À L'ÉCHELLE, ce qui garde les ruines, les
+     blessures et le score. */
+  if((monde.bd || "") !== blindageSalon || (monde.bn | 0) !== numeroBlindage){
+    var blAvant = jeu ? blindageDeCarte(jeu.index) : 0;
+    poseBlindageSalon(monde.bd || "", monde.bn | 0);
+    if(jeu && typeof reblindeLeJeu === "function")
+      reblindeLeJeu(jeu.index, blAvant, blindageDeCarte(jeu.index));
+    /* ON NE REPEINT LE MENU QUE S'IL EXISTE DÉJÀ. Ce chemin passe aussi
+       au démarrage, quand on relit le miroir local : à cet instant les
+       sprites des défenses et le briefing ne sont pas encore bâtis, et
+       majMondes voudrait peindre douze aperçus avec des sprites qui
+       n'existent pas. La branche d'à côté, celle du plan, ne repeint
+       pas non plus pour la même raison — elle se contente de
+       rafraichitPlan. */
+    if(typeof majMondes === "function" && document.getElementById("mn0"))
+      majMondes();
+    if(typeof rafraichitPlan === "function") rafraichitPlan();
+  }
+
   if((monde.p || "") !== planSalon || (monde.pn | 0) !== numeroPlan ||
      (monde.tg | 0) !== tirageSalon){
     var tiragePrecedent = tirageSalon;
@@ -40837,7 +41103,8 @@ function publieEtat(m, jg){
                        d:m.d || "", bl:m.bl || "",
                        g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
+                       tg:tirageSalon | 0,
+                       bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
@@ -40946,6 +41213,33 @@ function regleReglagesEvt(idx, n, pv){
   return u.mj;
 }
 function regleMinJoueurs(n, pv){ return regleReglagesEvt(IDX_JUNGLE, n, pv); }
+
+/* ================================================================
+   LE BLINDAGE, RÉGLÉ DEPUIS L'ACCUEIL
+
+   Même discipline que le plan : on modifie la table, on incrémente
+   SON numéro, on republie. Le numéro est ce qui fait qu'une édition
+   récente l'emporte sur une table plus ancienne reçue en retard —
+   sans lui, deux clients se renverraient éternellement leurs versions.
+
+   Et l'on applique CHEZ SOI dans la foulée, sans attendre le retour
+   du relais : le joueur qui vient de régler doit voir sa carte
+   changer tout de suite. Les autres l'auront à l'instantané suivant,
+   par le chemin d'à côté (voir l'adoption dans recoitMonde).
+   ================================================================ */
+function regleBlindage(index, pourcent){
+  if(!(index >= 0) || index >= CARTES.length) return 0;
+  var t = decodeBlindages(blindageSalon);
+  var avant = t[index] | 0;
+  t[index] = borne(Math.round(pourcent), 0, BLINDAGE_MAX);
+  var chaine = encodeBlindages(t);
+  if(chaine === blindageSalon && (t[index] | 0) === avant) return avant;
+  poseBlindageSalon(chaine, (numeroBlindage | 0) + 1);
+  if(jeu) reblindeLeJeu(index, avant, t[index] | 0);
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  publieEtat(m, etatEvenements());
+  return t[index] | 0;
+}
 /* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
    l'horloge retarde ne peut pas ouvrir la carte plus tôt pour les
@@ -41060,7 +41354,8 @@ function remetSalonAZero(){
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon }, jg);
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
+            bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -41110,7 +41405,8 @@ function nouvelleCampagneSalon(){
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
             pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
   sauveMondeLocal();
@@ -41130,7 +41426,8 @@ function nouveauTirageSalon(){
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            bd:blindageSalon, bn:numeroBlindage | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -41181,7 +41478,8 @@ function enregistrePlan(chaine){
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            bd:blindageSalon, bn:numeroBlindage | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -43566,6 +43864,11 @@ function comptePlan(){
   }
   return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
            formes:planFormes.length,
+           /* LA VIE TOTALE DES DÉFENSES, blindage et bonus compris.
+              C'est le seul chiffre qui dise vraiment ce que le plan
+              coûtera à démonter, et il doit être donné en UNE valeur —
+              jamais « tant, plus tant de pour cent ». */
+           pv:pvDefensesCarte(m),
            decors:m.decors.length, rochers:m.rochers.length,
            bestioles:m.creatures.length };
 }
@@ -43575,7 +43878,21 @@ function comptePlan(){
    quel rythme. Les bâtiments inertes n'ont ni portée ni cadence : on
    dit alors franchement qu'ils ne se défendent pas. */
 function ficheDefense(t){
-  var f = DEF[t], s = f.desc + ".<br>" + f.pv + " PV";
+  var f = DEF[t];
+  /* LA VIE AFFICHÉE EST CELLE QU'ELLE AURA ICI, pas celle du
+     catalogue. Une carte peut porter un blindage réglé à l'accueil, et
+     une carte spéciale son bonus d'expédition : le joueur qui lit
+     cette fiche avant de poser une tourelle doit voir SIX MILLE, pas
+     « trois mille » suivi d'un pourcentage qu'il aurait à appliquer de
+     tête. Un seul chiffre, celui qui sera vrai.
+     Les deux inertes échappent aux deux facteurs, comme partout : la
+     cellule à récolter et le réacteur du bouclier. */
+  var k = (t === "cellule" || t === "reacteur")
+        ? 1
+        : (1 + bonusPvDeCarte(planCarteIdx) / 100) * facteurBlindage(planCarteIdx);
+  var pv = Math.round(f.pv * k);
+  var s = f.desc + ".<br>" + nombre(pv) + " PV"
+        + (k !== 1 ? " <i>(" + f.pv + " × " + k.toFixed(2).replace(".", ",") + ")</i>" : "");
   if(!f.portee){
     return s + " — ne tire pas, il n'est là que pour être détruit.";
   }
@@ -43605,6 +43922,16 @@ function majPanneauPlan(){
     + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
     + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
+    /* LA VIE TOTALE, EN UN SEUL CHIFFRE. Blindage et bonus
+       d'expédition compris : c'est ce qu'il faudra démonter, et le
+       joueur n'a rien à multiplier de tête. Le Brasier est à part,
+       comme toujours — sa vie est la sienne et rien ne la touche. */
+    + "<b>" + nombre(c.pv) + "</b> PV de défenses à démonter"
+    + (hausseTotalePv(planCarteIdx) > 0
+        ? ' <span style="color:#e8a94a">(+' + hausseTotalePv(planCarteIdx) + ' %)</span>'
+        : "")
+    + '<br><span style="color:#8f86a0">Brasier : ' + nombre(CARTES[planCarteIdx].pvQG)
+    + " PV, jamais blindé</span><br>"
     + "<b>" + c.cellules + "</b> cellules à récolter<br>"
     /* CE QUE LE PLAN NE REMPLACE JAMAIS. La première question qu'on se
        pose en peignant une carte est « est-ce que je détruis son
@@ -49099,6 +49426,30 @@ function etatJungle(){ return etatEvt(IDX_JUNGLE); }
    l'ordre de campagne d'abord, ce qui donne deux rangées de quatre
    propres, les cartes événement ensuite, en bas, où elles se
    détachent. */
+/* La pastille de blindage d'une île de campagne. Elle emprunte le
+   style des deux pastilles des cartes spéciales — même classe, même
+   place — parce que c'est le même genre d'information : ce qui rend
+   cette île plus dure que ce que le joueur croit savoir. */
+/* LA HAUSSE TOTALE DE VIE D'UNE CARTE, en pour cent, les deux facteurs
+   multipliés : le bonus d'expédition d'une carte spéciale et le
+   blindage réglé à l'accueil. Un seul chiffre, celui qui est vrai —
+   jamais deux qu'il faudrait multiplier de tête. */
+function hausseTotalePv(i){
+  var k = (1 + bonusPvDeCarte(i) / 100) * facteurBlindage(i);
+  return Math.round((k - 1) * 100);
+}
+
+function pastilleBlindage(i){
+  var b = hausseTotalePv(i);
+  if(!(b > 0)) return "";
+  /* PAS D'ÉMOJI DANS LA PASTILLE. Le bouclier ne fait pas partie des
+     polices de tous les appareils, et un carré vide ou un cœur à la
+     place ferait douter du chiffre qui suit. Les deux pastilles des
+     cartes spéciales n'en portent pas non plus : on s'aligne. */
+  return '<div class="durci"><span class="dz pv">Défenses +' + b
+       + '% PV</span></div>';
+}
+
 function majMondes(){
   var h = "", rang, i;
   for(rang = 0; rang < ORDRE_CAMPAGNE.length; rang++){
@@ -49110,6 +49461,11 @@ function majMondes(){
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
+       /* LE BLINDAGE SE VOIT, ET SEULEMENT S'IL EXISTE. Une pastille
+          de plus sur les huit vignettes quand il vaut zéro partout
+          serait du bruit ; quand il ne vaut pas zéro, c'est la seule
+          chose qui distingue cette île de celle qu'on connaissait. */
+       + pastilleBlindage(i)
        + blocTop3(i)
        + (i > carteSalon ? boutonVisite(i) : "") + '</div>';
   }
@@ -49264,7 +49620,12 @@ function vignetteEvenement(i){
           phrase : ce sont les seuls réglages qui rendent cette carte
           plus dure que celles de la campagne. */
        + '<div class="durci">'
-       +   '<span class="dz pv">Défenses +' + bonusPvDeCarte(i) + '% PV</span>'
+       /* UNE SEULE PASTILLE DE VIE, ET C'EST LE TOTAL. Il y en avait
+          deux — le bonus d'expédition et le blindage réglé à l'accueil
+          — et c'était exactement ce que la demande interdit : « on ne
+          voit pas trois mille plus trois mille, on verra six mille ».
+          On multiplie les deux facteurs et l'on affiche le résultat. */
+       +   '<span class="dz pv">Défenses +' + hausseTotalePv(i) + '% PV</span>'
        +   '<span class="dz dg">+' + R.degBonus + '% dégâts</span>'
        +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
        + '</div>'
@@ -49850,6 +50211,95 @@ function installeAdmin(){
   if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeAdminP(); });
   var r = $("btAdminReglages");
   if(r) r.addEventListener("click", regleJungleAdmin);
+  var bl = $("btAdminBlindage");
+  if(bl) bl.addEventListener("click", regleBlindageAdmin);
+}
+
+/* ================================================================
+   BLINDER UNE ÎLE, DEPUIS L'ACCUEIL
+
+   Deux questions, et un avertissement au milieu qu'il ne faut pas
+   supprimer : LE SCORE SE COMPTE EN POINTS DE VIE RETIRÉS. Blinder
+   une île à +100 %, c'est rendre les prochains scores deux fois plus
+   gros que ceux déjà inscrits dessus. Sur une île qu'on n'a pas
+   encore jouée, cela n'a aucune conséquence ; sur une île où le
+   classement est en cours, cela en a une, et le joueur doit la lire
+   avant de valider, pas après.
+
+   La liste montre l'état de chacune : son rang de campagne, si elle
+   est déjà tombée, et le blindage qu'elle porte. Elle tient dans une
+   invite de texte parce que tout le panneau d'administration tient
+   dans des invites de texte — ce n'est pas l'endroit où l'on soigne
+   la mise en page, c'est l'endroit où l'on ne se trompe pas.
+   ================================================================ */
+function regleBlindageAdmin(){
+  var l = "BLINDAGE DES DÉFENSES\n\n"
+        + "Quelle île veux-tu blinder ?\n\n";
+  var ordre = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++) ordre.push(ORDRE_CAMPAGNE[i]);
+  for(i = 0; i < CARTES.length; i++) if(ordre.indexOf(i) < 0) ordre.push(i);
+  for(i = 0; i < ordre.length; i++){
+    var k = ordre[i], bl = blindageDeCarte(k);
+    l += "  " + (i + 1) + " — " + CARTES[k].nom
+       + (bl > 0 ? "   [+" + bl + " %]" : "")
+       + (carteSpeciale(k) ? "   (carte spéciale)" : "")
+       + "\n";
+  }
+  var rep = prompt(l + "\nEntre un numéro :", "1");
+  if(rep === null) return;
+  var q = parseInt(rep, 10);
+  if(!(q >= 1 && q <= ordre.length)){
+    alert("Il faut un numéro entre 1 et " + ordre.length + ". Rien n'a été changé.");
+    return;
+  }
+  var idx = ordre[q - 1], nom = "« " + CARTES[idx].nom + " »";
+  var actuel = blindageDeCarte(idx);
+  /* L'ÎLE A-T-ELLE DÉJÀ ÉTÉ JOUÉE ? C'est ce qui décide si l'on
+     avertit ou non, et c'est la seule chose qui compte ici. */
+  var jouee = dejaJouee(idx);
+  var av = jouee
+    ? "\n⚠ ATTENTION : des scores existent déjà sur cette île.\n"
+      + "Le TOP DÉGÂTS compte les points de vie retirés : en la\n"
+      + "blindant, les prochains scores y vaudront plus que ceux\n"
+      + "déjà inscrits. Rien ne sera effacé, mais les anciens et les\n"
+      + "nouveaux ne se compareront plus tout à fait.\n"
+    : "\nCette île n'a pas encore été jouée : rien à comparer,\n"
+      + "le blindage y est sans conséquence pour le classement.\n";
+  var rp = prompt(
+    "BLINDER " + nom.toUpperCase() + "\n\n"
+    + "Pourcentage de vie EN PLUS sur ses défenses.\n"
+    + "Le Brasier garde exactement la sienne, ainsi que les cellules\n"
+    + "à récolter et les réacteurs du bouclier.\n\n"
+    + "Valeur actuelle : +" + actuel + " %.\n"
+    + av
+    + "\nEntre un pourcentage entre 0 et " + BLINDAGE_MAX + " :", "" + actuel);
+  if(rp === null) return;
+  var v = parseInt(rp, 10);
+  if(!(v >= 0 && v <= BLINDAGE_MAX)){
+    alert("Il faut un pourcentage entre 0 et " + BLINDAGE_MAX
+        + ". Rien n'a été changé.");
+    return;
+  }
+  var pose = regleBlindage(idx, v);
+  evtEtat = "";
+  majMondes();
+  if(typeof rafraichitPlan === "function") rafraichitPlan();
+  alert("Blindage enregistré pour " + nom + " : +" + pose + " %.\n\n"
+      + "Il vaut pour TOUT LE SALON, voyage dans l'instantané partagé\n"
+      + "et survit à la fermeture du navigateur.\n\n"
+      + "Il s'applique IMMÉDIATEMENT, y compris à une partie en cours :\n"
+      + "les défenses sont remises à l'échelle sans que rien ne soit\n"
+      + "réinitialisé — les ruines restent des ruines, et un bâtiment\n"
+      + "à moitié abattu reste à moitié abattu.");
+}
+
+/* Cette île a-t-elle déjà été jouée dans ce salon ? On le lit sur
+   l'avancée de la campagne, qui est la seule chose que l'instantané
+   sache dire à ce sujet. */
+function dejaJouee(i){
+  if(!monde) return false;
+  if(carteSpeciale(i)) return !!(monde[voieDeCarte(i) + "f"] | 0);
+  return rangCampagne(i) <= rangCampagne(monde.c | 0);
 }
 
 /* LES RÉGLAGES DU SALON, CARTE PAR CARTE. Ils ne concernaient que la

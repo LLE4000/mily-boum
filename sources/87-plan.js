@@ -1651,6 +1651,11 @@ function comptePlan(){
   }
   return { par:par, total:n, cellules:cel, peintes:zonesPeintes(planZones),
            formes:planFormes.length,
+           /* LA VIE TOTALE DES DÉFENSES, blindage et bonus compris.
+              C'est le seul chiffre qui dise vraiment ce que le plan
+              coûtera à démonter, et il doit être donné en UNE valeur —
+              jamais « tant, plus tant de pour cent ». */
+           pv:pvDefensesCarte(m),
            decors:m.decors.length, rochers:m.rochers.length,
            bestioles:m.creatures.length };
 }
@@ -1660,7 +1665,21 @@ function comptePlan(){
    quel rythme. Les bâtiments inertes n'ont ni portée ni cadence : on
    dit alors franchement qu'ils ne se défendent pas. */
 function ficheDefense(t){
-  var f = DEF[t], s = f.desc + ".<br>" + f.pv + " PV";
+  var f = DEF[t];
+  /* LA VIE AFFICHÉE EST CELLE QU'ELLE AURA ICI, pas celle du
+     catalogue. Une carte peut porter un blindage réglé à l'accueil, et
+     une carte spéciale son bonus d'expédition : le joueur qui lit
+     cette fiche avant de poser une tourelle doit voir SIX MILLE, pas
+     « trois mille » suivi d'un pourcentage qu'il aurait à appliquer de
+     tête. Un seul chiffre, celui qui sera vrai.
+     Les deux inertes échappent aux deux facteurs, comme partout : la
+     cellule à récolter et le réacteur du bouclier. */
+  var k = (t === "cellule" || t === "reacteur")
+        ? 1
+        : (1 + bonusPvDeCarte(planCarteIdx) / 100) * facteurBlindage(planCarteIdx);
+  var pv = Math.round(f.pv * k);
+  var s = f.desc + ".<br>" + nombre(pv) + " PV"
+        + (k !== 1 ? " <i>(" + f.pv + " × " + k.toFixed(2).replace(".", ",") + ")</i>" : "");
   if(!f.portee){
     return s + " — ne tire pas, il n'est là que pour être détruit.";
   }
@@ -1690,6 +1709,16 @@ function majPanneauPlan(){
     + (c.formes ? " · <b>" + c.formes + "</b> forme" + (c.formes > 1 ? "s" : "") : "")
     + "<br>"
     + "<b>" + c.total + "</b> défenses : " + s.slice(0, 5).join(", ") + "<br>"
+    /* LA VIE TOTALE, EN UN SEUL CHIFFRE. Blindage et bonus
+       d'expédition compris : c'est ce qu'il faudra démonter, et le
+       joueur n'a rien à multiplier de tête. Le Brasier est à part,
+       comme toujours — sa vie est la sienne et rien ne la touche. */
+    + "<b>" + nombre(c.pv) + "</b> PV de défenses à démonter"
+    + (hausseTotalePv(planCarteIdx) > 0
+        ? ' <span style="color:#e8a94a">(+' + hausseTotalePv(planCarteIdx) + ' %)</span>'
+        : "")
+    + '<br><span style="color:#8f86a0">Brasier : ' + nombre(CARTES[planCarteIdx].pvQG)
+    + " PV, jamais blindé</span><br>"
     + "<b>" + c.cellules + "</b> cellules à récolter<br>"
     /* CE QUE LE PLAN NE REMPLACE JAMAIS. La première question qu'on se
        pose en peignant une carte est « est-ce que je détruis son

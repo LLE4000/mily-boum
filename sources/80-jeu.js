@@ -316,6 +316,63 @@ function nouvelleCarte(index, pvConnu){
    dégâts se comptent en points par seconde — donc rien ne réclamait
    cet entier.
    ================================================================ */
+/* ================================================================
+   LE BLINDAGE CHANGE PENDANT QU'ON JOUE
+
+   « Dès qu'on modifie un paramètre à l'accueil, ça doit directement
+   être appliqué sur la map. »
+
+   ON NE REFAIT PAS LA CARTE. La refaire relèverait tout ce qui est
+   tombé, effacerait les blessures et rendrait au Brasier une vie
+   qu'on lui a prise : ce serait exactement la réinitialisation qu'on
+   s'interdit. On MET LES BÂTIMENTS À L'ÉCHELLE, ce qui est la seule
+   opération qui garde tout.
+
+   LA FRACTION DE VIE EST L'INVARIANT. Un bâtiment à 40 % reste à
+   40 % : on multiplie sa vie maximale ET sa vie courante par le même
+   rapport. C'est aussi ce que le réseau enregistre — `cranBlessure`
+   range la vie sur soixante-trois crans de la vie MAXIMALE — donc le
+   changement ne fait bouger aucune blessure partagée, chez personne.
+   Un bâtiment DÉTRUIT reste détruit : sa vie vaut zéro, et zéro fois
+   n'importe quoi vaut zéro. On n'a même pas à le traiter à part.
+
+   TROIS CHOSES NE BOUGENT PAS, et ce sont celles de la demande : le
+   Brasier (« pas sur le QG »), la cellule à récolter et le réacteur du
+   bouclier, dont les 200 000 PV sont annoncés au briefing.
+
+   LE RAPPORT SE CALCULE D'UN FACTEUR À L'AUTRE — (1 + après) sur
+   (1 + avant) — et non depuis la vie d'origine, qu'on ne garde nulle
+   part. Deux réglages successifs se composent donc, MAIS PAS AU POINT
+   PRÈS : chaque passage arrondit, et une suite de réglages peut
+   laisser quelques points d'écart avec le calcul direct. Mesuré sur
+   mille suites tirées au hasard : jamais plus de trois millièmes de la
+   vie d'un bâtiment, et l'aller-retour d'un réglage vers zéro retombe
+   exactement sur ses pieds tant que le rapport est simple.
+   On ne cherche pas mieux, et il faut dire pourquoi : garder la vie
+   d'origine de chaque bâtiment coûterait un champ de plus sur douze
+   cents bâtiments, qu'il faudrait faire survivre à chaque
+   régénération de carte — beaucoup de mécanique pour trois millièmes
+   qu'aucun joueur ne peut voir.
+   ================================================================ */
+function reblindeLeJeu(index, avant, apres){
+  if(!jeu || jeu.index !== index) return 0;
+  if((avant | 0) === (apres | 0)) return 0;
+  var r = (1 + (apres | 0) / 100) / (1 + (avant | 0) / 100);
+  var n = 0;
+  for(var i = 0; i < jeu.batiments.length; i++){
+    var b = jeu.batiments[i];
+    if(b.t === "cellule" || b.t === "reacteur") continue;
+    b.pvMax = Math.round(b.pvMax * r);
+    b.pv = Math.min(b.pvMax, Math.round(b.pv * r));
+    n++;
+  }
+  if(typeof demandeMajBarres === "function") demandeMajBarres();
+  if(typeof message === "function")
+    message("Blindage des défenses : " + ((apres | 0) >= 0 ? "+" : "")
+            + (apres | 0) + " % — " + n + " défenses remises à l'échelle.");
+  return n;
+}
+
 function appliqueBlessuresAuJeu(chaine){
   if(!jeu || !chaine) return 0;
   var bl = decodeBlessures(chaine), n = 0;

@@ -503,12 +503,20 @@ function mondeCourant(){
      un plan tout juste validé ne serait jamais publié. */
   if(!jeu){
     if(!monde) return null;
+    /* LE BLINDAGE COMPTE ICI AUSSI, et l'oublier avait un coût précis :
+       un client à jour resté à l'accueil aurait renvoyé l'instantané
+       tel quel, donc n'aurait JAMAIS republié un blindage qu'un client
+       d'une version plus ancienne venait d'effacer en ne le connaissant
+       pas. Le réglage se serait perdu pour tout le salon tant que
+       personne n'aurait débarqué. */
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
+       (monde.bd || "") === blindageSalon && (monde.bn | 0) === numeroBlindage &&
        (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
     return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              bl:monde.bl || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
-             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   }
   /* En expédition, la campagne ne bouge PAS : on republie l'île
      normale telle que l'instantané la connaît, et c'est la voie de la
@@ -519,7 +527,8 @@ function mondeCourant(){
     return poseEvenements({ v:mm.v, cy:mm.cy | 0, c:mm.c, pv:mm.pv, d:mm.d || "",
              bl:mm.bl || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
-             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   }
   var bits = [], bl = [], i;
   for(i = 0; i < jeu.batiments.length; i++){
@@ -541,7 +550,8 @@ function mondeCourant(){
               ce qui le fait survivre à la déconnexion de celui qui les a
               faits, et même à la déconnexion de tout le monde. */
            s:tableauScores(),
-           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+           p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -599,6 +609,31 @@ function adopteMonde(m, source){
   /* Le plan ou le tirage ont changé ailleurs : notre carte n'est plus
      la bonne. On l'adopte AVANT d'appliquer les destructions, sinon on
      éteindrait des bâtiments d'après les indices de l'ancienne carte. */
+  /* ══ LE BLINDAGE REÇU S'APPLIQUE SUR-LE-CHAMP ══
+     « Dès qu'on modifie un paramètre, ça doit directement être
+     appliqué sur la map. » On l'adopte AVANT le plan et avant les
+     destructions : la carte qu'on va peut-être refaire doit sortir du
+     générateur avec la bonne dureté du premier coup. Et si l'on est
+     déjà en jeu sur la carte concernée, on ne la refait pas — on
+     REMET SES BÂTIMENTS À L'ÉCHELLE, ce qui garde les ruines, les
+     blessures et le score. */
+  if((monde.bd || "") !== blindageSalon || (monde.bn | 0) !== numeroBlindage){
+    var blAvant = jeu ? blindageDeCarte(jeu.index) : 0;
+    poseBlindageSalon(monde.bd || "", monde.bn | 0);
+    if(jeu && typeof reblindeLeJeu === "function")
+      reblindeLeJeu(jeu.index, blAvant, blindageDeCarte(jeu.index));
+    /* ON NE REPEINT LE MENU QUE S'IL EXISTE DÉJÀ. Ce chemin passe aussi
+       au démarrage, quand on relit le miroir local : à cet instant les
+       sprites des défenses et le briefing ne sont pas encore bâtis, et
+       majMondes voudrait peindre douze aperçus avec des sprites qui
+       n'existent pas. La branche d'à côté, celle du plan, ne repeint
+       pas non plus pour la même raison — elle se contente de
+       rafraichitPlan. */
+    if(typeof majMondes === "function" && document.getElementById("mn0"))
+      majMondes();
+    if(typeof rafraichitPlan === "function") rafraichitPlan();
+  }
+
   if((monde.p || "") !== planSalon || (monde.pn | 0) !== numeroPlan ||
      (monde.tg | 0) !== tirageSalon){
     var tiragePrecedent = tirageSalon;
@@ -789,7 +824,8 @@ function publieEtat(m, jg){
                        d:m.d || "", bl:m.bl || "",
                        g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
-                       tg:tirageSalon | 0 }, jg);
+                       tg:tirageSalon | 0,
+                       bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
@@ -898,6 +934,33 @@ function regleReglagesEvt(idx, n, pv){
   return u.mj;
 }
 function regleMinJoueurs(n, pv){ return regleReglagesEvt(IDX_JUNGLE, n, pv); }
+
+/* ================================================================
+   LE BLINDAGE, RÉGLÉ DEPUIS L'ACCUEIL
+
+   Même discipline que le plan : on modifie la table, on incrémente
+   SON numéro, on republie. Le numéro est ce qui fait qu'une édition
+   récente l'emporte sur une table plus ancienne reçue en retard —
+   sans lui, deux clients se renverraient éternellement leurs versions.
+
+   Et l'on applique CHEZ SOI dans la foulée, sans attendre le retour
+   du relais : le joueur qui vient de régler doit voir sa carte
+   changer tout de suite. Les autres l'auront à l'instantané suivant,
+   par le chemin d'à côté (voir l'adoption dans recoitMonde).
+   ================================================================ */
+function regleBlindage(index, pourcent){
+  if(!(index >= 0) || index >= CARTES.length) return 0;
+  var t = decodeBlindages(blindageSalon);
+  var avant = t[index] | 0;
+  t[index] = borne(Math.round(pourcent), 0, BLINDAGE_MAX);
+  var chaine = encodeBlindages(t);
+  if(chaine === blindageSalon && (t[index] | 0) === avant) return avant;
+  poseBlindageSalon(chaine, (numeroBlindage | 0) + 1);
+  if(jeu) reblindeLeJeu(index, avant, t[index] | 0);
+  var m = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  publieEtat(m, etatEvenements());
+  return t[index] | 0;
+}
 /* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
    l'horloge retarde ne peut pas ouvrir la carte plus tôt pour les
@@ -1012,7 +1075,8 @@ function remetSalonAZero(){
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon }, jg);
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
+            bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -1062,7 +1126,8 @@ function nouvelleCampagneSalon(){
   jg.t3 = av.t3 || "";
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
             pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
-            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0 }, jg);
+            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
   sauveMondeLocal();
@@ -1082,7 +1147,8 @@ function nouveauTirageSalon(){
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            bd:blindageSalon, bn:numeroBlindage | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -1133,7 +1199,8 @@ function enregistrePlan(chaine){
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"" },
+            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
+            bd:blindageSalon, bn:numeroBlindage | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));

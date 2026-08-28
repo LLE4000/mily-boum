@@ -1420,6 +1420,30 @@ function etatJungle(){ return etatEvt(IDX_JUNGLE); }
    l'ordre de campagne d'abord, ce qui donne deux rangées de quatre
    propres, les cartes événement ensuite, en bas, où elles se
    détachent. */
+/* La pastille de blindage d'une île de campagne. Elle emprunte le
+   style des deux pastilles des cartes spéciales — même classe, même
+   place — parce que c'est le même genre d'information : ce qui rend
+   cette île plus dure que ce que le joueur croit savoir. */
+/* LA HAUSSE TOTALE DE VIE D'UNE CARTE, en pour cent, les deux facteurs
+   multipliés : le bonus d'expédition d'une carte spéciale et le
+   blindage réglé à l'accueil. Un seul chiffre, celui qui est vrai —
+   jamais deux qu'il faudrait multiplier de tête. */
+function hausseTotalePv(i){
+  var k = (1 + bonusPvDeCarte(i) / 100) * facteurBlindage(i);
+  return Math.round((k - 1) * 100);
+}
+
+function pastilleBlindage(i){
+  var b = hausseTotalePv(i);
+  if(!(b > 0)) return "";
+  /* PAS D'ÉMOJI DANS LA PASTILLE. Le bouclier ne fait pas partie des
+     polices de tous les appareils, et un carré vide ou un cœur à la
+     place ferait douter du chiffre qui suit. Les deux pastilles des
+     cartes spéciales n'en portent pas non plus : on s'aligne. */
+  return '<div class="durci"><span class="dz pv">Défenses +' + b
+       + '% PV</span></div>';
+}
+
 function majMondes(){
   var h = "", rang, i;
   for(rang = 0; rang < ORDRE_CAMPAGNE.length; rang++){
@@ -1431,6 +1455,11 @@ function majMondes(){
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
        + nombre(CARTES[i].pvQG) + ' PV</span></div>'
+       /* LE BLINDAGE SE VOIT, ET SEULEMENT S'IL EXISTE. Une pastille
+          de plus sur les huit vignettes quand il vaut zéro partout
+          serait du bruit ; quand il ne vaut pas zéro, c'est la seule
+          chose qui distingue cette île de celle qu'on connaissait. */
+       + pastilleBlindage(i)
        + blocTop3(i)
        + (i > carteSalon ? boutonVisite(i) : "") + '</div>';
   }
@@ -1585,7 +1614,12 @@ function vignetteEvenement(i){
           phrase : ce sont les seuls réglages qui rendent cette carte
           plus dure que celles de la campagne. */
        + '<div class="durci">'
-       +   '<span class="dz pv">Défenses +' + bonusPvDeCarte(i) + '% PV</span>'
+       /* UNE SEULE PASTILLE DE VIE, ET C'EST LE TOTAL. Il y en avait
+          deux — le bonus d'expédition et le blindage réglé à l'accueil
+          — et c'était exactement ce que la demande interdit : « on ne
+          voit pas trois mille plus trois mille, on verra six mille ».
+          On multiplie les deux facteurs et l'on affiche le résultat. */
+       +   '<span class="dz pv">Défenses +' + hausseTotalePv(i) + '% PV</span>'
        +   '<span class="dz dg">+' + R.degBonus + '% dégâts</span>'
        +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
        + '</div>'
@@ -2171,6 +2205,95 @@ function installeAdmin(){
   if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeAdminP(); });
   var r = $("btAdminReglages");
   if(r) r.addEventListener("click", regleJungleAdmin);
+  var bl = $("btAdminBlindage");
+  if(bl) bl.addEventListener("click", regleBlindageAdmin);
+}
+
+/* ================================================================
+   BLINDER UNE ÎLE, DEPUIS L'ACCUEIL
+
+   Deux questions, et un avertissement au milieu qu'il ne faut pas
+   supprimer : LE SCORE SE COMPTE EN POINTS DE VIE RETIRÉS. Blinder
+   une île à +100 %, c'est rendre les prochains scores deux fois plus
+   gros que ceux déjà inscrits dessus. Sur une île qu'on n'a pas
+   encore jouée, cela n'a aucune conséquence ; sur une île où le
+   classement est en cours, cela en a une, et le joueur doit la lire
+   avant de valider, pas après.
+
+   La liste montre l'état de chacune : son rang de campagne, si elle
+   est déjà tombée, et le blindage qu'elle porte. Elle tient dans une
+   invite de texte parce que tout le panneau d'administration tient
+   dans des invites de texte — ce n'est pas l'endroit où l'on soigne
+   la mise en page, c'est l'endroit où l'on ne se trompe pas.
+   ================================================================ */
+function regleBlindageAdmin(){
+  var l = "BLINDAGE DES DÉFENSES\n\n"
+        + "Quelle île veux-tu blinder ?\n\n";
+  var ordre = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++) ordre.push(ORDRE_CAMPAGNE[i]);
+  for(i = 0; i < CARTES.length; i++) if(ordre.indexOf(i) < 0) ordre.push(i);
+  for(i = 0; i < ordre.length; i++){
+    var k = ordre[i], bl = blindageDeCarte(k);
+    l += "  " + (i + 1) + " — " + CARTES[k].nom
+       + (bl > 0 ? "   [+" + bl + " %]" : "")
+       + (carteSpeciale(k) ? "   (carte spéciale)" : "")
+       + "\n";
+  }
+  var rep = prompt(l + "\nEntre un numéro :", "1");
+  if(rep === null) return;
+  var q = parseInt(rep, 10);
+  if(!(q >= 1 && q <= ordre.length)){
+    alert("Il faut un numéro entre 1 et " + ordre.length + ". Rien n'a été changé.");
+    return;
+  }
+  var idx = ordre[q - 1], nom = "« " + CARTES[idx].nom + " »";
+  var actuel = blindageDeCarte(idx);
+  /* L'ÎLE A-T-ELLE DÉJÀ ÉTÉ JOUÉE ? C'est ce qui décide si l'on
+     avertit ou non, et c'est la seule chose qui compte ici. */
+  var jouee = dejaJouee(idx);
+  var av = jouee
+    ? "\n⚠ ATTENTION : des scores existent déjà sur cette île.\n"
+      + "Le TOP DÉGÂTS compte les points de vie retirés : en la\n"
+      + "blindant, les prochains scores y vaudront plus que ceux\n"
+      + "déjà inscrits. Rien ne sera effacé, mais les anciens et les\n"
+      + "nouveaux ne se compareront plus tout à fait.\n"
+    : "\nCette île n'a pas encore été jouée : rien à comparer,\n"
+      + "le blindage y est sans conséquence pour le classement.\n";
+  var rp = prompt(
+    "BLINDER " + nom.toUpperCase() + "\n\n"
+    + "Pourcentage de vie EN PLUS sur ses défenses.\n"
+    + "Le Brasier garde exactement la sienne, ainsi que les cellules\n"
+    + "à récolter et les réacteurs du bouclier.\n\n"
+    + "Valeur actuelle : +" + actuel + " %.\n"
+    + av
+    + "\nEntre un pourcentage entre 0 et " + BLINDAGE_MAX + " :", "" + actuel);
+  if(rp === null) return;
+  var v = parseInt(rp, 10);
+  if(!(v >= 0 && v <= BLINDAGE_MAX)){
+    alert("Il faut un pourcentage entre 0 et " + BLINDAGE_MAX
+        + ". Rien n'a été changé.");
+    return;
+  }
+  var pose = regleBlindage(idx, v);
+  evtEtat = "";
+  majMondes();
+  if(typeof rafraichitPlan === "function") rafraichitPlan();
+  alert("Blindage enregistré pour " + nom + " : +" + pose + " %.\n\n"
+      + "Il vaut pour TOUT LE SALON, voyage dans l'instantané partagé\n"
+      + "et survit à la fermeture du navigateur.\n\n"
+      + "Il s'applique IMMÉDIATEMENT, y compris à une partie en cours :\n"
+      + "les défenses sont remises à l'échelle sans que rien ne soit\n"
+      + "réinitialisé — les ruines restent des ruines, et un bâtiment\n"
+      + "à moitié abattu reste à moitié abattu.");
+}
+
+/* Cette île a-t-elle déjà été jouée dans ce salon ? On le lit sur
+   l'avancée de la campagne, qui est la seule chose que l'instantané
+   sache dire à ce sujet. */
+function dejaJouee(i){
+  if(!monde) return false;
+  if(carteSpeciale(i)) return !!(monde[voieDeCarte(i) + "f"] | 0);
+  return rangCampagne(i) <= rangCampagne(monde.c | 0);
 }
 
 /* LES RÉGLAGES DU SALON, CARTE PAR CARTE. Ils ne concernaient que la
