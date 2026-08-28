@@ -32,7 +32,7 @@ try{
     "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
-    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAvecTornades","profilTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "zoneDePlan","zonesPeintes","NB_ZONES","ZONES_L","ZONES_H","TYPES_PLAN","DENSITES","PAS_ZONE","meilleurPlan","texteUtf8","encodeLongueur","decodeLongueur",
@@ -2995,6 +2995,96 @@ G("4. Déterminisme de la génération de carte");
       ok("et deux sons distincts : l'une gronde, l'autre tinte",
          /function tourbillonSon\(/.test(html) && /function tornadeSon\(/.test(html) &&
          /style === "etoiles"[\s\S]{0,120}tourbillonSon/.test(html));
+    })();
+
+    /* ================================================================
+       L'AIR MAGIQUE
+
+       « Des étoiles qui flottent dans l'air, des bulles magiques, de
+       la poussière d'étoile, des papillons géants. »
+
+       Ce groupe ne juge pas la beauté — ça, on le regarde. Il monte la
+       garde sur les quatre choses qu'une retouche du dessin pourrait
+       casser sans bruit : que l'air reste sur CETTE île, qu'il ait ses
+       DEUX couches (une seule et il flotte au-dessus de la carte au
+       lieu d'être dedans), qu'il soit DÉTERMINISTE (le même pour tous
+       les joueurs du salon, sans un octet de réseau), et qu'il sache
+       se TAIRE au dézoom, parce que la promesse est qu'il tourne sur
+       une tablette.
+       ================================================================ */
+    (function(){
+      ok("l'air magique est à elle, et à elle seule",
+         N.carteAirMagique(IN) && !N.carteAirMagique(N.IDX_JUNGLE) &&
+         !N.carteAirMagique(0) && !N.carteAirMagique(999) &&
+         N.CARTES.filter(function(c, q5){ return N.carteAirMagique(q5); }).length === 1);
+      /* Le champ vit hors du noyau ; on le rejoue depuis le fichier
+         livré, comme etatEvt et la foule d'Ibiza. */
+      var d1 = html.indexOf("function construitAirNuits(");
+      var f1 = d1 < 0 ? -1 : html.indexOf("\n}", d1);
+      ok("le champ de l'air se relit dans le fichier livré", d1 > 0 && f1 > d1);
+      if(d1 < 0 || f1 < 0) return;
+      var srcA = html.slice(html.indexOf("var AIR_TUILE"), f1 + 2);
+      function champ(){
+        return new Function("prng", srcA + "; return construitAirNuits();")(N.prng);
+      }
+      var A = champ(), A2 = champ();
+      ok("les quatre espèces sont peuplées : " + A.grains.length + " grains, "
+         + A.etoiles.length + " étoiles, " + A.bulles.length + " bulles, "
+         + A.papillons.length + " papillons",
+         A.grains.length > 20 && A.etoiles.length > 6 &&
+         A.bulles.length > 2 && A.papillons.length > 0);
+      /* LE DÉTERMINISME. Le champ ne passe pas par le réseau : c'est
+         le tirage qui garantit que deux joueurs voient le même air.
+         Un Math.random() glissé dedans le casserait en silence — deux
+         tablettes côte à côte, deux ciels différents. */
+      ok("il est DÉTERMINISTE : deux constructions donnent le même air",
+         JSON.stringify(A) === JSON.stringify(A2));
+      ok("… et aucun Math.random ne s'est glissé dans le champ",
+         !/Math\.random/.test(srcA));
+      /* LES DEUX COUCHES. C'est ce qui met l'air DANS la carte au lieu
+         de le coller sur l'écran : la couche 0 passe derrière les
+         tours, la couche 1 devant. Si l'une se vidait, on ne verrait
+         plus la différence — et personne ne s'en apercevrait avant
+         de regarder une capture de près. */
+      function parCouche(l, c){ return l.filter(function(e){ return e.c === c; }).length; }
+      ok("la poussière est partagée entre les deux couches ("
+         + parCouche(A.grains, 0) + " derrière, " + parCouche(A.grains, 1) + " devant)",
+         parCouche(A.grains, 0) > 3 && parCouche(A.grains, 1) > 3);
+      ok("… et les étoiles flottantes aussi ("
+         + parCouche(A.etoiles, 0) + " / " + parCouche(A.etoiles, 1) + ")",
+         parCouche(A.etoiles, 0) > 0 && parCouche(A.etoiles, 1) > 0);
+      ok("le rendu appelle bien les DEUX couches, dans cet ordre",
+         (function(){
+           var a = html.indexOf("dessineAirNuits(ctx, tps, vue, 0)");
+           var b = html.indexOf("dessineAirNuits(ctx, tps, vue, 1)");
+           return a > 0 && b > a;
+         })());
+      ok("… la première AVANT la pile de profondeur, la seconde APRÈS",
+         (function(){
+           var a = html.indexOf("dessineAirNuits(ctx, tps, vue, 0)");
+           var p = html.indexOf("pile.sort(function");
+           var b = html.indexOf("dessineAirNuits(ctx, tps, vue, 1)");
+           return a > 0 && p > a && b > p;
+         })());
+      ok("… et les deux sous le verrou de l'île, jamais ailleurs",
+         /carteAirMagique\(jeu\.index\)\)\s*dessineAirNuits\(ctx, tps, vue, 0\)/.test(html) &&
+         (html.match(/dessineAirNuits\(/g) || []).length === 3);
+      /* LA TENUE SUR TABLETTE : trois freins, et ils sont tous les
+         trois dans le fichier. Un seul qui saute et un téléphone
+         dessine mille grains d'un pixel. */
+      ok("il sait se taire au dézoom : un seuil par espèce",
+         /AIR_Z_GRAIN\s*=/.test(html) && /AIR_Z_ETOILE\s*=/.test(html) &&
+         /AIR_Z_BULLE\s*=/.test(html) && /AIR_Z_PAPILLON\s*=/.test(html) &&
+         /if\(z < AIR_Z_ETOILE\) return;/.test(html));
+      ok("… un garde-fou sur le nombre de tuiles",
+         /> 42\) return;/.test(html));
+      ok("… et un plafond global de particules",
+         /AIR_PLAFOND\s*=\s*\d+/.test(html) && /> AIR_PLAFOND/.test(html));
+      /* LES SPRITES sont cuits UNE FOIS. À trois cents grains par
+         image, un dégradé par grain, c'est trois cents dégradés :
+         c'est exactement le poste qui fait tomber une tablette. */
+      ok("les lueurs sont pré-cuites, pas refaites à chaque image",
+         /function spritesAir\([\s\S]{0,400}if\(AIR_SP\) return AIR_SP;/.test(html));
     })();
   })();
 

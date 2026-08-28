@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.54";
+var VERSION = "v0.55";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1046,6 +1046,12 @@ function carteTornades(i){ return !!(CARTES[i] && CARTES[i].biome === "tenebres"
    mourir — mais ni la même taille, ni la même couleur, ni la même
    traînée. */
 function carteTourbillons(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits"); }
+
+/* Et où l'AIR LUI-MÊME est magique : la poussière d'étoile, les
+   étoiles flottantes, les bulles et les papillons géants. Même
+   raisonnement que carteOrageuse : une propriété de l'ÎLE, jamais
+   d'un tirage. Voir 44-nuits-air.js. */
+function carteAirMagique(i){ return !!(CARTES[i] && CARTES[i].biome === "nuits"); }
 
 /* Et où passe la tornade CLASSIQUE — celle de poussière et de terre,
    la seule des trois qui ressemble à une vraie. Elle traverse une île

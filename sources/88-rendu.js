@@ -2086,6 +2086,13 @@ function rendu(tps, dt){
   dessineSol(ctx, vue);
   if(mer){ dessineEcume(ctx, tps); dessineRessac(ctx, tps); }
   dessineZonesSol(ctx, tps);
+  /* L'AIR DES MILLE ET UNE NUITS, PREMIÈRE COUCHE — celle qui passe
+     DERRIÈRE les tours, les troupes et les fontaines. C'est elle qui
+     met la poussière DANS la carte au lieu de la coller sur l'écran :
+     un grain qui disparaît derrière une tour de guet dit qu'il y a de
+     la profondeur, un calque uniforme par-dessus dit qu'il y a un
+     filtre. Voir 44-nuits-air.js. */
+  if(carteAirMagique(jeu.index)) dessineAirNuits(ctx, tps, vue, 0);
   /* La brume rampe AU SOL, donc sous les objets ; le ciel d'orage
      assombrit le terrain avant qu'on y pose quoi que ce soit. */
   if(carteOrageuse(jeu.index)){
@@ -2302,6 +2309,11 @@ function rendu(tps, dt){
     ctx.fillRect(-40, -40, W + 80, H + 80);
     ctx.restore();
     repereMonde(ctx);
+    /* L'AIR, SECONDE COUCHE — celle qui passe DEVANT tout le monde,
+       et APRÈS l'étalonnage de lune : cette poussière-là n'est pas
+       éclairée par la nuit, elle EST la nuit. La filtrer avec le reste
+       lui aurait pris exactement ce qui la fait briller. */
+    dessineAirNuits(ctx, tps, vue, 1);
   }
   if(jeu.balise) dessineFusee(ctx, tps);
 
