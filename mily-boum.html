@@ -1415,7 +1415,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.52";
+var VERSION = "v0.53";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -22888,34 +22888,49 @@ function tourbillonSon(){
    partagé).
    ================================================================ */
 
-/* LA PALETTE, ET LA FAUTE QU'ELLE RÉPARE.
-   Le premier jet prenait ses teintes DANS le sol de l'île — sable1,
-   tache1, fond2 — en se disant qu'une tornade emprunte la couleur de
-   ce qu'elle arrache. C'est vrai, et le résultat était invisible : de
-   l'ocre clair peint sur un champ d'ocre clair. Mesuré à la capture :
-   on ne voyait qu'un voile pâle, et l'anneau au sol plus que la
+/* LA PALETTE, ET LES DEUX ESSAIS QU'IL A FALLU.
+
+   PREMIER ESSAI, TROP PÂLE. Les teintes venaient toutes du sol de
+   l'île — sable1, tache1, fond2 — en se disant qu'une tornade emprunte
+   la couleur de ce qu'elle arrache. C'est vrai, et à trente pour cent
+   d'opacité le résultat était presque invisible : de l'ocre clair sur
+   un champ d'ocre clair, et l'on voyait l'anneau au sol mieux que la
    colonne.
 
-   Une vraie tornade est PLUS SOMBRE que le champ qu'elle traverse.
-   C'est une masse dense qui bloque la lumière : on la voit en
-   silhouette, pas en surbrillance. Le clair est réservé à ce qui vole
-   au pied — le mur de poussière soulevée, lui, est bien plus clair que
-   le sol.
+   DEUXIÈME ESSAI, TROP SOMBRE. On l'a donc peinte en brun foncé, très
+   opaque, pour qu'elle se lise en silhouette. Elle se lisait, et elle
+   était laide : une masse noire posée au milieu d'un champ ensoleillé,
+   qui ressemblait à une tache d'encre plus qu'à de l'air chargé de
+   terre.
 
-   Les teintes sont donc fixes et sombres, et seul le VOILE de
-   poussière emprunte encore au sol : c'est la seule couche où
-   l'emprunt disait quelque chose de vrai. */
+   CE QU'IL FALLAIT. La blonde translucide était la bonne image ; ce
+   qui lui manquait n'était pas de la NOIRCEUR, c'était de la
+   STRUCTURE. Une masse claire se lit très bien sur un fond clair — à
+   condition d'avoir un bord, un modelé et quelque chose de sombre
+   dedans pour donner l'échelle. Elle garde donc ses teintes de sable,
+   et elle gagne quatre choses qui ne l'assombrissent pas :
+     — une ombre portée au sol, décalée, comme tout objet en plein
+       jour ;
+     — un bord net sur toute la silhouette ;
+     — un modelé, clair du côté du soleil et voilé de l'autre ;
+     — des débris presque noirs, qui donnent le contraste ET l'échelle
+       sans toucher à la masse.
+   C'est la leçon du dessin en général : on ne rend pas une forme
+   lisible en la fonçant, on la rend lisible en lui donnant un
+   contour. */
 function poussiereTeintes(){
   var M = (typeof MATIERES !== "undefined" && carte && MATIERES[carte.biome])
         || { fond1:"#bb9e60", fond2:"#a88b4f", tache1:"#cdb073", sable1:"#e0cb95" };
   return {
-    /* le voile de poussière qui vole : celui-là vient bien du sol */
-    voile : M.sable1  || "#e0cb95",
-    /* la colonne : de la terre en suspension, sombre */
-    clair : "#a08a63",
-    moyen : "#6b5a3d",
-    sombre: "#3e3423",
-    debris: "#241c10"
+    /* le voile de poussière soulevée, et la colonne : tout vient du
+       sol, comme au premier essai — c'était la bonne intuition */
+    voile : M.sable1 || "#e0cb95",
+    clair : M.sable1 || "#e0cb95",
+    moyen : M.tache1 || "#cdb073",
+    sombre: M.fond2  || "#a88b4f",
+    /* les débris, eux, sont presque noirs : ce sont eux qui portent
+       tout le contraste, et ils ne pèsent presque rien à l'écran */
+    debris: "#3a2c18"
   };
 }
 
@@ -22974,10 +22989,25 @@ function dessineTornadeTerreMonde(c, t, tps){
      ce qu'il y a derrière, elle ne s'y ajoute pas. C'est la seule
      différence de fond entre ce dessin et celui des flammes, et c'est
      elle qui fait toute la matière. */
+  /* L'OMBRE PORTÉE, D'ABORD. En plein jour, tout ce qui se dresse
+     pose une ombre — et c'est elle, plus que la colonne, qui dit qu'il
+     y a quelque chose là. Elle est décalée vers le sud-est comme
+     toutes les ombres du jeu, et elle s'étire : une colonne de trois
+     cents pixels ne pose pas une flaque ronde. */
+  if(!descend){
+    var go2 = c.createLinearGradient(p.x, p.y, p.x + ray * RX * z * 4, p.y + ray * RY * z * 4);
+    go2.addColorStop(0, "rgba(60,46,24,.30)");
+    go2.addColorStop(1, "rgba(60,46,24,0)");
+    c.fillStyle = go2;
+    c.beginPath();
+    c.ellipse(p.x + ray * RX * z * 1.5, p.y + ray * RY * z * 1.5,
+              ray * RX * z * 2.6, ray * RY * z * 1.7, 0.5, 0, 6.2832);
+    c.fill();
+  }
   var couches = [
-    { k:1.00, col:T.clair,  a:0.52 },
-    { k:0.76, col:T.moyen,  a:0.68 },
-    { k:0.48, col:T.sombre, a:0.80 }
+    { k:1.00, col:T.clair,  a:0.46 },
+    { k:0.74, col:T.moyen,  a:0.50 },
+    { k:0.44, col:T.sombre, a:0.54 }
   ];
   for(i = 0; i < couches.length; i++){
     var gv = c.createLinearGradient(p.x, p.y - H, p.x, p.y);
@@ -22988,6 +23018,26 @@ function dessineTornadeTerreMonde(c, t, tps){
     torSilhouette(c, t, p, z, H, pied, couches[i].k, 1, tps);
     c.fill();
   }
+  /* LE MODELÉ : clair à gauche, voilé à droite. C'est ce qui fait un
+     CYLINDRE d'un aplat — et il ne coûte qu'un dégradé horizontal
+     posé dans la silhouette. */
+  c.save();
+  torSilhouette(c, t, p, z, H, pied, 1, 1, tps);
+  c.clip();
+  var gm = c.createLinearGradient(p.x - 7 * RX * z, 0, p.x + 7 * RX * z, 0);
+  gm.addColorStop(0, "rgba(255,248,224,.26)");
+  gm.addColorStop(0.42, "rgba(255,248,224,0)");
+  gm.addColorStop(1, "rgba(74,58,32,.24)");
+  c.fillStyle = gm;
+  c.fillRect(p.x - 9 * RX * z, p.y - H - 10, 18 * RX * z, H + 20);
+  c.restore();
+  /* LE BORD. C'est LUI qui rend la colonne claire lisible sur un champ
+     clair — pas la noirceur. Un trait fin, à peine plus sombre que la
+     poussière, et la forme apparaît. */
+  c.strokeStyle = "rgba(96,76,44,.34)";
+  c.lineWidth = 1.5 * z;
+  torSilhouette(c, t, p, z, H, pied, 1, 1, tps);
+  c.stroke();
   /* les stries de rotation : quatre bandes claires qui montent en
      spirale sur la paroi. Sans elles, la colonne ne tourne pas — elle
      ondule seulement, et l'œil ne s'y trompe pas. */
@@ -23006,7 +23056,10 @@ function dessineTornadeTerreMonde(c, t, tps){
       var y = p.y - u * H + Math.sin(a) * pr * RY * z * 0.5;
       if(i === 0) c.moveTo(x, y); else c.lineTo(x, y);
     }
-    c.strokeStyle = rgba("#cbb489", 0.26);
+    /* une strie sur deux est claire, l'autre voilée : c'est
+       l'alternance qui fait tourner la colonne. Toutes claires, elles
+       se fondaient dans la masse. */
+    c.strokeStyle = (s & 1) ? "rgba(255,250,232,.30)" : "rgba(104,82,46,.22)";
     c.lineWidth = 5 * z;
     c.lineCap = "round";
     c.stroke();
@@ -23028,10 +23081,10 @@ function dessineTornadeTerreMonde(c, t, tps){
            + Math.cos(ang) * prd * RX * z * 0.5;
     var dy = p.y - u * H + Math.sin(ang) * prd * RY * z * 0.5;
     var devant = (Math.sin(ang) + 1) * 0.5;
-    var tl = (1.6 - u * 0.9) * z * (0.7 + devant * 0.6);
+    var tl = (2.1 - u * 1.1) * z * (0.7 + devant * 0.6);
     if(tl < 0.35) continue;
-    c.fillStyle = "rgba(" + hexRgbPous(i % 4 === 0 ? T.sombre : T.debris) + ","
-                + ((0.30 + devant * 0.42) * (1 - mu * 0.55)) + ")";
+    c.fillStyle = "rgba(" + hexRgbPous(T.debris) + ","
+                + ((0.44 + devant * 0.46) * (1 - mu * 0.5)) + ")";
     c.save();
     c.translate(dx, dy);
     c.rotate(ang * 1.7);
@@ -23115,7 +23168,7 @@ function dessineTraceTerreSol(c, b, tps){
      s'éclaircit qu'à la fin : c'est lui qui dit « on est passé par
      là », et il est à la mesure EXACTE du couloir qui tue. */
   c.globalCompositeOperation = "source-over";
-  c.globalAlpha = 0.42 - v * 0.20;
+  c.globalAlpha = 0.30 - v * 0.15;
   c.fillStyle = "#4c3c22";
   c.beginPath();
   c.ellipse(p.x, p.y, larg * RX * 1.02, larg * RY * 1.02, 0, 0, 6.2832); c.fill();
