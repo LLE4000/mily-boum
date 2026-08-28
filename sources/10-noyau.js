@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.78";
+var VERSION = "v0.79";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1492,9 +1492,210 @@ function carteFoudre(i){ return carteOrageuse(i) || carteTornades(i); }
    ================================================================ */
 var SCENE_GX = 76, SCENE_GY = 68, SCENE_DEMI = 11;
 function carteScene(i){ return !!(CARTES[i] && CARTES[i].biome === "ibiza"); }
-/* Le point est-il dans le carré réservé ? */
+
+/* ================================================================
+   L'ÉTOILE D'IBIZA — LE VIDE AU MILIEU DE LA FÊTE
+
+   « Au centre, ça pourrait être une étoile vide où il y a la scène
+   avec des gens qui dansent dans l'étoile. La scène, elle a une
+   taille, il ne faut pas faire beaucoup plus grand la scène. »
+
+   Le carré réservé de vingt-deux cases devient une ÉTOILE À SIX
+   BRANCHES. Rien n'y est bâti : c'est la piste, et elle tient la
+   scène, le DJ et les vingt danseurs sans avoir à grandir. Les
+   chiffres le disent — le carré de la scène a ses coins à quinze
+   cases et demie du centre, et le creux de l'étoile est à dix-sept :
+   tout ce qui existait tient dedans, et l'étoile ne déborde qu'aux
+   six pointes, là où elle a quelque chose à dire.
+
+   POURQUOI UNE ÉTOILE ET PAS UN CERCLE. Parce qu'un cercle vide au
+   milieu d'une île, c'est un trou ; une étoile, c'est un DESSIN. Ses
+   six pointes donnent en outre six directions au reste de la figure —
+   les faisceaux partent de là — et ses six creux font six entrées
+   naturelles sur la piste, ce qui règle du même coup la question de
+   la traversée.
+
+   LA PISTE EST UN POLYGONE, pas une formule. Douze sommets, un rayon
+   sur deux, et le test d'appartenance est celui des formes du plan —
+   `dansPolygone`, déjà écrit, déjà éprouvé. Une île de moins à
+   inventer.
+   ================================================================ */
+var ETOILE_POINTES = 6;
+var ETOILE_R  = 30;    // les pointes
+var ETOILE_R2 = 17;    // les creux — la scène tient dedans
+
+var ETOILE_G = (function(){
+  var g = [], n = ETOILE_POINTES * 2, i;
+  for(i = 0; i < n; i++){
+    /* la première pointe vers l'est : sur l'écran isométrique, elle
+       tombe en haut à droite, là où le regard va d'abord */
+    var a = i / n * 6.2832 - 0.5236;
+    var r = (i & 1) ? ETOILE_R2 : ETOILE_R;
+    g.push(SCENE_GX + Math.cos(a) * r, SCENE_GY + Math.sin(a) * r);
+  }
+  return g;
+})();
+
+/* Le point est-il sur la piste ? C'est l'étoile, et non plus le carré
+   d'origine. Tout ce qui bâtit consulte cette fonction : le
+   quadrillage, les renforts, les cellules, les miradors. */
 function dansLaScene(gx, gy){
-  return Math.abs(gx - SCENE_GX) <= SCENE_DEMI && Math.abs(gy - SCENE_GY) <= SCENE_DEMI;
+  /* un rejet bon marché avant le polygone : on l'appelle des dizaines
+     de milliers de fois par génération */
+  var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
+  var q = dx * dx + dy * dy;
+  if(q > ETOILE_R * ETOILE_R) return false;
+  if(q < ETOILE_R2 * ETOILE_R2) return true;
+  return dansPolygone(ETOILE_G, gx, gy);
+}
+
+/* ================================================================
+   LES DOUZE FAISCEAUX — ET POURQUOI ILS SONT VIDES
+
+   « Une forme ultra-graphique moderne, style Ibiza. La carte doit être
+   magique, grosse fête DJ. »
+
+   PREMIÈRE VERSION, ET SON ÉCHEC. On avait rempli douze bandes
+   radiales de Frelons, sur une île déjà couverte d'un semis militaire
+   régulier. Résultat mesuré : cent quatre-vingt-un Frelons posés, et
+   sur la photo de l'île entière, RIEN — pas une forme, pas une ligne.
+   La raison tient en une phrase :
+
+     À L'ÉCHELLE DE L'ÎLE, UNE FIGURE FAITE D'AJOUTS NE SE VOIT PAS.
+
+   Le semis d'origine occupe le terrain partout à la même densité.
+   Ajouter dessus ne fait que monter cette densité d'un cran : de loin,
+   plein et un peu plus plein, c'est la même chose. La seule chose qui
+   se lisait sur la photo était l'étoile centrale — et elle se lisait
+   parce qu'elle est VIDE.
+
+   D'où le retournement. La figure d'Ibiza n'est pas ce qu'on ajoute :
+   c'est ce qu'on ENLÈVE. Douze couloirs vides partent des douze
+   sommets de l'étoile et s'ouvrent jusqu'au rivage. Ce sont les
+   faisceaux des projecteurs — un projecteur, ça ne dépose pas de la
+   matière, ça creuse un cône de lumière dans la nuit. Entre eux,
+   douze quartiers de foule, remplis à saturation.
+
+   ET TOUT LE RESTE EN DÉCOULE :
+     — LA DENSITÉ. Les quartiers peuvent être saturés sans réserve,
+       parce que la traversée est garantie ailleurs : les couloirs sont
+       vides par construction, ils vont du centre au rivage, et chaque
+       quartier en touche deux. C'est le premier dessin de ce jeu où
+       remplir à fond ne coûte rien à la marche.
+     — LES SIX ENTRÉES DE LA PISTE. Les creux de l'étoile sont à
+       dix-sept cases, les pointes à trente ; les couloirs naissent à
+       quatorze, donc EN DEÇÀ des creux. Chaque creux débouche donc sur
+       un couloir, et le couloir mène au rivage : on entre danser en
+       venant de la mer, sans traverser une seule défense.
+     — LE SOL. Un couloir vide est une bande de sable nue, et le sol
+       peut y peindre la lumière colorée du projecteur sans qu'aucun
+       bâtiment ne la cache. La figure du sol et celle des défenses
+       sont la même figure.
+
+   LE PREMIER FAISCEAU VERS L'EST, comme la première pointe de
+   l'étoile : sur l'écran isométrique il part vers le haut à droite,
+   là où le regard va d'abord.
+   ================================================================ */
+var FAISC_N     = 12;     // douze, comme les douze sommets de l'étoile
+var FAISC_R0    = 14;     // ils naissent SOUS les creux : les six entrées
+var FAISC_R1    = 100;    // et portent au-delà des coins de l'île
+var FAISC_LARG0 = 1.1;    // presque un trait à la source
+var FAISC_EVASE = 0.070;  // et ce qu'ils s'ouvrent par case parcourue
+
+/* ================================================================
+   ET DOUZE FAISCEAUX SECONDAIRES, PLUS FINS, ENTRE LES PREMIERS
+
+   « Ces secteurs doivent être surchargés de défenses, remplis à quasi
+   cent pour cent. »
+
+   Remplir un quartier à ras bord se heurte a une regle du jeu : une
+   defense que rien ne peut approcher rend l'ile infinissable, et le
+   controle l'exige — cinq cases au plus entre chaque tourelle et une
+   case ou l'on marche, c'est la portee d'une Furie. Or un quartier
+   fait vingt et une cases de large a quarante du centre, et
+   trente-neuf a soixante-quinze : rempli plein, son milieu est a dix
+   cases de tout passage. `ouvreLaFete` le rouvrait alors de force et
+   emportait deux cent trente-neuf batiments — on batissait pour
+   demolir.
+
+   On ouvre donc l'allee AVANT de remplir. Un faisceau fin court sur la
+   BISSECTRICE de chaque quartier, du centre au rivage : il le partage
+   en deux moities dont aucune n'excede cinq cases de profondeur, et le
+   remplissage peut alors saturer sans que rien ne devienne
+   inatteignable.
+
+   TROIS CHOSES D'UN COUP, et c'est ce qui en fait un bon dessin :
+     — le PASSAGE, qui autorise la surcharge ;
+     — la LUMIERE, car le sol y peint un faisceau plus mince : vingt
+       -quatre rayons au lieu de douze, ce qui est tres exactement a
+       quoi ressemble un jeu de projecteurs ;
+     — et l'ACCES A LA TOUR, puisque la cellule electrique du quartier
+       est posee au bout de cette meme bissectrice. L'allee mene a sa
+       tour.
+   ================================================================ */
+var FAISC2_R0    = 18;      // elles naissent un peu plus loin que les grandes
+var FAISC2_LARG0 = 1.2;     // et restent des traits
+var FAISC2_EVASE = 0.030;
+
+/* la demi-largeur du faisceau à la distance r */
+function largeurFaisceau(r){
+  return FAISC_LARG0 + (r - FAISC_R0) * FAISC_EVASE;
+}
+function largeurFaisceau2(r){
+  return FAISC2_LARG0 + (r - FAISC2_R0) * FAISC2_EVASE;
+}
+/* L'écart angulaire au rayon le plus proche d'une famille, multiplié
+   par le rayon : c'est la distance perpendiculaire au rayon, sans une
+   trigonométrie de plus. `demi` décale la famille d'un demi-pas — ce
+   qui donne les bissectrices. */
+function ecartAuRayon(dx, dy, r, demi){
+  var pas = 6.2832 / FAISC_N;
+  var e = (Math.atan2(dy, dx) + 0.5236) / pas - (demi ? 0.5 : 0);
+  return Math.abs(e - Math.round(e)) * pas * r;
+}
+/* le point tombe-t-il dans l'un des vingt-quatre couloirs ? */
+function dansLeFaisceau(gx, gy){
+  var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
+  var r = Math.sqrt(dx * dx + dy * dy);
+  if(r > FAISC_R1) return false;
+  if(r >= FAISC_R0 && ecartAuRayon(dx, dy, r, 0) <= largeurFaisceau(r)) return true;
+  return r >= FAISC2_R0 && ecartAuRayon(dx, dy, r, 1) <= largeurFaisceau2(r);
+}
+/* LE VIDE D'IBIZA, en un seul test : la piste et les douze faisceaux.
+   Tout ce qui bâtit sur cette île consulte cette fonction — le
+   quadrillage, les cellules, les décors, les miradors, et jusqu'au
+   drapage des figures qu'on y pose ensuite. */
+function videIbiza(gx, gy){
+  return dansLaScene(gx, gy) || dansLeFaisceau(gx, gy);
+}
+
+/* ================================================================
+   LA RÉSERVE DES NÉONS — DEUX CASES ET DEMIE LE LONG DE CHAQUE BORD
+
+   Les néons sont des Bobines, donc de petites pièces, et le grand
+   principe de cette île est que le gros passe d'abord (voir
+   `fouleIbiza`). Mais les néons ne peuvent pas passer après : leur
+   place est le ras du couloir, et si la foule y arrive la première, il
+   n'en reste rien.
+
+   On leur RÉSERVE donc la bande. La foule voit un couloir élargi de
+   deux cases et demie et n'y entre pas ; les néons, eux, voient le
+   couloir vrai et se logent dans la marge. Une bande de deux cases et
+   demie n'aurait de toute façon pas tenu une rangée de Frelons, qui en
+   réclament trois virgule six : on ne prend donc rien à la foule.
+
+   Et le bord du faisceau y gagne encore : un Frelon posé au ras du
+   couloir aurait débordé d'une case et demie dans la lumière. Avec la
+   réserve, il reste à deux cases et demie du bord, et le couloir garde
+   des arêtes franches. */
+var IBIZA_RESERVE = 1.6;
+function videIbizaLarge(gx, gy){
+  if(dansLaScene(gx, gy)) return true;
+  var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
+  var r = Math.sqrt(dx * dx + dy * dy);
+  if(r > FAISC_R1) return false;
+  if(r >= FAISC_R0 && ecartAuRayon(dx, dy, r, 0) <= largeurFaisceau(r) + IBIZA_RESERVE) return true;
+  return r >= FAISC2_R0 && ecartAuRayon(dx, dy, r, 1) <= largeurFaisceau2(r);
 }
 /* Le rythme des impacts, par île. */
 function periodeEclair(i){
@@ -1658,6 +1859,17 @@ function genereCarte(codeSalon, index, plan, tirage){
     bandeMoy    = [["frelon",0.34],["pilon",0.26],["chalumeau",0.18],["crible",0.16],["silo",0.06]];
     bandeLoin   = [["frelon",0.36],["pilon",0.26],["crible",0.24],["chalumeau",0.10],["silo",0.04]];
   }
+  /* IBIZA : la centaine de nœuds qui survivent au saut ci-dessous ne
+     sont plus le peuplement de l'île — ce sont les quelques pièces qui
+     empêchent la foule d'avoir une régularité de machine. On leur
+     donne quand même la composition de l'île, Frelon en tête et pas de
+     stock inerte : elles se fondent ainsi dans les anneaux au lieu de
+     s'en détacher. */
+  if(fic.biome === "ibiza"){
+    bandeProche = [["frelon",0.52],["chalumeau",0.22],["bobine",0.16],["crible",0.10]];
+    bandeMoy    = [["frelon",0.60],["bobine",0.16],["crible",0.14],["chalumeau",0.10]];
+    bandeLoin   = [["frelon",0.60],["crible",0.18],["bobine",0.12],["chalumeau",0.10]];
+  }
   /* LA DENSITÉ SE RÈGLE À DEUX ENDROITS, et le premier essai n'a
      touché que le mauvais.
        — LA PART DE NŒUDS SAUTÉS. Descendre de 28 % à 13 % ne pouvait
@@ -1671,8 +1883,38 @@ function genereCarte(codeSalon, index, plan, tirage){
      défenses — presque le double des autres îles — sans jamais
      approcher les deux mille cent cinquante du plan gravé de la
      jungle, qui tiennent sur la même île sans se chevaucher. */
-  var sautIle = (fic.biome === "tenebres") ? 0.10 : 0.28;
-  var pasIle  = (fic.biome === "tenebres") ? 4    : 5;
+  /* ================================================================
+     ET LE QUADRILLAGE D'IBIZA S'EFFACE — PARCE QU'ON A DEMANDÉ LE
+     CONTRAIRE DE CE QU'IL SAIT FAIRE.
+
+     « Tu me disposes toi-même les défenses selon une forme
+     ultra-graphique, et il doit y avoir une très grosse densité. »
+
+     Le quadrillage militaire pose un nœud toutes les cinq cases,
+     partout, du même pas. Sur les huit autres îles c'est exactement ce
+     qu'il faut. Ici il empêche tout, et deux mesures le disent :
+
+       LA FIGURE NE PASSAIT PLUS. Le liseré de l'étoile n'a posé que
+       TREIZE pièces sur trente-huit, les néons soixante-dix sur quatre
+       cent cinquante : le semis occupait déjà le ras de la piste et le
+       bord des couloirs. On dessinait dans un mur.
+
+       LA DENSITÉ BAISSAIT AU LIEU DE MONTER. Un semis à cinq cases de
+       pas laisse entre deux voisins deux cases et demie — moins que
+       les trois cases six qu'exigent deux Frelons. Aucune des pièces
+       qu'on voulait ajouter ne rentrait, et resserrer le pas à quatre
+       n'a fait qu'aggraver le blocage : sept cent quatre-vingt-dix-sept
+       défenses, contre plus de mille pour la guinguette.
+
+     On saute donc quatre-vingt-six pour cent des nœuds — il en reste
+     une centaine, juste assez pour que la foule ne soit pas d'une
+     régularité de machine — et TOUT le reste est posé par les anneaux
+     d'Ibiza, au pas du Frelon, dans la composition demandée. C'est
+     précisément ce qui avait été demandé : disposer les défenses
+     soi-même.
+     ================================================================ */
+  var sautIle = (fic.biome === "tenebres") ? 0.10 : (fic.biome === "ibiza") ? 0.94 : 0.28;
+  var pasIle  = (fic.biome === "tenebres") ? 4 : 5;
   var scene   = (fic.biome === "ibiza");
 
   for(var lx = 6; lx <= PLAGE_X0 - 3; lx += pasIle){
@@ -1734,7 +1976,7 @@ function genereCarte(codeSalon, index, plan, tirage){
          coûtait quarante-deux défenses pour rien.
          Comme la gomme forte : la séquence est consommée, seul le
          résultat est jeté. */
-      if(scene && dansLaScene(gx, gy)) continue;
+      if(scene && videIbiza(gx, gy)) continue;
       var f = DEF[t];
       c.batiments.push({
         t:t, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, e:f.emprise,
@@ -1775,7 +2017,7 @@ function genereCarte(codeSalon, index, plan, tirage){
            cellules dans un couloir censé être nu. Le test vient après
            tous les tirages, comme partout. */
         if(P && planEn(P, bx, by).vide) continue;
-        if(scene && dansLaScene(bx, by)) continue;
+        if(scene && videIbiza(bx, by)) continue;
         c.batiments.push({
           t:"cellule", gx:bx, gy:by, pv:fc.pv, pvMax:fc.pv, e:fc.emprise,
           ang:angc, vivant:1, n:c.batiments.length
@@ -1812,6 +2054,13 @@ function genereCarte(codeSalon, index, plan, tirage){
   for(var i = 0; i < 180; i++){
     var rx = 4 + al() * (PLAGE_X0 - 6), ry = 3 + al() * (GH - 6);
     if(Math.hypot(rx - QG_GX, ry - QG_GY) < 15) continue;
+    /* NI CAILLOU SUR LA PISTE NI DANS LA LUMIÈRE. C'était la seule
+       passe de génération qui ne consultait pas le vide d'Ibiza, et
+       cela se voyait : trois rochers gris posés au milieu du plancher
+       laqué, entre le DJ et les danseurs. Le tirage est consommé quand
+       même, comme partout — sauter la ligne sans consommer décalerait
+       tous les rochers suivants. */
+    if(scene && videIbiza(rx, ry)) continue;
     c.rochers.push({ gx:rx, gy:ry, r:0.32 + al() * 0.4, s:al() * 6.2832, v:(al() * 3) | 0 });
   }
 
@@ -1823,7 +2072,7 @@ function genereCarte(codeSalon, index, plan, tirage){
     /* rien ne pousse sur la piste de danse : ni parasol ni transat.
        Le tirage est consommé quand même — sauter la ligne suivante
        sans consommer décalerait tous les décors suivants. */
-    if(scene && dansLaScene(px, py)) continue;
+    if(scene && videIbiza(px, py)) continue;
     c.decors.push({ gx:px, gy:py, s:0.8 + al() * 0.5, v:(al() * 4) | 0 });
   }
 
@@ -1876,6 +2125,47 @@ function genereCarte(codeSalon, index, plan, tirage){
     [PLAGE_X0 - 9,     GH - marge - 4],            // extrémité sud-est
     [(QG_GX + PLAGE_X0) / 2, GH / 2]               // le centre
   ];
+  /* ================================================================
+     ET IBIZA EN A DOUZE — UNE AU BOUT DE CHAQUE SECTEUR
+
+     « Les tours électriques qui protègent le QG, on doit en avoir
+     plus : une à la fin de chaque secteur de défenses. »
+
+     Les douze faisceaux découpent l'île en douze QUARTIERS, et chacun
+     est un secteur de défense à part entière — bordé de lumière des
+     deux côtés, ouvert sur la mer au bout. Y planter sa propre cellule
+     donne au joueur douze objectifs lisibles au lieu de cinq points
+     dispersés : on nettoie un quartier, on abat sa tour, on passe au
+     suivant, et le bouclier du Brasier faiblit d'un douzième.
+
+     LA PLACE : sur la bissectrice du quartier — donc à égale distance
+     des deux faisceaux, bien au milieu de ses défenses — et au BOUT,
+     c'est-à-dire aussi loin du centre que la terre le permet. On
+     marche donc sur le rayon jusqu'à sortir du terrain bâtissable, et
+     l'on recule de trois cases.
+
+     Le nombre n'est écrit nulle part ailleurs : la jauge du briefing
+     compte les cellules vivantes, et le bouclier se normalise sur
+     `jeu.reacteurs.length`. Douze cellules ne demandent donc aucun
+     réglage de plus — seulement de les poser.
+     ================================================================ */
+  if(scene){
+    ideals = [];
+    for(var isec = 0; isec < FAISC_N; isec++){
+      /* la bissectrice du quartier : entre deux faisceaux */
+      var asec = (isec + 0.5) / FAISC_N * 6.2832 - 0.5236;
+      var csec = Math.cos(asec), ssec = Math.sin(asec);
+      var rsec = FAISC_R0;
+      /* on avance tant que la terre porte, puis on recule de trois */
+      for(var rr = FAISC_R0; rr < 110; rr += 0.5){
+        var tx = SCENE_GX + csec * rr, ty = SCENE_GY + ssec * rr;
+        if(tx < 8 || tx > PLAGE_X0 - 5 || ty < 5 || ty > GH - 6) break;
+        rsec = rr;
+      }
+      rsec = Math.max(FAISC_R0 + 6, rsec - 3);
+      ideals.push([SCENE_GX + csec * rsec, SCENE_GY + ssec * rsec]);
+    }
+  }
   c.reacteurs = [];
   var fr = DEF.reacteur;
   for(var ir = 0; ir < ideals.length; ir++){
@@ -1894,6 +2184,11 @@ function genereCarte(codeSalon, index, plan, tirage){
          le centre de la scène. Sans cette ligne elle se posait au
          milieu des danseurs. La spirale sait s'écarter : elle sort du
          carré en quelques pas, et l'île garde ses cinq cellules. */
+      /* SEULE LA PISTE DE DANSE LUI EST INTERDITE, et non tout le vide :
+         la cellule d'un quartier est posée au BOUT de sa bissectrice,
+         c'est-à-dire dans le faisceau fin qui la dessert. Une tour
+         plantée dans la lumière, au fond de son allée, c'est
+         exactement le repère qu'on veut lui donner. */
       if(scene && dansLaScene(px2, py2)) continue;
       var libre = 1;
       for(var jb = 0; jb < c.batiments.length; jb++){
@@ -1954,7 +2249,7 @@ function genereCarte(codeSalon, index, plan, tirage){
       var ts = (Qs && Qs.t) ? TYPES_PLAN[Qs.t] : tAutoS;
       if(ts === "vide") continue;                    // la gomme forte
       /* et la piste de danse, comme partout : après les tirages */
-      if(scene && dansLaScene(sx + jxs, sy + jys)) continue;
+      if(scene && videIbiza(sx + jxs, sy + jys)) continue;
       var fs = DEF[ts];
       c.batiments.push({
         t:ts, gx:sx + jxs, gy:sy + jys, pv:fs.pv, pvMax:fs.pv, e:fs.emprise,
@@ -1986,10 +2281,17 @@ function genereCarte(codeSalon, index, plan, tirage){
       var gxm = mx + (al() - 0.5) * 2.2;
       var gym = my + (al() - 0.5) * 2.2;
       var angm = al() * 6.2832;
-      if(rm < 0.18) continue;
+      /* ET PRESQUE PAS DE MIRADORS À IBIZA, pour une raison de place et
+         non de goût. Ils se posent sur leur propre quadrillage à sept
+         cases — donc EN TRAVERS des anneaux de la foule, qui sont posés
+         plus tard — et chaque tour plantée hors réseau condamne deux
+         nœuds d'anneau au lieu d'un. Mesuré : cent seize miradors
+         coûtaient deux cent trente places de foule. On en garde une
+         quarantaine, assez pour la silhouette, trop peu pour gêner. */
+      if(rm < (scene ? 0.72 : 0.18)) continue;
       if(Math.abs(gxm - QG_GX) <= 10 && Math.abs(gym - QG_GY) <= 10) continue;
       /* et pas de tour de guet au milieu de la piste */
-      if(scene && dansLaScene(gxm, gym)) continue;
+      if(scene && videIbiza(gxm, gym)) continue;
       /* la gomme forte vaut aussi pour les miradors — c'est même son
          intérêt principal, ce sont eux qui verrouillent le terrain */
       if(P && planEn(P, gxm, gym).vide) continue;
@@ -2101,6 +2403,42 @@ function genereCarte(codeSalon, index, plan, tirage){
     var geleV074 = c.batiments.length;
     renfortGuinguette(c, alG, Math.round(defAvant * (1 + PAVOIS_RENFORT)));
     ouvreLaFete(c, geleV074, PAVOIS_POCHE_RENFORT, 1, PAVOIS_PASSES_RENFORT);
+  }
+
+  /* --- IBIZA S'ALLUME ---
+     Même place que le pavois de la guinguette, et pour les mêmes
+     raisons : après le dernier bâtiment de toutes les autres passes,
+     sur son PROPRE flux de tirage, donc rien de ce qui précède ne
+     peut la décaler et elle ne décale personne. */
+  if(CARTES[index] && CARTES[index].biome === "ibiza"){
+    var avantIbiza = c.batiments.length;
+    var alI = prng((gr ^ 0x1B12A9E5) >>> 0);
+    /* L'ORDRE EST LA FIGURE, et aucune de ces six lignes n'est
+       interchangeable — chacune a été payée d'une mesure :
+         le LISERÉ borde la piste tant qu'il reste de la place au ras
+           de l'étoile ;
+         les NÉONS prennent le ras des faisceaux, avant que la foule ne
+           vienne l'occuper — posés après elle, ils ne trouvaient plus
+           qu'un bord sur deux : cent trente-quatre au lieu de deux cent
+           quatre-vingt-trois, et les vingt-quatre lignes en lambeaux ;
+         les ANNEAUX puis la PRESSE remplissent de Frelons, et de rien
+           d'autre : le gros d'abord, sans quoi il ne passe plus (voir
+           `fouleIbiza`) ;
+         on ROUVRE ce que la foule a enfermé ;
+         le SEL ajoute les petites pièces dans les creux, jusqu'à la
+           part demandée exactement — et c'est LUI qui fait la densité,
+           puisque chaque Frelon gagné plus haut lui ouvre une place et
+           demie ;
+         on rouvre encore, et le DÉGRAISSAGE finit le compte à l'unité
+           sur la carte livrée. */
+    liserIbiza(c, alI);
+    neonsIbiza(c, alI);
+    fouleIbiza(c, alI);
+    presseIbiza(c, alI);
+    ouvreLaFete(c, avantIbiza, PAVOIS_POCHE, 1, PAVOIS_PASSES_RENFORT);
+    saleIbiza(c, alI);
+    ouvreLaFete(c, avantIbiza, PAVOIS_POCHE, 1, PAVOIS_PASSES_RENFORT);
+    degraisseIbiza(c, avantIbiza);
   }
 
   /* --- LES CHATS DE MILY SORTENT DES MURS ---
@@ -2704,7 +3042,21 @@ function figureGuinguette(){
    d'occupation qui garde des places libérées referait poser dans le
    vide qu'on vient d'ouvrir, et l'on rouvrirait indéfiniment.
    ================================================================ */
-function atelierPavois(c, al, ecart){
+/* ================================================================
+   L'ATELIER, ET SA ZONE INTERDITE
+
+   `interdit(x, y)` est le terrain où l'atelier ne posera jamais rien,
+   drapage compris. C'était autrefois `dansAlleeGuinguette`, écrit en
+   dur dans `libre()` — et c'était un bug silencieux : cette fonction
+   ne teste aucun biome, elle taille quatre allées à quarante-cinq
+   degrés autour de (72, 67), et le centre d'Ibiza est à (76, 68).
+   Toute figure posée à Ibiza se voyait donc barrer quatre diagonales
+   par les allées d'une AUTRE île. Le paramètre rend à chaque île sa
+   propre géométrie : la guinguette passe ses allées, Ibiza passe son
+   vide, et rien ne bouge pour la guinguette — elle reçoit exactement
+   le test qu'elle avait.
+   ================================================================ */
+function atelierPavois(c, al, ecart, interdit){
   /* La table des cases prises, dressée une fois : mille bâtiments
      contre mille candidats feraient un million de comparaisons par
      carte, et genereCarte tourne aussi pour les vignettes de
@@ -2821,10 +3173,10 @@ function atelierPavois(c, al, ecart){
   function libre(t, x, y){
     if(x < 6 || x > PLAGE_X0 - 3 || y < 3 || y > GH - 4) return 0;
     if(Math.abs(x - QG_GX) <= 10 && Math.abs(y - QG_GY) <= 10) return 0;
-    /* LES ALLÉES RESTENT FRANCHES, drapage compris : c'est le premier
+    /* LE VIDE DE L'ÎLE RESTE FRANC, drapage compris : c'est le premier
        des deux garde-fous qui gardent l'île traversable, il ne souffre
        aucune exception. */
-    if(dansAlleeGuinguette(x, y)) return 0;
+    if(interdit && interdit(x, y)) return 0;
     var e = DEF[t].emprise, sx = Math.floor(x / SEAU), sy = Math.floor(y / SEAU);
     for(var dx = -1; dx <= 1; dx++)
       for(var dy = -1; dy <= 1; dy++){
@@ -2871,7 +3223,7 @@ function atelierPavois(c, al, ecart){
 
 function pavoiseLaGuinguette(c, al){
   var F = figureGuinguette(), CX = F.cx, CY = F.cy, i;
-  var pose = atelierPavois(c, al).pose;
+  var pose = atelierPavois(c, al, undefined, dansAlleeGuinguette).pose;
 
   var perle = 0;
   /* LES PERLES ALTERNENT SUR TROIS TEMPS — bobine, cuve, chalumeau.
@@ -2997,7 +3349,7 @@ function compteDefenses(c){
 }
 
 function lampionsGuinguette(c, al, cible){
-  var pose = atelierPavois(c, al).pose, n = compteDefenses(c), i;
+  var pose = atelierPavois(c, al, undefined, dansAlleeGuinguette).pose, n = compteDefenses(c), i;
   for(i = 0; i < PAVOIS_LAMPIONS && n < cible; i++){
     /* décalée d'un demi-pas par rapport aux guéridons : la suite
        couvre l'île également sans jamais retomber sur leurs places */
@@ -3043,7 +3395,7 @@ function lampionsGuinguette(c, al, cible){
    de Frelons demandée.
    ================================================================ */
 function renfortGuinguette(c, al, cible){
-  var A = atelierPavois(c, al), pose = A.pose, libre = A.libre, bouche = A.bouche;
+  var A = atelierPavois(c, al, undefined, dansAlleeGuinguette), pose = A.pose, libre = A.libre, bouche = A.bouche;
   var n = compteDefenses(c), frelons = 0, petits = 0, ip, x, y;
 
   /* L'ORDRE DES DEUX TESTS EST UN CHOIX DE COÛT, PAS DE GOÛT.
@@ -3084,6 +3436,457 @@ function renfortGuinguette(c, al, cible){
       }
   }
   return { total:n, frelons:frelons, petits:petits };
+}
+
+/* ================================================================
+   IBIZA — LA NUIT, LES NÉONS, ET LA FOULE
+
+   « Dispose toi-même les défenses selon une forme ultra-graphique
+   moderne style Ibiza. Il doit y avoir beaucoup de Frelons — quarante
+   pour cent de toutes les défenses — et une très grosse densité. Il
+   faut garder au centre la scène, une étoile vide où il y a la scène
+   avec des gens qui dansent dedans. La carte doit être magique, grosse
+   fête DJ. »
+
+   ────────────────────────────────────────────────────────────────
+   LA FIGURE TIENT EN TROIS TRAITS
+
+     LE VIDE       l'étoile centrale et les douze faisceaux qui en
+                   partent (voir `videIbiza`). C'est la figure — celle
+                   qu'on lit de l'île entière, parce qu'un vide se voit
+                   sur un fond plein alors qu'un ajout ne se voit pas
+                   sur un fond déjà plein.
+     LES NÉONS     deux files de Bobines qui bordent chaque faisceau,
+                   au ras du vide. La Bobine est le seul bâtiment
+                   lumineux du jeu : de loin, ce sont vingt-quatre
+                   lignes bleues qui rayonnent depuis la piste. C'est
+                   le tube de néon qui dessine le cône du projecteur.
+     LA FOULE      les douze quartiers entre les faisceaux, saturés de
+                   Frelons jusqu'à ce qu'il n'y entre plus rien.
+
+   ET LE LISERÉ de l'étoile, en Chalumeau, qui dit où finit la piste.
+
+   ────────────────────────────────────────────────────────────────
+   POURQUOI SATURER NE COÛTE RIEN ICI
+
+   « L'espace libre qui reste sur une île dense EST l'espace où l'on
+   marche » — c'est la leçon de la guinguette, et elle plafonnait sa
+   densité. Ibiza y échappe, et pas par chance : ses couloirs sont
+   vides PAR CONSTRUCTION, ils vont du centre au rivage sans se
+   refermer, et chaque quartier de foule en touche deux. La traversée
+   ne dépend donc plus de ce qui reste entre les bâtiments. On peut
+   remplir jusqu'au refus.
+
+   C'est aussi pour cela qu'on ne consulte pas `bouche()` sur la
+   foule : le test local voit un Frelon de trois cases couper les
+   interstices d'une fenêtre de neuf et refuse — mesuré, quatre-vingt
+   -douze pour cent de refus — alors que le passage est ailleurs, dans
+   les couloirs, et qu'il est garanti. `ouvreLaFete` reste en dernier
+   ressort, et ne trouve presque plus rien à faire.
+
+   ────────────────────────────────────────────────────────────────
+   QUARANTE POUR CENT, TENUS PAR LE CALCUL ET NON À L'ŒIL
+
+   Le semis tire déjà majoritairement du Frelon (voir la bande
+   `ibiza`), et la foule n'ajoute que des Frelons : après saturation la
+   part dépasse le seuil. On la RAMÈNE alors à quarante pour cent en
+   ajoutant des défenses d'un autre genre — ce qui monte la densité au
+   lieu de la baisser. La correction se fait à l'unité :
+
+     f / (d + P) = 0,40   →   P = f / 0,40 − d
+
+   Poser dans cet ordre — Frelons d'abord, autres ensuite — est ce qui
+   rend le compte atteignable par le haut. L'inverse ne convergeait
+   pas.
+   ================================================================ */
+var IBIZA_PART   = 0.40;              // la part de Frelons demandée
+var IBIZA_NEON   = 3.0;               // l'écart de deux Bobines sur une file
+var IBIZA_NEON_R = 5;                 // et où les files commencent
+var IBIZA_NEON_L = 56;                // et où elles s'éteignent
+
+/* Les deux ateliers d'Ibiza : c'est le vide de l'île qui leur est
+   interdit, et non les allées de la guinguette. La FOULE voit en outre
+   la réserve des néons ; tout le reste voit le couloir vrai. */
+/* ================================================================
+   ET L'ÉCART D'IBIZA EST LE QUART DE CELUI DE LA GUINGUETTE
+
+   « Ces secteurs doivent être surchargés de défenses, remplis à quasi
+   cent pour cent. »
+
+   L'atelier laisse par défaut six dixièmes de case entre deux
+   bâtiments (`PAVOIS_ECART`). Ce n'est pas une marge de sécurité, c'est
+   LE CHEMIN : à la guinguette, ces six dixièmes sont tout ce par quoi
+   les troupes passent entre mille tourelles, et les resserrer y ferait
+   un mur.
+
+   Ibiza n'a pas ce problème, et c'est la seule île du jeu dans ce cas :
+   on n'y marche pas ENTRE les défenses, on y marche dans les
+   vingt-quatre couloirs, qui sont vides par construction et qu'aucune
+   passe ne peut occuper. L'écart n'a donc plus à porter la traversée —
+   il n'a plus qu'à empêcher deux tourelles de se chevaucher.
+
+   On le descend à un quart de case, et l'arithmétique dit ce que cela
+   vaut : la place d'un Frelon passe de 3,6² × 0,866 = 11,2 cases
+   carrées à 3,25² × 0,866 = 9,2, celle d'une petite pièce de 5,9 à
+   4,4. Soit, à composition égale, un tiers de défenses en plus sur le
+   même terrain. C'est cela, « rempli à quasi cent pour cent ».
+   ================================================================ */
+var IBIZA_SERRE = 0.25;
+function atelierIbiza(c, al){
+  return atelierPavois(c, al, IBIZA_SERRE, videIbiza);
+}
+function atelierFoule(c, al){
+  return atelierPavois(c, al, IBIZA_SERRE, videIbizaLarge);
+}
+
+/* --- 1. LE LISERÉ DE L'ÉTOILE ---
+   Il suit les douze arêtes du polygone, un peu en dehors, et il
+   s'INTERROMPT près de chaque creux : ce sont les six entrées de la
+   piste, et chacune débouche sur un faisceau. Une piste dont on ne
+   peut pas approcher n'est pas une piste, c'est un donjon.
+
+   EN CHALUMEAU, et le choix est arithmétique autant que théâtral :
+   chaque défense qui n'est pas un Frelon coûte une place au compte des
+   quarante pour cent, et un liseré à longue portée n'aurait servi à
+   rien — il garde une porte, il ne bombarde pas l'horizon. */
+function liserIbiza(c, al){
+  var A = atelierIbiza(c, al), pose = A.pose, libre = A.libre;
+  var G = ETOILE_G, n = G.length >> 1, mis = 0, i, k;
+  for(i = 0; i < n; i++){
+    var ax = G[i * 2], ay = G[i * 2 + 1];
+    var bx = G[((i + 1) % n) * 2], by = G[((i + 1) % n) * 2 + 1];
+    var L = Math.hypot(bx - ax, by - ay);
+    var pas = Math.max(2, Math.round(L / 2.9));
+    for(k = 0; k <= pas; k++){
+      var u = k / pas;
+      /* LES SIX ENTRÉES. Une arête sur deux touche un creux à l'une de
+         ses extrémités ; on laisse le quart qui y mène libre. */
+      if((i & 1) ? (u > 0.72) : (u < 0.28)) continue;
+      var lx = ax + (bx - ax) * u, ly = ay + (by - ay) * u;
+      /* on pousse vers le DEHORS : le liseré borde la piste, il n'y
+         entre pas */
+      var d = Math.hypot(lx - SCENE_GX, ly - SCENE_GY) || 1;
+      var ex = lx + (lx - SCENE_GX) / d * 1.6, ey = ly + (ly - SCENE_GY) / d * 1.6;
+      if(libre("chalumeau", ex, ey) && pose("chalumeau", ex, ey)) mis++;
+    }
+  }
+  return mis;
+}
+
+/* --- 2. LES NÉONS ---
+   Deux files de Bobines par faisceau, l'une contre chaque bord, du pied
+   de la piste jusqu'au rivage. Elles ne rentrent pas dans le couloir —
+   `videIbiza` est la zone interdite de l'atelier, le drapage compris —
+   et elles ne s'en écartent pas non plus, parce qu'on drape LE LONG DU
+   BORD et non autour : une perle qui cherche sa place la cherche vers
+   l'avant ou vers l'arrière de la file, jamais de côté. C'est ce qui
+   fait une ligne au lieu d'un nuage.
+
+   VINGT-QUATRE FILES, et c'est le seul endroit de l'île où l'on
+   accepte de dépenser des défenses qui ne sont pas des Frelons : c'est
+   le trait qui porte toute la figure. */
+function neonsIbiza(c, al){
+  var A = atelierIbiza(c, al), pose = A.pose, libre = A.libre;
+  var mis = 0, i, s;
+  for(i = 0; i < FAISC_N; i++){
+    var a = i / FAISC_N * 6.2832 - 0.5236;
+    var ca = Math.cos(a), sa = Math.sin(a);
+    for(s = -1; s <= 1; s += 2){
+      for(var r = FAISC_R0 + IBIZA_NEON_R; r < IBIZA_NEON_L; r += IBIZA_NEON){
+        /* juste EN DEHORS du bord : la demi-largeur, plus le rayon de
+           la Bobine, plus un cheveu */
+        var d = largeurFaisceau(r) + 1.4;
+        var x = SCENE_GX + ca * r - sa * d * s;
+        var y = SCENE_GY + sa * r + ca * d * s;
+        if(!libre("bobine", x, y)) continue;
+        if(pose("bobine", x, y, ca, sa)) mis++;   // on drape LE LONG du bord
+      }
+    }
+  }
+  return mis;
+}
+
+/* ================================================================
+   3. LA FOULE — DES ANNEAUX AUTOUR DE LA SCÈNE
+
+   « Une très grosse densité de défenses. »
+
+   POURQUOI DES ANNEAUX ET PAS UN QUADRILLAGE. Deux raisons, et la
+   seconde n'est pas décorative.
+
+   D'ABORD parce qu'une foule se range en anneaux autour d'une scène,
+   pas en damier. C'est ce qu'on voit d'en haut sur n'importe quelle
+   fête : des cercles concentriques, serrés près du DJ et lâches au
+   fond.
+
+   ENSUITE — et c'est la vraie raison — parce que les faisceaux sont
+   RADIAUX. Un anneau les croise perpendiculairement : il s'interrompt
+   à chaque couloir et reprend de l'autre côté. La foule se découpe
+   donc d'elle-même en arcs, douze par anneau, et le dessin des
+   couloirs se lit dans la matière même de la foule au lieu de lui être
+   superposé. Un damier, lui, aurait coupé les couloirs en biais et
+   brouillé leurs bords.
+
+   ────────────────────────────────────────────────────────────────
+   ET L'ORDRE DES GENRES EST LA CLÉ DE TOUTE LA DENSITÉ
+
+   Voici le point qui a demandé quatre mesures avant d'être compris. Il
+   ne se devine pas, et il commande tout.
+
+   Un Frelon tient TROIS cases, une Bobine ou un Crible n'en tiennent
+   que DEUX, et l'atelier impose six dixièmes d'écart. Il faut donc 3,6
+   case entre deux Frelons, 2,6 entre deux petites pièces — et 3,1
+   entre un Frelon et une petite. Cette valeur du milieu est le piège.
+
+   ELLE VEUT DIRE QU'UNE PETITE PIÈCE POSÉE TÔT EMPOISONNE UN DISQUE DE
+   TRENTE CASES pour tout Frelon à venir, alors qu'elle n'en occupe
+   elle-même que six. Poser d'abord les néons, le liseré et des anneaux
+   serrés — quatre cent quatre-vingts petites pièces — revenait à
+   interdire au Frelon les deux tiers de l'île avant même d'avoir
+   commencé. Mesuré : cent quatre-vingt-un Frelons, là où le calcul
+   d'encombrement en autorise cinq cents.
+
+   Et comme la part demandée s'écrit o = 1,5 × f, ces quatre cent
+   quatre-vingts petites pièces réclamaient trois cent vingt Frelons
+   pour rester dans le compte. Faute de les avoir, `degraisseIbiza`
+   retirait TROIS CENT SOIXANTE petites pièces — on avait bâti pour
+   démolir, et l'île finissait à quatre cent cinquante défenses.
+
+   D'où la règle, et elle vaut pour toute île qui mêle deux tailles :
+
+     LE GROS D'ABORD, LE PETIT ENSUITE.
+
+   Les anneaux sont donc TOUS des anneaux de Frelons, le balayage qui
+   les suit ne pose que du Frelon, et les petites pièces ne viennent
+   qu'après, dans les creux — là où, justement, un Frelon n'entrait
+   plus. Chacune se glisse alors dans un trou qui ne coûtait rien à
+   personne, au lieu d'en creuser un de trente cases.
+
+   LE PAS DES ANNEAUX, dès lors, est celui du Frelon et de lui seul :
+   3,7 d'un anneau au suivant, 3,8 le long de l'arc, un anneau sur deux
+   décalé d'un demi-pas. C'est l'empilement le plus serré que la
+   distance minimale autorise.
+   ================================================================ */
+var IBIZA_R_MAX = 104;   // au-delà, l'île n'est plus là
+/* ────────────────────────────────────────────────────────────────
+   LE PAS DES ANNEAUX, ET LES SIX DISPOSITIONS QU'IL A FALLU MESURER
+
+   Ce point-là ne se devine pas. Il tient à un seul fait : UN FRELON ET
+   UNE PETITE PIÈCE N'OCCUPENT PAS LA MÊME PLACE. Avec l'écart d'Ibiza
+   il faut 3,25 case entre deux Frelons, 2,25 entre deux petites
+   pièces, et 2,75 entre l'un et l'autre — et cette valeur du milieu
+   est le piège, parce qu'elle interdit de glisser une Bobine dans un
+   champ de Frelons serré (le creux d'un triangle y est à 1,88 case de
+   chacun).
+
+   Six dispositions ont été construites et mesurées, sur la même île,
+   au même écart, avec le même compte final à quarante pour cent :
+
+     anneaux tout Frelon au pas 3,35, puis balayage        803 défenses
+     anneaux tout Frelon au pas 3,90, puis balayage        793
+     anneaux tout Frelon au pas 3,35, sans balayage        692
+     anneaux alternés Frelon/petite pièce, avec balayage   619
+     anneaux tout Frelon au pas 4,40, sans balayage        497
+     anneaux alternés, sans balayage                       407
+
+   ET LE VAINQUEUR N'EST PAS CELUI QU'ON CROYAIT. L'alternance — un
+   anneau de Frelons, un anneau de petites pièces — est le plus élégant
+   sur le papier : sa maille rend 41 % de Frelons toute seule, très
+   exactement la composition demandée. Elle finit avant-dernière. La
+   raison est mesurable : ses anneaux serrés posent les petites pièces
+   TÔT, aux places du réseau, alors que le sel saurait les poser TARD,
+   là où il reste vraiment de la place. Six cent quatre-vingt-treize
+   petites pièces placées d'avance, dont deux cent soixante-six à
+   retirer au dégraissage : on avait bâti pour démolir.
+
+   Ce qui gagne est plus bête et plus efficace : on pose TOUT ce qu'on
+   peut de Frelons — anneaux au pas minimal, puis balayage libre pour
+   les places que le réseau a manquées — et l'on ne pose les petites
+   pièces qu'ENSUITE, au peigne fin, jusqu'au compte exact. Chaque
+   Frelon gagné ouvre une place et demie au sel : c'est le seul geste
+   qui fasse monter la densité au lieu de la déplacer.
+   ──────────────────────────────────────────────────────────────── */
+var IBIZA_R_MAX = 104;   // au-delà, l'île n'est plus là
+var IBIZA_ANNEAU = 3.35; // d'un anneau au suivant — le minimum de deux Frelons
+var IBIZA_ARC    = 3.45; // et le long de l'arc
+
+function fouleIbiza(c, al){
+  var A = atelierFoule(c, al), pose = A.pose, libre = A.libre;
+  var mis = 0, anneau = 0;
+  for(var r = FAISC_R0 + 2; r < IBIZA_R_MAX; r += IBIZA_ANNEAU){
+    var n = Math.max(6, Math.round(6.2832 * r / IBIZA_ARC));
+    /* un anneau sur deux décalé d'un demi-pas : les nœuds ne
+       s'alignent pas en rayons, et l'empilement gagne un cran */
+    var dec = (anneau++ & 1) ? 0.5 : 0;
+    for(var k = 0; k < n; k++){
+      var a = (k + dec) / n * 6.2832;
+      var x = SCENE_GX + Math.cos(a) * r, y = SCENE_GY + Math.sin(a) * r;
+      if(videIbizaLarge(x, y)) continue;     // le rejet le moins cher d'abord
+      if(!libre("frelon", x, y)) continue;
+      if(pose("frelon", x, y)) mis++;
+    }
+  }
+  return mis;
+}
+
+/* ================================================================
+   LA PRESSE — CE QUE LE RÉSEAU N'A PAS PU PRENDRE
+
+   Un réseau rigide perd la moitié de ses places autour du moindre
+   obstacle : mesuré, les trois cent soixante bâtiments déjà posés
+   quand la foule arrive (néons, liseré, miradors, cellules) coûtent
+   neuf cents nœuds d'anneau. Le trou qu'un bâtiment laisse autour de
+   lui est bien plus grand que lui.
+
+   On repasse donc derrière les anneaux avec un BALAYAGE, qui ne
+   connaît pas de réseau et se glisse partout où il reste la place d'un
+   Frelon. Et des Frelons seulement : la part de quarante pour cent
+   s'écrit o = 1,5 × f, donc chaque Frelon gagné ici OUVRE une place et
+   demie au sel qui suit. C'est le seul geste qui fasse monter la
+   densité au lieu de la déplacer.
+   ================================================================ */
+var IBIZA_TAMIS = [3, 1.5, 0.8, 0.45];
+function presseIbiza(c, al){
+  var A = atelierFoule(c, al), pose = A.pose, libre = A.libre;
+  var mis = 0;
+  for(var ip = 0; ip < IBIZA_TAMIS.length; ip++){
+    var pas = IBIZA_TAMIS[ip];
+    for(var x = 7; x < PLAGE_X0 - 3; x += pas)
+      for(var y = 4; y < GH - 4; y += pas){
+        if(videIbizaLarge(x, y)) continue;     // le rejet le moins cher d'abord
+        if(!libre("frelon", x, y)) continue;
+        if(pose("frelon", x, y)) mis++;
+      }
+  }
+  return mis;
+}
+
+/* ================================================================
+   ET LE SEL — LES PETITES PIÈCES DANS LES CREUX DES MAILLES
+
+   Les anneaux ont posé les Frelons en mailles desserrées ; le sel
+   vient loger dans chaque creux les deux petites pièces qu'il peut
+   porter, jusqu'à la part demandée exactement — ni une de plus.
+
+   C'EST LUI QUI FAIT LA DENSITÉ, et ce n'est pas une figure de style :
+   il pose plus de la moitié des défenses de l'île. Chaque Frelon des
+   anneaux lui ouvre une place et demie ; s'il ne les trouve pas, c'est
+   le Frelon qui repart au dégraissage. Les deux passes se tiennent.
+
+   TROIS GENRES QUI TOURNENT — Bobine, Crible, Chalumeau — parce qu'une
+   île d'une seule arme se résout une fois pour toutes : la Bobine
+   ralentit, le Crible arrose, le Chalumeau brûle au contact.
+   ================================================================ */
+var IBIZA_SEL   = [2.4, 1.2, 0.6];               // le peigne du sel, du gros au fin
+var IBIZA_PETIT = ["bobine", "crible", "chalumeau"];
+
+
+/* ================================================================
+   4. ET LE COMPTE, FINI À L'UNITÉ — DANS LES DEUX SENS
+
+   La foule a saturé l'île de Frelons : la part dépasse le seuil, et
+   c'est voulu, parce qu'on ne sait la ramener que vers le bas. Deux
+   gestes, dans cet ordre, et le second n'est pas un aveu d'échec du
+   premier : c'est ce qui rend le compte EXACT au lieu d'approché.
+
+     ON COMPLÈTE. Chaque défense d'un autre genre ajoutée fait
+     descendre la part sans rien retirer à l'île — c'est le geste qui
+     monte la densité, donc celui qu'on épuise d'abord. Combien ?
+     f / (d + P) = 0,40, donc P = f / 0,40 − d.
+
+     PUIS ON RETIRE LE TROP-PLEIN. Il arrive que la place manque : une
+     île saturée n'accepte plus tout ce que le calcul réclame. Mesuré
+     sur la première version : cent soixante-six pièces demandées, une
+     centaine posées, et la part restée à quarante-neuf pour cent.
+     Alors on enlève des Frelons de la foule — les DERNIERS posés, donc
+     les plus serrés, ceux dont l'île se passe le mieux — jusqu'à ce
+     que o = 1,5 × f, c'est-à-dire exactement quarante pour cent.
+
+   ON NE RETIRE QUE DE LA FOULE, et c'est une règle de sûreté : le
+   rang porte l'index des destructions, et `depart` marque le premier
+   bâtiment posé par la refonte. Rien de ce qui précède n'est touché.
+   ================================================================ */
+function compteFrelons(c){
+  var n = 0;
+  for(var i = 0; i < c.batiments.length; i++) if(c.batiments[i].t === "frelon") n++;
+  return n;
+}
+function saleIbiza(c, al){
+  /* PAS DE TEST ANTI-BOUCHON ICI, contrairement à la guinguette : le
+     passage d'Ibiza ne tient pas aux interstices entre les bâtiments,
+     il tient aux douze couloirs, qui sont vides par construction et
+     que l'atelier s'interdit. Le test local, lui, ne voit pas les
+     couloirs — il regarde neuf cases et refuse presque tout sur une
+     île saturée. Mesuré : c'est lui qui empêchait le compte
+     d'aboutir. `ouvreLaFete` reste le juge, et la mesure dit 99 % de
+     cases atteignables. */
+  var A = atelierIbiza(c, al), pose = A.pose, libre = A.libre;
+  var f = compteFrelons(c), d = compteDefenses(c);
+  var place = Math.floor(f / IBIZA_PART) - d;
+  if(place <= 0) return 0;
+  /* ON BALAIE, ON N'ÉCHANTILLONNE PAS — la leçon de la guinguette, et
+     elle a resservi une fois de plus. Une suite de Roberts DISTRIBUE
+     bien, mais elle ne CHERCHE pas : les places qui restent ici sont
+     les creux des mailles de Frelons, larges d'une case, et une suite
+     qui sème seize mille points sur seize mille cases en manque la
+     moitié. On passe donc le peigne, du gros au fin, et l'encombrement
+     décide seul de l'écart. */
+  var mis = 0, pair = 0, ip;
+  for(ip = 0; ip < IBIZA_SEL.length && mis < place; ip++){
+    var pas = IBIZA_SEL[ip];
+    for(var x = 7; x < PLAGE_X0 - 3 && mis < place; x += pas)
+      for(var y = 4; y < GH - 4 && mis < place; y += pas){
+        if(videIbiza(x, y)) continue;
+        var t = IBIZA_PETIT[pair % 3];
+        if(libre(t, x, y) && pose(t, x, y)){ mis++; pair++; }
+      }
+  }
+  return mis;
+}
+
+/* Le trop-plein de Frelons, retiré par la queue. EN TOUT DERNIER,
+   après la passe d'ouverture : c'est elle qui décide du dernier
+   bâtiment de l'île, et le compte doit être juste sur la carte
+   LIVRÉE, pas sur un état intermédiaire. */
+function degraisseIbiza(c, depart){
+  var f = compteFrelons(c), d = compteDefenses(c), o = d - f, i;
+  /* La part s'écrit f = part × (f + o). On en tire les deux cibles, et
+     l'on retire du côté qui déborde — on ne sait pas AJOUTER ici, la
+     place n'existe plus, mais retirer une poignée de pièces sur mille
+     ne coûte rien à la densité et rend le compte EXACT. */
+  var cibleF = Math.floor(o * IBIZA_PART / (1 - IBIZA_PART));
+  var cibleO = Math.floor(f * (1 - IBIZA_PART) / IBIZA_PART);
+  var genre = (f > cibleF) ? "frelon" : null;
+  var trop  = (f > cibleF) ? f - cibleF : (o > cibleO) ? o - cibleO : 0;
+  if(trop <= 0) return 0;
+  /* ON ÉCRÉME AU PEIGNE, ET NON PAR LA QUEUE. La première version
+     retirait les derniers posés, ce qui paraissait raisonnable — ils
+     sont les plus serrés. Mais les derniers posés d'une figure en
+     anneaux sont les anneaux DU BORD : cent quatre-vingt-treize pièces
+     retirées d'affilée y faisaient une couronne chauve, parfaitement
+     visible de l'île entière. On prend donc une pièce sur k, répartie
+     sur toute la refonte : la foule s'éclaircit partout d'un cheveu au
+     lieu de se raser à un endroit.
+
+     JAMAIS EN DEÇÀ DE `depart` : le rang porte l'index des
+     destructions, et `depart` marque le premier bâtiment posé par la
+     refonte. Cellules et réacteurs ne sont pas des défenses : ils ne
+     comptent pas dans la part, ils ne partent pas. */
+  var cand = [];
+  for(i = depart; i < c.batiments.length; i++){
+    var t = c.batiments[i].t;
+    if(t === "cellule" || t === "reacteur") continue;
+    if(genre ? (t !== "frelon") : (t === "frelon")) continue;
+    cand.push(i);
+  }
+  if(!cand.length) return 0;
+  if(trop > cand.length) trop = cand.length;
+  var ote = 0, pris = {};
+  for(i = 0; i < trop; i++) pris[cand[Math.floor(i * cand.length / trop)]] = 1;
+  for(i = c.batiments.length - 1; i >= depart; i--)
+    if(pris[i]){ c.batiments.splice(i, 1); ote++; }
+  for(i = 0; i < c.batiments.length; i++) c.batiments[i].n = i;
+  return ote;
 }
 
 /* ================================================================

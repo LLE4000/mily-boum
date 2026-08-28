@@ -77,9 +77,91 @@ var IBI_COIN = IBI_DEMI * Math.SQRT1_2;   // 2,47 cases : le coin du plancher
    Le tirage est DÉTERMINISTE : la même île rend toujours la même
    foule, sinon la piste se réorganiserait à chaque retour au
    briefing. */
-var IBI_NB_DANSEURS = 20;
+/* ================================================================
+   DEUX FOULES, ET C'EST LA PISTE QUI L'A EXIGÉ
+
+   « Une étoile vide où il y a la scène avec des gens qui dansent dans
+   l'étoile. »
+
+   Tant que la piste était un carré de vingt-trois cases, vingt
+   personnes serrées devant le podium la remplissaient. Devenue une
+   étoile de soixante cases de large, elle avalait le même groupe sans
+   qu'il paraisse : une scène, vingt danseurs collés dessous, et
+   quarante cases de plancher noir tout autour. On avait donné à la
+   fête une salle trop grande pour elle.
+
+   La foule se fait donc en DEUX temps, et les deux sont nécessaires :
+
+     LE PREMIER RANG    ceux qui sont venus pour le DJ. En arc serré
+                        devant le podium, comme avant, et pour la même
+                        raison : c'est là que l'œil va.
+     LA PISTE           tous les autres, semés sur TOUTE l'étoile en
+                        spirale d'or — l'angle d'or ne fait jamais deux
+                        fois le même rayon, donc jamais de rangée, et
+                        la densité décroît naturellement du centre vers
+                        les pointes, ce qui est exactement la forme
+                        d'une piste de danse.
+
+   Et chacun est éprouvé par `dansLaScene` : une pointe d'étoile est
+   pointue, un semis circulaire en déborde, et un danseur planté dehors
+   se retrouverait dans les Frelons.
+   ================================================================ */
+/* ────────────────────────────────────────────────────────────────
+   COMBIEN, ET DE QUELLE TAILLE
+
+   « Les personnes 50 % plus grandes, et elles doivent presque saturer
+   entre la scène et la délimitation. »
+
+   LA TAILLE d'abord : une personne mesurait 1,5 à 2,1 ; elle en mesure
+   maintenant la moitié en plus. C'est le seul réglage, et il porte les
+   deux foules à la fois.
+
+   LE NOMBRE ensuite, et il se calcule. L'étoile fait environ mille cinq
+   cents cases carrées, moins le disque du podium. « Presque saturé »,
+   pour des gens qui font six dixièmes de case de large, c'est un
+   voisin toutes les deux cases environ — soit trois cases et demie par
+   personne, soit un peu plus de quatre cents danseurs.
+
+   On en TIRE huit cent vingt sur le disque qui contient l'étoile, et
+   l'on garde ceux qui tombent dedans : une étoile occupe un peu plus
+   de la moitié de son disque, et il en reste le compte voulu. Le tirage
+   d'abord, le test ensuite — règle de la maison, et ici elle a une
+   raison de plus : changer la forme de l'étoile ne rebat alors pas la
+   foule entière, elle se recoupe simplement autrement.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_TAILLE      = 2.25;  // une personne et demie : ce qui a été demandé
+var IBI_NB_DANSEURS = 26;    // le premier rang, devant le podium
+var IBI_NB_PISTE    = 820;   // et les candidats semés sur toute l'étoile
 function fabriqueDanseurs(){
   var out = [], al = prng(0x1B12A), i;
+  function habille(o){
+    o.dec = al() * 0.34;
+    o.style = (al() * 3) | 0;
+    o.demi = al() < 0.5 ? 1 : 0;
+    o.teinte = (al() * 6) | 0;
+    o.taille = IBI_TAILLE * (1 + al() * 0.4);
+    o.droite = al() < 0.5 ? 1 : -1;
+    return o;
+  }
+  /* --- LA PISTE : la spirale d'or sur toute l'étoile ---
+     Semée AVANT le premier rang pour que celui-ci garde sa place
+     exacte : les tirages du premier rang viennent après, sur un flux
+     qui ne dépend que de lui. */
+  for(i = 0; i < IBI_NB_PISTE; i++){
+    /* rayon en √ : la spirale d'or couvre alors un disque à densité
+       constante, et non un anneau */
+    var ang = i * 2.399963 + al() * 0.30;
+    var ray = ETOILE_R * 0.97 * Math.sqrt((i + 0.6) / IBI_NB_PISTE);
+    var px = SCENE_GX + Math.cos(ang) * ray;
+    var py = SCENE_GY + Math.sin(ang) * ray;
+    var o = habille({ gx:px, gy:py });
+    /* le test APRÈS les tirages, comme partout : on consomme puis on
+       jette, sinon une pointe d'étoile rebattrait toute la foule. Et
+       l'on s'écarte du podium, qui est rond et qu'on ne piétine pas. */
+    if(!dansLaScene(px, py)) continue;
+    if(ray < IBI_DEMI + 1.1) continue;
+    out.push(o);
+  }
   for(i = 0; i < IBI_NB_DANSEURS; i++){
     /* La largeur, TIRÉE PAR TRANCHES : chaque danseur a sa bande, et
        tire sa place DEDANS. Un tirage libre sur vingt laisse toujours
@@ -105,7 +187,7 @@ function fabriqueDanseurs(){
          ensemble, la piste ressemble à un ressort */
       demi:al() < 0.5 ? 1 : 0,
       teinte:(al() * 6) | 0,
-      taille:1.5 + al() * 0.6,
+      taille:IBI_TAILLE * (1 + al() * 0.4),
       droite:al() < 0.5 ? 1 : -1
     });
   }
@@ -144,6 +226,41 @@ function dessineDanseur(c, d, tps){
   c.save();
   c.translate(p.x + pencheX * z, p.y - saut * z);
   c.scale(z, z);
+
+  /* ================================================================
+     DE LOIN, UNE SILHOUETTE — ET C'EST UNE QUESTION D'IMAGES PAR
+     SECONDE, PAS DE GOÛT.
+
+     La piste porte près de cinq cents personnes, chacune faite d'une
+     douzaine de tracés : bras en courbe de Bézier, jambes, ombre,
+     cheveux. Vu de l'île entière, tout cela tient dans HUIT PIXELS de
+     haut — on ne distingue même pas les bras.
+
+     ET LA MESURE DIT LA VÉRITÉ, qui n'est pas celle qu'on attendait :
+     à l'échelle de l'île, l'image coûte soixante-dix millisecondes
+     contre cinquante-deux à la guinguette, et la simplification n'en
+     rend qu'une ou deux. Le prix est ailleurs — dans les huit cents
+     défenses, qui sont l'objet même de cette carte. On garde tout de
+     même la silhouette : elle retire quatre mille cinq cents tracés
+     par image pour rien de visible, et ce qui ne coûte rien sur une
+     machine de bureau se paie sur un téléphone.
+
+     Le seuil porte sur le zoom EFFECTIF du danseur — `cam.z` multiplié
+     par sa taille — et non sur celui de la caméra : depuis qu'ils sont
+     une fois et demie plus grands, un seuil réglé sur la caméra ne se
+     déclenchait plus jamais. Zéro quatre-vingt-cinq, c'est onze pixels
+     de haut : en dessous, un bras ne fait plus un pixel. */
+  if(z < 0.85){
+    c.fillStyle = "rgba(30,40,70,.26)";
+    c.beginPath();
+    c.ellipse(-pencheX, saut, 3.4, 1.5, 0, 0, 6.2832); c.fill();
+    c.fillStyle = T.haut;
+    c.fillRect(-2.1, -10.4, 4.2, 7.0);
+    c.fillStyle = IBI_PEAUX[d.teinte % 4];
+    c.beginPath(); c.arc(0, -12.4, 2.0, 0, 6.2832); c.fill();
+    c.restore();
+    return;
+  }
 
   /* l'ombre reste au sol : elle ne saute pas avec lui */
   c.fillStyle = "rgba(30,40,70,.26)";
@@ -212,24 +329,49 @@ function dessineSceneIbiza(c, tps){
      le podium fait trois cases et demie de demi-diagonale, et le
      mobilier est à sa taille. Le carré réservé, lui, reste large —
      c'est la PISTE, et elle doit tenir la foule. */
+  /* ================================================================
+     ET LE PODIUM EST ROND.
+
+     « La scène doit être ronde. »
+
+     Il était un losange — c'est-à-dire un CARRÉ du monde vu en
+     isométrie. Un cercle du monde, lui, se projette en ellipse DROITE
+     de demi-axes 26 R √2 et 13 R √2 : et comme RX vaut très exactement
+     26 √2 et RY 13 √2, l'ellipse de demi-axes IBI_DEMI × RX et
+     IBI_DEMI × RY est le cercle de rayon IBI_DEMI CASES. Le podium
+     rond a donc trois cases et demie de RAYON là où le losange n'avait
+     que deux cases et demie de demi-côté : il grandit un peu, et c'est
+     très bien — c'est ce que le croquis demandait.
+
+     Les trois pieds du portique, eux, ne bougent pas d'un pixel : ils
+     étaient aux coins ouest, nord et est du losange, rentrés de 10 %,
+     et ces trois points-là sont sur l'ellipse. Un dessin juste se
+     transpose sans se refaire. */
   var LX = IBI_DEMI * RX, LY = IBI_DEMI * RY, H = IBI_H;
   function dessus(dy){
     c.beginPath();
-    c.moveTo(0, -LY + dy); c.lineTo(LX, dy); c.lineTo(0, LY + dy); c.lineTo(-LX, dy);
+    c.ellipse(0, dy, LX, LY, 0, 0, 6.2832);
     c.closePath();
   }
   /* l'ombre portée */
   c.fillStyle = "rgba(30,45,80,.22)";
   dessus(2); c.fill();
-  /* les deux faces visibles */
-  c.fillStyle = IBI_SC.jupe;
+  /* LA JUPE DU CYLINDRE : l'arc SUD du dessus, deux verticales, et
+     l'arc sud du pied. C'est la seule partie du volume qu'on voit —
+     le nord du cylindre est caché par son propre plateau. Sur le
+     canevas, l'angle zéro est à l'est et l'angle π/2 au SUD (les y
+     descendent) : l'arc de 0 à π est donc bien la moitié qu'on voit. */
   c.beginPath();
-  c.moveTo(-LX, 0); c.lineTo(0, LY); c.lineTo(0, LY - H); c.lineTo(-LX, -H);
-  c.closePath(); c.fill();
-  c.fillStyle = "#161d28";
-  c.beginPath();
-  c.moveTo(LX, 0); c.lineTo(0, LY); c.lineTo(0, LY - H); c.lineTo(LX, -H);
-  c.closePath(); c.fill();
+  c.moveTo(LX, -H);
+  c.ellipse(0, -H, LX, LY, 0, 0, Math.PI, false);
+  c.lineTo(-LX, 0);
+  c.ellipse(0, 0, LX, LY, 0, Math.PI, 0, true);
+  c.closePath();
+  var gj = c.createLinearGradient(-LX, 0, LX, 0);
+  gj.addColorStop(0, IBI_SC.jupe);
+  gj.addColorStop(0.45, "#161d28");
+  gj.addColorStop(1, "#0f151e");
+  c.fillStyle = gj; c.fill();
   /* LE PLANCHER, SOMBRE. Il était couleur bois clair — c'est-à-dire
      très exactement la couleur du sable d'Ibiste autour : de loin le
      podium ne se lisait pas comme une scène mais comme un plateau de
@@ -240,15 +382,17 @@ function dessineSceneIbiza(c, tps){
   gp.addColorStop(1, IBI_SC.pontO);
   c.fillStyle = gp;
   dessus(-H); c.fill();
-  /* les lames du plancher */
+  /* les lames du plancher, coupées au disque */
+  c.save();
+  dessus(-H); c.clip();
   c.strokeStyle = "rgba(255,255,255,.07)";
   c.lineWidth = 0.9;
   for(i = -4; i <= 4; i++){
     c.beginPath();
-    c.moveTo(i * LX / 5, -LY * (1 - Math.abs(i) / 5) - H);
-    c.lineTo(i * LX / 5,  LY * (1 - Math.abs(i) / 5) - H);
+    c.moveTo(i * LX / 5, -LY - H); c.lineTo(i * LX / 5, LY - H);
     c.stroke();
   }
+  c.restore();
   /* LES FLAQUES DE COULEUR. Elles sont posées AVANT le mobilier, et
      découpées au losange : sans le `clip`, la lumière de la scène
      baverait sur le sable et le podium perdrait son arête. */
@@ -277,7 +421,9 @@ function dessineSceneIbiza(c, tps){
 
   /* --- 2. LES DEUX ENCEINTES, de part et d'autre --- */
   for(i = 0; i < 2; i++){
-    var ex = (i ? 1 : -1) * LX * 0.72, ey = -H - 2;
+    /* sur le disque, et non plus au coin d'un losange : à 0,66 du
+       rayon vers l'est et l'ouest, le plateau est encore sous elles. */
+    var ex = (i ? 1 : -1) * LX * 0.66, ey = -H + LY * 0.14;
     c.save();
     c.translate(ex, ey);
     var eh = 46 + f * 1.8;              // elle tressaute sur la frappe

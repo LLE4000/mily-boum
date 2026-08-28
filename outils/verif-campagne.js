@@ -116,6 +116,42 @@ catch(e){
    disparaît d'elle-même et l'index redevient intouchable, sans que
    personne ait à s'en souvenir.
    ================================================================ */
+/* ================================================================
+   ET LA REFONTE DÉCLARÉE
+
+   Il arrive qu'on demande de REDESSINER une île — pas de retoucher son
+   décor, mais de redisposer ses défenses. C'est ce qui est arrivé à
+   Ibiza en v0.79 : « dispose toi-même les défenses selon une forme
+   ultra-graphique ». Un tel travail DÉPLACE forcément des rangs, et cet
+   outil a raison de le crier : c'est exactement le genre de changement
+   qui casse une campagne en cours.
+
+   On ne le fait donc passer qu'à trois conditions, et elles sont
+   écrites ici pour qu'on ait à les relire avant d'en ajouter une
+   quatrième :
+
+     1. L'ÎLE N'A JAMAIS ÉTÉ JOUÉE. Ibiza est le septième rang sur huit
+        de la campagne : elle est verrouillée tant que les six
+        précédentes ne sont pas tombées. L'instantané `mondeVide` porte
+        le numéro de SA carte (`c:index`) — le tableau des destructions
+        d'une île qu'on n'a pas atteinte n'existe nulle part.
+     2. LES SCORES NE BOUGENT PAS. Ils sont rangés par joueur et par
+        carte, en points, et ne connaissent aucun index de bâtiment.
+     3. LA DÉCLARATION EST NOMINATIVE ET DATÉE. Elle nomme la carte et
+        la version qui la refond. Elle ne couvre pas « les cartes
+        verrouillées » en général : la version suivante devra la
+        retirer, et l'index d'Ibiza redeviendra intouchable comme celui
+        des autres.
+   ================================================================ */
+var REFONTES = [
+  { i:8, version:"v0.79", pourquoi:"la figure ultra-graphique demandée — étoile vide, douze faisceaux, 40 % de Frelons" }
+];
+function refonteDeclaree(i){
+  for(var r = 0; r < REFONTES.length; r++)
+    if(REFONTES[r].i === i && REFONTES[r].version === B.VERSION) return REFONTES[r];
+  return null;
+}
+
 var cas = [];
 for(var i = 0; i < A.CARTES.length; i++){
   var enChantier = !!(A.CARTES[i].chantier && B.CARTES[i] && B.CARTES[i].chantier);
@@ -149,8 +185,10 @@ cas.forEach(function(k){
   var etat = "ok", detail = "";
   /* Un changement sur une carte en chantier se DIT, mais ne bloque
      pas : il n'y a aucune partie derrière cet index. */
+  var refonte = refonteDeclaree(k.i);
   function ennui(m){
     if(k.chantier){ etat = "chantier"; return; }
+    if(refonte){ etat = "REFONTE"; return; }
     soucis.push(m);
   }
   /* Le rang commun est-il intact ? On le regarde AVANT la longueur :
@@ -213,6 +251,19 @@ lignes.forEach(function(l){
     + "  " + (l.etat === "ok" ? "intact  " : l.etat.padEnd(8))
     + "      " + l.visuel + (l.detail ? "  — " + l.detail : ""));
 });
+if(lignes.some(function(l){ return l.etat === "REFONTE"; })){
+  console.log("\n  « REFONTE » : l'île est REDESSINÉE volontairement, et la");
+  console.log("  déclaration est en tête de ce fichier — carte, version, raison.");
+  REFONTES.forEach(function(r){
+    if(r.version !== B.VERSION) return;
+    console.log("    · " + B.CARTES[r.i].nom + " en " + r.version + " : " + r.pourquoi + ".");
+  });
+  console.log("  Elle ne passe que parce que l'île n'a jamais été jouée : son rang");
+  console.log("  de campagne la verrouille, et aucun instantané ne porte donc ses");
+  console.log("  destructions. Les scores, eux, ignorent les index et ne bougent pas.");
+  console.log("  LA DÉCLARATION EST DATÉE : à la version suivante elle ne s'applique");
+  console.log("  plus, et l'index redevient intouchable.");
+}
 if(lignes.some(function(l){ return l.etat === "chantier"; })){
   console.log("\n  « chantier » : la carte est fermée, personne n'y a jamais joué,");
   console.log("  et son index ne désigne donc aucune destruction enregistrée. Le");

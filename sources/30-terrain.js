@@ -1746,6 +1746,201 @@ function construitSol(carteC){
   }
 
   /* ================================================================
+     LE SOL D'IBIZA — LA LUMIÈRE DES PROJECTEURS
+
+     « La carte doit être magique, grosse fête DJ. »
+
+     Les défenses d'Ibiza dessinent leur figure en CREUX : une étoile
+     vide au milieu, douze couloirs vides qui en partent (voir
+     `videIbiza`). Un creux, ça ne se voit que si ce qu'on y met vaut
+     la peine d'être regardé — sans quoi la carte a simplement des
+     trous.
+
+     On y met donc la lumière. Chaque couloir reçoit le faisceau de son
+     projecteur, peint au sol dans sa couleur, étroit et vif à la scène,
+     large et mourant au rivage ; chaque bord reçoit son trait de néon,
+     exactement là où sont posées les Bobines ; et la piste reçoit son
+     plancher noir laqué avec l'étoile en lumière autour.
+
+     C'EST LA MÊME GÉOMÉTRIE QUE LES DÉFENSES, prise aux mêmes
+     fonctions — `largeurFaisceau`, `ETOILE_G`, `SCENE_GX`. Deux tracés
+     calculés séparément se seraient désalignés à la première retouche
+     d'un rayon, et c'est le genre d'écart qu'on ne voit qu'à l'écran,
+     longtemps après. Ici, élargir un faisceau déplace du même coup les
+     bâtiments, la lumière et le néon.
+
+     ET C'EST DU SOL, donc du décor : aucun index, aucun bit de
+     destruction, rien qui coûte à l'image — le canevas est calculé une
+     fois au débarquement.
+     ================================================================ */
+  if(carteC.biome === "ibiza"){
+    c.save();
+    traceIle(c, 0, 0, 0); c.clip();
+
+    /* LES SIX COULEURS DE LA RAMPE, dans l'ordre où on les rencontre en
+       tournant. Six et non douze : deux faisceaux opposés partagent la
+       même couleur, et l'œil y lit une symétrie au lieu d'un
+       arc-en-ciel. */
+    var CI = [[255, 46, 138], [40, 226, 255], [255, 206, 74],
+              [166, 78, 255], [58, 255, 158], [255, 112, 46]];
+    function tI(k, a){
+      var t = CI[k % CI.length];
+      return "rgba(" + t[0] + "," + t[1] + "," + t[2] + "," + a + ")";
+    }
+    var pS = iso(SCENE_GX, SCENE_GY);
+
+    /* --- 1. LES DOUZE FAISCEAUX ---
+       Un quadrilatère par couloir : deux sommets au pied, deux au
+       rivage, et un dégradé le long du rayon. En « lighter », parce
+       qu'un faisceau de projecteur AJOUTE de la lumière à ce qu'il
+       éclaire — le peindre en opaque aurait donné du ruban adhésif.
+       Un peu plus large que le couloir vrai : la lumière déborde d'une
+       case sur la première rangée de la foule, et c'est ce débordement
+       qui fait qu'on la croit projetée et non dessinée. */
+    /* VINGT-QUATRE RAYONS ET NON DOUZE : les douze grands faisceaux,
+       et les douze fins qui courent sur les bissectrices — ceux-là
+       sont l'allée de service de chaque quartier ET l'accès à sa
+       cellule électrique (voir `dansLeFaisceau`). On les peint donc
+       aussi, deux fois plus discrets : un jeu de projecteurs n'a pas
+       douze lampes de même puissance. */
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < FAISC_N * 2; i++){
+      var finI = (i & 1);                       // un sur deux est un mince
+      var jI = i >> 1;
+      var aI = (jI + (finI ? 0.5 : 0)) / FAISC_N * 6.2832 - 0.5236;
+      var caI = Math.cos(aI), saI = Math.sin(aI);
+      var r0I = (finI ? FAISC2_R0 : FAISC_R0) - 1, r1I = FAISC_R1;
+      var w0I = (finI ? largeurFaisceau2(r0I) : largeurFaisceau(r0I)) + (finI ? 0.7 : 1.1);
+      var w1I = (finI ? largeurFaisceau2(r1I) : largeurFaisceau(r1I)) + (finI ? 0.7 : 1.1);
+      var vifI = finI ? 0.45 : 1;               // les minces éclairent moins
+      var A0 = iso(SCENE_GX + caI * r0I, SCENE_GY + saI * r0I);
+      var A1 = iso(SCENE_GX + caI * r1I, SCENE_GY + saI * r1I);
+      var gI = c.createLinearGradient(A0.x, A0.y, A1.x, A1.y);
+      gI.addColorStop(0, tI(jI, 0.52 * vifI));
+      gI.addColorStop(0.34, tI(jI, 0.31 * vifI));
+      gI.addColorStop(0.68, tI(jI, 0.18 * vifI));
+      gI.addColorStop(0.90, tI(jI, 0.07 * vifI));
+      gI.addColorStop(1, tI(jI, 0));
+      c.fillStyle = gI;
+      c.beginPath();
+      var QI = [[r0I, w0I], [r1I, w1I], [r1I, -w1I], [r0I, -w0I]];
+      for(j = 0; j < 4; j++){
+        var qI = iso(SCENE_GX + caI * QI[j][0] - saI * QI[j][1],
+                     SCENE_GY + saI * QI[j][0] + caI * QI[j][1]);
+        if(j) c.lineTo(qI.x, qI.y); else c.moveTo(qI.x, qI.y);
+      }
+      c.closePath(); c.fill();
+
+      /* --- 2. LES DEUX NÉONS DU BORD ---
+         À la même distance que les Bobines qui les portent : le trait
+         peint passe SOUS la file de pylônes, et chaque Bobine se
+         trouve ainsi posée sur sa propre lumière. */
+      /* et les néons ne bordent QUE les grands : les minces sont des
+         allées de service, pas des vitrines */
+      for(var sI = finI ? 3 : -1; sI <= 1; sI += 2){
+        c.beginPath();
+        for(var rI = r0I; rI <= FAISC_R1; rI += 4){
+          var dI = largeurFaisceau(rI) + 1.4;
+          var nI = iso(SCENE_GX + caI * rI - saI * dI * sI,
+                       SCENE_GY + saI * rI + caI * dI * sI);
+          if(rI > r0I) c.lineTo(nI.x, nI.y); else c.moveTo(nI.x, nI.y);
+        }
+        /* trois passes, du halo au cœur : c'est ce qui fait un tube de
+           néon plutôt qu'un trait de crayon */
+        c.lineCap = "round";
+        c.globalAlpha = 0.30; c.strokeStyle = tI(jI, 1); c.lineWidth = 17; c.stroke();
+        c.globalAlpha = 0.70; c.strokeStyle = tI(jI, 1); c.lineWidth = 5;  c.stroke();
+        c.globalAlpha = 0.85; c.strokeStyle = "#ffffff";  c.lineWidth = 1.5; c.stroke();
+        c.globalAlpha = 1;
+      }
+    }
+
+    /* --- 3. LA NAPPE DE LA SCÈNE ---
+       Le point où tous les faisceaux se rejoignent doit être le plus
+       clair de l'île, sinon les douze rayons ont l'air de partir de
+       nulle part. */
+    var rE = ETOILE_R * TW * 0.5 * 1.41421;
+    var gE = c.createRadialGradient(pS.x, pS.y, rE * 0.05, pS.x, pS.y, rE * 1.5);
+    gE.addColorStop(0, "rgba(190,225,255,.42)");
+    gE.addColorStop(0.42, "rgba(150,110,255,.20)");
+    gE.addColorStop(1, "rgba(90,60,200,0)");
+    c.fillStyle = gE;
+    c.beginPath(); c.ellipse(pS.x, pS.y, rE * 1.5, rE * 0.75, 0, 0, 6.2832); c.fill();
+    c.globalCompositeOperation = "source-over";
+
+    /* --- 4. LA PISTE ---
+       Un plancher NOIR LAQUÉ, et c'est l'inverse de la guinguette, qui
+       a un plancher de bois clair. Une piste de club ne s'éclaire pas :
+       elle REFLÈTE. Le noir est ce qui fait ressortir les couleurs
+       autour, et c'est aussi ce qui détache les danseurs, qui sont
+       clairs. */
+    c.beginPath();
+    for(j = 0; j < ETOILE_G.length; j += 2){
+      var eI = iso(ETOILE_G[j], ETOILE_G[j + 1]);
+      if(j) c.lineTo(eI.x, eI.y); else c.moveTo(eI.x, eI.y);
+    }
+    c.closePath();
+    c.save();
+    c.globalAlpha = 0.72; c.fillStyle = "#0d0a1c"; c.fill();
+    c.clip();
+    /* le damier du carrelage, dans les deux sens de la projection */
+    c.globalAlpha = 0.13; c.strokeStyle = "#8fd8ff"; c.lineWidth = 1.2;
+    for(j = -ETOILE_R; j <= ETOILE_R; j += 2.6){
+      var u1 = iso(SCENE_GX - ETOILE_R, SCENE_GY + j);
+      var u2 = iso(SCENE_GX + ETOILE_R, SCENE_GY + j);
+      c.beginPath(); c.moveTo(u1.x, u1.y); c.lineTo(u2.x, u2.y); c.stroke();
+      var u3 = iso(SCENE_GX + j, SCENE_GY - ETOILE_R);
+      var u4 = iso(SCENE_GX + j, SCENE_GY + ETOILE_R);
+      c.beginPath(); c.moveTo(u3.x, u3.y); c.lineTo(u4.x, u4.y); c.stroke();
+    }
+    /* et les ondes qui partent de la scène : le son, rendu visible */
+    c.globalCompositeOperation = "lighter";
+    for(j = 1; j <= 5; j++){
+      var rO = ETOILE_R * TW * 0.5 * 1.41421 * (j / 5.4);
+      c.globalAlpha = 0.20 - j * 0.028;
+      c.strokeStyle = "#7be6ff"; c.lineWidth = 2.4;
+      c.beginPath(); c.ellipse(pS.x, pS.y, rO, rO * 0.5, 0, 0, 6.2832); c.stroke();
+    }
+    c.restore();
+
+    /* le liseré de l'étoile : c'est lui qui dit où finit la piste, et
+       il doit se lire de l'île entière */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.beginPath();
+    for(j = 0; j < ETOILE_G.length; j += 2){
+      var e2 = iso(ETOILE_G[j], ETOILE_G[j + 1]);
+      if(j) c.lineTo(e2.x, e2.y); else c.moveTo(e2.x, e2.y);
+    }
+    c.closePath();
+    c.lineJoin = "round";
+    c.globalAlpha = 0.36; c.strokeStyle = "#ff2e8a"; c.lineWidth = 15; c.stroke();
+    c.globalAlpha = 0.80; c.strokeStyle = "#8fe8ff"; c.lineWidth = 3.4; c.stroke();
+    c.globalAlpha = 0.95; c.strokeStyle = "#ffffff"; c.lineWidth = 1.2; c.stroke();
+    c.restore();
+
+    /* --- 5. LES CONFETTIS ---
+       Semés partout, mais deux fois plus denses près de la piste : une
+       fête laisse des traces là où l'on danse, pas au fond du parking.
+       Ils sont peints en dernier, par-dessus tout le reste. */
+    c.globalCompositeOperation = "lighter";
+    for(i = 0; i < 1400; i++){
+      var cxI = LARGEUR_ROCHE + al() * (PLAGE_X0 - LARGEUR_ROCHE);
+      var cyI = al() * GH;
+      var dcI = Math.hypot(cxI - SCENE_GX, cyI - SCENE_GY);
+      if(dcI > 34 && al() < 0.55) continue;      // le tirage AVANT le test
+      var pcI = iso(cxI, cyI);
+      c.globalAlpha = 0.30 + al() * 0.45;
+      c.fillStyle = tI((al() * 6) | 0, 1);
+      c.fillRect(pcI.x, pcI.y, 1.6 + al() * 2.2, 1.3);
+    }
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = "source-over";
+    c.lineCap = "butt";
+    c.restore();
+  }
+
+  /* ================================================================
      LE SOL DES MILLE ET UNE NUITS
 
      C'est la passe la plus longue du fichier, et c'est assumé : le

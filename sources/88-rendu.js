@@ -1819,7 +1819,13 @@ function dessineBouclierQG(c, tps){
   var p = versEcran(cam, q.gx, q.gy);
   var z = cam.z;
   if(z < 0.09) return;                          // de très loin, le halo suffit
-  var nb = typeof NB_REACTEURS === "number" ? NB_REACTEURS : 5;
+  /* LE COMPTE VIENT DE LA CARTE, et non plus de la constante : Ibiza
+     en porte douze, une par secteur, et normaliser sur cinq aurait
+     donné un bouclier « à 240 % » qui ne faiblissait qu'aux trois
+     dernières cellules. */
+  var nb = (jeu.reacteurs && jeu.reacteurs.length)
+         ? jeu.reacteurs.length
+         : (typeof NB_REACTEURS === "number" ? NB_REACTEURS : 5);
   var f = jeu.bouclier / nb;                    // 1 = intact, 0.2 = dernière
 
   /* L'INSTABILITÉ. À cinq cellules le courant est parfaitement lisse ;

@@ -27,7 +27,10 @@ try{
     "BLESSURE_CRANS","BLESSURES_MAX",
     "mondeVide","mondeValide","rangMonde","ALPHA_BITS","paquetPublish","litPublish",
     "CARTES","GW","GH","LARGEUR_ROCHE","QG_GX","QG_GY","PLAGE_X0","SOL_ECH","tailleSolPrecalcule",
-    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
+    "NB_CARTES_NORMALES","IDX_JUNGLE","carteSpeciale","carteEnChantier","SCENE_GX","SCENE_GY","SCENE_DEMI","carteScene","dansLaScene",
+    "ETOILE_R","ETOILE_R2","ETOILE_G","ETOILE_POINTES","dansLeFaisceau","videIbiza","videIbizaLarge",
+    "largeurFaisceau","largeurFaisceau2","FAISC_N","FAISC2_R0","ecartAuRayon","NB_REACTEURS","FAISC_R0","FAISC_R1","FAISC_LARG0","FAISC_EVASE","IBIZA_PART",
+    "IBIZA_ANNEAU","IBIZA_ARC","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
     "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
     "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
@@ -2170,7 +2173,12 @@ G("4. Déterminisme de la génération de carte");
     for(var i = 0; i < N.CARTES.length; i++){
       var m = N.genereCarte("MILY", i);
       var lst = m.reacteurs || [];
-      if(lst.length !== N.NB_REACTEURS){ manque += "île" + i + "(" + lst.length + ") "; continue; }
+      /* IBIZA EN PORTE DOUZE, UNE PAR SECTEUR — ce qui a été demandé :
+         « une à la fin de chaque secteur de défenses ». Les douze
+         faisceaux découpent l'île en douze quartiers, et chacun a sa
+         tour au bout de sa bissectrice. Partout ailleurs, cinq. */
+      var attend = N.CARTES[i].biome === "ibiza" ? N.FAISC_N : N.NB_REACTEURS;
+      if(lst.length !== attend){ manque += "île" + i + "(" + lst.length + ") "; continue; }
       /* chacune doit désigner le bon bâtiment dans le tableau : c'est
          cet indice que le réseau diffuse pour dire « celle-là est
          tombée ». Un décalage d'un cran détruirait une autre défense. */
@@ -2187,7 +2195,8 @@ G("4. Déterminisme de la génération de carte");
           malPlace += "île" + i + "#" + k + " ";
       }
     }
-    ok("les cinq îles ont bien leurs cinq cellules", manque === "", manque);
+    ok("chaque île a son compte de cellules — cinq, et douze à Ibiza",
+       manque === "", manque);
     ok("chaque cellule pointe sur son propre bâtiment", pasIndexe === "", pasIndexe);
     ok("aucune cellule hors de la terre praticable", dedans === "", dedans);
     ok("aucune cellule collée au Brasier", malPlace === "", malPlace);
@@ -2398,11 +2407,22 @@ G("4. Déterminisme de la génération de carte");
     for(k = 0; k < N.CARTES.length; k++){
       var M = N.genereCarte("MILY", k, planA(), 0);
       comptes.push(M.decors.length);
-      if(M.decors.length < 400) bouge.push(N.CARTES[k].nom + " n'a que " + M.decors.length + " décors");
+      /* IBIZA EST L'EXCEPTION, ET ELLE EST VOULUE. Son étoile centrale
+         et ses douze faisceaux sont des VIDES : rien n'y pousse, pas
+         plus un parasol qu'un lance-roquettes, et c'est cette absence
+         qui dessine la figure (voir `videIbiza`). Vingt-quatre couloirs
+         et une étoile retirent près de la moitié du terrain : elle porte
+         deux cent cinquante décors au lieu de cinq cents, et c'est la
+         seule île du jeu dans ce cas. Le seuil vaut deux cent vingt pour
+         elle, quatre cents pour toutes les autres. */
+      var seuilD = N.CARTES[k].biome === "ibiza" ? 220 : 400;
+      if(M.decors.length < seuilD) bouge.push(N.CARTES[k].nom + " n'a que " + M.decors.length + " décors");
     }
     ok("chaque île garde ses cinq cents décors sous n'importe quel plan ("
        + comptes.join(", ") + ")",
-       comptes.every(function(n){ return n > 400; }));
+       comptes.every(function(n, k2){
+         return n > (N.CARTES[k2].biome === "ibiza" ? 220 : 400);
+       }));
 
     /* LA PREUVE QUE LA NATURE DU DÉCOR EST HORS DE PORTÉE DU PLAN :
        un décor ne porte QUE gx, gy, s et v. Rien qui nomme un tipi. */
@@ -2839,9 +2859,12 @@ G("4. Déterminisme de la génération de carte");
       ok("… son ciel est « " + n.ciel + " »", N.styleCiel(n.i) === n.ciel, N.styleCiel(n.i));
       /* La vraie épreuve : la carte se génère, et elle est peuplée. */
       var m = N.genereCarte("MILY", n.i, "", 0);
+      /* Ibiza : trois cents décors et non cinq cents — le vide de sa
+         figure ne porte rien. Voir le groupe 5h. */
+      var seuilDec = n.biome === "ibiza" ? 220 : 400;
       ok("… elle se génère : " + m.batiments.length + " bâtiments, "
          + m.decors.length + " décors, " + m.creatures.length + " bestioles",
-         m.batiments.length > 600 && m.decors.length > 400 && m.creatures.length > 60,
+         m.batiments.length > 600 && m.decors.length > seuilDec && m.creatures.length > 60,
          m.batiments.length + "/" + m.decors.length + "/" + m.creatures.length);
       ok("… ses décors tirent bien les QUATRE variantes",
          (function(){
@@ -2849,7 +2872,9 @@ G("4. Déterminisme de la génération de carte");
            for(var q = 0; q < m.decors.length; q++) vus[m.decors[q].v] = 1;
            return vus[0] && vus[1] && vus[2] && vus[3];
          })());
-      ok("… et ses cinq cellules électriques sont là", m.reacteurs.length === N.NB_REACTEURS);
+      ok("… et ses cellules électriques sont là",
+         m.reacteurs.length === (n.biome === "ibiza" ? N.FAISC_N : N.NB_REACTEURS),
+         "" + m.reacteurs.length);
     }
     /* La montée des PV : chaque île de la campagne est plus dure que
        la précédente, et aucune ne rattrape la jungle. */
@@ -3121,15 +3146,34 @@ G("4. Déterminisme de la génération de carte");
          .map(function(c){ return c.nom; }).join(", "));
     ok("une île inexistante n'a pas de scène",
        !N.carteScene(999) && !N.carteScene(-1));
-    /* LES BORNES, à la case près. Le carré est INCLUSIF : le
-       quadrillage militaire s'arrête sur le bord, il ne mord pas
-       dessus. */
-    ok("le carré fait bien " + (N.SCENE_DEMI * 2 + 1) + " cases de côté, bornes comprises",
-       N.dansLaScene(N.SCENE_GX, N.SCENE_GY) &&
-       N.dansLaScene(N.SCENE_GX + N.SCENE_DEMI, N.SCENE_GY + N.SCENE_DEMI) &&
-       N.dansLaScene(N.SCENE_GX - N.SCENE_DEMI, N.SCENE_GY - N.SCENE_DEMI) &&
-       !N.dansLaScene(N.SCENE_GX + N.SCENE_DEMI + 1, N.SCENE_GY) &&
-       !N.dansLaScene(N.SCENE_GX, N.SCENE_GY - N.SCENE_DEMI - 1));
+    /* LA PISTE N'EST PLUS UN CARRÉ, C'EST UNE ÉTOILE À SIX BRANCHES —
+       et le carré d'origine doit tenir DEDANS, sans quoi la scène et
+       les danseurs déborderaient sur les défenses. Les coins du carré
+       sont à SCENE_DEMI × √2 = 15,6 cases du centre, le creux de
+       l'étoile à ETOILE_R2 = 17 : tout ce qui existait tient, et
+       l'étoile ne déborde qu'aux six pointes. */
+    ok("l'étoile contient tout l'ancien carré de " + (N.SCENE_DEMI * 2 + 1) + " cases",
+       (function(){
+         for(var q = -N.SCENE_DEMI; q <= N.SCENE_DEMI; q++)
+           for(var w = -N.SCENE_DEMI; w <= N.SCENE_DEMI; w++)
+             if(!N.dansLaScene(N.SCENE_GX + q, N.SCENE_GY + w)) return 0;
+         return 1;
+       })());
+    ok("… et elle a bien six pointes et six creux, à " + N.ETOILE_R
+       + " et " + N.ETOILE_R2 + " cases",
+       (function(){
+         var pas = 6.2832 / 12, q;
+         for(q = 0; q < 12; q++){
+           var a = q * pas - 0.5236;
+           var r = (q & 1) ? N.ETOILE_R2 : N.ETOILE_R;
+           /* juste en deçà du sommet : dedans ; juste au-delà : dehors */
+           if(!N.dansLaScene(N.SCENE_GX + Math.cos(a) * (r - 0.4),
+                             N.SCENE_GY + Math.sin(a) * (r - 0.4))) return 0;
+           if(N.dansLaScene(N.SCENE_GX + Math.cos(a) * (r + 0.4),
+                            N.SCENE_GY + Math.sin(a) * (r + 0.4))) return 0;
+         }
+         return 1;
+       })());
     ok("il est loin du QG et de la plage : la piste ne gêne aucun débarquement",
        Math.abs(N.SCENE_GX - N.QG_GX) > 40 && N.SCENE_GX + N.SCENE_DEMI < N.PLAGE_X0);
 
@@ -3147,9 +3191,25 @@ G("4. Déterminisme de la génération de carte");
          dedans(m.batiments) === 0, dedans(m.batiments) + " intrus");
       ok("aucun décor non plus (" + m.decors.length + " sur l'île)",
          dedans(m.decors) === 0, dedans(m.decors) + " intrus");
-      ok("et les cinq cellules électriques sont dehors, toutes les cinq",
-         m.reacteurs.length === N.NB_REACTEURS && dedans(m.reacteurs) === 0,
+      /* DOUZE CELLULES, UNE PAR QUARTIER, et aucune sur la piste. Elles
+         se tiennent en revanche DANS la lumière : chacune est au bout
+         de la bissectrice de son secteur, donc dans le faisceau fin qui
+         la dessert — c'est le repère qu'on a voulu lui donner. */
+      ok("les douze cellules électriques sont dehors, toutes les douze",
+         m.reacteurs.length === N.FAISC_N && dedans(m.reacteurs) === 0,
          m.reacteurs.length + " cellules, " + dedans(m.reacteurs) + " dedans");
+      ok("… une par secteur, chacune au bout de sa bissectrice",
+         (function(){
+           var pas = 6.2832 / N.FAISC_N, vus = {}, q;
+           for(q = 0; q < m.reacteurs.length; q++){
+             var ex = m.reacteurs[q].gx - N.SCENE_GX, ey = m.reacteurs[q].gy - N.SCENE_GY;
+             var e = (Math.atan2(ey, ex) + 0.5236) / pas - 0.5;
+             vus[Math.round(e) % N.FAISC_N] = 1;
+             /* et loin du centre : c'est la FIN du secteur */
+             if(Math.sqrt(ex * ex + ey * ey) < 40) return 0;
+           }
+           return Object.keys(vus).length === N.FAISC_N;
+         })());
       /* Les bêtes, elles, entrent : elles MARCHENT. Un sanglier qui
          traverse la piste est un cadeau, pas un défaut — c'est la
          seule chose vivante que la génération ne fige pas. */
@@ -3185,12 +3245,22 @@ G("4. Déterminisme de la génération de carte");
       var src = html.slice(d0, f1 + 2);
       ok("la foule se relit dans le fichier livré", src.length > 200);
       function fabrique(){
-        return new Function("prng", "SCENE_GX", "SCENE_GY",
-                            src + "; return { d:fabriqueDanseurs(), coin:IBI_COIN, demi:IBI_DEMI, n:IBI_NB_DANSEURS };")
-               (N.prng, N.SCENE_GX, N.SCENE_GY);
+        return new Function("prng", "SCENE_GX", "SCENE_GY", "ETOILE_R", "dansLaScene",
+                            src + "; return { d:fabriqueDanseurs(), coin:IBI_COIN, demi:IBI_DEMI,"
+                                + " n:IBI_NB_DANSEURS, np:IBI_NB_PISTE };")
+               (N.prng, N.SCENE_GX, N.SCENE_GY, N.ETOILE_R, N.dansLaScene);
       }
       var R = fabrique(), D = R.d;
-      ok("vingt personnes dansent", D.length === R.n && D.length === 20, "" + D.length);
+      /* DEUX FOULES DEPUIS QUE LA PISTE EST UNE ÉTOILE : le premier
+         rang, serré devant le podium, et la piste, semée sur toute
+         l'étoile. Le premier rang est au bout du tableau — il est posé
+         après — et c'est lui que les tests suivants isolent. */
+      var PREM = D.slice(D.length - R.n);
+      ok("le premier rang compte ses " + R.n + " personnes devant le DJ",
+         PREM.length === R.n, "" + PREM.length);
+      ok("et la piste est peuplée : " + D.length + " danseurs en tout",
+         D.length > R.n + R.np * 0.5 && D.length <= R.n + R.np,
+         D.length + " sur " + (R.n + R.np) + " tirés");
       /* LE PLANCHER, en coordonnées du monde. Le podium est tracé en
          losange d'écran de demi-largeur IBI_DEMI * RX ; ce losange-là
          est, dans le monde, le CARRÉ |Δgx| ≤ IBI_DEMI/√2. C'est
@@ -3205,27 +3275,50 @@ G("4. Déterminisme de la génération de carte");
         dd = D[i]; dx = dd.gx - N.SCENE_GX; dy = dd.gy - N.SCENE_GY;
         if(Math.max(Math.abs(dx), Math.abs(dy)) <= R.coin) surScene++;
         if(!N.dansLaScene(dd.gx, dd.gy)) horsCarre++;
+      }
+      for(i = 0; i < PREM.length; i++){
+        dd = PREM[i]; dx = dd.gx - N.SCENE_GX; dy = dd.gy - N.SCENE_GY;
         if((dx + dy) / 2 <= R.coin) derriere++;      // pas franchement au sud de la scène
       }
       ok("personne ne danse SUR le plancher — c'est la place du DJ", surScene === 0,
          surScene + " sur scène");
-      ok("les vingt sont DEVANT la scène, au sud de l'écran", derriere === 0,
+      ok("le premier rang est DEVANT la scène, au sud de l'écran", derriere === 0,
          derriere + " mal placés");
-      ok("et les vingt tiennent dans le carré réservé, là où rien n'est bâti",
+      /* ET TOUTE LA PISTE TIENT DANS L'ÉTOILE. Une pointe d'étoile est
+         pointue : un semis circulaire en déborde forcément, et un
+         danseur planté dehors se retrouverait au milieu des Frelons.
+         C'est `dansLaScene` qui tranche, danseur par danseur. */
+      ok("et pas un danseur ne sort de l'étoile, là où rien n'est bâti",
          horsCarre === 0, horsCarre + " dehors");
+      /* LA PISTE EST OCCUPÉE JUSQU'AU BORD, et c'est tout l'objet du
+         second groupe : « une étoile vide où il y a des gens qui
+         dansent DANS l'étoile ». Vingt personnes serrées sous le
+         podium laissaient quarante cases de plancher nu autour. */
+      (function(){
+        var loin = 0, quarts = {}, q;
+        for(q = 0; q < D.length - R.n; q++){
+          var ex = D[q].gx - N.SCENE_GX, ey = D[q].gy - N.SCENE_GY;
+          if(Math.sqrt(ex * ex + ey * ey) > N.ETOILE_R2) loin++;
+          quarts[(ex > 0 ? 1 : 0) + "" + (ey > 0 ? 1 : 0)] = 1;
+        }
+        ok("la piste danse jusque dans les pointes de l'étoile ("
+           + loin + " au-delà des creux)", loin > 8, "" + loin);
+        ok("… et sur les quatre côtés de la scène, pas seulement devant",
+           Object.keys(quarts).length === 4, Object.keys(quarts).join(" "));
+      })();
       /* LA RÉPARTITION. Le tirage de la largeur est fait par tranches
          exprès : à vingt tirages libres il reste toujours un trou, et
          le trou tombe au premier rang devant le DJ, c'est-à-dire au
          seul endroit que l'œil regarde. */
       (function(){
-        var lat = D.map(function(o){
+        var lat = PREM.map(function(o){
           return ((o.gx - N.SCENE_GX) - (o.gy - N.SCENE_GY)) / 2;
         }).sort(function(a, b){ return a - b; });
         var pire = 0;
         for(var q = 1; q < lat.length; q++) pire = Math.max(pire, lat[q] - lat[q - 1]);
-        ok("la foule n'a pas de trou : le plus grand vide fait " + pire.toFixed(2)
+        ok("le premier rang n'a pas de trou : le plus grand vide fait " + pire.toFixed(2)
            + " case de large", pire < 1.0, pire.toFixed(2));
-        ok("… et elle est plus large que la scène",
+        ok("… et il est plus large que la scène",
            lat[lat.length - 1] - lat[0] > R.coin * 2, (lat[lat.length - 1] - lat[0]).toFixed(1));
       })();
       /* DÉTERMINISTE. Sans cela, la piste se réorganiserait à chaque
@@ -7240,6 +7333,303 @@ G("8. Cohérence des règles de jeu");
     ok("rien n'est annoncé aux joueurs dans le jeu",
        html.indexOf("tes passages sont enregistrés") < 0 &&
        html.indexOf("présence enregistrée") < 0);
+  })();
+})();
+
+
+/* ================================================================
+   28. LA FIGURE D'IBIZA
+
+   « Dispose toi-même les défenses selon une forme ultra-graphique
+   moderne style Ibiza. Il doit y avoir beaucoup de Frelons — quarante
+   pour cent de toutes les défenses — et une très grosse densité. Il
+   faut garder au centre la scène, une étoile vide où il y a la scène
+   avec des gens qui dansent dedans. La carte doit être magique, grosse
+   fête DJ. »
+
+   Quatre choses sont épinglées ici, et ce sont exactement les quatre
+   qu'on a demandées :
+     LE VIDE       l'étoile et les douze faisceaux ne portent rien, et
+                   la figure est ce vide-là ;
+     LES FRELONS   quarante pour cent des défenses, à l'unité près ;
+     LA DENSITÉ    plus que n'importe quelle île ordinaire ;
+     LA TRAVERSÉE  l'île reste franchissable de bout en bout, et pas
+                   une défense n'est hors d'atteinte.
+   ================================================================ */
+G("28. La figure d'Ibiza");
+(function(){
+  var IBIZA = 8;
+  var m = N.genereCarte("MILY", IBIZA, "", 0);
+
+  /* --- LA GÉOMÉTRIE DU VIDE --- */
+  ok("douze faisceaux partent des douze sommets de l'étoile",
+     N.FAISC_N === N.ETOILE_POINTES * 2, "" + N.FAISC_N);
+  ok("ils naissent SOUS les creux de l'étoile : chaque creux est une entrée",
+     N.FAISC_R0 < N.ETOILE_R2, N.FAISC_R0 + " vs " + N.ETOILE_R2);
+  ok("ils portent au-delà du coin le plus lointain de l'île",
+     N.FAISC_R1 >= Math.hypot(N.PLAGE_X0 - 3 - N.SCENE_GX, N.GH - 4 - N.SCENE_GY),
+     "" + N.FAISC_R1);
+  ok("et ils s'élargissent en s'éloignant, comme un projecteur",
+     N.largeurFaisceau(N.FAISC_R1) > N.largeurFaisceau(N.FAISC_R0) * 3,
+     N.largeurFaisceau(N.FAISC_R0).toFixed(2) + " → "
+       + N.largeurFaisceau(N.FAISC_R1).toFixed(2));
+  /* LE MILIEU D'UN COULOIR EST VIDE, LE MILIEU D'UN QUARTIER NE L'EST
+     PAS. Sans la seconde moitié, un `dansLeFaisceau` toujours vrai
+     passerait la première. */
+  (function(){
+    var pas = 6.2832 / N.FAISC_N, q, dedans = 0, dehors = 0, plein = 0;
+    for(q = 0; q < N.FAISC_N; q++){
+      var a = q * pas - 0.5236;
+      if(N.dansLeFaisceau(N.SCENE_GX + Math.cos(a) * 40,
+                          N.SCENE_GY + Math.sin(a) * 40)) dedans++;
+      /* la BISSECTRICE porte le faisceau fin — l'allée de service —
+         donc elle aussi est vide ; c'est au QUART qu'on bâtit */
+      var b = a + pas * 0.5;
+      if(N.dansLeFaisceau(N.SCENE_GX + Math.cos(b) * 40,
+                          N.SCENE_GY + Math.sin(b) * 40)) dehors++;
+      var b2 = a + pas * 0.25;
+      if(!N.dansLeFaisceau(N.SCENE_GX + Math.cos(b2) * 40,
+                           N.SCENE_GY + Math.sin(b2) * 40)) plein++;
+    }
+    ok("l'axe des douze grands couloirs est vide", dedans === N.FAISC_N, dedans + "/" + N.FAISC_N);
+    ok("… et celui des douze allées fines aussi", dehors === N.FAISC_N, dehors + "/" + N.FAISC_N);
+    ok("… mais entre les deux, l'île est bâtie", plein === N.FAISC_N, plein + "/" + N.FAISC_N);
+  })();
+  ok("au-delà de la portée des faisceaux, l'île redevient pleine",
+     !N.dansLeFaisceau(N.SCENE_GX + N.FAISC_R1 + 3, N.SCENE_GY));
+  ok("la réserve des néons élargit le couloir sans le déplacer",
+     (function(){
+       var pas = 6.2832 / N.FAISC_N, a = -0.5236, r = 50;
+       var w = N.largeurFaisceau(r);
+       /* juste en dehors du couloir vrai, mais dans la réserve */
+       var t = w + 1.2, ca = Math.cos(a), sa = Math.sin(a);
+       var x = N.SCENE_GX + ca * r - sa * t, y = N.SCENE_GY + sa * r + ca * t;
+       return !N.dansLeFaisceau(x, y) && N.videIbizaLarge(x, y) && !N.videIbiza(x, y);
+     })());
+
+  /* --- LE VIDE EST RÉEL SUR LA CARTE LIVRÉE --- */
+  (function(){
+    var b, piste = 0, faisceau = 0, dec = 0;
+    for(b = 0; b < m.batiments.length; b++){
+      if(N.dansLaScene(m.batiments[b].gx, m.batiments[b].gy)) piste++;
+      else if(m.batiments[b].t !== "reacteur" &&
+              N.dansLeFaisceau(m.batiments[b].gx, m.batiments[b].gy)) faisceau++;
+    }
+    for(b = 0; b < m.decors.length; b++)
+      if(N.videIbiza(m.decors[b].gx, m.decors[b].gy)) dec++;
+    ok("pas un bâtiment sur la piste (" + m.batiments.length + " sur l'île)",
+       piste === 0, piste + " intrus");
+    /* LES CELLULES ÉLECTRIQUES SONT LA SEULE EXCEPTION, et elle est
+       voulue : chacune est plantée au bout de l'allée fine de son
+       secteur. Une tour dans la lumière, au fond de son couloir. */
+    ok("pas un bâtiment dans les vingt-quatre faisceaux, hors les cellules",
+       faisceau === 0, faisceau + " intrus");
+    ok("pas un décor non plus dans le vide (" + m.decors.length + " sur l'île)",
+       dec === 0, dec + " intrus");
+  })();
+  /* ET LA CONTRE-ÉPREUVE : le vide est propre à Ibiza. Sans elle, un
+     `videIbiza` jamais consulté passerait tout ce qui précède. */
+  (function(){
+    var autre = N.genereCarte("MILY", 0, "", 0), q, dedans = 0;
+    for(q = 0; q < autre.batiments.length; q++)
+      if(N.videIbiza(autre.batiments[q].gx, autre.batiments[q].gy)) dedans++;
+    ok("sur une autre île, le même vide est bâti comme le reste",
+       dedans > 20, dedans + " bâtiments");
+  })();
+
+  /* --- QUARANTE POUR CENT DE FRELONS, À L'UNITÉ --- */
+  (function(){
+    var f = N.compteFrelons(m), d = N.compteDefenses(m);
+    var part = f / d;
+    ok("les Frelons font " + (100 * part).toFixed(1) + " % des défenses ("
+       + f + " sur " + d + ")",
+       Math.abs(part - N.IBIZA_PART) < 0.005, (100 * part).toFixed(2) + " %");
+    /* LE COMPTE EXACT, et pas seulement approché : o = 1,5 × f à une
+       unité près, c'est la définition même de quarante pour cent. */
+    ok("… et le compte tombe juste : autres = 1,5 × Frelons",
+       Math.abs((d - f) - f * (1 - N.IBIZA_PART) / N.IBIZA_PART) <= 2,
+       (d - f) + " vs " + (f * 1.5).toFixed(1));
+    /* La part est tenue sur TOUS les tirages, pas seulement sur le
+       salon d'essai : c'est le calcul qui la tient, pas la chance. */
+    var pires = 0, q;
+    for(q = 1; q <= 3; q++){
+      var mq = N.genereCarte("SALON" + q, IBIZA, "", 0);
+      var pq = N.compteFrelons(mq) / N.compteDefenses(mq);
+      if(Math.abs(pq - N.IBIZA_PART) > 0.005) pires++;
+    }
+    ok("… sur trois autres salons aussi", pires === 0, pires + " salons à côté");
+  })();
+
+  /* --- LA SURCHARGE DES SECTEURS ---
+     « Ces secteurs doivent être surchargés de défenses, remplis à
+     quasi cent pour cent. » Ce qui rend la surcharge POSSIBLE, c'est
+     l'écart serré et les allées fines : sans elles, `ouvreLaFete`
+     rouvrait de force et emportait deux cent trente-neuf bâtiments. */
+  ok("l'écart d'Ibiza est bien plus serré que celui de la guinguette",
+     N.IBIZA_SERRE < 0.3 && N.IBIZA_SERRE < 0.6, "" + N.IBIZA_SERRE);
+  ok("les anneaux sont au pas minimal de deux Frelons",
+     N.IBIZA_ANNEAU >= N.DEF.frelon.emprise + N.IBIZA_SERRE &&
+     N.IBIZA_ANNEAU < N.DEF.frelon.emprise + N.IBIZA_SERRE + 0.2,
+     N.IBIZA_ANNEAU + " pour un minimum de "
+       + (N.DEF.frelon.emprise + N.IBIZA_SERRE).toFixed(2));
+  /* AUCUNE MOITIÉ DE QUARTIER N'EXCÈDE LA PORTÉE D'UNE FURIE. C'est la
+     propriété qui autorise à remplir : entre un grand faisceau et
+     l'allée fine voisine, il n'y a jamais plus de cinq cases et demie
+     de profondeur, donc rien n'y devient inatteignable. */
+  ok("aucune demi-largeur de quartier ne dépasse la portée d'une troupe",
+     (function(){
+       var pire = 0, r;
+       for(r = 24; r <= 66; r += 2){
+         /* la demi-largeur entre un grand faisceau et l'allée voisine */
+         var arc = 6.2832 * r / (N.FAISC_N * 2);
+         var creux = (arc - N.largeurFaisceau(r) - N.largeurFaisceau2(r)) / 2;
+         if(creux > pire) pire = creux;
+       }
+       return pire <= 5.6;
+     })());
+
+  /* --- LA DENSITÉ --- */
+  (function(){
+    var q, def = [], nom = [];
+    for(q = 0; q < N.CARTES.length; q++){
+      if(N.carteSpeciale(q)) continue;
+      def.push(N.compteDefenses(N.genereCarte("MILY", q, "", 0)));
+      nom.push(N.CARTES[q].nom);
+    }
+    var dIbiza = N.compteDefenses(m);
+    /* Les six îles ORDINAIRES — ni guinguette, ni ténèbres, qui sont
+       les deux îles denses de fin de campagne. */
+    var ordinaires = [];
+    for(q = 0; q < N.CARTES.length; q++){
+      var bi = N.CARTES[q].biome;
+      if(N.carteSpeciale(q) || bi === "guinguette" || bi === "tenebres" || bi === "ibiza") continue;
+      ordinaires.push(N.compteDefenses(N.genereCarte("MILY", q, "", 0)));
+    }
+    var maxO = Math.max.apply(null, ordinaires);
+    ok("Ibiza est plus dense que toutes les îles ordinaires ("
+       + dIbiza + " contre " + maxO + " au mieux)",
+       dIbiza > maxO, dIbiza + " vs " + maxO);
+    /* ET ELLE L'EST MALGRÉ SON VIDE, qui lui retire un bon quart du
+       terrain bâtissable : c'est là toute la performance. */
+    ok("… et elle porte plus de sept cent cinquante défenses",
+       dIbiza > 750, "" + dIbiza);
+    /* ET ELLE LES PORTE MALGRÉ SON VIDE : l'étoile et les vingt-quatre
+       couloirs lui retirent près de la moitié du terrain bâtissable.
+       C'est là toute la performance de la disposition. */
+    ok("… alors même que son vide lui retire un tiers du terrain",
+       (function(){
+         var vide = 0, plein = 0, x, y;
+         for(x = 6; x <= N.PLAGE_X0 - 3; x += 1)
+           for(y = 3; y <= N.GH - 4; y += 1){
+             if(N.videIbiza(x, y)) vide++; else plein++;
+           }
+         return vide / (vide + plein) > 0.30;
+       })());
+  })();
+
+  /* --- LA TRAVERSÉE, mesurée sur la grille du jeu --- */
+  (function(){
+    var GW = N.GW, GH = N.GH, i, j;
+    var sol = new Uint8Array(GW * GH);
+    for(i = 0; i < m.batiments.length; i++){
+      var b = m.batiments[i], r = (b.e || 2) / 2;
+      for(var x = Math.floor(b.gx - r); x <= Math.ceil(b.gx + r) - 1; x++)
+        for(var y = Math.floor(b.gy - r); y <= Math.ceil(b.gy + r) - 1; y++)
+          if(x >= 0 && x < GW && y >= 0 && y < GH) sol[y * GW + x] = 1;
+    }
+    var vu = new Uint8Array(GW * GH), pile = [];
+    for(j = 0; j < GH; j++){
+      var d0 = j * GW + (N.PLAGE_X0 + 2);
+      if(!sol[d0]){ vu[d0] = 1; pile.push(d0); }
+    }
+    var V8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    while(pile.length){
+      var k = pile.pop(), kx = k % GW, ky = (k / GW) | 0;
+      for(i = 0; i < 8; i++){
+        var nx = kx + V8[i][0], ny = ky + V8[i][1];
+        if(nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
+        var kk = ny * GW + nx;
+        if(vu[kk] || sol[kk]) continue;
+        vu[kk] = 1; pile.push(kk);
+      }
+    }
+    var libres = 0, atteints = 0;
+    for(i = 6; i <= N.PLAGE_X0 - 3; i++)
+      for(j = 3; j <= GH - 4; j++){
+        var c0 = j * GW + i;
+        if(sol[c0]) continue;
+        libres++; if(vu[c0]) atteints++;
+      }
+    var part = atteints / libres;
+    ok("l'île reste traversable : " + (100 * part).toFixed(1)
+       + " % des cases libres sont atteignables depuis la plage",
+       part > 0.98, (100 * part).toFixed(2) + " %");
+    /* CHAQUE DÉFENSE DOIT POUVOIR ÊTRE ATTAQUÉE. Cinq cases, c'est la
+       portée d'une Furie : une tourelle qu'aucune troupe ne peut
+       approcher rend l'île infinissable. */
+    var orphelines = 0;
+    for(i = 0; i < m.batiments.length; i++){
+      var bb = m.batiments[i];
+      if(bb.t === "cellule" || bb.t === "reacteur") continue;
+      var ok5 = 0;
+      for(var dx = -5; dx <= 5 && !ok5; dx++)
+        for(var dy = -5; dy <= 5 && !ok5; dy++){
+          var ax = Math.round(bb.gx) + dx, ay = Math.round(bb.gy) + dy;
+          if(ax < 0 || ax >= GW || ay < 0 || ay >= GH) continue;
+          if(vu[ay * GW + ax]) ok5 = 1;
+        }
+      if(!ok5) orphelines++;
+    }
+    ok("… et pas une défense n'est hors de portée d'une troupe",
+       orphelines === 0, orphelines + " orphelines");
+  })();
+
+  /* --- LES ALLÉES DE LA GUINGUETTE NE DÉBORDENT PLUS SUR IBIZA ---
+     `dansAlleeGuinguette` ne teste aucun biome : elle taille quatre
+     diagonales autour de (72, 67), et le centre d'Ibiza est à (76, 68).
+     Écrite en dur dans l'atelier, elle barrait donc quatre diagonales
+     d'Ibiza avec les allées d'une AUTRE île. Elle est devenue un
+     paramètre — et voici la preuve qu'elle est bien passée par là. */
+  ok("l'atelier reçoit sa zone interdite en paramètre",
+     /function atelierPavois\(c, al, ecart, interdit\)/.test(html) &&
+     /if\(interdit && interdit\(x, y\)\) return 0;/.test(html));
+  ok("… la guinguette lui passe ses allées",
+     /atelierPavois\(c, al, undefined, dansAlleeGuinguette\)/.test(html));
+  ok("… et Ibiza lui passe son vide, avec son écart serré",
+     /atelierPavois\(c, al, IBIZA_SERRE, videIbiza\)/.test(html) &&
+     /atelierPavois\(c, al, IBIZA_SERRE, videIbizaLarge\)/.test(html));
+
+  /* --- ET LE SOL PORTE LA MÊME FIGURE QUE LES DÉFENSES ---
+     Deux tracés calculés séparément se désalignent à la première
+     retouche. Le sol doit donc lire les MÊMES fonctions. */
+  (function(){
+    var d0 = html.indexOf("LE SOL D'IBIZA");
+    var bloc = d0 < 0 ? "" : html.slice(d0, html.indexOf("LE SOL DES MILLE ET UNE NUITS", d0));
+    ok("le sol d'Ibiza est peint", bloc.length > 2000, bloc.length + " octets");
+    ok("… avec la géométrie des faisceaux, pas une copie",
+       /largeurFaisceau\(/.test(bloc) && /FAISC_N/.test(bloc));
+    ok("… et celle de l'étoile", /ETOILE_G/.test(bloc));
+    ok("… les faisceaux sont peints en lumière ajoutée",
+       /globalCompositeOperation = "lighter"/.test(bloc));
+    ok("… et la piste est noire, pas claire comme à la guinguette",
+       /#0d0a1c/.test(bloc));
+  })();
+
+  /* --- LA CAMPAGNE N'A PAS BOUGÉ AILLEURS ---
+     La refonte est ENTIÈREMENT contenue dans Ibiza : les neuf autres
+     îles doivent rendre exactement le même nombre de bâtiments qu'avant
+     — c'est ce que vérifie aussi `outils/verif-campagne.js`, mais mieux
+     vaut deux gardes qu'une. */
+  (function(){
+    var attendu = { 0:779, 1:767, 2:756, 3:789, 4:775, 5:782, 6:1195, 7:1193, 9:811 };
+    var faux = [];
+    for(var q in attendu){
+      var mq = N.genereCarte("DEMO", +q, "", 0);
+      if(mq.batiments.length !== attendu[q])
+        faux.push(N.CARTES[+q].nom + " : " + mq.batiments.length + " au lieu de " + attendu[q]);
+    }
+    ok("les neuf autres îles n'ont pas bougé d'un bâtiment",
+       faux.length === 0, faux.join(" / "));
   })();
 })();
 
