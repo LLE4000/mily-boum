@@ -493,6 +493,12 @@ var GBW = 0, GBH = 0;
 
 function construitGrilles(){
   occ = new Uint8Array(GW * GH);
+  /* MONDE NEUF, CHAMPS À JETER. Sans cette ligne, la limite d'un
+     rebâtissement par image (voir champVers) pourrait servir, le temps
+     d'une image, un champ calculé sur l'ÎLE PRÉCÉDENTE : des troupes
+     qui contournent des défenses disparues. Le numéro de génération ne
+     suffit pas, puisqu'il n'interdit que de RECALCULER, pas de servir. */
+  chemins.length = 0;
   var i, j, k;
   /* bords infranchissables */
   for(i = 0; i < GW; i++){
@@ -549,7 +555,13 @@ function construitGrilles(){
     grilleBat[cy * GBW + cx].push(b);
   });
 }
+/* Chaque fois qu'une emprise change, les champs de distance déjà
+   calculés deviennent périmés : une défense tombée OUVRE un passage
+   qu'ils ne connaissent pas. On ne les recalcule pas tout de suite —
+   ils se refont à la demande — mais on marque qu'ils ont vieilli. */
+var GEN_CHEMIN = 0;
 function marqueEmprise(b, v){
+  GEN_CHEMIN++;
   var r = b.e / 2;
   for(var i = Math.floor(b.gx - r); i <= Math.ceil(b.gx + r) - 1; i++){
     for(var j = Math.floor(b.gy - r); j <= Math.ceil(b.gy + r) - 1; j++){
@@ -561,6 +573,102 @@ function bloque(gx, gy){
   var i = gx | 0, j = gy | 0;
   if(i < 0 || i >= GW || j < 0 || j >= GH) return gx < 0 || gy < 0 || gy >= GH;
   return occ[j * GW + i] !== 0;
+}
+
+/* ================================================================
+   LES CHAMPS DE DISTANCE, EN CACHE
+
+   Un champ coûte un balayage des vingt mille cases : c'est peu, mais
+   pas à chaque image et pas par troupe. On les garde donc par CASE DE
+   BUT — et c'est ce qui rend l'affaire gratuite, parce que douze
+   troupes qui visent le même bâtiment partagent le même champ, et que
+   toutes celles qui suivent la même balise n'en font qu'un.
+
+   HUIT AU PLUS, et le plus vieux cède sa place. Huit buts distincts en
+   même temps, c'est déjà plus que ce qu'une île offre ; au-delà, le
+   coût du calcul reviendrait moins cher que la mémoire immobilisée.
+
+   ET ILS SE REFONT QUAND UNE DÉFENSE TOMBE, parce qu'elle ouvre un
+   passage : le numéro de génération le dit, et le champ se rebâtit à
+   la première demande d'après. On ne recalcule pas au moment de la
+   destruction — ce serait payer pour des buts que plus personne ne
+   vise.
+   ================================================================ */
+var CHEMIN_MAX = 8;
+var chemins = [];                 // { cle, champ, gen, vu }
+var cheminHorloge = 0;
+/* UN SEUL REBÂTISSEMENT PAR IMAGE, et c'est une mesure qui l'impose.
+   Une défense qui tombe périme les huit champs d'un coup ; s'ils sont
+   tous redemandés dans la même image, on les refait tous dans la même
+   image. Mesuré sur un assaut de 150 s aux ténèbres : 78 champs
+   rebâtis, dont 15 images en RAFALE, la pire en refaisant sept — de
+   quoi tenir ici, et de quoi faire un à-coup visible sur une tablette,
+   quinze fois par assaut.
+
+   Servir un champ d'une image en retard ne coûte rien : la troupe le
+   relit à l'image suivante, et une défense tombée n'ouvre jamais qu'un
+   passage — le chemin d'avant reste praticable, il est seulement un
+   peu plus long pendant un seizième de seconde.
+
+   ET LA RÈGLE VAUT AUSSI POUR UN BUT ENCORE INCONNU, faute de quoi
+   elle ne bornait rien : trente troupes qui attaquent trente bâtiments
+   différents demandent trente champs neufs, qu'aucun cache ne peut
+   servir. On a d'abord cru à un cache trop petit, et agrandi de huit à
+   vingt-quatre entrées : 85 rebâtissements devenaient 63, la pire
+   rafale restait de quatre, et l'on payait un mégaoctet. Ce n'était
+   pas la taille du cache, c'était le nombre de buts. On rend donc null
+   — la troupe marche en ligne droite pour cette image-là, comme avant,
+   et reçoit son champ à la suivante. Une demi-seconde au pire pour que
+   trente troupes soient servies. */
+var cheminImage = -1;
+function champVers(bx, by){
+  var i = bx | 0, j = by | 0;
+  if(i < 0 || i >= GW || j < 0 || j >= GH) return null;
+  var cle = j * GW + i, k, e;
+  for(k = 0; k < chemins.length; k++){
+    e = chemins[k];
+    if(e.cle !== cle) continue;
+    if(e.gen === GEN_CHEMIN){ e.vu = ++cheminHorloge; return e.champ; }
+    /* périmé : on le sert tel quel si l'image a déjà bâti le sien */
+    if(cheminImage === jeu.tps) return e.champ;
+    break;
+  }
+  if(cheminImage === jeu.tps) return null;   // rien à servir, et l'image est prise
+  cheminImage = jeu.tps;
+  var champ = champDepuis(occ, GW, GH, i, j);
+  if(k < chemins.length){                    // on remplace le périmé
+    chemins[k] = { cle:cle, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge };
+    return champ;
+  }
+  if(chemins.length >= CHEMIN_MAX){
+    var vieux = 0;
+    for(k = 1; k < chemins.length; k++) if(chemins[k].vu < chemins[vieux].vu) vieux = k;
+    chemins.splice(vieux, 1);
+  }
+  chemins.push({ cle:cle, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge });
+  return champ;
+}
+/* La direction à prendre pour se rapprocher du but en CONTOURNANT ce
+   qu'il y a entre les deux. Rend null quand il n'y a rien à contourner
+   — près du but, ou si le but est inatteignable —, et l'appelant
+   reprend alors la ligne droite : c'est elle qui porte l'éventail
+   d'arrivée, et il ne faut pas la lui enlever. */
+var DIR_CHEMIN = { x:0, y:0 };
+function capChemin(u, bx, by, dLoin){
+  /* TROP PRÈS, ON NE PLANIFIE PLUS. Les dernières cases se font en
+     ligne droite : c'est là que l'éventail écarte la troupe autour de
+     son objectif, et un champ de distance ramènerait tout le monde sur
+     la même case. */
+  if(dLoin < 3) return null;
+  var champ = champVers(bx, by);
+  if(!champ) return null;
+  var v = pasVersLeBut(champ, occ, GW, GH, u.gx, u.gy);
+  if(v < 0) return null;
+  /* on vise le CENTRE de la case voisine : viser son coin ferait
+     raser les murs et accrocher les angles */
+  DIR_CHEMIN.x = (v % GW) + 0.5 - u.gx;
+  DIR_CHEMIN.y = ((v / GW) | 0) + 0.5 - u.gy;
+  return DIR_CHEMIN;
 }
 
 /* Index spatial des unités, reconstruit à chaque image */
@@ -1999,8 +2107,17 @@ function majUnites(dt){
         u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
-          capMarcheUnite(u, dxb + u.ancX * eb, dyb + u.ancY * eb);
-          deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
+          /* LE CHEMIN D'ABORD, L'ÉVENTAIL ENSUITE. Loin de l'objectif
+             on suit le champ de distance — il contourne ce qui est
+             entre les deux. Près de lui, capChemin rend null et l'on
+             reprend la ligne droite avec son écart de formation : c'est
+             elle qui range la troupe en arc autour de la cible, et un
+             champ de distance les ramènerait toutes sur la même case. */
+          var chb = capChemin(u, bc.gx, bc.gy, db);
+          var mvx = chb ? chb.x : dxb + u.ancX * eb;
+          var mvy = chb ? chb.y : dyb + u.ancY * eb;
+          capMarcheUnite(u, mvx, mvy);
+          deplace(u, mvx, mvy, vit * dt);
           u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
           /* EN ROULANT VERS L'OBJECTIF, la tourelle reste libre :
              elle balaie les bestioles pendant que la caisse avance.
@@ -2055,9 +2172,13 @@ function majUnites(dt){
           if(u.baliseStagne > (u.baliseSeuil || 3.0)) arrivee = true;
         }
         if(!arrivee){
-          deplace(u, dxf, dyf, vit * dt);
+          /* même règle : on contourne tant qu'on est loin, on vise sa
+             place dans le cercle une fois arrivé dessus */
+          var chf = capChemin(u, balise.gx, balise.gy, dCentre);
+          var fvx = chf ? chf.x : dxf, fvy = chf ? chf.y : dyf;
+          deplace(u, fvx, fvy, vit * dt);
           u.phase += dt * 9;
-          capUnite(u, dxf, dyf, 1);
+          capUnite(u, fvx, fvy, 1);
           u.cible = null;
           /* … SAUF LA VERMINE. capUnite vient de poser les deux caps
              sur la balise ; si une bestiole est à portée, la tourelle
@@ -2114,8 +2235,14 @@ function majUnites(dt){
          c'est cette direction-là que le char doit prendre, et c'est
          elle qui, un peu écartée de la visée, met en évidence que la
          tourelle ne regarde pas où l'on va. */
-      capMarcheUnite(u, dx + u.ancX * etal, dy + u.ancY * etal);
-      deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
+      /* et la marche libre suit la même règle que les deux branches
+         sous balise : le champ de distance porte la route, l'éventail
+         porte l'arrivée */
+      var chl = capChemin(u, but.gx, but.gy, d);
+      var lvx = chl ? chl.x : dx + u.ancX * etal;
+      var lvy = chl ? chl.y : dy + u.ancY * etal;
+      capMarcheUnite(u, lvx, lvy);
+      deplace(u, lvx, lvy, vit * dt);
       /* ================================================================
          ET LA VERMINE, ICI AUSSI — LA MARCHE LIBRE VALAIT LA MARCHE
          SOUS BALISE.

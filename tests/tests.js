@@ -71,7 +71,8 @@ try{
     "centreForme","paramForme","longForme","bruitForme","typeDeForme","sautModuleForme",
     "encodeFormes","decodeFormes","encodePlanComplet","partieQuadrillage","partieFormes",
     "litPlan","planEn","formeSous","planEstVide","selForme","placeDansMelange",
-    "boiteForme","tableForme","fractionAire","formeChangee","parametreRange","SEAUX_FORME"
+    "boiteForme","tableForme","fractionAire","formeChangee","parametreRange","SEAUX_FORME",
+    "champDepuis","pasVersLeBut","CHEMIN_LOIN","CHEMIN_EMPRISE"
   ].join(",") + "};")();
 }catch(e){
   console.error("Le bloc NOYAU n'est pas évaluable : " + e.message);
@@ -2212,11 +2213,19 @@ G("4. Déterminisme de la génération de carte");
       ok("et la porte de ce tir est le drapeau des véhicules",
          /function tirBeteEnMarche\(u, f, dt, cachee\)\{\s*if\(!f\.tourelle\) return 0;/
            .test(html));
+      /* ET CES DEUX ANCRES ONT VIEILLI UNE FOIS DE PLUS. Elles citaient
+         le calcul du déplacement lui-même — `dxb + u.ancX * eb`, puis
+         `capUnite(u, dxf, dyf, 1)`. Le champ de distance a nommé ce
+         calcul : la direction sort maintenant d'une variable, parce
+         qu'elle vient soit du chemin, soit de la ligne droite. La
+         PROMESSE n'a pas bougé — ces deux branches tirent en roulant —
+         mais elle ne se lit plus dans l'arithmétique. On l'ancre donc
+         sur le déplacement lui-même, qui est propre à chaque branche. */
       ok("la branche qui roule vers l'objectif de la balise le câble",
-         /deplace\(u, dxb \+ u\.ancX \* eb, dyb \+ u\.ancY \* eb, vit \* dt\);[\s\S]{0,400}tirBeteEnMarche\(u, f, dt, cachee\);/
+         /deplace\(u, mvx, mvy, vit \* dt\);[\s\S]{0,400}tirBeteEnMarche\(u, f, dt, cachee\);/
            .test(html));
       ok("… et celle qui rallie un point au sol aussi",
-         /capUnite\(u, dxf, dyf, 1\);\s*u\.cible = null;[\s\S]{0,400}tirBeteEnMarche\(u, f, dt, cachee\);/
+         /deplace\(u, fvx, fvy, vit \* dt\);[\s\S]{0,600}tirBeteEnMarche\(u, f, dt, cachee\);/
            .test(html));
       ok("… sans jamais désobéir au Brouillard",
          /if\(cachee\)\{ armeSansTirer\(u\); return 1; \}/.test(html));
@@ -9237,6 +9246,220 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      tenir à un doigt qui glisse au-dessus des capacités. */
   ok("l'abandon demande confirmation avant d'agir",
      /if\(!confirm\("Abandonner cette vague \?/.test(html));
+})();
+
+/* ================================================================
+   41. LE CHEMIN DES TROUPES
+
+   « Elle atteint la défense à un moment donné et elle sort du
+   fumigène. » Avant, une troupe marchait tout droit et, une fois
+   bloquée, essayait cinq caps de côté : de quoi éviter UN obstacle,
+   jamais un champ de défenses. Mesuré sur les ténèbres, balise posée
+   sur le Brasier, trente troupes lâchées sur la plage :
+
+     champ de distance   arrivées   trajet / plus court chemin
+     non                 0 sur 30   1,7 à 2,5   (elles erraient)
+     OUI                 30 sur 30  0,98 à 0,99
+
+   Ce qui suit est du calcul pur, éprouvé sur des grilles écrites à la
+   main : c'est là qu'on peut poser les cas tordus, et c'est là qu'on
+   les a trouvés.
+   ================================================================ */
+(function(){
+  /* Une grille se lit comme un dessin : '.' libre, '#' muré. */
+  function grille(lignes){
+    var haut = lignes.length, larg = lignes[0].length;
+    var o = new Uint8Array(larg * haut);
+    for(var j = 0; j < haut; j++)
+      for(var i = 0; i < larg; i++)
+        o[j * larg + i] = lignes[j][i] === "#" ? 1 : 0;
+    return { occ:o, larg:larg, haut:haut };
+  }
+  /* Le trajet complet, en descendant le champ : c'est ce que fait une
+     troupe, une image après l'autre. Rend la liste des cases, ou null
+     si l'on n'arrive pas. */
+  function marche(g, champ, dx, dy, ax, ay){
+    var i = dx, j = dy, pas = [[i, j]], garde = 0;
+    while(!(i === ax && j === ay) && garde++ < 4000){
+      var v = N.pasVersLeBut(champ, g.occ, g.larg, g.haut, i, j);
+      if(v < 0) return null;
+      i = v % g.larg; j = (v / g.larg) | 0;
+      pas.push([i, j]);
+    }
+    return (i === ax && j === ay) ? pas : null;
+  }
+
+  /* ---- 1. LE MUR À UNE SEULE BRÈCHE ----
+     La ligne droite ne franchit pas un mur ; un champ de distance
+     conduit à la brèche, même si elle est à l'autre bout. Et le compte
+     de pas se fait à la main sur ce dessin, ce qui vaut mieux qu'une
+     seconde écriture du même calcul pour se juger lui-même.
+
+     (La première version de ce test dessinait une « spirale » qui
+     était en fait une boîte SCELLÉE : le cœur n'avait pas d'entrée.
+     Le champ répondait « aucun chemin », et il avait raison.) */
+  {
+    var g = grille([
+      "..........",
+      "..........",
+      "#########.",     /* la brèche : la seule case libre de ce rang */
+      "..........",
+      ".........."
+    ]);
+    var champ = N.champDepuis(g.occ, g.larg, g.haut, 0, 4);
+    var t = marche(g, champ, 0, 0, 0, 4);
+    ok("le champ mène à la brèche d'un mur qui barre tout", t !== null,
+       t ? "" : "aucun chemin");
+    /* et il ne triche pas : chaque pas est praticable */
+    var triche = 0;
+    if(t) for(var k = 0; k < t.length; k++)
+      if(g.occ[t[k][1] * g.larg + t[k][0]] !== 0) triche++;
+    ok("… sans traverser un seul mur", triche === 0, triche + " cases murées");
+    var parLaBreche = t && t.some(function(c){ return c[0] === 9 && c[1] === 2; });
+    ok("… en passant bien par elle", parLaBreche === true);
+    /* VINGT PAS, ET ILS SE COMPTENT. Neuf pour longer le mur jusqu'au
+       rang du dessus de la brèche, un pour y descendre ; de là on ne
+       peut pas repartir en diagonale — l'angle du mur la ferme —, donc
+       un pas droit vers le bas ; et neuf pour revenir à gauche. */
+    ok("… et c'est le plus court : 20 pas", t && t.length - 1 === 20,
+       t ? (t.length - 1) + " pas" : "");
+  }
+
+  /* ---- 2. LE CAS QUI A MORDU : un but dont la case est murée ----
+     Le Brasier occupe un disque de onze cases de large. Semer la seule
+     case du but laissait la vague mourir au premier anneau : mesuré à
+     l'époque, UNE case atteinte sur vingt mille, et pas une troupe qui
+     bougeait autrement qu'avant. */
+  {
+    var g2 = grille([
+      "..........",
+      "..........",
+      "...####...",
+      "...####...",
+      "...####...",
+      "...####...",
+      "..........",
+      ".........."
+    ]);
+    var c2 = N.champDepuis(g2.occ, g2.larg, g2.haut, 4, 3);   // AU MILIEU du bâtiment
+    var atteintes = 0;
+    for(var m = 0; m < c2.length; m++) if(c2[m] !== N.CHEMIN_LOIN) atteintes++;
+    ok("un but posé DANS un bâtiment sème quand même la vague",
+       atteintes > 60, atteintes + " cases sur " + c2.length);
+    var t2 = marche(g2, c2, 0, 0, -1, -1);   // -1 : on veut juste voir si ça avance
+    ok("… et l'on peut marcher jusqu'à son pourtour",
+       c2[0] !== N.CHEMIN_LOIN && c2[0] > 0, "d = " + c2[0]);
+    /* Le bâtiment lui-même est à distance nulle : c'est ce qui permet
+       de RESSORTIR de l'autre côté au lieu d'en faire le tour. */
+    ok("… le bâtiment est à distance nulle, des deux côtés",
+       c2[3 * g2.larg + 3] === 0 && c2[5 * g2.larg + 6] === 0);
+    var loin = c2[7 * g2.larg + 9];          // le coin opposé
+    ok("… donc le coin d'en face est proche, pas contourné",
+       loin > 0 && loin < 8, "d = " + loin);
+  }
+
+  /* ---- 3. deux défenses qui se touchent par le coin ne laissent
+     passer personne ---- */
+  {
+    var g3 = grille([
+      ".....",
+      ".#...",
+      "..#..",
+      ".....",
+      "....."
+    ]);
+    var c3 = N.champDepuis(g3.occ, g3.larg, g3.haut, 3, 1);
+    /* depuis (1,2), la case (2,1) serait la diagonale évidente : elle
+       passerait ENTRE les deux murs, par leur angle commun */
+    var v3 = N.pasVersLeBut(c3, g3.occ, g3.larg, g3.haut, 1, 2);
+    ok("on ne se faufile pas entre deux angles qui se touchent",
+       v3 !== (1 * g3.larg + 2), "case " + v3);
+    ok("… mais on trouve quand même le tour", v3 >= 0);
+  }
+
+  /* ---- 4. un but inatteignable ne fait pas errer ---- */
+  {
+    var g4 = grille([
+      ".....",
+      ".###.",
+      ".#.#.",
+      ".###.",
+      "....."
+    ]);
+    var c4 = N.champDepuis(g4.occ, g4.larg, g4.haut, 2, 2);   // enfermé
+    /* l'îlot est muré de partout : la case (0,0) ne doit PAS croire
+       qu'elle y va */
+    ok("un but muré de partout reste inatteignable",
+       c4[0] === N.CHEMIN_LOIN, "d = " + c4[0]);
+    ok("… et l'on ne propose alors aucun pas",
+       N.pasVersLeBut(c4, g4.occ, g4.larg, g4.haut, 0, 0) === -1);
+  }
+
+  /* ---- 5. l'inondation du but est BORNÉE ----
+     Sans borne, un but posé contre une longue haie de défenses qui se
+     touchent se propagerait le long de TOUTE la haie à coût nul, et
+     l'on sèmerait à cinquante cases de là : les troupes viseraient
+     l'autre bout de l'île. */
+  {
+    var mur = [], lg = 40;
+    for(var j5 = 0; j5 < 5; j5++){
+      var l = "";
+      for(var i5 = 0; i5 < lg; i5++) l += (j5 === 2) ? "#" : ".";
+      mur.push(l);
+    }
+    var g5 = grille(mur);
+    var c5 = N.champDepuis(g5.occ, g5.larg, g5.haut, 2, 2);   // dans la haie
+    var nuls = 0;
+    for(var m5 = 0; m5 < c5.length; m5++) if(c5[m5] === 0) nuls++;
+    ok("l'inondation d'un but muré ne suit pas la haie sans fin",
+       nuls < 3 * (2 * N.CHEMIN_EMPRISE + 1), nuls + " cases à distance nulle");
+    ok("… elle reste dans la borne d'emprise",
+       c5[2 * g5.larg + (2 + N.CHEMIN_EMPRISE + 3)] !== 0);
+  }
+
+  /* ---- 6. hors de la grille, on ne plante pas ---- */
+  {
+    var g6 = grille(["...", "...", "..."]);
+    var c6 = N.champDepuis(g6.occ, g6.larg, g6.haut, 99, 99);
+    var tout = true;
+    for(var m6 = 0; m6 < c6.length; m6++) if(c6[m6] !== N.CHEMIN_LOIN) tout = false;
+    ok("un but hors carte rend un champ vide, sans lever d'erreur", tout);
+    ok("… et l'on n'y propose aucun pas",
+       N.pasVersLeBut(c6, g6.occ, g6.larg, g6.haut, 9, 9) === -1);
+  }
+
+  /* ---- 7. LE CÂBLAGE : ce calcul doit servir aux TROIS marches ----
+     Une balise sur une cible, une balise au sol, et la marche libre.
+     Si l'une des trois oubliait le champ, le joueur verrait ses
+     troupes contourner dans un cas et buter dans l'autre. */
+  {
+    /* `capChemin(u,` attrape aussi la DÉFINITION de la fonction : on
+       comptait quatre là où il y a trois appels. Les trois sites
+       affectent leur résultat, la définition non. */
+    var n = (html.match(/= capChemin\(u,/g) || []).length;
+    ok("les trois marches passent par le champ de distance", n === 3, n + " appels");
+    /* et la ligne droite reste là, pour l'éventail d'arrivée */
+    ok("… mais près du but, on rend la main à la ligne droite",
+       /if\(dLoin < 3\) return null;/.test(html));
+    /* les champs se périment quand une défense tombe */
+    ok("une emprise qui change périme les champs",
+       /function marqueEmprise\(b, v\)\{\s*GEN_CHEMIN\+\+;/.test(html));
+    ok("… et le cache les refait alors à la demande",
+       /if\(e\.gen === GEN_CHEMIN\)\{ e\.vu = \+\+cheminHorloge; return e\.champ; \}/
+         .test(html));
+    /* UN SEUL CHAMP BÂTI PAR IMAGE : une défense qui tombe périme les
+       huit d'un coup, et sans cette borne on les refaisait tous dans
+       la même image — mesuré, des rafales de sept. */
+    ok("on ne bâtit qu'un champ par image",
+       /if\(cheminImage === jeu\.tps\) return null;/.test(html) &&
+       /cheminImage = jeu\.tps;\s*var champ = champDepuis/.test(html));
+    /* ET L'ÎLE NEUVE JETTE LES CHAMPS DE LA PRÉCÉDENTE. C'est la
+       contrepartie de la borne ci-dessus : servir un champ périmé une
+       image de plus est sans conséquence SUR LA MÊME ÎLE ; d'une île à
+       l'autre, ce serait contourner des défenses disparues. */
+    ok("une grille neuve jette les champs de l'île d'avant",
+       /occ = new Uint8Array\(GW \* GH\);[\s\S]{0,600}chemins\.length = 0;/.test(html));
+  }
 })();
 
 /* ---------------- bilan ---------------- */

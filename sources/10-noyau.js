@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.15";
+var VERSION = "v1.16";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -8282,5 +8282,161 @@ function ajouteTitreCarriere(bg, nom){
   tab[n].ca++;
   return encodeBadges(tab);
 }
+
+
+/* ================================================================
+   LE CHAMP DE DISTANCE — savoir où aller, et pas seulement où l'on
+   se cogne
+
+   CE QU'IL REMPLACE, ET POURQUOI. Les troupes n'avaient aucune
+   recherche de chemin : elles marchaient droit sur leur but, et quand
+   c'était muré elles balayaient des caps de plus en plus écartés
+   jusqu'à en trouver un libre. Ça suffit contre un obstacle isolé ; ça
+   ne suffit jamais contre un champ de défenses, parce qu'une troupe qui
+   ne voit que la case sous ses pieds ne peut pas savoir qu'un passage
+   existe deux cases plus loin.
+
+   MESURÉ, sur les ténèbres, trente troupes lâchées sur la plage avec
+   une balise posée sur le Brasier, à 127 cases à vol d'oiseau :
+     ZÉRO arrivée sur trente, en 260 secondes,
+     et un détour moyen de 2,25 à 3,36 fois la distance directe.
+   Elles ne restaient pas coincées : elles ERRAIENT — elles épousaient
+   un mur, contournaient, revenaient, repartaient.
+
+   CE QU'ON MET À LA PLACE. Une vague qui part du BUT et se propage
+   dans toutes les cases praticables : chaque case retient à quelle
+   distance du but elle se trouve. Une troupe n'a plus alors qu'à
+   regarder ses huit voisines et marcher vers la plus proche du but.
+   Le chemin est globalement juste — elle contourne un pâté de
+   défenses au lieu de s'y presser — et il ne coûte RIEN par troupe :
+   tout le travail est fait une fois, pour toutes celles qui visent le
+   même endroit.
+
+   LA VAGUE PART DU BUT, ET C'EST L'INVERSE DE CE QU'ON ÉCRIRAIT
+   D'INSTINCT. Partir de la troupe donnerait un champ par troupe ;
+   partir du but en donne UN pour tout un groupe, et le sens de lecture
+   s'inverse simplement : on descend la pente au lieu de la remonter.
+
+   PAS DE PASSAGE EN BIAIS ENTRE DEUX ANGLES. Une diagonale n'est
+   ouverte que si les deux cases orthogonales qui la bordent le sont :
+   sans cette règle, une troupe se faufilerait entre deux défenses qui
+   se touchent par le coin, et l'on verrait quelqu'un traverser un mur.
+
+   ON SÈME DEPUIS LE POURTOUR DU BUT, PAS DEPUIS SON CENTRE, et c'est
+   la seule subtilité de cette fonction. Semer la seule case de départ
+   paraît naturel, et c'est faux dès que le but est un bâtiment : le
+   Brasier occupe un disque de onze cases de large, donc ses voisines
+   immédiates sont murées elles aussi, et la vague meurt au premier
+   anneau. Mesuré à la première écriture : UNE case atteinte sur vingt
+   mille, et pas une troupe qui bouge autrement qu'avant.
+
+   On inonde donc d'abord les cases MURÉES qui touchent le départ — le
+   bâtiment lui-même —, à distance nulle, puis la vague repart de leurs
+   voisines libres. L'inondation est bornée à quelques cases : sans
+   cette borne, un but posé contre un mur de défenses qui se touchent
+   se propagerait le long de tout le mur, et l'on sèmerait à cinquante
+   cases de là.
+   ================================================================ */
+var CHEMIN_LOIN = 65535;            // inatteignable
+var CHEMIN_DX = [1, -1, 0, 0,  1,  1, -1, -1];
+var CHEMIN_DY = [0, 0, 1, -1,  1, -1,  1, -1];
+
+var CHEMIN_EMPRISE = 9;             // cases : la borne de l'inondation du but
+function champDepuis(occ, larg, haut, sx, sy){
+  var n = larg * haut;
+  var d = new Uint16Array(n);
+  d.fill(CHEMIN_LOIN);
+  var si = sx | 0, sj = sy | 0;
+  if(si < 0 || si >= larg || sj < 0 || sj >= haut) return d;
+  /* file plate plutôt qu'un tas : toutes les arêtes coûtent un, donc
+     une largeur d'abord suffit — et elle est linéaire */
+  var file = new Int32Array(n), tete = 0, queue = 0;
+  var s = sj * larg + si;
+  d[s] = 0; file[queue++] = s;
+
+  /* ---- le pourtour du but ----
+     Tant qu'on est dans du muré ET proche du départ, on avance à coût
+     nul : c'est le bâtiment qu'on traverse pour ressortir de l'autre
+     côté. Les cases libres rencontrées deviennent le vrai départ de la
+     vague. */
+  if(occ[s] !== 0){
+    var mur = [s], mt = 0;
+    while(mt < mur.length){
+      var mc = mur[mt++];
+      var mi = mc % larg, mj = (mc / larg) | 0;
+      for(var mk = 0; mk < 8; mk++){
+        var ai = mi + CHEMIN_DX[mk], aj = mj + CHEMIN_DY[mk];
+        if(ai < 0 || ai >= larg || aj < 0 || aj >= haut) continue;
+        if(Math.abs(ai - si) > CHEMIN_EMPRISE || Math.abs(aj - sj) > CHEMIN_EMPRISE) continue;
+        var av = aj * larg + ai;
+        if(d[av] !== CHEMIN_LOIN) continue;
+        d[av] = 0;
+        if(occ[av] !== 0) mur.push(av);      // encore du bâtiment
+        else file[queue++] = av;             // le pourtour libre : la vague part d'ici
+      }
+    }
+  }
+
+  while(tete < queue){
+    var c = file[tete++], cd = d[c] + 1;
+    var i = c % larg, j = (c / larg) | 0;
+    for(var k = 0; k < 8; k++){
+      var ni = i + CHEMIN_DX[k], nj = j + CHEMIN_DY[k];
+      if(ni < 0 || ni >= larg || nj < 0 || nj >= haut) continue;
+      var v = nj * larg + ni;
+      if(occ[v] !== 0 || d[v] !== CHEMIN_LOIN) continue;
+      if(k >= 4 && (occ[j * larg + ni] !== 0 || occ[nj * larg + i] !== 0)) continue;
+      d[v] = cd;
+      file[queue++] = v;
+    }
+  }
+  return d;
+}
+
+/* La case voisine la plus proche du but, ou -1 s'il n'y en a pas.
+   Rendue à part parce que c'est du calcul pur : les tests l'exercent
+   sur des grilles écrites à la main, sans rien du jeu autour. */
+function pasVersLeBut(champ, occ, larg, haut, gx, gy){
+  var i = gx | 0, j = gy | 0;
+  if(i < 0 || i >= larg || j < 0 || j >= haut) return -1;
+  var ici = champ[j * larg + i];
+  var meilleur = -1, md = (ici === CHEMIN_LOIN) ? CHEMIN_LOIN : ici;
+  for(var k = 0; k < 8; k++){
+    var ni = i + CHEMIN_DX[k], nj = j + CHEMIN_DY[k];
+    if(ni < 0 || ni >= larg || nj < 0 || nj >= haut) continue;
+    var v = nj * larg + ni;
+    if(occ[v] !== 0) continue;
+    if(k >= 4 && (occ[j * larg + ni] !== 0 || occ[nj * larg + i] !== 0)) continue;
+    if(champ[v] < md){ md = champ[v]; meilleur = v; }
+  }
+  return meilleur;
+}
+
+/* ================================================================
+   REGARDER PLUS LOIN QUE LA VOISINE : ESSAYÉ, MESURÉ, ABANDONNÉ
+
+   L'instinct dit qu'une case à la fois donne un escalier — huit
+   directions seulement, donc une pente à trente degrés se rendrait en
+   « droite, diagonale, droite » — et qu'il faut viser la case la plus
+   lointaine qu'on voie en ligne droite pour tirer la corde. On l'a
+   écrit, et on l'a mesuré sur la même manche que tout le reste :
+
+     portée      trajet / plus court chemin      virage total
+     1 case      0,98 à 0,99                     470° à 678°
+     12 cases    0,97 à 0,98                     1629° à 1976°
+
+   UN POUR CENT DE GAGNÉ SUR LA LONGUEUR, TROIS FOIS PLUS DE VIRAGE.
+   Le point de mire lointain SAUTE : quand le couloir tourne, l'horizon
+   visible passe de douze cases à trois et revient, et chaque saut est
+   un coup de barre. Et la prémisse elle-même était fausse — 470° sur
+   un trajet de 259 cases font deux degrés et demi par case, alors
+   qu'un vrai escalier à 45° en tournerait vingt-trois mille. La
+   marche était déjà lisse : c'est la limite de braquage de
+   capMarcheUnite qui l'arrondit, et il n'y avait pas d'escalier à
+   redresser.
+
+   On garde donc la voisine, et on garde surtout la trace de l'essai :
+   quiconque relit ce fichier aura le même réflexe.
+   ================================================================ */
 
 /*==NOYAU_FIN==*/
