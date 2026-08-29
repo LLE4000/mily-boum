@@ -507,14 +507,55 @@
     if (text) later(t, function () { emit('lyric', text); });
     sing(t, ph(spec), beats * bt(), g || 0.55, false);
   }
+  /* ================================================================
+     LA VOIX DE L'INTRO — POURQUOI ELLE SONNAIT COMME UNE PETITE VIEILLE
+
+     Le défaut n'est pas apparu, il s'est RÉVÉLÉ : le discours ne se
+     jouait jamais avant qu'on le branche, puisqu'on entrait toujours à
+     la mesure 24. Deux choses se sont additionnées, et il fallait
+     corriger les deux.
+
+     1. LE CHOIX DE LA VOIX. La liste des préférées ne contient que des
+        noms d'ordinateur de bureau — Alex et Daniel chez Apple, David
+        chez Microsoft, Google US English. Sur une TABLETTE, aucun de
+        ces noms n'existe. On tombait donc sur le repli, « la première
+        voix anglaise venue », et sur Android cette première-là est le
+        plus souvent une voix de FEMME. On cherche maintenant aussi les
+        noms des moteurs de téléphone, et surtout on garde une passe
+        générique : toute voix dont le nom dit « male » sans dire
+        « female » fait l'affaire, quel que soit le fabricant.
+
+     2. LA HAUTEUR DEMANDÉE. `pitch` allait à 0,45 sur une plage qui va
+        de 0 à 2, où 1 est le naturel. C'est un transposeur poussé de
+        plus d'une octave vers le bas — et les moteurs vocaux des
+        téléphones décrochent bien avant : en dessous de 0,7 environ, la
+        voix se met à crisser et à chevroter. Une voix de femme
+        descendue à 0,45, c'est exactement la petite vieille.
+        Une voix GRAVE ne s'obtient pas en écrasant la hauteur d'une
+        voix aiguë : elle s'obtient en choisissant une voix grave, puis
+        en la posant à peine plus bas. 0,8, et le débit remonte de 0,7
+        à 0,88 — présidentiel, pas ralenti.
+     ================================================================ */
   function pickVoice() {
     if (!voices.length) return null;
     var pref = ['Aaron', 'Alex', 'Daniel', 'Fred', 'Arthur', 'Microsoft Guy',
-                'Microsoft David', 'Google US English', 'Google UK English Male', 'Tom', 'Nathan'];
-    for (var i = 0; i < pref.length; i++) {
-      for (var j = 0; j < voices.length; j++) {
+                'Microsoft David', 'Microsoft Mark', 'Google US English',
+                'Google UK English Male', 'Tom', 'Nathan',
+                /* les moteurs de téléphone, absents de la liste d'origine */
+                'English United States male', 'en-us-x-iom', 'en-us-x-tpd',
+                'en-gb-x-gbb', 'Samsung', 'Rishi', 'James', 'Oliver'];
+    var i, j;
+    for (i = 0; i < pref.length; i++) {
+      for (j = 0; j < voices.length; j++) {
         if (voices[j].name.indexOf(pref[i]) >= 0 && voices[j].lang.indexOf('en') === 0) return voices[j];
       }
+    }
+    /* la passe générique : « male » oui, « female » non — c'est le seul
+       indice de genre que l'API laisse, et il vaut mieux que rien */
+    for (j = 0; j < voices.length; j++) {
+      var n = voices[j].name.toLowerCase();
+      if (voices[j].lang.indexOf('en') === 0 &&
+          n.indexOf('male') >= 0 && n.indexOf('female') < 0) return voices[j];
     }
     for (var k = 0; k < voices.length; k++) {
       if (voices[k].lang.indexOf('en') === 0) return voices[k];
@@ -528,7 +569,9 @@
         try {
           var u = new root.SpeechSynthesisUtterance(spoken);
           var v = pickVoice(); if (v) u.voice = v;
-          u.rate = 0.7; u.pitch = 0.45; u.volume = 1; u.lang = 'en-US';
+          /* 0,8 et non 0,45 : voir pickVoice. En dessous de 0,7 les
+             moteurs vocaux des téléphones chevrotent. */
+          u.rate = 0.88; u.pitch = 0.8; u.volume = 1; u.lang = 'en-US';
           root.speechSynthesis.speak(u);
         } catch (e) { /* silencieux : la voix système est optionnelle */ }
       });

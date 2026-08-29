@@ -1425,7 +1425,11 @@ function dessineLasersIbiza(c, tps){
     var ouvre = 0.40 + 0.60 * Math.abs(Math.cos(ph));
     var hb = 34 * z;                        // la lanterne, au-dessus de son socle
     var bx2 = st.x, by2 = st.y - hb;
-    var lgT = 1700 * (0.6 + F * 0.4) * z;
+    /* DEUX FOIS PLUS HAUT. Ils sortent largement du cadre par le haut,
+       et c'est voulu : un faisceau qui s'arrête quelque part a une
+       longueur, donc c'est un objet ; un faisceau qui sort du cadre
+       monte au ciel. */
+    var lgT = 3400 * (0.6 + F * 0.4) * z;
     var tx = bx2 + Math.sin(ang) * lgT, ty = by2 - Math.cos(ang) * lgT;
     /* le fût : un trapèze qui s'ouvre vers le ciel, et non un trait —
        un projecteur de ciel se voit à son ÉVASEMENT */
@@ -1433,7 +1437,7 @@ function dessineLasersIbiza(c, tps){
     var w1 = (34 + f * 14) * ouvre * z;
     var nx = Math.cos(ang), ny = Math.sin(ang);   // la normale au faisceau
     var gT = c.createLinearGradient(bx2, by2, tx, ty);
-    var opT = (0.13 + f * 0.13) * F * ouvre;
+    var opT = (0.19 + f * 0.18) * F * ouvre;
     gT.addColorStop(0, "rgba(235,246,255," + (opT * 1.6) + ")");
     gT.addColorStop(0.35, "rgba(210,238,255," + (opT * 0.7) + ")");
     gT.addColorStop(1, "rgba(190,225,255,0)");
@@ -1445,8 +1449,8 @@ function dessineLasersIbiza(c, tps){
     c.lineTo(tx - nx * w1, ty - ny * w1);
     c.closePath(); c.fill();
     /* le cœur du fût, plus net */
-    c.strokeStyle = "rgba(255,255,255," + (opT * 1.4) + ")";
-    c.lineWidth = (2.2 + f * 1.6) * ouvre * z;
+    c.strokeStyle = "rgba(255,255,255," + (opT * 1.55) + ")";
+    c.lineWidth = (2.8 + f * 2.0) * ouvre * z;
     c.beginPath(); c.moveTo(bx2, by2); c.lineTo(tx, ty); c.stroke();
     /* la lanterne, et son halo au sol */
     var gl = c.createRadialGradient(bx2, by2, 0, bx2, by2, 26 * z);
@@ -1580,6 +1584,57 @@ function feuIbiza(H){
   return null;
 }
 
+/* ────────────────────────────────────────────────────────────────
+   UNE VRAIE GERBE, ET C'EST UNE QUESTION DE PHYSIQUE
+
+   « Les feux d'artifice doivent être beaucoup mieux travaillés, plus
+   beaux et plus crédibles, avec de vraies explosions et traînées, et
+   monter deux fois plus haut. »
+
+   La première version dessinait vingt-quatre SEGMENTS sur un cercle
+   qui grandissait. C'est une roue de vélo, pas une gerbe — et la
+   raison est simple : dans un vrai feu d'artifice, on ne voit pas les
+   étoiles, on voit leur TRAÎNÉE. Ce qui fait le dessin, c'est la
+   longueur de la traîne, et cette longueur raconte la vitesse.
+
+   ON SIMULE DONC UNE ÉTOILE, et trois forces suffisent :
+
+     LA POUSSÉE, donnée d'un coup à l'éclatement.
+     LE FREIN DE L'AIR, qui la mange. Une étoile de feu d'artifice est
+       minuscule et va vite : elle est freinée très fort, ce qui donne
+       la course caractéristique — fulgurante, puis presque arrêtée.
+       En intégrant, la distance vaut V(1−e^(−Kτ))/K : elle tend vers
+       une limite, exactement comme une vraie.
+     LA PESANTEUR, en τ², qui ne se voit qu'à la fin et fait retomber
+       la gerbe en saule.
+
+   ET LA TRAÎNÉE SE DÉDUIT, elle ne se règle pas : on trace le segment
+   entre la position d'il y a un dixième de temps et celle
+   d'aujourd'hui. Au départ l'étoile a fait beaucoup de chemin en un
+   dixième de temps — traînée longue ; à la fin elle n'avance plus —
+   la traîne se ramasse en un point. C'est ce raccourcissement
+   automatique qui fait toute la crédibilité, et on ne l'aurait pas
+   obtenu en le dessinant à la main.
+
+   TROIS COULEURS DANS LA VIE D'UNE ÉTOILE, comme dans la vraie
+   pyrotechnie : blanche et aveuglante au premier instant, la teinte
+   de la bombe ensuite, puis une braise orangée qui s'éteint.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_FEU_ETOILES = 30;     // étoiles par gerbe
+/* LE FREIN ÉTAIT TROP FORT, et ça se voit à l'usage plus qu'au calcul :
+   à K = 3,1 l'étoile a fait les neuf dixièmes de sa course en un tiers de
+   temps, et passe tout le reste de sa vie presque immobile. Or la traîne
+   est proportionnelle à la vitesse — une étoile arrêtée n'a plus de
+   traîne, donc plus de dessin. On ne voyait la gerbe qu'un dixième de
+   seconde. À 1,5, la course dure une noire entière : c'est le temps
+   qu'il faut à l'œil pour lire une gerbe.
+   La distance limite vaut V/K — six cent vingt sur un et demi, soit
+   quatre cent dix unités de rayon : une belle bombe. */
+var IBI_FEU_V       = 620;    // la poussée initiale, en unités par noire
+var IBI_FEU_K       = 1.5;    // le frein de l'air
+var IBI_FEU_G       = 58;     // la pesanteur
+var IBI_FEU_TRAINE  = 0.14;   // la traîne, en noires de retard
+
 function dessineFeuIbiza(c, tps, p, z){
   var H = horlogeIbiza(tps);
   var F = feuIbiza(H);
@@ -1589,8 +1644,6 @@ function dessineFeuIbiza(c, tps, p, z){
   c.globalCompositeOperation = "lighter";
   c.lineCap = "round";
   for(i = 0; i < IBI_FEU_N; i++){
-    /* Chaque fusée part à son tour, étalée sur la fenêtre. La dernière
-       doit avoir le temps de finir : on ne lance que sur les deux tiers. */
     var t0 = i * (IBI_FEU_DUREE - IBI_FEU_VIE) / (IBI_FEU_N - 1) * 0.82;
     var v = F.p - t0;
     if(v < 0 || v > IBI_FEU_VIE) continue;
@@ -1598,92 +1651,105 @@ function dessineFeuIbiza(c, tps, p, z){
     /* SA PLACE EST TIRÉE DE SON NUMÉRO, jamais d'un hasard : deux
        joueurs doivent voir le même ciel, et la même fusée doit repartir
        du même endroit au tour suivant. L'angle d'or ne repasse jamais
-       deux fois au même rayon — d'où douze départs bien répartis tout
-       autour de l'île sans qu'aucun ne se superpose. */
-    var ang = i * 2.399963 + F.n * 1.2;
-    /* AU-DESSUS DE LA PISTE, ET NON AU LARGE — et c'est l'isométrie qui
-       l'impose. Une case vaut VINGT-SIX pixels sur l'axe horizontal :
-       un cercle de cinquante cases fait donc deux mille six cents pixels
-       de large à l'écran, et au zoom de l'île, où l'on n'en voit que
-       quatorze cents, DIX des douze fusées éclataient hors du cadre.
-       Mesuré, pas deviné : deux visibles sur douze.
-       Douze à trente cases, elles tiennent toutes dans l'image, et
-       elles montent au-dessus de la foule — ce qui est de toute façon
-       la place d'un feu d'artifice de scène. */
-    var ray = 12 + (i % 4) * 6;
+       deux fois au même rayon — d'où des départs bien répartis tout
+       autour de la scène sans qu'aucun ne se superpose. */
+    /* ────────────────────────────────────────────────────────
+       ON TIRE DEPUIS LE SUD, ET C'EST LA CAMÉRA QUI L'IMPOSE.
+
+       Elle est bornée pour garder l'île à l'écran : il n'y a donc
+       jamais beaucoup de ciel au-dessus. Réparties tout autour de la
+       scène, la moitié des fusées partaient du NORD — déjà en haut du
+       cadre — et éclataient hors de l'image dès qu'on a doublé leur
+       hauteur. Mesuré : plus une seule gerbe visible.
+
+       Elles partent maintenant de l'arc SUD, celui qui est en bas de
+       l'écran, et montent dans le ciel au-dessus de la scène. En
+       isométrie, « sud » veut dire cos(a) + sin(a) > 0 — les deux
+       coordonnées grandissent ensemble, et iso() met leur somme en
+       ordonnée. L'arc va donc de 0 à 2,2 radians.
+
+       Et c'est aussi la meilleure composition : on regarde la fête
+       depuis le sud, les gerbes s'ouvrent derrière elle.
+       ──────────────────────────────────────────────────────── */
+    var ang = 0.05 + (i / (IBI_FEU_N - 1)) * 2.15 + F.n * 0.33;
+    var ray = 10 + (i % 4) * 5;
     var base = versEcran(cam, SCENE_GX + Math.cos(ang) * ray,
                               SCENE_GY + Math.sin(ang) * ray);
-    /* et elles éclatent plus bas : au zoom de l'île il n'y a que quatre
-       cents pixels de ciel au-dessus de la scène, pas huit cents */
-    var haut = (250 + ((i * 7) % 5) * 70) * z;      // la hauteur d'éclatement
+    /* DEUX FOIS PLUS HAUT. Elles sortent parfois du cadre par le haut,
+       et c'est ce qu'on veut : on lève les yeux vers un feu d'artifice. */
+    var haut = (500 + ((i * 7) % 5) * 95) * z;
     var col = teinteIbiza(IBI_LASER_T, i * 5 + mes + F.n);
 
     if(v < IBI_FEU_MONTEE){
-      /* LA MONTÉE. Elle ralentit en approchant du sommet — une fusée
-         qui monte à vitesse constante puis éclate net a l'air d'un
-         curseur. Le petit sillage derrière elle est ce qui la rend
-         rapide à l'œil. */
+      /* LA MONTÉE, avec sa comète. Elle ralentit en approchant du
+         sommet — une fusée qui monte à vitesse constante puis éclate
+         net a l'air d'un curseur — et sa traîne s'étire derrière elle
+         puis se ramasse, comme celle des étoiles plus bas. */
       var u = v / IBI_FEU_MONTEE;
-      var e = 1 - (1 - u) * (1 - u);              // décélération
-      var y = base.y - haut * e;
-      var yq = base.y - haut * Math.max(0, e - 0.10);
+      var e = 1 - (1 - u) * (1 - u);
+      var eq = 1 - (1 - Math.max(0, u - 0.16)) * (1 - Math.max(0, u - 0.16));
+      var y = base.y - haut * e, yq = base.y - haut * eq;
       var gm = c.createLinearGradient(base.x, yq, base.x, y);
       gm.addColorStop(0, "rgba(" + col + ",0)");
-      gm.addColorStop(1, "rgba(255,240,210,.85)");
+      gm.addColorStop(0.55, "rgba(255,190,110,.35)");
+      gm.addColorStop(1, "rgba(255,246,225,.95)");
       c.strokeStyle = gm;
-      c.lineWidth = 2.1 * z;
+      c.lineWidth = 2.4 * z;
       c.beginPath(); c.moveTo(base.x, yq); c.lineTo(base.x, y); c.stroke();
+      /* la tête de la comète, qui grésille */
+      c.fillStyle = "rgba(255,250,235," + (0.55 + 0.35 * Math.sin(v * 90 + i)) + ")";
+      c.beginPath(); c.arc(base.x, y, Math.max(1.2, 2.2 * z), 0, 6.2832); c.fill();
       continue;
     }
 
-    /* L'ÉCLATEMENT. Vingt-quatre branches, et chacune est un SEGMENT
-       entre deux rayons — pas un trait qui part du centre. C'est ce qui
-       fait une gerbe : au début les segments sont courts et serrés, à
-       la fin ils s'étirent et se séparent. Un trait plein depuis le
-       centre donne une roue de vélo. */
+    /* L'ÉCLATEMENT */
     var w = (v - IBI_FEU_MONTEE) / (IBI_FEU_VIE - IBI_FEU_MONTEE);   // 0..1
+    var tau = v - IBI_FEU_MONTEE;                                     // en noires
     var cy = base.y - haut;
-    var R = (30 + 185 * (1 - Math.pow(1 - w, 2.4))) * z;   // s'ouvre puis ralentit
-    var chute = 46 * w * w * z;                            // la gravité, en fin de vie
-    var op = Math.max(0, 1 - w * w * 1.25);
 
-    /* l'éclair du premier instant : c'est lui qui fait « boum » */
-    if(w < 0.16){
-      var fl = 1 - w / 0.16;
-      var rf = Math.max(40, 190 * fl * z);
+    /* L'ÉCLAIR DU PREMIER INSTANT, et il est bref. C'est lui qui fait
+       « boum » : un feu d'artifice commence par une lumière, les
+       étoiles ne se détachent qu'ensuite. */
+    if(w < 0.14){
+      var fl = 1 - w / 0.14;
+      var rf = Math.max(46, 230 * fl * z);
       var gf = c.createRadialGradient(base.x, cy, 0, base.x, cy, rf);
-      gf.addColorStop(0, "rgba(255,252,235," + (0.75 * fl) + ")");
-      gf.addColorStop(0.45, "rgba(255,236,180," + (0.30 * fl) + ")");
-      gf.addColorStop(1, "rgba(255,240,200,0)");
+      gf.addColorStop(0, "rgba(255,253,244," + (0.85 * fl) + ")");
+      gf.addColorStop(0.30, "rgba(" + col + "," + (0.42 * fl) + ")");
+      gf.addColorStop(1, "rgba(" + col + ",0)");
       c.fillStyle = gf;
       c.beginPath(); c.arc(base.x, cy, rf, 0, 6.2832); c.fill();
     }
 
-    c.strokeStyle = "rgba(" + col + "," + (op * 0.95) + ")";
-    /* UN PLANCHER SUR L'ÉPAISSEUR. Multipliée par le zoom, une branche
-       tombait à neuf dixièmes de pixel au zoom de l'île : le canevas la
-       dessinait, mais transparente. Une étincelle a une taille minimale,
-       et c'est celle du pixel. */
-    c.lineWidth = Math.max(1.6, (3.2 - w * 2.0) * z);
-    c.beginPath();
-    for(k = 0; k < 24; k++){
-      var a2 = k / 24 * 6.2832 + i * 0.37;
+    /* LES ÉTOILES. Chacune a sa direction, et sa poussée varie d'un
+       cinquième autour de la moyenne : une bombe n'est pas une sphère
+       parfaite, et c'est cette irrégularité qui la rend vraie. */
+    var mort = Math.max(0, 1 - w * w * w);      // l'extinction générale
+    for(k = 0; k < IBI_FEU_ETOILES; k++){
+      var a2 = k / IBI_FEU_ETOILES * 6.2832 + i * 0.37;
       var ca2 = Math.cos(a2), sa2 = Math.sin(a2);
-      /* une branche sur deux plus courte : une gerbe n'est pas un
-         cercle parfait, et c'est cette irrégularité qui la fait vivre */
-      var rr = R * (k & 1 ? 1 : 0.78);
-      /* LA BRANCHE FAIT PRESQUE LA MOITIÉ DU RAYON. À un quart, les
-         segments étaient trop courts pour se rejoindre à l'œil et la
-         gerbe se lisait comme des débris épars. */
-      var r0 = rr * 0.52;
-      c.moveTo(base.x + ca2 * r0, cy + sa2 * r0 * 0.92 + chute * 0.72);
-      c.lineTo(base.x + ca2 * rr, cy + sa2 * rr * 0.92 + chute);
-    }
-    c.stroke();
-    /* les têtes blanches, très brèves : elles donnent le piqué */
-    if(w < 0.55){
-      c.strokeStyle = "rgba(255,255,255," + (op * 0.5) + ")";
-      c.lineWidth = Math.max(1, 1.1 * z);
+      /* la poussée propre à cette étoile-là, tirée de son rang */
+      var vk = IBI_FEU_V * (0.78 + ((k * 7 + i * 3) % 9) / 18);
+      var d1 = vk * (1 - Math.exp(-IBI_FEU_K * tau)) / IBI_FEU_K * z;
+      var tq = Math.max(0, tau - IBI_FEU_TRAINE);
+      var d0 = vk * (1 - Math.exp(-IBI_FEU_K * tq)) / IBI_FEU_K * z;
+      var g1 = IBI_FEU_G * tau * tau * z, g0 = IBI_FEU_G * tq * tq * z;
+
+      /* le scintillement : une étoile de feu d'artifice palpite, et
+         c'est ce qui la distingue d'un trait de crayon */
+      var sc = 0.72 + 0.28 * Math.sin(tau * 34 + k * 2.1 + i * 1.3);
+      var al = mort * sc;
+      if(al < 0.03) continue;
+
+      /* TROIS ÂGES, TROIS COULEURS : blanche, puis la teinte de la
+         bombe, puis la braise. */
+      var teinte = w < 0.13 ? "255,252,240"
+                 : (w < 0.62 ? col : "255,150,60");
+      c.strokeStyle = "rgba(" + teinte + "," + (al * 0.9).toFixed(3) + ")";
+      c.lineWidth = Math.max(1.1, (2.6 - w * 1.6) * z);
+      c.beginPath();
+      c.moveTo(base.x + ca2 * d0, cy + sa2 * d0 + g0);
+      c.lineTo(base.x + ca2 * d1, cy + sa2 * d1 + g1);
       c.stroke();
     }
   }
