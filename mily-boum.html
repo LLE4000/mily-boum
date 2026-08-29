@@ -696,8 +696,15 @@ select.champ{cursor:pointer}
   font-size:9px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--braise);opacity:.85;margin-bottom:1px;
 }
-.monde .t3l{display:flex;align-items:baseline;gap:6px;line-height:1.25}
-.monde .t3l .m{flex:none;font-size:12px;filter:saturate(1.1)}
+/* `center` et non `baseline` : le badge est une image, elle n'a pas
+   de ligne de base et pendait sous le texte. */
+.monde .t3l{display:flex;align-items:center;gap:6px;line-height:1.25}
+/* le rang, en chiffres : une colonne étroite et alignée à droite, pour
+   que les pseudos partent tous du même endroit */
+.monde .t3l .m{
+  flex:none;width:10px;text-align:right;font-size:10px;color:#8f86a0;
+  font-variant-numeric:tabular-nums;font-weight:700;
+}
 .monde .t3l .n{
   flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:#cdbfd6;font-size:11.5px;
@@ -705,14 +712,12 @@ select.champ{cursor:pointer}
 .monde .t3l .g{
   flex:none;color:#8f86a0;font-size:10px;font-variant-numeric:tabular-nums;
 }
-/* le premier : plus gros, doré, et sa coupe légèrement agrandie */
-.monde .t3l.r0 .m{font-size:15px;filter:drop-shadow(0 1px 3px rgba(255,190,60,.5))}
+/* le premier : plus gros et doré — c'est le chiffre qui porte l'or,
+   maintenant que la coupe est partie */
+.monde .t3l.r0 .m{font-size:11.5px;color:#ffd870}
 .monde .t3l.r0 .n{color:#ffd870;font-size:13.5px;font-weight:700}
 .monde .t3l.r0 .g{color:#e8c37a;font-size:11px}
 .monde .t3l.r1 .n,.monde .t3l.r2 .n{font-size:11px;color:#b9adc4}
-.monde .t3p{
-  margin-top:4px;font-size:10px;line-height:1.35;color:#8f86a0;font-style:italic;
-}
 
 /* ---- LA CARTE ÉVÉNEMENT ----
    Elle occupe toute la largeur de la grille et vit sous une autre
@@ -968,7 +973,12 @@ select.champ{cursor:pointer}
 }
 .clR + .clR{margin-top:3px}
 .clR:nth-child(odd){background:rgba(255,255,255,.028)}
-.clR .rg{font-size:12px;color:var(--gris);text-align:center;font-variant-numeric:tabular-nums}
+.clR .rg{font-size:12px;color:var(--gris);text-align:center;
+         font-variant-numeric:tabular-nums;font-weight:700}
+/* les trois premiers se détachent par le chiffre, puisqu'il n'y a plus
+   de médaille pour le faire */
+.clR.pod .rg{color:var(--braise)}
+.clR .nm{display:flex;align-items:center;min-width:0}
 .clR .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clR .vl{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 .clR.moi{border-color:rgba(255,168,72,.42);background:rgba(255,138,30,.10)}
@@ -1066,6 +1076,23 @@ select.champ{cursor:pointer}
   padding:10px 14px 0;font-size:12px;line-height:1.5;color:var(--gris);
 }
 .clCorps{padding:10px 14px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
+
+/* ================================================================
+   LE BADGE, À GAUCHE DU PSEUDO
+
+   Il était à droite, et il y flottait : après un nom de longueur
+   variable, chaque badge tombait à une place différente et la colonne
+   n'existait pas. Contre la marge, tous s'alignent — et c'est bien
+   une colonne d'insignes qu'on veut pouvoir parcourir de haut en bas.
+
+   LA MARGE VIENT DU MODULE, ET ON NE TOUCHE PAS AU MODULE. `render`
+   pose un `margin-left:4px` en style direct, ce qui convenait à droite
+   d'un nom et met un trou à gauche du nôtre. On le neutralise ici —
+   c'est la seule façon de garder mily-badges.js collé tel quel, ce qui
+   vaut mieux qu'une ligne modifiée dans un fichier fourni. Le
+   `!important` est le prix d'un style écrit en attribut. */
+.bdg{display:inline-flex;vertical-align:middle;flex:none}
+.bdg .mily-badge{margin-left:0 !important;margin-right:5px}
 
 /* Le retrait d'un compte des passages : discret sur la ligne, franc
    au survol. Il ne doit pas attirer l'œil plus que le nom qu'il
@@ -1298,6 +1325,12 @@ select.champ{cursor:pointer}
 #podium{min-width:158px;font-size:12px}
 #podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
 #podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
+/* le rang, en chiffres, dans une colonne étroite : les pseudos
+   s'alignent, ce qu'une coupe de largeur variable ne permettait pas */
+#podium .r > span:first-child{
+  flex:none;width:11px;text-align:right;font-size:10.5px;color:var(--gris);
+  font-variant-numeric:tabular-nums;font-weight:700;
+}
 #podium .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
 #podium .r .v{font-variant-numeric:tabular-nums;color:var(--or);font-weight:700}
 #podium .moi .n{color:var(--vert);font-weight:700}
@@ -2167,7 +2200,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.12";
+var VERSION = "v1.13";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -58209,7 +58242,9 @@ function classementSalon(){
     var cible = (e.seau && noms[e.seau]) ? noms[e.seau] : e.nom;
     if(e.g > (par[cible] || 0)) par[cible] = e.g;
   }
-  /* qui est encore là, pour la petite prise ⏻ */
+  /* qui est encore là : la prise ⏻ ne se dessine plus, mais la
+     classe `parti` éteint toujours la ligne — c'est elle qui porte
+     l'information désormais */
   return decoreClassement(classementDepuis(par));
 }
 
@@ -58227,13 +58262,12 @@ function majPodium(){
   /* L'ÎLE, PAS LA CARRIÈRE : c'est le même nombre que la vignette de
      cette île sur l'accueil. Voir classementCarte. */
   var l = classementCarte(jeu.index);
-  var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < Math.min(3, l.length); i++){
+    /* même ordre que partout ailleurs : le rang, le badge, le nom */
     h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
-       + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + nomOrne(l[i].nom) + (l[i].absent ? " ⏻" : "")
-       + balliseBadge(l[i].nom) + '</span>'
+       + '"><span>' + (i + 1) + '</span>'
+       + '<span class="n">' + balliseBadge(l[i].nom) + nomOrne(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
   /* ================================================================
@@ -58349,8 +58383,8 @@ function nomsEnLigne(max){
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'
-       + '<span class="n">' + nomOrne(nom || "?") + (moi ? " (toi)" : "")
-       + balliseBadge(nom) + '</span>'
+       + '<span class="n">' + balliseBadge(nom) + nomOrne(nom || "?")
+       + (moi ? " (toi)" : "") + '</span>'
        + '<span class="u">' + (n > 0 ? n + " unité" + (n > 1 ? "s" : "") : "au menu") + '</span>'
        + '</div>';
 }
@@ -58390,15 +58424,20 @@ function montreBilan(){
      île parle de CETTE île : on vient d'y passer une heure, ce qu'on
      veut lire c'est ce qu'on y a fait. */
   var l = classementCarte(jeu.index);
-  var med = ["🥇", "🥈", "🥉"];
   var h = "";
   for(var i = 0; i < l.length; i++){
+    /* LE BILAN EST UN CLASSEMENT LUI AUSSI, et il suit donc la même
+       règle que les autres : un chiffre, le badge, le pseudo. Le
+       laisser seul avec ses coupes et sa prise ⏻ aurait fait de
+       l'écran de fin d'île le seul endroit du jeu où l'on compte
+       autrement. */
     h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "") + '">'
-       + '<span>' + (med[i] || (i + 1) + ".") + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
+       + '<span>' + (i + 1) + '</span>'
+       + '<span class="n">' + balliseBadge(l[i].nom) + nomOrne(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + ' dégâts</span></div>';
   }
   $("bilanLi").innerHTML = h;
+  poseBadges($("bilanLi"));
   $("bilan").classList.add("on");
 }
 function majBilan(dt){
@@ -58846,19 +58885,21 @@ function blocChampion(i){
    La phrase sous le podium est celle de la carte, reprise telle
    quelle : chaque île garde la sienne.
    --------------------------------------------------------------- */
-var MEDAILLES = ["🏆", "🥈", "🥉"];
-function phraseTop3(i){
-  var f = CARTES[i];
-  if(!f || !f.victoire) return "";
-  /* « Mily lui offre un verre ! » devient « Mily vous offre un verre »
-     — c'est le podium entier qu'on félicite, plus un seul joueur.
-     La phrase reste celle de l'île, on n'en invente pas. */
-  var p = f.victoire.replace(/\blui\b/g, "vous").replace(/\bl'invite\b/g, "vous invite")
-                    .replace(/\bt'invite\b/g, "vous invite").replace(/\bte dit\b/g, "vous dit")
-                    .replace(/\bqu'elle t'aime\b/g, "qu'elle vous aime")
-                    .replace(/\s*!\s*$/, "");
-  return "Félicitations au Top 3 ! " + p + ".";
-}
+/* LE RANG EN CHIFFRES, ET PLUS EN COUPES.
+   Une coupe, deux médailles et un badge sur trois lignes de onze
+   pixels : ça faisait deux insignes par ligne pour une seule
+   information, et c'est le badge — celui qui dit quelque chose — qui
+   y perdait. Un chiffre numérote sans rien prétendre. */
+var MEDAILLES = ["1", "2", "3"];
+/* LA PHRASE DE FÉLICITATIONS A ÉTÉ RETIRÉE de sous les podiums.
+   Elle disait « Félicitations au Top 3 ! Mily vous offre d'aller boire
+   un verre » sous chacune des huit vignettes — deux lignes de plus par
+   carte, pour un texte qu'on lit une fois et qui ne change jamais. Les
+   vignettes y gagnent leur compacité, et la phrase de victoire de
+   chaque île continue de vivre là où elle a du poids : à la chute du
+   Brasier, une fois, en grand.
+   Le champ `victoire` des cartes n'est donc PAS mort — c'est la
+   fonction qui le remettait en petit sous un tableau qui l'était. */
 function blocTop3(i){
   var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
   /* La jungle est « en cours » elle aussi, mais elle ne passe jamais
@@ -58882,11 +58923,9 @@ function blocTop3(i){
   var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
   for(var k = 0; k < liste.length && k < 3; k++){
     h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
-       + '<span class="n">' + nomOrne(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
+       + '<span class="n">' + balliseBadge(liste[k].nom) + nomOrne(liste[k].nom) + '</span>'
        + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
   }
-  var ph = phraseTop3(i);
-  if(ph && !enCours) h += '<div class="t3p">' + echappe(ph) + '</div>';
   return h + '</div>';
 }
 /* Le podium de l'île EN COURS bouge sans arrêt. On le réécrit en place
@@ -59559,13 +59598,26 @@ function majQuiSalon(){
    se ressembler, sans quoi on croirait lire deux classements.
    ================================================================ */
 var CARRIERE_APERCU = 5;
+/* UNE LIGNE DE CLASSEMENT : le rang, le badge, le pseudo, le score.
+
+   TROIS CHOSES ONT DISPARU D'ICI, ET C'EST LE MÊME MOTIF.
+   Les COUPES d'abord : trois emojis de médaille alignés au-dessus
+   d'un badge, ça faisait deux insignes par ligne pour une seule
+   information, et le badge — celui qui dit vraiment quelque chose —
+   se retrouvait noyé. Un chiffre ne prétend à rien, il numérote.
+   La PRISE ⏻ ensuite : elle marquait le joueur déconnecté, entre le
+   pseudo et le badge, à l'endroit exact où l'œil cherche l'insigne.
+   L'information n'est pas perdue pour autant — la classe `parti`
+   éteint la ligne, et c'est bien assez pour un fait dont on ne fait
+   rien.
+   ET LE BADGE PASSE À GAUCHE, avant le pseudo : à droite d'un nom de
+   longueur variable, il flottait à une place différente à chaque
+   ligne ; contre la marge, tous s'alignent. */
 function ligneClassement(o, rang){
-  var med = ["🥇", "🥈", "🥉"];
   return '<div class="clR' + (o.moi ? " moi" : "") + (o.absent ? " parti" : "")
        + (rang < 3 ? " pod" : "") + '">'
-       + '<span class="rg">' + (med[rang] || (rang + 1)) + '</span>'
-       + '<span class="nm">' + nomOrne(o.nom) + (o.absent ? " ⏻" : "")
-       + balliseBadge(o.nom) + '</span>'
+       + '<span class="rg">' + (rang + 1) + '</span>'
+       + '<span class="nm">' + balliseBadge(o.nom) + nomOrne(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
 function majCarriere(){

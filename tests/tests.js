@@ -9012,6 +9012,83 @@ G("37. Le nom en rose, et le retrait des passages");
        .test(html) && /id="vusRendre"/.test(html));
 })();
 
+
+/* ================================================================ */
+G("38. Les classements : un chiffre, le badge, le pseudo");
+(function(){
+
+  /* PLUS UNE SEULE COUPE DANS UN CLASSEMENT. Trois emojis de médaille
+     au-dessus d'un badge, c'était deux insignes par ligne pour une
+     seule information — et c'est le badge, le seul qui dise quelque
+     chose, qui s'y perdait. On cherche donc les médailles là où elles
+     étaient : dans les quatre bâtisseurs de lignes. */
+  ok("aucune médaille ne subsiste dans les classements",
+     !/var med = \["🥇", "🥈", "🥉"\]/.test(html) &&
+     !/MEDAILLES\[k\] === "🏆"/.test(html));
+  ok("… et le rang des vignettes est bien un chiffre",
+     /var MEDAILLES = \["1", "2", "3"\];/.test(html));
+
+  /* LA PRISE ⏻ NE SE DESSINE PLUS. Elle marquait le déconnecté à
+     l'endroit exact où l'œil vient chercher l'insigne. L'information
+     n'est pas perdue : la classe `parti` éteint la ligne, et c'est
+     bien assez pour un fait dont on ne fait rien. */
+  ok("la prise du joueur déconnecté a disparu des lignes",
+     !/\(o\.absent \? " ⏻" : ""\)/.test(html) &&
+     !/\(l\[i\]\.absent \? " ⏻" : ""\)/.test(html));
+  ok("… mais la ligne d'un joueur parti reste éteinte",
+     /\(o\.absent \? " parti" : ""\)/.test(html) &&
+     /#podium \.parti \.n\{opacity:\.55\}/.test(html));
+
+  /* LE BADGE PASSE DEVANT LE PSEUDO, dans les CINQ listes — sans quoi
+     il flotterait à une place différente à chaque ligne, au gré de la
+     longueur des noms. C'est l'ordre qui fait la colonne. */
+  ok("le badge précède le pseudo dans le Top carrière",
+     /balliseBadge\(o\.nom\) \+ nomOrne\(o\.nom\)/.test(html));
+  ok("… dans le podium du jeu",
+     /balliseBadge\(l\[i\]\.nom\) \+ nomOrne\(l\[i\]\.nom\)/.test(html));
+  ok("… dans les podiums des îles",
+     /balliseBadge\(liste\[k\]\.nom\) \+ nomOrne\(liste\[k\]\.nom\)/.test(html));
+  ok("… dans « qui est là »",
+     /balliseBadge\(nom\) \+ nomOrne\(nom \|\| "\?"\)/.test(html));
+  ok("… et le bilan de fin d'île en porte un, lui qui n'en avait pas",
+     /poseBadges\(\$\("bilanLi"\)\);/.test(html));
+
+  /* ET LA MARGE DU MODULE SE RETOURNE SANS QU'ON TOUCHE AU MODULE.
+     render() pose un margin-left en style direct, qui convenait à
+     droite d'un nom et laisse un trou à gauche. On le neutralise par
+     la feuille de style : mily-badges.js reste collé tel quel, ce qui
+     vaut mieux qu'une ligne modifiée dans un fichier fourni. */
+  ok("la marge du badge est retournée par la feuille de style",
+     /\.bdg \.mily-badge\{margin-left:0 !important;margin-right:5px\}/.test(html));
+  ok("… et le module fourni n'a pas été retouché pour autant",
+     /sp\.style\.marginLeft = '4px';/.test(html));
+
+  /* LA PHRASE DE FÉLICITATIONS EST PARTIE des vignettes : deux lignes
+     par carte, huit cartes, pour un texte qu'on lit une fois et qui ne
+     change jamais. */
+  /* On cherche ce qui l'ÉMETTAIT, pas la phrase : le commentaire qui
+     explique le retrait la cite, et une recherche du seul texte
+     retomberait dessus — le même piège que pour les boutons de zoom. */
+  ok("les vignettes ne portent plus la phrase de félicitations",
+     !/function phraseTop3\(/.test(html) &&
+     !/"Félicitations au Top 3 ! " \+/.test(html) &&
+     !/'<div class="t3p">'/.test(html) &&
+     !/\.monde \.t3p\{/.test(html));
+  /* MAIS LA PHRASE DE VICTOIRE DE CHAQUE ÎLE VIT TOUJOURS, là où elle
+     a du poids : à la chute du Brasier, une fois, en grand. C'est la
+     distinction qui justifie d'avoir retiré l'une sans toucher à
+     l'autre. */
+  ok("… alors que la phrase de victoire de chaque île est intacte",
+     /function texteVictoire\(/.test(html) &&
+     N.CARTES.every(function(c){ return typeof c.victoire === "string" && c.victoire; }));
+
+  /* Le rang garde une colonne à lui, alignée à droite : sans elle les
+     pseudos partiraient d'un endroit différent selon le chiffre. */
+  ok("le rang occupe une colonne étroite, pour que les pseudos s'alignent",
+     /#podium \.r > span:first-child\{[\s\S]{0,160}text-align:right/.test(html) &&
+     /\.monde \.t3l \.m\{[\s\S]{0,160}text-align:right/.test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");
