@@ -2058,7 +2058,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.10";
+var VERSION = "v1.11";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2231,6 +2231,40 @@ var EQ = {
      lui, les tornades tomberaient à intervalles rigoureusement égaux
      et l'on entendrait le métronome. */
   TORNADE_JITTER       : 0.5,
+  /* ════════════════════════════════════════════════════════════
+     DEUX TORNADES DE FEU À LA FOIS, DANS LES TÉNÈBRES
+
+     « Normalement il y a deux tornades de feu et je n'en vois qu'une. »
+     C'était exact : le profil des ténèbres portait paire:1 depuis le
+     début, là où les nuits et la guinguette lèvent bien leurs deux
+     entonnoirs. La mécanique, elle, était déjà entièrement écrite et
+     générale — il ne manquait que les trois nombres.
+
+     ET LE FLOTTEMENT DESCEND, PARCE QU'IL LE DOIT. Ce n'est pas un
+     réglage d'humeur, c'est la même arithmétique que pour les nuits.
+     Une paire de feu vit au plus
+
+         descente + vie × trajet max = 2,6 + 13 × 2 = 28,6 s
+
+     et pour qu'elle soit toujours éteinte quand la suivante tombe —
+     sinon l'île porterait QUATRE entonnoirs, le plafond en refuserait
+     deux, et le joueur verrait MOINS de feu qu'avant au lieu de plus —
+     il faut période − flottement ≥ 28,6, soit
+
+         34 × (1 − 0,14) = 29,24 ≥ 28,6
+
+     Il reste six dixièmes de seconde de marge : exactement celle que
+     les nuits ont déjà, et le test la vérifie sur dix mille créneaux
+     pour TOUS les profils qui lèvent une paire, pas seulement pour
+     celui d'aujourd'hui.
+
+     Garder le flottement d'origine à un demi aurait donné 34 × 0,5 =
+     17 s, très au-delà des 5,4 s disponibles : c'est ce qu'on aurait
+     obtenu en se contentant de recopier les nombres des nuits.
+     ════════════════════════════════════════════════════════════ */
+  TENEBRES_PAIRE       : 2,     // deux entonnoirs de feu par créneau
+  TENEBRES_JITTER      : 0.14,  // ce que l'arithmétique ci-dessus autorise
+  TENEBRES_ECART       : 34,    // cases : la bande vide entre les deux moitiés
   /* ---- LE TOURBILLON D'ÉTOILES, dans les Mily et une nuits ----
      La même mécanique que la tornade de feu, en une fois et demie plus
      grand. Ce qui change vraiment tient en quatre nombres :
@@ -3520,7 +3554,7 @@ function profilTornade(i){
     trajetMin:EQ.TORNADE_TRAJET_MIN, trajetMax:EQ.TORNADE_TRAJET_MAX,
     marge:EQ.TORNADE_MARGE_BORD, ech:EQ.TORNADE_ECH_VISUEL,
     haut:330 * EQ.TORNADE_ECH_VISUEL * EQ.TORNADE_HAUT_ECH, style:"feu",
-    paire:1, jitter:EQ.TORNADE_JITTER, ecart:0
+    paire:EQ.TENEBRES_PAIRE, jitter:EQ.TENEBRES_JITTER, ecart:EQ.TENEBRES_ECART
   };
   if(carteTourbillons(i)) return {
     periode:EQ.TOURBILLON_PERIODE, descente:EQ.TOURBILLON_DESCENTE,

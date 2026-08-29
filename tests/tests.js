@@ -3941,9 +3941,25 @@ G("4. Déterminisme de la génération de carte");
         var PN = N.profilTornade(IN);
         ok("les Mily et une nuits lèvent DEUX tourbillons par créneau",
            N.paireTornade(PN) === 2, "paire " + PN.paire);
-        ok("… et les deux autres îles gardent leur tornade seule",
-           N.paireTornade(N.profilTornade(2)) === 1 &&
-           N.paireTornade(N.profilTornade(N.IDX_JUNGLE < 0 ? 2 : 2)) === 1);
+        /* LES TÉNÈBRES AUSSI LÈVENT LEUR PAIRE, depuis qu'on a
+           corrigé le profil : « normalement il y a deux tornades de
+           feu et je n'en vois qu'une » — c'était vrai, paire:1 y
+           traînait depuis le début. */
+        {
+          var IT = -1, i5;
+          for(i5 = 0; i5 < N.CARTES.length; i5++)
+            if(N.CARTES[i5].biome === "tenebres") IT = i5;
+          ok("les ténèbres lèvent DEUX tornades de feu par créneau",
+             IT >= 0 && N.paireTornade(N.profilTornade(IT)) === 2,
+             "paire " + (IT >= 0 ? N.profilTornade(IT).paire : "?"));
+          ok("… et chacune dans sa moitié d'île, comme les tourbillons",
+             IT >= 0 && N.profilTornade(IT).ecart === N.EQ.TENEBRES_ECART &&
+             N.EQ.TENEBRES_ECART > 0);
+        }
+        /* La campagne, elle, garde sa tornade seule : la paire est une
+           décision par ÎLE, pas une règle générale. */
+        ok("… et la campagne garde sa tornade seule",
+           N.paireTornade(N.profilTornade(2)) === 1);
         /* LE MOTEUR DES NUITS, relu dans le fichier livré comme
            ci-dessus : on teste ce qui est LIVRÉ, pas une copie. */
         var W = moteur("MILY", IN, 0);
@@ -4003,6 +4019,57 @@ G("4. Déterminisme de la génération de carte");
            /jeu\.tornades\.length \+ NJ > 2/.test(html));
         ok("… et le son ne sonne qu'une fois pour la paire",
            /if\(son\.tornade\) son\.tornade\(\);\s*\n\s*for\(j = 0; j < neuves\.length/.test(html));
+
+        /* ════════════════════════════════════════════════════════
+           JAMAIS QUATRE — POUR TOUTE ÎLE QUI LÈVE UNE PAIRE
+
+           La vérification ci-dessus ne regardait QUE les nuits, et
+           c'était sa limite : le jour où une seconde île passe à la
+           paire — les ténèbres, aujourd'hui —, sa propre arithmétique
+           n'était vérifiée par personne. Or elle ne se déduit pas de
+           celle des nuits : chaque île a sa période, sa descente et sa
+           vie, donc son flottement maximal à elle.
+
+           Ce qui se joue n'est pas cosmétique. Une paire encore vivante
+           quand la suivante naît en voudrait quatre au sol ; le plafond
+           en refuserait deux, le créneau serait SAUTÉ, et le joueur
+           verrait moins de tornades qu'avant — l'inverse exact de ce
+           qu'on lui a promis.
+
+           On balaie donc toutes les cartes, et l'on n'écrit aucun index
+           en dur : une île ajoutée demain entre d'elle-même.
+           ════════════════════════════════════════════════════════ */
+        (function(){
+          var i6, vues = 0;
+          for(i6 = 0; i6 < N.CARTES.length; i6++){
+            var P6 = N.profilTornade(i6);
+            if(!P6 || N.paireTornade(P6) <= 1) continue;
+            vues++;
+            var W6 = moteur("MILY", i6, 0), chevauche6 = 0, marge6 = 1e9, n6, j6;
+            for(n6 = 0; n6 < 10000; n6++){
+              var fin6 = 0;
+              for(j6 = 0; j6 < N.paireTornade(P6); j6++){
+                var t6 = W6(n6, P6, j6);
+                var m6 = t6.naissance + P6.descente + t6.vie;
+                if(m6 > fin6) fin6 = m6;
+              }
+              var s6 = W6(n6 + 1, P6, 0).naissance;
+              if(fin6 > s6) chevauche6++;
+              if(s6 - fin6 < marge6) marge6 = s6 - fin6;
+            }
+            ok("« " + N.CARTES[i6].nom + " » : sa paire est éteinte avant la suivante",
+               chevauche6 === 0,
+               "sur 10 000 créneaux, marge minimale " + marge6.toFixed(2) + " s");
+            /* et la borne écrite à la main tient aussi : période moins
+               flottement doit couvrir la vie la plus longue possible */
+            var vieMax6 = P6.descente + P6.vie * P6.trajetMax;
+            ok("… et son arithmétique le dit sans avoir à la simuler",
+               P6.periode * (1 - P6.jitter) >= vieMax6,
+               P6.periode + " × (1 − " + P6.jitter + ") = "
+               + (P6.periode * (1 - P6.jitter)).toFixed(2) + " contre " + vieMax6.toFixed(2));
+          }
+          ok("deux îles au moins lèvent une paire", vues >= 2, vues + " île(s)");
+        })();
       })();
     })();
 
