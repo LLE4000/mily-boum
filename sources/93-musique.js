@@ -22,6 +22,9 @@
  *   2. Deux lectures se sont ajoutées à l'API, `debloque()` et
  *      `horloge()`. Elles n'écrivent rien et ne jouent rien — voir
  *      leur commentaire tout en bas. Le moteur, lui, est intact.
+ *   3. Deux retouches au classement des voix du discours, marquées
+ *      « (a) » et « (b) » à leur endroit. Le mécanisme est celui de
+ *      l'auteur, ce sont ses listes qu'on corrige.
  * ---------------------------------------------------------------------- */
 (function (root) {
   'use strict';
@@ -162,6 +165,7 @@
       verb, vs, dl, dfb, dsend, NB;
   var playing = false, bar = 0, st = 0, mul = 1, nt = 0, tid = null, pend = [];
   var bpm = 126, fMul = 1.38, vol = 0.72, vLvl = 1.1, voiceMode = 'system';
+  var voiceName = null, voicePitch = 0.85, voiceRate = 0.72;
   var voices = [], listeners = { section: [], lyric: [], error: [] };
 
   function emit(ev, data) {
@@ -508,59 +512,80 @@
     sing(t, ph(spec), beats * bt(), g || 0.55, false);
   }
   /* ================================================================
-     LA VOIX DE L'INTRO — POURQUOI ELLE SONNAIT COMME UNE PETITE VIEILLE
+     LA VOIX DU DISCOURS — POURQUOI ELLE SONNAIT COMME UNE PETITE VIEILLE
 
      Le défaut n'est pas apparu, il s'est RÉVÉLÉ : le discours ne se
      jouait jamais avant qu'on le branche, puisqu'on entrait toujours à
-     la mesure 24. Deux choses se sont additionnées, et il fallait
-     corriger les deux.
+     la mesure 24. Deux causes s'additionnaient, et l'auteur de la
+     bande-son a corrigé les deux :
 
-     1. LE CHOIX DE LA VOIX. La liste des préférées ne contient que des
-        noms d'ordinateur de bureau — Alex et Daniel chez Apple, David
-        chez Microsoft, Google US English. Sur une TABLETTE, aucun de
-        ces noms n'existe. On tombait donc sur le repli, « la première
-        voix anglaise venue », et sur Android cette première-là est le
-        plus souvent une voix de FEMME. On cherche maintenant aussi les
-        noms des moteurs de téléphone, et surtout on garde une passe
-        générique : toute voix dont le nom dit « male » sans dire
-        « female » fait l'affaire, quel que soit le fabricant.
+     1. LA HAUTEUR DEMANDÉE. `pitch` allait à 0,45 sur une plage de 0 à
+        2 où 1 est le naturel — un transposeur poussé de plus d'une
+        octave vers le bas. Les moteurs vocaux des téléphones décrochent
+        bien avant : sous 0,7 environ, la voix crisse et chevrote. La
+        solennité vient du DÉBIT LENT et des pauses, pas d'un grave
+        forcé : 0,85 de hauteur et 0,72 de débit.
 
-     2. LA HAUTEUR DEMANDÉE. `pitch` allait à 0,45 sur une plage qui va
-        de 0 à 2, où 1 est le naturel. C'est un transposeur poussé de
-        plus d'une octave vers le bas — et les moteurs vocaux des
-        téléphones décrochent bien avant : en dessous de 0,7 environ, la
-        voix se met à crisser et à chevroter. Une voix de femme
-        descendue à 0,45, c'est exactement la petite vieille.
-        Une voix GRAVE ne s'obtient pas en écrasant la hauteur d'une
-        voix aiguë : elle s'obtient en choisissant une voix grave, puis
-        en la posant à peine plus bas. 0,8, et le débit remonte de 0,7
-        à 0,88 — présidentiel, pas ralenti.
+     2. LE CHOIX DE LA VOIX. L'API n'expose aucun champ de genre — on
+        classe donc par nom, faute de mieux. Une voix féminine
+        descendue en hauteur, c'est exactement la petite vieille.
+
+     Deux retouches à son classement, et rien d'autre.
      ================================================================ */
+
+  /* (a) « male » est un morceau de « female ». La passe masculine
+     s'arrête au premier mot trouvé, donc une voix nommée « English
+     female » y gagnait +10 que la passe féminine ramenait ensuite à
+     zéro : à égalité avec une voix sans aucun indice, au lieu d'être
+     écartée. On lit donc le féminin D'ABORD, et un nom qui dit femme
+     ne repasse pas par la liste masculine. */
+  var FEMININES = ['samantha', 'karen', 'moira', 'tessa', 'victoria', 'fiona', 'susan',
+    'zoe', 'allison', 'ava', 'serena', 'kate', 'sonia', 'nicky', 'joana', 'anna',
+    'catherine', 'martha', 'emma', 'sophie', 'alice', 'aria', 'jenny', 'michelle',
+    'clara', 'female', 'woman'];
+  /* (b) Les moteurs de TÉLÉPHONE ne nomment pas leurs voix comme les
+     ordinateurs : ni Alex ni David sur une tablette. Sans ces noms-là
+     on retombait sur « la première voix anglaise venue », qui sur
+     Android est le plus souvent une femme. */
+  var MASCULINES = ['aaron', 'alex', 'daniel', 'fred', 'arthur', 'gordon', 'nathan',
+    'oliver', 'tom', 'eddy', 'reed', 'rocko', 'guy', 'david', 'mark', 'christopher',
+    'eric', 'roger', 'brandon', 'andrew', 'brian', 'male',
+    'rishi', 'james', 'george', 'matthew', 'liam', 'ryan'];
+  /* Les voix du moteur Google sur Android ne portent qu'un code —
+     « en-us-x-iom-local ». Leur genre n'est écrit nulle part, ni dans
+     l'API ni dans la documentation : ce sont celles que la passe
+     précédente retenait, donc un indice, pas une certitude. D'où un
+     bonus qui départage sans écraser un vrai prénom masculin — et
+     c'est le sélecteur du jeu qui tranche pour de bon sur l'appareil. */
+  var PROBABLES = ['x-iom', 'x-tpd', 'x-gbb', 'x-gbd'];
+
+  function scoreVoice(v) {
+    var n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase(), s = 0, i, fem = false;
+    for (i = 0; i < FEMININES.length; i++) if (n.indexOf(FEMININES[i]) >= 0) { s -= 10; fem = true; break; }
+    if (!fem) for (i = 0; i < MASCULINES.length; i++) if (n.indexOf(MASCULINES[i]) >= 0) { s += 10; break; }
+    if (!fem) for (i = 0; i < PROBABLES.length; i++) if (n.indexOf(PROBABLES[i]) >= 0) { s += 4; break; }
+    if (v.lang.indexOf('en-US') === 0) s += 3;
+    if (v.lang.indexOf('en-GB') === 0) s += 1;
+    if (v.localService) s += 1;
+    return s;
+  }
+  function englishVoices() {
+    var out = [];
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.indexOf('en') === 0) out.push(voices[i]);
+    }
+    out.sort(function (a, b) { return scoreVoice(b) - scoreVoice(a); });
+    return out;
+  }
   function pickVoice() {
-    if (!voices.length) return null;
-    var pref = ['Aaron', 'Alex', 'Daniel', 'Fred', 'Arthur', 'Microsoft Guy',
-                'Microsoft David', 'Microsoft Mark', 'Google US English',
-                'Google UK English Male', 'Tom', 'Nathan',
-                /* les moteurs de téléphone, absents de la liste d'origine */
-                'English United States male', 'en-us-x-iom', 'en-us-x-tpd',
-                'en-gb-x-gbb', 'Samsung', 'Rishi', 'James', 'Oliver'];
-    var i, j;
-    for (i = 0; i < pref.length; i++) {
-      for (j = 0; j < voices.length; j++) {
-        if (voices[j].name.indexOf(pref[i]) >= 0 && voices[j].lang.indexOf('en') === 0) return voices[j];
+    var list = englishVoices();
+    if (!list.length) return null;
+    if (voiceName) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].name === voiceName) return list[i];
       }
     }
-    /* la passe générique : « male » oui, « female » non — c'est le seul
-       indice de genre que l'API laisse, et il vaut mieux que rien */
-    for (j = 0; j < voices.length; j++) {
-      var n = voices[j].name.toLowerCase();
-      if (voices[j].lang.indexOf('en') === 0 &&
-          n.indexOf('male') >= 0 && n.indexOf('female') < 0) return voices[j];
-    }
-    for (var k = 0; k < voices.length; k++) {
-      if (voices[k].lang.indexOf('en') === 0) return voices[k];
-    }
-    return null;
+    return list[0];
   }
   function announce(t, spec, text, spoken, beats) {
     later(t, function () { emit('lyric', text); });
@@ -569,9 +594,12 @@
         try {
           var u = new root.SpeechSynthesisUtterance(spoken);
           var v = pickVoice(); if (v) u.voice = v;
-          /* 0,8 et non 0,45 : voir pickVoice. En dessous de 0,7 les
-             moteurs vocaux des téléphones chevrotent. */
-          u.rate = 0.88; u.pitch = 0.8; u.volume = 1; u.lang = 'en-US';
+          /* La langue suit la voix quand on en a une. Sans voix, on
+             dit en-US plutôt que rien : sans langue, le moteur lit
+             « We all came here for Milly » avec la locale de
+             l'appareil, donc à la française sur une tablette d'ici. */
+          u.lang = v ? v.lang : 'en-US';
+          u.rate = voiceRate; u.pitch = voicePitch; u.volume = 1;
           root.speechSynthesis.speak(u);
         } catch (e) { /* silencieux : la voix système est optionnelle */ }
       });
@@ -843,6 +871,20 @@
     },
     /* 'system' = voix du téléphone pour l'intro, 'synth' = voix synthétisée. */
     setVoiceMode: function (m) { voiceMode = (m === 'synth') ? 'synth' : 'system'; },
+
+    /* Force une voix précise, par son nom exact tel que listVoices() le renvoie.
+       Passer null pour revenir au choix automatique. */
+    setVoiceName: function (name) { voiceName = name || null; },
+
+    /* Hauteur et débit de la voix parlée. 0.85 / 0.72 par défaut.
+       Descendre la hauteur sous 0.6 rend la plupart des voix caverneuses. */
+    setVoicePitch: function (p) { voicePitch = Math.max(0.3, Math.min(1.5, p)); },
+    setVoiceRate: function (r) { voiceRate = Math.max(0.5, Math.min(1.5, r)); },
+
+    /* Voix anglaises installées sur l'appareil, les plus graves en premier. */
+    listVoices: function () {
+      return englishVoices().map(function (v) { return { name: v.name, lang: v.lang }; });
+    },
 
     isPlaying: function () { return playing; },
     getPosition: function () { return { bar: bar, section: sectionName(bar) }; },

@@ -1133,6 +1133,7 @@ function construitBriefing(){
       }
     }
     if(sauv.relais) $("relais").value = sauv.relais;
+    if(sauv.voix) voixDiscours.nom = sauv.voix;
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
      rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
@@ -1208,7 +1209,11 @@ function signalePseudoManquant(){
 function sauvegarde(){
   try{
     localStorage.setItem("milyboum", JSON.stringify({
-      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value
+      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value,
+      /* La voix du discours est un réglage d'APPAREIL — elle n'a de
+         sens que là où elle est installée, donc elle vit ici et ne
+         part jamais dans l'instantané partagé. */
+      voix:voixDiscours.nom || ""
     }));
   }catch(e){}
 }

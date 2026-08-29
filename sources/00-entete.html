@@ -832,13 +832,30 @@ select.champ{cursor:pointer}
 .vusL .vr{color:#7fb2ff}
 #vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
 
-#classP{
+#classP,#voixP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
   align-items:center;justify-content:center;padding:16px;
   overscroll-behavior:contain;
 }
-#classP.on{display:flex}
+#classP.on,#voixP.on{display:flex}
+/* Le sélecteur de voix emprunte l'ossature du classement — même boîte,
+   même haut, même façon de s'ouvrir. Il n'ajoute que la ligne-bouton :
+   deux étages de texte, le nom puis la langue, et une marque sur celle
+   qui est retenue. Quarante-quatre pixels de haut au minimum, parce
+   qu'on la touche au doigt. */
+.voxL{
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  width:100%;min-height:44px;margin-bottom:6px;padding:8px 10px;
+  background:#241634;border:1px solid rgba(255,255,255,.10);border-radius:10px;
+  color:#e8dcf2;font:inherit;text-align:left;cursor:pointer;
+}
+.voxL:hover{background:#2e1c42}
+.voxL.vsel{border-color:var(--braise);background:#331d3c;box-shadow:0 0 0 1px rgba(255,138,30,.35)}
+.voxL.vsel .voxN::after{content:" ✓";color:var(--braise)}
+.voxN{font-weight:700;font-size:13px;line-height:1.25;word-break:break-word}
+.voxL2{font-size:11px;color:var(--gris);letter-spacing:.4px}
+.voxVide{font-size:13px;color:var(--gris);line-height:1.5;padding:6px 2px}
 .clBoite{
   width:min(520px,100%);max-height:min(88vh,760px);display:flex;flex-direction:column;
   background:#1a1024;border:1px solid rgba(255,255,255,.12);border-radius:18px;
@@ -1263,6 +1280,7 @@ select.champ{cursor:pointer}
 
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
+      <button id="btVoix" class="bt ptt" title="La voix qui dit le discours d'ouverture à Ibiza, choisie sur cet appareil">🎙 Voix du discours</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
@@ -1367,6 +1385,30 @@ select.champ{cursor:pointer}
     <div class="clSous">Tous les dégâts, toutes les îles confondues, depuis
       le début du salon. Un joueur parti garde sa place.</div>
     <div class="clCorps"><div id="classListe"></div></div>
+  </div>
+</div>
+
+<!-- ================== LA VOIX DU DISCOURS ==================
+     Frère de #classP : même ossature, même façon de s'ouvrir.
+
+     Le discours d'ouverture d'Ibiza n'est pas un enregistrement — il
+     est DIT par le moteur vocal de l'appareil, ce qui permet à toute
+     la bande-son de tenir en trente-cinq kilo-octets sans un seul
+     fichier. Le revers, c'est qu'aucun appareil n'a les mêmes voix :
+     figer un nom dans le code le figerait pour une tablette et pour
+     personne d'autre. Le choix se fait donc ici, chez celui qui
+     écoute, et il est rangé avec son pseudo. -->
+<div id="voixP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">🎙 La voix du discours</div>
+      <button id="btVoixFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">À Ibiza, l'ouverture est une voix qui annonce
+      « We all came here for Mily ». Elle vient de cet appareil-ci, pas
+      du jeu. <b>Touchez une voix pour l'entendre</b> — elle est gardée
+      aussitôt, et sur cet appareil seulement.</div>
+    <div class="clCorps"><div id="voixListe"></div></div>
   </div>
 </div>
 

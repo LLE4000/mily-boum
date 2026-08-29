@@ -36,6 +36,7 @@ function demarre(){
   installeQuiSalon();
   installeClassement();
   installeVus();
+  installeVoixP();
   rafraichitPlan();
 
   monNom = pseudoSaisi();

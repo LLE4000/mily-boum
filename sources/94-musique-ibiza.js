@@ -205,6 +205,199 @@ var musique = {
   }
 };
 
+/* ================================================================
+   LA VOIX DU DISCOURS — POURQUOI ELLE SE CHOISIT ICI, ET PAS EN DUR
+
+   « La voix de l'intro est complètement différente de ce qu'il fallait,
+   comment est-ce possible ? »
+
+   Parce qu'elle n'est PAS dans le fichier. Les deux phrases du discours
+   sont dites par le moteur vocal de l'APPAREIL — c'est ce qui permet à
+   la bande-son de ne peser que trente-cinq kilo-octets et de n'exiger
+   aucun réseau. Le jeu demande « dis cette phrase en anglais » ; ce
+   qui sort dépend des voix installées, et elles ne sont les mêmes sur
+   aucun appareil.
+
+   L'auteur du morceau a corrigé ce qui pouvait l'être sans savoir sur
+   quoi le jeu tourne : la hauteur écrasée qui faisait chevroter, et le
+   classement qui laissait passer les voix féminines. C'est fait, c'est
+   dans 93-musique.js, et ça vaut pour tout le monde.
+
+   MAIS SA DERNIÈRE ÉTAPE NE MARCHE PAS POUR UN JEU À PLUSIEURS. Elle
+   demande de parcourir les voix dans un lecteur à part, de lui donner
+   le nom retenu, et qu'il l'écrive en dur dans le moteur. Ce nom-là
+   n'existerait que sur la tablette où on l'a trouvé : « Microsoft Guy »
+   n'est installé sur aucun téléphone Android, et setVoiceName() d'un
+   nom absent retombe silencieusement sur le choix automatique. On
+   aurait figé un réglage pour un joueur et changé RIEN pour les
+   autres.
+
+   Le choix appartient donc à l'appareil, pas au fichier : chacun
+   parcourt ses propres voix, écoute, garde celle qu'il veut, et son
+   choix est rangé à côté de son pseudo et de ses navettes. Le réglage
+   automatique de l'auteur reste la valeur par défaut — c'est lui qui
+   sert tant que personne n'a rien choisi.
+   ================================================================ */
+
+/* Hauteur et débit du discours. Les valeurs retenues par l'auteur
+   après écoute : « la solennité vient du débit lent et des pauses, pas
+   d'un grave forcé ». Elles vivent ICI et sont poussées dans le
+   moteur, pour que l'extrait qu'on écoute dans le sélecteur et le
+   discours qu'on entend sur l'île soient les deux mêmes nombres — un
+   sélecteur qui ne fait pas entendre ce qu'on aura est pire que pas de
+   sélecteur du tout. */
+var VOIX_HAUTEUR = 0.85, VOIX_DEBIT = 0.72;
+
+/* La phrase d'essai est la VRAIE première phrase du discours, « Mily »
+   écrit « Milly » comme le moteur l'envoie — sinon les moteurs anglais
+   disent « Maïli ». */
+var VOIX_ESSAI = "We all came here for Milly.";
+
+var voixDiscours = {
+
+  /* Le nom exact de la voix retenue, ou null pour le choix
+     automatique. C'est la seule chose qu'on retient. */
+  nom:null,
+
+  /* Les voix anglaises de l'appareil, les mieux classées en tête.
+     Rend un tableau vide si le moteur manque ou si l'appareil n'a
+     aucune voix — les deux arrivent, et ni l'un ni l'autre n'est une
+     erreur. */
+  liste:function(){
+    var M = musique.moteur();
+    if(!M || !M.listVoices) return [];
+    try{ return M.listVoices() || []; }catch(e){ return []; }
+  },
+
+  /* Retenir un nom et l'appliquer. Passe aussi la hauteur et le débit :
+     c'est le seul endroit qui les écrit, donc le seul à pouvoir
+     garantir qu'ils valent partout la même chose. */
+  pose:function(nom){
+    this.nom = nom || null;
+    var M = musique.moteur();
+    if(!M) return;
+    if(M.setVoicePitch) M.setVoicePitch(VOIX_HAUTEUR);
+    if(M.setVoiceRate) M.setVoiceRate(VOIX_DEBIT);
+    if(M.setVoiceName) M.setVoiceName(this.nom);
+  },
+
+  /* Faire parler une voix, tout de suite, sans passer par la musique.
+     On ne peut pas se servir du discours du morceau pour essayer une
+     voix : il est programmé sur l'horloge audio et n'arrive qu'aux
+     huit premières mesures. On parle donc directement — mêmes réglages,
+     même phrase, même prononciation. */
+  essaie:function(nom){
+    if(typeof speechSynthesis === "undefined") return false;
+    try{
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(VOIX_ESSAI);
+      var v = this.voixNommee(nom);
+      if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; }
+      u.pitch = VOIX_HAUTEUR; u.rate = VOIX_DEBIT; u.volume = 1;
+      speechSynthesis.speak(u);
+      return true;
+    }catch(e){ return false; }
+  },
+
+  /* L'objet SpeechSynthesisVoice qui porte ce nom. On redemande la
+     liste à l'appareil plutôt que de garder une référence : les voix
+     arrivent en différé au premier chargement, et une liste gardée
+     trop tôt est vide pour toujours. */
+  voixNommee:function(nom){
+    if(!nom || typeof speechSynthesis === "undefined") return null;
+    var t = [];
+    try{ t = speechSynthesis.getVoices() || []; }catch(e){ return null; }
+    for(var i = 0; i < t.length; i++) if(t[i].name === nom) return t[i];
+    return null;
+  }
+};
+
+/* ================================================================
+   LE SÉLECTEUR DE VOIX
+
+   Une liste de boutons plutôt qu'un menu déroulant : on ne choisit pas
+   une voix sur son nom, on la choisit en l'ENTENDANT. Chaque ligne
+   parle quand on la touche et devient le choix courant du même geste —
+   deux touchers pour comparer deux voix, et on repart quand ça sonne
+   bien. Le premier bouton rend la main au choix automatique.
+   ================================================================ */
+function majListeVoix(){
+  var l = $("voixListe");
+  if(!l) return;
+  var t = voixDiscours.liste(), h = "", i;
+  var choisi = voixDiscours.nom;
+
+  h += '<button class="voxL' + (choisi ? '' : ' vsel') + '" data-voix="">'
+     + '<span class="voxN">✨ Choix automatique</span>'
+     + '<span class="voxL2">La voix la plus grave que trouve le moteur</span>'
+     + '</button>';
+
+  for(i = 0; i < t.length; i++){
+    h += '<button class="voxL' + (t[i].name === choisi ? ' vsel' : '') + '" data-voix="'
+       + echappe(t[i].name) + '">'
+       + '<span class="voxN">' + echappe(t[i].name) + '</span>'
+       + '<span class="voxL2">' + echappe(t[i].lang) + '</span>'
+       + '</button>';
+  }
+
+  /* Aucune voix : ce n'est ni une panne ni quelque chose qu'on peut
+     réparer d'ici. On le dit, et on dit la porte de sortie. */
+  if(!t.length){
+    h += '<div class="voxVide">Cet appareil n\'annonce aucune voix anglaise.'
+       + ' Le discours sera dit par la voix synthétisée du moteur, la même'
+       + ' pour tout le monde.</div>';
+  }
+  l.innerHTML = h;
+}
+
+function ouvreVoixP(){
+  var e = $("voixP");
+  if(!e) return;
+  /* Les voix arrivent en différé : on redemande à chaque ouverture
+     plutôt que de se fier à ce qu'on avait au chargement. */
+  majListeVoix();
+  e.classList.add("on");
+}
+function fermeVoixP(){
+  var e = $("voixP");
+  if(e) e.classList.remove("on");
+}
+
+function installeVoixP(){
+  /* Le choix relu du stockage n'est encore qu'un nom : c'est ici qu'il
+     entre dans le moteur, avec la hauteur et le débit. Appelé même
+     sans choix retenu — `pose(null)` pose quand même les deux
+     réglages, et rend la main au classement automatique. */
+  voixDiscours.pose(voixDiscours.nom);
+
+  var b = $("btVoix"), f = $("btVoixFerme"), l = $("voixListe");
+  if(b) b.addEventListener("click", ouvreVoixP);
+  if(f) f.addEventListener("click", fermeVoixP);
+  if(l) l.addEventListener("click", function(ev){
+    var n = ev.target;
+    while(n && n !== l && !n.hasAttribute("data-voix")) n = n.parentNode;
+    if(!n || n === l) return;
+    /* La chaîne vide est le choix automatique, et c'est bien une
+       valeur : `pose(null)` remet le classement du moteur en marche. */
+    var nom = n.getAttribute("data-voix") || null;
+    voixDiscours.pose(nom);
+    sauvegarde();
+    majListeVoix();
+    voixDiscours.essaie(nom);
+  });
+  /* Le moteur vocal publie ses voix après coup, souvent une seconde
+     après le chargement. Si le panneau est ouvert à ce moment-là, il
+     doit se remplir tout seul. */
+  if(typeof speechSynthesis !== "undefined"){
+    try{
+      speechSynthesis.addEventListener("voiceschanged", function(){
+        var e = $("voixP");
+        if(e && e.classList.contains("on")) majListeVoix();
+      });
+    }catch(e){}
+  }
+}
+
 /* L'onglet passe à l'arrière-plan : on suspend l'horloge audio. Voir
    le piège n° 2. L'écouteur est posé une fois pour toutes, au
    chargement — il ne dépend d'aucun élément du DOM. */

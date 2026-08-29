@@ -832,13 +832,30 @@ select.champ{cursor:pointer}
 .vusL .vr{color:#7fb2ff}
 #vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
 
-#classP{
+#classP,#voixP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
   align-items:center;justify-content:center;padding:16px;
   overscroll-behavior:contain;
 }
-#classP.on{display:flex}
+#classP.on,#voixP.on{display:flex}
+/* Le sélecteur de voix emprunte l'ossature du classement — même boîte,
+   même haut, même façon de s'ouvrir. Il n'ajoute que la ligne-bouton :
+   deux étages de texte, le nom puis la langue, et une marque sur celle
+   qui est retenue. Quarante-quatre pixels de haut au minimum, parce
+   qu'on la touche au doigt. */
+.voxL{
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  width:100%;min-height:44px;margin-bottom:6px;padding:8px 10px;
+  background:#241634;border:1px solid rgba(255,255,255,.10);border-radius:10px;
+  color:#e8dcf2;font:inherit;text-align:left;cursor:pointer;
+}
+.voxL:hover{background:#2e1c42}
+.voxL.vsel{border-color:var(--braise);background:#331d3c;box-shadow:0 0 0 1px rgba(255,138,30,.35)}
+.voxL.vsel .voxN::after{content:" ✓";color:var(--braise)}
+.voxN{font-weight:700;font-size:13px;line-height:1.25;word-break:break-word}
+.voxL2{font-size:11px;color:var(--gris);letter-spacing:.4px}
+.voxVide{font-size:13px;color:var(--gris);line-height:1.5;padding:6px 2px}
 .clBoite{
   width:min(520px,100%);max-height:min(88vh,760px);display:flex;flex-direction:column;
   background:#1a1024;border:1px solid rgba(255,255,255,.12);border-radius:18px;
@@ -1263,6 +1280,7 @@ select.champ{cursor:pointer}
 
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
+      <button id="btVoix" class="bt ptt" title="La voix qui dit le discours d'ouverture à Ibiza, choisie sur cet appareil">🎙 Voix du discours</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
@@ -1367,6 +1385,30 @@ select.champ{cursor:pointer}
     <div class="clSous">Tous les dégâts, toutes les îles confondues, depuis
       le début du salon. Un joueur parti garde sa place.</div>
     <div class="clCorps"><div id="classListe"></div></div>
+  </div>
+</div>
+
+<!-- ================== LA VOIX DU DISCOURS ==================
+     Frère de #classP : même ossature, même façon de s'ouvrir.
+
+     Le discours d'ouverture d'Ibiza n'est pas un enregistrement — il
+     est DIT par le moteur vocal de l'appareil, ce qui permet à toute
+     la bande-son de tenir en trente-cinq kilo-octets sans un seul
+     fichier. Le revers, c'est qu'aucun appareil n'a les mêmes voix :
+     figer un nom dans le code le figerait pour une tablette et pour
+     personne d'autre. Le choix se fait donc ici, chez celui qui
+     écoute, et il est rangé avec son pseudo. -->
+<div id="voixP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">🎙 La voix du discours</div>
+      <button id="btVoixFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">À Ibiza, l'ouverture est une voix qui annonce
+      « We all came here for Mily ». Elle vient de cet appareil-ci, pas
+      du jeu. <b>Touchez une voix pour l'entendre</b> — elle est gardée
+      aussitôt, et sur cet appareil seulement.</div>
+    <div class="clCorps"><div id="voixListe"></div></div>
   </div>
 </div>
 
@@ -1543,7 +1585,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.93";
+var VERSION = "v0.94";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -53610,6 +53652,7 @@ function construitBriefing(){
       }
     }
     if(sauv.relais) $("relais").value = sauv.relais;
+    if(sauv.voix) voixDiscours.nom = sauv.voix;
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
      rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
@@ -53685,7 +53728,11 @@ function signalePseudoManquant(){
 function sauvegarde(){
   try{
     localStorage.setItem("milyboum", JSON.stringify({
-      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value
+      nom:pseudoSaisi(), compo:compoBarges, relais:$("relais").value,
+      /* La voix du discours est un réglage d'APPAREIL — elle n'a de
+         sens que là où elle est installée, donc elle vit ici et ne
+         part jamais dans l'instantané partagé. */
+      voix:voixDiscours.nom || ""
     }));
   }catch(e){}
 }
@@ -55266,6 +55313,9 @@ function installeBoutons(){
  *   2. Deux lectures se sont ajoutées à l'API, `debloque()` et
  *      `horloge()`. Elles n'écrivent rien et ne jouent rien — voir
  *      leur commentaire tout en bas. Le moteur, lui, est intact.
+ *   3. Deux retouches au classement des voix du discours, marquées
+ *      « (a) » et « (b) » à leur endroit. Le mécanisme est celui de
+ *      l'auteur, ce sont ses listes qu'on corrige.
  * ---------------------------------------------------------------------- */
 (function (root) {
   'use strict';
@@ -55406,6 +55456,7 @@ function installeBoutons(){
       verb, vs, dl, dfb, dsend, NB;
   var playing = false, bar = 0, st = 0, mul = 1, nt = 0, tid = null, pend = [];
   var bpm = 126, fMul = 1.38, vol = 0.72, vLvl = 1.1, voiceMode = 'system';
+  var voiceName = null, voicePitch = 0.85, voiceRate = 0.72;
   var voices = [], listeners = { section: [], lyric: [], error: [] };
 
   function emit(ev, data) {
@@ -55752,59 +55803,80 @@ function installeBoutons(){
     sing(t, ph(spec), beats * bt(), g || 0.55, false);
   }
   /* ================================================================
-     LA VOIX DE L'INTRO — POURQUOI ELLE SONNAIT COMME UNE PETITE VIEILLE
+     LA VOIX DU DISCOURS — POURQUOI ELLE SONNAIT COMME UNE PETITE VIEILLE
 
      Le défaut n'est pas apparu, il s'est RÉVÉLÉ : le discours ne se
      jouait jamais avant qu'on le branche, puisqu'on entrait toujours à
-     la mesure 24. Deux choses se sont additionnées, et il fallait
-     corriger les deux.
+     la mesure 24. Deux causes s'additionnaient, et l'auteur de la
+     bande-son a corrigé les deux :
 
-     1. LE CHOIX DE LA VOIX. La liste des préférées ne contient que des
-        noms d'ordinateur de bureau — Alex et Daniel chez Apple, David
-        chez Microsoft, Google US English. Sur une TABLETTE, aucun de
-        ces noms n'existe. On tombait donc sur le repli, « la première
-        voix anglaise venue », et sur Android cette première-là est le
-        plus souvent une voix de FEMME. On cherche maintenant aussi les
-        noms des moteurs de téléphone, et surtout on garde une passe
-        générique : toute voix dont le nom dit « male » sans dire
-        « female » fait l'affaire, quel que soit le fabricant.
+     1. LA HAUTEUR DEMANDÉE. `pitch` allait à 0,45 sur une plage de 0 à
+        2 où 1 est le naturel — un transposeur poussé de plus d'une
+        octave vers le bas. Les moteurs vocaux des téléphones décrochent
+        bien avant : sous 0,7 environ, la voix crisse et chevrote. La
+        solennité vient du DÉBIT LENT et des pauses, pas d'un grave
+        forcé : 0,85 de hauteur et 0,72 de débit.
 
-     2. LA HAUTEUR DEMANDÉE. `pitch` allait à 0,45 sur une plage qui va
-        de 0 à 2, où 1 est le naturel. C'est un transposeur poussé de
-        plus d'une octave vers le bas — et les moteurs vocaux des
-        téléphones décrochent bien avant : en dessous de 0,7 environ, la
-        voix se met à crisser et à chevroter. Une voix de femme
-        descendue à 0,45, c'est exactement la petite vieille.
-        Une voix GRAVE ne s'obtient pas en écrasant la hauteur d'une
-        voix aiguë : elle s'obtient en choisissant une voix grave, puis
-        en la posant à peine plus bas. 0,8, et le débit remonte de 0,7
-        à 0,88 — présidentiel, pas ralenti.
+     2. LE CHOIX DE LA VOIX. L'API n'expose aucun champ de genre — on
+        classe donc par nom, faute de mieux. Une voix féminine
+        descendue en hauteur, c'est exactement la petite vieille.
+
+     Deux retouches à son classement, et rien d'autre.
      ================================================================ */
+
+  /* (a) « male » est un morceau de « female ». La passe masculine
+     s'arrête au premier mot trouvé, donc une voix nommée « English
+     female » y gagnait +10 que la passe féminine ramenait ensuite à
+     zéro : à égalité avec une voix sans aucun indice, au lieu d'être
+     écartée. On lit donc le féminin D'ABORD, et un nom qui dit femme
+     ne repasse pas par la liste masculine. */
+  var FEMININES = ['samantha', 'karen', 'moira', 'tessa', 'victoria', 'fiona', 'susan',
+    'zoe', 'allison', 'ava', 'serena', 'kate', 'sonia', 'nicky', 'joana', 'anna',
+    'catherine', 'martha', 'emma', 'sophie', 'alice', 'aria', 'jenny', 'michelle',
+    'clara', 'female', 'woman'];
+  /* (b) Les moteurs de TÉLÉPHONE ne nomment pas leurs voix comme les
+     ordinateurs : ni Alex ni David sur une tablette. Sans ces noms-là
+     on retombait sur « la première voix anglaise venue », qui sur
+     Android est le plus souvent une femme. */
+  var MASCULINES = ['aaron', 'alex', 'daniel', 'fred', 'arthur', 'gordon', 'nathan',
+    'oliver', 'tom', 'eddy', 'reed', 'rocko', 'guy', 'david', 'mark', 'christopher',
+    'eric', 'roger', 'brandon', 'andrew', 'brian', 'male',
+    'rishi', 'james', 'george', 'matthew', 'liam', 'ryan'];
+  /* Les voix du moteur Google sur Android ne portent qu'un code —
+     « en-us-x-iom-local ». Leur genre n'est écrit nulle part, ni dans
+     l'API ni dans la documentation : ce sont celles que la passe
+     précédente retenait, donc un indice, pas une certitude. D'où un
+     bonus qui départage sans écraser un vrai prénom masculin — et
+     c'est le sélecteur du jeu qui tranche pour de bon sur l'appareil. */
+  var PROBABLES = ['x-iom', 'x-tpd', 'x-gbb', 'x-gbd'];
+
+  function scoreVoice(v) {
+    var n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase(), s = 0, i, fem = false;
+    for (i = 0; i < FEMININES.length; i++) if (n.indexOf(FEMININES[i]) >= 0) { s -= 10; fem = true; break; }
+    if (!fem) for (i = 0; i < MASCULINES.length; i++) if (n.indexOf(MASCULINES[i]) >= 0) { s += 10; break; }
+    if (!fem) for (i = 0; i < PROBABLES.length; i++) if (n.indexOf(PROBABLES[i]) >= 0) { s += 4; break; }
+    if (v.lang.indexOf('en-US') === 0) s += 3;
+    if (v.lang.indexOf('en-GB') === 0) s += 1;
+    if (v.localService) s += 1;
+    return s;
+  }
+  function englishVoices() {
+    var out = [];
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.indexOf('en') === 0) out.push(voices[i]);
+    }
+    out.sort(function (a, b) { return scoreVoice(b) - scoreVoice(a); });
+    return out;
+  }
   function pickVoice() {
-    if (!voices.length) return null;
-    var pref = ['Aaron', 'Alex', 'Daniel', 'Fred', 'Arthur', 'Microsoft Guy',
-                'Microsoft David', 'Microsoft Mark', 'Google US English',
-                'Google UK English Male', 'Tom', 'Nathan',
-                /* les moteurs de téléphone, absents de la liste d'origine */
-                'English United States male', 'en-us-x-iom', 'en-us-x-tpd',
-                'en-gb-x-gbb', 'Samsung', 'Rishi', 'James', 'Oliver'];
-    var i, j;
-    for (i = 0; i < pref.length; i++) {
-      for (j = 0; j < voices.length; j++) {
-        if (voices[j].name.indexOf(pref[i]) >= 0 && voices[j].lang.indexOf('en') === 0) return voices[j];
+    var list = englishVoices();
+    if (!list.length) return null;
+    if (voiceName) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].name === voiceName) return list[i];
       }
     }
-    /* la passe générique : « male » oui, « female » non — c'est le seul
-       indice de genre que l'API laisse, et il vaut mieux que rien */
-    for (j = 0; j < voices.length; j++) {
-      var n = voices[j].name.toLowerCase();
-      if (voices[j].lang.indexOf('en') === 0 &&
-          n.indexOf('male') >= 0 && n.indexOf('female') < 0) return voices[j];
-    }
-    for (var k = 0; k < voices.length; k++) {
-      if (voices[k].lang.indexOf('en') === 0) return voices[k];
-    }
-    return null;
+    return list[0];
   }
   function announce(t, spec, text, spoken, beats) {
     later(t, function () { emit('lyric', text); });
@@ -55813,9 +55885,12 @@ function installeBoutons(){
         try {
           var u = new root.SpeechSynthesisUtterance(spoken);
           var v = pickVoice(); if (v) u.voice = v;
-          /* 0,8 et non 0,45 : voir pickVoice. En dessous de 0,7 les
-             moteurs vocaux des téléphones chevrotent. */
-          u.rate = 0.88; u.pitch = 0.8; u.volume = 1; u.lang = 'en-US';
+          /* La langue suit la voix quand on en a une. Sans voix, on
+             dit en-US plutôt que rien : sans langue, le moteur lit
+             « We all came here for Milly » avec la locale de
+             l'appareil, donc à la française sur une tablette d'ici. */
+          u.lang = v ? v.lang : 'en-US';
+          u.rate = voiceRate; u.pitch = voicePitch; u.volume = 1;
           root.speechSynthesis.speak(u);
         } catch (e) { /* silencieux : la voix système est optionnelle */ }
       });
@@ -56087,6 +56162,20 @@ function installeBoutons(){
     },
     /* 'system' = voix du téléphone pour l'intro, 'synth' = voix synthétisée. */
     setVoiceMode: function (m) { voiceMode = (m === 'synth') ? 'synth' : 'system'; },
+
+    /* Force une voix précise, par son nom exact tel que listVoices() le renvoie.
+       Passer null pour revenir au choix automatique. */
+    setVoiceName: function (name) { voiceName = name || null; },
+
+    /* Hauteur et débit de la voix parlée. 0.85 / 0.72 par défaut.
+       Descendre la hauteur sous 0.6 rend la plupart des voix caverneuses. */
+    setVoicePitch: function (p) { voicePitch = Math.max(0.3, Math.min(1.5, p)); },
+    setVoiceRate: function (r) { voiceRate = Math.max(0.5, Math.min(1.5, r)); },
+
+    /* Voix anglaises installées sur l'appareil, les plus graves en premier. */
+    listVoices: function () {
+      return englishVoices().map(function (v) { return { name: v.name, lang: v.lang }; });
+    },
 
     isPlaying: function () { return playing; },
     getPosition: function () { return { bar: bar, section: sectionName(bar) }; },
@@ -56380,6 +56469,199 @@ var musique = {
     if(M) M.play("intro");
   }
 };
+
+/* ================================================================
+   LA VOIX DU DISCOURS — POURQUOI ELLE SE CHOISIT ICI, ET PAS EN DUR
+
+   « La voix de l'intro est complètement différente de ce qu'il fallait,
+   comment est-ce possible ? »
+
+   Parce qu'elle n'est PAS dans le fichier. Les deux phrases du discours
+   sont dites par le moteur vocal de l'APPAREIL — c'est ce qui permet à
+   la bande-son de ne peser que trente-cinq kilo-octets et de n'exiger
+   aucun réseau. Le jeu demande « dis cette phrase en anglais » ; ce
+   qui sort dépend des voix installées, et elles ne sont les mêmes sur
+   aucun appareil.
+
+   L'auteur du morceau a corrigé ce qui pouvait l'être sans savoir sur
+   quoi le jeu tourne : la hauteur écrasée qui faisait chevroter, et le
+   classement qui laissait passer les voix féminines. C'est fait, c'est
+   dans 93-musique.js, et ça vaut pour tout le monde.
+
+   MAIS SA DERNIÈRE ÉTAPE NE MARCHE PAS POUR UN JEU À PLUSIEURS. Elle
+   demande de parcourir les voix dans un lecteur à part, de lui donner
+   le nom retenu, et qu'il l'écrive en dur dans le moteur. Ce nom-là
+   n'existerait que sur la tablette où on l'a trouvé : « Microsoft Guy »
+   n'est installé sur aucun téléphone Android, et setVoiceName() d'un
+   nom absent retombe silencieusement sur le choix automatique. On
+   aurait figé un réglage pour un joueur et changé RIEN pour les
+   autres.
+
+   Le choix appartient donc à l'appareil, pas au fichier : chacun
+   parcourt ses propres voix, écoute, garde celle qu'il veut, et son
+   choix est rangé à côté de son pseudo et de ses navettes. Le réglage
+   automatique de l'auteur reste la valeur par défaut — c'est lui qui
+   sert tant que personne n'a rien choisi.
+   ================================================================ */
+
+/* Hauteur et débit du discours. Les valeurs retenues par l'auteur
+   après écoute : « la solennité vient du débit lent et des pauses, pas
+   d'un grave forcé ». Elles vivent ICI et sont poussées dans le
+   moteur, pour que l'extrait qu'on écoute dans le sélecteur et le
+   discours qu'on entend sur l'île soient les deux mêmes nombres — un
+   sélecteur qui ne fait pas entendre ce qu'on aura est pire que pas de
+   sélecteur du tout. */
+var VOIX_HAUTEUR = 0.85, VOIX_DEBIT = 0.72;
+
+/* La phrase d'essai est la VRAIE première phrase du discours, « Mily »
+   écrit « Milly » comme le moteur l'envoie — sinon les moteurs anglais
+   disent « Maïli ». */
+var VOIX_ESSAI = "We all came here for Milly.";
+
+var voixDiscours = {
+
+  /* Le nom exact de la voix retenue, ou null pour le choix
+     automatique. C'est la seule chose qu'on retient. */
+  nom:null,
+
+  /* Les voix anglaises de l'appareil, les mieux classées en tête.
+     Rend un tableau vide si le moteur manque ou si l'appareil n'a
+     aucune voix — les deux arrivent, et ni l'un ni l'autre n'est une
+     erreur. */
+  liste:function(){
+    var M = musique.moteur();
+    if(!M || !M.listVoices) return [];
+    try{ return M.listVoices() || []; }catch(e){ return []; }
+  },
+
+  /* Retenir un nom et l'appliquer. Passe aussi la hauteur et le débit :
+     c'est le seul endroit qui les écrit, donc le seul à pouvoir
+     garantir qu'ils valent partout la même chose. */
+  pose:function(nom){
+    this.nom = nom || null;
+    var M = musique.moteur();
+    if(!M) return;
+    if(M.setVoicePitch) M.setVoicePitch(VOIX_HAUTEUR);
+    if(M.setVoiceRate) M.setVoiceRate(VOIX_DEBIT);
+    if(M.setVoiceName) M.setVoiceName(this.nom);
+  },
+
+  /* Faire parler une voix, tout de suite, sans passer par la musique.
+     On ne peut pas se servir du discours du morceau pour essayer une
+     voix : il est programmé sur l'horloge audio et n'arrive qu'aux
+     huit premières mesures. On parle donc directement — mêmes réglages,
+     même phrase, même prononciation. */
+  essaie:function(nom){
+    if(typeof speechSynthesis === "undefined") return false;
+    try{
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(VOIX_ESSAI);
+      var v = this.voixNommee(nom);
+      if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; }
+      u.pitch = VOIX_HAUTEUR; u.rate = VOIX_DEBIT; u.volume = 1;
+      speechSynthesis.speak(u);
+      return true;
+    }catch(e){ return false; }
+  },
+
+  /* L'objet SpeechSynthesisVoice qui porte ce nom. On redemande la
+     liste à l'appareil plutôt que de garder une référence : les voix
+     arrivent en différé au premier chargement, et une liste gardée
+     trop tôt est vide pour toujours. */
+  voixNommee:function(nom){
+    if(!nom || typeof speechSynthesis === "undefined") return null;
+    var t = [];
+    try{ t = speechSynthesis.getVoices() || []; }catch(e){ return null; }
+    for(var i = 0; i < t.length; i++) if(t[i].name === nom) return t[i];
+    return null;
+  }
+};
+
+/* ================================================================
+   LE SÉLECTEUR DE VOIX
+
+   Une liste de boutons plutôt qu'un menu déroulant : on ne choisit pas
+   une voix sur son nom, on la choisit en l'ENTENDANT. Chaque ligne
+   parle quand on la touche et devient le choix courant du même geste —
+   deux touchers pour comparer deux voix, et on repart quand ça sonne
+   bien. Le premier bouton rend la main au choix automatique.
+   ================================================================ */
+function majListeVoix(){
+  var l = $("voixListe");
+  if(!l) return;
+  var t = voixDiscours.liste(), h = "", i;
+  var choisi = voixDiscours.nom;
+
+  h += '<button class="voxL' + (choisi ? '' : ' vsel') + '" data-voix="">'
+     + '<span class="voxN">✨ Choix automatique</span>'
+     + '<span class="voxL2">La voix la plus grave que trouve le moteur</span>'
+     + '</button>';
+
+  for(i = 0; i < t.length; i++){
+    h += '<button class="voxL' + (t[i].name === choisi ? ' vsel' : '') + '" data-voix="'
+       + echappe(t[i].name) + '">'
+       + '<span class="voxN">' + echappe(t[i].name) + '</span>'
+       + '<span class="voxL2">' + echappe(t[i].lang) + '</span>'
+       + '</button>';
+  }
+
+  /* Aucune voix : ce n'est ni une panne ni quelque chose qu'on peut
+     réparer d'ici. On le dit, et on dit la porte de sortie. */
+  if(!t.length){
+    h += '<div class="voxVide">Cet appareil n\'annonce aucune voix anglaise.'
+       + ' Le discours sera dit par la voix synthétisée du moteur, la même'
+       + ' pour tout le monde.</div>';
+  }
+  l.innerHTML = h;
+}
+
+function ouvreVoixP(){
+  var e = $("voixP");
+  if(!e) return;
+  /* Les voix arrivent en différé : on redemande à chaque ouverture
+     plutôt que de se fier à ce qu'on avait au chargement. */
+  majListeVoix();
+  e.classList.add("on");
+}
+function fermeVoixP(){
+  var e = $("voixP");
+  if(e) e.classList.remove("on");
+}
+
+function installeVoixP(){
+  /* Le choix relu du stockage n'est encore qu'un nom : c'est ici qu'il
+     entre dans le moteur, avec la hauteur et le débit. Appelé même
+     sans choix retenu — `pose(null)` pose quand même les deux
+     réglages, et rend la main au classement automatique. */
+  voixDiscours.pose(voixDiscours.nom);
+
+  var b = $("btVoix"), f = $("btVoixFerme"), l = $("voixListe");
+  if(b) b.addEventListener("click", ouvreVoixP);
+  if(f) f.addEventListener("click", fermeVoixP);
+  if(l) l.addEventListener("click", function(ev){
+    var n = ev.target;
+    while(n && n !== l && !n.hasAttribute("data-voix")) n = n.parentNode;
+    if(!n || n === l) return;
+    /* La chaîne vide est le choix automatique, et c'est bien une
+       valeur : `pose(null)` remet le classement du moteur en marche. */
+    var nom = n.getAttribute("data-voix") || null;
+    voixDiscours.pose(nom);
+    sauvegarde();
+    majListeVoix();
+    voixDiscours.essaie(nom);
+  });
+  /* Le moteur vocal publie ses voix après coup, souvent une seconde
+     après le chargement. Si le panneau est ouvert à ce moment-là, il
+     doit se remplir tout seul. */
+  if(typeof speechSynthesis !== "undefined"){
+    try{
+      speechSynthesis.addEventListener("voiceschanged", function(){
+        var e = $("voixP");
+        if(e && e.classList.contains("on")) majListeVoix();
+      });
+    }catch(e){}
+  }
+}
 
 /* L'onglet passe à l'arrière-plan : on suspend l'horloge audio. Voir
    le piège n° 2. L'écouteur est posé une fois pour toutes, au
@@ -57019,6 +57301,7 @@ function demarre(){
   installeQuiSalon();
   installeClassement();
   installeVus();
+  installeVoixP();
   rafraichitPlan();
 
   monNom = pseudoSaisi();
