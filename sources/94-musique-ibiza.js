@@ -38,22 +38,47 @@
       et lui seul appelle MilyMusic.
    ────────────────────────────────────────────────────────────────
 
-   OÙ ELLE COMMENCE, ET CE N'EST PAS AU DÉBUT. Les huit premières
-   mesures sont une rumeur de foule et une voix qui parle — c'est très
-   beau, et pendant ce temps-là il n'y a PAS DE BATTEMENT, donc pas un
-   danseur ne bouge. Or ce qui a été demandé, c'est que les gens
-   dansent dès qu'on arrive.
+   OÙ ELLE COMMENCE — LE DISCOURS LA PREMIÈRE FOIS, LA MONTÉE ENSUITE
 
-   On entre donc à `buildup`, mesure 24, et c'est le meilleur endroit
-   du morceau pour arriver : quinze secondes de montée — riser,
-   roulement de claps, « This… is… Mily » — la coupure totale d'un
-   temps, puis LE DROP. Débarquer sur une île pendant qu'une montée se
-   termine, c'est une entrée ; débarquer au milieu d'un couplet, c'est
-   une porte qu'on pousse. Le reste du morceau se déroule ensuite tout
-   seul et boucle indéfiniment.
+   « Et oui, il faut le mettre, le discours d'intro ! Ce qui est
+   dommage c'est qu'en repérage on ne l'entend pas non plus. »
 
-   Le discours, lui, n'est pas perdu — il est simplement réservé à qui
-   le cherchera (voir `musique.discours`).
+   Les huit premières mesures sont une rumeur de foule et une voix
+   présidentielle : « We all came here for Mily », puis « Where is
+   Mily? ». C'est l'ouverture du morceau, et elle mérite d'être
+   entendue — y compris quand on ne fait que VISITER l'île, puisque
+   visite et partie passent par la même porte.
+
+   MAIS UNE FOIS PAR CHARGEMENT DE PAGE, et pas à chaque entrée. Le
+   discours dure une quinzaine de secondes sans le moindre battement.
+   L'entendre en arrivant sur l'île est une cérémonie ; le réentendre
+   au troisième aller-retour au briefing est une attente. On entre donc
+   au discours la première fois, et à `buildup` — mesure 24 — les
+   suivantes : quinze secondes de montée, la coupure d'un temps, puis
+   LE DROP. Le reste se déroule tout seul et boucle indéfiniment.
+
+   ET LE DISCOURS NE DÉCALE PAS LE JEU DE LUMIÈRE, sur deux points
+   qu'il fallait aller vérifier :
+
+     LA PHASE. Tout ce qui bouge lit `MilyMusic.horloge()`, qui remonte
+     à la date AUDIO. L'horloge tourne pendant le discours comme
+     partout ailleurs — simplement, la section « discours » ne vaut
+     presque rien en lumière (voir IBI_FORCE), donc la foule attend en
+     se balançant à peine et les lasers restent bas. Quand la grosse
+     caisse tombe à la mesure 10, la phase est déjà juste : rien ne
+     saute, tout monte d'un coup. C'est exactement ce qu'on veut voir.
+
+     LA VOIX QUI TRAÎNE, et celle-là était un vrai défaut. `stop()` et
+     `jumpTo()` appellent tous deux `speechSynthesis.cancel()` ;
+     `play()`, NON — vérifié dans le moteur, lignes 757 et 777 contre
+     rien. Il suffisait donc de quitter l'île pendant le discours et d'y
+     revenir dans la seconde : notre fondu de sortie dure sept dixièmes,
+     `entre` annulait l'arrêt, et la voix du passage précédent
+     continuait de parler par-dessus le drop du suivant. On coupe donc
+     la parole nous-mêmes avant chaque départ. C'est sans danger pour
+     le discours qui vient : le moteur ne programme ses phrases qu'au
+     moment où il PLANIFIE la mesure, donc rien n'est encore en file
+     quand play() démarre.
 
    ET ELLE NE S'ARRÊTE PAS. Le moteur boucle tout seul de la mesure
    144 à la mesure 17 : quatre minutes par tour, indéfiniment, et le
@@ -70,6 +95,10 @@ var musique = {
   /* Le minuteur de l'arrêt en fondu. Il est à nous, et c'est tout
      l'objet du commentaire de `sort` plus bas. */
   minuteur:0,
+
+  /* Le discours a-t-il déjà été entendu depuis le chargement de la
+     page ? Une cérémonie ne se répète pas. */
+  introJouee:0,
 
   /* Le moteur, s'il est là. Un test à chaque appel plutôt qu'une
      référence gardée : si 93-musique.js venait à manquer, le jeu doit
@@ -95,8 +124,21 @@ var musique = {
     if(!carteScene(index)){ this.sort(); return; }
     /* On annule d'abord l'arrêt en cours, s'il y en a un. Voir `sort`. */
     if(this.minuteur){ clearTimeout(this.minuteur); this.minuteur = 0; }
+    /* PUIS ON COUPE LA PAROLE. Une voix du passage précédent peut
+       encore être en train de parler : play() ne l'arrête pas, seuls
+       stop() et jumpTo() le font. Voir l'en-tête du fichier. */
+    this.tais();
     M.setVolume(son.actif ? MUS_VOL : 0);
-    M.play("buildup");
+    /* le discours la première fois, la montée ensuite */
+    M.play(this.introJouee ? "buildup" : "intro");
+    this.introJouee = 1;
+  },
+
+  /* Faire taire le moteur vocal de l'appareil, sans rien casser s'il
+     n'y en a pas — certains navigateurs n'en ont aucun. */
+  tais:function(){
+    if(typeof speechSynthesis === "undefined") return;
+    try{ speechSynthesis.cancel(); }catch(e){}
   },
 
   /* ================================================================
@@ -123,6 +165,10 @@ var musique = {
     if(!M) return;
     if(this.minuteur){ clearTimeout(this.minuteur); this.minuteur = 0; }
     if(!M.isPlaying()) return;
+    /* La voix se tait TOUT DE SUITE, elle, et n'attend pas le fondu :
+       une musique qui s'éloigne est un départ, une voix désincarnée
+       qui continue de parler par-dessus le briefing est une panne. */
+    this.tais();
     M.setVolume(0);
     var self = this;
     this.minuteur = setTimeout(function(){

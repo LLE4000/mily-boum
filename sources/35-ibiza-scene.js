@@ -76,8 +76,29 @@ var IBI_BPM = 128;
    c'est lui qui fait exister le drop suivant. Une fête toujours à fond
    est plate.
    ──────────────────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────
+   LE DISCOURS EST À 0,12, ET C'EST LA VALEUR LA PLUS RÉFLÉCHIE DE LA
+   TABLE.
+
+   « Fais gaffe que ce discours ne décale pas le jeu de lumière. »
+
+   Pendant les huit premières mesures il n'y a PAS DE BATTEMENT — une
+   rumeur de foule, une nappe, une voix. Or l'horloge, elle, tourne :
+   elle compte les noires que le morceau AURAIT s'il jouait. Laisser
+   la scène à pleine puissance ferait donc danser cinq cents personnes
+   et sauter les lasers sur une pulsation que PERSONNE N'ENTEND. C'est
+   ça, « décaler le jeu de lumière » — pas un retard de quelques
+   millisecondes, mais une foule qui danse sur du silence.
+
+   À 0,12, le saut d'un danseur tombe à une unité sur un corps qui en
+   fait quatorze : ce n'est plus une danse, c'est une foule qui piétine
+   en attendant. Les lasers restent au ras du sol, les canons se
+   taisent, le stroboscope aussi. Puis la grosse caisse tombe à la
+   mesure 10 — et comme l'horloge n'a jamais cessé de tourner, la
+   phase est déjà juste : rien ne saute, tout monte d'un coup.
+   ──────────────────────────────────────────────────────────────── */
 var IBI_FORCE = {
-  discours:0.20, entree:0.60, montee:0.78, build:1.00,
+  discours:0.12, entree:0.60, montee:0.78, build:1.00,
   drop1:1.40,    break:0.45,  build2:1.05, drop2:1.50,
   descente:0.62, ibiza:0.72,  build3:1.10, final:1.60, boucle:0.85
 };
@@ -115,6 +136,27 @@ function battement(tps){
 function mesureIbiza(tps){ return Math.floor(horlogeIbiza(tps).t); }
 /* Ce que vaut la section en cours, en lumière. */
 function forceIbiza(tps){ return horlogeIbiza(tps).force; }
+/* ────────────────────────────────────────────────────────────────
+   PRENDRE UNE TEINTE SANS SORTIR DU TABLEAU
+
+   Toutes les couleurs de cette carte se choisissent au numéro du temps
+   écoulé : `teintes[mesure % 6]`. C'est juste tant que la mesure est
+   positive — et elle ne l'était plus le jour où l'on a fait démarrer
+   la musique au DISCOURS, à la mesure zéro : l'horloge y rend un
+   instant un temps très légèrement négatif, la mesure vaut −1, et en
+   JavaScript −1 % 6 ne vaut pas 5 mais −1. Le tableau rend
+   `undefined`, et le canevas refuse « rgba(undefined, 0.03) » — une
+   exception par dégradé, cinquante par image.
+
+   Le moteur ne rend plus de temps négatif (voir 93-musique.js), et
+   c'était la vraie correction. Celle-ci est la ceinture : un indice de
+   couleur ne doit jamais pouvoir sortir de sa table, quelle que soit
+   l'horloge qui le nourrit.
+   ──────────────────────────────────────────────────────────────── */
+function teinteIbiza(tab, k){
+  var n = tab.length;
+  return tab[((k % n) + n) % n];
+}
 /* La frappe : 1 sur le temps, retombe vite. C'est elle qui fait
    « pomper » toute la scène. */
 function frappe(tps){
@@ -545,7 +587,7 @@ function dessineSceneIbiza(c, tps){
     var fx0 = (i - 2) * LX * 0.36;
     var fy0 = -H + LY * 0.30 - Math.abs(i - 2) * LY * 0.10;
     var gf = c.createRadialGradient(fx0, fy0, 0, fx0, fy0, LX * 0.40);
-    var cf = IBI_TEINTES[(mes + i) % 4];
+    var cf = teinteIbiza(IBI_TEINTES, mes + i);
     gf.addColorStop(0, "rgba(" + cf + "," + (0.20 + f * 0.26) + ")");
     gf.addColorStop(1, "rgba(" + cf + ",0)");
     c.fillStyle = gf;
@@ -640,7 +682,7 @@ function dessineSceneIbiza(c, tps){
     var A = hauts[seg], B = hauts[seg + 1];
     var lx2 = A.x + (B.x - A.x) * u;
     var ly2 = A.y + (B.y - A.y) * u + 7;
-    var col = IBI_TEINTES[(mes + i) % 4];
+    var col = teinteIbiza(IBI_TEINTES, mes + i);
     c.fillStyle = "#1a1e26";
     c.fillRect(lx2 - 2.8, ly2, 5.6, 7);
     c.fillStyle = "rgba(" + col + "," + (0.40 + f * 0.6) + ")";
@@ -721,7 +763,7 @@ function dessineSceneIbiza(c, tps){
   var BD = 14;                  // profondeur apparente du plateau
   var byF = tbase - BH;         // l'arête AVANT du plateau
   var byB = byF - BD;           // l'arête ARRIÈRE
-  var tcol = IBI_TEINTES[mes % 4];
+  var tcol = teinteIbiza(IBI_TEINTES, mes);
 
   /* --- 3a. L'OMBRE de la régie sur le plancher --- */
   c.fillStyle = "rgba(0,0,0,.30)";
@@ -748,7 +790,7 @@ function dessineSceneIbiza(c, tps){
   for(i = 0; i < 12; i++){
     var lu = (i - mes * 2) % 12; if(lu < 0) lu += 12;
     var lint = 0.16 + 0.74 * Math.exp(-lu * 0.55);
-    c.fillStyle = "rgba(" + IBI_TEINTES[(mes + i) % 4] + "," + lint + ")";
+    c.fillStyle = "rgba(" + teinteIbiza(IBI_TEINTES, mes + i) + "," + lint + ")";
     c.fillRect(-BW + 3.6 + i * (BW * 2 - 7.2) / 12, byF + 1.2,
                (BW * 2 - 7.2) / 12 - 1.1, 2.2);
   }
@@ -1163,7 +1205,7 @@ function dessineLasersIbiza(c, tps){
     var y1 = y0 - Math.cos(incl) * lg;
     /* la teinte tourne autour du cercle et change à chaque temps :
        c'est une chenille de couleur, pas un clignotant */
-    var col = IBI_LASER_T[(i + mes) % 6];
+    var col = teinteIbiza(IBI_LASER_T, i + mes);
     var op = (0.11 + f * 0.19) * F;
     /* ────────────────────────────────────────────────────────────
        LE FAISCEAU S'ALLUME À UNE DISTANCE FIXE, ET C'EST TOUT LE
@@ -1260,7 +1302,7 @@ function dessineLasersIbiza(c, tps){
   var y0c = p.y - (IBI_H + 108) * z;
   var hc = 300 * (0.5 + F * 0.6) * z;
   var gcol = c.createLinearGradient(p.x, y0c, p.x, y0c - hc);
-  var ccol = IBI_TEINTES[mes % 4];
+  var ccol = teinteIbiza(IBI_TEINTES, mes);
   gcol.addColorStop(0, "rgba(" + ccol + ",0)");
   gcol.addColorStop(0.22, "rgba(" + ccol + "," + ((0.05 + f * 0.07) * F) + ")");
   gcol.addColorStop(1, "rgba(" + ccol + ",0)");
@@ -1314,7 +1356,7 @@ function dessineLasersIbiza(c, tps){
       var vers = (p.x - pr.x) / (Math.abs(p.x - pr.x) + 260);
       var inc = vers * 0.38 + Math.sin(tps * 0.6 + i * 0.9) * 0.10 * F;
       var lgt = (900 * (0.55 + F * 0.45) + f * 180 * F) * z;
-      var ct = IBI_LASER_T[(i * 2 + mes) % 6];
+      var ct = teinteIbiza(IBI_LASER_T, i * 2 + mes);
       var opt = (0.07 + f * 0.15) * F;
       var gt = c.createLinearGradient(rx0, ry0, rx0 + Math.sin(inc) * lgt,
                                       ry0 - Math.cos(inc) * lgt);
@@ -1540,7 +1582,7 @@ function dessineBandesIbiza(c, tps){
     var B1 = iso(SCENE_GX + ca * r1 + sa * w1, SCENE_GY + sa * r1 - ca * w1);
     var D0 = iso(SCENE_GX + ca * r0, SCENE_GY + sa * r0);
     var D1 = iso(SCENE_GX + ca * r1, SCENE_GY + sa * r1);
-    var col = IBI_LASER_T[(i + mes) % 6];
+    var col = teinteIbiza(IBI_LASER_T, i + mes);
     var g = c.createLinearGradient(D0.x, D0.y, D1.x, D1.y);
     for(k = 0; k <= 8; k++){
       var u = k / 8;
@@ -1611,7 +1653,7 @@ function dessineEtoileIbiza(c, tps){
       var pos = (i + u0) / n;
       var d = pos - tour; d -= Math.floor(d);        // 0 = la crête est ici
       var onde = Math.exp(-d * 7) + Math.exp(-(1 - d) * 7) * 0.35;
-      var col = IBI_TEINTES[(mes + i) % 4];
+      var col = teinteIbiza(IBI_TEINTES, mes + i);
       var vif = (0.20 + f * 0.30 + onde * 0.55) * F;
       c.strokeStyle = "rgba(" + col + "," + Math.min(0.95, vif * 0.5) + ")";
       c.lineWidth = (5 + onde * 9 + f * 4) * F;

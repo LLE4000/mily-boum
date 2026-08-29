@@ -1518,7 +1518,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.87";
+var VERSION = "v0.88";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -18125,8 +18125,29 @@ var IBI_BPM = 128;
    c'est lui qui fait exister le drop suivant. Une fête toujours à fond
    est plate.
    ──────────────────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────
+   LE DISCOURS EST À 0,12, ET C'EST LA VALEUR LA PLUS RÉFLÉCHIE DE LA
+   TABLE.
+
+   « Fais gaffe que ce discours ne décale pas le jeu de lumière. »
+
+   Pendant les huit premières mesures il n'y a PAS DE BATTEMENT — une
+   rumeur de foule, une nappe, une voix. Or l'horloge, elle, tourne :
+   elle compte les noires que le morceau AURAIT s'il jouait. Laisser
+   la scène à pleine puissance ferait donc danser cinq cents personnes
+   et sauter les lasers sur une pulsation que PERSONNE N'ENTEND. C'est
+   ça, « décaler le jeu de lumière » — pas un retard de quelques
+   millisecondes, mais une foule qui danse sur du silence.
+
+   À 0,12, le saut d'un danseur tombe à une unité sur un corps qui en
+   fait quatorze : ce n'est plus une danse, c'est une foule qui piétine
+   en attendant. Les lasers restent au ras du sol, les canons se
+   taisent, le stroboscope aussi. Puis la grosse caisse tombe à la
+   mesure 10 — et comme l'horloge n'a jamais cessé de tourner, la
+   phase est déjà juste : rien ne saute, tout monte d'un coup.
+   ──────────────────────────────────────────────────────────────── */
 var IBI_FORCE = {
-  discours:0.20, entree:0.60, montee:0.78, build:1.00,
+  discours:0.12, entree:0.60, montee:0.78, build:1.00,
   drop1:1.40,    break:0.45,  build2:1.05, drop2:1.50,
   descente:0.62, ibiza:0.72,  build3:1.10, final:1.60, boucle:0.85
 };
@@ -18164,6 +18185,27 @@ function battement(tps){
 function mesureIbiza(tps){ return Math.floor(horlogeIbiza(tps).t); }
 /* Ce que vaut la section en cours, en lumière. */
 function forceIbiza(tps){ return horlogeIbiza(tps).force; }
+/* ────────────────────────────────────────────────────────────────
+   PRENDRE UNE TEINTE SANS SORTIR DU TABLEAU
+
+   Toutes les couleurs de cette carte se choisissent au numéro du temps
+   écoulé : `teintes[mesure % 6]`. C'est juste tant que la mesure est
+   positive — et elle ne l'était plus le jour où l'on a fait démarrer
+   la musique au DISCOURS, à la mesure zéro : l'horloge y rend un
+   instant un temps très légèrement négatif, la mesure vaut −1, et en
+   JavaScript −1 % 6 ne vaut pas 5 mais −1. Le tableau rend
+   `undefined`, et le canevas refuse « rgba(undefined, 0.03) » — une
+   exception par dégradé, cinquante par image.
+
+   Le moteur ne rend plus de temps négatif (voir 93-musique.js), et
+   c'était la vraie correction. Celle-ci est la ceinture : un indice de
+   couleur ne doit jamais pouvoir sortir de sa table, quelle que soit
+   l'horloge qui le nourrit.
+   ──────────────────────────────────────────────────────────────── */
+function teinteIbiza(tab, k){
+  var n = tab.length;
+  return tab[((k % n) + n) % n];
+}
 /* La frappe : 1 sur le temps, retombe vite. C'est elle qui fait
    « pomper » toute la scène. */
 function frappe(tps){
@@ -18594,7 +18636,7 @@ function dessineSceneIbiza(c, tps){
     var fx0 = (i - 2) * LX * 0.36;
     var fy0 = -H + LY * 0.30 - Math.abs(i - 2) * LY * 0.10;
     var gf = c.createRadialGradient(fx0, fy0, 0, fx0, fy0, LX * 0.40);
-    var cf = IBI_TEINTES[(mes + i) % 4];
+    var cf = teinteIbiza(IBI_TEINTES, mes + i);
     gf.addColorStop(0, "rgba(" + cf + "," + (0.20 + f * 0.26) + ")");
     gf.addColorStop(1, "rgba(" + cf + ",0)");
     c.fillStyle = gf;
@@ -18689,7 +18731,7 @@ function dessineSceneIbiza(c, tps){
     var A = hauts[seg], B = hauts[seg + 1];
     var lx2 = A.x + (B.x - A.x) * u;
     var ly2 = A.y + (B.y - A.y) * u + 7;
-    var col = IBI_TEINTES[(mes + i) % 4];
+    var col = teinteIbiza(IBI_TEINTES, mes + i);
     c.fillStyle = "#1a1e26";
     c.fillRect(lx2 - 2.8, ly2, 5.6, 7);
     c.fillStyle = "rgba(" + col + "," + (0.40 + f * 0.6) + ")";
@@ -18770,7 +18812,7 @@ function dessineSceneIbiza(c, tps){
   var BD = 14;                  // profondeur apparente du plateau
   var byF = tbase - BH;         // l'arête AVANT du plateau
   var byB = byF - BD;           // l'arête ARRIÈRE
-  var tcol = IBI_TEINTES[mes % 4];
+  var tcol = teinteIbiza(IBI_TEINTES, mes);
 
   /* --- 3a. L'OMBRE de la régie sur le plancher --- */
   c.fillStyle = "rgba(0,0,0,.30)";
@@ -18797,7 +18839,7 @@ function dessineSceneIbiza(c, tps){
   for(i = 0; i < 12; i++){
     var lu = (i - mes * 2) % 12; if(lu < 0) lu += 12;
     var lint = 0.16 + 0.74 * Math.exp(-lu * 0.55);
-    c.fillStyle = "rgba(" + IBI_TEINTES[(mes + i) % 4] + "," + lint + ")";
+    c.fillStyle = "rgba(" + teinteIbiza(IBI_TEINTES, mes + i) + "," + lint + ")";
     c.fillRect(-BW + 3.6 + i * (BW * 2 - 7.2) / 12, byF + 1.2,
                (BW * 2 - 7.2) / 12 - 1.1, 2.2);
   }
@@ -19212,7 +19254,7 @@ function dessineLasersIbiza(c, tps){
     var y1 = y0 - Math.cos(incl) * lg;
     /* la teinte tourne autour du cercle et change à chaque temps :
        c'est une chenille de couleur, pas un clignotant */
-    var col = IBI_LASER_T[(i + mes) % 6];
+    var col = teinteIbiza(IBI_LASER_T, i + mes);
     var op = (0.11 + f * 0.19) * F;
     /* ────────────────────────────────────────────────────────────
        LE FAISCEAU S'ALLUME À UNE DISTANCE FIXE, ET C'EST TOUT LE
@@ -19309,7 +19351,7 @@ function dessineLasersIbiza(c, tps){
   var y0c = p.y - (IBI_H + 108) * z;
   var hc = 300 * (0.5 + F * 0.6) * z;
   var gcol = c.createLinearGradient(p.x, y0c, p.x, y0c - hc);
-  var ccol = IBI_TEINTES[mes % 4];
+  var ccol = teinteIbiza(IBI_TEINTES, mes);
   gcol.addColorStop(0, "rgba(" + ccol + ",0)");
   gcol.addColorStop(0.22, "rgba(" + ccol + "," + ((0.05 + f * 0.07) * F) + ")");
   gcol.addColorStop(1, "rgba(" + ccol + ",0)");
@@ -19363,7 +19405,7 @@ function dessineLasersIbiza(c, tps){
       var vers = (p.x - pr.x) / (Math.abs(p.x - pr.x) + 260);
       var inc = vers * 0.38 + Math.sin(tps * 0.6 + i * 0.9) * 0.10 * F;
       var lgt = (900 * (0.55 + F * 0.45) + f * 180 * F) * z;
-      var ct = IBI_LASER_T[(i * 2 + mes) % 6];
+      var ct = teinteIbiza(IBI_LASER_T, i * 2 + mes);
       var opt = (0.07 + f * 0.15) * F;
       var gt = c.createLinearGradient(rx0, ry0, rx0 + Math.sin(inc) * lgt,
                                       ry0 - Math.cos(inc) * lgt);
@@ -19589,7 +19631,7 @@ function dessineBandesIbiza(c, tps){
     var B1 = iso(SCENE_GX + ca * r1 + sa * w1, SCENE_GY + sa * r1 - ca * w1);
     var D0 = iso(SCENE_GX + ca * r0, SCENE_GY + sa * r0);
     var D1 = iso(SCENE_GX + ca * r1, SCENE_GY + sa * r1);
-    var col = IBI_LASER_T[(i + mes) % 6];
+    var col = teinteIbiza(IBI_LASER_T, i + mes);
     var g = c.createLinearGradient(D0.x, D0.y, D1.x, D1.y);
     for(k = 0; k <= 8; k++){
       var u = k / 8;
@@ -19660,7 +19702,7 @@ function dessineEtoileIbiza(c, tps){
       var pos = (i + u0) / n;
       var d = pos - tour; d -= Math.floor(d);        // 0 = la crête est ici
       var onde = Math.exp(-d * 7) + Math.exp(-(1 - d) * 7) * 0.35;
-      var col = IBI_TEINTES[(mes + i) % 4];
+      var col = teinteIbiza(IBI_TEINTES, mes + i);
       var vif = (0.20 + f * 0.30 + onde * 0.55) * F;
       c.strokeStyle = "rgba(" + col + "," + Math.min(0.95, vif * 0.5) + ")";
       c.lineWidth = (5 + onde * 9 + f * 4) * F;
@@ -55176,8 +55218,18 @@ function installeBoutons(){
       var reste = (nt - ctx.currentTime) / d;
       if (reste < 0) reste = 0;             // l'horloge audio a doublé le planificateur
       if (reste > 1) reste = 1;             // ou l'onglet revient d'une suspension
+      /* JAMAIS NÉGATIF. `reste` est ce qui manque avant le prochain
+         seizième : à la toute première mesure, bar et st valent zéro et
+         `reste` peut valoir un, ce qui donne −0,25 noire. Un appelant
+         qui en fait un indice de couleur — `teintes[mesure % 6]` —
+         récolte alors −1, et en JavaScript −1 % 6 vaut −1, pas 5 : il
+         lit hors du tableau et peint « undefined ». Le morceau ne
+         commence pas avant son début ; on le dit ici, une fois, plutôt
+         que dans chacun de ceux qui nous lisent. */
+      var pos = (bar * 16 + st - reste) / 4;
+      if (pos < 0) pos = 0;
       return {
-        temps: (bar * 16 + st - reste) / 4,   // en noires depuis la mesure 0
+        temps: pos,                           // en noires depuis la mesure 0
         mesure: bar,
         section: sectionName(bar),
         bpm: bpm * mul
@@ -55240,22 +55292,47 @@ function installeBoutons(){
       et lui seul appelle MilyMusic.
    ────────────────────────────────────────────────────────────────
 
-   OÙ ELLE COMMENCE, ET CE N'EST PAS AU DÉBUT. Les huit premières
-   mesures sont une rumeur de foule et une voix qui parle — c'est très
-   beau, et pendant ce temps-là il n'y a PAS DE BATTEMENT, donc pas un
-   danseur ne bouge. Or ce qui a été demandé, c'est que les gens
-   dansent dès qu'on arrive.
+   OÙ ELLE COMMENCE — LE DISCOURS LA PREMIÈRE FOIS, LA MONTÉE ENSUITE
 
-   On entre donc à `buildup`, mesure 24, et c'est le meilleur endroit
-   du morceau pour arriver : quinze secondes de montée — riser,
-   roulement de claps, « This… is… Mily » — la coupure totale d'un
-   temps, puis LE DROP. Débarquer sur une île pendant qu'une montée se
-   termine, c'est une entrée ; débarquer au milieu d'un couplet, c'est
-   une porte qu'on pousse. Le reste du morceau se déroule ensuite tout
-   seul et boucle indéfiniment.
+   « Et oui, il faut le mettre, le discours d'intro ! Ce qui est
+   dommage c'est qu'en repérage on ne l'entend pas non plus. »
 
-   Le discours, lui, n'est pas perdu — il est simplement réservé à qui
-   le cherchera (voir `musique.discours`).
+   Les huit premières mesures sont une rumeur de foule et une voix
+   présidentielle : « We all came here for Mily », puis « Where is
+   Mily? ». C'est l'ouverture du morceau, et elle mérite d'être
+   entendue — y compris quand on ne fait que VISITER l'île, puisque
+   visite et partie passent par la même porte.
+
+   MAIS UNE FOIS PAR CHARGEMENT DE PAGE, et pas à chaque entrée. Le
+   discours dure une quinzaine de secondes sans le moindre battement.
+   L'entendre en arrivant sur l'île est une cérémonie ; le réentendre
+   au troisième aller-retour au briefing est une attente. On entre donc
+   au discours la première fois, et à `buildup` — mesure 24 — les
+   suivantes : quinze secondes de montée, la coupure d'un temps, puis
+   LE DROP. Le reste se déroule tout seul et boucle indéfiniment.
+
+   ET LE DISCOURS NE DÉCALE PAS LE JEU DE LUMIÈRE, sur deux points
+   qu'il fallait aller vérifier :
+
+     LA PHASE. Tout ce qui bouge lit `MilyMusic.horloge()`, qui remonte
+     à la date AUDIO. L'horloge tourne pendant le discours comme
+     partout ailleurs — simplement, la section « discours » ne vaut
+     presque rien en lumière (voir IBI_FORCE), donc la foule attend en
+     se balançant à peine et les lasers restent bas. Quand la grosse
+     caisse tombe à la mesure 10, la phase est déjà juste : rien ne
+     saute, tout monte d'un coup. C'est exactement ce qu'on veut voir.
+
+     LA VOIX QUI TRAÎNE, et celle-là était un vrai défaut. `stop()` et
+     `jumpTo()` appellent tous deux `speechSynthesis.cancel()` ;
+     `play()`, NON — vérifié dans le moteur, lignes 757 et 777 contre
+     rien. Il suffisait donc de quitter l'île pendant le discours et d'y
+     revenir dans la seconde : notre fondu de sortie dure sept dixièmes,
+     `entre` annulait l'arrêt, et la voix du passage précédent
+     continuait de parler par-dessus le drop du suivant. On coupe donc
+     la parole nous-mêmes avant chaque départ. C'est sans danger pour
+     le discours qui vient : le moteur ne programme ses phrases qu'au
+     moment où il PLANIFIE la mesure, donc rien n'est encore en file
+     quand play() démarre.
 
    ET ELLE NE S'ARRÊTE PAS. Le moteur boucle tout seul de la mesure
    144 à la mesure 17 : quatre minutes par tour, indéfiniment, et le
@@ -55272,6 +55349,10 @@ var musique = {
   /* Le minuteur de l'arrêt en fondu. Il est à nous, et c'est tout
      l'objet du commentaire de `sort` plus bas. */
   minuteur:0,
+
+  /* Le discours a-t-il déjà été entendu depuis le chargement de la
+     page ? Une cérémonie ne se répète pas. */
+  introJouee:0,
 
   /* Le moteur, s'il est là. Un test à chaque appel plutôt qu'une
      référence gardée : si 93-musique.js venait à manquer, le jeu doit
@@ -55297,8 +55378,21 @@ var musique = {
     if(!carteScene(index)){ this.sort(); return; }
     /* On annule d'abord l'arrêt en cours, s'il y en a un. Voir `sort`. */
     if(this.minuteur){ clearTimeout(this.minuteur); this.minuteur = 0; }
+    /* PUIS ON COUPE LA PAROLE. Une voix du passage précédent peut
+       encore être en train de parler : play() ne l'arrête pas, seuls
+       stop() et jumpTo() le font. Voir l'en-tête du fichier. */
+    this.tais();
     M.setVolume(son.actif ? MUS_VOL : 0);
-    M.play("buildup");
+    /* le discours la première fois, la montée ensuite */
+    M.play(this.introJouee ? "buildup" : "intro");
+    this.introJouee = 1;
+  },
+
+  /* Faire taire le moteur vocal de l'appareil, sans rien casser s'il
+     n'y en a pas — certains navigateurs n'en ont aucun. */
+  tais:function(){
+    if(typeof speechSynthesis === "undefined") return;
+    try{ speechSynthesis.cancel(); }catch(e){}
   },
 
   /* ================================================================
@@ -55325,6 +55419,10 @@ var musique = {
     if(!M) return;
     if(this.minuteur){ clearTimeout(this.minuteur); this.minuteur = 0; }
     if(!M.isPlaying()) return;
+    /* La voix se tait TOUT DE SUITE, elle, et n'attend pas le fondu :
+       une musique qui s'éloigne est un départ, une voix désincarnée
+       qui continue de parler par-dessus le briefing est une panne. */
+    this.tais();
     M.setVolume(0);
     var self = this;
     this.minuteur = setTimeout(function(){

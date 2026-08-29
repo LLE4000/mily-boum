@@ -853,8 +853,18 @@
       var reste = (nt - ctx.currentTime) / d;
       if (reste < 0) reste = 0;             // l'horloge audio a doublé le planificateur
       if (reste > 1) reste = 1;             // ou l'onglet revient d'une suspension
+      /* JAMAIS NÉGATIF. `reste` est ce qui manque avant le prochain
+         seizième : à la toute première mesure, bar et st valent zéro et
+         `reste` peut valoir un, ce qui donne −0,25 noire. Un appelant
+         qui en fait un indice de couleur — `teintes[mesure % 6]` —
+         récolte alors −1, et en JavaScript −1 % 6 vaut −1, pas 5 : il
+         lit hors du tableau et peint « undefined ». Le morceau ne
+         commence pas avant son début ; on le dit ici, une fois, plutôt
+         que dans chacun de ceux qui nous lisent. */
+      var pos = (bar * 16 + st - reste) / 4;
+      if (pos < 0) pos = 0;
       return {
-        temps: (bar * 16 + st - reste) / 4,   // en noires depuis la mesure 0
+        temps: pos,                           // en noires depuis la mesure 0
         mesure: bar,
         section: sectionName(bar),
         bpm: bpm * mul
