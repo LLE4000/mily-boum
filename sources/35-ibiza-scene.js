@@ -31,16 +31,109 @@
    Math.random() par danseur.
    ================================================================ */
 
-/* Le tempo, en battements par minute, et la phase qui en découle.
+/* ================================================================
+   ET MAINTENANT, IL Y A VRAIMENT DE LA MUSIQUE
+
+   « Dès qu'on entre sur la map, la musique doit commencer et les gens
+   se mettent à danser. »
+
+   Jusqu'ici la scène dansait sur un métronome imaginaire : 128 BPM
+   écrits en dur, et l'horloge du jeu pour les compter. C'était la
+   seule chose à faire tant qu'aucun son ne sortait — mais maintenant
+   qu'un morceau joue pour de bon, un métronome indépendant est le
+   pire des deux mondes : on VOIT un tempo et l'on en ENTEND un autre,
+   et l'œil s'en aperçoit tout de suite. Une scène qui danse à côté de
+   la musique est plus fausse qu'une scène muette.
+
+   TOUT SE LIT DONC SUR LA MUSIQUE quand elle joue, et le métronome
+   n'est plus qu'un filet de secours — son coupé, navigateur qui
+   refuse l'audio, moteur absent : la fête continue, simplement elle
+   ne sait plus sur quoi.
+
+   ET LA PHASE SE LIT SUR L'HORLOGE AUDIO, pas sur les événements du
+   moteur. `MilyMusic.horloge()` remonte à la date audio réelle (voir
+   son commentaire dans 93-musique.js) ; l'événement 'section', lui,
+   part quand la mesure est PROGRAMMÉE, avec jusqu'à 180 ms d'avance
+   et pas la même à chaque fois. Deux images de gigue sur un jeu de
+   lumière, ça se voit.
+   ================================================================ */
+/* Le tempo de secours, en battements par minute, quand rien ne joue.
    128 BPM : c'est le tempo de ce qu'on joue là-bas, et surtout c'est
    assez rapide pour qu'un saut se lise sans être épuisant à l'œil. */
 var IBI_BPM = 128;
-function battement(tps){ return (tps * IBI_BPM / 60) % 1; }
+
+/* ────────────────────────────────────────────────────────────────
+   CE QUE CHAQUE PARTIE DU MORCEAU VAUT EN LUMIÈRE
+
+   Un jeu de lumière qui ne change jamais n'est pas un jeu de lumière,
+   c'est un clignotant. Le morceau, lui, a une forme : un discours, une
+   montée, deux drops, un break, une accalmie aux percussions. On lit
+   cette forme et l'on en fait l'intensité de toute la scène — hauteur
+   des sauts, longueur des lasers, force des projecteurs, stroboscope.
+
+   Sur le drop on dépasse 1 : c'est le moment où tout doit partir.
+   Sur le break on tombe à 0,45 : c'est le moment où l'on RESPIRE, et
+   c'est lui qui fait exister le drop suivant. Une fête toujours à fond
+   est plate.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_FORCE = {
+  discours:0.20, entree:0.60, montee:0.78, build:1.00,
+  drop1:1.40,    break:0.45,  build2:1.05, drop2:1.50,
+  descente:0.62, ibiza:0.72,  build3:1.10, final:1.60, boucle:0.85
+};
+/* Les sections où l'on lâche le stroboscope. Ailleurs : jamais. */
+var IBI_STROBO = { drop1:1, drop2:1, final:1 };
+
+/* L'horloge de la scène, lue UNE FOIS PAR IMAGE et mise en cache sur
+   `tps`. Cinq cents danseurs demandent chacun le battement : sans ce
+   cache, c'est cinq cents lectures de l'horloge audio par image. */
+var IBI_HORLOGE = { tps:-1, t:0, mus:0, section:"", force:1, strobo:0 };
+function horlogeIbiza(tps){
+  var H = IBI_HORLOGE;
+  if(H.tps === tps) return H;
+  H.tps = tps;
+  var h = (typeof musique !== "undefined" && musique) ? musique.horloge() : null;
+  if(h){
+    H.t = h.temps;                       // en noires, depuis la mesure 0
+    H.mus = 1;
+    H.section = h.section;
+    H.force = IBI_FORCE[h.section] === undefined ? 1 : IBI_FORCE[h.section];
+    H.strobo = IBI_STROBO[h.section] ? 1 : 0;
+  }else{
+    H.t = tps * IBI_BPM / 60;
+    H.mus = 0; H.section = ""; H.force = 1; H.strobo = 0;
+  }
+  return H;
+}
+/* La phase dans le temps : 0 sur la frappe, 1 juste avant la suivante. */
+function battement(tps){
+  var t = horlogeIbiza(tps).t;
+  return t - Math.floor(t);
+}
+/* Le numéro du temps écoulé. C'est lui qui fait tourner les couleurs
+   et qui dit quel danseur saute ce coup-ci. */
+function mesureIbiza(tps){ return Math.floor(horlogeIbiza(tps).t); }
+/* Ce que vaut la section en cours, en lumière. */
+function forceIbiza(tps){ return horlogeIbiza(tps).force; }
 /* La frappe : 1 sur le temps, retombe vite. C'est elle qui fait
    « pomper » toute la scène. */
 function frappe(tps){
   var b = battement(tps);
   return Math.exp(-b * 5.2);
+}
+/* ────────────────────────────────────────────────────────────────
+   UN SAUT N'EST PAS UNE FRAPPE
+
+   `frappe` monte d'un coup et retombe : c'est la bonne courbe pour
+   une lumière, et la mauvaise pour un corps. Un corps qui saute
+   décolle, monte, redescend — une parabole — puis RESTE AU SOL un
+   instant avant de repartir. C'est ce petit repos qui fait qu'on voit
+   l'appel du saut ; sans lui, les danseurs flottent.
+   ──────────────────────────────────────────────────────────────── */
+function sautIbiza(b, duree){
+  if(b >= duree) return 0;
+  var s = b / duree;
+  return 4 * s * (1 - s);
 }
 
 /* ---------------------------------------------------------------
@@ -211,17 +304,58 @@ function dessineDanseur(c, d, tps){
   var z = cam.z * d.taille;
   if(z < 0.06) return;
   var T = IBI_TENUES[d.teinte];
-  var b = (battement(tps) + d.dec) % 1;
+  /* `HL` et non `H` : `H` est la hauteur de l'écran, une variable
+     globale, et l'ombrer dans une fonction appelée cinq cents fois
+     par image est le genre de piège qu'on ne trouve qu'à la loupe. */
+  var HL = horlogeIbiza(tps);
+  var tt = HL.t + d.dec;
+  var b = tt - Math.floor(tt);
   /* un temps sur deux pour ceux qui lèvent le pied : le compte des
      battements écoulés dit lequel */
-  var mesure = Math.floor(tps * IBI_BPM / 60 + d.dec);
+  var mesure = Math.floor(tt);
   var actif = d.demi ? (mesure % 2 === 0) : 1;
   var f = Math.exp(-b * 5.2) * (actif ? 1 : 0.35);
 
+  /* ────────────────────────────────────────────────────────────
+     « LES GENS DANSENT FORT ET JUMPENT »
+
+     Ils se balançaient. Ils sautent maintenant, et ils sautent sur
+     une PARABOLE — voir sautIbiza : un corps décolle, monte,
+     retombe, puis attend le temps suivant. La différence avec
+     l'ancienne courbe se voit à l'œil nu : un danseur qui montait
+     d'un coup et redescendait mollement avait l'air tiré vers le
+     haut par un fil.
+
+     ET TOUT EST MULTIPLIÉ PAR LA SECTION EN COURS. Sur le drop, la
+     piste décolle de moitié en plus ; sur le break, elle repose.
+     C'est là que se joue l'essentiel de l'effet « calqué sur la
+     musique » : ce n'est pas le clignotement qui fait qu'on voit la
+     musique, c'est que la foule change d'énergie en même temps
+     qu'elle.
+     ──────────────────────────────────────────────────────────── */
+  var F = HL.force;
   var saut = 0, pencheX = 0, bras = 0;
-  if(d.style === 0){ saut = f * 4.6; bras = 0.5 + f * 0.5; }          // il saute
-  else if(d.style === 1){ pencheX = Math.sin(b * 6.2832) * 2.2 * d.droite; bras = 0.35; }
-  else { bras = 0.2 + f * 1.0; saut = f * 1.4; }                       // bras en l'air
+  if(d.style === 0){
+    /* LE SAUTEUR : les deux pieds décollent, les bras montent avec */
+    saut = sautIbiza(b, 0.74) * 9.0 * F * (actif ? 1 : 0.45);
+    bras = 0.45 + sautIbiza(b, 0.74) * 0.55 * F;
+  }else if(d.style === 1){
+    /* LE BALANCIER : il ne saute pas, il pompe — et il pompe fort */
+    pencheX = Math.sin(b * 6.2832) * 3.0 * d.droite * F;
+    saut = sautIbiza(b, 0.9) * 2.2 * F;
+    bras = 0.30 + f * 0.35 * F;
+  }else{
+    /* LES BRAS EN L'AIR, et un petit pogo dessous */
+    bras = 0.30 + f * 0.62 * F;
+    saut = sautIbiza(b, 0.8) * 4.0 * F;
+  }
+  /* ET LES BRAS SONT BORNÉS. Ils ne l'étaient pas : sur un drop, où
+     tout est multiplié par une fois et demie, ils atteignaient onze
+     unités sur un buste qui en fait six — cinq cents personnes avec
+     des antennes. Un bras humain fait la longueur du buste, pas le
+     double, et la borne est là pour le rappeler quelle que soit la
+     section. */
+  if(bras > 1.15) bras = 1.15;
 
   c.save();
   c.translate(p.x + pencheX * z, p.y - saut * z);
@@ -250,10 +384,15 @@ function dessineDanseur(c, d, tps){
      une fois et demie plus grands, un seuil réglé sur la caméra ne se
      déclenchait plus jamais. Zéro quatre-vingt-cinq, c'est onze pixels
      de haut : en dessous, un bras ne fait plus un pixel. */
+  /* L'OMBRE RÉTRÉCIT QUAND IL DÉCOLLE, et c'est elle qui donne la
+     hauteur : sans ça, un danseur en l'air a l'air d'un danseur monté
+     d'un cran, pas d'un danseur qui saute. Elle reste au sol — elle ne
+     monte pas avec lui. */
+  var om = 1 / (1 + saut * 0.085);
   if(z < 0.85){
     c.fillStyle = "rgba(30,40,70,.26)";
     c.beginPath();
-    c.ellipse(-pencheX, saut, 3.4, 1.5, 0, 0, 6.2832); c.fill();
+    c.ellipse(-pencheX, saut, 3.4 * om, 1.5 * om, 0, 0, 6.2832); c.fill();
     c.fillStyle = T.haut;
     c.fillRect(-2.1, -10.4, 4.2, 7.0);
     c.fillStyle = IBI_PEAUX[d.teinte % 4];
@@ -262,15 +401,17 @@ function dessineDanseur(c, d, tps){
     return;
   }
 
-  /* l'ombre reste au sol : elle ne saute pas avec lui */
   c.fillStyle = "rgba(30,40,70,.26)";
   c.beginPath();
-  c.ellipse(-pencheX, saut, 3.4, 1.5, 0, 0, 6.2832); c.fill();
+  c.ellipse(-pencheX, saut, 3.4 * om, 1.5 * om, 0, 0, 6.2832); c.fill();
 
-  /* jambes */
+  /* JAMBES. Elles se replient en l'air : un saut jambes tendues est un
+     saut de mannequin. Le repli suit la hauteur, donc il se défait
+     tout seul à l'atterrissage. */
+  var repli = Math.min(1, saut / 6) * 1.5;
   c.strokeStyle = T.bas; c.lineWidth = 1.7; c.lineCap = "round";
-  c.beginPath(); c.moveTo(-0.9, -4.4); c.lineTo(-1.5 - pencheX * 0.2, 0); c.stroke();
-  c.beginPath(); c.moveTo(0.9, -4.4); c.lineTo(1.5 - pencheX * 0.2, 0); c.stroke();
+  c.beginPath(); c.moveTo(-0.9, -4.4); c.lineTo(-1.5 - pencheX * 0.2, -repli); c.stroke();
+  c.beginPath(); c.moveTo(0.9, -4.4); c.lineTo(1.5 - pencheX * 0.2, -repli); c.stroke();
   /* buste */
   c.fillStyle = T.haut;
   c.beginPath();
@@ -396,7 +537,7 @@ function dessineSceneIbiza(c, tps){
   /* LES FLAQUES DE COULEUR. Elles sont posées AVANT le mobilier, et
      découpées au losange : sans le `clip`, la lumière de la scène
      baverait sur le sable et le podium perdrait son arête. */
-  var mes = Math.floor(tps * IBI_BPM / 60);
+  var mes = mesureIbiza(tps);
   c.save();
   dessus(-H); c.clip();
   c.globalCompositeOperation = "lighter";
@@ -419,99 +560,13 @@ function dessineSceneIbiza(c, tps){
   c.lineWidth = 2.4;
   dessus(-H); c.stroke();
 
-  /* --- 2. LES DEUX ENCEINTES, de part et d'autre --- */
-  for(i = 0; i < 2; i++){
-    /* sur le disque, et non plus au coin d'un losange : à 0,66 du
-       rayon vers l'est et l'ouest, le plateau est encore sous elles. */
-    var ex = (i ? 1 : -1) * LX * 0.66, ey = -H + LY * 0.14;
-    c.save();
-    c.translate(ex, ey);
-    var eh = 46 + f * 1.8;              // elle tressaute sur la frappe
-    c.fillStyle = IBI_SC.enceinte;
-    c.fillRect(-10, -eh, 20, eh);
-    c.fillStyle = IBI_SC.enceinteC;
-    c.fillRect(-10, -eh, 5, eh);
-    /* les deux haut-parleurs */
-    c.fillStyle = IBI_SC.membrane;
-    c.beginPath(); c.ellipse(0, -eh * 0.72, 7, 7, 0, 0, 6.2832); c.fill();
-    c.beginPath(); c.ellipse(0, -eh * 0.28, 4.4, 4.4, 0, 0, 6.2832); c.fill();
-    c.fillStyle = "rgba(255,255,255,.10)";
-    c.beginPath(); c.ellipse(-1.6, -eh * 0.74, 2.8, 2.8, 0, 0, 6.2832); c.fill();
-    /* le souffle : un anneau qui part de la membrane à chaque frappe */
-    if(f > 0.12){
-      c.strokeStyle = "rgba(160,240,255," + (f * 0.30) + ")";
-      c.lineWidth = 2.2;
-      c.beginPath();
-      c.ellipse(0, -eh * 0.72, 7 + (1 - f) * 22, 7 + (1 - f) * 22, 0, 0, 6.2832);
-      c.stroke();
-    }
-    c.restore();
-  }
-
-  /* --- 3. LA TABLE DU DJ, et le DJ derrière --- */
-  /* Reculée d'un tiers vers le nord : le DJ joue au fond de la scène
-     et laisse le devant du plancher vide, comme il se doit. */
-  var tbase = -H - LY * 0.34;
-  var ty = tbase - 17;
-  c.fillStyle = "#2b3240";
-  c.fillRect(-20, ty, 40, 17);
-  c.fillStyle = "#3d4657";
-  c.fillRect(-20, ty, 40, 3.4);
-  /* deux platines et le mélangeur, vus de dessus en raccourci */
-  for(i = 0; i < 2; i++){
-    var px2 = (i ? 11.6 : -11.6);
-    c.fillStyle = "#161a22";
-    c.beginPath(); c.ellipse(px2, ty + 1.0, 6.8, 2.9, 0, 0, 6.2832); c.fill();
-    c.fillStyle = "#8f98a8";
-    c.beginPath(); c.ellipse(px2, ty + 0.6, 4.2, 1.8, 0, 0, 6.2832); c.fill();
-    /* le point rouge du disque, qui tourne */
-    var a2 = tps * (i ? 3.4 : -2.8);
-    c.fillStyle = "#e8523c";
-    c.beginPath();
-    c.ellipse(px2 + Math.cos(a2) * 2.9, ty + 0.6 + Math.sin(a2) * 1.2, 1.0, 0.6, 0, 0, 6.2832);
-    c.fill();
-  }
-  /* les faders du mélangeur, qui bougent sur la musique */
-  for(i = 0; i < 5; i++){
-    var fx = -4.8 + i * 2.4;
-    c.fillStyle = "#11141a";
-    c.fillRect(fx - 0.5, ty - 0.3, 1.0, 4.8);
-    c.fillStyle = i === 2 ? "#3ee0d0" : "#c8d0dc";
-    c.fillRect(fx - 1.0, ty + 0.6 + Math.sin(tps * 2.4 + i * 1.7) * 1.5, 2.0, 1.0);
-  }
-
-  /* LE DJ. Casque sur les oreilles, une main en l'air sur le temps —
-     c'est ce bras qui dit qu'il joue et qu'il ne surveille pas un
-     tableau de bord. */
-  c.save();
-  c.translate(2, ty + 1);
-  var lev2 = f * 11;
-  c.fillStyle = "#20242e";                              // buste
-  c.beginPath();
-  if(c.roundRect) c.roundRect(-7.6, -24, 15.2, 23, 4);
-  else c.rect(-7.6, -24, 15.2, 23);
-  c.fill();
-  c.strokeStyle = "#e2c39e"; c.lineWidth = 4.4; c.lineCap = "round";
-  c.beginPath(); c.moveTo(-7, -22); c.lineTo(-11.4, -14.6); c.stroke();   // main sur la platine
-  c.beginPath();
-  c.moveTo(7, -22);
-  c.quadraticCurveTo(14.6, -26.6 - lev2 * 0.5, 13.4, -30.4 - lev2);       // l'autre en l'air
-  c.stroke();
-  c.fillStyle = "#e8caa6";                              // tête
-  c.beginPath(); c.arc(0, -30.4, 7, 0, 6.2832); c.fill();
-  c.fillStyle = "#1b1520";
-  c.beginPath(); c.arc(0, -32.9, 7, 3.3, 6.12); c.fill();
-  /* le casque */
-  c.strokeStyle = "#12161d"; c.lineWidth = 2.7;
-  c.beginPath(); c.arc(0, -31, 9.2, 3.34, 6.08); c.stroke();
-  c.fillStyle = "#12161d";
-  c.beginPath(); c.ellipse(-8.9, -30.4, 2.9, 4.1, 0, 0, 6.2832); c.fill();
-  c.beginPath(); c.ellipse(8.9, -30.4, 2.9, 4.1, 0, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(62,224,208,.8)";
-  c.beginPath(); c.ellipse(8.9, -30.4, 1.1, 1.9, 0, 0, 6.2832); c.fill();
-  c.restore();
-
-  /* --- 4. LE PORTIQUE, derrière : trois mâts et deux poutres --- */
+  /* --- 2. LE PORTIQUE, derrière : trois mâts et deux poutres ---
+     ET IL EST DESSINÉ AVANT LA RÉGIE, depuis qu'il y a un DJ à taille
+     d'homme dessous. Le mât du nord tombe à x = 0, c'est-à-dire très
+     exactement là où le DJ se tient : dessiné après lui, il lui
+     barrait le buste d'un trait noir vertical. On peint donc du fond
+     vers l'avant, comme il se doit — le portique au fond, la régie et
+     le DJ au milieu, les enceintes devant. */
   /* LE PORTIQUE ÉTAIT PLAT. Il était fait de deux mâts verticaux aux
      deux extrémités de l'écran et d'une poutre HORIZONTALE entre eux :
      un rectangle dessiné dans le repère de l'écran, posé sur une image
@@ -570,7 +625,15 @@ function dessineSceneIbiza(c, tps){
   /* LES PROJECTEURS pendus aux poutres : ils changent de couleur au
      battement, tous ensemble — c'est ce qui fait qu'on voit la
      musique. Quatre par poutre, le mât du nord en portant un seul :
-     sept en tout, comme avant, mais chacun à sa place sur son axe. */
+     sept en tout, comme avant, mais chacun à sa place sur son axe.
+
+     ILS BALAIENT MAINTENANT. Un projecteur fixe éclaire toujours la
+     même flaque : au bout de dix secondes on ne le voit plus. Le
+     leur oscille lentement, chacun à son rythme, et le cône suit —
+     c'est le mouvement, pas la couleur, qui fait un jeu de lumière.
+     Et tout est multiplié par la section : sur le drop les cônes
+     s'ouvrent, sur le break ils se referment presque. */
+  var Fs = forceIbiza(tps);
   for(i = 0; i < 7; i++){
     var seg = i < 4 ? 0 : 1;                     // sur quelle poutre
     var u = seg ? (i - 3) / 3 : i / 3;           // où, le long de la poutre
@@ -584,79 +647,682 @@ function dessineSceneIbiza(c, tps){
     c.beginPath(); c.ellipse(lx2, ly2 + 7.6, 3.2, 2.2, 0, 0, 6.2832); c.fill();
     /* le cône de lumière : il descend vers l'AVANT du plancher, pas
        droit sous la lampe — un projecteur de scène éclaire la scène,
-       pas ses propres pieds */
-    var cx2 = lx2 * 0.55, cy2 = -H + LY * 0.22;
+       pas ses propres pieds — et il balaie */
+    var bal = Math.sin(tps * (0.42 + i * 0.09) + i * 2.3) * LX * 0.34 * Fs;
+    var cx2 = lx2 * 0.55 + bal, cy2 = -H + LY * 0.22;
     var gc = c.createLinearGradient(lx2, ly2 + 6, cx2, cy2);
-    gc.addColorStop(0, "rgba(" + col + "," + (0.15 + f * 0.20) + ")");
+    gc.addColorStop(0, "rgba(" + col + "," + ((0.15 + f * 0.24) * Fs) + ")");
     gc.addColorStop(1, "rgba(" + col + ",0)");
     c.fillStyle = gc;
     c.beginPath();
     c.moveTo(lx2 - 2.4, ly2 + 7.6);
     c.lineTo(lx2 + 2.4, ly2 + 7.6);
-    c.lineTo(cx2 + 15, cy2);
-    c.lineTo(cx2 - 15, cy2);
+    c.lineTo(cx2 + 15 + Fs * 6, cy2);
+    c.lineTo(cx2 - 15 - Fs * 6, cy2);
     c.closePath(); c.fill();
+  }
+
+  /* ================================================================
+     LA BOULE À FACETTES, suspendue au milieu du portique
+
+     Elle ne coûte que quelques tracés et elle dit « club » plus vite
+     que tout le reste. Elle tourne lentement — une boule à facettes
+     tourne TOUJOURS lentement, c'est ce qui la distingue d'un
+     gyrophare — et elle jette des éclats qui tournent avec elle.
+     ================================================================ */
+  var bx = 0, by2 = hauts[1].y + 16;
+  c.strokeStyle = "rgba(120,132,148,.7)"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(bx, hauts[1].y + 7); c.lineTo(bx, by2 - 6); c.stroke();
+  var gbo = c.createRadialGradient(bx - 2, by2 - 2, 0.5, bx, by2, 7);
+  gbo.addColorStop(0, "#e8eef8"); gbo.addColorStop(0.6, "#8e9aab"); gbo.addColorStop(1, "#414b5a");
+  c.fillStyle = gbo;
+  c.beginPath(); c.arc(bx, by2, 6.2, 0, 6.2832); c.fill();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < 10; i++){
+    var abo = tps * 0.5 + i * 0.6283;
+    var rbo = 5.4 + (i % 3) * 3.4;
+    var ebo = 0.22 + 0.5 * Math.max(0, Math.cos(abo));
+    c.fillStyle = "rgba(215,235,255," + (ebo * (0.35 + f * 0.4)) + ")";
+    c.beginPath();
+    c.arc(bx + Math.cos(abo) * rbo * 2.6, by2 + Math.sin(abo * 0.6) * rbo * 0.8, 1.5, 0, 6.2832);
+    c.fill();
+  }
+  c.restore();
+
+  /* ================================================================
+     3. LA RÉGIE, ET LE DJ DERRIÈRE
+
+     (Troisième plan : derrière le portique, devant les enceintes.)
+
+     « La table de mixage doit être plus grande et mieux dimensionnée,
+     plus de détail. Le DJ en folie, une main en l'air. »
+
+     CE QUI N'ALLAIT PAS, ET C'ÉTAIT UNE QUESTION D'ÉCHELLE, PAS DE
+     DÉTAIL. La table faisait quarante unités de large sur un plateau
+     qui en fait deux cent cinquante-sept : seize pour cent du
+     diamètre. Sur la photo d'une vraie scène ronde, la régie en tient
+     entre le tiers et la moitié — c'est un MEUBLE, avec une façade
+     qu'on voit de loin et sur laquelle on colle un logo, pas une
+     tablette posée là. Elle en fait maintenant quatre-vingt-douze, et
+     elle a une façade de vingt-six de haut.
+
+     ET ON LA CONSTRUIT EN TROIS PLANS, comme un vrai meuble vu de
+     trois quarts au-dessus : la FAÇADE qu'on voit de face, le PLATEAU
+     en raccourci au-dessus d'elle, et le MATÉRIEL posé sur le plateau.
+     L'ancienne version n'avait qu'un rectangle et des ellipses
+     dessus : rien ne disait dans quel sens le meuble était tourné.
+     ================================================================ */
+  /* Reculée d'un tiers vers le nord : le DJ joue au fond de la scène
+     et laisse le devant du plancher vide, comme il se doit. */
+  var tbase = -H - LY * 0.34;
+  var BW = 46;                  // demi-largeur de la régie
+  var BH = 26;                  // hauteur de la façade
+  var BD = 14;                  // profondeur apparente du plateau
+  var byF = tbase - BH;         // l'arête AVANT du plateau
+  var byB = byF - BD;           // l'arête ARRIÈRE
+  var tcol = IBI_TEINTES[mes % 4];
+
+  /* --- 3a. L'OMBRE de la régie sur le plancher --- */
+  c.fillStyle = "rgba(0,0,0,.30)";
+  c.beginPath(); c.ellipse(0, tbase + 1.5, BW * 1.04, 5, 0, 0, 6.2832); c.fill();
+
+  /* --- 3b. LA FAÇADE ---
+     Un panneau sombre, un cadre métallique, et au milieu la plaque
+     lumineuse qui porte le nom. C'est elle qu'on voit de loin, et
+     c'est elle qui pompe sur le temps. */
+  var gfa = c.createLinearGradient(0, byF, 0, tbase);
+  gfa.addColorStop(0, "#20242e");
+  gfa.addColorStop(0.55, "#151922");
+  gfa.addColorStop(1, "#0c0f16");
+  c.fillStyle = gfa;
+  c.fillRect(-BW, byF, BW * 2, BH);
+  /* les deux montants et la plinthe, en métal brossé */
+  c.fillStyle = "#39404e";
+  c.fillRect(-BW, byF, 3.2, BH);
+  c.fillRect(BW - 3.2, byF, 3.2, BH);
+  c.fillRect(-BW, tbase - 2.4, BW * 2, 2.4);
+  /* LE BANDEAU DE LED en haut de la façade : douze segments qui
+     défilent. Un ruban qui court, c'est le détail le moins cher et le
+     plus reconnaissable d'une régie de club. */
+  for(i = 0; i < 12; i++){
+    var lu = (i - mes * 2) % 12; if(lu < 0) lu += 12;
+    var lint = 0.16 + 0.74 * Math.exp(-lu * 0.55);
+    c.fillStyle = "rgba(" + IBI_TEINTES[(mes + i) % 4] + "," + lint + ")";
+    c.fillRect(-BW + 3.6 + i * (BW * 2 - 7.2) / 12, byF + 1.2,
+               (BW * 2 - 7.2) / 12 - 1.1, 2.2);
+  }
+  /* LA PLAQUE DU NOM. Elle respire sur la frappe, et le nom s'écrit
+     avec un Y — c'est MILY, et ça n'a jamais été autrement. */
+  var pw = 34, ph = 12, pyy = byF + 7;
+  c.fillStyle = "rgba(8,10,16,.9)";
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-pw / 2, pyy, pw, ph, 2.4);
+  else c.rect(-pw / 2, pyy, pw, ph);
+  c.fill();
+  c.strokeStyle = "rgba(" + tcol + "," + (0.35 + f * 0.55) + ")";
+  c.lineWidth = 1.1; c.stroke();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.fillStyle = "rgba(" + tcol + "," + (0.55 + f * 0.45) + ")";
+  c.font = "900 9px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillText("MILY", 0, pyy + ph * 0.55);
+  c.restore();
+  /* LES DEUX VU-MÈTRES, de part et d'autre de la plaque. Huit
+     segments qui montent avec la frappe et redescendent : c'est le
+     seul cadran du jeu qui dise ce que la musique est en train de
+     faire. */
+  for(i = 0; i < 2; i++){
+    var vx = (i ? 1 : -1) * 30;
+    for(var vs = 0; vs < 8; vs++){
+      var seuil = vs / 8;
+      var on = (f * 0.85 + 0.12) * forceIbiza(tps) > seuil;
+      c.fillStyle = on
+        ? (vs > 5 ? "rgba(255,90,70,.95)" : (vs > 3 ? "rgba(255,205,70,.9)" : "rgba(90,235,150,.85)"))
+        : "rgba(255,255,255,.07)";
+      c.fillRect(vx - 4, byF + 19 - vs * 1.55, 8, 1.05);
+    }
+  }
+  /* ================================================================
+     3c. LE DJ, ET IL EST EN FOLIE
+
+     « Le DJ doit être en folie, une main en l'air. »
+
+     Il avait une main en l'air, et elle montait de onze unités sur la
+     frappe : un salut poli. Ce qu'on demande ici, c'est autre chose —
+     le bras est en l'air EN PERMANENCE, il pompe sur le temps, le
+     corps saute avec, la tête suit, et l'autre main travaille la
+     platine. Un DJ en folie ne lève pas le bras de temps en temps : il
+     ne le baisse jamais.
+
+     ET IL EST PLUS GRAND. Il faisait trente-huit unités de haut
+     derrière une table de dix-sept ; la régie en fait maintenant
+     quarante avec son plateau, et un DJ à sa taille d'avant
+     disparaîtrait derrière son propre meuble. Un facteur d'échelle en
+     tête de bloc, et tout le dessin suit.
+
+     ET IL EST DESSINÉ AVANT LE PLATEAU, ce qui n'est pas un détail :
+     un DJ posé PAR-DESSUS sa régie flotte devant elle, on l'a vu sur
+     les premières photos. Dessiné dessous, le plateau lui coupe le
+     bas du buste et sa main gauche disparaît derrière la platine
+     qu'elle travaille. C'est l'ordre du peintre — le fond d'abord — et
+     c'est lui, et pas le dessin du bonhomme, qui fait qu'il est DANS
+     la scène.
+     ================================================================ */
+  c.save();
+  c.translate(3, byB + 7);
+  var DJE = 1.5;                                    // l'échelle du bonhomme
+  c.scale(DJE, DJE);
+  var bj = battement(tps);
+  var Fj = forceIbiza(tps);
+  var saut2 = sautIbiza(bj, 0.72) * 4.4 * Fj;       // il saute derrière sa régie
+  /* LE BRAS EST TENDU, ET IL LE RESTE. La première version le levait
+     de neuf à vingt-sept unités : au repos, un moignon collé à
+     l'épaule ; au sommet, un bras plus long que le corps. Un bras fait
+     la hauteur du buste, ni plus ni moins — la main part donc de
+     trente-huit au-dessus de l'épaule et ne pompe que de sept. Ce
+     qu'on veut voir n'est pas un bras qui s'allonge, c'est un bras
+     qui SCANDE. */
+  var lev2 = f * 7 * Fj;                            // le bras qui pompe
+  var pen2 = Math.sin(bj * 6.2832) * 1.5;           // et le corps qui roule
+  c.translate(pen2 * 0.6, -saut2);
+
+  /* LE HALO DERRIÈRE LUI : un contre-jour. Sans lui, un bonhomme
+     sombre devant un fond sombre n'a pas de silhouette. */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var ghd = c.createRadialGradient(0, -22, 2, 0, -22, 34);
+  ghd.addColorStop(0, "rgba(" + tcol + "," + (0.20 + f * 0.26) + ")");
+  ghd.addColorStop(1, "rgba(" + tcol + ",0)");
+  c.fillStyle = ghd;
+  c.beginPath(); c.arc(0, -22, 34, 0, 6.2832); c.fill();
+  c.restore();
+
+  c.fillStyle = "#20242e";                          // buste
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-7.6 + pen2 * 0.3, -24, 15.2, 23, 4);
+  else c.rect(-7.6 + pen2 * 0.3, -24, 15.2, 23);
+  c.fill();
+  /* le gilet fluo, qui prend la couleur du moment */
+  c.fillStyle = "rgba(" + tcol + ",.28)";
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-3.2 + pen2 * 0.3, -23, 6.4, 21, 2);
+  else c.rect(-3.2 + pen2 * 0.3, -23, 6.4, 21);
+  c.fill();
+
+  c.strokeStyle = "#e2c39e"; c.lineWidth = 4.4; c.lineCap = "round";
+  /* LA MAIN QUI TRAVAILLE : elle descend sur la platine de gauche et
+     tressaute avec le disque. Elle va CHERCHER le plateau tournant —
+     dont le centre tombe à peu près à (−21, 0) dans ce repère — et
+     comme elle est dessinée avant lui, elle finit dessous : une main
+     posée sur un disque, et non une main tendue à côté. */
+  c.beginPath();
+  c.moveTo(-7, -21);
+  c.quadraticCurveTo(-13.5, -17, -17.5 - f * 1.4, -2.5 + f * 1.4);
+  c.stroke();
+  /* LA MAIN EN L'AIR : elle est là tout le temps, et elle pompe.
+     Presque à la verticale de l'épaule — un bras tendu en l'air ne
+     part pas de côté, il monte. */
+  var hx = 10.5 + pen2 * 0.8, hy = -38 - lev2;
+  c.beginPath();
+  c.moveTo(7, -22);
+  c.quadraticCurveTo(12.4, -30 - lev2 * 0.4, hx, hy);
+  c.stroke();
+  /* les deux doigts levés : c'est le geste, et il tient en deux
+     traits — sans eux, la main en l'air est une boule au bout d'un
+     bras */
+  c.lineWidth = 1.8;
+  c.beginPath();
+  c.moveTo(hx - 1.2, hy - 1.6); c.lineTo(hx - 2.2, hy - 6.2); c.stroke();
+  c.beginPath();
+  c.moveTo(hx + 1.0, hy - 1.6); c.lineTo(hx + 1.8, hy - 6.0); c.stroke();
+  c.lineWidth = 4.4;
+  /* le poing, et l'éclat qui part de lui sur la frappe. Il est PLUS
+     LARGE QUE LE BRAS — un poing plus fin que l'avant-bras qui le
+     porte se lit comme un bras coupé net. */
+  c.fillStyle = "#e8caa6";
+  c.beginPath(); c.arc(hx, hy, 3.3, 0, 6.2832); c.fill();
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var gpo = c.createRadialGradient(hx, hy, 0, hx, hy, 9 + f * 8);
+  gpo.addColorStop(0, "rgba(255,240,210," + (0.16 + f * 0.42) + ")");
+  gpo.addColorStop(1, "rgba(255,220,160,0)");
+  c.fillStyle = gpo;
+  c.beginPath(); c.arc(hx, hy, 9 + f * 8, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* LA TÊTE, qui suit le mouvement : elle penche du côté du bras
+     levé et hoche sur le temps. */
+  var tex = pen2 * 0.9, tey = -30.4 + f * 0.9;
+  c.fillStyle = "#e8caa6";
+  c.beginPath(); c.arc(tex, tey, 7, 0, 6.2832); c.fill();
+  c.fillStyle = "#1b1520";
+  c.beginPath(); c.arc(tex, tey - 2.5, 7, 3.3, 6.12); c.fill();
+  /* les lunettes noires : c'est le détail qui fait le personnage */
+  c.fillStyle = "#0d1016";
+  c.beginPath();
+  if(c.roundRect) c.roundRect(tex - 5.4, tey - 1.6, 10.8, 3.2, 1.4);
+  else c.rect(tex - 5.4, tey - 1.6, 10.8, 3.2);
+  c.fill();
+  c.fillStyle = "rgba(" + tcol + ",.45)";
+  c.fillRect(tex - 4.6, tey - 1.0, 3.4, 1.1);
+  /* la bouche ouverte : il crie quelque chose, on ne sait pas quoi */
+  c.fillStyle = "#5b2530";
+  c.beginPath();
+  c.ellipse(tex, tey + 3.6, 1.7, 1.1 + f * 0.9, 0, 0, 6.2832); c.fill();
+  /* le casque, une oreillette repoussée derrière — comme ils font */
+  c.strokeStyle = "#12161d"; c.lineWidth = 2.7;
+  c.beginPath(); c.arc(tex, tey - 0.6, 9.2, 3.34, 6.08); c.stroke();
+  c.fillStyle = "#12161d";
+  c.beginPath(); c.ellipse(tex - 8.9, tey, 2.9, 4.1, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(tex + 8.9, tey - 3.4, 2.9, 4.1, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "rgba(62,224,208,.8)";
+  c.beginPath(); c.ellipse(tex - 8.9, tey, 1.1, 1.9, 0, 0, 6.2832); c.fill();
+  c.restore();
+
+  /* --- 3d. LE PLATEAU, en raccourci ---
+     Un trapèze : l'arête avant fait toute la largeur, l'arête arrière
+     se resserre. C'est ce resserrement, et lui seul, qui dit que le
+     meuble est vu d'au-dessus. */
+  c.beginPath();
+  c.moveTo(-BW, byF); c.lineTo(BW, byF);
+  c.lineTo(BW * 0.94, byB); c.lineTo(-BW * 0.94, byB);
+  c.closePath();
+  var gpl = c.createLinearGradient(0, byB, 0, byF);
+  gpl.addColorStop(0, "#2f3746"); gpl.addColorStop(1, "#1b202a");
+  c.fillStyle = gpl; c.fill();
+  c.strokeStyle = "rgba(255,255,255,.13)"; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(-BW, byF); c.lineTo(BW, byF); c.stroke();
+
+  /* --- 3e. LES DEUX PLATINES ---
+     Socle, plateau tournant, repère qui tourne, écran, et le fader de
+     réglage à côté. Le repère tourne à sa vitesse et non à celle de la
+     musique : une platine ne tourne pas au tempo, elle tourne à
+     trente-trois tours. */
+  for(i = 0; i < 2; i++){
+    var px2 = (i ? 1 : -1) * 29;
+    var pcy = byB + BD * 0.52;
+    c.fillStyle = "#0e1118";                       // le socle
+    c.beginPath();
+    if(c.roundRect) c.roundRect(px2 - 15, pcy - 7.2, 30, 14, 2);
+    else c.rect(px2 - 15, pcy - 7.2, 30, 14);
+    c.fill();
+    c.strokeStyle = "rgba(140,152,170,.45)"; c.lineWidth = 0.7; c.stroke();
+    /* le plateau tournant */
+    var gpt = c.createRadialGradient(px2 - 3, pcy - 2, 1, px2, pcy, 11);
+    gpt.addColorStop(0, "#b6bfcd"); gpt.addColorStop(1, "#6d7686");
+    c.fillStyle = gpt;
+    c.beginPath(); c.ellipse(px2, pcy, 10.5, 4.7, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "#171b24";                       // l'étiquette du disque
+    c.beginPath(); c.ellipse(px2, pcy, 3.6, 1.6, 0, 0, 6.2832); c.fill();
+    /* les sillons */
+    c.strokeStyle = "rgba(20,24,32,.35)"; c.lineWidth = 0.5;
+    for(var sg = 1; sg <= 3; sg++){
+      c.beginPath();
+      c.ellipse(px2, pcy, 4.4 + sg * 1.9, (4.4 + sg * 1.9) * 0.447, 0, 0, 6.2832);
+      c.stroke();
+    }
+    /* le repère, qui tourne */
+    var a2 = tps * (i ? 3.4 : -2.8);
+    c.fillStyle = "#e8523c";
+    c.beginPath();
+    c.ellipse(px2 + Math.cos(a2) * 7.6, pcy + Math.sin(a2) * 3.4, 1.2, 0.7, 0, 0, 6.2832);
+    c.fill();
+    /* le petit écran de la platine, allumé */
+    c.fillStyle = "rgba(60,220,200,.55)";
+    c.fillRect(px2 - 13.4, pcy - 6.2, 6.4, 2.4);
+    /* le fader de vitesse, du côté extérieur */
+    var fvx = px2 + (i ? 12.4 : -12.4);
+    c.fillStyle = "#0a0d12"; c.fillRect(fvx - 0.7, pcy - 1.4, 1.4, 7.2);
+    c.fillStyle = "#c8d0dc";
+    c.fillRect(fvx - 1.9, pcy + 1.2 + Math.sin(tps * 0.7 + i * 2.1) * 2.2, 3.8, 1.3);
+  }
+
+  /* --- 3f. LE MÉLANGEUR, au centre ---
+     Quatre voies, trois potentiomètres d'égalisation par voie, quatre
+     curseurs, et le crossfader devant. C'est la pièce qu'on regarde
+     quand on regarde une régie. */
+  var mw = 15;                                   // demi-largeur du mélangeur
+  c.fillStyle = "#12151d";
+  c.beginPath();
+  if(c.roundRect) c.roundRect(-mw, byB + 0.8, mw * 2, BD - 1.6, 1.8);
+  else c.rect(-mw, byB + 0.8, mw * 2, BD - 1.6);
+  c.fill();
+  c.strokeStyle = "rgba(150,162,180,.40)"; c.lineWidth = 0.7; c.stroke();
+  for(i = 0; i < 4; i++){
+    var vx2 = -10.5 + i * 7;
+    /* les trois potentiomètres, avec leur trait de position */
+    for(var kn = 0; kn < 3; kn++){
+      var ky = byB + 3 + kn * 2.6;
+      c.fillStyle = "#39404e";
+      c.beginPath(); c.arc(vx2, ky, 1.15, 0, 6.2832); c.fill();
+      var ka = (i * 1.7 + kn * 2.3 + 2.1);
+      c.strokeStyle = "rgba(235,242,255,.75)"; c.lineWidth = 0.45;
+      c.beginPath();
+      c.moveTo(vx2, ky);
+      c.lineTo(vx2 + Math.cos(ka) * 1.1, ky + Math.sin(ka) * 1.1);
+      c.stroke();
+    }
+    /* le curseur de voie : il bouge sur la musique */
+    var cy0 = byB + 10.4;
+    c.fillStyle = "#080a0e"; c.fillRect(vx2 - 0.55, cy0, 1.1, 3.0);
+    var cpos = cy0 + 0.4 + (0.5 + 0.5 * Math.sin(tps * 2.2 + i * 1.9)) * 1.6;
+    c.fillStyle = i === 1 ? "#3ee0d0" : "#c8d0dc";
+    c.fillRect(vx2 - 1.5, cpos, 3.0, 1.1);
+  }
+  /* le crossfader, couché devant */
+  c.fillStyle = "#080a0e"; c.fillRect(-6.5, byF - 2.4, 13, 1.2);
+  c.fillStyle = "#e6ecf6";
+  c.fillRect(-1.4 + Math.sin(tps * 0.9) * 4.6, byF - 3.1, 2.8, 2.6);
+
+  /* --- 3g. L'ORDINATEUR, au fond à droite, écran allumé --- */
+  c.save();
+  c.translate(BW * 0.62, byB + 2.4);
+  c.fillStyle = "#1c212b";
+  c.beginPath(); c.moveTo(-7, 0); c.lineTo(7, 0); c.lineTo(6, 3.2); c.lineTo(-6, 3.2);
+  c.closePath(); c.fill();
+  c.fillStyle = "#0f131a";
+  c.fillRect(-6.4, -8.4, 12.8, 8.4);
+  c.fillStyle = "rgba(70,180,255," + (0.30 + f * 0.32) + ")";
+  c.fillRect(-5.6, -7.6, 11.2, 6.8);
+  /* les deux formes d'onde qui défilent sur l'écran */
+  c.strokeStyle = "rgba(255,255,255,.5)"; c.lineWidth = 0.4;
+  for(i = 0; i < 2; i++){
+    c.beginPath();
+    for(var wv = 0; wv <= 11; wv++){
+      var wy = -6.4 + i * 3.2 + Math.sin(wv * 1.7 + tps * 3 + i) * 0.9;
+      if(wv === 0) c.moveTo(-5.4 + wv, wy); else c.lineTo(-5.4 + wv, wy);
+    }
+    c.stroke();
+  }
+  c.restore();
+
+
+  /* --- 4. LES DEUX ENCEINTES, de part et d'autre : elles sont au
+     SUD du plateau, donc au premier plan, donc peintes en dernier. --- */
+  for(i = 0; i < 2; i++){
+    /* sur le disque, et non plus au coin d'un losange : à 0,66 du
+       rayon vers l'est et l'ouest, le plateau est encore sous elles. */
+    var ex = (i ? 1 : -1) * LX * 0.66, ey = -H + LY * 0.14;
+    c.save();
+    c.translate(ex, ey);
+    var eh = 46 + f * 1.8;              // elle tressaute sur la frappe
+    c.fillStyle = IBI_SC.enceinte;
+    c.fillRect(-10, -eh, 20, eh);
+    c.fillStyle = IBI_SC.enceinteC;
+    c.fillRect(-10, -eh, 5, eh);
+    /* LE LISERÉ DE LA CAISSE. Sans lui, une enceinte est un rectangle
+       noir posé sur une scène claire — un monolithe. Un mince trait de
+       la couleur du moment suffit à en faire du matériel. */
+    c.strokeStyle = "rgba(" + tcol + "," + (0.30 + f * 0.45) + ")";
+    c.lineWidth = 1.1;
+    c.strokeRect(-10, -eh, 20, eh);
+    /* les deux haut-parleurs */
+    c.fillStyle = IBI_SC.membrane;
+    c.beginPath(); c.ellipse(0, -eh * 0.72, 7, 7, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(0, -eh * 0.28, 4.4, 4.4, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "rgba(255,255,255,.10)";
+    c.beginPath(); c.ellipse(-1.6, -eh * 0.74, 2.8, 2.8, 0, 0, 6.2832); c.fill();
+    /* le souffle : un anneau qui part de la membrane à chaque frappe */
+    if(f > 0.12){
+      c.strokeStyle = "rgba(160,240,255," + (f * 0.30) + ")";
+      c.lineWidth = 2.2;
+      c.beginPath();
+      c.ellipse(0, -eh * 0.72, 7 + (1 - f) * 22, 7 + (1 - f) * 22, 0, 0, 6.2832);
+      c.stroke();
+    }
+    c.restore();
   }
 
   c.restore();
 }
 
-/* ---------------------------------------------------------------
-   LES LASERS
-   --------------------------------------------------------------- */
-/* Ils pointent VERS LE CIEL, donc ils passent au-dessus de tout —
+/* ================================================================
+   LES LASERS, ET LE JEU DE LUMIÈRE
+
+   « Sur le pourtour de la scène ronde il y a des lasers lumineux qui
+   vont très haut dans le ciel, avec un jeu de lumière impressionnant
+   si possible calqué sur le rythme de la musique. »
+
+   Ils pointent VERS LE CIEL, donc ils passent au-dessus de tout —
    comme les rayons de Mily. Ce sont des faisceaux dans l'air : rien
    ne peut les masquer, et ils ne sont donc PAS dans le tri de
    profondeur.
-   Ils balaient lentement et changent d'écartement au battement. Six
-   suffisent : à douze on ne voit plus qu'un éventail, et un éventail
-   ne balaie pas. */
+
+   TROIS ÉTAGES, ET CHACUN A SON RÔLE :
+
+     LE POURTOUR    seize projecteurs plantés sur le BORD du disque,
+                    à intervalle régulier. Ils tirent presque droit,
+                    très haut, et s'inclinent tous ensemble vers
+                    l'extérieur : c'est la couronne qu'on voit sur
+                    les photos, et c'est elle qu'on a demandée.
+     LES BALAYEURS  les six d'avant, sur le portique. Eux croisent,
+                    et c'est le croisement qu'on regarde.
+     LE STROBO      sur les drops seulement, un éclair blanc sur la
+                    frappe. Ailleurs : jamais. Un stroboscope qui ne
+                    s'arrête pas n'est plus un effet, c'est une
+                    fatigue — et sur les huit minutes que dure une
+                    partie, ça devient insupportable.
+
+   LA HAUTEUR. « Très haut dans le ciel » : les faisceaux du pourtour
+   font douze cents unités, soit près de dix fois la largeur de la
+   scène. Ils sortent de l'écran par le haut à tous les zooms de jeu,
+   et c'est exactement ce qu'on veut — un laser qui s'arrête quelque
+   part est un laser qui a une longueur, donc un objet ; un laser qui
+   sort du cadre monte au ciel.
+
+   ET TOUT EST BORNÉ PAR LA SECTION. Sur le break, la couronne
+   descend à presque rien ; sur le drop, elle double et le strobo
+   part. C'est ça, « calqué sur le rythme » : pas un clignotement
+   régulier, mais une scène qui a la même forme que le morceau.
+   ================================================================ */
+var IBI_LASER_N = 16;        // les projecteurs du pourtour
+var IBI_LASER_H = 1200;      // leur portée, en unités de scène
+/* Les six teintes des balayeurs du portique. */
+var IBI_LASER_T = ["255,60,120", "62,224,208", "255,200,70", "150,110,255",
+                   "80,255,160", "255,120,60"];
+
 function dessineLasersIbiza(c, tps){
   var p = versEcran(cam, SCENE_GX, SCENE_GY);
   var z = cam.z;
   if(z < 0.10) return;
   var f = frappe(tps);
-  /* L'ORIGINE EST CELLE DU PORTIQUE, pas une hauteur devinée. Elle
-     était écrite « p.y - 47 * z » quand les mâts en faisaient 122 :
-     les faisceaux naissaient à mi-hauteur, dans le vide au-dessus de
-     la tête du DJ. Ils partent maintenant des deux poutres, chacun de
-     son point, et le portique les tient vraiment. */
+  var F = forceIbiza(tps);
+  var mes = mesureIbiza(tps);
+  var HH = horlogeIbiza(tps);
   var LX = IBI_DEMI * RX, LY = IBI_DEMI * RY, ir = 0.90;
-  var teintes =["255,60,120", "62,224,208", "255,200,70", "150,110,255",
-                 "80,255,160", "255,120,60"];
+  var i;
   c.save();
   c.globalCompositeOperation = "lighter";
-  for(var i = 0; i < 6; i++){
+  c.lineCap = "round";
+
+  /* ────────────────────────────────────────────────────────────
+     1. LA COURONNE DU POURTOUR
+
+     Chaque projecteur est posé sur l'ELLIPSE du plateau — qui est le
+     cercle du monde, voir le commentaire du podium — et tire vers le
+     haut. Son inclinaison a deux parts : une part commune, qui
+     respire lentement et ouvre la couronne en éventail, et une part
+     propre, qui vient de sa position sur le cercle. Un projecteur à
+     l'ouest se penche vers l'ouest ; celui d'en face vers l'est.
+     Sans cette part-là on obtient seize traits parallèles, ce qui
+     n'est pas une couronne mais une palissade.
+     ──────────────────────────────────────────────────────────── */
+  var ouv = (0.22 + 0.20 * Math.sin(tps * 0.45)) * F;   // l'ouverture commune
+  for(i = 0; i < IBI_LASER_N; i++){
+    var an = i / IBI_LASER_N * 6.2832;
+    var ox = Math.cos(an) * LX * 0.99;
+    var oy = -IBI_H + Math.sin(an) * LY * 0.99;
+    var x0 = p.x + ox * z, y0 = p.y + oy * z;
+    /* l'inclinaison : vers l'extérieur, plus un roulis qui tourne
+       autour de la scène et qui fait « respirer » la couronne */
+    var incl = Math.cos(an) * ouv + Math.sin(tps * 0.8 + an * 2) * 0.10 * F;
+    var lg = (IBI_LASER_H * (0.55 + F * 0.42) + f * 220 * F) * z;
+    var x1 = x0 + Math.sin(incl) * lg;
+    var y1 = y0 - Math.cos(incl) * lg;
+    /* la teinte tourne autour du cercle et change à chaque temps :
+       c'est une chenille de couleur, pas un clignotant */
+    var col = IBI_LASER_T[(i + mes) % 6];
+    var op = (0.09 + f * 0.17) * F;
+    /* LE FAISCEAU S'ALLUME À DIX POUR CENT DE SA COURSE, et c'est une
+       correction, pas un effet : à pleine intensité dès la lampe,
+       seize faisceaux font une palissade devant la scène et l'on ne
+       voit plus ni le DJ ni la régie. Le dixième du bas, c'est très
+       exactement la hauteur du bonhomme. La lampe, elle, reste nette :
+       c'est elle qui plante le faisceau sur le bord du plateau. */
+    var g = c.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, "rgba(" + col + ",0)");
+    g.addColorStop(0.10, "rgba(" + col + "," + (op * 1.35) + ")");
+    g.addColorStop(0.38, "rgba(" + col + "," + op + ")");
+    g.addColorStop(1, "rgba(" + col + ",0)");
+    c.strokeStyle = g;
+    /* deux passes : un halo doux, puis un cœur net. C'est ce qui
+       distingue un faisceau dans la brume d'un trait de crayon — mais
+       le halo reste MINCE : large, il fait de la purée grise. */
+    c.lineWidth = (1.9 + f * 1.7) * F * z;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    c.lineWidth = (0.7 + f * 0.6) * z;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    /* la lampe elle-même, très nette : c'est elle qui plante le
+       faisceau sur le bord du plateau au lieu de le laisser flotter */
+    c.fillStyle = "rgba(" + col + "," + (0.45 + f * 0.5) + ")";
+    c.beginPath(); c.arc(x0, y0, (0.9 + f * 0.9) * z, 0, 6.2832); c.fill();
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     2. LES BALAYEURS DU PORTIQUE
+
+     L'ORIGINE EST CELLE DU PORTIQUE, pas une hauteur devinée. Elle
+     était écrite « p.y - 47 * z » quand les mâts en faisaient 122 :
+     les faisceaux naissaient à mi-hauteur, dans le vide au-dessus de
+     la tête du DJ. Ils partent des deux poutres, chacun de son
+     point, et le portique les tient vraiment.
+     ──────────────────────────────────────────────────────────── */
+  for(i = 0; i < 6; i++){
     /* réparti sur les deux poutres : ouest → nord, puis nord → est */
     var u = i / 5 * 2;                           // 0..2, la poutre est la partie entière
     var ax, ay, bx, by;
     if(u <= 1){ ax = -LX * ir; ay = -IBI_H;             bx = 0;        by = -IBI_H - LY * ir; }
     else      { ax = 0;        ay = -IBI_H - LY * ir;   bx = LX * ir;  by = -IBI_H;           u -= 1; }
-    var ox = ax + (bx - ax) * u;
-    var oy = ay + (by - ay) * u - IBI_MH;
-    var x0 = p.x + ox * z, base = p.y + oy * z;
+    var px0 = ax + (bx - ax) * u;
+    var py0 = ay + (by - ay) * u - IBI_MH;
+    var sx0 = p.x + px0 * z, sy0 = p.y + py0 * z;
     /* le balayage : chaque faisceau a sa vitesse, mais ils repassent
        par le même point de temps en temps — c'est ce croisement qu'on
        attend en regardant des lasers */
     var a = Math.sin(tps * (0.34 + i * 0.055) + i * 1.9) * (0.52 + f * 0.22);
-    var lg = (300 + f * 90) * z;
-    var x1 = x0 + Math.sin(a) * lg;
-    var y1 = base - Math.cos(a) * lg;
-    var g = c.createLinearGradient(x0, base, x1, y1);
-    var op = 0.16 + f * 0.24;
-    g.addColorStop(0, "rgba(" + teintes[i] + "," + op + ")");
-    g.addColorStop(0.5, "rgba(" + teintes[i] + "," + (op * 0.55) + ")");
-    g.addColorStop(1, "rgba(" + teintes[i] + ",0)");
-    c.strokeStyle = g;
+    var lgb = (300 + f * 90) * (0.6 + F * 0.5) * z;
+    var sx1 = sx0 + Math.sin(a) * lgb;
+    var sy1 = sy0 - Math.cos(a) * lgb;
+    var gb = c.createLinearGradient(sx0, sy0, sx1, sy1);
+    var opb = (0.16 + f * 0.24) * F;
+    gb.addColorStop(0, "rgba(" + IBI_LASER_T[i] + "," + opb + ")");
+    gb.addColorStop(0.5, "rgba(" + IBI_LASER_T[i] + "," + (opb * 0.55) + ")");
+    gb.addColorStop(1, "rgba(" + IBI_LASER_T[i] + ",0)");
+    c.strokeStyle = gb;
     c.lineWidth = (1.1 + f * 1.3) * z;
-    c.lineCap = "round";
-    c.beginPath(); c.moveTo(x0, base); c.lineTo(x1, y1); c.stroke();
-    /* le point d'origine, très net : c'est lui qui ancre le faisceau
-       sur le portique au lieu de le laisser flotter */
-    c.fillStyle = "rgba(" + teintes[i] + "," + (0.5 + f * 0.4) + ")";
-    c.beginPath(); c.arc(x0, base, (0.9 + f * 0.7) * z, 0, 6.2832); c.fill();
+    c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
+    c.fillStyle = "rgba(" + IBI_LASER_T[i] + "," + (0.5 + f * 0.4) + ")";
+    c.beginPath(); c.arc(sx0, sy0, (0.9 + f * 0.7) * z, 0, 6.2832); c.fill();
   }
+
+  /* ────────────────────────────────────────────────────────────
+     3. LA COLONNE DE LUMIÈRE au-dessus de la scène
+
+     Une nappe verticale qui monte du plateau et se perd. Elle ne
+     fait rien d'autre que donner de l'AIR à la couronne : sans elle,
+     seize traits partent d'un disque et le ciel entre eux reste
+     noir, ce qui se lit comme seize traits et non comme une scène
+     éclairée.
+
+     ELLE DÉMARRE AU-DESSUS DE LA TÊTE DU DJ, et pas au plateau. Posée
+     sur le plateau, elle noyait la régie sous un voile gris : toute
+     la scène perdait son contraste, et c'est le premier défaut qu'on
+     voyait sur les photos. Une nappe de brume commence là où l'on
+     cesse de regarder les détails.
+     ──────────────────────────────────────────────────────────── */
+  var y0c = p.y - (IBI_H + 108) * z;
+  var hc = 300 * (0.5 + F * 0.6) * z;
+  var gcol = c.createLinearGradient(p.x, y0c, p.x, y0c - hc);
+  var ccol = IBI_TEINTES[mes % 4];
+  gcol.addColorStop(0, "rgba(" + ccol + ",0)");
+  gcol.addColorStop(0.22, "rgba(" + ccol + "," + ((0.05 + f * 0.07) * F) + ")");
+  gcol.addColorStop(1, "rgba(" + ccol + ",0)");
+  c.fillStyle = gcol;
+  c.beginPath();
+  c.moveTo(p.x - LX * 0.9 * z, y0c);
+  c.lineTo(p.x + LX * 0.9 * z, y0c);
+  c.lineTo(p.x + LX * 1.8 * z, y0c - hc);
+  c.lineTo(p.x - LX * 1.8 * z, y0c - hc);
+  c.closePath(); c.fill();
+
+  /* ────────────────────────────────────────────────────────────
+     4. LES CANONS À FUMÉE, une fois par mesure sur les drops
+
+     Deux buses plantées sur le bord SUD du plateau, de part et
+     d'autre du DJ, qui crachent une colonne blanche au premier temps
+     de chaque mesure. C'est le geste le plus reconnaissable d'une
+     grande scène, et il ne coûte que deux dégradés.
+
+     UNE FOIS PAR MESURE, ET PAS UNE FOIS PAR TEMPS : un canon qui
+     tire quatre fois par mesure n'est plus un événement, c'est un
+     robinet. La phase se lit sur `t/4` — le compte des NOIRES divisé
+     par quatre, donc la mesure — et le jet dure un cinquième de
+     mesure, le temps de monter et de se dissoudre.
+     ──────────────────────────────────────────────────────────── */
+  if(HH.strobo && HH.mus){
+    var pm = HH.t / 4;
+    var phm = pm - Math.floor(pm);
+    var jet = phm < 0.20 ? 1 - phm / 0.20 : 0;
+    if(jet > 0.02){
+      for(i = 0; i < 2; i++){
+        var ab = i ? 2.199 : 0.942;                  // ±54° sous l'horizontale, au sud
+        var jx = p.x + Math.cos(ab) * LX * 0.96 * z;
+        var jy = p.y + (-IBI_H + Math.sin(ab) * LY * 0.96) * z;
+        var mont = (1 - jet) * 1.0;                  // la colonne a déjà monté
+        var haut = (60 + 210 * mont) * z;
+        var larg = (5 + 26 * mont) * z;
+        var gj2 = c.createLinearGradient(jx, jy, jx, jy - haut);
+        /* en composite additif : blanc à pleine opacité, une colonne
+           de CO₂ crève l'image. Un tiers suffit — c'est de la vapeur
+           éclairée, pas un phare. */
+        gj2.addColorStop(0, "rgba(255,255,255," + (jet * 0.34) + ")");
+        gj2.addColorStop(0.45, "rgba(232,244,255," + (jet * 0.19) + ")");
+        gj2.addColorStop(1, "rgba(220,238,255,0)");
+        c.fillStyle = gj2;
+        c.beginPath();
+        c.moveTo(jx - larg * 0.22, jy);
+        c.lineTo(jx + larg * 0.22, jy);
+        c.lineTo(jx + larg, jy - haut);
+        c.lineTo(jx - larg, jy - haut);
+        c.closePath(); c.fill();
+      }
+    }
+  }
+
   c.restore();
+
+  /* ────────────────────────────────────────────────────────────
+     5. LE STROBOSCOPE — sur les drops, et nulle part ailleurs
+
+     Un éclair blanc sur la frappe, très court et très discret : six
+     centièmes d'opacité suffisent à faire sursauter toute l'image,
+     et au-delà on n'y voit plus rien. Il est HORS du composite
+     « lighter » : c'est un voile sur toute la scène, pas une lampe.
+
+     Il ne part que si la musique joue vraiment — un stroboscope sur
+     une carte muette serait un défaut d'affichage, pas un effet.
+     ──────────────────────────────────────────────────────────── */
+  if(HH.strobo && HH.mus){
+    var ecl = Math.max(0, 1 - (HH.t - Math.floor(HH.t)) * 14);
+    if(ecl > 0.02){
+      c.save();
+      c.fillStyle = "rgba(240,248,255," + (ecl * 0.075) + ")";
+      c.fillRect(0, 0, W, H);
+      c.restore();
+    }
+  }
 }
 
 /* Tout ce qui danse, dans le tri de profondeur. */

@@ -47,9 +47,17 @@ function demarre(){
      96-version.js. La requête est muette si elle échoue. */
   verifieVersion();
 
-  /* le contexte audio ne peut démarrer qu'après un geste */
+  /* Le contexte audio ne peut démarrer qu'après un geste — et il y en
+     a maintenant DEUX à débloquer : celui des bruitages et celui de la
+     bande-son d'Ibiza. Le second surtout : on entre sur les cartes
+     événement après une bannière et deux secondes et demie d'attente,
+     donc le play() de la musique part très loin du clic. Ici on ne
+     joue rien, on ouvre seulement le robinet. */
   ["pointerdown", "keydown"].forEach(function(ev){
-    window.addEventListener(ev, function(){ son.reveille(); }, { once:true });
+    window.addEventListener(ev, function(){
+      son.reveille();
+      musique.debloque();
+    }, { once:true });
   });
 
   derniereImage = performance.now();

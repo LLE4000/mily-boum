@@ -1169,6 +1169,10 @@ function construitBriefing(){
        descend aussi le nœud maître, seule façon d'éteindre une nappe
        déjà en train de jouer. Appelée SUR `son`, jamais détachée. */
     this.textContent = son.bascule() ? "🔊 Son activé" : "🔇 Son coupé";
+    /* La bande-son d'Ibiza a son propre contexte audio : le nœud
+       maître des bruitages ne la touche pas. Un bouton « son coupé »
+       qui laisse une musique jouer, c'est un bouton cassé. */
+    musique.suitLeSon();
   });
   $("btPlein").addEventListener("click", basculePlein);
 }
@@ -2117,6 +2121,14 @@ function lancePartie(ou){
   ajuste();
   var idx = (typeof ou === "number") ? ou : carteSalon;
   nouvelleCarte(idx);
+  /* LA MUSIQUE, ET UNE SEULE PORTE POUR ELLE. Tout le monde passe par
+     ici : la campagne, les cartes événement, et la VISITE — qui
+     appelle lancePartie comme les autres avant de ranger les boutons.
+     C'est ce qui fait qu'on entend la fête même sur une île
+     verrouillée qu'on ne fait que regarder, ce qui a été demandé.
+     `musique.entre` ne fait quelque chose que sur la carte à scène ;
+     partout ailleurs elle coupe ce qui traînerait. */
+  musique.entre(idx);
   construitFondMini();
   construitMenu();
   majBarres();
@@ -2289,6 +2301,9 @@ function quitteVersBriefing(){
      puis par-dessus la jungle — qui monte alors sa propre nappe. Deux
      ambiances empilées. */
   if(typeof ambianceNuits !== "undefined") ambianceNuits.arrete();
+  /* Et la fête d'Ibiza ne suit pas non plus jusqu'au menu : elle a son
+     propre contexte audio, donc personne d'autre ne l'arrêtera. */
+  if(typeof musique !== "undefined") musique.sort();
   $("bilan").classList.remove("on");
   $("hud").classList.remove("on");
   $("hud").classList.remove("fin");
