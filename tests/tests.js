@@ -43,7 +43,7 @@ try{
     "encodePieces","decodePieces","partiePieces","partieFormes","partieQuadrillage",
     "encodePlanComplet","planVide","pieceEstPosable","MARQUE_PIECES","MARQUE_FORMES",
     "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
-    "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
+    "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","seauxHerites","reconstruitCarrieres","encodeTop3","decodeTop3","inscritTop3","top3DeCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
@@ -7841,6 +7841,109 @@ G("29. Les pièces posées une à une");
      })());
   ok("l'historique retient aussi les pièces",
      /p:copiePieces\(planPieces\)/.test(html) && /planPieces = av\.p \|\| \[\]/.test(html));
+})();
+
+G("30. Les carrières reconstruites depuis les podiums");
+(function(){
+  var D = N.decodeScores, E = N.encodeScores;
+  var H = N.seauHerite;                       // le seau d'un nom sans appareil
+
+  /* Le salon d'après l'accident : Lu a récupéré son vrai cumul sur son
+     appareil (seau « abcd »), les autres n'ont plus rien. */
+  var vrai = {};
+  vrai[N.cleScore("abcd", 0)] = { n:"Lu", g:4509347 };
+  vrai[N.cleScore("abcd", 1)] = { n:"Lu", g:11113485 };
+
+  /* Les podiums gelés, eux, ont tout gardé. */
+  var t3 = "";
+  t3 = N.inscritTop3(t3, 0, [{ nom:"Roro", g:11297922 },
+                             { nom:"Lu",   g:4509347 },
+                             { nom:"jaja", g:698999 }]);
+  t3 = N.inscritTop3(t3, 1, [{ nom:"Lu",     g:11113485 },
+                             { nom:"Havana", g:8934146 },
+                             { nom:"So",     g:1224706 }]);
+  t3 = N.inscritTop3(t3, 3, [{ nom:"Roro", g:13482657 },
+                             { nom:"Max",  g:6578640 },
+                             { nom:"Lu",   g:5855735 }]);
+
+  var avant = N.totalParJoueur(vrai);
+  ok("avant reconstruction, seul Lu est au classement",
+     avant.Lu === 15622832 && avant.Roro === undefined, JSON.stringify(avant));
+
+  var r = N.reconstruitCarrieres(vrai, t3);
+  var apres = N.totalParJoueur(r.tab);
+
+  ok("Roro retrouve la somme de ses podiums",
+     apres.Roro === 11297922 + 13482657, apres.Roro);
+  ok("Havana, So et jaja aussi",
+     apres.Havana === 8934146 && apres.So === 1224706 && apres.jaja === 698999,
+     JSON.stringify([apres.Havana, apres.So, apres.jaja]));
+  ok("Max aussi", apres.Max === 6578640, apres.Max);
+
+  /* LE POINT CRITIQUE : Lu a un VRAI seau sur les cartes 0 et 1, et un
+     seau hérité poserait les mêmes chiffres. Il ne doit surtout pas
+     compter deux fois — mais la carte 3, où il n'a pas de vrai seau,
+     doit bien s'ajouter. */
+  ok("Lu n'est PAS compté deux fois sur les cartes qu'il a déjà",
+     apres.Lu === 15622832 + 5855735, apres.Lu);
+
+  /* Et dans l'autre sens : on reconstruit d'abord, le joueur récupère
+     ensuite. Le résultat doit être le même. */
+  var r2 = N.reconstruitCarrieres({}, t3);
+  var tard = D(E(r2.tab));
+  tard[N.cleScore("abcd", 0)] = { n:"Lu", g:4509347 };
+  tard[N.cleScore("abcd", 1)] = { n:"Lu", g:11113485 };
+  ok("… dans l'ordre inverse, le total est identique",
+     N.totalParJoueur(tard).Lu === apres.Lu,
+     N.totalParJoueur(tard).Lu + " vs " + apres.Lu);
+
+  /* Le vrai cumul est plus gros que le podium : c'est lui qui gagne,
+     et le hérité ne s'ajoute pas par-dessus. */
+  var mieux = D(E(r.tab));
+  mieux[N.cleScore("abcd", 0)] = { n:"Lu", g:9000000 };
+  ok("un vrai cumul plus gros remplace le podium au lieu de s'y ajouter",
+     N.totalParJoueur(mieux).Lu === 9000000 + 11113485 + 5855735,
+     N.totalParJoueur(mieux).Lu);
+
+  /* La règle vaut aussi carte par carte, sinon la vignette d'une île
+     afficherait le double de ce que le joueur a fait dessus. */
+  ok("le podium d'une île ne double pas non plus sur sa vignette",
+     N.totalParJoueurCarte(r.tab, 0).Lu === 4509347,
+     N.totalParJoueurCarte(r.tab, 0).Lu);
+  ok("… et la reconstruction remplit bien la vignette d'un absent",
+     N.totalParJoueurCarte(r.tab, 0).Roro === 11297922,
+     N.totalParJoueurCarte(r.tab, 0).Roro);
+
+  /* Idempotence : reconstruire deux fois ne change rien. */
+  var r3 = N.reconstruitCarrieres(r.tab, t3);
+  ok("reconstruire deux fois ne change rien",
+     E(r3.tab) === E(r.tab));
+
+  /* Rien n'est jamais abaissé. */
+  var hauts = D(E(r.tab));
+  hauts[N.cleScore(H("Roro"), 0)] = { n:"Roro", g:99000000 };
+  var r4 = N.reconstruitCarrieres(hauts, t3);
+  ok("un score déjà plus haut n'est jamais rabaissé",
+     N.totalParJoueur(r4.tab).Roro === 99000000 + 13482657,
+     N.totalParJoueur(r4.tab).Roro);
+
+  /* La chaîne survit à l'encodage, seaux hérités compris. */
+  ok("la reconstruction traverse l'encodage",
+     N.totalParJoueur(D(E(r.tab))).Roro === apres.Roro);
+
+  /* Et la fusion réseau la propage sans la casser. */
+  ok("elle se propage par la fusion",
+     N.totalParJoueur(D(N.fusionneScores(E(vrai), E(r.tab)))).Roro === apres.Roro);
+
+  /* Sans podium, rien ne bouge. */
+  var r5 = N.reconstruitCarrieres(vrai, "");
+  ok("sans podium, la reconstruction ne pose rien",
+     r5.poses === 0 && E(r5.tab) === E(vrai));
+
+  /* Le seau hérité est bien déterministe, sinon deux appareils
+     poseraient deux entrées pour la même personne. */
+  ok("le seau hérité d'un nom est stable",
+     H("Roro") === H("Roro") && H("Roro") !== H("Lu"), H("Roro") + " / " + H("Lu"));
 })();
 
 /* ---------------- bilan ---------------- */

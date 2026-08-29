@@ -2370,6 +2370,71 @@ function installeAdmin(){
   if(rc) rc.addEventListener("click", reprendCampagneAdmin);
   var cu = $("btAdminCumul");
   if(cu) cu.addEventListener("click", recupereCumulAdmin);
+  var rk = $("btAdminCarrieres");
+  if(rk) rk.addEventListener("click", reconstruitCarrieresAdmin);
+}
+
+/* ================================================================
+   RECONSTRUIRE LES CARRIÈRES DES AUTRES
+
+   « J'ai repris mon cumul mais pas celui des autres. »
+
+   On ne PEUT pas reprendre celui des autres : il vit dans leur
+   navigateur. Ce qu'on peut faire, c'est relire les podiums gelés —
+   qui sont, eux, dans l'instantané partagé — et en refaire un total
+   par joueur. Voir reconstruitCarrieres : ce sont de vrais chiffres,
+   pris à la chute de chaque île.
+
+   L'AVERTISSEMENT DIT LA VÉRITÉ, y compris la partie qui fâche : seuls
+   les joueurs entrés dans un top 3 y sont, et un quatrième d'île n'a
+   rien laissé. On annonce ce qu'on va poser AVANT de le poser, joueur
+   par joueur, pour qu'on puisse dire non.
+
+   ET ÇA NE DOUBLE JAMAIS. Le seau hérité est un repli : dès qu'un
+   joueur récupère son vrai cumul sur son appareil, seauxHerites le
+   chasse île par île. On peut donc reconstruire d'abord et récupérer
+   ensuite, dans n'importe quel ordre.
+   ================================================================ */
+function reconstruitCarrieresAdmin(){
+  if(!monde || !monde.t3){
+    alert("Aucun podium enregistré : il n'y a rien à reconstruire.");
+    return;
+  }
+  var av = totalParJoueur(decodeScores(monde.s));
+  var r = reconstruitCarrieres(decodeScores(monde.s), monde.t3);
+  var ap = totalParJoueur(r.tab);
+  var l = classementDepuis(ap), i, gagne = 0, txt = "";
+  for(i = 0; i < l.length; i++){
+    var d = l[i].g - (av[l[i].nom] || 0);
+    if(d <= 0) continue;
+    gagne++;
+    txt += "  • " + l[i].nom + " : "
+         + ((av[l[i].nom] || 0) ? nombre(av[l[i].nom]) + " → " : "")
+         + nombre(l[i].g) + "\n";
+  }
+  if(!gagne){
+    alert("Les podiums n'apportent rien de plus que ce qui est déjà\n"
+        + "au classement. Rien n'a été touché.");
+    return;
+  }
+  if(!confirm("RECONSTRUIRE LES CARRIÈRES\n\n"
+            + "À partir des podiums gelés de chaque île — de vrais\n"
+            + "chiffres, pris au moment où l'île est tombée.\n\n"
+            + "CE QUI CHANGE :\n" + txt + "\n"
+            + "CE QUE ÇA NE RATTRAPE PAS : seuls les joueurs entrés\n"
+            + "dans un top 3 y figurent. Le quatrième d'une île n'a\n"
+            + "rien laissé dans les podiums.\n\n"
+            + "Un joueur qui récupère ensuite son vrai cumul sur son\n"
+            + "appareil remplace sa reconstruction — jamais de double\n"
+            + "compte, et dans n'importe quel ordre.\n\n"
+            + "Aucun score existant n'est abaissé.")) return;
+  monde.s = encodeScores(r.tab);
+  republieMesScores(1);            // en force : voir son commentaire
+  majMondes();
+  if(typeof majCarriere === "function") majCarriere();
+  fermeAdminP();
+  alert(gagne + " carrière" + (gagne > 1 ? "s" : "") + " reconstruite"
+      + (gagne > 1 ? "s" : "") + " depuis les podiums.");
 }
 
 /* ================================================================

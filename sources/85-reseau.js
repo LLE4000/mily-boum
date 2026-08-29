@@ -1339,10 +1339,15 @@ function porteMesDegats(){
    remplir. On passe donc par tableauScores(), qui lit scoresAJour(),
    qui pose nos seaux par-dessus le tableau partagé.
    ================================================================ */
-function republieMesScores(){
+/* `force` sert à la reconstruction des carrières : elle écrit
+   elle-même dans monde.s avant d'appeler, si bien que le tableau
+   qu'on recalcule peut être IDENTIQUE à celui qu'on vient de poser —
+   et la sortie anticipée laisserait alors la reconstruction dans ce
+   seul navigateur, sans jamais partir sur le réseau. */
+function republieMesScores(force){
   if(!monde || modeApercu) return false;
   var s = tableauScores();
-  if(s === (monde.s || "")) return false;
+  if(!force && s === (monde.s || "")) return false;
   monde.s = s;
   monde.v = (monde.v | 0) + 1;
   sauveMondeLocal();

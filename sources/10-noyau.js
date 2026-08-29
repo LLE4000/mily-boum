@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.84";
+var VERSION = "v0.85";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -7033,9 +7033,57 @@ function nomsDesSeaux(tab){
 /* Le total de chaque joueur : la somme de tous les seaux qui portent
    son étiquette, toutes cartes confondues. C'est le classement
    PERSISTANT. */
-function totalParJoueur(tab){
-  var noms = nomsDesSeaux(tab), out = {}, k;
+/* ================================================================
+   LE SEAU HÉRITÉ EST UN REPLI, PAS UNE ADDITION
+
+   `seauHerite(nom)` fabrique un seau à partir d'un pseudo seul : il
+   sert quand on connaît le NOM de quelqu'un mais pas son appareil —
+   les vieilles entrées sans seau, et depuis la v0.85 les carrières
+   reconstruites à partir des podiums gelés.
+
+   LE PIÈGE, et il fallait le fermer avant d'écrire la reconstruction.
+   totalParJoueur SOMME les seaux qui portent la même étiquette, et
+   c'est voulu : une même personne sur deux appareils a bien deux
+   seaux, et son total est la somme des deux. Mais un seau hérité ne
+   décrit pas un second appareil — il décrit LE MÊME joueur, vu de
+   loin. Additionner le repli et la vraie donnée compterait deux fois
+   les mêmes coups de hache, et doublerait le score de qui récupère
+   son cumul après une reconstruction.
+
+   LA RÈGLE, qui vaut île par île : sur une carte donnée, si un vrai
+   seau porte déjà ce nom, le seau hérité de ce nom NE COMPTE PAS. La
+   reconstruction ne remplit donc que les trous, et la vraie donnée
+   la chasse dès qu'elle arrive.
+
+   POURQUOI À LA LECTURE ET NON À L'ÉCRITURE. Le tableau des dégâts
+   est une union monotone : fusionneScores garde le maximum par clé et
+   ne sait pas EFFACER. Une entrée retirée ici reviendrait au premier
+   instantané d'un autre appareil qui l'a encore. La règle doit donc
+   être une règle de LECTURE — une fonction pure du tableau, que tous
+   les clients appliquent pareil, et qui converge sans rien effacer.
+   ================================================================ */
+function seauxHerites(tab){
+  /* Quels seaux hérités sont recouverts, et sur quelles cartes. Rendu
+     sous forme d'ensemble de clés « seau:carte » à ignorer. */
+  var noms = nomsDesSeaux(tab), couvert = {}, mort = {}, k, p;
   for(k in tab){
+    p = String(k).split(":");
+    var n = noms[p[0]];
+    if(!n || p[0] === seauHerite(n)) continue;   // un seau hérité ne se couvre pas lui-même
+    couvert[n + ":" + (p[1] | 0)] = 1;
+  }
+  for(k in tab){
+    p = String(k).split(":");
+    var nm = noms[p[0]];
+    if(!nm || p[0] !== seauHerite(nm)) continue;
+    if(couvert[nm + ":" + (p[1] | 0)]) mort[k] = 1;
+  }
+  return mort;
+}
+function totalParJoueur(tab){
+  var noms = nomsDesSeaux(tab), mort = seauxHerites(tab), out = {}, k;
+  for(k in tab){
+    if(mort[k]) continue;
     var seau = String(k).split(":")[0];
     var n = noms[seau];
     if(!n) continue;
@@ -7047,8 +7095,9 @@ function totalParJoueur(tab){
    (carte -1) n'y figurent pas : elles ne savent pas de quelle île
    elles viennent, et l'inventer serait mentir. */
 function totalParJoueurCarte(tab, carte){
-  var noms = nomsDesSeaux(tab), out = {}, k;
+  var noms = nomsDesSeaux(tab), mort = seauxHerites(tab), out = {}, k;
   for(k in tab){
+    if(mort[k]) continue;                     // même règle de repli qu'au total
     var p = String(k).split(":");
     if((p[1] | 0) !== (carte | 0)) continue;
     var n = noms[p[0]];
@@ -7324,6 +7373,51 @@ function top3DeCarte(s, index){
   var t = decodeTop3(s);
   return t[index | 0] ? t[index | 0].l : null;
 }
+/* ================================================================
+   RECONSTRUIRE LES CARRIÈRES À PARTIR DES PODIUMS GELÉS
+
+   « J'ai repris mon cumul mais pas celui des autres. »
+
+   Le cumul de dégâts d'un joueur vit dans SON navigateur : personne ne
+   peut le récupérer à sa place, c'est le principe même du seau. Mais
+   il reste une seconde source, et elle est déjà dans l'instantané
+   partagé : les PODIUMS GELÉS. Chaque île tombée garde le nom et le
+   score de ses trois premiers, inscrits au moment de la chute. Ce sont
+   de vrais chiffres, enregistrés, que personne n'a inventés.
+
+   CE QUE ÇA VAUT, MESURÉ. Sur un joueur dont on avait par ailleurs le
+   vrai cumul : somme des podiums 33 910 567 contre 33 824 696 réels,
+   soit 0,25 % d'écart. C'est la bonne échelle, et l'écart s'explique —
+   un podium est une photo prise à la chute de l'île, le cumul continue
+   après.
+
+   CE QUE ÇA NE VAUT PAS, et il faut le dire : seuls les joueurs
+   ENTRÉS DANS UN TOP 3 y figurent. Le quatrième d'une île n'a rien
+   laissé dans les podiums, et sa part de cette île-là est perdue pour
+   de bon si son navigateur ne l'a plus.
+
+   CHAQUE JOUEUR VA DANS SON SEAU HÉRITÉ, et pas dans un seau commun :
+   ainsi chacun est coupé ou gardé pour son propre compte quand le
+   tableau atteint son budget d'octets, et la règle de repli de
+   seauxHerites le chasse dès que le vrai cumul arrive.
+   ================================================================ */
+function reconstruitCarrieres(tab, t3){
+  var t = decodeTop3(t3), out = {}, k, i, n = 0;
+  for(k in tab) out[k] = { n:tab[k].n, g:tab[k].g };
+  for(var c in t){
+    var l = (t[c] && t[c].l) ? t[c].l : [];
+    for(i = 0; i < l.length; i++){
+      var nom = nettoieNomScore(l[i].nom), g = Math.max(0, Math.round(l[i].g || 0));
+      if(!nom || !g) continue;
+      var cle = cleScore(seauHerite(nom), c | 0);
+      /* le maximum, comme la fusion : on ne rabaisse jamais une
+         entrée déjà là, on ne fait que combler */
+      if(!out[cle] || g > out[cle].g){ out[cle] = { n:nom, g:g }; n++; }
+    }
+  }
+  return { tab:out, poses:n };
+}
+
 /* Inscrit un podium pour une carte, en montant d'un cran son numéro de
    victoire. Symétrique d'inscritChampion, et volontairement : les deux
    décrivent la même victoire. */
