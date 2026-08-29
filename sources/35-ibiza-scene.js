@@ -1357,7 +1357,17 @@ function dessineLasersIbiza(c, tps){
       var inc = vers * 0.38 + Math.sin(tps * 0.6 + i * 0.9) * 0.10 * F;
       var lgt = (900 * (0.55 + F * 0.45) + f * 180 * F) * z;
       var ct = teinteIbiza(IBI_LASER_T, i * 2 + mes);
-      var opt = (0.07 + f * 0.15) * F;
+      /* ENTRE LES DEUX, ET C'EST LITTÉRALEMENT LA MOYENNE.
+         « Une intensité entre celle qu'ils ont et celle des deux gros
+         lasers. » Les deux gros valent 0,19 + f×0,18 en opacité et
+         2,8 + f×2,0 en épaisseur (voir 3 ter, plus bas) ; ceux-ci
+         valaient 0,07 + f×0,15 et 1,6 + f×1,5. On prend le milieu des
+         deux, terme à terme, plutôt qu'un réglage à l'œil — c'est la
+         seule façon que la demande reste vérifiable dans six mois.
+         Ils restent donc en dessous des deux tours, ce qui compte :
+         douze faisceaux aussi forts que les deux gros auraient effacé
+         ce qui fait la rareté de ceux-là. */
+      var opt = (0.13 + f * 0.165) * F;
       var gt = c.createLinearGradient(rx0, ry0, rx0 + Math.sin(inc) * lgt,
                                       ry0 - Math.cos(inc) * lgt);
       gt.addColorStop(0, "rgba(" + ct + ",0)");
@@ -1365,7 +1375,7 @@ function dessineLasersIbiza(c, tps){
       gt.addColorStop(0.45, "rgba(" + ct + "," + opt + ")");
       gt.addColorStop(1, "rgba(" + ct + ",0)");
       c.strokeStyle = gt;
-      c.lineWidth = (1.6 + f * 1.5) * F * z;
+      c.lineWidth = (2.2 + f * 1.75) * F * z;
       c.beginPath();
       c.moveTo(rx0, ry0);
       c.lineTo(rx0 + Math.sin(inc) * lgt, ry0 - Math.cos(inc) * lgt);
@@ -1807,9 +1817,38 @@ function dessineFeuIbiza(c, tps, p, z){
    pâlissant. Six suffisent : au-delà on ne voit plus les bouffées mais
    une tache, et une tache n'a pas de mouvement.
    ================================================================ */
-var IBI_FUM_BUSES = [0.86, 1.5708, 2.28];   // les trois angles, plein sud
+/* ────────────────────────────────────────────────────────────────
+   SIX BUSES SUR TOUT LE POURTOUR, ET DEUX ANGLES PAR BUSE
+
+   Trois buses au sud, c'était la moitié d'une régie : la scène est
+   ronde, la piste l'entoure, et rien ne sortait de l'autre côté.
+
+   MAIS ON NE PEUT PAS SIMPLEMENT EN METTRE SIX EN COURONNE. Les trois
+   du fond soufflent vers le haut de l'écran, c'est-à-dire DERRIÈRE le
+   podium : leur nappe naît et meurt sans qu'on en voie rien, cachée
+   par la scène elle-même. On aurait payé six jets pour en voir trois.
+
+   Chaque buse porte donc deux angles : celui de sa POSITION sur la
+   couronne, et celui où elle SOUFFLE. Ils sont presque égaux pour les
+   trois de devant. Pour les trois du fond, le souffle est rabattu vers
+   l'avant : la nappe part de derrière le podium, le contourne, et
+   ÉMERGE sur les côtés — ce qui est plus beau que si elle était venue
+   de devant, parce qu'on la voit apparaître.
+
+   Les six directions sont toutes distinctes. Deux nappes qui suivent
+   exactement le même cap depuis deux points différents ne se lisent
+   pas comme deux jets, mais comme un jet mal dessiné.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_FUM_BUSES = [
+  { a:0.5236, v:0.40 },    // avant droite
+  { a:1.5708, v:1.40 },    // avant centre
+  { a:2.6180, v:2.74 },    // avant gauche
+  { a:3.6652, v:2.18 },    // arrière gauche — sort par la gauche du podium
+  { a:4.7124, v:1.72 },    // arrière centre — le contourne et débouche devant
+  { a:5.7596, v:0.98 }     // arrière droite — sort par la droite
+];
 var IBI_FUM_VIE   = 1.5;                    // en mesures
-var IBI_FUM_N     = 6;                      // bouffées par buse
+var IBI_FUM_N     = 7;                      // bouffées par buse
 
 function dessineFumeeIbiza(c, tps, p, z){
   var H = horlogeIbiza(tps);
@@ -1824,40 +1863,53 @@ function dessineFumeeIbiza(c, tps, p, z){
   c.save();
   c.globalCompositeOperation = "lighter";
   for(b = 0; b < IBI_FUM_BUSES.length; b++){
-    var a = IBI_FUM_BUSES[b];
-    var ca = Math.cos(a), sa = Math.sin(a);
+    var B = IBI_FUM_BUSES[b];
+    var ca = Math.cos(B.a), sa = Math.sin(B.a);     // où elle est posée
+    var cv = Math.cos(B.v), sv = Math.sin(B.v);     // où elle souffle
     var bx = p.x + ca * LX * 0.92 * z;
     var by = p.y + (-IBI_H * 0.35 + sa * LY * 0.92) * z;
     var col = teinteIbiza(IBI_TEINTES, mes + b);
+    /* UN SEUL DÉGRADÉ PAR BUSE, POUR UN DISQUE DE RAYON UN.
+       Il en fallait un par bouffée — quarante-deux par image à six
+       buses, alors que seule leur ÉCHELLE change. Un dégradé de canevas
+       vit dans le repère courant au moment du remplissage : fabriqué
+       une fois à l'origine pour un rayon de un, il sert à toutes les
+       bouffées, chacune sous son propre translate/scale. C'est le
+       même moyen que le jet du PYR-120, et pour la même raison. */
+    var g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    /* blanche au cœur, teintée au bord : c'est la lumière de la scène
+       qui la colore, pas la fumée qui est colorée. Et le cœur n'est
+       PAS blanc pur — en composition additive, il deviendrait une
+       lampe : un disque brûlé au milieu, sans matière. */
+    /* « PLUS FORT » VEUT DIRE PLUS GROS, PAS PLUS BLANC.
+       Monté à 1,04 d'opacité avec un cœur à 0,58, les six jets
+       devenaient six lampes : en composition additive, tout ce qui
+       dépasse se cumule en blanc pur et la matière disparaît. Ce sont
+       la LONGUEUR et la TAILLE qui portent la force — le jet traverse
+       maintenant plus de la moitié de la piste et triple en chemin —
+       et l'opacité redescend pour que ça reste de la fumée éclairée. */
+    g.addColorStop(0, "rgba(255,250,244,.42)");
+    g.addColorStop(0.35, "rgba(" + col + ",.44)");
+    g.addColorStop(0.7, "rgba(" + col + ",.26)");
+    g.addColorStop(1, "rgba(" + col + ",0)");
     for(k = 0; k < IBI_FUM_N; k++){
-      var v = depuis - k * 0.062;             // les bouffées se suivent
+      var v = depuis - k * 0.058;             // les bouffées se suivent
       if(v <= 0 || v > IBI_FUM_VIE) continue;
       var u = v / IBI_FUM_VIE;                // 0 au départ, 1 à la fin
-      /* elle part vite et ralentit : de l'air chassé, pas un projectile */
-      /* DE GROS JETS, ET C'ÉTAIT LA DEMANDE. Le premier réglage donnait
-         une nappe de cent pixels à quatorze pour cent d'opacité : sur
-         une piste couverte de danseurs, on ne la voyait tout
-         simplement pas. Elle traverse maintenant la moitié de la piste
-         et double de taille en chemin. */
-      var d = (1 - Math.pow(1 - u, 2.2)) * 320 * z;
-      var r = (26 + u * 150) * z;
-      var op = Math.max(0, (1 - u) * (1 - u) * 0.90) * (1 - k * 0.07);
-      var fx = bx + ca * d, fy = by + sa * d * 0.5;
-      var g = c.createRadialGradient(fx, fy, 0, fx, fy, r);
-      /* blanche au cœur, teintée au bord : c'est la lumière de la
-         scène qui la colore, pas la fumée qui est colorée */
-      /* LE CŒUR N'EST PAS BLANC PUR. À quatre-vingt-cinq pour cent en
-         composition additive, les trois nappes devenaient trois lampes :
-         un disque brûlé au milieu, sans matière. De la fumée éclairée
-         garde toujours un peu de la couleur qui l'éclaire. */
-      g.addColorStop(0, "rgba(255,252,248," + (op * 0.58).toFixed(3) + ")");
-      g.addColorStop(0.35, "rgba(" + col + "," + (op * 0.52).toFixed(3) + ")");
-      g.addColorStop(0.7, "rgba(" + col + "," + (op * 0.30).toFixed(3) + ")");
-      g.addColorStop(1, "rgba(" + col + ",0)");
-      c.fillStyle = g;
+      /* elle part vite et ralentit : de l'air chassé, pas un projectile.
+         DE GROS JETS, ET C'ÉTAIT LA DEMANDE — deux fois. Ils traversent
+         maintenant plus que la moitié de la piste et triplent de taille
+         en chemin ; à six buses il fallait aussi qu'ils se rejoignent,
+         sinon on voit six traits au lieu d'une nappe qui monte. */
+      var d = (1 - Math.pow(1 - u, 2.2)) * 372 * z;
+      var r = (30 + u * 176) * z;
+      var op = Math.max(0, (1 - u) * (1 - u) * 0.88) * (1 - k * 0.06);
+      var fx = bx + cv * d, fy = by + sv * d * 0.5;
       c.save();
-      c.translate(fx, fy); c.scale(1, 0.5); c.translate(-fx, -fy);
-      c.beginPath(); c.arc(fx, fy, r, 0, 6.2832); c.fill();
+      c.globalAlpha = Math.min(1, op);
+      c.translate(fx, fy); c.scale(r, r * 0.5);
+      c.fillStyle = g;
+      c.beginPath(); c.arc(0, 0, 1, 0, 6.2832); c.fill();
       c.restore();
     }
   }
@@ -2089,7 +2141,7 @@ function dessineBandesIbiza(c, tps){
     if(g < 0.02) continue;                    // rien à peindre, rien à payer
     var a = i / FAISC_N * 6.2832 - 0.5236;
     var ca = Math.cos(a), sa = Math.sin(a);
-    var r0 = FAISC_R0 - 1, r1 = FAISC_R1;
+    var r0 = FAISC_R0 - 1, r1 = FAISC_PEINT_R1;
     var w0 = largeurPeinte(r0) + 1.1, w1 = largeurPeinte(r1) + 1.1;
     /* la perpendiculaire au rayon, dans la grille */
     var A0 = iso(SCENE_GX + ca * r0 - sa * w0, SCENE_GY + sa * r0 + ca * w0);
@@ -2100,39 +2152,37 @@ function dessineBandesIbiza(c, tps){
     var D1 = iso(SCENE_GX + ca * r1, SCENE_GY + sa * r1);
     var ci = ((i + mes) % IBI_LASER_T.length + IBI_LASER_T.length) % IBI_LASER_T.length;
 
-    c.globalAlpha = Math.min(1, g);
+    /* PLUS DE CŒUR BLANC, ET C'EST UNE CORRECTION.
+
+       Les drops portaient une lame blanche étroite au milieu du
+       couloir, censée dire « la bande EXPLOSE » plutôt que « la bande
+       est allumée ». Elle disait autre chose : sur un aplat de couleur
+       qui clignote, une bande blanche plus étroite ne se lit pas comme
+       un cœur plus chaud, elle se lit comme un TRAIT — un liseré posé
+       au milieu de l'allée, que le joueur a vu et signalé comme tel.
+
+       Le défaut tient à la géométrie, pas à l'opacité : deux
+       quadrilatères concentriques de largeurs différentes font
+       toujours apparaître leur frontière, et cette frontière est une
+       ligne. Il n'y avait rien à adoucir, il fallait la retirer.
+
+       L'intensité passe donc entièrement par la bande elle-même. Elle
+       ne perd rien : `gainAllee` monte jusqu'à 1,4 sur les drops, et
+       ce qui dépassait 1 était écrêté par le `Math.min` — c'est
+       exactement cette réserve qu'on récupère en laissant l'alpha
+       monter au-delà par une seconde passe de la MÊME forme. Une même
+       forme repeinte n'a pas de frontière. */
+    var al = Math.min(1, g);
+    c.globalAlpha = al;
     c.fillStyle = degradeAllee(c, i, ci, D0, D1);
     c.beginPath();
     c.moveTo(A0.x, A0.y); c.lineTo(A1.x, A1.y);
     c.lineTo(B1.x, B1.y); c.lineTo(B0.x, B0.y);
     c.closePath(); c.fill();
-
-    /* LE CŒUR BLANC, ET SEULEMENT QUAND ÇA COGNE. C'est lui qui fait
-       la différence entre « la bande est allumée » et « la bande
-       EXPLOSE » : une lame étroite de lumière blanche au milieu du
-       couloir, sur le dernier tiers de l'intensité. En dessous, on ne
-       verrait rien et on paierait douze tracés de plus. */
-    if(g > 0.72){
-      var b = (g - 0.72) / 0.5;
-      /* IL S'ARRÊTE À MI-COULOIR, ET C'EST GRATUIT.
-         Le dégradé est déjà presque transparent passé 0,55 : la moitié
-         extérieure du cœur blanc ne peignait rien de visible et
-         remplissait pourtant la moitié la plus large du quadrilatère —
-         celle qui coûte le plus, puisqu'elle s'évase. Mesuré au zoom du
-         combat, sur un drop : 2,8 ms le calque entier, dont l'essentiel
-         partait là. On le coupe où il cesse de se voir. */
-      var rc = r0 + (r1 - r0) * 0.55;
-      var v0 = largeurFaisceau(r0) * 0.5, v1 = largeurFaisceau(rc) * 0.5;
-      var C0 = iso(SCENE_GX + ca * r0 - sa * v0, SCENE_GY + sa * r0 + ca * v0);
-      var E0 = iso(SCENE_GX + ca * r0 + sa * v0, SCENE_GY + sa * r0 - ca * v0);
-      var C1 = iso(SCENE_GX + ca * rc - sa * v1, SCENE_GY + sa * rc + ca * v1);
-      var E1 = iso(SCENE_GX + ca * rc + sa * v1, SCENE_GY + sa * rc - ca * v1);
-      c.globalAlpha = Math.min(0.85, b * 0.8);
-      c.fillStyle = degradeAllee(c, i, ci, D0, D1, 1);
-      c.beginPath();
-      c.moveTo(C0.x, C0.y); c.lineTo(C1.x, C1.y);
-      c.lineTo(E1.x, E1.y); c.lineTo(E0.x, E0.y);
-      c.closePath(); c.fill();
+    /* le surplus des drops, sur le même tracé : pas de bord neuf */
+    if(g > 1){
+      c.globalAlpha = Math.min(0.9, g - 1);
+      c.fill();
     }
   }
   c.globalAlpha = 1;

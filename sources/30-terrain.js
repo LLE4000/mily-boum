@@ -1866,7 +1866,7 @@ function construitSol(carteC){
       var jI = i >> 1;
       var aI = (jI + (finI ? 0.5 : 0)) / FAISC_N * 6.2832 - 0.5236;
       var caI = Math.cos(aI), saI = Math.sin(aI);
-      var r0I = (finI ? FAISC2_R0 : FAISC_R0) - 1, r1I = FAISC_R1;
+      var r0I = (finI ? FAISC2_R0 : FAISC_R0) - 1, r1I = FAISC_PEINT_R1;
       /* LA LUMIÈRE EST PLUS LARGE QUE LE VIDE — voir `largeurPeinte` :
          le cœur du faisceau est du sable nu, le halo déborde sur les
          premières rangées de tourelles et les baigne de couleur. */
@@ -1923,7 +1923,7 @@ function construitSol(carteC){
          allées de service, pas des vitrines */
       for(var sI = finI ? 3 : -1; sI <= 1; sI += 2){
         c.beginPath();
-        for(var rI = r0I; rI <= FAISC_R1; rI += 4){
+        for(var rI = r0I; rI <= FAISC_PEINT_R1; rI += 4){
           var dI = largeurFaisceau(rI) + 1.4;
           var nI = iso(SCENE_GX + caI * rI - saI * dI * sI,
                        SCENE_GY + saI * rI + caI * dI * sI);

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.06";
+var VERSION = "v1.07";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1630,14 +1630,28 @@ function dansLaScene(gx, gy){
    chaque bande se termine exactement sur l'arête de l'étoile, donc
    suivant SON angle, sans qu'aucune bande ait à connaître la forme.
 
-   LE RECTANGLE EST CELUI DE `matiereCase` : la roche court sur les
-   trois bords fermés à moins de LARGEUR_ROCHE, et la plage commence à
-   PLAGE_X0. On ne redit pas ces bornes ici, on les lit — le jour où
-   le mur s'épaissit, les allées se raccourcissent d'elles-mêmes.
+   OÙ S'ARRÊTE LE DEHORS — ET LE PREMIER RÉGLAGE ÉTAIT TROP TIMIDE.
+
+   La borne avait d'abord été prise à LARGEUR_ROCHE, sept cases : c'est
+   là que la MATIÈRE du sol cesse d'être rocailleuse. Mais ce n'est pas
+   là que le mur commence. La roche du sol est un dégradé qui s'éteint
+   sur sept cases, tandis que la muraille elle-même est bâtie AU BORD
+   de la grille — la rangée intérieure de falaises est posée à −0,35 en
+   gy, donc son pied tombe sur la case zéro. Les allées s'arrêtaient
+   ainsi sept cases avant le mur, et il restait une bande de sable nu
+   entre la lumière et la pierre : c'est ce que le joueur a montré en
+   demandant de « prolonger jusqu'au bas du mur ».
+
+   Les trois bords fermés vont donc au pied de la muraille, et le
+   quatrième — la plage, qui n'a pas de mur — va jusqu'au rivage. Six
+   dixièmes de case de retrait de chaque côté : de quoi ne pas peindre
+   sur la base des falaises, pas de quoi laisser un trou.
    ================================================================ */
+var ALLEE_MARGE = 0.6;          // le retrait au pied du mur
+var ALLEE_RIVE  = 2.0;          // et celui du bord de l'eau, côté plage
 function traceTerreBatie(c){
-  var p = [[LARGEUR_ROCHE, LARGEUR_ROCHE], [PLAGE_X0, LARGEUR_ROCHE],
-           [PLAGE_X0, GH - LARGEUR_ROCHE], [LARGEUR_ROCHE, GH - LARGEUR_ROCHE]];
+  var m = ALLEE_MARGE, xe = GW - ALLEE_RIVE;
+  var p = [[m, m], [xe, m], [xe, GH - m], [m, GH - m]];
   for(var i = 0; i < 4; i++){
     var q = iso(p[i][0], p[i][1]);
     if(i) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y);
@@ -1711,6 +1725,22 @@ function decoupeAlleesIbiza(c){
 var FAISC_N     = 12;     // douze, comme les douze sommets de l'étoile
 var FAISC_R0    = 14;     // ils naissent SOUS les creux : les six entrées
 var FAISC_R1    = 100;    // et portent au-delà des coins de l'île
+/* ════════════════════════════════════════════════════════════════
+   ET UNE PORTÉE DE PEINTURE, QUI N'EST PAS LA MÊME. C'EST IMPORTANT.
+
+   `FAISC_R1` ne décide pas seulement où la lumière s'arrête : il
+   décide où les BÂTIMENTS n'ont pas le droit d'être, via
+   `dansLeFaisceau`. Le toucher déplacerait les défenses d'Ibiza, donc
+   changerait le nombre et l'ordre du tableau des bâtiments — et
+   l'index de ce tableau est la clé de tout ce qui est déjà détruit.
+   Y toucher effacerait la campagne en cours. On n'y touche pas.
+
+   Or les allées doivent maintenant atteindre le pied du mur, et le
+   coin de l'île est à cent deux cases du centre de la scène : cent ne
+   suffisait plus. On sépare donc les deux questions — jusqu'où le
+   couloir est VIDE, et jusqu'où on le PEINT. Seul le second bouge.
+   ════════════════════════════════════════════════════════════════ */
+var FAISC_PEINT_R1 = 132; // la lumière va plus loin que le couloir vide
 /* ════════════════════════════════════════════════════════════════
    ET ILS SONT PLUS MINCES QU'AU PREMIER JET, PARCE QU'ON A COMPTÉ.
 

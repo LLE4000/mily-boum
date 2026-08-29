@@ -8259,9 +8259,42 @@ G("33. Le sol d'Ibiza : la découpe et la chorégraphie");
   ok("la zone des allées se trace en un chemin percé",
      /function decoupeAlleesIbiza\(c\)\{[\s\S]{0,220}traceTerreBatie\(c\);[\s\S]{0,80}traceEtoileIbiza\(c\);[\s\S]{0,80}c\.clip\("evenodd"\)/
        .test(html));
-  ok("… et ses bornes sont LUES, jamais recopiées",
-     /traceTerreBatie[\s\S]{0,400}LARGEUR_ROCHE[\s\S]{0,120}PLAGE_X0/.test(html),
-     "le jour où le mur s'épaissit, les allées suivent");
+  /* LA BORNE EXTÉRIEURE A CHANGÉ DE NATURE, ET LE TEST AVEC.
+     Elle valait LARGEUR_ROCHE — la largeur de la MATIÈRE rocailleuse
+     du sol — et le test s'en félicitait : « le jour où le mur
+     s'épaissit, les allées suivent ». C'était vrai et c'était faux au
+     même moment, parce que ce n'est pas là que le mur commence : la
+     roche du sol s'éteint en dégradé sur sept cases tandis que la
+     muraille est bâtie au BORD de la grille. Les allées s'arrêtaient
+     sept cases trop tôt, et il restait une bande de sable nu entre la
+     lumière et la pierre.
+     La borne est donc maintenant le bord de la grille, à un retrait
+     nommé près. Ce qu'on garde, c'est qu'elle soit dite UNE FOIS —
+     quatre nombres épars dans le tracé se seraient désaccordés au
+     premier réglage. */
+  ok("… et ses bornes sont nommées, pas semées dans le tracé",
+     /var ALLEE_MARGE = [\d.]+;[\s\S]{0,80}var ALLEE_RIVE  = [\d.]+;/.test(html) &&
+     /var m = ALLEE_MARGE, xe = GW - ALLEE_RIVE;/.test(html));
+  /* ET LA PORTÉE DE PEINTURE N'EST PAS CELLE DU COULOIR VIDE.
+     FAISC_R1 ne dit pas seulement où la lumière s'arrête : il dit où
+     les BÂTIMENTS n'ont pas le droit d'être, via dansLeFaisceau. Le
+     toucher déplacerait les défenses d'Ibiza, donc changerait l'ordre
+     du tableau des bâtiments — et cet ordre est la clé de tout ce qui
+     est déjà détruit. C'est le genre de lien qu'on ne voit pas en
+     relisant un dessin, et qui efface une campagne. */
+  ok("la peinture des allées a sa propre portée",
+     /var FAISC_PEINT_R1 = \d+;/.test(html));
+  ok("… et elle porte plus loin que le couloir vide",
+     (function(){
+       var a = html.match(/var FAISC_R1 {4}= (\d+);/);
+       var b = html.match(/var FAISC_PEINT_R1 = (\d+);/);
+       return a && b && +b[1] > +a[1];
+     })());
+  ok("… car aucun des deux peintres ne borne plus sur FAISC_R1",
+     !/r1I = FAISC_R1;/.test(html) && !/r1 = FAISC_R1;/.test(html),
+     "sinon la lumière n'atteindrait pas le mur");
+  ok("… tandis que le placement des bâtiments, lui, y reste attaché",
+     /function dansLeFaisceau[\s\S]{0,300}if\(r > FAISC_R1\) return false;/.test(html));
   /* LES DEUX COUCHES SONT BORNÉES PAREIL. Le sol cuit et le calque
      vivant peignent les mêmes couloirs : borner l'un sans l'autre
      laisserait l'animation déborder de ce que le décor a découpé. */
@@ -8338,7 +8371,19 @@ G("33. Le sol d'Ibiza : la découpe et la chorégraphie");
   ok("les dégradés des allées sont mis en cache",
      /function degradeAllee\(c, i, ci, D0, D1, blanc\)\{[\s\S]{0,300}IBI_DEG\.g\[cle\]/.test(html));
   ok("… et l'animation passe par globalAlpha, pas par de nouveaux dégradés",
-     /c\.globalAlpha = Math\.min\(1, g\);[\s\S]{0,80}c\.fillStyle = degradeAllee\(/.test(html));
+     /var al = Math\.min\(1, g\);\s*c\.globalAlpha = al;[\s\S]{0,80}c\.fillStyle = degradeAllee\(/.test(html));
+  /* PLUS DE CŒUR BLANC DANS LES BANDES.
+     Une lame blanche plus étroite au milieu d'un couloir de couleur ne
+     se lit pas comme un cœur plus chaud : deux quadrilatères
+     concentriques de largeurs différentes font toujours apparaître
+     leur frontière, et cette frontière est une LIGNE. Le joueur l'a vue
+     comme un trait parasite, et il avait raison. Le surplus des drops
+     passe maintenant par une seconde passe de la MÊME forme — une même
+     forme repeinte n'a pas de bord neuf. */
+  ok("les bandes n'ont plus de cœur blanc qui trace une ligne",
+     !/degradeAllee\(c, i, ci, D0, D1, 1\)/.test(html));
+  ok("… et le surplus des drops repasse sur la même forme",
+     /if\(g > 1\)\{\s*c\.globalAlpha = Math\.min\(0\.9, g - 1\);\s*c\.fill\(\);/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */
