@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.00";
+var VERSION = "v1.01";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -805,7 +805,12 @@ var UNI = {
        va prendre du temps, et c'est exactement ce qu'on veut lui
        faire comprendre.
 
-       LA PORTÉE : 2,0, et il s'arrête à 1,6. Le char tire à 5,5 ; le
+       LA PORTÉE : 2,4, et il s'arrête à 2,0 — deux fois moins loin
+       que la moitié du char, et à peine plus loin que le corps à
+       corps du Commando (1,70). Ce n'est pas un réglage rond : la
+       buse mesure une case et demie à elle seule, et si le véhicule
+       se colle davantage, le jet n'a plus la place d'exister entre
+       son pavillon et la tôle qu'il lèche. Le char tire à 5,5 ; le
        PYR-120 doit ALLER AU CONTACT, sous le feu, et c'est ce trajet
        qui est son vrai rôle — encaisser pendant que les autres
        travaillent derrière lui.
@@ -834,7 +839,7 @@ var UNI = {
      progressive, et le refus de tirer avant d'être aligné.
      Et UNE SEULE place par barge : `places:1`.
      ------------------------------------------------------------ */
-  pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.0, arret:1.6,
+  pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.4, arret:2.0,
         degats:7, cadence:120, vitesse:1.00, rayon:1.62, places:1,
         tourelle:1, flamme:1, ech:2.6,
         vuln:{ bete:0, precision:1.9, mortier:1.4 } }

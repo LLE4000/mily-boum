@@ -1602,7 +1602,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.00";
+var VERSION = "v1.01";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2398,7 +2398,12 @@ var UNI = {
        va prendre du temps, et c'est exactement ce qu'on veut lui
        faire comprendre.
 
-       LA PORTÉE : 2,0, et il s'arrête à 1,6. Le char tire à 5,5 ; le
+       LA PORTÉE : 2,4, et il s'arrête à 2,0 — deux fois moins loin
+       que la moitié du char, et à peine plus loin que le corps à
+       corps du Commando (1,70). Ce n'est pas un réglage rond : la
+       buse mesure une case et demie à elle seule, et si le véhicule
+       se colle davantage, le jet n'a plus la place d'exister entre
+       son pavillon et la tôle qu'il lèche. Le char tire à 5,5 ; le
        PYR-120 doit ALLER AU CONTACT, sous le feu, et c'est ce trajet
        qui est son vrai rôle — encaisser pendant que les autres
        travaillent derrière lui.
@@ -2427,7 +2432,7 @@ var UNI = {
      progressive, et le refus de tirer avant d'être aligné.
      Et UNE SEULE place par barge : `places:1`.
      ------------------------------------------------------------ */
-  pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.0, arret:1.6,
+  pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.4, arret:2.0,
         degats:7, cadence:120, vitesse:1.00, rayon:1.62, places:1,
         tourelle:1, flamme:1, ech:2.6,
         vuln:{ bete:0, precision:1.9, mortier:1.4 } }
@@ -39216,27 +39221,80 @@ function portraitOgre(c){
    métallique pour ne jamais se confondre avec le feu lui-même.
    ================================================================ */
 
+/* ────────────────────────────────────────────────────────────────
+   LE CAMOUFLAGE DE NEIGE
+
+   Ce n'est pas un véhicule blanc — un véhicule blanc est une tache
+   blanche, et sur le sable de la première île il disparaîtrait. Un
+   vrai camouflage d'hiver est une peinture blanche PASSÉE PAR-DESSUS
+   la peinture d'usine, qui s'use et laisse voir le gris dessous. Il
+   est donc fait de trois valeurs : le blanc froid de la neige, un
+   gris de pierre, et l'ardoise d'origine qui reparaît aux angles.
+   C'est cette rupture qui le rend lisible sur n'importe quel fond.
+
+   ET LE TRAIN DE ROULEMENT RESTE SOMBRE. Une chenille blanche sous
+   une caisse blanche donne une bouillie : c'est l'acier et la boue
+   qui portent la silhouette par le bas, et ils ne se peignent pas.
+
+   Le blanc va aussi très bien avec la flamme, et pour une autre
+   raison que l'ardoise d'avant : là où l'ardoise TRANCHAIT sur
+   l'orange, la neige le REÇOIT — un véhicule blanc éclairé par son
+   propre jet prend la couleur du feu sur tout son flanc. C'est
+   gratuit, et c'est le plus joli des deux.
+   ──────────────────────────────────────────────────────────────── */
 var C_PYR = {
-  /* l'ardoise d'usine, trois valeurs d'une même famille froide */
-  coque:"#4d5a67", coqueO:"#36414d", coqueN:"#232b34",
-  toit:"#5e6d7b", liseré:"#131920",
-  /* les plaques rapportées : plus sombres, plus mates, boulonnées */
-  plaque:"#3d4854", plaqueC:"#71818f",
-  /* la superstructure, un cran plus clair pour qu'elle se détache */
-  casem:"#556472", casemT:"#6d7e8d",
-  /* les chenilles et le train de roulement */
-  chenille:"#242a30", chenilleC:"#3b444c", maillon:"#12161a",
-  roue:"#333c45", roueC:"#5b6772", moyeu:"#8d99a4",
+  /* la peinture d'hiver : un blanc froid, jamais pur */
+  coque:"#d6dfe7", coqueO:"#adbac6", coqueN:"#84919e",
+  toit:"#e6edf2", liseré:"#2a333c",
+  /* les plaques rapportées : le blanc y est plus usé */
+  plaque:"#c2cdd7", plaqueC:"#f0f5f9",
+  /* les taches du camouflage : un gris de pierre, une ardoise */
+  camoB:"#69747f", camoV:"#252c33",
+  /* LE TRAIN RESTE SOMBRE — voir plus haut, c'est délibéré */
+  chenille:"#2b3138", chenilleC:"#454e57", maillon:"#161a1f",
+  roue:"#3a434c", roueC:"#69747f", moyeu:"#9aa5b0",
   /* le circuit du naphte : cuivre et laiton, la seule chaleur */
-  cuivre:"#9c6130", cuivreC:"#d99a58", laiton:"#b08b3c",
-  /* la buse et sa gueule de protection : de l'acier nu, plus clair */
-  buse:"#39424b", buseC:"#8b97a2", gueule:"#2b333b",
-  /* les grilles moteur et les échappements */
-  grille:"#191e24", echap:"#463f38", echapC:"#6d6156",
+  cuivre:"#95602f", cuivreC:"#c98f52", laiton:"#8f7433",
+  /* la buse : de l'acier nu, SOMBRE — c'est la pièce qui doit se
+     détacher sur le blanc, et le blanc sur blanc ne détache rien */
+  buse:"#39424b", buseC:"#8b97a2", gueule:"#252c33",
+  /* les grilles moteur et les échappements, noircis par l'usage */
+  grille:"#1c2229", echap:"#3b3f44", echapC:"#5f666d",
   /* la veilleuse, minuscule, toujours allumée */
   veilleuse:"255,164,72",
-  poussiere:"#8f9aa4"
+  poussiere:"#ccd5dd"
 };
+
+/* Les taches, tirées une fois pour toutes d'une graine à nous. Plus
+   grosses et moins nombreuses que celles du char : un camouflage
+   d'hiver se peint au rouleau sur un engin de cette taille, pas au
+   pinceau. */
+var CAMO_PYR = null;
+function camoPYR(){
+  if(CAMO_PYR) return CAMO_PYR;
+  var al = prng(0x5E16E);
+  function taches(n, rmin, rmax){
+    var out = [], i, k;
+    for(i = 0; i < n; i++){
+      var cu = -0.18 + al() * 1.36, cv = -0.22 + al() * 1.44;
+      var r = rmin + al() * (rmax - rmin);
+      var m = 6 + ((al() * 4) | 0), pts = [];
+      for(k = 0; k < m; k++){
+        var a = k / m * 6.2832, rr = r * (0.55 + al() * 0.8);
+        pts.push([cu + Math.cos(a) * rr, cv + Math.sin(a) * rr * 0.72]);
+      }
+      out.push({ pts:pts, t:al() < 0.60 ? 0 : 1 });
+    }
+    return out;
+  }
+  CAMO_PYR = {
+    toit:taches(11, 0.10, 0.26),
+    flanc:taches(12, 0.10, 0.28),
+    glacis:taches(8, 0.11, 0.30),
+    tourelle:taches(9, 0.10, 0.24)
+  };
+  return CAMO_PYR;
+}
 
 /* La palette d'une épave : tout ce qui était peint devient charbon,
    tout ce qui était cuivre devient rouille. Même patron que le char —
@@ -39268,7 +39326,19 @@ var PY = {
   /* le glacis : très incliné, il monte de l'avant de caisse au toit */
   glX:31, glZ:27, glY:20,
   /* la casemate : basse, large, décentrée vers l'avant */
-  csX0:-13, csX1:13, csY:14.5, csZ0:27, csZ1:39,
+  /* LA TOURELLE EST RONDE, et c'est le seul volume du véhicule qui
+     ne soit pas une boîte. Elle était rectangulaire au premier jet —
+     une casemate fixe surmontée d'un bloc d'arme —, ce qui donnait
+     une pile de caisses. Un cylindre légèrement conique par-dessus
+     tout ce plat casse la silhouette et dit qu'il TOURNE : une
+     tourelle carrée ne se lit pas comme une pièce mobile.
+
+     Le cercle a une propriété commode dans cette projection : quel
+     que soit le cap, un cercle de rayon R se projette TOUJOURS en une
+     ellipse de demi-axes R√2 et R√2/2 — exactement deux pour un,
+     comme les tuiles. On la trace donc directement à l'écran, et
+     seuls ses DÉTAILS tournent avec l'arme. */
+  tuR:13, tuRt:10.6, tuZ0:27, tuZ1:46,
   /* les deux réservoirs de naphte, couchés sur le pont arrière */
   reX0:-27, reX1:-13, reY:11.5, reR:6.2, reZ:33,
   /* les grilles moteur, entre les réservoirs */
@@ -39277,11 +39347,12 @@ var PY = {
   ecX:-21, ecZ0:27, ecZ1:41, ecR:2.6,
   /* LE LANCE-FLAMMES, dans le repère de la tourelle. Court et gros :
      c'est une buse, pas un tube. */
-  buX0:2, buX1:27, buR:4.2, buZ:34,
+  buX0:10, buX1:30, buR:4.2, buZ:36.5,
+  /* le masque : le manchon cylindrique par lequel la buse sort de la
+     tourelle, et qui la protège à sa racine */
+  maX0:7, maX1:17, maR:7.6,
   /* la gueule de protection qui l'entoure */
-  guX0:12, guX1:29, guR:7.4,
-  /* le tourillon */
-  tuR:9.5, tuZ0:39, tuZ1:47
+  guX0:20, guX1:31, guR:7.2
 };
 
 /* ────────────────────────────────────────────────────────────────
@@ -39442,11 +39513,18 @@ function chenillePY(c, cote, ca, sa, defil, C, detail){
     c.stroke();
   }
 
-  /* le garde-boue : une tôle posée sur toute la longueur, elle achève
-     de faire tenir la chenille sous la caisse */
-  faceT(c, [[-PY.chX - 1, Yi, PY.chZ + 1.6], [PY.chX + 1, Yi, PY.chZ + 1.6],
-            [PY.chX + 1, Ye + 1.2, PY.chZ + 1.6], [-PY.chX - 1, Ye + 1.2, PY.chZ + 1.6]],
-        ca, sa, ecl(C.plaque, 1.06), C.liseré);
+  /* PAS DE GARDE-BOUE, ET C'EST LA CAISSE QUI L'A REMPLACÉ.
+
+     Il y en avait un : une tôle posée sur toute la longueur de chaque
+     chenille. Elle était peinte APRÈS la caisse pour la chenille de
+     devant, à une hauteur qui tombe en plein dans le flanc — donc
+     par-dessus lui, sous la forme d'une grande plaque blanche qui
+     dépassait dans le vide. Invisible sur un engin sombre, criante
+     sur un engin blanc.
+     Et elle était de toute façon inutile : la caisse déborde des
+     chenilles de quatre pixels en encorbellement, ce qui est
+     exactement le rôle d'un garde-boue. On l'a retirée plutôt que de
+     la replacer — une pièce qu'une autre fait déjà. */
 }
 
 /* Un point du profil à l'abscisse curviligne f (0 → 1). */
@@ -39481,15 +39559,49 @@ function caissePY(c, ca, sa, C, detail){
   boiteT(c, PY.coX0, PY.coX1, -PY.coY, PY.coY, PY.coZ0, PY.coZ1, ca, sa, teintes);
 
   /* LE GLACIS : une seule face, très inclinée, de l'avant de caisse
-     jusqu'au toit. C'est la pièce qui donne le profil de bélier. */
-  faceT(c, [[PY.coX1, -PY.coY, PY.coZ0], [PY.glX, -PY.glY, PY.coZ0 + 2],
-            [PY.glX, PY.glY, PY.coZ0 + 2], [PY.coX1, PY.coY, PY.coZ0]],
-        ca, sa, ecl(C.coque, 1.24), L);
-  faceT(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
-            [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
-        ca, sa, ecl(C.coque, 1.34), L);
+     jusqu'au toit. C'est la pièce qui donne le profil de bélier.
+
+     ET ON NE LE DESSINE QUE S'IL NOUS REGARDE. `boiteT` fait ce tri
+     tout seul — c'est pour ça qu'il prend une teinte d'avant ET une
+     d'arrière — mais le glacis est une face libre, ajoutée à la main,
+     et rien ne la cachait. Résultat : quand le véhicule s'éloignait,
+     son glacis restait peint PAR-DESSUS la caisse, sous la forme de
+     deux coins blancs qui dépassaient de nulle part. On teste donc la
+     normale, comme partout ailleurs dans ce fichier. Une CONDITION,
+     pas une sortie : les grilles, les échappements et les plaques de
+     flanc se voient dans tous les caps et n'ont rien à faire ici. */
+  var devant = versNousT(ca, sa);
+  if(devant){
+    faceT(c, [[PY.coX1, -PY.coY, PY.coZ0], [PY.glX, -PY.glY, PY.coZ0 + 2],
+              [PY.glX, PY.glY, PY.coZ0 + 2], [PY.coX1, PY.coY, PY.coZ0]],
+          ca, sa, ecl(C.coque, 1.24), L);
+    faceT(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
+              [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
+          ca, sa, ecl(C.coque, 1.34), L);
+  }
 
   if(!detail) return;
+
+  /* ---- LE CAMOUFLAGE, ET C'EST LUI QUI SAUVE LE BLANC ----
+     Sans taches, une caisse blanche est un aplat : les faces se
+     distinguent par leur seule valeur, et l'engin ressemble à une
+     maquette non peinte. Les taches lui rendent une surface — et
+     elles seules l'empêchent de disparaître sur le sable clair de la
+     première île, où une peinture d'hiver n'a rien à faire.
+     On réutilise le peintre du char, `camoFaceT` : il découpe à la
+     face et n'ouvre que deux remplissages pour toutes les taches. */
+  var CA = camoPYR();
+  var yc = devantG ? PY.coY : -PY.coY;
+  camoFaceT(c, [[PY.coX0, yc, PY.coZ0], [PY.coX1, yc, PY.coZ0],
+                [PY.coX1, yc, PY.coZ1], [PY.coX0, yc, PY.coZ1]],
+            CA.flanc, ca, sa, C);
+  camoFaceT(c, [[PY.coX0, -PY.coY, PY.coZ1], [PY.coX1, -PY.coY, PY.coZ1],
+                [PY.coX1, PY.coY, PY.coZ1], [PY.coX0, PY.coY, PY.coZ1]],
+            CA.toit, ca, sa, C);
+  if(devant)
+    camoFaceT(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
+                  [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
+              CA.glacis, ca, sa, C);
 
   /* LE GLACIS N'EST PAS UNE DALLE. C'est la plus grande surface du
      véhicule et celle qu'on voit en premier quand il arrive sur soi :
@@ -39497,28 +39609,30 @@ function caissePY(c, ca, sa, C, detail){
      tiennent — le volet du conducteur, deux crochets de remorquage et
      une plaque de choc boulonnée — et elles suffisent à donner
      l'échelle de la machine. */
-  var yv = 5.5;
-  /* le volet blindé du conducteur, avec sa fente de vision */
-  faceT(c, [[PY.glX - 2, -yv, PY.coZ0 + 4.5], [PY.coX1 - 4, -yv, PY.glZ - 3],
-            [PY.coX1 - 4, yv, PY.glZ - 3], [PY.glX - 2, yv, PY.coZ0 + 4.5]],
-        ca, sa, ecl(C.plaque, 1.16), C.liseré);
-  var f1 = ptT(PY.glX - 4.5, -3.6, PY.coZ0 + 7.5, ca, sa);
-  var f2 = ptT(PY.glX - 4.5, 3.6, PY.coZ0 + 7.5, ca, sa);
-  c.strokeStyle = "rgba(8,10,12,.85)"; c.lineWidth = 2.0;
-  c.beginPath(); c.moveTo(f1.x, f1.y); c.lineTo(f2.x, f2.y); c.stroke();
-  /* les deux crochets de remorquage, en bas du glacis */
-  for(var h = 0; h < 2; h++){
-    var yh = (h ? 1 : -1) * 14;
-    var ph = ptT(PY.glX - 1, yh, PY.coZ0 + 2.5, ca, sa);
-    c.strokeStyle = ecl(C.buseC, 0.8); c.lineWidth = 2.2;
-    c.beginPath(); c.arc(ph.x, ph.y, 2.6, 0.5, 4.2); c.stroke();
+  if(devant){
+    var yv = 5.5;
+    /* le volet blindé du conducteur, avec sa fente de vision */
+    faceT(c, [[PY.glX - 2, -yv, PY.coZ0 + 4.5], [PY.coX1 - 4, -yv, PY.glZ - 3],
+              [PY.coX1 - 4, yv, PY.glZ - 3], [PY.glX - 2, yv, PY.coZ0 + 4.5]],
+          ca, sa, ecl(C.plaque, 1.16), C.liseré);
+    var f1 = ptT(PY.glX - 4.5, -3.6, PY.coZ0 + 7.5, ca, sa);
+    var f2 = ptT(PY.glX - 4.5, 3.6, PY.coZ0 + 7.5, ca, sa);
+    c.strokeStyle = "rgba(8,10,12,.85)"; c.lineWidth = 2.0;
+    c.beginPath(); c.moveTo(f1.x, f1.y); c.lineTo(f2.x, f2.y); c.stroke();
+    /* les deux crochets de remorquage, en bas du glacis */
+    for(var h = 0; h < 2; h++){
+      var yh = (h ? 1 : -1) * 14;
+      var ph = ptT(PY.glX - 1, yh, PY.coZ0 + 2.5, ca, sa);
+      c.strokeStyle = ecl(C.buseC, 0.8); c.lineWidth = 2.2;
+      c.beginPath(); c.arc(ph.x, ph.y, 2.6, 0.5, 4.2); c.stroke();
+    }
+    /* la plaque de choc, boulonnée en travers */
+    faceT(c, [[PY.glX - 0.5, -PY.glY + 2, PY.coZ0 + 1], [PY.glX - 0.5, PY.glY - 2, PY.coZ0 + 1],
+              [PY.coX1 + 1, PY.glY - 2, PY.coZ0 + 4], [PY.coX1 + 1, -PY.glY + 2, PY.coZ0 + 4]],
+          ca, sa, C.plaque, C.liseré);
+    rivetsT(c, [PY.glX - 0.5, -PY.glY + 4, PY.coZ0 + 1.4],
+               [PY.glX - 0.5, PY.glY - 4, PY.coZ0 + 1.4], 6, ca, sa, C);
   }
-  /* la plaque de choc, boulonnée en travers */
-  faceT(c, [[PY.glX - 0.5, -PY.glY + 2, PY.coZ0 + 1], [PY.glX - 0.5, PY.glY - 2, PY.coZ0 + 1],
-            [PY.coX1 + 1, PY.glY - 2, PY.coZ0 + 4], [PY.coX1 + 1, -PY.glY + 2, PY.coZ0 + 4]],
-        ca, sa, C.plaque, C.liseré);
-  rivetsT(c, [PY.glX - 0.5, -PY.glY + 4, PY.coZ0 + 1.4],
-             [PY.glX - 0.5, PY.glY - 4, PY.coZ0 + 1.4], 6, ca, sa, C);
 
   /* LES PLAQUES RAPPORTÉES sur les flancs — trois par côté, boulonnées.
      On ne dessine que le flanc visible : l'autre ne se voit pas et
@@ -39609,132 +39723,225 @@ function reservoirsPY(c, ca, sa, C, detail){
     var zP = PY.coZ1 + 1.4;                 // au ras du pont
     tubePY(c, [PY.reX1 - 1, yt, PY.reZ - PY.reR * 0.6], [PY.reX1 + 2, yt, zP],
            1.05, ca, sa, C.cuivre, C.cuivreC);
-    tubePY(c, [PY.reX1 + 2, yt, zP], [PY.csX0 + 3, yt * 0.42, zP],
+    tubePY(c, [PY.reX1 + 2, yt, zP], [-PY.tuR + 2, yt * 0.42, zP],
            1.05, ca, sa, C.cuivre, C.cuivreC);
     /* deux colliers qui le tiennent au pont */
     bagueP(c, [PY.reX1 + 4, yt * 0.86, zP], 1.7, ca, sa, "rgba(24,30,36,.55)");
-    bagueP(c, [PY.csX0 - 1, yt * 0.55, zP], 1.7, ca, sa, "rgba(24,30,36,.55)");
+    bagueP(c, [-PY.tuR - 2, yt * 0.55, zP], 1.7, ca, sa, "rgba(24,30,36,.55)");
   }
   /* le collecteur, une boîte de laiton posée au milieu du pont */
-  boiteT(c, PY.csX0 - 4, PY.csX0 + 1, -4, 4, PY.coZ1, PY.coZ1 + 4.5, ca, sa,
+  boiteT(c, -PY.tuR - 6, -PY.tuR - 1, -4, 4, PY.coZ1, PY.coZ1 + 4.5, ca, sa,
          { avant:C.laiton, arriere:ecl(C.laiton, 0.7), flanc:ecl(C.laiton, 0.86),
            toit:ecl(C.laiton, 1.2), liseré:C.liseré });
 }
 
 /* ────────────────────────────────────────────────────────────────
-   LA CASEMATE ET LE LANCE-FLAMMES
+   LA TOURELLE RONDE ET SON LANCE-FLAMMES
 
-   Pas de tourelle ronde — une casemate rectangulaire à pans coupés,
-   et sur elle un tourillon qui porte l'arme. La buse est COURTE et
-   GROSSE, enfermée dans une gueule de protection ouverte vers
-   l'avant : on protège un lance-flammes parce qu'il faut s'approcher
-   pour s'en servir, et cette protection-là dit toute la doctrine du
-   véhicule.
+   Une seule pièce là où il y en avait deux. Le premier dessin posait
+   une casemate rectangulaire sur la caisse et un bloc d'arme carré
+   par-dessus : trois boîtes empilées, et rien qui dise que quoi que
+   ce soit tourne. Une tourelle CYLINDRIQUE règle les deux à la fois —
+   elle casse le plat de la caisse, et un cylindre au milieu d'un
+   véhicule rectangulaire se lit immédiatement comme la pièce mobile.
 
-   La veilleuse — une flamme pilote grosse comme un pixel — brûle en
-   permanence au bord de la buse, même quand l'arme ne tire pas. C'est
-   le détail qui fait qu'on comprend ce qu'on regarde avant même le
-   premier jet.
+   LE CERCLE EST GRATUIT DANS CETTE PROJECTION. Un cercle de rayon R
+   à la hauteur z se projette toujours en une ellipse de demi-axes
+   R√2 et R√2/2, quel que soit le cap — c'est le rapport deux pour un
+   des tuiles. On trace donc le contour DIRECTEMENT à l'écran, sans
+   passer par ptT, et seuls les détails posés dessus (le masque, la
+   trappe, les épiscopes) tournent avec l'arme.
+
+   La buse sort par un MASQUE — le manchon qui la protège à sa racine
+   et suit ses mouvements — puis traverse une gueule de protection à
+   trois arceaux. On protège un lance-flammes parce qu'il faut
+   s'approcher pour s'en servir : cette cage dit toute la doctrine du
+   véhicule, et c'est pour ça qu'elle doit se voir.
+
+   La veilleuse brûle en permanence au bord de la buse, même à
+   l'arrêt : c'est elle qui fait comprendre ce qu'on regarde avant
+   même le premier jet.
    ──────────────────────────────────────────────────────────────── */
-function casematePY(c, ca, sa, C, detail){
-  var L = C.liseré;
-  var devantG = versNousT(-sa, ca);
-  boiteT(c, PY.csX0, PY.csX1, -PY.csY, PY.csY, PY.csZ0, PY.csZ1, ca, sa,
-         { avant:ecl(C.casem, 1.18), arriere:ecl(C.casem, 0.82),
-           flanc:devantG ? ecl(C.casem, 1.05) : ecl(C.casem, 0.88),
-           toit:C.casemT, liseré:L });
-  if(!detail) return;
-  /* le pan coupé avant : une joue inclinée de chaque côté */
-  faceT(c, [[PY.csX1, -PY.csY, PY.csZ0], [PY.csX1 + 5, -PY.csY + 5, PY.csZ0 + 2],
-            [PY.csX1 + 5, -PY.csY + 5, PY.csZ1 - 2], [PY.csX1, -PY.csY, PY.csZ1]],
-        ca, sa, ecl(C.casem, 1.26), L);
-  faceT(c, [[PY.csX1, PY.csY, PY.csZ0], [PY.csX1 + 5, PY.csY - 5, PY.csZ0 + 2],
-            [PY.csX1 + 5, PY.csY - 5, PY.csZ1 - 2], [PY.csX1, PY.csY, PY.csZ1]],
-        ca, sa, ecl(C.casem, 1.10), L);
-  /* le périscope du chef et une trappe */
-  var pp = ptT(PY.csX0 + 5, devantG ? 6 : -6, PY.csZ1, ca, sa);
-  c.fillStyle = C.buseC;
-  c.beginPath(); c.ellipse(pp.x, pp.y - 2.2, 2.0, 1.3, 0, 0, 6.2832); c.fill();
-  c.fillStyle = "rgba(120,190,210,.55)";
-  c.beginPath(); c.ellipse(pp.x, pp.y - 3.0, 1.2, 0.7, 0, 0, 6.2832); c.fill();
-  rivetsT(c, [PY.csX0 + 2, -PY.csY, PY.csZ1 - 1.5], [PY.csX1 - 2, -PY.csY, PY.csZ1 - 1.5], 6, ca, sa, C);
-}
-
-function lanceFlammePY(c, at, C, detail, feu, tps){
+function tourellePYR(c, at, C, detail, feu, tps){
   var cat = Math.cos(at), sat = Math.sin(at);
   var L = C.liseré;
-  /* LE TOURILLON : un cylindre bas, avec sa couronne de boulons. */
-  var pt0 = ptT(0, 0, PY.tuZ0, cat, sat);
-  c.fillStyle = ecl(C.casem, 1.1);
-  c.beginPath(); c.ellipse(pt0.x, pt0.y - (PY.tuZ1 - PY.tuZ0), PY.tuR, PY.tuR * 0.56, 0, 0, 6.2832); c.fill();
-  c.strokeStyle = L; c.lineWidth = 1; c.stroke();
-  faceT(c, [[-PY.tuR, -PY.tuR * 0.8, PY.tuZ0], [PY.tuR, -PY.tuR * 0.8, PY.tuZ0],
-            [PY.tuR, PY.tuR * 0.8, PY.tuZ0], [-PY.tuR, PY.tuR * 0.8, PY.tuZ0]],
-        cat, sat, ecl(C.casem, 0.9), null);
+  var R2 = Math.SQRT2;                      // le facteur du cercle projeté
+  var rb = PY.tuR * R2, rbY = rb * 0.5;     // l'ellipse du bas
+  var rh = PY.tuRt * R2, rhY = rh * 0.5;    // celle du haut, plus petite
+  var y0 = -PY.tuZ0, y1 = -PY.tuZ1;         // z monte, l'écran descend
 
-  /* LE BLOC D'ARME : une masse trapue, décalée vers l'avant. */
-  boiteT(c, -6, 12, -7.5, 7.5, PY.tuZ1 - 9, PY.tuZ1 + 1, cat, sat,
-         { avant:ecl(C.buse, 1.3), arriere:ecl(C.buse, 0.82),
-           flanc:ecl(C.buse, 1.05), toit:ecl(C.buseC, 0.72), liseré:L });
+  /* ---- LA JUPE : la moitié avant du cylindre, celle qu'on voit ----
+     Un dégradé vertical, clair en haut où elle prend le ciel, sombre
+     en bas où elle prend l'ombre de la caisse. */
+  /* LE CHEMIN SE CROISAIT, ET C'EST POUR ÇA QUE LA PAROI MANQUAIT.
 
-  /* LES DEUX FLEXIBLES, du bloc d'arme à la culasse de la buse. Fins
-     et sombres : ce sont des tuyaux, pas des tubes d'arme. Ils
-     restent PLAQUÉS contre le bloc au lieu de traverser l'air. */
+     L'arc du bas se termine à GAUCHE — à l'angle π, donc en (−rb, y0).
+     Le trait qui rejoignait le haut partait vers (+rh, y1), c'est-à-
+     dire vers la DROITE : la figure se refermait en nœud papillon et
+     ne remplissait presque rien. Le disque du haut flottait donc au-
+     dessus de celui du bas, sans rien entre les deux. On rejoint le
+     même côté, et le cylindre existe.
+
+     Le trajet, dans l'ordre : demi-ellipse du bas de la droite vers la
+     gauche, montée à gauche, demi-ellipse du haut de la gauche vers la
+     droite, et fermeture. */
+  var g = degradeT(c, C.coqueO, y1, y0 + rbY);
+  c.fillStyle = g;
+  c.beginPath();
+  c.ellipse(0, y0, rb, rbY, 0, 0, Math.PI);       // le bas, → gauche
+  c.lineTo(-rh, y1);                              // et non +rh
+  c.ellipse(0, y1, rh, rhY, 0, Math.PI, 0, true); // le haut, → droite
+  c.closePath();
+  var jupe = new Path2D();
+  jupe.ellipse(0, y0, rb, rbY, 0, 0, Math.PI);
+  jupe.lineTo(-rh, y1);
+  jupe.ellipse(0, y1, rh, rhY, 0, Math.PI, 0, true);
+  jupe.closePath();
+  c.fill();
+  c.strokeStyle = L; c.lineWidth = 0.9; c.stroke();
+
+  /* ---- LE CAMOUFLAGE SUR LA PAROI, découpé à elle ----
+     Sans lui, la jupe est une bande grise unie et la tourelle a l'air
+     d'être posée sur un tabouret. Les taches sont définies sur le
+     CYLINDRE — en (angle, hauteur) — donc elles tournent avec l'arme,
+     comme une peinture le ferait. */
   if(detail){
-    /* DU CUIVRE ASSOMBRI, ET COURT. En pleine teinte ils faisaient
-       deux bâtons orange en travers du toit — la seule chose qu'on
-       voyait du véhicule, et la seule qui n'ait aucune importance.
-       Un flexible sous une casemate est dans l'ombre : on le descend
-       d'un tiers, et on le raccourcit pour qu'il longe le bloc au
-       lieu de le traverser. */
-    var som = ecl(C.cuivre, 0.62), somC = ecl(C.cuivreC, 0.70);
-    tubePY(c, [-3, 6.4, PY.tuZ1 - 8.5], [PY.buX0, 5.0, PY.buZ + 1.6], 0.85, cat, sat, som, somC);
-    tubePY(c, [-3, -6.4, PY.tuZ1 - 8.5], [PY.buX0, -5.0, PY.buZ + 1.6], 0.85, cat, sat, som, somC);
+    c.save();
+    c.clip(jupe);
+    c.globalAlpha = 0.85;
+    var rr = prng(0x2C1B7);
+    for(var jt = 0; jt < 7; jt++){
+      var th0 = rr() * 6.2832, zt = PY.tuZ0 + 2 + rr() * (PY.tuZ1 - PY.tuZ0 - 4);
+      var lg2 = 0.5 + rr() * 1.1, ht = 2.5 + rr() * 6;
+      c.fillStyle = rr() < 0.55 ? C.camoV : C.camoB;
+      c.beginPath();
+      for(var kt = 0; kt <= 9; kt++){
+        var th = th0 + (kt / 9) * lg2;
+        var zz = zt + Math.sin(kt * 1.7 + jt) * ht * 0.5;
+        var pw = ptT(Math.cos(th) * PY.tuR, Math.sin(th) * PY.tuR, zz, cat, sat);
+        if(kt === 0) c.moveTo(pw.x, pw.y); else c.lineTo(pw.x, pw.y);
+      }
+      for(var kb = 9; kb >= 0; kb--){
+        var th2 = th0 + (kb / 9) * lg2;
+        var zz2 = zt - ht + Math.sin(kb * 1.3 + jt) * ht * 0.4;
+        var pw2 = ptT(Math.cos(th2) * PY.tuR, Math.sin(th2) * PY.tuR, zz2, cat, sat);
+        c.lineTo(pw2.x, pw2.y);
+      }
+      c.closePath(); c.fill();
+    }
+    c.restore();
   }
 
-  /* LA BUSE. Elle est la RAISON D'ÊTRE du véhicule, donc elle doit se
-     lire avant tout le reste : grosse, claire, et elle S'ÉVASE au
-     bout. Le premier dessin en faisait un tube gris de la couleur de
-     la caisse, perdu au milieu d'une machine grise — on ne voyait pas
-     l'arme, et un lance-flammes qu'on ne reconnaît pas ne sert à
-     rien. Trois choses la sortent maintenant du fond : l'acier nu,
-     plus clair que la peinture ; le pavillon évasé ; et la culasse
-     noire qui la sépare du bloc. */
-  faceT(c, [[PY.buX0 - 2, -5.5, PY.buZ - 5], [PY.buX0 + 3, -5.5, PY.buZ - 5],
-            [PY.buX0 + 3, 5.5, PY.buZ - 5], [PY.buX0 - 2, 5.5, PY.buZ - 5]],
-        cat, sat, C.gueule, null);
-  tubePY(c, [PY.buX0, 0, PY.buZ], [PY.buX1, 0, PY.buZ], PY.buR,
-         cat, sat, ecl(C.buse, 1.5), ecl(C.buseC, 1.18));
-  /* le pavillon : un second tube plus court et plus gros au bout */
-  tubePY(c, [PY.buX1 - 5.5, 0, PY.buZ], [PY.buX1 + 1.5, 0, PY.buZ], PY.buR * 1.52,
-         cat, sat, ecl(C.buse, 1.25), ecl(C.buseC, 1.05));
+  /* ---- LE TOIT ---- */
+  c.fillStyle = ecl(C.toit, 1.04);
+  c.beginPath(); c.ellipse(0, y1, rh, rhY, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = L; c.lineWidth = 0.8; c.stroke();
+  /* l'arête de lumière sur le bord arrière du toit, celle qui monte */
+  c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 1.1;
+  c.beginPath(); c.ellipse(0, y1 - 0.6, rh, rhY, 0, Math.PI, 6.2832); c.stroke();
+
+  /* ---- LE CAMOUFLAGE sur le toit, découpé à l'ellipse ---- */
   if(detail){
-    bagueP(c, [PY.buX0 + 6, 0, PY.buZ], PY.buR + 1.1, cat, sat, "rgba(12,16,20,.55)");
-    bagueP(c, [PY.buX1 - 6, 0, PY.buZ], PY.buR + 1.4, cat, sat, "rgba(12,16,20,.60)");
-    /* la gorge du pavillon, noire : c'est elle qui creuse le bout */
+    var CA = camoPYR();
+    c.save();
+    c.beginPath(); c.ellipse(0, y1, rh, rhY, 0, 0, 6.2832); c.clip();
+    c.globalAlpha = 0.90;
+    for(var tt = 0; tt < 2; tt++){
+      c.beginPath();
+      var rien = true;
+      for(var it = 0; it < CA.tourelle.length; it++){
+        var T = CA.tourelle[it];
+        if((T.t ? 1 : 0) !== tt) continue;
+        rien = false;
+        for(var kt = 0; kt < T.pts.length; kt++){
+          /* les taches vivent dans le carré unité : on les étale sur
+             l'ellipse, ce qui les fait tourner avec la tourelle */
+          var ux = (T.pts[kt][0] - 0.5) * 2 * PY.tuRt;
+          var uy = (T.pts[kt][1] - 0.5) * 2 * PY.tuRt;
+          var pt = ptT(ux, uy, PY.tuZ1, cat, sat);
+          if(kt === 0) c.moveTo(pt.x, pt.y); else c.lineTo(pt.x, pt.y);
+        }
+        c.closePath();
+      }
+      if(!rien){ c.fillStyle = tt ? C.camoV : C.camoB; c.fill(); }
+    }
+    c.restore();
+  }
+
+  /* ---- LA COURONNE DE BOULONS à la base, et les anneaux de levage.
+     Ce sont eux qui disent que la tourelle est POSÉE sur la caisse et
+     non fondue avec elle. ---- */
+  if(detail){
+    c.fillStyle = "rgba(30,38,46,.5)";
+    c.beginPath();
+    for(var q = 0; q < 16; q++){
+      var aq = q / 16 * 6.2832;
+      var pq = ptT(Math.cos(aq) * (PY.tuR - 1.4), Math.sin(aq) * (PY.tuR - 1.4),
+                   PY.tuZ0 + 1.2, cat, sat);
+      c.moveTo(pq.x + 1.0, pq.y); c.arc(pq.x, pq.y, 1.0, 0, 6.2832);
+    }
+    c.fill();
+    /* deux anneaux de levage sur le toit */
+    for(var e = 0; e < 2; e++){
+      var pe = ptT(-PY.tuRt * 0.55, (e ? 1 : -1) * PY.tuRt * 0.5, PY.tuZ1, cat, sat);
+      c.strokeStyle = ecl(C.buseC, 0.85); c.lineWidth = 1.6;
+      c.beginPath(); c.arc(pe.x, pe.y - 1.5, 2.4, 3.4, 6.1); c.stroke();
+    }
+    /* la trappe du chef, à l'arrière du toit */
+    var ph = ptT(-PY.tuRt * 0.42, 0, PY.tuZ1, cat, sat);
+    c.fillStyle = ecl(C.plaque, 0.96);
+    c.beginPath(); c.ellipse(ph.x, ph.y, 6.4, 3.2, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = L; c.lineWidth = 0.8; c.stroke();
+    /* et deux épiscopes devant elle */
+    for(var v = 0; v < 2; v++){
+      var pv2 = ptT(-PY.tuRt * 0.02, (v ? 1 : -1) * 5.2, PY.tuZ1, cat, sat);
+      c.fillStyle = C.buseC;
+      c.beginPath(); c.ellipse(pv2.x, pv2.y - 1.6, 2.1, 1.3, 0, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(150,205,225,.6)";
+      c.beginPath(); c.ellipse(pv2.x, pv2.y - 2.3, 1.3, 0.75, 0, 0, 6.2832); c.fill();
+    }
+  }
+
+  /* ---- LE MASQUE : le manchon par lequel la buse sort ---- */
+  tubePY(c, [PY.maX0, 0, PY.buZ], [PY.maX1, 0, PY.buZ], PY.maR,
+         cat, sat, ecl(C.plaque, 0.94), ecl(C.plaqueC, 0.98));
+  if(detail) bagueP(c, [PY.maX1 - 1, 0, PY.buZ], PY.maR + 0.6, cat, sat, "rgba(30,38,46,.55)");
+
+  /* PAS DE FLEXIBLE SUR LE TOIT. Deux essais, deux échecs : quel que
+     soit leur tracé, des tuyaux de cuivre posés sur une tourelle
+     ronde se lisent comme deux baguettes orange en travers, et c'est
+     la seule chose qu'on voit du véhicule. Le circuit du naphte est
+     déjà raconté deux fois — par les fûts et par la tuyauterie qui
+     longe le pont — et une troisième fois de trop ne raconte rien. */
+
+  /* ---- LA BUSE. Acier NU et sombre : c'est la seule pièce qui doive
+     trancher sur la neige, et du blanc sur du blanc ne tranche rien.
+     Elle s'évase au bout — un pavillon, pas un tube coupé net. ---- */
+  tubePY(c, [PY.buX0, 0, PY.buZ], [PY.buX1, 0, PY.buZ], PY.buR,
+         cat, sat, C.buse, ecl(C.buseC, 1.10));
+  tubePY(c, [PY.buX1 - 5.5, 0, PY.buZ], [PY.buX1 + 1.5, 0, PY.buZ], PY.buR * 1.52,
+         cat, sat, ecl(C.buse, 1.12), ecl(C.buseC, 0.98));
+  if(detail){
+    bagueP(c, [PY.buX0 + 5, 0, PY.buZ], PY.buR + 1.1, cat, sat, "rgba(10,14,18,.55)");
+    bagueP(c, [PY.buX1 - 6, 0, PY.buZ], PY.buR + 1.4, cat, sat, "rgba(10,14,18,.60)");
     var pgo = ptT(PY.buX1 + 1.5, 0, PY.buZ, cat, sat);
-    c.fillStyle = "rgba(10,12,14,.72)";
+    c.fillStyle = "rgba(8,10,12,.75)";
     c.beginPath();
     c.ellipse(pgo.x, pgo.y, PY.buR * 1.05, PY.buR * 0.66, 0, 0, 6.2832);
     c.fill();
   }
 
-  /* LA GUEULE DE PROTECTION : trois arceaux d'acier autour de la buse,
-     ouverts vers l'avant. On protège un lance-flammes parce qu'il faut
-     s'approcher pour s'en servir — cette cage dit toute la doctrine du
-     véhicule, et elle doit donc se voir. Trait épais, sombre en bas,
-     clair sur le dessus : un anneau d'un seul gris est un cerceau. */
+  /* ---- LA GUEULE DE PROTECTION : trois arceaux, ouverts vers l'avant ---- */
   if(detail){
     for(var k = 0; k < 3; k++){
       var xg = PY.guX0 + k * ((PY.guX1 - PY.guX0) / 2);
       var pg = ptT(xg, 0, PY.buZ, cat, sat);
       var rg = PY.guR * (1 - k * 0.06);
-      c.strokeStyle = "rgba(14,18,22,.85)"; c.lineWidth = 2.6;
+      c.strokeStyle = "rgba(12,16,20,.85)"; c.lineWidth = 2.6;
       c.beginPath(); c.ellipse(pg.x, pg.y, rg, rg * 0.62, 0, 0, 6.2832); c.stroke();
       c.strokeStyle = ecl(C.buseC, 1.1); c.lineWidth = 1.2;
       c.beginPath(); c.ellipse(pg.x, pg.y - 0.8, rg, rg * 0.62, 0, 3.6, 6.0); c.stroke();
     }
-    /* les deux longerons qui tiennent les arceaux */
     for(var s = 0; s < 2; s++){
       var ys = (s ? 1 : -1) * PY.guR * 0.84;
       tubePY(c, [PY.guX0 - 1.5, ys, PY.buZ], [PY.guX1 + 0.5, ys, PY.buZ], 1.25, cat, sat,
@@ -39742,8 +39949,7 @@ function lanceFlammePY(c, at, C, detail, feu, tps){
     }
   }
 
-  /* LA VEILLEUSE. Elle brûle toujours — c'est elle qui dit, à l'arrêt,
-     que cet engin est un lance-flammes. */
+  /* ---- LA VEILLEUSE ---- */
   var pv = ptT(PY.buX1 - 1, 3.0, PY.buZ + 2.4, cat, sat);
   var vac = 0.55 + 0.45 * Math.sin(tps * 11 + 1.3);
   c.save();
@@ -39756,7 +39962,7 @@ function lanceFlammePY(c, at, C, detail, feu, tps){
   c.beginPath(); c.arc(pv.x, pv.y, 4.5 + vac, 0, 6.2832); c.fill();
   c.restore();
 
-  /* LA BOUCHE QUAND ÇA TIRE : la buse rougit de l'intérieur. */
+  /* ---- LA BOUCHE QUAND ÇA TIRE ---- */
   if(feu > 0.02){
     var pb = ptT(PY.buX1, 0, PY.buZ, cat, sat);
     c.save();
@@ -39796,9 +40002,8 @@ function charPYR(c, ab, at, defil, abime, brule, detail, feu, tps){
   chenillePY(c, gaucheDevant ? -1 : 1, ca, sa, defil, C, detail);
   caissePY(c, ca, sa, C, detail);
   reservoirsPY(c, ca, sa, C, detail);
-  casematePY(c, ca, sa, C, detail);
   chenillePY(c, gaucheDevant ? 1 : -1, ca, sa, defil, C, detail);
-  lanceFlammePY(c, at, C, detail, feu || 0, tps);
+  tourellePYR(c, at, C, detail, feu || 0, tps);
 
   /* LES BLESSURES. Des impacts noircis qui apparaissent à mesure : le
      PYR-120 encaisse tellement qu'il faut VOIR qu'il encaisse, sinon
@@ -39810,7 +40015,7 @@ function charPYR(c, ab, at, defil, abime, brule, detail, feu, tps){
     for(var i = 0; i < n; i++){
       var ix = -PY.chX + r() * PY.chX * 2;
       var iy = (r() < 0.5 ? -1 : 1) * PY.coY;
-      var iz = PY.coZ0 + r() * (PY.csZ1 - PY.coZ0);
+      var iz = PY.coZ0 + r() * (PY.tuZ0 - PY.coZ0);
       var pi = ptT(ix, iy, iz, ca, sa);
       c.beginPath(); c.ellipse(pi.x, pi.y, 1.6 + r() * 2.2, 1.2 + r() * 1.6, 0, 0, 6.2832);
       c.fill();
