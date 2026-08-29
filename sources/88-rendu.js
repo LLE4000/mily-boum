@@ -2992,7 +2992,16 @@ function rendu(tps, dt){
      la lumière dans l'air, rien ne peut la masquer. Les lasers de la
      scène d'Ibiza sont exactement dans le même cas — ils pointent vers
      le ciel, rien ne se met devant. */
-  if(carteScene(jeu.index)){ repereEcran(ctx); dessineLasersIbiza(ctx, tps); }
+  if(carteScene(jeu.index)){
+    repereEcran(ctx);
+    dessineLasersIbiza(ctx, tps);
+    /* Le balayage de Mily APRÈS les lasers de la scène : c'est lui
+       l'événement, il doit passer devant le décor lumineux comme il
+       passe devant les troupes. La traînée d'abord, les rayons
+       ensuite : ce sont eux qui doivent rester les plus clairs. */
+    dessineFeuLaser(ctx, tps);
+    dessineLaserMily(ctx, tps);
+  }
   if(jeu.vengeance) dessineRayonsVengeance(ctx, tps);
 
   /* visée */

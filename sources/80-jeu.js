@@ -3463,6 +3463,10 @@ function majJeu(dt){
      décor et AVANT les défenses : ce qu'une tornade vient de tuer ne
      doit pas tirer une dernière fois dans la même image. */
   if(carteAvecTornades(jeu.index)){ greffeSonTornade(); majTornades(dt); }
+  /* LE BALAYAGE DE MILY, au même endroit et pour la même raison : un
+     danger du décor, avant les défenses, pour que ce qu'il vient de
+     tuer ne tire pas une dernière fois dans la même image. */
+  if(carteScene(jeu.index)) majLaserMily(dt);
   majPluieEtoiles(dt);
   majFoudre(dt);
   majDefenses(dt, jeu.tps);
