@@ -9649,6 +9649,46 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        douze < gros, douze.toFixed(3) + " contre " + gros.toFixed(3));
   }
 
+  /* ---- 5 septies. LA NUIT DE L'ARRIVÉE ----
+     « Dès qu'on rentre sur la map, la map est noire, et ça dure
+     quelques secondes. Le jeu lumineux tu n'y touches pas, tu fais
+     juste le voile noir. » C'est exactement ce que garantit ce bloc :
+     un voile, et rien d'autre. */
+  ok("un voile noir couvre l'arrivée",
+     /function dessineVoileIbiza\(c, tps\)\{/.test(html) &&
+     /function partVoile\(t\)\{/.test(html));
+  /* L'HORLOGE EST CELLE DU JEU, ET C'EST UNE SÛRETÉ. Accroché à une
+     section musicale, le voile resterait baissé si le son est coupé ou
+     si le moteur audio ne démarre pas — l'île deviendrait injouable.
+     `jeu.tps` avance toujours. */
+  ok("… et il est accroché à l'horloge du JEU, pas à la musique",
+     /var v = partVoile\(jeu\.tps\);/.test(html));
+  ok("… il ne dure que quelques secondes",
+     /var IBI_VOILE_TENUE = 2\.2;/.test(html) &&
+     /var IBI_VOILE_OUVRE = 6\.6;/.test(html));
+  ok("… il n'est jamais opaque, pour que les néons percent",
+     /var IBI_VOILE_MAX   = 0\.90;/.test(html));
+  ok("… il ne tombe que sur l'île à scène",
+     /if\(!jeu \|\| !carteScene\(jeu\.index\)\) return;/.test(html));
+  /* ET IL NE TOUCHE À RIEN DU SPECTACLE. C'était la demande explicite.
+     La fonction ne doit écrire dans aucun réglage du show. */
+  {
+    var dv = html.indexOf("function dessineVoileIbiza(c, tps){");
+    var corps = dv > 0 ? html.slice(dv, html.indexOf("\n}", dv)) : "";
+    ok("le voile existe et il est court", corps.length > 200 && corps.length < 2400,
+       corps.length + " caractères");
+    var interdits = ["IBI_SOL_MENE", "IBI_SOL_MAX", "IBI_BRAISE", "IBI_LASER_VIF",
+                     "IBI_DALLES", "gainDalle", "IBI_FORCE", "IBI_SOURD"];
+    var vus = interdits.filter(function(n){ return corps.indexOf(n) >= 0; });
+    ok("… et il ne touche à AUCUN réglage du spectacle", vus.length === 0,
+       vus.join(", "));
+  }
+  /* Il se peint après le monde et avant l'interface : un joueur qui
+     pose une barge dans le noir doit voir son curseur. */
+  ok("… il passe devant le décor, derrière la visée",
+     /dessineVoileIbiza\(ctx, tps\);\s*\/\* visée \*\/\s*dessineVisee\(ctx, tps\);/
+       .test(html));
+
   /* ---- 6. et la piste ne redevient jamais noire ---- */
   ok("les dalles gardent une braise, quoi qu'il arrive",
      /var IBI_BRAISE = 0\.13;/.test(html));

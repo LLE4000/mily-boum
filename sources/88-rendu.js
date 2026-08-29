@@ -3101,8 +3101,13 @@ function rendu(tps, dt){
   }
   if(jeu.vengeance) dessineRayonsVengeance(ctx, tps);
 
-  /* visée */
+  /* LA NUIT DE L'ARRIVÉE À IBIZA. Après tout le monde, avant la visée
+     et les messages : c'est le décor qu'on masque, pas l'interface —
+     un joueur qui pose une barge dans le noir doit voir son curseur. */
   repereEcran(ctx);
+  dessineVoileIbiza(ctx, tps);
+
+  /* visée */
   dessineVisee(ctx, tps);
 
   /* la coupure de courant : elle passe devant tout le reste */

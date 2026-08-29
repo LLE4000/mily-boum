@@ -2688,6 +2688,97 @@ function dessinePisteIbiza(c, tps){
 }
 
 /* ================================================================
+   LE VOILE DE L'ARRIVÉE — LA NUIT AVANT LA FÊTE
+
+   « Dès qu'on rentre sur la map, la map est noire, et ça dure quelques
+   secondes. Ce qui pourrait être beau, c'est de voir l'étoile
+   légèrement, les bords de l'étoile plus lumineux, les lumières dans
+   le ciel — comme ça on ne comprend pas trop ce qui se passe.
+   Progressivement, les bandes qui s'éclairent. Le jeu lumineux tu n'y
+   touches pas, tu fais juste le voile noir. »
+
+   ET C'EST TOUT CE QUE FAIT CE BLOC : un rectangle noir par-dessus le
+   monde, qui s'ouvre. Rien du spectacle n'est modifié — ni un régime,
+   ni un gain, ni une teinte. Ce qui apparaît « progressivement »
+   apparaît parce que le voile se retire, pas parce qu'on l'a rallumé.
+   C'est la version la moins chère de l'idée, et c'est aussi la plus
+   sûre : un show qu'on ne touche pas est un show qu'on ne casse pas.
+
+   POURQUOI LE NOIR N'EST PAS TOUT À FAIT NOIR. À 90 %, un fond de
+   piste qui vaut trente niveaux tombe à trois — c'est noir. Un néon
+   qui en vaut deux cent cinquante tombe à vingt-cinq — c'est une
+   lueur. Le même voile efface donc le décor et laisse le contour de
+   l'étoile, les faisceaux du ciel et les lampes des défenses percer
+   en sourdine. « On ne comprend pas trop ce qui se passe » n'est pas
+   un effet ajouté : c'est ce que fait un voile qui n'est pas opaque.
+
+   ET IL S'OUVRE EN IRIS, DEPUIS LA SCÈNE. C'est le seul endroit qu'on
+   veut voir tout de suite — « la scène et les lasers qui sont
+   directement sur la scène avec le DJ ». Le trou grandit ensuite
+   jusqu'à sortir de l'écran, et les douze allées se découvrent au fur
+   et à mesure qu'il passe dessus, du podium vers le rivage : le même
+   sens que la crête qui court dans les couloirs.
+
+   L'HORLOGE EST CELLE DU JEU, PAS CELLE DE LA MUSIQUE, et c'est un
+   choix de sûreté. Le son peut être coupé, le moteur audio peut ne
+   jamais démarrer, l'onglet peut revenir d'une suspension : un voile
+   accroché à une section musicale resterait alors baissé sur une carte
+   qu'on ne voit plus. `jeu.tps` avance toujours.
+   ================================================================ */
+var IBI_VOILE_TENUE = 2.2;    // secondes de nuit, avant que l'iris s'ouvre
+var IBI_VOILE_OUVRE = 6.6;    // secondes pour l'ouvrir en grand
+var IBI_VOILE_MAX   = 0.90;   // jamais opaque : les néons doivent percer
+
+/* Ce que vaut le voile à cet instant, de 1 à 0. Rendu à part parce que
+   c'est du calcul pur — le banc l'interroge sans rien dessiner. */
+function partVoile(t){
+  var total = IBI_VOILE_TENUE + IBI_VOILE_OUVRE;
+  if(!(t >= 0) || t >= total) return 0;
+  if(t <= IBI_VOILE_TENUE) return 1;
+  return 1 - (t - IBI_VOILE_TENUE) / IBI_VOILE_OUVRE;
+}
+
+function dessineVoileIbiza(c, tps){
+  if(!jeu || !carteScene(jeu.index)) return;
+  var v = partVoile(jeu.tps);
+  if(v <= 0) return;
+  var u = 1 - v;                              // 0 à l'arrivée, 1 à la fin
+  var p = versEcran(cam, SCENE_GX, SCENE_GY);
+  var diag = Math.hypot(W, H);
+  /* l'iris : petit sur la scène, puis plus large que l'écran. Il
+     s'ouvre en accélérant — une ouverture linéaire donne un rideau,
+     une ouverture qui accélère donne une révélation. */
+  /* LA COTE SE CALCULE SUR LA DEMI-DIAGONALE, pas sur la diagonale :
+     ce qu'il faut couvrir, c'est la distance de la scène au coin de
+     l'écran. Réglé à 1,9 fois la diagonale, l'iris avait déjà tout
+     découvert à cinq secondes et les trois dernières ne servaient à
+     rien — la révélation était finie avant son temps. */
+  var r1 = (0.10 + u * u * 0.55) * diag;
+  var r0 = r1 * 0.34;
+  /* et le voile lui-même s'efface sur le dernier quart, sinon la
+     carte resterait sombre jusqu'à la toute dernière image */
+  var a = IBI_VOILE_MAX * (u < 0.75 ? 1 : (1 - (u - 0.75) / 0.25));
+  if(a <= 0.004) return;
+  var g = c.createRadialGradient(p.x, p.y, r0, p.x, p.y, r1);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(1, "rgba(0,0,0," + a + ")");
+  c.save();
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  /* AU-DELÀ DE L'IRIS, LE DÉGRADÉ NE PEINT PLUS RIEN : un dégradé
+     radial s'arrête à son cercle extérieur, et tout ce qui est plus
+     loin reste en clair. Sans ce second remplissage, les coins de
+     l'écran étaient éclairés pendant que le centre était noir —
+     exactement l'inverse de ce qu'on veut. */
+  c.beginPath();
+  c.rect(0, 0, W, H);
+  c.arc(p.x, p.y, r1, 0, 6.2832);
+  c.fillStyle = "rgba(0,0,0," + a + ")";
+  c.fill("evenodd");
+  c.restore();
+}
+
+/* ================================================================
    LE CONTOUR DE L'ÉTOILE, VIVANT
 
    « Le contour de l'étoile peut aussi être lumineux et aller au
