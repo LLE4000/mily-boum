@@ -8557,8 +8557,18 @@ G("35. L'interface de jeu allégée");
      l'accueil. On vérifie donc les deux moitiés — qu'ils ont quitté le
      document, ET que les gestes qu'ils doublaient sont toujours là,
      sans quoi ce ne serait plus un allègement mais une perte. */
-  ok("le coin haut-gauche ne porte plus qu'un bouton",
-     /<div id="zoomB" class="p">\s*<button class="bt" id="btAccueil"[\s\S]{0,140}<\/div>/.test(html));
+  /* CETTE PROMESSE A CHANGÉ, ET ON L'ÉCRIT PLUTÔT QUE DE LA CONTOURNER.
+     Elle disait « le coin haut-gauche ne porte plus qu'un bouton » —
+     le retour à l'accueil, seul rescapé des cinq. Il en porte
+     maintenant ZÉRO : ce dernier bouton est descendu dans la barre
+     d'action, en bas à droite, avec l'abandon et l'énergie, c'est-à-dire
+     là où se trouve déjà tout ce qu'on touche pendant une bataille.
+     Traverser l'écran pour un geste n'avait pas de raison d'être, et le
+     coin rendu au classement en a une. */
+  ok("le coin haut-gauche ne porte plus aucun bouton",
+     !/id="zoomB"/.test(html));
+  ok("… et le retour à l'accueil vit dans la barre d'action",
+     /<div id="barreAct">\s*<button id="btAccueil" class="ov ovIc"/.test(html));
   ok("… les quatre autres ont quitté le document",
      !/id="btZp"/.test(html) && !/id="btZm"/.test(html) &&
      !/id="btCentre"/.test(html) && !/id="btPlein2"/.test(html));
@@ -9148,6 +9158,85 @@ G("39. Un réglage d'administration doit QUITTER l'appareil");
   ok("l'accueil se repeint quand un instantané neuf arrive",
      /if\(source === "relais" && avant && !memeMonde\(avant, monde\)\)\{\s*majMondes\(\);\s*if\(typeof majCarriere === "function"\) majCarriere\(\);/
        .test(html));
+})();
+
+
+/* ================================================================ */
+G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
+(function(){
+
+  /* LA LIGNE « ÉNERGIE · UNITÉS » EST DÉFAITE, et les deux nombres
+     sont partis chacun là où on les regarde : l'énergie au-dessus des
+     boutons qui la dépensent, le compte d'unités sur la ligne des
+     navettes, qui parle du même sujet. */
+  ok("l'ancienne ligne Énergie · Unités a disparu",
+     !/<div class="bloc p" id="ress">/.test(html) && !/#ress\{/.test(html));
+  ok("le compte d'unités vit sur la ligne des navettes",
+     /<div class="t">Navettes<span id="unitesV">0<\/span><\/div>/.test(html));
+  ok("… et il porte son séparateur, sinon il donnerait « Navettes44 »",
+     /\$\("unitesV"\)\.textContent = " · " \+ nu \+ " unité"/.test(html));
+
+  /* TROIS OVALES, DANS L'ORDRE DE LA FRÉQUENCE : le retour, l'abandon,
+     l'énergie — la plus regardée contre le bord. */
+  ok("la barre porte les trois ovales, dans l'ordre",
+     /<div id="barreAct">\s*<button id="btAccueil" class="ov ovIc"[\s\S]{0,200}<button id="btAbandon" class="ov ovAb"[\s\S]{0,200}<div id="ovEnergie" class="ov ovEn"/
+       .test(html));
+  /* QUATRE CHIFFRES. L'énergie n'a AUCUN plafond dans le jeu — elle ne
+     fait que s'accumuler —, donc 9000 est atteignable sur une longue
+     île, et un ovale taillé pour trois chiffres se déformerait ce
+     jour-là. On vérifie la largeur réservée ET l'absence de plafond,
+     puisque c'est elle qui rend la réserve nécessaire. */
+  ok("l'ovale d'énergie réserve la place de quatre chiffres",
+     /\.ovEn\{[\s\S]{0,200}min-width:88px/.test(html));
+  ok("… et l'énergie n'a effectivement aucun plafond dans le jeu",
+     !/jeu\.energie = Math\.min\(/.test(html));
+  ok("l'éclair est gravé DERRIÈRE, hors du chemin des chiffres",
+     /\.ovEn \.ecl\{[\s\S]{0,200}position:absolute;left:-7px/.test(html) &&
+     /#energieV\{[\s\S]{0,120}position:relative/.test(html));
+
+  /* ════════════════════════════════════════════════════════════
+     ABANDONNER — LE GARDE-FOU QUI COMPTE
+
+     « Il ne faut pas que ça réinitialise la map en cours, absolument
+     pas. » Cette vérification-là ne regarde pas un résultat, elle
+     regarde ce que la fonction a LE DROIT DE TOUCHER : on lit son
+     corps, et l'on exige qu'aucun des noms qui mènent à la carte, aux
+     dégâts ou au salon n'y apparaisse. Un test de résultat dirait « ça
+     n'a rien cassé aujourd'hui » ; celui-ci dit « ça ne peut pas
+     casser », et c'est ce qui tiendra dans six mois.
+     ════════════════════════════════════════════════════════════ */
+  {
+    var d = html.indexOf("function abandonneLaVague(){");
+    var corps = d > 0 ? html.slice(d, html.indexOf("\n}", d)) : "";
+    ok("la fonction d'abandon existe", corps.length > 100);
+    var interdits = ["jeu.batiments", "jeu.qg", "jeu.degatsMoi", "monde",
+                     "remetSalonAZero", "nouvelleCarte", "lancePartie",
+                     "nouveauTirageSalon", "nouvelleCampagneSalon",
+                     "sacreChampion", "inscritTop3", "publieMonde", "scoresSalon"];
+    var vus = interdits.filter(function(n){ return corps.indexOf(n) >= 0; });
+    ok("… et elle ne touche NI la carte, NI les dégâts, NI le salon",
+       vus.length === 0, vus.join(", "));
+    /* Ce qu'elle touche, en revanche, et rien d'autre : mes trois
+       listes à moi. */
+    ok("… elle ne vide que MES unités, MES barges et MES navettes",
+       /jeu\.unites\.length = 0;\s*jeu\.barges\.length = 0;\s*jeu\.navettes\.length = 0;/
+         .test(corps));
+    /* ET ELLE NE RECOPIE PAS LA MACHINE À ÉTATS. majMort surveille
+       déjà « plus rien à moi sur la carte » : elle lève le fantôme,
+       compte le renfort et rend une flotte neuve. Un second compte à
+       rebours écrit ici serait un second endroit à corriger. */
+    ok("… et elle ne redéclare aucun compte à rebours de renfort",
+       corps.indexOf("tempsRenfort") < 0 && corps.indexOf("jeu.mort = true") < 0);
+  }
+  /* La condition que majMort surveille est bien celle-là — c'est ce qui
+     fait que vider les trois listes suffit. */
+  ok("majMort lève le renfort dès que les trois listes sont vides",
+     /if\(jeu\.unites\.length === 0 && jeu\.barges\.length === 0 &&\s*jeu\.navettes\.length === 0/
+       .test(html));
+  /* Et le geste demande confirmation : perdre ses troupes ne doit pas
+     tenir à un doigt qui glisse au-dessus des capacités. */
+  ok("l'abandon demande confirmation avant d'agir",
+     /if\(!confirm\("Abandonner cette vague \?/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

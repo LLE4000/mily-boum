@@ -1318,10 +1318,76 @@ select.champ{cursor:pointer}
 
 /* — haut gauche — */
 #hg{position:absolute;top:calc(8px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-#ress{display:flex;gap:14px;align-items:center;justify-content:center;font-weight:700;font-size:15px;white-space:nowrap;padding:5px 10px}
-#ress .k{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;font-weight:700}
-#energieV{color:var(--or);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,190,90,.45)}
-#unitesV{color:var(--cyan);font-variant-numeric:tabular-nums}
+/* ================================================================
+   LA BARRE D'ACTION — trois ovales au-dessus des huit capacités
+
+   Elle remplace la ligne « Énergie 220 · Unités 0 ». Celle-ci mêlait
+   deux nombres sans rapport : l'énergie se dépense sur les boutons
+   d'en dessous, le compte d'unités parle des navettes, et les deux
+   vivaient côte à côte au même endroit pendant que les navettes
+   étaient à l'autre bout de l'écran. Le second est parti les
+   rejoindre ; le premier est resté, en grand, là où on le dépense.
+
+   TROIS OVALES, ET L'ORDRE EST CELUI DE LA FRÉQUENCE : le retour à
+   l'accueil (rare), l'abandon (rare et grave), l'énergie (regardée
+   sans arrêt) — la plus consultée contre le bord, sous le pouce.
+   ================================================================ */
+#barreAct{display:flex;gap:6px;align-items:stretch;justify-content:flex-end;pointer-events:auto}
+.ov{
+  appearance:none;-webkit-appearance:none;
+  border:1px solid rgba(255,255,255,.14);background:var(--verre);
+  box-shadow:var(--ombre);border-radius:999px;color:var(--texte);
+  font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.3px;
+  height:38px;padding:0 15px;display:inline-flex;align-items:center;
+  justify-content:center;cursor:pointer;white-space:nowrap;
+  transition:background .12s ease, border-color .12s ease, transform .08s ease;
+}
+.ov:active{transform:scale(.95)}
+.ovIc{padding:0;width:38px;font-size:17px}
+.ov:hover{background:rgba(255,255,255,.10)}
+/* L'ABANDON NE CRIE PAS, MAIS IL PRÉVIENT. En rouge franc à côté de
+   huit capacités colorées, il aurait tiré l'œil à chaque image pour un
+   geste qu'on fait une fois par heure. Il reste sobre, et ne se teinte
+   qu'au moment où le doigt s'en approche. */
+.ovAb{color:#e9c3b4;border-color:rgba(255,140,110,.24)}
+.ovAb:hover{background:rgba(255,90,74,.16);border-color:rgba(255,140,110,.5);color:#ffb9a6}
+
+/* L'ÉNERGIE, GRAVÉE DANS SON OVALE.
+   L'éclair est agrandi, désaturé et posé DERRIÈRE le nombre, puis
+   coupé par l'ovale : c'est ce rognage qui le fait lire comme une
+   gravure et non comme un autocollant. Le nombre passe devant.
+   LARGEUR : quatre chiffres. L'énergie n'a aucun plafond dans le jeu —
+   elle ne fait que s'accumuler —, donc 9000 est atteignable sur une
+   longue île, et un ovale taillé pour trois chiffres se serait déformé
+   le jour où ça arrive. */
+.ovEn{
+  position:relative;overflow:hidden;cursor:default;min-width:88px;
+  background:linear-gradient(180deg,#3d2159 0%,#291340 100%);
+  border-color:rgba(196,150,255,.34);
+  box-shadow:var(--ombre), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.ovEn:hover{background:linear-gradient(180deg,#3d2159 0%,#291340 100%)}
+/* L'ÉCLAIR SORT DE DERRIÈRE LE NOMBRE, et c'est ce qui le rend
+   lisible. Centré et désaturé, il se cachait exactement sous les
+   chiffres : il n'en dépassait qu'une diagonale grise, qu'on prenait
+   pour une rayure. Posé contre le bord gauche, à peine mordu par
+   l'ovale, il se lit d'un coup — et le nombre garde le centre, comme
+   demandé. Il garde sa teinte : un éclair jaune à trois dixièmes sur
+   du mauve donne une lueur chaude qui dit « énergie », là où le gris
+   ne disait rien. */
+.ovEn .ecl{
+  position:absolute;left:-7px;top:50%;
+  transform:translateY(-50%) rotate(-8deg) scale(2.1);
+  opacity:.34;filter:saturate(1.15) brightness(1.1);
+  pointer-events:none;line-height:1;
+}
+#energieV{
+  position:relative;color:var(--or);font-size:17px;font-weight:800;
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.8);
+}
+/* Le compte d'unités vit maintenant sur la ligne des navettes. */
+#unitesV{color:var(--cyan);font-variant-numeric:tabular-nums;
+         text-transform:none;letter-spacing:0}
 #podium{min-width:158px;font-size:12px}
 #podium .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:3px}
 #podium .r{display:flex;gap:6px;align-items:center;padding:1px 0}
@@ -1361,8 +1427,6 @@ select.champ{cursor:pointer}
 #podium .ql .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cdbfd6}
 #podium .ql .u{flex:none;color:#8f86a0;font-size:10px;font-variant-numeric:tabular-nums}
 #podium .ql.moi .n{color:var(--or);font-weight:700}
-#zoomB{display:flex;gap:5px}
-#zoomB button{width:36px;height:36px;padding:0;font-size:17px;border-radius:11px;display:flex;align-items:center;justify-content:center}
 
 /* — haut centre — */
 #hc{position:absolute;top:calc(8px + var(--sat));left:50%;transform:translateX(-50%);width:min(360px,52vw);text-align:center;padding:6px 10px 8px}
@@ -1556,8 +1620,10 @@ select.champ{cursor:pointer}
 /* — paliers de réduction — */
 @media (max-height:460px){
   #hg{gap:4px}
-  #ress{font-size:13px}
-  #zoomB button{width:31px;height:31px;font-size:15px}
+  .ov{height:33px;font-size:11.5px;padding:0 12px}
+  .ovIc{width:33px;padding:0;font-size:15px}
+  .ovEn{min-width:72px}
+  #energieV{font-size:15px}
   .cap{width:54px;height:50px}
   .cap canvas{width:26px;height:26px}
   .cap .nm{font-size:8px}
@@ -1608,7 +1674,14 @@ select.champ{cursor:pointer}
   .cap canvas{width:22px;height:22px}
   .cap .nm{font-size:7px}
   .bg1{font-size:10px}
-  #ress{font-size:12px;gap:8px}
+  /* Sur un téléphone étroit, « Abandonner » et l'ovale d'énergie ne
+     tiennent plus côte à côte au-dessus de quatre capacités : la barre
+     se resserre plutôt que de déborder. */
+  #barreAct{gap:4px}
+  .ov{height:32px;font-size:11px;padding:0 10px}
+  .ovIc{width:32px;padding:0;font-size:14px}
+  .ovEn{min-width:64px}
+  #energieV{font-size:14px}
   /* Sur un téléphone étroit, les navettes débordaient sous les
      capacités : deux panneaux ancrés chacun à son bord finissent par
      se rejoindre. On borne la largeur des navettes à ce qui reste —
@@ -2127,16 +2200,13 @@ select.champ{cursor:pointer}
 <div id="hud">
   <div id="hg">
     <div class="bloc p" id="podium"><div class="t">Top dégâts</div><div id="podiumL"></div></div>
-    <!-- UN SEUL BOUTON, ET C'EST LE RETOUR.
-         Il y en avait cinq. Les quatre autres — zoom avant, zoom
-         arrière, recentrage, plein écran — doublaient tous un geste
-         qui existe déjà : la molette et le pincement zooment, et le
-         plein écran se prend à l'accueil. Quatre carrés de 36 px dans
-         le coin le plus chargé de l'écran pour des gestes qu'on a
-         déjà : c'est de la place prise au jeu. -->
-    <div id="zoomB" class="p">
-      <button class="bt" id="btAccueil" title="Retour à l'accueil — la bataille continue sans toi">⌂</button>
-    </div>
+    <!-- LE COIN HAUT-GAUCHE NE PORTE PLUS DE BOUTON DU TOUT.
+         Il en avait cinq, puis un — le retour à l'accueil. Celui-là
+         descend rejoindre la barre d'action, en bas à droite, sous le
+         pouce : c'est là que se trouvent déjà les huit capacités,
+         c'est-à-dire tout ce qu'on touche pendant une bataille. Un
+         bouton seul dans le coin opposé, c'était traverser l'écran
+         pour un geste, et prendre au classement la place qu'il occupe. -->
   </div>
 
   <div class="bloc p" id="hc">
@@ -2158,14 +2228,28 @@ select.champ{cursor:pointer}
   </div>
 
   <div class="bloc p" id="bg">
-    <div class="t">Navettes</div>
+    <!-- « Unités » se lit ICI, sur la ligne des navettes : c'est le
+         même sujet — ce qu'on a débarqué et ce qu'il reste à
+         débarquer — et jusqu'ici les deux nombres vivaient aux deux
+         coins opposés de l'écran. -->
+    <div class="t">Navettes<span id="unitesV">0</span></div>
     <div id="listeBarges"></div>
   </div>
 
+  <!-- LA BARRE D'ACTION, au-dessus des huit capacités.
+       Elle remplace la ligne « Énergie 220 · Unités 0 », qui mêlait
+       deux nombres sans rapport : l'énergie se dépense ICI, juste
+       au-dessus des boutons qui la consomment ; le compte d'unités,
+       lui, parle des navettes et il est parti les rejoindre en bas à
+       gauche. Trois ovales, du plus rare au plus regardé : le retour,
+       l'abandon, puis l'énergie. -->
   <div id="bd">
-    <div class="bloc p" id="ress">
-      <span><span class="k">Énergie</span> <span id="energieV">220</span></span>
-      <span><span class="k">Unités</span> <span id="unitesV">0</span></span>
+    <div id="barreAct">
+      <button id="btAccueil" class="ov ovIc" title="Retour à l'accueil — la bataille continue sans toi">⌂</button>
+      <button id="btAbandon" class="ov ovAb" title="Sacrifier les troupes encore au sol et attendre le renfort">Abandonner</button>
+      <div id="ovEnergie" class="ov ovEn" title="Énergie disponible">
+        <span class="ecl" aria-hidden="true">⚡</span><span id="energieV">220</span>
+      </div>
     </div>
     <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
   </div>
@@ -2200,7 +2284,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.14";
+var VERSION = "v1.15";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -57734,7 +57818,11 @@ function majBarres(){
   if(!jeu) return;
   barresSales = false;
   $("energieV").textContent = Math.floor(jeu.energie);
-  $("unitesV").textContent = jeu.unites.length;
+  /* Le compte d'unités s'écrit sur la ligne des NAVETTES, donc il
+     porte son propre séparateur et son propre mot : posé nu, il aurait
+     donné « Navettes44 ». */
+  var nu = jeu.unites.length;
+  $("unitesV").textContent = " · " + nu + " unité" + (nu > 1 ? "s" : "");
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
   /* Tant que le bouclier tient, la jauge de PV est un mensonge : elle
@@ -60605,6 +60693,65 @@ function installeRaz(){
 function installeBoutons(){
   $("btAccueil").addEventListener("click", retourAccueil);
   $("btReprendre").addEventListener("click", reprendCombat);
+  var ab = $("btAbandon");
+  if(ab) ab.addEventListener("click", abandonneLaVague);
+}
+
+/* ================================================================
+   ABANDONNER LA VAGUE
+
+   CE QUE ÇA FAIT, ET SURTOUT CE QUE ÇA NE FAIT PAS.
+
+   Ça sacrifie ce qu'il reste de MES troupes : les unités au sol, les
+   barges non débarquées, les navettes en vol. Rien d'autre. La carte,
+   les défenses déjà tombées, les dégâts déjà inscrits, les podiums, le
+   Top carrière et l'instantané partagé ne bougent pas d'un octet —
+   c'est exactement l'état où l'on se retrouve quand la dernière Furie
+   meurt, à ceci près qu'on l'a demandé.
+
+   ET ON NE RECOPIE PAS LA MACHINE À ÉTATS. majMort surveille déjà la
+   condition « plus une unité, plus une barge, plus une navette » : elle
+   lève alors le fantôme, lance le compte à rebours du renfort, et rend
+   une flotte neuve avec sa Nova et ses tarifs remis à zéro. On se
+   contente donc de CRÉER cette condition, et le reste se déroule tout
+   seul, par le chemin déjà éprouvé. Écrire ici un second compte à
+   rebours aurait été un second endroit à corriger le jour où celui-là
+   change.
+
+   Le fantôme se pose là où étaient les troupes plutôt qu'à leur point
+   de départ : c'est le même geste que `dernierePerte` fait pour une
+   mort ordinaire, et il coûte trois lignes.
+   ================================================================ */
+function abandonneLaVague(){
+  if(!jeu || jeu.fin) return;
+  if(jeu.mort) return message("Ta flotte est déjà perdue, le renfort arrive.");
+  var n = jeu.unites.length + jeu.barges.length + jeu.navettes.length;
+  if(!n) return message("Tu n'as rien à abandonner.");
+  if(!confirm("Abandonner cette vague ?\n\n"
+            + "Tes " + jeu.unites.length + " unité"
+            + (jeu.unites.length > 1 ? "s" : "") + " encore au sol "
+            + (jeu.unites.length > 1 ? "sont perdues" : "est perdue") + ", ainsi que "
+            + "tes navettes non débarquées.\n"
+            + "Le renfort arrive ensuite, comme après une flotte perdue.\n\n"
+            + "L'île, les défenses détruites et tes dégâts déjà comptés\n"
+            + "ne sont PAS touchés.")) return;
+  /* le fantôme naîtra là où la troupe était, pas sur la plage */
+  if(jeu.unites.length){
+    var mx = 0, my = 0, i;
+    for(i = 0; i < jeu.unites.length; i++){ mx += jeu.unites[i].gx; my += jeu.unites[i].gy; }
+    jeu.dernierePerte = { gx:mx / jeu.unites.length, gy:my / jeu.unites.length };
+  }
+  jeu.unites.length = 0;
+  jeu.barges.length = 0;
+  jeu.navettes.length = 0;
+  jeu.bargeSel = 0;
+  /* la capacité armée n'a plus personne à servir */
+  jeu.capArmee = null;
+  viseur.actif = false;
+  majListeBarges();
+  majMenu();
+  majBarres();
+  message("Vague abandonnée. Le renfort se prépare.");
 }
 
 /* ===== 93-musique.js ===== */

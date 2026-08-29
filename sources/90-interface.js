@@ -319,7 +319,11 @@ function majBarres(){
   if(!jeu) return;
   barresSales = false;
   $("energieV").textContent = Math.floor(jeu.energie);
-  $("unitesV").textContent = jeu.unites.length;
+  /* Le compte d'unités s'écrit sur la ligne des NAVETTES, donc il
+     porte son propre séparateur et son propre mot : posé nu, il aurait
+     donné « Navettes44 ». */
+  var nu = jeu.unites.length;
+  $("unitesV").textContent = " · " + nu + " unité" + (nu > 1 ? "s" : "");
   var fr = Math.max(0, jeu.qg.pv / jeu.qg.pvMax);
   $("jaugeQGin").style.width = (fr * 100).toFixed(2) + "%";
   /* Tant que le bouclier tient, la jauge de PV est un mensonge : elle
@@ -3190,4 +3194,63 @@ function installeRaz(){
 function installeBoutons(){
   $("btAccueil").addEventListener("click", retourAccueil);
   $("btReprendre").addEventListener("click", reprendCombat);
+  var ab = $("btAbandon");
+  if(ab) ab.addEventListener("click", abandonneLaVague);
+}
+
+/* ================================================================
+   ABANDONNER LA VAGUE
+
+   CE QUE ÇA FAIT, ET SURTOUT CE QUE ÇA NE FAIT PAS.
+
+   Ça sacrifie ce qu'il reste de MES troupes : les unités au sol, les
+   barges non débarquées, les navettes en vol. Rien d'autre. La carte,
+   les défenses déjà tombées, les dégâts déjà inscrits, les podiums, le
+   Top carrière et l'instantané partagé ne bougent pas d'un octet —
+   c'est exactement l'état où l'on se retrouve quand la dernière Furie
+   meurt, à ceci près qu'on l'a demandé.
+
+   ET ON NE RECOPIE PAS LA MACHINE À ÉTATS. majMort surveille déjà la
+   condition « plus une unité, plus une barge, plus une navette » : elle
+   lève alors le fantôme, lance le compte à rebours du renfort, et rend
+   une flotte neuve avec sa Nova et ses tarifs remis à zéro. On se
+   contente donc de CRÉER cette condition, et le reste se déroule tout
+   seul, par le chemin déjà éprouvé. Écrire ici un second compte à
+   rebours aurait été un second endroit à corriger le jour où celui-là
+   change.
+
+   Le fantôme se pose là où étaient les troupes plutôt qu'à leur point
+   de départ : c'est le même geste que `dernierePerte` fait pour une
+   mort ordinaire, et il coûte trois lignes.
+   ================================================================ */
+function abandonneLaVague(){
+  if(!jeu || jeu.fin) return;
+  if(jeu.mort) return message("Ta flotte est déjà perdue, le renfort arrive.");
+  var n = jeu.unites.length + jeu.barges.length + jeu.navettes.length;
+  if(!n) return message("Tu n'as rien à abandonner.");
+  if(!confirm("Abandonner cette vague ?\n\n"
+            + "Tes " + jeu.unites.length + " unité"
+            + (jeu.unites.length > 1 ? "s" : "") + " encore au sol "
+            + (jeu.unites.length > 1 ? "sont perdues" : "est perdue") + ", ainsi que "
+            + "tes navettes non débarquées.\n"
+            + "Le renfort arrive ensuite, comme après une flotte perdue.\n\n"
+            + "L'île, les défenses détruites et tes dégâts déjà comptés\n"
+            + "ne sont PAS touchés.")) return;
+  /* le fantôme naîtra là où la troupe était, pas sur la plage */
+  if(jeu.unites.length){
+    var mx = 0, my = 0, i;
+    for(i = 0; i < jeu.unites.length; i++){ mx += jeu.unites[i].gx; my += jeu.unites[i].gy; }
+    jeu.dernierePerte = { gx:mx / jeu.unites.length, gy:my / jeu.unites.length };
+  }
+  jeu.unites.length = 0;
+  jeu.barges.length = 0;
+  jeu.navettes.length = 0;
+  jeu.bargeSel = 0;
+  /* la capacité armée n'a plus personne à servir */
+  jeu.capArmee = null;
+  viseur.actif = false;
+  majListeBarges();
+  majMenu();
+  majBarres();
+  message("Vague abandonnée. Le renfort se prépare.");
 }
