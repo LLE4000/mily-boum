@@ -1161,6 +1161,41 @@ function dessineSceneIbiza(c, tps){
    ================================================================ */
 var IBI_LASER_N = 16;        // les projecteurs du pourtour
 var IBI_LASER_H = 1800;      // leur portée, en unités de scène — « un peu plus haut »
+
+/* ────────────────────────────────────────────────────────────────
+   LES FAISCEAUX ONT MONTÉ D'UN CRAN, ET C'EST LE PLANCHER QUI L'A
+   EXIGÉ
+
+   « Comme maintenant on a une étoile lumineuse, on voit moins bien les
+   lasers de la scène. Je mettrais un peu plus d'intensité. Et ceux des
+   douze tours énergétiques, deux fois plus haut avec trente pour cent
+   d'intensité en plus. »
+
+   Ce n'est pas un caprice de réglage : allumer trois cents dalles sous
+   les faisceaux a monté le fond sur lequel ils se détachent, et un
+   trait additif se juge toujours par rapport à ce qu'il y a dessous.
+   Les cotes de la scène sont donc relevées d'un même facteur — un
+   seul nombre, pour qu'elles gardent entre elles les rapports qu'on
+   leur avait donnés — et les douze cellules ont leur propre hausse,
+   celle qui a été demandée.
+
+   ET L'ORDRE EST PRÉSERVÉ. Les douze restent sous les deux gros
+   projecteurs de ciel : c'est la rareté de ceux-là qui fait leur
+   effet, et douze faisceaux aussi forts les auraient effacés. Les
+   deux gros montent donc du même facteur commun, sans quoi la hausse
+   des douze aurait mangé l'écart. Le banc le vérifie.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_LASER_VIF = 1.40;    // la hausse commune : scène, portique, ciel
+var IBI_CELL_VIF  = 1.30;    // « trente pour cent en plus » sur les douze
+var IBI_CELL_H    = 1800;    // « deux fois plus haut » — c'était 900
+/* ET LES DEUX GROS MONTENT D'UN CHEVEU DE PLUS, pour rester au-dessus.
+   La hausse de trente pour cent des douze les faisait passer devant
+   eux — 0,537 contre 0,518 à pleine frappe —, ce qui défait une
+   décision prise plus tôt : « une intensité ENTRE la leur et celle des
+   deux gros lasers ». Les deux gros tiennent leur effet de leur
+   rareté ; douze faisceaux plus forts les auraient effacés. Ce facteur
+   ne fait que restaurer l'ordre, il ne rouvre pas le réglage. */
+var IBI_CIEL_VIF  = 1.15;
 /* Les six teintes des balayeurs du portique. */
 var IBI_LASER_T = ["255,60,120", "62,224,208", "255,200,70", "150,110,255",
                    "80,255,160", "255,120,60"];
@@ -1206,7 +1241,7 @@ function dessineLasersIbiza(c, tps){
     /* la teinte tourne autour du cercle et change à chaque temps :
        c'est une chenille de couleur, pas un clignotant */
     var col = teinteIbiza(IBI_LASER_T, i + mes);
-    var op = (0.11 + f * 0.19) * F;
+    var op = (0.11 + f * 0.19) * F * IBI_LASER_VIF;
     /* ────────────────────────────────────────────────────────────
        LE FAISCEAU S'ALLUME À UNE DISTANCE FIXE, ET C'EST TOUT LE
        PIÈGE DE CE BLOC.
@@ -1237,9 +1272,9 @@ function dessineLasersIbiza(c, tps){
     /* deux passes : un halo doux, puis un cœur net. C'est ce qui
        distingue un faisceau dans la brume d'un trait de crayon — mais
        le halo reste MINCE : large, il fait de la purée grise. */
-    c.lineWidth = (1.9 + f * 1.7) * F * z;
+    c.lineWidth = (1.9 + f * 1.7) * F * IBI_LASER_VIF * z;
     c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
-    c.lineWidth = (0.7 + f * 0.6) * z;
+    c.lineWidth = (0.7 + f * 0.6) * IBI_LASER_VIF * z;
     c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
     /* la lampe elle-même, très nette : c'est elle qui plante le
        faisceau sur le bord du plateau au lieu de le laisser flotter */
@@ -1273,12 +1308,12 @@ function dessineLasersIbiza(c, tps){
     var sx1 = sx0 + Math.sin(a) * lgb;
     var sy1 = sy0 - Math.cos(a) * lgb;
     var gb = c.createLinearGradient(sx0, sy0, sx1, sy1);
-    var opb = (0.16 + f * 0.24) * F;
+    var opb = (0.16 + f * 0.24) * F * IBI_LASER_VIF;
     gb.addColorStop(0, "rgba(" + IBI_LASER_T[i] + "," + opb + ")");
     gb.addColorStop(0.5, "rgba(" + IBI_LASER_T[i] + "," + (opb * 0.55) + ")");
     gb.addColorStop(1, "rgba(" + IBI_LASER_T[i] + ",0)");
     c.strokeStyle = gb;
-    c.lineWidth = (1.1 + f * 1.3) * z;
+    c.lineWidth = (1.1 + f * 1.3) * IBI_LASER_VIF * z;
     c.beginPath(); c.moveTo(sx0, sy0); c.lineTo(sx1, sy1); c.stroke();
     c.fillStyle = "rgba(" + IBI_LASER_T[i] + "," + (0.5 + f * 0.4) + ")";
     c.beginPath(); c.arc(sx0, sy0, (0.9 + f * 0.7) * z, 0, 6.2832); c.fill();
@@ -1355,7 +1390,7 @@ function dessineLasersIbiza(c, tps){
          une tour à l'ouest penche vers l'est, et réciproquement */
       var vers = (p.x - pr.x) / (Math.abs(p.x - pr.x) + 260);
       var inc = vers * 0.38 + Math.sin(tps * 0.6 + i * 0.9) * 0.10 * F;
-      var lgt = (900 * (0.55 + F * 0.45) + f * 180 * F) * z;
+      var lgt = (IBI_CELL_H * (0.55 + F * 0.45) + f * 180 * F) * z;
       var ct = teinteIbiza(IBI_LASER_T, i * 2 + mes);
       /* ENTRE LES DEUX, ET C'EST LITTÉRALEMENT LA MOYENNE.
          « Une intensité entre celle qu'ils ont et celle des deux gros
@@ -1367,20 +1402,27 @@ function dessineLasersIbiza(c, tps){
          Ils restent donc en dessous des deux tours, ce qui compte :
          douze faisceaux aussi forts que les deux gros auraient effacé
          ce qui fait la rareté de ceux-là. */
-      var opt = (0.13 + f * 0.165) * F;
+      var opt = (0.13 + f * 0.165) * F * IBI_LASER_VIF * IBI_CELL_VIF;
+      /* L'ALLUMAGE SE COMPTE EN UNITÉS, PAS EN FRACTION, et c'est le
+         piège qu'on a déjà payé une fois sur la couronne — voir son
+         commentaire. Ce faisceau vient de doubler de longueur ; un
+         allumage écrit « 0,09 » aurait doublé avec lui, et le bas du
+         faisceau serait devenu deux fois plus long à s'allumer. La
+         cote qui compte est au-dessus de la lampe, en unités de monde. */
+      var montT = Math.min(0.30, 110 * z / lgt);
       var gt = c.createLinearGradient(rx0, ry0, rx0 + Math.sin(inc) * lgt,
                                       ry0 - Math.cos(inc) * lgt);
       gt.addColorStop(0, "rgba(" + ct + ",0)");
-      gt.addColorStop(0.09, "rgba(" + ct + "," + (opt * 1.3) + ")");
-      gt.addColorStop(0.45, "rgba(" + ct + "," + opt + ")");
+      gt.addColorStop(montT, "rgba(" + ct + "," + (opt * 1.3) + ")");
+      gt.addColorStop(Math.min(0.9, montT * 5), "rgba(" + ct + "," + opt + ")");
       gt.addColorStop(1, "rgba(" + ct + ",0)");
       c.strokeStyle = gt;
-      c.lineWidth = (2.2 + f * 1.75) * F * z;
+      c.lineWidth = (2.2 + f * 1.75) * F * IBI_LASER_VIF * IBI_CELL_VIF * z;
       c.beginPath();
       c.moveTo(rx0, ry0);
       c.lineTo(rx0 + Math.sin(inc) * lgt, ry0 - Math.cos(inc) * lgt);
       c.stroke();
-      c.lineWidth = (0.6 + f * 0.5) * z;
+      c.lineWidth = (0.6 + f * 0.5) * IBI_LASER_VIF * IBI_CELL_VIF * z;
       c.beginPath();
       c.moveTo(rx0, ry0);
       c.lineTo(rx0 + Math.sin(inc) * lgt, ry0 - Math.cos(inc) * lgt);
@@ -1447,7 +1489,7 @@ function dessineLasersIbiza(c, tps){
     var w1 = (34 + f * 14) * ouvre * z;
     var nx = Math.cos(ang), ny = Math.sin(ang);   // la normale au faisceau
     var gT = c.createLinearGradient(bx2, by2, tx, ty);
-    var opT = (0.19 + f * 0.18) * F * ouvre;
+    var opT = (0.19 + f * 0.18) * F * ouvre * IBI_LASER_VIF * IBI_CIEL_VIF;
     gT.addColorStop(0, "rgba(235,246,255," + (opT * 1.6) + ")");
     gT.addColorStop(0.35, "rgba(210,238,255," + (opT * 0.7) + ")");
     gT.addColorStop(1, "rgba(190,225,255,0)");
@@ -1460,7 +1502,7 @@ function dessineLasersIbiza(c, tps){
     c.closePath(); c.fill();
     /* le cœur du fût, plus net */
     c.strokeStyle = "rgba(255,255,255," + (opT * 1.55) + ")";
-    c.lineWidth = (2.8 + f * 2.0) * ouvre * z;
+    c.lineWidth = (2.8 + f * 2.0) * ouvre * IBI_LASER_VIF * IBI_CIEL_VIF * z;
     c.beginPath(); c.moveTo(bx2, by2); c.lineTo(tx, ty); c.stroke();
     /* la lanterne, et son halo au sol */
     var gl = c.createRadialGradient(bx2, by2, 0, bx2, by2, 26 * z);
@@ -1880,14 +1922,55 @@ function silhouettePodium(c, p, z){
   c.closePath();
 }
 
-function dessineFumeeIbiza(c, tps, p, z){
-  var H = horlogeIbiza(tps);
-  if(!H.mus || !H.strobo) return;            // les drops, et eux seuls
+/* ================================================================
+   QUAND LA FUMÉE SORT, ET QUI D'AUTRE DOIT LE SAVOIR
+
+   « On ne voit pas très bien les six jets, parce que l'étoile est fort
+   colorée à ce moment-là. Le moment où elle sortait était parfait :
+   trouve la meilleure solution pour qu'on voie la fumée et les allées
+   s'éclairer, sans que l'étoile prenne le dessus. »
+
+   Les deux se disputaient le même instant, et pour une raison de
+   fond : la fumée ne part que sur les drops, et c'est très exactement
+   là que le plancher est à pleine puissance. Décaler la fumée aurait
+   perdu le geste — le premier temps d'une phrase, c'est là qu'un
+   canon tire.
+
+   ALORS C'EST LE PLANCHER QUI S'EFFACE, et c'est ce que fait une vraie
+   régie : au moment du CO₂, on baisse le sol pour que le blanc se
+   détache. Le geste se lit mieux qu'avant, parce qu'un creux de
+   lumière EST un geste, alors que deux décors à pleine puissance ne
+   sont qu'un empilement.
+
+   LA FENÊTRE EST DÉFINIE ICI, UNE FOIS, et le plancher la lit. Deux
+   copies de la même horloge auraient dérivé au premier réglage — et
+   l'on aurait eu un creux qui ne tombe plus sur la fumée, c'est-à-dire
+   le pire des deux mondes.
+   ================================================================ */
+/* L'âge de la bouffée en cours, en mesures, ou −1 s'il n'y en a pas. */
+function ageFumee(H){
+  if(!H.mus || !H.strobo) return -1;         // les drops, et eux seuls
   var mesure = H.t / 4;
   var bar = Math.floor(mesure);
   /* la phrase de quatre mesures : on ne tire qu'à son premier temps */
   var depuis = (bar % 4) + (mesure - bar);
-  if(depuis > IBI_FUM_VIE) return;
+  return depuis > IBI_FUM_VIE ? -1 : depuis;
+}
+/* Ce que la fumée occupe de l'écran, de 0 à 1 : elle s'installe vite,
+   tient, puis se dissout. C'est cette courbe que le plancher suit pour
+   se creuser — pas un interrupteur, sinon le sol clignote. */
+function partFumee(H){
+  var a = ageFumee(H);
+  if(a < 0) return 0;
+  var monte = a / 0.22;                      // l'installation
+  var fond = (IBI_FUM_VIE - a) / 0.55;       // la dissolution
+  return Math.max(0, Math.min(1, Math.min(monte, fond)));
+}
+
+function dessineFumeeIbiza(c, tps, p, z){
+  var H = horlogeIbiza(tps);
+  var depuis = ageFumee(H);
+  if(depuis < 0) return;
   var LX = IBI_DEMI * RX, LY = IBI_DEMI * RY;
   var mes = mesureIbiza(tps), b, k;
   /* LES TROIS DU FOND D'ABORD, DÉCOUPÉES ; LES TROIS DE DEVANT
@@ -2407,24 +2490,57 @@ function anneauFrappe(rayon, H, largeur){
   return Math.exp(-e * e);
 }
 
-function gainDalle(rayon, damier, H, f, u, reg){
+/* ────────────────────────────────────────────────────────────────
+   L'AMBIANCE VIENT DU MOUVEMENT, PAS DE LA LUMIÈRE
+
+   « Il faut que l'étoile mette de l'ambiance aussi. Elle pourrait
+   tourner dans le sens horaire ou antihoraire avec les carreaux qui
+   suivent, ou alors ça pourrait partir du centre et faire comme des
+   gouttes d'eau. »
+
+   Ces deux gestes ne coûtent pas un niveau de luminosité — ils
+   coûtent du DÉPLACEMENT. C'est ce qui règle la contradiction :
+   l'étoile doit se faire remarquer sans écraser les allées, donc elle
+   bouge au lieu de briller.
+
+   LA ROTATION SUIT CELLE DES ALLÉES, ELLE NE LUI FAIT PAS CONCURRENCE.
+   C'était le piège. Une piste qui tourne d'un côté pendant que la
+   crête des douze couloirs tourne de l'autre donne deux mouvements
+   qui se mangent, et l'on ne lit plus ni l'un ni l'autre. Chaque
+   dalle prend donc le retard de SON allée — la même fonction, le même
+   `phaseTourIbiza`, la même accélération — si bien que le quartier de
+   piste s'allume avec le couloir qui le prolonge. L'île entière tourne
+   d'un seul bloc, et l'accélération de la montée se lit sur toute sa
+   largeur au lieu de douze bandes.
+
+   LES GOUTTES D'EAU, ce sont les anneaux de frappe : à chaque temps
+   une couronne part du podium et file vers les pointes. Ils étaient
+   déjà là, discrets ; ils portent maintenant les régimes calmes, où il
+   n'y a rien d'autre à regarder.
+   ──────────────────────────────────────────────────────────────── */
+function gainDalle(rayon, damier, allee, H, f, u, reg){
   if(reg === "repos")
-    return IBI_BRAISE + 0.05 * Math.sin(H.t * 0.5 - rayon * 5.0);
+    return IBI_BRAISE + 0.06 * Math.sin(H.t * 0.5 - rayon * 5.0)
+         + anneauFrappe(rayon, H, 7.0) * 0.10;
 
   if(reg === "alt"){
     /* le damier bascule à chaque mesure : c'est le geste d'une piste
-       de danse à dalles, et il ne ressemble à rien d'autre sur l'île */
+       de danse à dalles, et il ne ressemble à rien d'autre sur l'île.
+       La goutte le traverse, sinon deux états qui alternent n'ont
+       aucun mouvement entre eux. */
     var demi = Math.floor(H.t / 4) & 1;
-    return (damier === demi) ? (0.42 + f * 0.34) : IBI_BRAISE;
+    return ((damier === demi) ? (0.42 + f * 0.34) : IBI_BRAISE)
+         + anneauFrappe(rayon, H, 5.0) * 0.26;
   }
 
   if(reg === "tour"){
-    /* la crête part de la scène et file vers les pointes, et l'anneau
-       de la frappe court par-dessus */
-    var d = phaseTourIbiza(H, u) - rayon;
+    /* LA MÊME CRÊTE QUE LES ALLÉES, sur le quartier de piste qui
+       prolonge chacune. Un léger retard radial garde le sens de
+       lecture — du podium vers la pointe — sans casser l'accord. */
+    var d = retardAllee(allee, phaseTourIbiza(H, u)) + rayon * 0.06;
     d -= Math.floor(d);
     return IBI_BRAISE + Math.exp(-d * (4 + u * 6)) * (0.62 + f * 0.26)
-         + anneauFrappe(rayon, H, 5.5) * 0.30;
+         + anneauFrappe(rayon, H, 5.5) * 0.24;
   }
 
   if(reg === "boum"){
@@ -2434,9 +2550,11 @@ function gainDalle(rayon, damier, H, f, u, reg){
     return (0.20 + f * 0.62) + anneauFrappe(rayon, H, 4.0) * 0.46;
   }
 
-  /* vague : une houle longue qui roule vers le large */
+  /* vague : une houle longue qui roule vers le large, et les gouttes
+     par-dessus — c'est le régime où il ne se passe rien d'autre */
   var v = 0.5 + 0.5 * Math.cos((H.t / 8 - rayon) * 6.2832);
-  return IBI_BRAISE + v * v * (0.44 + f * 0.24);
+  return IBI_BRAISE + v * v * (0.44 + f * 0.24)
+       + anneauFrappe(rayon, H, 4.5) * 0.30;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -2473,9 +2591,18 @@ function gainDalle(rayon, damier, H, f, u, reg){
    sourdine ne dit pas la même chose sur un build à 1,0 et sur une
    descente à 0,62. L'une dit qui mène, l'autre dit à quel volume.
    ──────────────────────────────────────────────────────────────── */
+/* LE MINIMUM ÉTAIT UN PEU TROP BAS. « Quand tu as réduit l'intensité
+   au minimum, que le carré bouge un petit peu, c'est un petit peu trop
+   faible. Un tout petit peu plus, pas énormément. » Les trois régimes
+   sourds remontent d'un cran ; le drop, lui, ne bouge pas — il n'a
+   jamais manqué de puissance. */
 var IBI_SOL_MENE = {
-  repos:0.34, alt:0.60, tour:0.30, boum:1.00, vague:0.46
+  repos:0.40, alt:0.62, tour:0.38, boum:1.00, vague:0.52
 };
+/* CE QUE LE PLANCHER CÈDE À LA FUMÉE. Voir `partFumee` : au moment où
+   les six canons tirent, le sol se creuse pour que le blanc se
+   détache. C'est le creux qui fait le geste. */
+var IBI_SOL_CREUX = 0.62;
 /* Le plafond du plancher. Il est bas, et c'est voulu : ce qui est
    posé dessus — cinq cents danseurs, et les troupes qui traversent —
    doit rester lisible. Une piste plus brillante que ce qu'elle
@@ -2497,6 +2624,8 @@ function dessinePisteIbiza(c, tps){
   if(!reg) reg = ["alt", "tour", "vague", "boum"][Math.floor(H.t / 32) & 3];
   var mene = IBI_SOL_MENE[reg];
   if(mene === undefined) mene = 0.60;
+  /* et il s'efface pendant que la fumée sort */
+  mene *= 1 - IBI_SOL_CREUX * partFumee(H);
   var nT = IBI_LASER_T.length, i, k;
   if(!IBI_SEAUX){
     IBI_SEAUX = [];
@@ -2505,7 +2634,7 @@ function dessinePisteIbiza(c, tps){
   for(i = 0; i < IBI_SEAUX.length; i++) IBI_SEAUX[i].length = 0;
 
   for(i = 0; i < D.n; i++){
-    var g = gainDalle(D.rayon[i], D.damier[i], H, f, u, reg)
+    var g = gainDalle(D.rayon[i], D.damier[i], D.allee[i], H, f, u, reg)
           * F * mene * D.bouge[i] * D.sourd[i];
     if(g < 0.04) continue;                   // rien à peindre, rien à payer
     var pal = Math.min(IBI_PALIERS - 1, (g * IBI_PALIERS) | 0);

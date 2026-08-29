@@ -9534,10 +9534,25 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("le plancher lit la table de régimes des allées",
      /function dessinePisteIbiza\(c, tps\)\{[\s\S]{0,900}reg = IBI_REGIME\[H\.section\];/
        .test(html));
-  ok("… et la même phase de rotation, accélération comprise",
-     /function gainDalle\([\s\S]{0,1400}phaseTourIbiza\(H, u\) - rayon/.test(html));
-  ok("… la crête part donc de la scène et va vers les pointes",
-     /var d = phaseTourIbiza\(H, u\) - rayon;\s*d -= Math\.floor\(d\);/.test(html));
+  /* CETTE PROMESSE A CHANGÉ DE SENS, ET C'EST UN GAIN.
+     Elle disait « la crête du plancher part de la scène et va vers les
+     pointes » — un mouvement RADIAL, pendant que celle des douze
+     allées tourne en AZIMUT. Deux mouvements perpendiculaires qui se
+     mangent : « quand l'étoile est très lumineuse, on ne voit plus la
+     rotation ». Chaque dalle prend maintenant le retard de SON allée,
+     par la fonction même des allées, si bien que l'île entière tourne
+     d'un seul bloc et que l'accélération se lit sur toute sa largeur.
+     Le radial ne disparaît pas : il reste en léger décalage, pour
+     garder le sens de lecture du podium vers la pointe. */
+  ok("… et le plancher tourne AVEC les allées, par leur propre fonction",
+     /var d = retardAllee\(allee, phaseTourIbiza\(H, u\)\) \+ rayon \* 0\.06;/.test(html));
+  ok("… la dalle sait donc de quelle allée elle relève",
+     /function gainDalle\(rayon, damier, allee, H, f, u, reg\)\{/.test(html));
+  /* LES GOUTTES D'EAU — « ça pourrait partir du centre et faire comme
+     des gouttes d'eau ». L'anneau de frappe existait ; il porte
+     maintenant les régimes calmes, où il n'y a rien d'autre à voir. */
+  ok("… et une goutte part du centre à chaque frappe, dans tous les régimes",
+     (html.match(/anneauFrappe\(rayon, H, [0-9.]+\)/g) || []).length >= 5);
   /* et la couleur d'une dalle est celle du couloir qui la prolonge */
   ok("une dalle prend la teinte de son couloir",
      /var k = Math\.round\(a \/ 6\.2832 \* FAISC_N\);/.test(html) &&
@@ -9596,6 +9611,43 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… et le pied de la scène est évidé d'un arc à la cote du podium",
      /c\.ellipse\(qc\.x, qc\.y, IBI_DEMI \* RX, IBI_DEMI \* RY, 0, 0, 6\.2832\);\s*c\.clip\("evenodd"\);/
        .test(html));
+
+  /* ---- 5 quinquies. LE PLANCHER S'EFFACE POUR LA FUMÉE ----
+     « On ne voit pas très bien les six jets, l'étoile est fort colorée
+     à ce moment-là. Le moment où elle sortait était parfait. »
+     Les deux se disputaient le même instant : la fumée ne part que sur
+     les drops, et c'est là que le plancher est à pleine puissance. */
+  ok("la fenêtre de la fumée est définie une seule fois",
+     /function ageFumee\(H\)\{/.test(html) && /function partFumee\(H\)\{/.test(html));
+  ok("… et la fumée elle-même la lit, au lieu de la recalculer",
+     /var depuis = ageFumee\(H\);\s*if\(depuis < 0\) return;/.test(html));
+  ok("… le plancher se creuse pendant qu'elle sort",
+     /mene \*= 1 - IBI_SOL_CREUX \* partFumee\(H\);/.test(html) &&
+     /var IBI_SOL_CREUX = 0\.62;/.test(html));
+
+  /* ---- 5 sexies. LES FAISCEAUX ONT MONTÉ, ET L'ORDRE TIENT ----
+     « Un peu plus d'intensité sur les lasers de la scène ; ceux des
+     douze tours, deux fois plus haut avec trente pour cent en plus. »
+     Un décor plus lumineux au sol relève le fond sur lequel un trait
+     additif se détache : il fallait suivre. */
+  {
+    var vif = (html.match(/var IBI_LASER_VIF = ([0-9.]+);/) || [])[1];
+    var cel = (html.match(/var IBI_CELL_VIF  = ([0-9.]+);/) || [])[1];
+    var cie = (html.match(/var IBI_CIEL_VIF  = ([0-9.]+);/) || [])[1];
+    var hh  = (html.match(/var IBI_CELL_H    = ([0-9.]+);/) || [])[1];
+    ok("une hausse commune porte la scène, le portique et le ciel",
+       parseFloat(vif) > 1, "×" + vif);
+    ok("… les douze cellules en ont trente pour cent de plus",
+       Math.abs(parseFloat(cel) - 1.30) < 1e-9, "×" + cel);
+    ok("… et elles montent deux fois plus haut", parseInt(hh, 10) === 1800, hh);
+    /* L'ORDRE QUE LE JOUEUR AVAIT FIXÉ : les douze restent SOUS les
+       deux gros projecteurs de ciel, dont l'effet tient à la rareté.
+       On le recalcule ici plutôt que de le croire. */
+    var douze = (0.13 + 0.165) * parseFloat(vif) * parseFloat(cel);
+    var gros  = (0.19 + 0.18)  * parseFloat(vif) * parseFloat(cie);
+    ok("… et elles restent malgré tout sous les deux gros du ciel",
+       douze < gros, douze.toFixed(3) + " contre " + gros.toFixed(3));
+  }
 
   /* ---- 6. et la piste ne redevient jamais noire ---- */
   ok("les dalles gardent une braise, quoi qu'il arrive",
