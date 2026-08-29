@@ -7086,15 +7086,33 @@ G("8. Cohérence des règles de jeu");
        mille » — ce que la demande interdit. */
     ok("la hausse totale de vie se calcule en un seul chiffre",
        /function hausseTotalePv/.test(html));
+    /* LE TEST COMPTE LES PASTILLES, PAS LES CHAÎNES.
+       Il cherchait `class="dz pv"` écrit à la main dans la vignette.
+       Depuis que les deux pastilles sortent de `dzPv` et `dzDg` — un
+       seul endroit qui décide de leur forme, pour que la carte
+       spéciale et l'île de campagne ne puissent pas diverger — cette
+       chaîne n'est plus dans la vignette, et le test tombait en
+       annonçant zéro pastille sur une vignette qui en porte bien une.
+       Le fait gardé n'a pas changé d'un mot : UNE seule pastille de
+       vie, et c'est le total. On compte donc l'appel. */
     var vig = html.match(/function vignetteEvenement[\s\S]*?\n\}/);
     if(vig){
-      var pastilles = (vig[0].match(/class="dz pv"/g) || []).length;
+      var pastilles = (vig[0].match(/dzPv\(/g) || []).length;
       ok("… et la vignette d'une carte spéciale n'en montre qu'une",
          pastilles === 1, pastilles + " pastille(s) de vie");
       ok("… celle du total, pas celle du bonus seul",
-         vig[0].indexOf("hausseTotalePv(i)") > 0 &&
-         vig[0].indexOf("bonusPvDeCarte(i) + '% PV") < 0);
+         vig[0].indexOf("dzPv(hausseTotalePv(i))") > 0 &&
+         vig[0].indexOf("bonusPvDeCarte(i)") < 0);
     }
+    /* ET LES DEUX SORTES DE VIGNETTE PASSENT PAR LE MÊME MOULE.
+       C'est ce qui rendait le test précédent fragile qui le rend
+       maintenant solide : tant qu'il n'y a qu'un `dzPv`, une carte
+       spéciale et une île de campagne ne peuvent pas afficher deux
+       formes différentes du même chiffre. */
+    ok("la pastille de vie n'est écrite qu'à un seul endroit",
+       /function dzPv\(b\)\{ return '<span class="dz pv">/.test(html));
+    ok("… et celle des dégâts aussi",
+       /function dzDg\(d\)\{ return '<span class="dz dg">/.test(html));
 
     /* (e) LA VIE TOTALE EST DITE QUELQUE PART. pvDefensesCarte ne doit
        pas être du code mort : c'est le chiffre que la demande réclame. */
@@ -7184,11 +7202,24 @@ G("8. Cohérence des règles de jeu");
     var vg = html.match(/function vignetteEvenement[\s\S]*?\n\}/);
     if(vg)
       ok("… et la vignette d'une carte spéciale montre le total, pas le bonus seul",
-         vg[0].indexOf("hausseTotaleDegats(i)") > 0 &&
-         vg[0].indexOf("R.degBonus + '% dégâts") < 0);
-    ok("une île de campagne réglée en dégâts porte sa pastille",
-       /Défenses \+' \+ d\n?\s*\+ '% dégâts/.test(html) ||
-       /'% dégâts<\/span><\/div>'/.test(html));
+         vg[0].indexOf("dzDg(hausseTotaleDegats(i))") > 0 &&
+         vg[0].indexOf("R.degBonus") < 0);
+    /* LA PASTILLE DE DÉGÂTS D'UNE ÎLE DE CAMPAGNE, gardée par ce
+       qu'elle FAIT et non par ce qu'elle écrit. Le test cherchait le
+       texte « Défenses + … % dégâts » ; ce libellé a été raccourci en
+       « DEG +50% » pour tenir dans le coin de l'image, et le test
+       tombait alors que la pastille était toujours là. On garde donc
+       la règle elle-même : pastilleBlindage émet la pastille de dégâts
+       si, et seulement si, la hausse est positive. */
+    var pb = html.match(/function pastilleBlindage[\s\S]*?\n\}/);
+    if(pb){
+      ok("une île de campagne réglée en dégâts porte sa pastille",
+         /if\(d > 0\) h \+= dzDg\(d\);/.test(pb[0]));
+      ok("… et une île sans réglage n'en porte aucune",
+         /return h \? '<div class="durci">' \+ h \+ '<\/div>' : "";/.test(pb[0]));
+      ok("… le chiffre affiché étant le TOTAL des deux facteurs",
+         /var b = hausseTotalePv\(i\), d = hausseTotaleDegats\(i\)/.test(pb[0]));
+    }
 
     /* LE PANNEAU POSE LES DEUX QUESTIONS, dans cet ordre */
     var adm = html.match(/function regleBlindageAdmin[\s\S]*?\n\}\n/);
@@ -8110,6 +8141,47 @@ G("31. Les messages épinglés du salon");
   ok("une épingle illisible est jetée, pas propagée",
      D("nawak|3~ok~vrai|~~").length === 1 && D("nawak|3~ok~vrai|~~")[0].txt === "vrai");
   ok("une chaîne vide rend une liste vide", D("").length === 0 && D(null).length === 0);
+})();
+
+/* ================================================================ */
+G("32. La voix du discours, et la case qui a changé de sens");
+(function(){
+  /* LE DÉFAUT EST CELUI DU MOTEUR, POUR TOUT LE MONDE.
+     Un joueur qui n'a rien réglé doit entendre ce que les autres
+     entendent. C'était le cas sur un appareil neuf et ça ne l'était
+     pas sur un appareil qui avait ouvert Ibiza sous la v0.94 : la
+     case `voix` du stockage gardait alors un NOM DE VOIX brut, et
+     depuis la v0.95 elle garde un CHOIX. Relu tel quel, le vieux nom
+     n'était ni « moteur » ni « v:… », donc `pose` en concluait
+     « system » et rendait la main au moteur vocal de l'appareil.
+     Deux appareils, deux voix, sans que personne n'ait rien réglé. */
+  ok("le défaut du sélecteur est la voix du moteur",
+     /choix:"moteur",/.test(html));
+  ok("le choix relu passe par un filtre de validité",
+     /voixDiscours\.choix = voixDiscours\.valide\(sauv\.voix\)/.test(html));
+  var vd = html.match(/valide:function\(v\)\{[\s\S]*?\n  \},/);
+  ok("le filtre existe et se relit", !!vd);
+  if(vd){
+    /* On le rejoue tel quel : c'est une fonction pure, elle se teste
+       pour de vrai plutôt qu'à l'expression régulière. */
+    var valide = eval("(function(v){" + vd[0].replace(/^valide:function\(v\)\{/, "").replace(/\n  \},$/, "") + "})");
+    ok("« moteur » traverse intact", valide("moteur") === "moteur");
+    ok("« auto » traverse intact", valide("auto") === "auto");
+    ok("une voix nommée traverse intacte",
+       valide("v:Google UK English Female") === "v:Google UK English Female");
+    ok("un NOM DE VOIX de la v0.94 retombe sur le moteur",
+       valide("Google UK English Female") === "moteur");
+    ok("… tout comme une valeur vide, absente ou aberrante",
+       valide("") === "moteur" && valide(null) === "moteur" &&
+       valide(undefined) === "moteur" && valide(42) === "moteur" &&
+       valide("v:") === "moteur");
+  }
+  /* Et le mode entre bien dans le moteur : « moteur » vaut la
+     synthèse, tout le reste vaut les voix de l'appareil. */
+  ok("le mode posé dans le moteur suit le choix",
+     /setVoiceMode\(this\.choix === "moteur" \? "synth" : "system"\)/.test(html));
+  ok("… et il est posé au démarrage, même sans choix retenu",
+     /voixDiscours\.pose\(voixDiscours\.choix\);/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

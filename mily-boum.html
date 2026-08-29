@@ -93,13 +93,45 @@ canvas{display:block}
 /* ============================================================
    ÉCRAN DE BRIEFING
    ============================================================ */
+/* LE FOND N'EST PLUS UN DÉGRADÉ, C'EST UN DÉCOR.
+
+   Trois radiales sur un dégradé vertical : c'était propre, et c'était
+   plat. Rien n'y accrochait la lumière, donc rien ne donnait d'échelle
+   à la page — les blocs flottaient sur une teinte, et une teinte n'a
+   pas de matière.
+
+   Ce qui suit en a une, et sans un octet d'image. Six couches, de la
+   plus proche à la plus lointaine :
+
+     1. LA BRAISE HAUTE. Le foyer orange derrière le titre. Il monte
+        hors du cadre : une source qu'on ne voit pas éclaire mieux
+        qu'un rond posé au milieu.
+     2-3. DEUX FOYERS MAUVES en diagonale, l'un en bas à gauche, l'autre
+        en haut à droite. Deux, et décalés : un seul aurait recentré la
+        page et rendu le fond symétrique, donc mort.
+     4. LA TRAME FINE, deux hachures croisées à 0,02 d'alpha. C'est
+        elle, et elle seule, qui fait la MATIÈRE : invisible si on la
+        cherche, mais l'écran cesse d'être un aplat. La retirer se voit
+        immédiatement, la décrire ne se voit pas.
+     5. LE GRAIN DE BRAISE, une trame de points très espacée et
+        chaude, qui ne prend que le haut de la page.
+     6. LE FOND, un dégradé à trois arrêts et non deux : le creux du
+        milieu est ce qui empêche la page de se lire comme une seule
+        chute du clair au sombre.
+
+   Tout cela est peint par le compositeur du navigateur, sur une seule
+   couche, sans un seul nœud de plus dans le document. */
 #brief{
   position:fixed;inset:0;z-index:30;overflow-y:auto;overscroll-behavior:contain;
   padding:calc(14px + var(--sat)) calc(14px + var(--sar)) calc(20px + var(--sab)) calc(14px + var(--sal));
   background:
-    radial-gradient(90% 60% at 50% -10%,rgba(255,120,30,.20),transparent 60%),
-    radial-gradient(70% 50% at 12% 100%,rgba(120,60,220,.18),transparent 60%),
-    linear-gradient(180deg,#1a0f24 0%,#0d0714 100%);
+    radial-gradient(120% 62% at 50% -16%,rgba(255,132,40,.24),transparent 62%),
+    radial-gradient(78% 52% at 6% 96%,rgba(126,58,216,.24),transparent 64%),
+    radial-gradient(64% 46% at 98% 14%,rgba(88,42,178,.20),transparent 62%),
+    repeating-linear-gradient(114deg,rgba(255,255,255,.021) 0 1px,transparent 1px 5px),
+    repeating-linear-gradient(-114deg,rgba(255,255,255,.013) 0 1px,transparent 1px 8px),
+    radial-gradient(1.1px 1.1px at 22% 12%,rgba(255,170,90,.20),transparent 100%),
+    linear-gradient(178deg,#1e1229 0%,#150c1f 44%,#0a0511 100%);
   touch-action:pan-y;
 }
 /* L'ENVELOPPE S'ÉLARGIT, MAIS PAS LA LECTURE.
@@ -148,22 +180,75 @@ canvas{display:block}
   .colCote{position:static;order:2}
   .carriereP{margin-top:12px}
 }
-#titre{text-align:center;margin:6px 0 2px;position:relative}
-#logoCv{width:min(420px,88vw);height:auto;display:block;margin:0 auto;filter:drop-shadow(0 8px 22px rgba(255,110,20,.45))}
-/* Le slogan « forteresse de braise » a été retiré à la demande du
-   joueur ; sa marge basse, elle, servait à décoller le logo de la
-   première carte, et on la reporte sur le titre. */
-#titre{margin-bottom:14px}
+/* ============================================================
+   LE TITRE, ET SON SOCLE
+
+   Le mot posé seul sur le fond n'appartenait à rien : il flottait au
+   haut de la page comme un autocollant. Il a maintenant un SOCLE — une
+   arche large, très basse en opacité, qui descend derrière lui et se
+   perd. Ce n'est pas un cadre : un cadre aurait enfermé le titre, et
+   c'est le contraire qu'on veut. C'est une lueur qui LUI donne son
+   assise, et qui relie le logo au fond au lieu de l'en détacher.
+
+   Deux filets d'or de part et d'autre, taillés en biseau par le
+   dégradé : ils tiennent la ligne du regard sans faire de trait.
+   ============================================================ */
+#titre{
+  text-align:center;margin:2px 0 18px;position:relative;
+  padding:10px 0 14px;
+}
+#titre::before{
+  content:"";position:absolute;left:50%;top:-30%;transform:translateX(-50%);
+  width:min(760px,104vw);height:190%;pointer-events:none;
+  background:
+    radial-gradient(52% 46% at 50% 52%,rgba(255,146,52,.16),transparent 70%),
+    radial-gradient(30% 60% at 50% 96%,rgba(160,80,240,.13),transparent 72%);
+}
+/* les deux filets, qui naissent et meurent dans le vide */
+#titre::after{
+  content:"";position:absolute;left:50%;bottom:2px;transform:translateX(-50%);
+  width:min(520px,86vw);height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,178,86,.42) 22%,rgba(255,214,140,.62) 50%,rgba(255,178,86,.42) 78%,transparent);
+}
+#logoCv{
+  width:min(430px,89vw);height:auto;display:block;margin:0 auto;position:relative;
+  filter:drop-shadow(0 10px 26px rgba(255,104,18,.34)) drop-shadow(0 2px 4px rgba(0,0,0,.5));
+}
 
 .carteP{
   background:var(--verre);border:var(--bord);border-radius:16px;box-shadow:var(--ombre);
-  padding:14px;margin:0 0 12px;
+  padding:14px 15px 15px;margin:0 0 12px;
 }
 .carteP h2{
-  margin:0 0 10px;font-size:14px;letter-spacing:2px;text-transform:uppercase;
-  color:var(--braise);display:flex;align-items:center;gap:8px;
+  margin:0 0 11px;font-size:13px;letter-spacing:2.2px;text-transform:uppercase;
+  color:var(--braise);display:flex;align-items:center;gap:10px;
+  font-weight:800;
 }
-.carteP h2::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.5),transparent)}
+/* LE FILET EST AU MILIEU, ET L'INFORMATION À DROITE.
+   Il fallait un ordre — titre, filet, information — sans envelopper le
+   texte des h2 dans une balise de plus. Le texte nu d'un conteneur
+   flex est un élément ANONYME, et un élément anonyme porte order:0 :
+   il passe donc toujours devant un ::after à 2 et une info à 3, quel
+   que soit le titre et sans qu'aucun d'eux ait à être touché. */
+.carteP h2::after{content:"";order:2;flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.5),transparent)}
+/* L'INFORMATION DU TITRE — état du salon, résumé de flotte.
+   Elle est dans le h2 mais elle n'en prend ni la casse, ni
+   l'espacement, ni la couleur : un titre crie, une donnée se lit. */
+.carteP h2 .h2info{
+  order:3;flex:0 1 auto;min-width:0;
+  display:flex;align-items:center;gap:7px;
+  text-transform:none;letter-spacing:.1px;font-size:12.5px;font-weight:600;
+  color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.carteP h2 .h2info b{color:var(--or);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+/* Sur un téléphone, l'information passe SOUS le titre plutôt que de
+   se faire couper : une flotte tronquée à « Flotte : 84 uni… » ne
+   vaut pas mieux qu'une flotte absente. */
+@media (max-width:620px){
+  .carteP h2{flex-wrap:wrap}
+  .carteP h2 .h2info{order:4;flex:1 0 100%;white-space:normal;padding-top:2px}
+  .carteP h2::after{order:2}
+}
 
 .ligne{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .champ{
@@ -428,22 +513,17 @@ select.champ{cursor:pointer}
   #chatBt{bottom:calc(8px + var(--sab));width:46px;height:34px;font-size:15px}
 }
 
-#etatRes{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris);margin-top:10px;flex-wrap:wrap}
+/* L'état du salon vit dans le titre du bloc depuis la v1.03 : il n'a
+   plus de marge à lui, c'est le h2 qui l'aligne. La pastille, elle,
+   n'a pas changé — c'est le même point de couleur, à la même taille. */
 .pastille{width:9px;height:9px;border-radius:50%;background:#7a6a86;box-shadow:0 0 8px currentColor;flex:none}
 .pastille.ok{background:var(--vert);color:var(--vert)}
 .pastille.att{background:var(--or);color:var(--or)}
 .pastille.ko{background:var(--rouge);color:var(--rouge)}
-
-/* L'objectif intermédiaire, annoncé AVANT le débarquement : sans ça, le
-   joueur tire une heure sur une forteresse qui ne bouge pas et croit à
-   un bug. */
-#objBouclier{
-  margin-top:11px;padding:9px 11px;border-radius:11px;font-size:13px;line-height:1.5;
-  color:var(--texte);background:linear-gradient(180deg,rgba(20,52,80,.75),rgba(12,28,46,.85));
-  border:1px solid rgba(150,225,255,.30);
-}
-#objBouclier b{color:#a9e8ff}
-#objBouclier i{color:var(--or);font-style:normal;font-weight:700}
+/* Connecté, le texte cesse d'être gris : c'est la seule ligne de la
+   page qui dise si l'on est relié aux autres. */
+#etatRes.ok #txRes{color:#b8e9c6}
+#etatRes.ko #txRes{color:#ffb3a8}
 
 /* Sur une vignette, le doigt sert à appuyer, pas à sélectionner du
    texte ni à ouvrir le menu contextuel du navigateur. */
@@ -529,7 +609,59 @@ select.champ{cursor:pointer}
 .monde canvas{width:100%;height:74px;display:block}
 .monde .nom{padding:8px 10px;font-weight:700;font-size:14px}
 .monde .etat{position:absolute;top:8px;right:8px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
-  padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.16)}
+  padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+
+/* ============================================================
+   CE QUI SE POSE SUR L'IMAGE : LES MODIFICATEURS ET LES DANGERS
+
+   Ils vivaient SOUS l'image, en pleine largeur, et ils poussaient tout
+   le reste de la vignette vers le bas — trois pastilles à rallonge
+   « Défenses +80 % PV », « +50 % dégâts », « ⛈ Orage & foudre » qui
+   prenaient deux lignes sur une carte spéciale et faisaient de la
+   vignette un formulaire. Ils sont maintenant DANS l'image, en bas :
+   les chiffres à droite, les dangers à gauche.
+
+   LA HAUTEUR EST CELLE DU CANEVAS, ET C'EST LE POINT DÉLICAT. Un
+   `bottom` n'aurait rien donné — le repère est la vignette entière,
+   pas l'image. On cale donc `top:0` et une HAUTEUR égale à celle du
+   canevas, puis `align-items:flex-end` pose le contenu sur son bord
+   inférieur. Une seule valeur à tenir en accord, la même que
+   `.monde canvas`, et les cartes spéciales n'ont qu'à la redéclarer.
+
+   `pointer-events:none` parce que toute la vignette est un bouton :
+   une pastille qui avale le doigt serait un trou dans la carte.
+   ============================================================ */
+.monde .surImage{
+  position:absolute;left:0;right:0;top:0;height:74px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:6px;
+  padding:0 7px 6px;pointer-events:none;
+}
+.monde .dangers,.monde .durci{display:flex;align-items:flex-end;gap:4px;min-width:0}
+/* Les chiffres cèdent avant les icônes : ils se replient sur deux
+   lignes plutôt que de pousser un danger hors du cadre. Un danger
+   qu'on ne voit pas est une information perdue ; un chiffre sur deux
+   lignes reste un chiffre. */
+.monde .durci{flex-wrap:wrap;justify-content:flex-end}
+.monde .dangers{flex:none}
+/* L'ICÔNE DE DANGER EST DESSINÉE, PAS ÉCRITE.
+   Ce fichier a déjà tranché la question ailleurs : « le bouclier ne
+   fait pas partie des polices de tous les appareils, et un carré vide
+   à la place ferait douter du chiffre qui suit ». Un émoji d'orage ne
+   s'en tire pas mieux — plat sur l'un, en couleurs sur l'autre, absent
+   sur le troisième. Ces trois-là sont donc des tracés SVG, à la même
+   échelle, de la même épaisseur, et de la couleur qu'on leur donne. */
+.monde .dg1{
+  width:25px;height:25px;flex:none;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(8,5,14,.66);border:1px solid rgba(255,255,255,.17);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  box-shadow:0 2px 7px rgba(0,0,0,.48);
+}
+.monde .dg1 svg{width:15px;height:15px;display:block}
+.monde .dg1.orage{color:#9fd0ff;border-color:rgba(150,205,255,.36)}
+.monde .dg1.tornade{color:#ffc48a;border-color:rgba(255,180,110,.36)}
+.monde .dg1.laser{color:#ff86c8;border-color:rgba(255,140,205,.38)}
 .monde.actif{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.35),0 6px 18px rgba(0,0,0,.5)}
 .monde.actif .etat{color:var(--braise);border-color:rgba(255,138,30,.6)}
 .monde.faite{opacity:.66}
@@ -592,14 +724,28 @@ select.champ{cursor:pointer}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;color:#0a2416;font-weight:700;
   background:linear-gradient(180deg,#8ff0b4,#39c47c)}
-/* Les pastilles de durcissement : ce qui rend cette carte plus dure
-   que les cinq autres, en trois chiffres qu'on lit d'un coup d'œil. */
-.monde.evt .durci{display:flex;gap:6px;padding:0 10px 8px;flex-wrap:wrap}
-.dz{font:800 10.5px/1 'Trebuchet MS','Segoe UI',sans-serif;letter-spacing:.3px;
-  padding:5px 8px;border-radius:7px;border:1px solid;white-space:nowrap}
-.dz.pv{color:#ffb4a2;background:rgba(80,20,14,.5);border-color:rgba(255,120,90,.4)}
-.dz.dg{color:#ffd08a;background:rgba(78,44,6,.5);border-color:rgba(255,170,60,.4)}
-.dz.or{color:#a8c8ff;background:rgba(18,32,68,.5);border-color:rgba(120,170,255,.38)}
+/* Sur une carte spéciale l'image est plus haute : les deux bandes
+   posées dessus suivent, et c'est la seule chose à redire. */
+.monde.evt .surImage{height:150px;padding:0 11px 9px}
+@media (min-width:1241px){
+  .monde.evt .surImage{height:132px}
+}
+/* LES PASTILLES SE LISENT EN UN COUP D'ŒIL, DONC ELLES SONT COURTES.
+   « Défenses +80 % PV » et « +50 % dégâts » étaient des phrases : on
+   les LISAIT. « DEF +80% PV » et « DEG +50% » se reconnaissent à la
+   forme, sans lecture — et deux d'entre elles tiennent maintenant dans
+   le coin d'une image au lieu d'une ligne entière sous elle.
+   Le préfixe reste, en petit et en gris : sans lui, « +80% PV » sur
+   une vignette laisserait croire à un bonus POUR le joueur. */
+.dz{font:800 10.5px/1 'Trebuchet MS','Segoe UI',sans-serif;letter-spacing:.2px;
+  padding:4px 7px;border-radius:7px;border:1px solid;white-space:nowrap;
+  background-color:rgba(8,5,14,.42);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  box-shadow:0 2px 6px rgba(0,0,0,.42)}
+.dz em{font-style:normal;font-weight:700;opacity:.62;letter-spacing:.6px;margin-right:2px}
+.dz.pv{color:#ffb4a2;background:rgba(74,18,13,.62);border-color:rgba(255,120,90,.42)}
+.dz.dg{color:#ffd08a;background:rgba(70,40,6,.62);border-color:rgba(255,170,60,.42)}
+.dz.or{color:#a8c8ff;background:rgba(16,28,62,.62);border-color:rgba(120,170,255,.40)}
 .monde.evt .jauge{display:flex;align-items:center;gap:10px;padding:0 10px 9px;flex-wrap:wrap}
 .monde.evt .cpt{font-size:22px;font-weight:900;color:#8ff0b4;font-variant-numeric:tabular-nums}
 .monde.evt .cpt small{font-size:13px;font-weight:700;color:#6d8f7c}
@@ -732,14 +878,23 @@ select.champ{cursor:pointer}
 #barges{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}
 @media (max-width:1000px){ #barges{grid-template-columns:repeat(4,1fr)} }
 @media (max-width:430px){ #barges{grid-template-columns:repeat(2,1fr)} }
+/* LES NAVETTES, PLUS SERRÉES ET MIEUX TENUES.
+   Elles étaient huit boîtes grises alignées ; ce sont maintenant huit
+   PIÈCES. Trois choses les changent : un fond qui a un haut et un bas
+   au lieu d'un aplat, un liseré clair sur l'arête supérieure — c'est
+   lui qui donne le relief, pas la bordure — et quatre pixels de moins
+   partout. Le bloc perd une bonne dizaine de pixels de hauteur sans
+   qu'aucune vignette ne rétrécisse. */
 .nv{
-  background:#170e21;border:1px solid rgba(255,255,255,.09);border-radius:12px;
-  padding:6px 4px 7px;display:flex;flex-direction:column;gap:5px;align-items:stretch;
+  background:linear-gradient(180deg,#1e132b,#150d1e);
+  border:1px solid rgba(255,255,255,.075);border-radius:11px;
+  padding:5px 4px 6px;display:flex;flex-direction:column;gap:4px;align-items:stretch;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
 }
-.nv .nvt{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--gris);
+.nv .nvt{font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:#8a7f96;
   display:flex;justify-content:space-between;align-items:baseline}
-.nv .nvt b{color:var(--or);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:0}
-.nv canvas{width:100%;height:52px;display:block;border-radius:8px;background:#241733}
+.nv .nvt b{color:var(--or);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:0;font-size:11px}
+.nv canvas{width:100%;height:50px;display:block;border-radius:8px;background:#241733}
 .nvs{
   width:100%;min-width:0;appearance:none;-webkit-appearance:none;
   background:#2a1a38 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6'><path d='M0 0h9L4.5 6z' fill='%23c8b8d8'/></svg>") no-repeat right 4px center;
@@ -751,15 +906,37 @@ select.champ{cursor:pointer}
   font-weight:700;font-size:11px;line-height:1;font-family:inherit;padding:7px 13px 7px 5px;cursor:pointer;
 }
 .nvs:focus{outline:none;border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.25)}
-#totalTroupes{text-align:center;margin-top:10px;font-size:13px;color:var(--gris)}
-#totalTroupes b{color:var(--or);font-size:16px}
+/* Le résumé de flotte est monté dans le titre du bloc : plus de marge
+   ni d'alignement propres, c'est `.h2info` qui le tient. */
 
+/* ============================================================
+   LA LIGNE DE DÉPART
 
-/* Le bouton vit maintenant DANS la carte des navettes : la marge du
-   haut le décolle du total de la flotte, pas du bord de l'écran. */
-#lancer{width:100%;font-size:19px;padding:16px;margin:12px 0 0;border-radius:16px;letter-spacing:1px}
-#btReprendre{width:100%;margin:12px 0 0}
-#btReprendre + #lancer{margin-top:8px}
+   Un seul bouton : il prend la ligne entière. Deux : la moitié
+   chacun. C'est `flex:1 1 0` qui le fait, et c'est tout — aucune règle
+   n'a à connaître le cas, aucune classe n'est ajoutée ni retirée par
+   le code quand REPRENDRE apparaît. La largeur de base est zéro
+   (`1 1 0` et non `1 1 auto`) pour que ce soit bien la MOITIÉ chacun
+   et non un partage au prorata des textes : « DÉBARQUER » est plus
+   court que « REPRENDRE SUR L'ÎLE » et aurait reçu moins de place que
+   lui, alors que c'est l'action ordinaire.
+   ============================================================ */
+.ligneDepart{display:flex;gap:9px;margin-top:12px}
+.ligneDepart .bt{
+  flex:1 1 0;min-width:0;
+  font-size:17px;padding:15px 10px;border-radius:15px;letter-spacing:.9px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* REPRENDRE est une action de RETOUR, pas de départ : il garde la
+   forme du bouton principal mais pas sa couleur pleine, sans quoi
+   deux barres orange côte à côte demanderaient de lire pour choisir. */
+#btReprendre{
+  background:linear-gradient(180deg,#3d2a1c,#251708);
+  border-color:rgba(255,190,120,.45);color:#ffcf95;text-shadow:none;
+}
+@media (max-width:430px){
+  .ligneDepart .bt{font-size:14.5px;padding:14px 6px;letter-spacing:.2px}
+}
 
 /* ---- LE PANNEAU D'ADMINISTRATION ---- */
 /* SOUS l'éditeur de maps (35), jamais au-dessus : « Administration des
@@ -901,12 +1078,44 @@ select.champ{cursor:pointer}
 }
 .admCorps h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,138,30,.45),transparent)}
 .admCorps h3:not(:first-child){margin-top:20px}
+/* La seule section qui engage TOUS les joueurs, et la seule qui soit
+   rouge : « Réinitialiser le salon » descend de l'accueil, où elle
+   voisinait avec le réglage du son. Elle est en dernier, ce qui est
+   aussi une façon de le dire. */
+.admCorps h3.admDanger{color:#ff9a88;margin-top:26px}
+.admCorps h3.admDanger::after{background:linear-gradient(90deg,rgba(230,80,60,.5),transparent)}
 .admNote{font-size:13px;color:var(--gris);line-height:1.5}
 #avertPseudo{display:none;margin-top:8px;text-align:center;font-size:13px;font-weight:700;color:#ffb45c}
 #avertPseudo.on{display:block}
 #pseudo.manque{border-color:#ff8a1e;box-shadow:0 0 0 2px rgba(255,138,30,.25)}
 .bt.pri:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.5)}
-#pied{text-align:center;color:#6b5c78;font-size:11px;padding:6px 0 2px}
+/* LA BARRE DU BAS. Trois commandes sur une ligne, centrées, séparées
+   par un filet vertical plutôt que par du vide : le filet dit qu'elles
+   forment un groupe, et le vide ne disait rien. Elles se replient
+   proprement sur un téléphone étroit — un bouton qui déborde du cadre
+   est pire qu'un bouton sur deux lignes. */
+.barreBas{
+  justify-content:center;gap:0;margin:2px 0 8px;
+  border-top:1px solid rgba(255,255,255,.055);padding-top:12px;
+}
+.barreBas .bt{
+  background:none;border:0;box-shadow:none;border-radius:9px;
+  color:#9c8fac;padding:6px 14px;font-size:12.5px;letter-spacing:.4px;
+}
+.barreBas .bt + .bt{box-shadow:inset 1px 0 0 rgba(255,255,255,.09)}
+.barreBas .bt:hover{color:var(--texte)}
+.barreBas .bt:active{transform:none;color:var(--braise)}
+/* LE BOUTON DU CHAT FLOTTE AU BAS DE LA FENÊTRE, PAS DE LA PAGE.
+   Il est en `position:fixed`, centré, à dix pixels du bord : arrivé en
+   bas du défilement, il se posait exactement sur « Son activé ». Ce
+   n'était pas visible tant que le bas comptait deux rangées de boutons
+   plus la ligne de version ; sur une seule rangée, il la traverse.
+   On réserve donc sa hauteur sous le pied de page. Une marge, et non
+   un déplacement du bouton : il est à sa place, c'est la page qui doit
+   lui laisser le passage. */
+#pied{text-align:center;color:#5d5069;font-size:10.5px;letter-spacing:.3px;
+  padding:2px 0 calc(56px + var(--sab))}
+#pied b{color:#8b7a99;font-weight:700}
 
 /* ============================================================
    INTERFACE DE JEU
@@ -1225,7 +1434,12 @@ select.champ{cursor:pointer}
     <main class="colPrincipale">
 
     <div class="carteP">
-      <h2>Salon</h2>
+      <!-- L'ÉTAT DE LA CONNEXION MONTE DANS LE TITRE. Il vivait sous le
+           champ de pseudo, à l'endroit où l'œil ne va qu'après avoir
+           tout lu ; or c'est la première chose qu'on veut savoir en
+           arrivant — suis-je branché, et avec qui. Un titre de bloc est
+           l'endroit d'un état : il est vu sans être cherché. -->
+      <h2>Salon<span class="h2info" id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></span></h2>
       <div class="ligne">
         <input id="pseudo" class="champ" maxlength="14" required
                placeholder="Indiquez votre pseudo" autocomplete="off"
@@ -1242,14 +1456,13 @@ select.champ{cursor:pointer}
            vivent ici désormais, à côté de l'état de la connexion — et
            en jeu, c'est le panneau du haut-gauche qui les porte. Un
            endroit par contexte, jamais deux. -->
-      <div id="etatRes"><span class="pastille" id="pRes"></span><span id="txRes">Connexion au salon MILY…</span></div>
       <div id="quiSalon"></div>
-      <!-- L'INTERRUPTEUR DU CHAT. Il ne coupe pas seulement l'affichage :
-           quand il est éteint, rien n'est ni envoyé ni retenu. C'est le
-           réglage de quelqu'un qui ne veut pas de chat, pas celui de
-           quelqu'un qui veut le replier. -->
-      <label id="optChat"><input type="checkbox" id="chatActif" checked>
-        Afficher le chat du salon</label>
+      <!-- PLUS D'INTERRUPTEUR DE CHAT ICI. Le chat a son bouton
+           flottant, qui l'ouvre et le ferme ; une case à cocher de plus
+           sur l'accueil ne réglait rien qu'on ne puisse régler d'un
+           doigt. Voir litReglageChat dans 86-chat.js : c'est là que le
+           « 0 » resté dans le stockage des anciens réglages est
+           désarmé, faute de quoi le bouton serait mort sans recours. -->
     </div>
 
     <!-- LA FLOTTE, ET LE DÉPART JUSTE EN DESSOUS. Elle est remontée
@@ -1258,32 +1471,48 @@ select.champ{cursor:pointer}
          bloc lui-même n'a pas changé d'un caractère — huit navettes,
          leur portrait, leur menu, le résumé de flotte et DÉBARQUER. -->
     <div class="carteP">
-      <h2>Composition des huit navettes</h2>
+      <!-- LE RÉSUMÉ DE FLOTTE MONTE DANS LE TITRE, pour la même raison
+           que l'état du salon : c'est le CHIFFRE de ce bloc, pas son
+           commentaire. En bas des huit navettes, il n'était lu qu'après
+           coup ; à côté du titre, il se lit avant de toucher quoi que
+           ce soit — et il change sous les yeux quand on règle un menu. -->
+      <h2>Composition des huit navettes<span class="h2info" id="totalTroupes"></span></h2>
       <div id="barges"></div>
-      <div id="totalTroupes"></div>
-      <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE LE COMBAT</button>
-      <button id="lancer" class="bt pri">DÉBARQUER</button>
+      <!-- LES DEUX DÉPARTS SUR UNE SEULE LIGNE, toujours. DÉBARQUER à
+           gauche, REPRENDRE SUR L'ÎLE à droite quand il existe. Ils
+           étaient empilés, ce qui poussait les îles d'une hauteur de
+           bouton et donnait deux barres orange l'une sur l'autre — deux
+           fois le même poids visuel pour deux actions dont une seule
+           est ordinaire. `flex:1` sur les deux fait le partage tout
+           seul : à un bouton la ligne entière, à deux la moitié
+           chacun, sans qu'aucune règle ait à connaître le cas. -->
+      <div class="ligneDepart">
+        <button id="lancer" class="bt pri">DÉBARQUER</button>
+        <button id="btReprendre" class="bt pri" style="display:none">↩ REPRENDRE SUR L'ÎLE</button>
+      </div>
       <div id="avertPseudo">Indiquez votre pseudo pour jouer.</div>
     </div>
 
     <div class="carteP">
       <h2>Les huit îles… et les deux cartes spéciales</h2>
       <div class="mondes" id="mondes"></div>
-      <div id="objBouclier">
-        <b>⚡ Le Brasier est sous bouclier.</b>
-        Cinq <i>cellules électriques</i> l'alimentent — quatre aux extrémités
-        de l'île, une au centre — reliées à lui par un câble au sol.
-        <b>200 000 PV chacune.</b> Tant qu'il en reste une debout,
-        le Brasier ne perd pas un seul point de vie.
-      </div>
+      <!-- L'ENCADRÉ DU BOUCLIER A DISPARU D'ICI. C'était une règle du
+           JEU affichée sur la page où l'on CHOISIT — on la lisait une
+           fois, puis on la sautait mille fois, et elle tenait la
+           largeur entière sous les vignettes. Le bouclier se raconte
+           tout seul en jeu : la jauge du Brasier passe au bleu et les
+           cinq cellules sont sur la carte, reliées par leur câble. -->
     </div>
 
-    <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
+    <!-- LES TROIS COMMANDES SUR UNE SEULE LIGNE. Elles étaient sur
+         deux, dont une entièrement occupée par « Réinitialiser le
+         salon » — un bouton qui efface la campagne de TOUT LE MONDE,
+         posé à côté du réglage du son. Il est passé derrière la porte
+         de l'Administration, avec le reste de ce qui engage les
+         autres. Ce qui reste ici ne concerne que cet appareil. -->
+    <div class="ligne barreBas">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
-    </div>
-    <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
-      <button id="btRaz" class="bt ptt" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
       <button id="btAdmin" class="bt ptt" title="Réglages réservés, protégés par mot de passe">⚙ Administration</button>
     </div>
     <div id="pied">Mily Boum <b id="versionBrief">v0.01</b> — un seul fichier, aucune dépendance. Salon <b>MILY</b>.</div>
@@ -1363,6 +1592,20 @@ select.champ{cursor:pointer}
         Aucune durée n'est mesurée.</div>
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminVus" class="bt">👣 Qui est venu</button>
+      </div>
+
+      <!-- REMISE À ZÉRO DU SALON — descendue de l'accueil, et mise en
+           DERNIER. Elle y voisinait avec le réglage du son, c'est-à-dire
+           qu'un geste qui efface la campagne de tous les joueurs avait
+           le même poids qu'un geste qui coupe le bruit. Elle est
+           maintenant derrière le mot de passe, en bas de la page des
+           réglages, et rouge : trois choses qui disent la même. -->
+      <h3 class="admDanger">Remise à zéro</h3>
+      <div class="admNote">Efface les destructions en cours et rend au
+        Brasier toute sa vie, <b>pour tout le salon</b>. Les scores, les
+        podiums et le Top carrière ne sont pas touchés.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btRaz" class="bt danger" title="Efface les destructions et rend au Brasier toute sa vie, pour tout le salon">↺ Réinitialiser le salon</button>
       </div>
     </div>
   </div>
@@ -1602,7 +1845,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.02";
+var VERSION = "v1.03";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -28861,10 +29104,22 @@ function vnConstruitFond(w, h){
   c.drawImage(vnFondCv, 0, 0);
   c.restore();
   c.globalAlpha = 1;
-  /* l'encre par-dessus, pour que le reflet reste un reflet */
+  /* L'ENCRE PAR-DESSUS, POUR QUE LE REFLET RESTE UN REFLET — mais
+     elle ne va plus jusqu'au noir.
+
+     À 0,86 d'encre sur le bord inférieur, l'eau finissait plus sombre
+     que le fond de la vignette elle-même. Résultat, vu à l'accueil :
+     une bande noire au bas de la carte, et l'image paraissait
+     s'arrêter à quatre-vingt-quatre pour cent de sa hauteur alors
+     qu'elle allait bien jusqu'en bas. À côté de la jungle, dont l'eau
+     reste claire, les deux cartes spéciales n'avaient plus le même
+     bord bas — c'est ce décalage qu'on voyait, pas la couleur.
+     0,62 garde l'eau lisible comme de l'eau et rend à la vignette son
+     bord inférieur. */
   var ge = c.createLinearGradient(0, eau, 0, h);
-  ge.addColorStop(0, "rgba(8,6,26,.30)");
-  ge.addColorStop(1, "rgba(4,3,16,.86)");
+  ge.addColorStop(0, "rgba(8,6,26,.26)");
+  ge.addColorStop(0.72, "rgba(6,4,20,.56)");
+  ge.addColorStop(1, "rgba(10,7,30,.62)");
   c.fillStyle = ge;
   c.fillRect(0, eau, w, h - eau);
   /* les rides : trois traits clairs qui cassent le reflet */
@@ -28878,8 +29133,22 @@ function vnConstruitFond(w, h){
     c.stroke();
   }
   c.restore();
-  /* la ligne de rivage */
-  c.fillStyle = "rgba(150,140,220,.22)";
+  /* LA LIGNE DE RIVAGE, ET ELLE NE TRAVERSE PLUS TOUT LE CADRE.
+     Un trait clair de bord à bord, à quatre-vingt-quatre pour cent de
+     la hauteur, se lit comme le BAS DE L'IMAGE et non comme une
+     berge : c'est la ligne que le joueur a montrée en disant que
+     l'image semblait s'arrêter plus haut que les autres. Un rivage
+     s'efface sur les côtés — il s'enfonce dans la brume aux deux
+     extrémités — donc on le fait mourir aux deux bords. Il tient
+     toujours son rôle au centre, là où il sépare la ville de son
+     reflet, et il ne coupe plus la vignette en deux. */
+  var gr = c.createLinearGradient(0, 0, w, 0);
+  gr.addColorStop(0.00, "rgba(150,140,220,0)");
+  gr.addColorStop(0.22, "rgba(150,140,220,.20)");
+  gr.addColorStop(0.50, "rgba(166,154,232,.26)");
+  gr.addColorStop(0.78, "rgba(150,140,220,.20)");
+  gr.addColorStop(1.00, "rgba(150,140,220,0)");
+  c.fillStyle = gr;
   c.fillRect(0, eau - 1.5, w, 2.5);
 
   vnFondCle = w + "x" + h;
@@ -48085,11 +48354,25 @@ var chatARedessiner = 0;     // une seule reconstruction par image, au plus
 /* ---------------------------------------------------------------
    Le réglage, retenu sur cet appareil
    --------------------------------------------------------------- */
+/* LE CHAT EST TOUJOURS LÀ, ET C'EST UN PIÈGE QU'ON DÉSAMORCE.
+
+   L'interrupteur « Afficher le chat du salon » a été retiré de
+   l'accueil : le chat a son bouton flottant, il s'ouvre et se ferme,
+   l'option ne servait qu'à faire une ligne de plus.
+
+   Mais elle laissait une trace dans le stockage. Un joueur qui l'avait
+   décochée gardait un « 0 » chez lui, et sans l'interrupteur pour le
+   remettre à « 1 » il se serait retrouvé avec un bouton de chat mort :
+   `ouvreChat` sort en tête sur ce drapeau, les messages reçus sont
+   jetés à l'arrivée, et RIEN dans l'interface n'aurait pu le rallumer.
+   Retirer une case à cocher, ce n'est pas seulement retirer une case —
+   c'est retirer le seul moyen d'annuler ce qu'elle a fait.
+
+   On ignore donc ce qui est rangé. La fonction reste, parce que
+   `regleChat` écrit toujours et qu'un réglage qu'on n'écrit plus mais
+   qu'on relit encore serait pire que les deux. */
 function litReglageChat(){
-  try{
-    var v = localStorage.getItem(CLE_CHAT);
-    return v === null ? true : v === "1";
-  }catch(e){ return true; }
+  return true;
 }
 function gardeReglageChat(on){
   try{ localStorage.setItem(CLE_CHAT, on ? "1" : "0"); }catch(e){}
@@ -55713,41 +55996,173 @@ function majBilan(dt){
 /* ---------------------------------------------------------------
    BRIEFING
    --------------------------------------------------------------- */
+/* ================================================================
+   LE TITRE — CE QUI LE RENDAIT ENFANTIN, ET CE QUI LE CORRIGE
+
+   L'ancien avait un contour noir de vingt-six pixels autour d'un
+   dégradé orange, avec un reflet blanc sur la moitié haute et
+   vingt-six étincelles jetées au hasard. C'est le vocabulaire exact du
+   logo de jeu pour enfants, et il tenait à quatre choses précises :
+
+     1. LE CONTOUR ÉPAIS. Un cerne aussi large que le fût des lettres
+        les transforme en autocollant. Il tombe à quatre pixels, en
+        deux passes — une sombre large, une chaude serrée — ce qui
+        donne un BORD, pas un cerne.
+     2. LE REFLET COUPÉ NET au milieu de la hauteur. Cette barre
+        horizontale est la signature du plastique brillant. Elle est
+        remplacée par un biseau : une seule ligne claire posée sur
+        l'arête supérieure des lettres, décalée d'un pixel et demi.
+        C'est ainsi que la lumière tombe sur du métal.
+     3. LES ÉTINCELLES AU HASARD PARTOUT. Elles disaient « magie ».
+        Ce qui reste est une CENDRE, rare, confinée à la bande basse,
+        décroissante — la retombée d'une explosion, pas des paillettes.
+     4. LE MOT TASSÉ. Un espacement légèrement négatif et un « Boum »
+        plus lourd que « Mily » donnent une marque plutôt qu'un mot :
+        c'est le seul endroit où l'on peut dire quelque chose du jeu
+        avec la seule forme des lettres.
+
+   On garde exactement ce qui faisait sa force : la braise, l'or, la
+   chaleur. C'est le TRAITEMENT qui change, pas la palette.
+   ================================================================ */
 function dessineLogo(){
-  var c = $("logoCv").getContext("2d");
-  var w = 840, h = 230;
+  var cv = $("logoCv");
+  var c = cv.getContext("2d");
+  var w = cv.width, h = cv.height;
+  var cx = w / 2, cy = h * 0.54;
+  var i;
   c.clearRect(0, 0, w, h);
-  /* halo */
-  var g = c.createRadialGradient(w / 2, h * 0.55, 20, w / 2, h * 0.55, 380);
-  g.addColorStop(0, "rgba(255,140,40,.35)");
-  g.addColorStop(1, "rgba(255,80,20,0)");
-  c.fillStyle = g; c.fillRect(0, 0, w, h);
-  /* texte */
-  c.textAlign = "center"; c.textBaseline = "middle";
-  c.font = "900 118px 'Trebuchet MS', 'Segoe UI', sans-serif";
-  c.lineJoin = "round";
-  c.lineWidth = 26; c.strokeStyle = "#180a04";
-  c.strokeText("Mily Boum", w / 2, h * 0.52);
-  c.lineWidth = 12; c.strokeStyle = "#3a1408";
-  c.strokeText("Mily Boum", w / 2, h * 0.52);
-  var gt = c.createLinearGradient(0, h * 0.2, 0, h * 0.85);
-  gt.addColorStop(0, "#ffeec0"); gt.addColorStop(0.45, "#ffb03a");
-  gt.addColorStop(0.75, "#f0621c"); gt.addColorStop(1, "#c8300e");
-  c.fillStyle = gt;
-  c.fillText("Mily Boum", w / 2, h * 0.52);
-  /* reflet */
+
+  /* ---- LE FOYER. Deux halos et non un : l'orange serré fait la
+     source, le mauve large la rattache à la page. Un seul halo orange
+     posait le mot sur une tache ronde. ---- */
+  var g1 = c.createRadialGradient(cx, cy, 10, cx, cy, w * 0.42);
+  g1.addColorStop(0, "rgba(255,150,52,.34)");
+  g1.addColorStop(0.45, "rgba(226,96,26,.14)");
+  g1.addColorStop(1, "rgba(255,80,20,0)");
+  c.fillStyle = g1; c.fillRect(0, 0, w, h);
+  var g2 = c.createRadialGradient(cx, cy * 1.18, 20, cx, cy * 1.18, w * 0.5);
+  g2.addColorStop(0, "rgba(150,74,232,.16)");
+  g2.addColorStop(1, "rgba(120,50,210,0)");
+  c.fillStyle = g2; c.fillRect(0, 0, w, h);
+
+  /* ---- LE MOT. « Mily » et « Boum » sont posés séparément : ils
+     n'ont ni la même graisse ni le même serrage, et c'est ce
+     déséquilibre qui fait la marque. On mesure d'abord pour centrer
+     l'ensemble — jamais deux `textAlign:center` côte à côte, qui
+     centreraient chaque moitié pour elle-même. ---- */
+  var POL = "'Trebuchet MS','Segoe UI',sans-serif";
+  var fMily = "700 108px " + POL;
+  var fBoum = "900 116px " + POL;
+  var ECART = 20;                       // le blanc entre les deux mots
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  c.font = fMily; var wMily = c.measureText("Mily").width;
+  c.font = fBoum; var wBoum = c.measureText("Boum").width;
+  var x0 = cx - (wMily + ECART + wBoum) / 2;
+  var xB = x0 + wMily + ECART;
+  var yb = cy + 38;                     // la ligne de pied
+
+  /* Poser les deux mots dans le contexte courant, quel que soit le
+     style de remplissage en cours. Tout ce qui suit s'en sert : les
+     bords, le corps, le biseau, la coupe des braises. */
+  function traceMot(dx, dy){
+    c.font = fMily; c.fillText("Mily", x0 + dx, yb + dy);
+    c.font = fBoum; c.fillText("Boum", xB + dx, yb + dy);
+  }
+  function contourMot(lw, teinte, dx, dy){
+    c.lineJoin = "round"; c.lineWidth = lw; c.strokeStyle = teinte;
+    c.font = fMily; c.strokeText("Mily", x0 + dx, yb + dy);
+    c.font = fBoum; c.strokeText("Boum", xB + dx, yb + dy);
+  }
+
+  /* ---- L'OMBRE PORTÉE, sous le mot et décalée vers le bas. Elle le
+     décolle du fond ; sans elle, le bord fin ne suffit plus. ---- */
   c.save();
-  c.beginPath(); c.rect(0, 0, w, h * 0.48); c.clip();
-  c.fillStyle = "rgba(255,255,255,.28)";
-  c.fillText("Mily Boum", w / 2, h * 0.52);
+  c.fillStyle = "rgba(24,8,2,.55)";
+  c.filter = "blur(7px)";
+  traceMot(0, 9);
   c.restore();
-  /* étincelles */
-  var al = prng(2024);
-  c.save(); c.globalCompositeOperation = "lighter";
-  for(var i = 0; i < 26; i++){
-    var x = al() * w, y = h * 0.28 + al() * h * 0.5;
-    c.fillStyle = "rgba(255," + (150 + al() * 90 | 0) + ",60," + (0.2 + al() * 0.5) + ")";
-    c.beginPath(); c.arc(x, y, 1 + al() * 2.6, 0, 6.2832); c.fill();
+
+  /* ---- LE BORD, en deux passes serrées. Large et sombre d'abord,
+     étroit et chaud ensuite : c'est l'écart entre les deux qui se lit
+     comme une épaisseur de métal, là où un seul trait noir large se
+     lisait comme un autocollant. ---- */
+  contourMot(7.5, "rgba(28,9,2,.92)", 0, 0);
+  contourMot(3.0, "#7a2c0a", 0, 0);
+
+  /* ---- LE CORPS. Cinq arrêts, dont deux très rapprochés au tiers
+     haut : c'est cette cassure nette qui donne le tranchant du métal
+     poli, qu'un dégradé régulier ne donne jamais. ---- */
+  /* Les bornes suivent la HAUTEUR DE CAPITALE, pas une marge ronde :
+     à yb−96 les douze premiers pixels du dégradé tombaient au-dessus
+     des lettres, et toute la partie crème se retrouvait poussée dans
+     le mot — un titre pâle du haut jusqu'au tiers. */
+  var gt = c.createLinearGradient(0, yb - 84, 0, yb + 10);
+  gt.addColorStop(0.00, "#ffeec6");
+  gt.addColorStop(0.20, "#ffcb78");
+  gt.addColorStop(0.26, "#ffa023");
+  gt.addColorStop(0.68, "#ee5a13");
+  gt.addColorStop(1.00, "#9e2108");
+  c.fillStyle = gt;
+  traceMot(0, 0);
+
+  /* ================================================================
+     LE BISEAU — et pourquoi il ne peut PAS se faire en une passe.
+
+     Premier essai : une copie claire du mot, remontée de deux pixels,
+     posée en `source-atop`. Le résultat était un titre BEIGE. C'est
+     que `source-atop` peint partout où il y a déjà quelque chose, et
+     une lettre décalée de deux pixels recouvre sa jumelle à quatre-
+     vingt-dix-huit pour cent : on ne repeignait pas une arête, on
+     repeignait la lettre, et tout le dégradé de braise disparaissait
+     sous une couche crème.
+
+     Ce qu'on veut est une DIFFÉRENCE de deux formes : « la lettre,
+     moins la même lettre décalée vers le bas » — il n'en reste que le
+     filet du haut. Aucun mode de composition ne fait cette soustraction
+     par-dessus un dessin existant ; il faut la faire à part, sur un
+     canevas vide, puis reporter le filet obtenu.
+
+     Deux filets, donc, et le même procédé pour les deux :
+       le clair en haut  = mot ∖ (mot décalé vers le bas)
+       le sombre en bas  = mot ∖ (mot décalé vers le haut)
+     C'est exactement ainsi qu'une arête de métal prend la lumière, et
+     c'est ce qui sépare ce titre d'un autocollant.
+     ================================================================ */
+  function filetMot(dy, teinte, flou){
+    var t = nouveauCanvas(w, h);
+    var q = t.getContext("2d");
+    q.textAlign = "left"; q.textBaseline = "alphabetic";
+    q.fillStyle = teinte;
+    q.font = fMily; q.fillText("Mily", x0, yb);
+    q.font = fBoum; q.fillText("Boum", xB, yb);
+    /* on retire la même forme décalée : il ne reste que la tranche */
+    q.globalCompositeOperation = "destination-out";
+    q.font = fMily; q.fillText("Mily", x0, yb + dy);
+    q.font = fBoum; q.fillText("Boum", xB, yb + dy);
+    q.globalCompositeOperation = "source-over";
+    if(flou) c.filter = "blur(" + flou + "px)";
+    c.drawImage(t, 0, 0);
+    c.filter = "none";
+  }
+  filetMot(1.9, "rgba(255,248,230,.78)", 0.45);  // la lumière, sur l'arête haute
+  filetMot(-3.2, "rgba(88,16,3,.52)", 0.7);      // l'ombre, au pied des lettres
+
+  /* ---- LES BRAISES. Elles montent, elles s'éteignent, et elles ne
+     dépassent pas la bande du mot : une cendre qui traverse tout le
+     cadre redevient une paillette. Le tirage est fixe — le logo est
+     peint une fois, il doit être le même à chaque ouverture. ---- */
+  var al = prng(0x10607);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < 34; i++){
+    var u = al();
+    var bx = x0 - 30 + u * (wMily + ECART + wBoum + 60);
+    var mont = al();                    // 0 au ras du mot, 1 tout en haut
+    var by = yb + 6 - mont * 104;
+    var r = (0.6 + al() * 1.7) * (1 - mont * 0.45);
+    var a = (0.10 + al() * 0.34) * (1 - mont * 0.72);
+    c.fillStyle = "rgba(255," + (156 + (al() * 84 | 0)) + ",72," + a.toFixed(3) + ")";
+    c.beginPath(); c.arc(bx, by, r, 0, 6.2832); c.fill();
   }
   c.restore();
 }
@@ -55772,7 +56187,9 @@ function construitBriefing(){
       }
     }
     if(sauv.relais) $("relais").value = sauv.relais;
-    if(sauv.voix) voixDiscours.choix = sauv.voix;
+    /* Relu à travers `valide` : la même clé gardait un nom de voix
+       avant la v0.95 et garde un choix depuis. Voir 94-musique-ibiza. */
+    voixDiscours.choix = voixDiscours.valide(sauv.voix);
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
      rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
@@ -55907,11 +56324,22 @@ function majBargesBrief(){
       majBargesBrief(); sauvegarde();
     });
   }
-  /* total */
+  /* LE RÉSUMÉ NE COMPTE PLUS LES ABSENTS.
+     Il énumérait les six types quoi qu'il arrive : « 96 Furies,
+     0 Commando, 0 Ogre, 0 Doc, 0 TX-90, 0 PYR-120 ». Cinq zéros pour
+     un chiffre utile — supportable en bas d'un bloc, illisible depuis
+     que la ligne est montée dans le titre, où elle doit tenir à côté
+     de « COMPOSITION DES HUIT NAVETTES ».
+     Une troupe qu'on n'emmène pas n'a rien à dire : on ne garde que
+     ce qui embarque. Et si rien n'embarque — huit navettes vides, ce
+     qui ne devrait pas arriver — on l'écrit plutôt que de laisser un
+     tiret seul après le total. */
   var tot = 0, cpt = {};
   compoBarges.forEach(function(bb){ tot += bb.n; cpt[bb.type] = (cpt[bb.type] || 0) + bb.n; });
-  var det = TYPES_TROUPE.map(function(t2){ return nommeTroupes(t2, cpt[t2] || 0); }).join(", ");
-  $("totalTroupes").innerHTML = "Flotte : <b>" + tot + "</b> unités — " + det;
+  var det = TYPES_TROUPE.filter(function(t2){ return cpt[t2] > 0; })
+                        .map(function(t2){ return nommeTroupes(t2, cpt[t2]); }).join(", ");
+  $("totalTroupes").innerHTML = "Flotte&nbsp;: <b>" + tot + "</b>&nbsp;unités"
+                              + (det ? " — " + det : "");
 }
 /* « 1 Ogre », « 12 Furies » : le pluriel suit l'effectif, pas le type.
    « 1 Ogres » sur la seule navette qui n'en embarque qu'un aurait été
@@ -56089,21 +56517,131 @@ function hausseTotaleDegats(i){
   return Math.round((ke * facteurDegats(i) - 1) * 100);
 }
 
+/* ================================================================
+   LES PASTILLES DE DURCISSEMENT — COURTES, ET DANS L'IMAGE
+
+   Elles disaient « Défenses +80 % PV » et « +50 % dégâts », en toutes
+   lettres, sur une ligne à elles sous la vignette. Deux défauts, et le
+   second est le vrai : c'était long, et surtout c'était PLACÉ AILLEURS
+   que ce dont ça parle. Une carte plus dure, ça se sait en regardant
+   la carte, pas en lisant sous elle.
+
+   « DEF » et « DEG » se reconnaissent à la forme, sans lecture. Le
+   préfixe est gardé, en gris et en petit, parce que sans lui « +80 %
+   PV » posé sur une île laisserait croire à un bonus POUR le joueur —
+   c'est exactement le contraire.
+
+   PAS D'ÉMOJI, ici comme avant : le bouclier ne fait pas partie des
+   polices de tous les appareils, et un carré vide à la place ferait
+   douter du chiffre qui suit.
+   ================================================================ */
+function dzPv(b){ return '<span class="dz pv"><em>DEF</em>+' + b + '% PV</span>'; }
+function dzDg(d){ return '<span class="dz dg"><em>DEG</em>+' + d + '%</span>'; }
+
 function pastilleBlindage(i){
-  var b = hausseTotalePv(i), d = hausseTotaleDegats(i);
-  if(b > 0 && d > 0)
-    return '<div class="durci"><span class="dz pv">Défenses +' + b
-         + '% PV</span><span class="dz dg">+' + d + '% dégâts</span></div>';
-  if(d > 0)
-    return '<div class="durci"><span class="dz dg">Défenses +' + d
-         + '% dégâts</span></div>';
-  if(!(b > 0)) return "";
-  /* PAS D'ÉMOJI DANS LA PASTILLE. Le bouclier ne fait pas partie des
-     polices de tous les appareils, et un carré vide ou un cœur à la
-     place ferait douter du chiffre qui suit. Les deux pastilles des
-     cartes spéciales n'en portent pas non plus : on s'aligne. */
-  return '<div class="durci"><span class="dz pv">Défenses +' + b
-       + '% PV</span></div>';
+  var b = hausseTotalePv(i), d = hausseTotaleDegats(i), h = "";
+  if(b > 0) h += dzPv(b);
+  if(d > 0) h += dzDg(d);
+  return h ? '<div class="durci">' + h + '</div>' : "";
+}
+
+/* ================================================================
+   LA BANDE DU BAS DE L'IMAGE — UNE SEULE RANGÉE POUR LES DEUX
+
+   Les dangers à gauche et les chiffres à droite ont d'abord été deux
+   bandes superposées, chacune bornée à trente-huit pour cent de la
+   largeur. Ça marchait sur toutes les vignettes qu'on avait sous les
+   yeux, et c'est précisément ce qui rendait la chose fausse : le
+   partage tenait à un nombre choisi parce qu'il allait ce jour-là. Une
+   île qui porterait DEUX dangers ET deux pastilles — les ténèbres, dès
+   qu'on les blinde — les aurait vus se chevaucher, et sur la colonne
+   étroite d'un téléphone bien avant.
+
+   Une seule rangée, `space-between`, et le partage se fait tout seul :
+   chacun prend ce qu'il lui faut, personne n'empiète, et il n'y a plus
+   de nombre à surveiller.
+   ================================================================ */
+function bandeauVignette(i){
+  var g = iconesDangers(i), d = pastilleBlindage(i);
+  if(!g && !d) return "";
+  /* Le vide à gauche est POSÉ, il n'est pas absent : sans lui,
+     `space-between` collerait les pastilles au bord gauche quand
+     l'île n'a aucun danger. */
+  return '<div class="surImage">' + (g || '<i></i>') + d + '</div>';
+}
+
+/* ================================================================
+   LES DANGERS D'UNE ÎLE, EN ICÔNES, DANS LE COIN DE SON IMAGE
+
+   Le joueur doit savoir ce qui l'attend AVANT d'appuyer. Il le savait
+   déjà pour les deux cartes spéciales — une pastille bleue disait
+   « ⛈ Orage & foudre » — mais pas pour les huit autres, alors que la
+   campagne jette des tornades sur trois d'entre elles et que Mily
+   balaie Ibiza au laser.
+
+   TROIS TRACÉS, PAS TROIS ÉMOJIS, et c'est la même raison qu'au-dessus
+   poussée un cran plus loin : un émoji d'orage est plat sur un
+   appareil, en couleurs sur le suivant et absent sur le troisième. Ces
+   trois-là ont la même échelle, la même épaisseur de trait et prennent
+   la couleur qu'on leur donne — donc ils forment une FAMILLE, ce que
+   trois émojis venus de trois polices ne font jamais.
+
+   CHAQUE DANGER LIT SON PROPRE PRÉDICAT, celui-là même dont le jeu se
+   sert pour décider s'il le fait tomber. Aucune liste de biomes n'est
+   recopiée ici : le jour où une île gagne des tornades, son icône
+   apparaît sans qu'on ait à y penser, et le jour où elle en perd,
+   l'icône s'en va toute seule. Une vignette qui annonce un orage qui
+   ne tombe plus serait pire que pas d'icône du tout.
+   ================================================================ */
+/* CHAQUE TRACÉ A ÉTÉ REFAIT UNE FOIS, ET POUR LA MÊME RAISON : il
+   faut qu'il se reconnaisse à TREIZE PIXELS, pas qu'il soit juste à
+   cent. C'est une contrainte de dessin, pas de géométrie.
+
+     La tornade était cinq traits horizontaux qui se resserraient.
+     Grande, c'était un entonnoir ; petite, c'était le bouton de menu
+     de n'importe quelle application — trois barres. Il lui fallait
+     ses DEUX FLANCS qui convergent : ce sont eux qui font l'entonnoir,
+     les bandes internes ne font que le remplir.
+
+     Le laser était un rayon unique avec des éclats autour. À treize
+     pixels, les éclats devenaient du bruit et le rayon une barre
+     oblique quelconque. Trois rayons partant d'UN MÊME POINT ne
+     ressemblent à rien d'autre qu'à des lasers — c'est la divergence
+     qui porte le sens, pas la brillance.
+   Le nuage, lui, n'a pas bougé : un nuage et un éclair se lisent à
+   n'importe quelle taille, c'est la forme la plus ancienne du lot. */
+var TRACES_DANGER = {
+  /* le nuage et son éclair */
+  orage:'<path d="M6.4 15.8a3.9 3.9 0 0 1 .7-7.8 5.5 5.5 0 0 1 10.5 1.6 3.6 3.6 0 0 1-.6 7.2"/>'
+      + '<path d="M12.9 12.2 9.3 18.6h3L11 23.4l5-6.8h-3.1z" fill="currentColor" stroke="none"/>',
+  /* l'entonnoir : le bord haut, les deux flancs qui se rejoignent,
+     et deux bandes de vent entre eux */
+  tornade:'<path d="M2.6 5.3c4.8 1.7 14 1.7 18.8 0"/>'
+        + '<path d="M4.2 5.6 12 21.8 19.8 5.6"/>'
+        + '<path d="M6.6 10.2c3.4 1.1 7.4 1.1 10.8 0"/>'
+        + '<path d="M8.7 14.8c2.1.7 4.5.7 6.6 0"/>',
+  /* trois rayons issus d'une même source */
+  laser:'<circle cx="3.6" cy="20.4" r="2.3" fill="currentColor" stroke="none"/>'
+      + '<path d="M5.4 18.9 20.6 8.4M5.6 19.6 19.4 14.6M4.8 18.2 14.2 3.4"/>'
+};
+/* L'ordre est celui de la liste : il est le même sur toutes les
+   vignettes, donc l'œil retrouve la même icône à la même place. */
+var DANGERS_CARTE = [
+  { cle:"orage",   titre:"Orage et foudre", test:function(i){ return carteFoudre(i); } },
+  { cle:"tornade", titre:"Tornades",        test:function(i){ return carteAvecTornades(i); } },
+  { cle:"laser",   titre:"Le balayage laser de Mily", test:function(i){ return carteScene(i); } }
+];
+function iconesDangers(i){
+  var h = "", k, D;
+  for(k = 0; k < DANGERS_CARTE.length; k++){
+    D = DANGERS_CARTE[k];
+    if(!D.test(i)) continue;
+    h += '<span class="dg1 ' + D.cle + '" title="' + D.titre + '">'
+       + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" '
+       + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+       + TRACES_DANGER[D.cle] + '</svg></span>';
+  }
+  return h ? '<div class="dangers">' + h + '</div>' : "";
 }
 
 function majMondes(){
@@ -56121,7 +56659,12 @@ function majMondes(){
           de plus sur les huit vignettes quand il vaut zéro partout
           serait du bruit ; quand il ne vaut pas zéro, c'est la seule
           chose qui distingue cette île de celle qu'on connaissait. */
-       + pastilleBlindage(i)
+       /* Ce qui rend cette île plus dure, et ce qui lui tombe du ciel
+          — dans les deux coins du bas de son image. Les huit cartes de
+          campagne ne disaient rien de leurs dangers jusqu'ici, alors
+          que trois d'entre elles portent des tornades : on partait
+          dessus sans le savoir. */
+       + bandeauVignette(i)
        + blocTop3(i)
        /* L'ŒIL SUR LES ÎLES TOMBÉES AUSSI, ET PLUS SEULEMENT SUR CELLES
           QU'ON N'A PAS ENCORE ATTEINTES.
@@ -56237,11 +56780,15 @@ function installeAppuisCartes(){
    sur son bouton. Chaque carte porte donc maintenant ses mots — c'est
    la seule façon d'en avoir deux sans que la seconde parle de la
    première. */
+/* Plus d'entrée `ambiance` : elle portait « ⛈ Orage & foudre » et
+   « ✨ Nuit enchantée », que l'icône de danger dessine désormais dans
+   le coin de l'image. Une donnée qu'on garde « au cas où » est une
+   donnée que personne ne met plus à jour. */
 var MOTS_EVT = {
   j:{ ecusson:"🌿", prete:"LA JUNGLE EST PRÊTE.", entrer:"ENTRER DANS LA JUNGLE",
-      repos:"LA JUNGLE SE REPOSE", ambiance:"⛈ Orage &amp; foudre" },
+      repos:"LA JUNGLE SE REPOSE" },
   n:{ ecusson:"🌙", prete:"LA NUIT EST OUVERTE.", entrer:"ENTRER DANS LA NUIT",
-      repos:"LA NUIT SE REFERME", ambiance:"✨ Nuit enchantée" }
+      repos:"LA NUIT SE REFERME" }
 };
 /* Le peintre de la grande vignette, par voie. */
 var PEINTRES_EVT = { j:"dessineVignetteJungle", n:"dessineVignetteNuits" };
@@ -56252,8 +56799,7 @@ function motsEvt(i){
     ecusson : m.ecusson || "✦",
     prete   : m.prete   || (nom.toUpperCase() + " EST PRÊTE."),
     entrer  : m.entrer  || ("ENTRER — " + nom.toUpperCase()),
-    repos   : m.repos   || "LA CARTE SE REPOSE",
-    ambiance: m.ambiance || ""
+    repos   : m.repos   || "LA CARTE SE REPOSE"
   };
 }
 function vignetteEvenement(i){
@@ -56295,16 +56841,18 @@ function vignetteEvenement(i){
        /* Le joueur doit savoir CE QUI L'ATTEND avant d'appuyer, et le
           savoir en une seconde. Deux pastilles, deux chiffres, pas une
           phrase : ce sont les seuls réglages qui rendent cette carte
-          plus dure que celles de la campagne. */
-       + '<div class="durci">'
-       /* UNE SEULE PASTILLE DE VIE, ET C'EST LE TOTAL. Il y en avait
+          plus dure que celles de la campagne.
+          UNE SEULE PASTILLE DE VIE, ET C'EST LE TOTAL. Il y en avait
           deux — le bonus d'expédition et le blindage réglé à l'accueil
           — et c'était exactement ce que la demande interdit : « on ne
           voit pas trois mille plus trois mille, on verra six mille ».
-          On multiplie les deux facteurs et l'on affiche le résultat. */
-       +   '<span class="dz pv">Défenses +' + hausseTotalePv(i) + '% PV</span>'
-       +   '<span class="dz dg">+' + hausseTotaleDegats(i) + '% dégâts</span>'
-       +   (M.ambiance ? '<span class="dz or">' + M.ambiance + '</span>' : "")
+          On multiplie les deux facteurs et l'on affiche le résultat.
+          LA TROISIÈME PASTILLE A DISPARU : elle écrivait « ⛈ Orage &
+          foudre », c'est-à-dire exactement ce que l'icône de danger
+          dessine maintenant dans l'autre coin de la même image. Deux
+          fois la même chose sur une vignette, c'est une de trop. */
+       + '<div class="surImage">' + iconesDangers(i)
+       +   '<div class="durci">' + dzPv(hausseTotalePv(i)) + dzDg(hausseTotaleDegats(i)) + '</div>'
        + '</div>'
        + '<div class="jauge">'
        +   '<span class="cpt">' + n + '<small>/' + mini + '</small></span>'
@@ -56713,23 +57261,34 @@ function installeQuiSalon(){
   });
 }
 function majEtatReseau(){
-  var p = $("pRes"), t = $("txRes");
+  var p = $("pRes"), t = $("txRes"), e = $("etatRes");
   if(!p) return;
   p.className = "pastille";
   var n = 0;
   for(var k in autresJoueurs) n++;
+  /* L'ÉTAT SE PORTE AUSSI SUR LE CONTENEUR, et pas seulement sur la
+     pastille. Depuis que la ligne est montée dans le titre du bloc, un
+     point de neuf pixels est trop peu pour dire à lui seul qu'on est
+     branché ou coupé : c'est le TEXTE qui doit le dire, donc il lui
+     faut la classe. On la pose à côté de chaque `classList.add` de la
+     pastille, jamais depuis `reseau.etat` — les états du réseau sont
+     quatre et les couleurs trois, et une correspondance devinée aurait
+     laissé « refus » sans couleur du jour où on l'aurait ajouté. */
   if(reseau.etat === "ok"){
     p.classList.add("ok");
+    if(e) e.className = "h2info ok";
     t.textContent = "Salon MILY — connecté" + (n ? " · " + n + " autre" + (n > 1 ? "s" : "") + " joueur" + (n > 1 ? "s" : "") : " · seul pour l'instant");
     majQuiSalon();
     majCarriere();
   }else if(reseau.etat === "coupe" || reseau.etat === "erreur" || reseau.etat === "refus"){
     p.classList.add("ko");
+    if(e) e.className = "h2info ko";
     t.textContent = "Relais injoignable — le jeu marche quand même en solo. Essaie l'autre relais.";
     majQuiSalon();
     majCarriere();
   }else{
     p.classList.add("att");
+    if(e) e.className = "h2info att";
     t.textContent = "Connexion au salon MILY…";
     majQuiSalon();
     majCarriere();
@@ -56878,7 +57437,19 @@ function majBoutonReprendre(){
   if(!b) return;
   var ok = reprisePossible();
   b.style.display = ok ? "" : "none";
-  if(ok) b.textContent = "↩ REPRENDRE — " + CARTES[jeu.index].nom;
+  /* LE NOM DE L'ÎLE PASSE DANS L'INFOBULLE, PAS DANS LE BOUTON.
+     Le libellé était « ↩ REPRENDRE — Mily en soirée hippie » : il
+     tenait quand le bouton faisait toute la largeur, il ne tient plus
+     depuis qu'il en partage la moitié avec DÉBARQUER. Coupé par des
+     points de suspension, il aurait annoncé « REPRENDRE — Mily en… »,
+     c'est-à-dire moins qu'un libellé fixe et lisible.
+     L'île reste connue : elle est dans l'infobulle, et surtout elle
+     est la seule qu'on puisse reprendre — le bouton n'apparaît que si
+     une partie est en cours, et il n'y en a jamais deux. */
+  if(ok){
+    b.textContent = "↩ REPRENDRE SUR L'ÎLE";
+    b.title = "Reprendre la bataille en cours — " + CARTES[jeu.index].nom;
+  }
   /* Un seul bouton principal à la fois : « DÉBARQUER » recommence la
      carte à zéro, et proposer les deux au même endroit sans les
      distinguer ferait perdre sa partie à quelqu'un. */
@@ -58691,6 +59262,30 @@ var voixDiscours = {
      aucune. Les autres fichiers lisent ceci, pas `choix`. */
   nom:function(){
     return this.choix.indexOf("v:") === 0 ? this.choix.slice(2) : null;
+  },
+
+  /* ── LA CASE `voix` DU STOCKAGE A CHANGÉ DE SENS, ET IL FAUT LE
+     RATTRAPER ──────────────────────────────────────────────────────
+     En v0.94 elle gardait un NOM DE VOIX brut : « Google UK English
+     Female ». Depuis la v0.95 elle garde un CHOIX : « moteur »,
+     « auto » ou « v:NOM ». Même clé, deux significations.
+
+     Un appareil qui avait ouvert Ibiza sous la v0.94 relisait donc son
+     vieux nom comme s'il s'agissait d'un choix. Il n'est ni « moteur »
+     ni « v:… », donc `pose` en concluait « system » et rendait la main
+     au moteur vocal de l'appareil : une voix de tablette là où tout le
+     monde entend celle du morceau. Le téléphone, lui, n'avait jamais
+     rien écrit dans cette case et gardait le défaut — d'où deux
+     appareils, deux voix, sans que personne n'ait rien réglé.
+
+     On ne fait donc plus confiance à ce qu'on relit : une valeur qui
+     n'a pas l'une des trois formes attendues est un reste de l'ancien
+     sens, et elle retombe sur le défaut. Un choix VOLONTAIRE fait
+     depuis la v0.95 a l'une des trois formes et traverse intact. */
+  valide:function(v){
+    if(v === "moteur" || v === "auto") return v;
+    if(typeof v === "string" && v.indexOf("v:") === 0 && v.length > 2) return v;
+    return "moteur";
   },
 
   /* Les voix anglaises de l'appareil, les mieux classées en tête.

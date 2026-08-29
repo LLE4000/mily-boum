@@ -193,10 +193,22 @@ function vnConstruitFond(w, h){
   c.drawImage(vnFondCv, 0, 0);
   c.restore();
   c.globalAlpha = 1;
-  /* l'encre par-dessus, pour que le reflet reste un reflet */
+  /* L'ENCRE PAR-DESSUS, POUR QUE LE REFLET RESTE UN REFLET — mais
+     elle ne va plus jusqu'au noir.
+
+     À 0,86 d'encre sur le bord inférieur, l'eau finissait plus sombre
+     que le fond de la vignette elle-même. Résultat, vu à l'accueil :
+     une bande noire au bas de la carte, et l'image paraissait
+     s'arrêter à quatre-vingt-quatre pour cent de sa hauteur alors
+     qu'elle allait bien jusqu'en bas. À côté de la jungle, dont l'eau
+     reste claire, les deux cartes spéciales n'avaient plus le même
+     bord bas — c'est ce décalage qu'on voyait, pas la couleur.
+     0,62 garde l'eau lisible comme de l'eau et rend à la vignette son
+     bord inférieur. */
   var ge = c.createLinearGradient(0, eau, 0, h);
-  ge.addColorStop(0, "rgba(8,6,26,.30)");
-  ge.addColorStop(1, "rgba(4,3,16,.86)");
+  ge.addColorStop(0, "rgba(8,6,26,.26)");
+  ge.addColorStop(0.72, "rgba(6,4,20,.56)");
+  ge.addColorStop(1, "rgba(10,7,30,.62)");
   c.fillStyle = ge;
   c.fillRect(0, eau, w, h - eau);
   /* les rides : trois traits clairs qui cassent le reflet */
@@ -210,8 +222,22 @@ function vnConstruitFond(w, h){
     c.stroke();
   }
   c.restore();
-  /* la ligne de rivage */
-  c.fillStyle = "rgba(150,140,220,.22)";
+  /* LA LIGNE DE RIVAGE, ET ELLE NE TRAVERSE PLUS TOUT LE CADRE.
+     Un trait clair de bord à bord, à quatre-vingt-quatre pour cent de
+     la hauteur, se lit comme le BAS DE L'IMAGE et non comme une
+     berge : c'est la ligne que le joueur a montrée en disant que
+     l'image semblait s'arrêter plus haut que les autres. Un rivage
+     s'efface sur les côtés — il s'enfonce dans la brume aux deux
+     extrémités — donc on le fait mourir aux deux bords. Il tient
+     toujours son rôle au centre, là où il sépare la ville de son
+     reflet, et il ne coupe plus la vignette en deux. */
+  var gr = c.createLinearGradient(0, 0, w, 0);
+  gr.addColorStop(0.00, "rgba(150,140,220,0)");
+  gr.addColorStop(0.22, "rgba(150,140,220,.20)");
+  gr.addColorStop(0.50, "rgba(166,154,232,.26)");
+  gr.addColorStop(0.78, "rgba(150,140,220,.20)");
+  gr.addColorStop(1.00, "rgba(150,140,220,0)");
+  c.fillStyle = gr;
   c.fillRect(0, eau - 1.5, w, 2.5);
 
   vnFondCle = w + "x" + h;

@@ -53,11 +53,25 @@ var chatARedessiner = 0;     // une seule reconstruction par image, au plus
 /* ---------------------------------------------------------------
    Le réglage, retenu sur cet appareil
    --------------------------------------------------------------- */
+/* LE CHAT EST TOUJOURS LÀ, ET C'EST UN PIÈGE QU'ON DÉSAMORCE.
+
+   L'interrupteur « Afficher le chat du salon » a été retiré de
+   l'accueil : le chat a son bouton flottant, il s'ouvre et se ferme,
+   l'option ne servait qu'à faire une ligne de plus.
+
+   Mais elle laissait une trace dans le stockage. Un joueur qui l'avait
+   décochée gardait un « 0 » chez lui, et sans l'interrupteur pour le
+   remettre à « 1 » il se serait retrouvé avec un bouton de chat mort :
+   `ouvreChat` sort en tête sur ce drapeau, les messages reçus sont
+   jetés à l'arrivée, et RIEN dans l'interface n'aurait pu le rallumer.
+   Retirer une case à cocher, ce n'est pas seulement retirer une case —
+   c'est retirer le seul moyen d'annuler ce qu'elle a fait.
+
+   On ignore donc ce qui est rangé. La fonction reste, parce que
+   `regleChat` écrit toujours et qu'un réglage qu'on n'écrit plus mais
+   qu'on relit encore serait pire que les deux. */
 function litReglageChat(){
-  try{
-    var v = localStorage.getItem(CLE_CHAT);
-    return v === null ? true : v === "1";
-  }catch(e){ return true; }
+  return true;
 }
 function gardeReglageChat(on){
   try{ localStorage.setItem(CLE_CHAT, on ? "1" : "0"); }catch(e){}

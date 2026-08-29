@@ -287,6 +287,30 @@ var voixDiscours = {
     return this.choix.indexOf("v:") === 0 ? this.choix.slice(2) : null;
   },
 
+  /* ── LA CASE `voix` DU STOCKAGE A CHANGÉ DE SENS, ET IL FAUT LE
+     RATTRAPER ──────────────────────────────────────────────────────
+     En v0.94 elle gardait un NOM DE VOIX brut : « Google UK English
+     Female ». Depuis la v0.95 elle garde un CHOIX : « moteur »,
+     « auto » ou « v:NOM ». Même clé, deux significations.
+
+     Un appareil qui avait ouvert Ibiza sous la v0.94 relisait donc son
+     vieux nom comme s'il s'agissait d'un choix. Il n'est ni « moteur »
+     ni « v:… », donc `pose` en concluait « system » et rendait la main
+     au moteur vocal de l'appareil : une voix de tablette là où tout le
+     monde entend celle du morceau. Le téléphone, lui, n'avait jamais
+     rien écrit dans cette case et gardait le défaut — d'où deux
+     appareils, deux voix, sans que personne n'ait rien réglé.
+
+     On ne fait donc plus confiance à ce qu'on relit : une valeur qui
+     n'a pas l'une des trois formes attendues est un reste de l'ancien
+     sens, et elle retombe sur le défaut. Un choix VOLONTAIRE fait
+     depuis la v0.95 a l'une des trois formes et traverse intact. */
+  valide:function(v){
+    if(v === "moteur" || v === "auto") return v;
+    if(typeof v === "string" && v.indexOf("v:") === 0 && v.length > 2) return v;
+    return "moteur";
+  },
+
   /* Les voix anglaises de l'appareil, les mieux classées en tête.
      Rend un tableau vide si le moteur manque ou si l'appareil n'a
      aucune voix — les deux arrivent, et ni l'un ni l'autre n'est une
