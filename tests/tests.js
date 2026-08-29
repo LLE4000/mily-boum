@@ -2190,17 +2190,29 @@ G("4. Déterminisme de la génération de carte");
          lui coûte RIEN. C'est ce que ce bloc autorise, et à eux seuls.
          Le test garde les trois clauses qui font que la porte reste
          fermée pour les autres : le drapeau `tourelle` en garde, les
-         DEUX branches de marche câblées (sans la seconde, une balise
-         posée au sol n'aurait rien changé), et le respect du
-         Brouillard. */
+         DEUX branches de marche sous balise câblées (sans la seconde,
+         une balise posée au sol n'aurait rien changé), et le respect
+         du Brouillard.
+
+         CE TEST COMPTAIT LES APPELS, ET IL A VIEILLI. Deux, c'était le
+         compte du fichier entier tant que la balise était la seule
+         manière d'obtenir ce tir. La marche libre en ajoute un
+         troisième, et le compte global ne dit alors plus rien de ce
+         qu'on voulait promettre. On vérifie donc les deux branches
+         elles-mêmes, chacune à son ancre : celle qui roule vers
+         l'objectif et celle qui rallie un point au sol. Le total, lui,
+         est la promesse du groupe 34. */
       ok("un véhicule sous balise cherche la vermine à sa portée",
          /function betePresVehicule\(u, f\)\{[\s\S]{0,400}md = f\.portee/.test(html));
       ok("et la porte de ce tir est le drapeau des véhicules",
          /function tirBeteEnMarche\(u, f, dt, cachee\)\{\s*if\(!f\.tourelle\) return 0;/
            .test(html));
-      ok("les DEUX branches de marche sous balise le câblent",
-         (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length === 2,
-         "la balise sur cible ET la balise au sol");
+      ok("la branche qui roule vers l'objectif de la balise le câble",
+         /deplace\(u, dxb \+ u\.ancX \* eb, dyb \+ u\.ancY \* eb, vit \* dt\);[\s\S]{0,400}tirBeteEnMarche\(u, f, dt, cachee\);/
+           .test(html));
+      ok("… et celle qui rallie un point au sol aussi",
+         /capUnite\(u, dxf, dyf, 1\);\s*u\.cible = null;[\s\S]{0,400}tirBeteEnMarche\(u, f, dt, cachee\);/
+           .test(html));
       ok("… sans jamais désobéir au Brouillard",
          /if\(cachee\)\{ armeSansTirer\(u\); return 1; \}/.test(html));
       /* LE CAMOUFLAGE COUVRE TOUT LE VÉHICULE.
@@ -8384,6 +8396,83 @@ G("33. Le sol d'Ibiza : la découpe et la chorégraphie");
      !/degradeAllee\(c, i, ci, D0, D1, 1\)/.test(html));
   ok("… et le surplus des drops repasse sur la même forme",
      /if\(g > 1\)\{\s*c\.globalAlpha = Math\.min\(0\.9, g - 1\);\s*c\.fill\(\);/.test(html));
+})();
+
+/* ================================================================ */
+G("34. Les blindés autour du QG, et la vermine en marche libre");
+(function(){
+
+  /* LE TIR EN MARCHE NE DÉPEND PLUS DE LA BALISE.
+     Trois branches de marche existent dans majUnites : sous balise
+     posée sur une cible, sous balise posée au sol, et en marche libre.
+     La règle parle de MARCHE, pas de balise — un véhicule a deux caps,
+     donc le tir ne lui coûte rien, et ce fait ne dépend pas de la
+     manière dont l'ordre lui est venu. Les trois branches l'appellent
+     donc, et c'est le nombre qui le dit : à deux, il manquerait
+     précisément celle que le joueur a vue manquer. */
+  ok("les trois branches de marche balaient la vermine",
+     (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length === 3);
+
+  /* ET LA BRANCHE D'ARRIVÉE NE L'APPELLE PAS — c'est l'autre moitié.
+     Arrêté devant son bâtiment, le véhicule a sa tourelle POSÉE sur
+     lui : la tourner vers une bestiole coûterait un vrai obus sur
+     l'objectif. On vérifie que la ligne qui suit le `else` de la
+     marche libre n'en contient pas. */
+  {
+    var libre = html.indexOf("tirBeteEnMarche(u, f, dt, cachee);",
+                  html.indexOf("tirBeteEnMarche(u, f, dt, cachee);",
+                    html.indexOf("tirBeteEnMarche(u, f, dt, cachee);") + 1) + 1);
+    var suite = html.slice(libre, libre + 2600);
+    ok("… mais pas celle de l'arrivée, qui a un obus à placer",
+       suite.indexOf("}else{") > 0 &&
+       suite.slice(suite.indexOf("}else{")).indexOf("tirBeteEnMarche") < 0);
+  }
+
+  /* LA PORTE RESTE CELLE DES VÉHICULES. Une troupe à pied n'a qu'un
+     cap : elle devrait s'arrêter et se tourner. Le drapeau la referme
+     à la première ligne, avant toute recherche de cible. */
+  ok("la troupe à pied est refusée dès la première ligne",
+     /function tirBeteEnMarche\(u, f, dt, cachee\)\{\s*if\(!f\.tourelle\) return 0;/.test(html));
+
+  /* L'EMPRISE DU BRASIER EST UN DISQUE, PLUS UN CARRÉ.
+     Mesuré : 44 % de l'anneau de tir du PYR-120 autour du Brasier était
+     INFRANCHISSABLE, parce qu'une tour ronde était marquée sur un carré
+     de 13 × 13 dans la grille de marche. Les blindés qui abordaient par
+     un coin butaient sur du vide. Après la découpe en disque, 13 %.
+     Cette grille est bâtie au lancement à partir de la carte, ne quitte
+     pas l'appareil et n'entre dans aucune table de bâtiments : elle ne
+     peut pas déplacer une défense ni toucher la campagne. */
+  ok("l'emprise de marche du Brasier est un disque",
+     /var rq = RAYON_QG \+ 0\.2, rq2 = rq \* rq/.test(html) &&
+     /if\(dqx \* dqx \+ dqy \* dqy > rq2\) continue;/.test(html));
+  ok("… et son rayon est celui du Brasier dessiné, pas un nombre à part",
+     !/for\(i = -6; i <= 6; i\+\+\) for\(j = -6; j <= 6; j\+\+\)[\s\S]{0,200}occ\[y \* GW \+ x\] = 2/
+       .test(html));
+
+  /* LA POUSSÉE DE SÉPARATION GLISSE AUTOUR DE LA CIBLE.
+     Huit chars arrivés sur le Brasier se poussaient les uns les autres
+     vers l'arrière : la poussée avait une composante RADIALE, donc elle
+     éloignait, et deux d'entre eux se retrouvaient repoussés hors de
+     portée sans jamais tirer. On retire cette composante et on garde le
+     reste — mais RENORMALISÉ à la longueur d'origine, sinon il ne
+     subsiste qu'un filet : la projection seule laissait huit chars
+     entassés sur 91° d'arc. Le glissement ne concerne que le véhicule
+     ARRIVÉ (d - rc <= f.arret) : en chemin, la poussée d'origine est la
+     bonne, c'est elle qui fait l'éventail. */
+  ok("la poussée d'un blindé arrivé perd sa composante radiale",
+     /var radial = px \* vx \+ py \* vy;\s*var tx = px - radial \* vx, ty = py - radial \* vy;/
+       .test(html));
+  ok("… et le reste est renormalisé, pas laissé en filet",
+     /var l0 = Math\.hypot\(px, py\);\s*GLISSE\.x = tx \/ lt \* l0;\s*GLISSE\.y = ty \/ lt \* l0;/
+       .test(html));
+  ok("… seulement une fois arrivé, jamais en chemin",
+     /if\(d - rc > f\.arret\) return GLISSE;/.test(html));
+  ok("… et seulement pour les véhicules",
+     /function glisseAutourDeSaCible\(u, px, py\)\{[\s\S]{0,200}if\(!f \|\| !f\.tourelle\) return GLISSE;/
+       .test(html));
+  ok("… et c'est bien la séparation qui s'en sert",
+     /function separeUnites\(dt\)\{[\s\S]{0,6000}var g = glisseAutourDeSaCible\(lst\[i\], px, py\);/
+       .test(html));
 })();
 
 /* ---------------- bilan ---------------- */

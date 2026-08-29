@@ -1858,7 +1858,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.07";
+var VERSION = "v1.08";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -43529,8 +43529,38 @@ function construitGrilles(){
      construction de la grille) ne doit pas continuer à barrer
      le passage */
   jeu.batiments.forEach(function(b){ if(b.vivant) marqueEmprise(b, 1); });
-  /* emprise du Brasier */
-  for(i = -6; i <= 6; i++) for(j = -6; j <= 6; j++){
+  /* ================================================================
+     L'EMPRISE DU BRASIER EST RONDE, COMME LUI
+
+     Elle était un carré de treize cases de côté. Le Brasier, lui, est
+     rond : c'est `RAYON_QG` qui dit où les troupes s'arrêtent, et tout
+     le jeu mesure les distances à son bord circulaire. Les COINS du
+     carré débordaient donc de deux cases et demie au-delà de sa vraie
+     emprise, et ils débordaient dans les quatre diagonales — juste là
+     où les troupes voulaient se placer.
+
+     MESURÉ : quarante-quatre pour cent de l'anneau de tir du PYR-120
+     autour du Brasier était infranchissable, vingt-huit pour cent de
+     celui du TX-90. Les véhicules ne pouvaient donc pas faire le tour
+     de l'objectif : ils s'entassaient sur les quatre arcs libres, et
+     les derniers arrivés restaient dehors. C'est la moitié de ce que
+     le joueur a vu, et ce n'était pas un défaut de placement — c'était
+     un mur invisible en forme de carré autour d'une tour ronde.
+
+     Un disque au rayon du Brasier libère l'anneau entier sans laisser
+     personne entrer dans ses murs. La marge tient les troupes à
+     distance de sa base peinte, rien de plus.
+
+     CETTE GRILLE NE SERT QU'À MARCHER. Elle est bâtie au lancement à
+     partir de la carte, ne repart jamais sur le réseau et n'entre pas
+     dans le tableau des bâtiments : la changer ne déplace pas une
+     seule défense et ne touche pas à l'index de la campagne.
+     ================================================================ */
+  var rq = RAYON_QG + 0.2, rq2 = rq * rq, dqx, dqy;
+  for(i = -7; i <= 7; i++) for(j = -7; j <= 7; j++){
+    dqx = (jeu.qg.gx + i | 0) + 0.5 - jeu.qg.gx;
+    dqy = (jeu.qg.gy + j | 0) + 0.5 - jeu.qg.gy;
+    if(dqx * dqx + dqy * dqy > rq2) continue;
     var x = (jeu.qg.gx + i) | 0, y = (jeu.qg.gy + j) | 0;
     if(x >= 0 && x < GW && y >= 0 && y < GH) occ[y * GW + x] = 2;
   }
@@ -43681,9 +43711,97 @@ function separeUnites(dt){
     var px = sepPx[i], py = sepPy[i];
     var l = Math.hypot(px, py);
     if(l < 1e-5) continue;
+    var g = glisseAutourDeSaCible(lst[i], px, py);
+    px = g.x; py = g.y;
+    l = Math.hypot(px, py);
+    if(l < 1e-5) continue;
     if(l > vmax) l = vmax;
     deplace(lst[i], px, py, l);
   }
+}
+
+/* ================================================================
+   UN VÉHICULE ARRIVÉ NE SE FAIT PLUS POUSSER EN ARRIÈRE : IL GLISSE
+
+   « Il faut voir comment les TX-90 et PYR-120 se placent entre eux :
+   il y en a deux bloqués par les autres. »
+
+   MESURÉ AVANT DE TOUCHER À QUOI QUE CE SOIT. Huit chars lâchés au
+   pied du Brasier, abords dégagés : tous les huit tirent. Ils ne sont
+   donc pas empêchés de combattre. Mais leurs distances à l'objectif
+   disent l'autre moitié de l'histoire — 2,79 2,80 4,63 4,84 5,17 5,18
+   5,18 5,19 : ils s'entassent tous sur l'arc par lequel ils arrivent,
+   et deux se retrouvent poussés DANS un rang plus proche, derrière
+   leurs voisins. C'est ce que le joueur a vu.
+
+   POURQUOI. La séparation repousse deux voisins l'un de l'autre selon
+   la droite qui les joint. Quand huit véhicules se serrent sur le même
+   arc, cette droite est à peu près RADIALE : la poussée les envoie
+   donc vers l'objectif ou loin de lui, jamais sur les côtés. Elle
+   défait le placement au lieu de le faire.
+
+   CE QU'ON CHANGE. Pour un véhicule DÉJÀ ARRIVÉ à sa distance de tir,
+   on retire à la poussée sa composante radiale : il ne lui reste que
+   la tangente, c'est-à-dire le tour de l'objectif. Deux véhicules qui
+   se gênent s'écartent alors EN TOURNANT autour de leur cible au lieu
+   de se chasser vers l'avant ou vers l'arrière. Le cercle de tir se
+   garnit tout seul, sans qu'aucun d'eux ait à savoir où sont les
+   autres ni à faire le tour exprès.
+
+   RÉSERVÉ AUX VÉHICULES, et pour une raison de forme : ils ont une
+   tourelle, donc ils tirent où qu'ils regardent, et glisser sur le
+   cercle ne leur coûte pas une seconde de tir. Une troupe à pied doit
+   se retourner pour viser ; lui faire faire le tour de l'objectif lui
+   coûterait ce qu'elle est venue faire.
+
+   ET SEULEMENT UNE FOIS ARRIVÉE. En approche, la poussée radiale est
+   utile : c'est elle qui défait les bouchons dans les couloirs entre
+   les défenses. On ne la retire que là où elle nuit.
+   ================================================================ */
+var GLISSE = { x:0, y:0 };
+function glisseAutourDeSaCible(u, px, py){
+  GLISSE.x = px; GLISSE.y = py;
+  var f = UNI[u.t];
+  if(!f || !f.tourelle) return GLISSE;
+  /* la cible du moment : celle qu'elle a choisie, ou le Brasier */
+  var c = u.cible;
+  var cx, cy, rc;
+  if(c && c.o){
+    cx = c.o.gx; cy = c.o.gy;
+    rc = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? RAYON_QG : 0.3);
+  }else{
+    cx = jeu.qg.gx; cy = jeu.qg.gy; rc = RAYON_QG;
+  }
+  var vx = u.gx - cx, vy = u.gy - cy;
+  var d = Math.hypot(vx, vy);
+  if(d < 1e-4) return GLISSE;
+  /* arrivée ? le même critère que la marche, pas un autre */
+  if(d - rc > f.arret) return GLISSE;
+  vx /= d; vy /= d;
+  var radial = px * vx + py * vy;
+  var tx = px - radial * vx, ty = py - radial * vy;
+  /* ON REND À LA POUSSÉE SA LONGUEUR, ET C'EST INDISPENSABLE.
+     Projetée telle quelle, elle perd tout ce qui était radial — c'est-
+     à-dire presque tout, puisque des voisins serrés sur un même arc se
+     poussent à peu près selon le rayon. Il ne restait qu'un filet de
+     tangente, et le cercle se garnissait dix fois trop lentement :
+     mesuré, huit chars n'occupaient que quatre-vingt-onze degrés, et
+     un PYR-120 perdait même sa place faute de pouvoir s'écarter.
+     On garde donc la DIRECTION tangentielle et la FORCE d'origine :
+     ils tournent aussi vite qu'ils se repoussaient. */
+  var lt = Math.hypot(tx, ty);
+  if(lt < 1e-4){
+    /* poussée exactement radiale : aucune tangente à garder. On en
+       choisit une, stable par unité, plutôt que de la laisser figée —
+       deux véhicules parfaitement alignés sur leur cible ne doivent
+       pas rester collés pour l'éternité. */
+    var s = (bruitStable(u.n, 1) < 0.5) ? 1 : -1;
+    tx = -vy * s; ty = vx * s; lt = 1;
+  }
+  var l0 = Math.hypot(px, py);
+  GLISSE.x = tx / lt * l0;
+  GLISSE.y = ty / lt * l0;
+  return GLISSE;
 }
 
 function unitesAutour(gx, gy, r, sortie){
@@ -45023,6 +45141,27 @@ function majUnites(dt){
          tourelle ne regarde pas où l'on va. */
       capMarcheUnite(u, dx + u.ancX * etal, dy + u.ancY * etal);
       deplace(u, dx + u.ancX * etal, dy + u.ancY * etal, vit * dt);
+      /* ================================================================
+         ET LA VERMINE, ICI AUSSI — LA MARCHE LIBRE VALAIT LA MARCHE
+         SOUS BALISE.
+
+         « Quand on lance une balise les deux tirent sur les animaux,
+         c'est bien ; mais quand ils roulent de manière libre ils ne le
+         font pas. »
+
+         C'est exact, et c'était une inconséquence de ma part : la règle
+         que j'avais écrite ne parle pas de balise, elle parle de
+         MARCHE. Un véhicule a deux caps — la caisse et la tourelle — et
+         c'est pour ça que le tir ne lui coûte rien. Ce fait ne dépend
+         évidemment pas de la manière dont l'ordre lui est venu. Le tir
+         est donc libre ici exactement comme là-bas.
+
+         ET SEULEMENT EN MARCHE, ce qui est l'autre moitié de la règle.
+         Arrêté devant son bâtiment, le véhicule a sa tourelle POSÉE sur
+         lui : la tourner vers une bestiole lui coûterait un vrai obus
+         sur l'objectif, et l'obus vaut mieux. La branche d'arrivée, en
+         dessous, ne l'appelle donc pas. */
+      tirBeteEnMarche(u, f, dt, cachee);
       /* Cadence du cycle de marche, en radians par seconde. Elle dit le
          NOMBRE de pas, pas la vitesse : l'Ogre avance plus vite qu'une
          Furie (1,782 contre 1,62) tout en faisant deux fois moins de pas
