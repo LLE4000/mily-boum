@@ -644,24 +644,37 @@ select.champ{cursor:pointer}
    lignes reste un chiffre. */
 .monde .durci{flex-wrap:wrap;justify-content:flex-end}
 .monde .dangers{flex:none}
-/* L'ICÔNE DE DANGER EST DESSINÉE, PAS ÉCRITE.
-   Ce fichier a déjà tranché la question ailleurs : « le bouclier ne
-   fait pas partie des polices de tous les appareils, et un carré vide
-   à la place ferait douter du chiffre qui suit ». Un émoji d'orage ne
-   s'en tire pas mieux — plat sur l'un, en couleurs sur l'autre, absent
-   sur le troisième. Ces trois-là sont donc des tracés SVG, à la même
-   échelle, de la même épaisseur, et de la couleur qu'on leur donne. */
+/* L'ICÔNE DE DANGER EST UN ÉMOJI.
+   Elle a d'abord été un tracé, et le raisonnement tenait : un émoji
+   n'a pas la même tête partout. Le joueur a préféré l'émoji, et il a
+   pour lui que l'éclair et la tornade sont des images déjà connues de
+   tout le monde, là où un tracé demande une seconde de déchiffrage.
+
+   TROIS RÈGLES SUIVENT DE CE CHOIX.
+     1. Pas de `color` sur la pastille : un émoji porte ses couleurs,
+        et une teinte imposée n'y ferait rien — sauf sur les rares
+        appareils qui le rendent en noir, où elle serait alors la
+        seule chose à le sauver. On la garde donc, mais discrète.
+     2. `line-height:1` et un `padding-bottom` d'un pixel : les
+        polices d'émoji portent des marges internes très inégales, et
+        un émoji centré par le flex tombe visiblement bas dans sa
+        pastille. Ce pixel les remet tous sur la même ligne.
+     3. La bordure garde la couleur du danger. C'est elle, désormais,
+        qui fait la FAMILLE — sans elle, trois émojis venus de trois
+        blocs Unicode n'auraient plus rien de commun. */
 .monde .dg1{
   width:25px;height:25px;flex:none;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
   background:rgba(8,5,14,.66);border:1px solid rgba(255,255,255,.17);
   backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
   box-shadow:0 2px 7px rgba(0,0,0,.48);
+  font-size:14px;line-height:1;padding-bottom:1px;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",
+              "Android Emoji","EmojiOne Color",sans-serif;
 }
-.monde .dg1 svg{width:15px;height:15px;display:block}
-.monde .dg1.orage{color:#9fd0ff;border-color:rgba(150,205,255,.36)}
-.monde .dg1.tornade{color:#ffc48a;border-color:rgba(255,180,110,.36)}
-.monde .dg1.laser{color:#ff86c8;border-color:rgba(255,140,205,.38)}
+.monde .dg1.orage{border-color:rgba(150,205,255,.38)}
+.monde .dg1.tornade{border-color:rgba(255,180,110,.38)}
+.monde .dg1.laser{border-color:rgba(255,140,205,.40)}
 .monde.actif{border-color:var(--braise);box-shadow:0 0 0 2px rgba(255,138,30,.35),0 6px 18px rgba(0,0,0,.5)}
 .monde.actif .etat{color:var(--braise);border-color:rgba(255,138,30,.6)}
 .monde.faite{opacity:.66}

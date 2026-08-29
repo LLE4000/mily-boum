@@ -1671,36 +1671,35 @@ function bandeauVignette(i){
    l'icône s'en va toute seule. Une vignette qui annonce un orage qui
    ne tombe plus serait pire que pas d'icône du tout.
    ================================================================ */
-/* CHAQUE TRACÉ A ÉTÉ REFAIT UNE FOIS, ET POUR LA MÊME RAISON : il
-   faut qu'il se reconnaisse à TREIZE PIXELS, pas qu'il soit juste à
-   cent. C'est une contrainte de dessin, pas de géométrie.
+/* ── DES ÉMOJIS, ET NON PLUS DES TRACÉS ─────────────────────────────
+   Ils ont d'abord été dessinés, pour une raison qui vaut toujours :
+   un émoji n'a pas la même tête d'un appareil à l'autre, et ce fichier
+   avait déjà tranché ainsi pour la pastille du bouclier. Le joueur a
+   tranché dans l'autre sens, et il a un argument que le dessin n'a
+   pas : un éclair et une tornade sont des images que TOUT LE MONDE
+   connaît déjà, alors qu'un tracé, si juste soit-il, demande une
+   seconde de déchiffrage. Sur une vignette qu'on balaie du regard,
+   cette seconde compte plus que l'uniformité.
 
-     La tornade était cinq traits horizontaux qui se resserraient.
-     Grande, c'était un entonnoir ; petite, c'était le bouton de menu
-     de n'importe quelle application — trois barres. Il lui fallait
-     ses DEUX FLANCS qui convergent : ce sont eux qui font l'entonnoir,
-     les bandes internes ne font que le remplir.
+   LE LASER N'A PAS D'ÉMOJI, et c'est le seul des trois où le choix se
+   discute : Unicode a l'éclair, la tornade, la pluie, le volcan — pas
+   le rayon. Dix candidats ont été rendus À VINGT-CINQ PIXELS, la seule
+   taille qui compte, et la plupart meurent là : la boule à facettes et
+   le feu d'artifice deviennent des taches bleues, la lampe torche une
+   tache turquoise hors palette, l'arc-en-ciel et la flamme disent
+   autre chose.
+   🎇 tient pour trois raisons : c'est un RAYONNEMENT ISSU D'UN POINT,
+   ce qui est la forme même d'une source laser ; il reste lisible à
+   vingt-cinq pixels ; et il est orange, donc dans la palette du jeu
+   plutôt qu'à côté.
 
-     Le laser était un rayon unique avec des éclats autour. À treize
-     pixels, les éclats devenaient du bruit et le rayon une barre
-     oblique quelconque. Trois rayons partant d'UN MÊME POINT ne
-     ressemblent à rien d'autre qu'à des lasers — c'est la divergence
-     qui porte le sens, pas la brillance.
-   Le nuage, lui, n'a pas bougé : un nuage et un éclair se lisent à
-   n'importe quelle taille, c'est la forme la plus ancienne du lot. */
-var TRACES_DANGER = {
-  /* le nuage et son éclair */
-  orage:'<path d="M6.4 15.8a3.9 3.9 0 0 1 .7-7.8 5.5 5.5 0 0 1 10.5 1.6 3.6 3.6 0 0 1-.6 7.2"/>'
-      + '<path d="M12.9 12.2 9.3 18.6h3L11 23.4l5-6.8h-3.1z" fill="currentColor" stroke="none"/>',
-  /* l'entonnoir : le bord haut, les deux flancs qui se rejoignent,
-     et deux bandes de vent entre eux */
-  tornade:'<path d="M2.6 5.3c4.8 1.7 14 1.7 18.8 0"/>'
-        + '<path d="M4.2 5.6 12 21.8 19.8 5.6"/>'
-        + '<path d="M6.6 10.2c3.4 1.1 7.4 1.1 10.8 0"/>'
-        + '<path d="M8.7 14.8c2.1.7 4.5.7 6.6 0"/>',
-  /* trois rayons issus d'une même source */
-  laser:'<circle cx="3.6" cy="20.4" r="2.3" fill="currentColor" stroke="none"/>'
-      + '<path d="M5.4 18.9 20.6 8.4M5.6 19.6 19.4 14.6M4.8 18.2 14.2 3.4"/>'
+   Le sélecteur de variante ️ (U+FE0F) sur la tornade n'est pas
+   décoratif : sans lui, certains navigateurs rendent U+1F32A en
+   noir et blanc, comme un caractère de texte. */
+var EMOJI_DANGER = {
+  orage:"⚡",
+  tornade:"🌪️",
+  laser:"🎇"
 };
 /* L'ordre est celui de la liste : il est le même sur toutes les
    vignettes, donc l'œil retrouve la même icône à la même place. */
@@ -1715,9 +1714,7 @@ function iconesDangers(i){
     D = DANGERS_CARTE[k];
     if(!D.test(i)) continue;
     h += '<span class="dg1 ' + D.cle + '" title="' + D.titre + '">'
-       + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" '
-       + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-       + TRACES_DANGER[D.cle] + '</svg></span>';
+       + EMOJI_DANGER[D.cle] + '</span>';
   }
   return h ? '<div class="dangers">' + h + '</div>' : "";
 }
