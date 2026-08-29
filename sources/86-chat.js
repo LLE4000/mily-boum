@@ -189,9 +189,12 @@ function dessineFilChat(){
   var e = $("chatL");
   if(!e) return;
   if(!chatFil.length){
-    e.innerHTML = '<div class="cv">Personne n\'a encore rien dit. '
-      + 'Le fil commence à ton arrivée : ce qui s\'est dit avant n\'est '
-      + 'gardé nulle part.</div>';
+    /* FIL VIDE, PANNEAU VIDE. Il y avait ici un paragraphe qui
+       expliquait que rien n'était gardé. Il disait vrai, mais il le
+       disait à chaque ouverture, en haut du panneau, à la place des
+       messages — et un fil vide se lit tout seul. La place vaut mieux
+       que l'explication. */
+    e.innerHTML = "";
   }else{
     var h = "", i;
     for(i = 0; i < chatFil.length; i++){

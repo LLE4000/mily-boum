@@ -1169,9 +1169,13 @@ select.champ{cursor:pointer}
    La ligne du compte se touche : elle déplie la liste des présents.
    Le chevron le dit sans encombrer, et la liste reste étroite — c'est
    un coin d'écran, pas un tableau de bord. */
-#podium .enligne{cursor:pointer;display:flex;align-items:center;gap:6px}
-#podium .enligne i{font-style:normal;color:var(--braise);font-size:10px;margin-left:auto}
-#podium .enligne.ouverte{color:var(--or)}
+#podium .enligne,#podium .victimes{cursor:pointer;display:flex;align-items:center;gap:6px}
+#podium .enligne i,#podium .victimes i{font-style:normal;color:var(--braise);font-size:10px;margin-left:auto}
+#podium .enligne.ouverte,#podium .victimes.ouverte{color:var(--or)}
+/* Le détail des bêtes tuées se loge dans le même tiroir que la liste
+   des présents : même fond, même retrait, une seule idée à lire. */
+#podium .vl{font-size:11px;line-height:1.35;color:#e6b98a}
+#podium .vl b{color:#ffb45c}
 #podium .quiLa{
   margin:4px 0 1px;padding:4px 6px;border-radius:8px;
   background:rgba(0,0,0,.28);display:flex;flex-direction:column;gap:2px;
@@ -1206,10 +1210,16 @@ select.champ{cursor:pointer}
   box-shadow:0 6px 22px rgba(255,60,20,.45);display:none;z-index:3;
 }
 
-/* — haut droite : minicarte — */
-#hd{position:absolute;top:calc(8px + var(--sat));right:calc(8px + var(--sar));
+/* — haut droite : les annonces du salon —
+   La minicarte occupait ce coin et le numéro de version pendait
+   dessous. Les deux sont masqués : un repère permanent pour un coup
+   d'œil rare, c'est un mauvais échange. Le bloc descend donc SOUS la
+   ligne de la jauge — il ne reste que des annonces, qui passent, et
+   elles ne doivent jamais recouvrir le nom de la carte. */
+#hd{position:absolute;top:calc(52px + var(--sat));right:calc(8px + var(--sar));
     display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 #hd .bloc{padding:5px}
+#miniBoite,#versionJeu{display:none}
 /* Entrées et sorties du salon : elles vivent ICI, sous la minicarte —
    jamais au centre de l'écran, où elles couvriraient le combat. */
 #annonces{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:4px}
@@ -1229,10 +1239,23 @@ select.champ{cursor:pointer}
             text-shadow:0 1px 3px rgba(0,0,0,.7);padding-right:2px}
 #mini{width:132px;height:118px;display:block;border-radius:8px;background:#0c1c28}
 
-/* — bas gauche : barges — */
-#bg{position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));max-width:min(56vw,420px)}
+/* — bas gauche : barges —
+   HUIT SUR UNE LIGNE, OU DEUX FOIS QUATRE. JAMAIS SEPT ET UNE.
+   C'est ce que donnait `flex-wrap` : les huit tuiles réclament
+   8 × 46 + 7 × 5 = 403 px, la boîte en offrait 400 une fois ses marges
+   retirées, et la huitième tombait seule à la ligne. Trois pixels.
+   Une grille ne peut pas produire ce résultat-là : elle a un nombre de
+   colonnes, et c'est ce nombre qui décide — huit tant qu'il y a la
+   place, quatre sur un téléphone. La largeur de la boîte se déduit
+   alors du compte de colonnes au lieu de le contrarier. */
+#bg{--bgw:46px;--bgn:8;
+    position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));
+    max-width:min(56vw, calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
-#listeBarges{display:flex;gap:5px;flex-wrap:wrap}
+#listeBarges{display:grid;grid-template-columns:repeat(var(--bgn),minmax(0,var(--bgw)));
+             gap:5px;justify-content:start}
+/* « aucune » traverse la grille : ce n'est pas une navette */
+#listeBarges .bg1.aucune{grid-column:1/-1;width:auto;height:auto;padding:6px 10px;line-height:1.2}
 /* LES NAVETTES EN PORTRAITS.
    Le visage dit le type de troupe mieux qu'un mot : « Commando » et « Furie »
    écrits en neuf pixels sur une tablette étaient à peu près
@@ -1241,7 +1264,10 @@ select.champ{cursor:pointer}
    mais tout l'espace passe au portrait, et le nombre s'inscrit en
    pastille par-dessus. */
 .bg1{
-  width:46px;height:52px;padding:0;border-radius:10px;overflow:hidden;
+  /* la LARGEUR vient de la colonne, désormais : c'est la grille qui
+     décide, et une tuile qui redéclarerait 46 px la contredirait le
+     jour où la boîte se rétrécit sous un téléphone étroit */
+  width:auto;height:52px;padding:0;border-radius:10px;overflow:hidden;
   border:1px solid rgba(255,255,255,.14);position:relative;
   background:#1d1229;cursor:pointer;line-height:0;
   transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
@@ -1365,7 +1391,8 @@ select.champ{cursor:pointer}
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
   /* le portrait garde son rapport : on rétrécit les deux côtés */
-  .bg1{width:40px;height:46px}
+  #bg{--bgw:40px}
+  .bg1{height:46px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -1376,8 +1403,13 @@ select.champ{cursor:pointer}
    de rotation. */
 @media (max-width:800px){
   #hg{max-width:205px}
+  /* LA RÉSERVE DE DROITE TOMBE AVEC LA MINICARTE. Elle valait 160 px
+     parce qu'une minicarte de 144 px était ancrée là ; il ne reste que
+     des annonces, et elles sont passées sous la ligne de la jauge. La
+     jauge récupère donc toute la droite, dans les deux sens de
+     rotation. */
   #hc{
-    left:calc(221px + var(--sal));right:calc(160px + var(--sar));
+    left:calc(221px + var(--sal));right:calc(8px + var(--sar));
     width:auto;max-width:360px;margin:0 auto;transform:none;
   }
 }
@@ -1387,7 +1419,11 @@ select.champ{cursor:pointer}
   .cap canvas{width:25px;height:25px}
   .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
-  #bg{max-width:52vw}
+  /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
+     encore la largeur, mais elle mangerait la moitié d'un écran de
+     téléphone : quatre colonnes et deux rangs prennent la même place
+     debout que couché, et laissent les capacités tranquilles. */
+  #bg{--bgn:4}
 }
 @media (max-width:430px){
   #hd{display:none}
@@ -1396,12 +1432,15 @@ select.champ{cursor:pointer}
   .cap{width:46px;height:46px}
   .cap canvas{width:22px;height:22px}
   .cap .nm{font-size:7px}
-  .bg1{width:36px;font-size:10px}
+  .bg1{font-size:10px}
   #ress{font-size:12px;gap:8px}
-  /* Sur un téléphone étroit, les huit navettes débordaient sous les
+  /* Sur un téléphone étroit, les navettes débordaient sous les
      capacités : deux panneaux ancrés chacun à son bord finissent par
-     se rejoindre. On borne la largeur des navettes à ce qui reste. */
-  #bg{max-width:calc(100vw - 240px)}
+     se rejoindre. On borne la largeur des navettes à ce qui reste —
+     et comme les colonnes sont en `minmax`, elles se serrent au lieu
+     de déborder si cette borne mord. */
+  #bg{--bgw:36px;max-width:min(calc(100vw - 232px),
+      calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 }
 </style>
 </head>
@@ -1794,11 +1833,14 @@ select.champ{cursor:pointer}
 <div id="hud">
   <div id="hg">
     <div class="bloc p" id="podium"><div class="t">Top dégâts</div><div id="podiumL"></div></div>
+    <!-- UN SEUL BOUTON, ET C'EST LE RETOUR.
+         Il y en avait cinq. Les quatre autres — zoom avant, zoom
+         arrière, recentrage, plein écran — doublaient tous un geste
+         qui existe déjà : la molette et le pincement zooment, et le
+         plein écran se prend à l'accueil. Quatre carrés de 36 px dans
+         le coin le plus chargé de l'écran pour des gestes qu'on a
+         déjà : c'est de la place prise au jeu. -->
     <div id="zoomB" class="p">
-      <button class="bt" id="btZp" title="Zoom avant">+</button>
-      <button class="bt" id="btZm" title="Zoom arrière">−</button>
-      <button class="bt" id="btCentre" title="Centrer sur le Brasier">◎</button>
-      <button class="bt" id="btPlein2" title="Plein écran">⛶</button>
       <button class="bt" id="btAccueil" title="Retour à l'accueil — la bataille continue sans toi">⌂</button>
     </div>
   </div>
@@ -1809,8 +1851,14 @@ select.champ{cursor:pointer}
   </div>
   <div id="bandeauAlerte">⚠ Le QG charge une éruption ⚠</div>
 
+  <!-- LE COIN DROIT NE PORTE PLUS QUE LES ANNONCES.
+       La minicarte et le numéro de version restent dans le document —
+       la première parce qu'on la clique pour se déplacer si on la
+       rouvre, le second parce que majBandeau l'écrit — mais ils ne
+       s'affichent plus : deux repères permanents pour un coup d'œil
+       rare. Le numéro de version se lit à l'accueil. -->
   <div id="hd">
-    <div class="bloc p"><canvas id="mini" width="264" height="236"></canvas></div>
+    <div class="bloc p" id="miniBoite"><canvas id="mini" width="264" height="236"></canvas></div>
     <div id="versionJeu">v0.01</div>
     <div id="annonces"></div>
   </div>

@@ -359,7 +359,11 @@ function majListeBarges(){
           + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
           + '<div class="n">' + b.n + '</div></div>';
   }
-  if(!jeu.barges.length) html = '<div class="bg1" style="width:auto;height:auto;padding:6px 10px;line-height:1.2">aucune</div>';
+  /* « aucune » n'est pas une tuile : elle ne rentre pas dans une
+     colonne de 46 px. Elle prend donc toute la ligne — la grille lui
+     donne cette permission par la classe, plus par un style écrit à
+     la main qui ne connaissait pas la grille. */
+  if(!jeu.barges.length) html = '<div class="bg1 aucune">aucune</div>';
   l.innerHTML = html;
   /* Les portraits sont peints APRÈS l'innerHTML — les canevas n'existent
      pas avant. Ils viennent de dessinePortrait, exactement le même que
@@ -866,6 +870,9 @@ function classementSalon(){
 /* Déplié ou non : le joueur décide, et son choix tient jusqu'à ce
    qu'il en décide autrement. */
 var listeEnLigne = false;
+/* Idem pour les bêtes tuées : fermé au départ, et ouvert tant que le
+   joueur n'a pas décidé de le refermer. */
+var listeVictimes = false;
 function majPodium(){
   if(!jeu) return;
   /* Le classement se lit dans le REGISTRE, pas dans la liste des
@@ -882,22 +889,46 @@ function majPodium(){
        + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
-  /* le sort de Gégé s'affiche sous le classement, tant qu'on est sur
-     l'île où le drame a eu lieu */
+  /* ================================================================
+     LES VICTIMES SE REPLIENT.
+
+     Gégé, Tweety et les trois chats : cinq lignes possibles, et elles
+     ne partent jamais — une bête tuée le reste jusqu'à la fin de la
+     partie. Le panneau du coin s'allongeait donc au fil de l'île
+     jusqu'à mordre sur le jeu, pour une information qu'on lit UNE
+     fois : on apprend que Praline y est passée, et ensuite on le sait.
+
+     Elles gardent donc leur ligne — le compte reste sous les yeux,
+     c'est ce qui donne envie d'ouvrir — mais le détail attend qu'on
+     le demande. Même geste que « qui est en ligne » juste dessous :
+     la ligne se touche, le chevron dit dans quel sens.
+     ================================================================ */
+  var vic = [];
   if(jeu.tueurGege){
-    h += '<div class="gg">🦡 <b>' + echappe(jeu.tueurGege)
-       + '</b> a tué Gégé la belette</div>';
+    vic.push('🦡 <b>' + echappe(jeu.tueurGege) + '</b> a tué Gégé la belette');
   }
   if(jeu.tueurTweety){
-    h += '<div class="gg">🐤 <b>' + echappe(jeu.tueurTweety)
-       + '</b> a tué Tweety</div>';
+    vic.push('🐤 <b>' + echappe(jeu.tueurTweety) + '</b> a tué Tweety');
   }
   /* et les trois chats de Mily, chacun avec son coupable */
   for(var ec = 0; ec < ESPECES_PROTEGEES.length; ec++){
     var esc = ESPECES_PROTEGEES[ec];
     if(!jeu.tueurChats[esc]) continue;
-    h += '<div class="gg">🐈 <b>' + echappe(jeu.tueurChats[esc])
-       + '</b> a tué ' + CRE[esc].nom + '</div>';
+    vic.push('🐈 <b>' + echappe(jeu.tueurChats[esc]) + '</b> a tué ' + CRE[esc].nom);
+  }
+  if(vic.length){
+    h += '<div class="gg victimes' + (listeVictimes ? " ouverte" : "") + '" data-victimes="1">'
+       /* COURT, PARCE QUE LE PANNEAU EST ÉTROIT. « y sont passées »
+          tenait sur une tablette et repassait à la ligne sur un
+          téléphone, où le bloc ne fait plus que 118 px. */
+       + '🐾 ' + vic.length + (vic.length > 1 ? " bêtes de Mily tuées"
+                                             : " bête de Mily tuée")
+       + '<i>' + (listeVictimes ? "▾" : "▸") + '</i></div>';
+    if(listeVictimes){
+      h += '<div class="quiLa">';
+      for(var iv = 0; iv < vic.length; iv++) h += '<div class="vl">' + vic[iv] + '</div>';
+      h += '</div>';
+    }
   }
   /* Qui est réellement entendu, là, maintenant. C'est la réponse à
      « pourquoi je ne vois que mon nom ? » : si le relais est tombé ou
@@ -979,8 +1010,11 @@ function installeListeEnLigne(){
   if(!e) return;
   e.addEventListener("click", function(ev){
     if(!ev.target.closest) return;
-    if(!ev.target.closest("[data-enligne]")) return;
-    listeEnLigne = !listeEnLigne;
+    /* Deux replis dans le même panneau, un seul écouteur : c'est la
+       balise touchée qui dit lequel bascule. */
+    if(ev.target.closest("[data-enligne]")) listeEnLigne = !listeEnLigne;
+    else if(ev.target.closest("[data-victimes]")) listeVictimes = !listeVictimes;
+    else return;
     podiumHtml = "";                 // on force la réécriture
     majPodium();
   });
@@ -3066,11 +3100,12 @@ function installeRaz(){
   });
 }
 
+/* Les quatre boutons de zoom, de recentrage et de plein écran ont
+   quitté le coin haut-gauche : leurs écouteurs partent avec eux, sinon
+   $("btZp") rendrait null et la ligne suivante ne serait jamais posée.
+   Les fonctions, elles, restent — zoomVers sert à la molette et au
+   pincement, basculePlein au bouton de l'accueil. */
 function installeBoutons(){
-  $("btZp").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1.25); });
-  $("btZm").addEventListener("click", function(){ zoomVers(W / 2, H / 2, 1 / 1.25); });
-  $("btCentre").addEventListener("click", function(){ centreSur(jeu.qg.gx, jeu.qg.gy); borneCamera(); });
-  $("btPlein2").addEventListener("click", basculePlein);
   $("btAccueil").addEventListener("click", retourAccueil);
   $("btReprendre").addEventListener("click", reprendCombat);
 }

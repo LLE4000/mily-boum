@@ -8475,6 +8475,109 @@ G("34. Les blindés autour du QG, et la vermine en marche libre");
        .test(html));
 })();
 
+/* ================================================================ */
+G("35. L'interface de jeu allégée");
+(function(){
+
+  /* UN SEUL BOUTON DANS LE COIN, ET C'EST LE RETOUR.
+     Les quatre autres doublaient tous un geste qui existe déjà : la
+     molette et le pincement zooment, le plein écran se prend à
+     l'accueil. On vérifie donc les deux moitiés — qu'ils ont quitté le
+     document, ET que les gestes qu'ils doublaient sont toujours là,
+     sans quoi ce ne serait plus un allègement mais une perte. */
+  ok("le coin haut-gauche ne porte plus qu'un bouton",
+     /<div id="zoomB" class="p">\s*<button class="bt" id="btAccueil"[\s\S]{0,140}<\/div>/.test(html));
+  ok("… les quatre autres ont quitté le document",
+     !/id="btZp"/.test(html) && !/id="btZm"/.test(html) &&
+     !/id="btCentre"/.test(html) && !/id="btPlein2"/.test(html));
+  /* C'est l'ÉCOUTEUR qu'on cherche, pas le nom : le commentaire
+     d'installeBoutons cite $("btZp") pour dire pourquoi il n'est plus
+     branché, et une recherche du seul nom retomberait dessus. */
+  ok("… et leurs écouteurs sont partis avec eux",
+     !/\$\("btZp"\)\.addEventListener/.test(html) &&
+     !/\$\("btZm"\)\.addEventListener/.test(html) &&
+     !/\$\("btCentre"\)\.addEventListener/.test(html) &&
+     !/\$\("btPlein2"\)\.addEventListener/.test(html));
+  ok("… mais la molette zoome toujours",
+     /cv\.addEventListener\("wheel", function\(e\)\{[\s\S]{0,200}zoomVers\(/.test(html));
+  ok("… et le plein écran reste au bouton de l'accueil",
+     /\$\("btPlein"\)\.addEventListener\("click", basculePlein\);/.test(html));
+
+  /* LA MINICARTE ET LA VERSION NE S'AFFICHENT PLUS.
+     Elles restent dans le document — la première parce qu'on la
+     clique si on la rouvre, la seconde parce que majBandeau l'écrit —
+     mais elles ne prennent plus le coin. */
+  ok("la minicarte et le numéro de version sont masqués",
+     /#miniBoite,#versionJeu\{display:none\}/.test(html));
+  ok("… le canevas de la minicarte reste pourtant là",
+     /<canvas id="mini" width="264" height="236">/.test(html));
+  /* ET LA VERSION RESTE LISIBLE QUELQUE PART. C'est la contrepartie :
+     masquer le seul endroit où on lit le numéro reviendrait à ne plus
+     pouvoir vérifier qu'une mise à jour est bien arrivée. */
+  ok("… et le numéro se lit toujours au pied de l'accueil",
+     /<b id="versionBrief">/.test(html) &&
+     /\$\("versionBrief"\)\.textContent = VERSION;/.test(html));
+
+  /* MASQUÉE, ON NE LA DESSINE PLUS — et la visibilité se relit sur le
+     tempo du fond, pas à chaque image : offsetWidth force le calcul de
+     la mise en page, et soixante fois par seconde le remède serait
+     pire que le mal. */
+  ok("la minicarte cachée ne coûte plus rien",
+     /if\(tps > miniProchain\)\{\s*miniProchain = tps \+ 0\.7;\s*miniMontree = miniCv\.offsetWidth > 0;/
+       .test(html) && /if\(!miniMontree\) return;/.test(html));
+  ok("… et la mise en page n'est lue qu'une fois par tour de fond",
+     (html.match(/miniCv\.offsetWidth/g) || []).length === 1);
+
+  /* LES BÊTES TUÉES SE REPLIENT, ET LE COMPTE RESTE VISIBLE.
+     Cinq lignes possibles qui ne partent jamais : le panneau
+     s'allongeait au fil de l'île pour une chose qu'on lit une fois. */
+  ok("le repli des victimes est fermé au départ",
+     /var listeVictimes = false;/.test(html));
+  ok("… le compte se lit sans ouvrir",
+     /'🐾 ' \+ vic\.length \+ \(vic\.length > 1 \? " bêtes de Mily tuées"/.test(html));
+  ok("… et un seul écouteur sert les deux replis du panneau",
+     /if\(ev\.target\.closest\("\[data-enligne\]"\)\) listeEnLigne = !listeEnLigne;\s*else if\(ev\.target\.closest\("\[data-victimes\]"\)\) listeVictimes = !listeVictimes;/
+       .test(html));
+  ok("… le détail n'est écrit que déplié",
+     /if\(listeVictimes\)\{[\s\S]{0,220}class="vl"/.test(html));
+
+  /* LE FIL DE CHAT VIDE NE DIT PLUS RIEN. */
+  ok("un fil vide laisse le panneau vide",
+     /if\(!chatFil\.length\)\{[\s\S]{0,400}e\.innerHTML = "";/.test(html));
+  ok("… et le paragraphe d'explication a disparu",
+     !/Personne n\\'a encore rien dit/.test(html));
+
+  /* LES NAVETTES : HUIT, OU DEUX FOIS QUATRE. JAMAIS SEPT ET UNE.
+     C'est ce que donnait flex-wrap — 403 px réclamés, 400 offerts. Une
+     grille ne peut pas produire ce résultat : elle a un NOMBRE de
+     colonnes, et la largeur de la boîte se déduit de ce nombre au lieu
+     de le contrarier. */
+  ok("les navettes sont posées sur une grille, plus sur un flux",
+     /#listeBarges\{display:grid;grid-template-columns:repeat\(var\(--bgn\),minmax\(0,var\(--bgw\)\)\)/
+       .test(html));
+  ok("… huit colonnes par défaut",
+     /#bg\{--bgw:46px;--bgn:8;/.test(html));
+  ok("… et quatre dès qu'on passe sous 600 px",
+     /@media \(max-width:600px\)\{[\s\S]{0,700}#bg\{--bgn:4\}/.test(html));
+  ok("… la largeur de la boîte se déduit du compte de colonnes",
+     /max-width:min\(56vw, calc\(var\(--bgn\) \* var\(--bgw\) \+ \(var\(--bgn\) - 1\) \* 5px \+ 22px\)\)/
+       .test(html));
+  ok("… et la tuile ne redéclare plus sa largeur",
+     /\.bg1\{[\s\S]{0,260}width:auto;height:52px/.test(html));
+  ok("« aucune » traverse la grille au lieu d'entrer dans une colonne",
+     /#listeBarges \.bg1\.aucune\{grid-column:1\/-1/.test(html) &&
+     /html = '<div class="bg1 aucune">aucune<\/div>';/.test(html));
+
+  /* LE COIN DROIT LIBÉRÉ PROFITE À LA JAUGE.
+     La réserve de 160 px existait pour une minicarte de 144 px ; il ne
+     reste que des annonces, et elles sont passées sous la ligne. */
+  ok("les annonces descendent sous la ligne de la jauge",
+     /#hd\{position:absolute;top:calc\(52px \+ var\(--sat\)\)/.test(html));
+  ok("… et la jauge récupère toute la droite sous 800 px",
+     /@media \(max-width:800px\)\{[\s\S]{0,600}left:calc\(221px \+ var\(--sal\)\);right:calc\(8px \+ var\(--sar\)\);/
+       .test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

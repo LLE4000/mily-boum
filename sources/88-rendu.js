@@ -3554,9 +3554,27 @@ function redessineFondMini(){
     c.fillRect(2 + bt.gx / GW * (w - 4) - 1.5, 2 + bt.gy / GH * (h - 4) - 1.5, 3, 3);
   }
 }
+/* MASQUÉE, ON NE LA DESSINE PAS — et ce n'est pas une évidence : une
+   minicarte cachée par la feuille de style continuait de coûter, à
+   chaque image, le tracé du QG, des cinq câbles, des unités et des
+   créatures, plus un balayage des mille deux cents bâtiments toutes
+   les sept dixièmes de seconde pour son fond. Tout ça pour un canevas
+   que personne ne regarde.
+
+   La visibilité se lit sur le MÊME tempo que le fond, pas à chaque
+   image : `offsetWidth` force le calcul de la mise en page, et
+   soixante fois par seconde ce remède serait pire que le mal. Le
+   drapeau reste donc vrai le jour où la boîte est réaffichée, à sept
+   dixièmes de seconde près. */
+var miniMontree = false;
 function majMinicarte(tps){
   if(!miniCtx || !miniFond) return;
-  if(tps > miniProchain){ miniProchain = tps + 0.7; redessineFondMini(); }
+  if(tps > miniProchain){
+    miniProchain = tps + 0.7;
+    miniMontree = miniCv.offsetWidth > 0;
+    if(miniMontree) redessineFondMini();
+  }
+  if(!miniMontree) return;
   var w = miniCv.width, h = miniCv.height;
   miniCtx.clearRect(0, 0, w, h);
   miniCtx.drawImage(miniFond, 0, 0, w, h);
