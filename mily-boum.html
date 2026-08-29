@@ -1543,7 +1543,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.91";
+var VERSION = "v0.92";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -19858,9 +19858,36 @@ function dessineFeuIbiza(c, tps, p, z){
     var ray = 10 + (i % 4) * 5;
     var base = versEcran(cam, SCENE_GX + Math.cos(ang) * ray,
                               SCENE_GY + Math.sin(ang) * ray);
-    /* DEUX FOIS PLUS HAUT. Elles sortent parfois du cadre par le haut,
-       et c'est ce qu'on veut : on lève les yeux vers un feu d'artifice. */
-    var haut = (500 + ((i * 7) % 5) * 95) * z;
+    /* ════════════════════════════════════════════════════════
+       LE FEU NE RÉTRÉCIT PAS AUTANT QUE L'ÎLE, ET C'EST JUSTE
+
+       « Dézoome ton écran, ça doit aller plus haut. »
+
+       Tout était multiplié par le zoom, comme un bâtiment. Au zoom
+       plancher, la gerbe faisait donc cent soixante-treize pixels de
+       haut et soixante-treize de rayon : mesuré, et invisible. En
+       rétrécissant EXACTEMENT comme l'île, elle gardait toujours la
+       même taille par rapport à elle — elle ne pouvait donc jamais
+       DOMINER, quel que soit le réglage. Monter la hauteur en unités
+       de monde n'y changeait rien : c'était le mauvais levier.
+
+       Elle a maintenant son propre facteur, qui s'aplatit : 0,42 au
+       repos plus 0,58 de zoom. Et ce n'est pas une astuce, c'est plus
+       juste — un bâtiment est POSÉ sur le plan de l'île, sa taille
+       apparente suit donc le zoom au pixel près ; une gerbe éclate
+       très haut au-dessus de ce plan, donc bien plus loin de la
+       caméra, et sa taille apparente varie beaucoup moins. Le point
+       de TIR, lui, reste ancré au monde : c'est un point du sol.
+
+       Ce qui donne, mesuré : au zoom plancher, trois cent soixante-six
+       pixels de haut au lieu de cent soixante-treize, et deux cent
+       seize de rayon au lieu de soixante-treize. De près, la gerbe
+       s'ouvre au-dessus du cadre et l'on ne voit que les comètes qui
+       montent — ce qu'on voit quand on est au pied d'un feu
+       d'artifice.
+       ════════════════════════════════════════════════════════ */
+    var zf = 0.42 + 0.58 * z;
+    var haut = (700 + ((i * 7) % 5) * 130) * zf;
     var col = teinteIbiza(IBI_LASER_T, i * 5 + mes + F.n);
 
     if(v < IBI_FEU_MONTEE){
@@ -19877,11 +19904,11 @@ function dessineFeuIbiza(c, tps, p, z){
       gm.addColorStop(0.55, "rgba(255,190,110,.35)");
       gm.addColorStop(1, "rgba(255,246,225,.95)");
       c.strokeStyle = gm;
-      c.lineWidth = 2.4 * z;
+      c.lineWidth = Math.max(1.6, 3.0 * zf);
       c.beginPath(); c.moveTo(base.x, yq); c.lineTo(base.x, y); c.stroke();
       /* la tête de la comète, qui grésille */
       c.fillStyle = "rgba(255,250,235," + (0.55 + 0.35 * Math.sin(v * 90 + i)) + ")";
-      c.beginPath(); c.arc(base.x, y, Math.max(1.2, 2.2 * z), 0, 6.2832); c.fill();
+      c.beginPath(); c.arc(base.x, y, Math.max(1.6, 2.6 * zf), 0, 6.2832); c.fill();
       continue;
     }
 
@@ -19895,7 +19922,7 @@ function dessineFeuIbiza(c, tps, p, z){
        étoiles ne se détachent qu'ensuite. */
     if(w < 0.14){
       var fl = 1 - w / 0.14;
-      var rf = Math.max(46, 230 * fl * z);
+      var rf = Math.max(52, 260 * fl * zf);
       var gf = c.createRadialGradient(base.x, cy, 0, base.x, cy, rf);
       gf.addColorStop(0, "rgba(255,253,244," + (0.85 * fl) + ")");
       gf.addColorStop(0.30, "rgba(" + col + "," + (0.42 * fl) + ")");
@@ -19913,10 +19940,10 @@ function dessineFeuIbiza(c, tps, p, z){
       var ca2 = Math.cos(a2), sa2 = Math.sin(a2);
       /* la poussée propre à cette étoile-là, tirée de son rang */
       var vk = IBI_FEU_V * (0.78 + ((k * 7 + i * 3) % 9) / 18);
-      var d1 = vk * (1 - Math.exp(-IBI_FEU_K * tau)) / IBI_FEU_K * z;
+      var d1 = vk * (1 - Math.exp(-IBI_FEU_K * tau)) / IBI_FEU_K * zf;
       var tq = Math.max(0, tau - IBI_FEU_TRAINE);
-      var d0 = vk * (1 - Math.exp(-IBI_FEU_K * tq)) / IBI_FEU_K * z;
-      var g1 = IBI_FEU_G * tau * tau * z, g0 = IBI_FEU_G * tq * tq * z;
+      var d0 = vk * (1 - Math.exp(-IBI_FEU_K * tq)) / IBI_FEU_K * zf;
+      var g1 = IBI_FEU_G * tau * tau * zf, g0 = IBI_FEU_G * tq * tq * zf;
 
       /* le scintillement : une étoile de feu d'artifice palpite, et
          c'est ce qui la distingue d'un trait de crayon */
@@ -19929,7 +19956,7 @@ function dessineFeuIbiza(c, tps, p, z){
       var teinte = w < 0.13 ? "255,252,240"
                  : (w < 0.62 ? col : "255,150,60");
       c.strokeStyle = "rgba(" + teinte + "," + (al * 0.9).toFixed(3) + ")";
-      c.lineWidth = Math.max(1.1, (2.6 - w * 1.6) * z);
+      c.lineWidth = Math.max(1.3, (2.8 - w * 1.7) * zf);
       c.beginPath();
       c.moveTo(base.x + ca2 * d0, cy + sa2 * d0 + g0);
       c.lineTo(base.x + ca2 * d1, cy + sa2 * d1 + g1);
