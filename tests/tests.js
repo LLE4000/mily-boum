@@ -2118,6 +2118,70 @@ G("4. Déterminisme de la génération de carte");
          "les deux branches de tir, la balise et la chasse");
       ok("… et l'attente ne coûte aucun délai : le compteur reste à zéro",
          /f\.tourelle && !tankAligne\(u\)\)\{ u\.prochainTir = 0; \}/.test(html));
+      /* ================================================================
+         LE PYR-120 N'EST PAS BÂTI COMME LE CHAR, ET SON ORDRE DE DESSIN
+         NE PEUT PAS ÊTRE LE MÊME.
+
+         Le TX-90 a des chenilles PLUS LARGES que sa caisse : elles sont
+         réellement devant elle, donc « chenille du fond, caisse,
+         chenille de devant » est juste. Le PYR-120 est bâti à l'envers
+         — sa caisse déborde de cinq unités — et le même ordre mettait
+         la chenille proche devant un flanc qui est plus près de l'œil
+         qu'elle. On voyait une bande de chenille là où le blindage
+         aurait dû être, et cela changeait de côté avec le cap.
+
+         Deux faits gardés, et le second explique le premier : la caisse
+         déborde bien du train, et les DEUX chenilles passent avant
+         elle. Le jour où quelqu'un rétrécirait la caisse sous la
+         largeur des chenilles, le premier test tomberait et dirait
+         pourquoi le second n'a plus lieu d'être. */
+      /* Les cotes du PYR-120 vivent dans 63-pyr.js, pas dans le noyau :
+         on les relit dans le fichier livré, telles qu'elles seront
+         exécutées — échelle comprise. */
+      var mPY = html.match(/var PY = \{[\s\S]*?\n\};/);
+      var mEch = html.match(/var PY_ECH = ([\d.]+);/);
+      var PYt = null;
+      if(mPY && mEch){
+        PYt = eval("(" + mPY[0].replace(/^var PY = /, "").replace(/;$/, "")
+                             .replace(/\/\*[\s\S]*?\*\//g, "") + ")");
+        for(var kPY in PYt) PYt[kPY] *= parseFloat(mEch[1]);
+      }
+      ok("les cotes du PYR-120 se relisent dans le fichier livré", !!PYt);
+      ok("la caisse du PYR-120 déborde de ses chenilles",
+         !!PYt && PYt.coY > PYt.chYe,
+         PYt ? PYt.coY.toFixed(1) + " contre " + PYt.chYe.toFixed(1) : "");
+      /* On lit l'ordre dans la fonction d'assemblage elle-même, et non
+         dans une fenêtre de caractères autour d'un appel : un
+         commentaire de plus entre deux lignes ne doit pas casser un
+         test qui parle d'ORDRE. */
+      var mChar = html.match(/function charPYR\([\s\S]*?\n\}/);
+      ok("l'assemblage du PYR-120 se relit dans le fichier livré", !!mChar);
+      if(mChar){
+        var A = mChar[0];
+        var iLoin = A.indexOf("chenillePY(c, -proche");
+        var iPres = A.indexOf("chenillePY(c, proche");
+        var iCai  = A.indexOf("caissePY(");
+        var iJup  = A.indexOf("jupePY(");
+        ok("… donc ses deux chenilles sont peintes AVANT elle",
+           iLoin > 0 && iPres > iLoin && iCai > iPres,
+           "sinon le train recouvre le blindage");
+        ok("et la jupe vient après la caisse, sur ce qui reste du train",
+           iJup > iCai);
+      }
+      /* La jupe ne descend pas au ras du sol : un blindé chenillé doit
+         MONTRER qu'il l'est. Elle s'arrête au-dessus du bas des galets,
+         qui sont centrés à chZ×0,38 et font 4,6 de rayon. */
+      var mJB = html.match(/var JUPE_BAS = \[([^\]]*)\]/);
+      if(mJB && PYt){
+        var JB = mJB[1].split(",").map(Number);
+        ok("… et elle s'arrête assez haut pour laisser voir les galets",
+           Math.min.apply(null, JB) > PYt.chZ * 0.38 - 4.6,
+           "arrêt le plus bas " + Math.min.apply(null, JB).toFixed(1)
+           + ", bas des galets " + (PYt.chZ * 0.38 - 4.6).toFixed(1));
+        ok("… et son profil n'est pas droit : les bouts remontent",
+           JB[0] > Math.min.apply(null, JB) + 2 &&
+           JB[JB.length - 1] > Math.min.apply(null, JB) + 2);
+      }
       /* SOUS BALISE, LE BLINDÉ BALAIE LA VERMINE EN ROULANT.
          Deux règles interdisaient jusqu'ici de tirer sous balise, et
          toutes les deux tiennent au mot « s'arrêter » : une troupe à

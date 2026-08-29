@@ -1858,7 +1858,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.05";
+var VERSION = "v1.06";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -40221,6 +40221,32 @@ function caissePY(c, ca, sa, C, detail){
     faceT(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
               [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
           ca, sa, ecl(C.coque, 1.34), L);
+    /* ---- LES DEUX JOUES, ET ELLES COMBLENT UN VRAI TROU ----
+       « L'avant s'arrête trop droit / plat, il faudrait une forme un
+       peu plus bombée, enveloppante. »
+
+       Le glacis est plus étroit que la caisse — 20 contre 23,5 de
+       demi-largeur — parce qu'un nez qui se resserre est ce qui fait
+       le bélier. Mais rien ne reliait les deux : on passait du flanc
+       au glacis par une MARCHE, et vue de face cette marche se lit
+       comme une coupe nette. D'où le « trop plat » : ce n'était pas la
+       courbure qui manquait, c'était la transition.
+
+       Deux facettes obliques la comblent, une par côté. Elles ne
+       courbent rien — on ne courbe pas de l'acier de cent
+       millimètres — mais trois plans qui tournent autour d'un nez se
+       lisent comme un volume enveloppant, là où deux plans et une
+       marche se lisaient comme une boîte coupée. C'est le même moyen
+       que les facettes de la jupe, et c'est pour ça qu'ils vont
+       ensemble. */
+    for(var jo = 0; jo < 2; jo++){
+      var sj = jo ? 1 : -1;
+      faceT(c, [[PY.coX1, sj * PY.coY, PY.coZ0],
+                [PY.glX, sj * PY.glY, PY.coZ0 + 2],
+                [PY.coX1 - 2, sj * (PY.glY - 2), PY.glZ],
+                [PY.coX1, sj * PY.coY, PY.coZ1]],
+            ca, sa, ecl(C.coque, jo ? 1.10 : 0.94), L);
+    }
   }
 
   if(!detail) return;
@@ -40343,6 +40369,132 @@ function caissePY(c, ca, sa, C, detail){
     c.fillStyle = "rgba(14,14,14,.62)";
     c.beginPath(); c.ellipse(pe.x, pe.y, PY.ecR * 0.72, PY.ecR * 0.46, 0, 0, 6.2832); c.fill();
   }
+}
+
+/* ================================================================
+   LA JUPE DE BLINDAGE — ET POURQUOI ELLE N'EST PAS UN DÉCOR
+
+   « Sur plusieurs vues, la chenille dépasse trop, alors qu'on devrait
+   voir une vraie surface de blindage en facettes. »
+
+   LE DÉFAUT N'ÉTAIT PAS UNE COULEUR, C'ÉTAIT UN ORDRE DE DESSIN.
+   La caisse déborde des chenilles — 23,5 contre 19,5 en demi-largeur,
+   quatre unités d'encorbellement, et c'est voulu : c'est ce débord qui
+   fait qu'on voit la MACHINE avant son train de roulement. Seulement
+   la chenille proche est peinte APRÈS la caisse, parce qu'elle est
+   plus près de l'œil que le FLANC. Elle est donc peinte par-dessus le
+   débord, alors que ce débord est plus près d'elle encore. Résultat :
+   une large bande de chenille là où l'on aurait dû voir du blindage,
+   et une silhouette qui change de nature selon le cap — ce que le
+   joueur a vu sans le nommer en écrivant « de façon plus symétrique ».
+
+   La jupe est donc la pièce qui manquait, et elle se dessine APRÈS la
+   chenille proche : elle est réellement devant elle, ce n'est pas une
+   ruse d'affichage.
+
+   CINQ FACETTES, ET ELLES NE SONT PAS DÉCORATIVES. Un panneau d'un
+   seul tenant, à une seule teinte, redonnerait exactement le mur plat
+   qu'on cherche à éviter — plus propre, mais toujours aussi muet. Ce
+   qui fait lire du BLINDAGE, c'est qu'une arête accroche la lumière
+   autrement que sa voisine. Chacune a donc son inclinaison et sa
+   valeur, et leur arête basse dessine un profil : haute à l'arrière
+   où le barbotin monte, basse au milieu où elle protège les galets,
+   remontée à l'avant pour ne pas labourer le sol.
+
+   ELLE NE COUVRE PAS TOUT, ET C'EST LE POINT DÉLICAT. Descendue au
+   ras du sol, elle effacerait les chenilles — or c'est un engin
+   chenillé, et son train est la moitié de ce qui dit qu'il est lourd.
+   Elle s'arrête à hauteur d'axe : on voit le blindage, on voit les
+   galets tourner dessous, et l'on comprend qu'il y a une machine
+   entre les deux.
+   ================================================================ */
+/* LA HAUTEUR D'ARRÊT EST UN RÉGLAGE, PAS UN RESTE.
+   Descendue à quatre unités, la jupe couvrait aussi les galets et
+   l'engin devenait un pavé posé sur rien — la chenille avait disparu
+   avec le défaut. Un blindé chenillé doit MONTRER qu'il l'est : à sept
+   unités, elle couvre le brin supérieur et la moitié haute des galets,
+   et l'on voit tourner ce qui reste dessous. Les extrémités remontent
+   à douze parce qu'une jupe qui laboure le sol ne tient pas un jour. */
+var JUPE_BAS = [12.2, 8.4, 7.0, 7.2, 8.8, 13.0];  // six hauteurs, cinq facettes
+/* Et leur valeur. L'écart fait tout : à 0,86–1,04 les facettes se
+   lisaient comme des traits de séparation sur un mur uni. Un plan
+   d'acier qui tourne de quelques degrés change franchement de clarté,
+   et c'est cette FRANCHISE qui dit « facette » plutôt que « rainure ». */
+var JUPE_ECL = [0.74, 0.94, 1.10, 0.90, 0.78];
+
+function jupePY(c, cote, ca, sa, C, detail){
+  var y = cote * (PY.coY + 0.6);
+  var n = JUPE_BAS.length - 1;
+  var x0 = PY.coX0 - 0.5, x1 = PY.glX - 3;
+  var zt = PY.coZ0 + 3.4;                        // elle mord sur la caisse
+  var i, xa, xb;
+
+  /* les facettes, d'arrière en avant */
+  for(i = 0; i < n; i++){
+    xa = x0 + (x1 - x0) * (i / n);
+    xb = x0 + (x1 - x0) * ((i + 1) / n);
+    faceT(c, [[xa, y, zt], [xb, y, zt], [xb, y, JUPE_BAS[i + 1]], [xa, y, JUPE_BAS[i]]],
+          ca, sa, ecl(C.coque, JUPE_ECL[i]), C.liseré);
+  }
+
+  /* LE CHANFREIN DU BAS, et c'est LUI qui fait le blindage.
+     Une plaque verticale, si joliment découpée soit-elle, reste une
+     plaque : on la lit comme du carton. Une plaque dont le bord
+     inférieur se replie vers l'intérieur a une ÉPAISSEUR, donc c'est
+     de l'acier. Deux unités et demie de repli, rentrées d'une unité et
+     demie, dans une teinte franchement plus sombre — le bord ne voit
+     pas le ciel, il voit le sol. */
+  for(i = 0; i < n; i++){
+    xa = x0 + (x1 - x0) * (i / n);
+    xb = x0 + (x1 - x0) * ((i + 1) / n);
+    faceT(c, [[xa, y, JUPE_BAS[i]], [xb, y, JUPE_BAS[i + 1]],
+              [xb, y - cote * 1.5, JUPE_BAS[i + 1] - 2.5],
+              [xa, y - cote * 1.5, JUPE_BAS[i] - 2.5]],
+          ca, sa, ecl(C.coque, JUPE_ECL[i] * 0.62), null);
+  }
+
+  if(!detail) return;
+
+  /* LE CAMOUFLAGE SUIT LA JUPE, PAS SON RECTANGLE. Découpé au
+     quadrilatère englobant, il aurait débordé sous l'arête basse en
+     dents de scie et posé de la peinture dans le vide. On découpe donc
+     au tracé RÉEL — celui-là même qu'on vient de peindre. */
+  var CA = camoPYR();
+  c.save();
+  c.beginPath();
+  for(i = 0; i <= n; i++){
+    var pa = ptT(x0 + (x1 - x0) * (i / n), y, zt, ca, sa);
+    if(i) c.lineTo(pa.x, pa.y); else c.moveTo(pa.x, pa.y);
+  }
+  for(i = n; i >= 0; i--){
+    var pb = ptT(x0 + (x1 - x0) * (i / n), y, JUPE_BAS[i], ca, sa);
+    c.lineTo(pb.x, pb.y);
+  }
+  c.closePath();
+  c.clip();
+  camoFacePY(c, [[x0, y, 2.6], [x1, y, 2.6], [x1, y, zt], [x0, y, zt]],
+             CA.flanc, ca, sa, C, 0.85);
+  c.restore();
+
+  /* LE RAIL DE FIXATION, en haut : c'est lui qui dit que la jupe est
+     BOULONNÉE et non fondue dans la caisse. Sans ce trait, elle se lit
+     comme un flanc qui descend trop bas. */
+  faceT(c, [[x0, y, zt], [x1, y, zt], [x1, y, zt - 2.2], [x0, y, zt - 2.2]],
+        ca, sa, ecl(C.plaque, 1.06), C.liseré);
+  rivetsT(c, [x0 + 2, y, zt - 1.1], [x1 - 2, y, zt - 1.1], 9, ca, sa, C);
+
+  /* ET L'OMBRE PORTÉE SOUS SON ARÊTE BASSE. Deux pixels d'ombre sur la
+     chenille, et la jupe cesse d'être un autocollant pour devenir une
+     plaque qui AVANCE sur le train. C'est le détail le moins cher du
+     véhicule et l'un de ceux qui se voient le plus. */
+  c.strokeStyle = "rgba(10,14,18,.42)";
+  c.lineWidth = 2.4;
+  c.beginPath();
+  for(i = 0; i <= n; i++){
+    var po = ptT(x0 + (x1 - x0) * (i / n), y - cote * 1.5, JUPE_BAS[i] - 3.1, ca, sa);
+    if(i) c.lineTo(po.x, po.y); else c.moveTo(po.x, po.y);
+  }
+  c.stroke();
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -40688,13 +40840,42 @@ function charPYR(c, ab, at, defil, abime, brule, detail, feu, tps){
   }
   c.closePath(); c.fill();
 
-  /* la chenille du fond, la caisse, celle de devant : le seul ordre
-     qui compte, et il se lit au signe de (−sa, ca). */
+  /* ================================================================
+     L'ORDRE DE DESSIN — ET C'ÉTAIT LUI, LE DÉFAUT
+
+     « Sur plusieurs vues, la chenille dépasse trop, alors qu'on
+     devrait voir une vraie surface de blindage. »
+
+     L'ordre venait du TX-90 : chenille du fond, caisse, chenille de
+     devant. Il est juste pour un char, dont les chenilles sont PLUS
+     LARGES que la caisse — elles sont alors réellement devant elle.
+
+     Le PYR-120 est bâti à l'envers : sa caisse fait 30,1 de
+     demi-largeur contre 25,0 pour ses chenilles. C'est même tout son
+     dessin — l'encorbellement est ce qui fait qu'on voit la machine
+     avant son train. Peindre la chenille proche EN DERNIER la mettait
+     donc devant un flanc qui, dans l'espace, est cinq unités plus près
+     de l'œil qu'elle. La bande de chenille que le joueur voyait n'était
+     pas une chenille trop grande : c'était le blindage effacé par
+     par-dessus, et cela changeait de côté avec le cap — d'où
+     l'impression d'asymétrie qu'il a signalée sans la nommer.
+
+     LES DEUX CHENILLES PASSENT DONC AVANT LA CAISSE. Le flanc reprend
+     alors ce qui lui revient : il cache le haut du train, et l'on ne
+     voit plus de la chenille que ce qui dépasse sous lui — les galets
+     et le brin inférieur, c'est-à-dire exactement ce qu'on voit d'un
+     engin chenillé bien blindé.
+     ================================================================ */
   var gaucheDevant = versNousT(-sa, ca);
-  chenillePY(c, gaucheDevant ? -1 : 1, ca, sa, defil, C, detail);
+  var proche = gaucheDevant ? 1 : -1;
+  chenillePY(c, -proche, ca, sa, defil, C, detail);
+  chenillePY(c, proche, ca, sa, defil, C, detail);
   caissePY(c, ca, sa, C, detail);
   reservoirsPY(c, ca, sa, C, detail);
-  chenillePY(c, gaucheDevant ? 1 : -1, ca, sa, defil, C, detail);
+  /* Et la jupe descend de la caisse sur ce qui reste du train : elle
+     est à 30,7, donc devant tout le reste, et c'est elle qui donne au
+     flanc ses facettes jusqu'en bas. */
+  jupePY(c, proche, ca, sa, C, detail);
   tourellePYR(c, at, C, detail, feu || 0, tps);
 
   /* LES BLESSURES. Des impacts noircis qui apparaissent à mesure : le
