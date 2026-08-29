@@ -41,6 +41,8 @@ try{
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone",
     "encodePieces","decodePieces","partiePieces","partieFormes","partieQuadrillage",
+    "encodeEpingles","decodeEpingles","nettoieEpingle","rangEpingleSuivant",
+    "meilleuresEpingles","EPINGLES_MAX","EPINGLE_TEXTE",
     "encodePlanComplet","planVide","pieceEstPosable","MARQUE_PIECES","MARQUE_FORMES",
     "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","seauxHerites","reconstruitCarrieres","encodeTop3","decodeTop3","inscritTop3","top3DeCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
@@ -7956,6 +7958,91 @@ G("30. Les carrières reconstruites depuis les podiums");
      poseraient deux entrées pour la même personne. */
   ok("le seau hérité d'un nom est stable",
      H("Roro") === H("Roro") && H("Roro") !== H("Lu"), H("Roro") + " / " + H("Lu"));
+})();
+
+G("31. Les messages épinglés du salon");
+(function(){
+  var E = N.encodeEpingles, D = N.decodeEpingles;
+
+  /* --- LA CHAÎNE --- */
+  var l = [{ n:1, nom:"Roro", txt:"on attaque à 21 h" },
+           { n:2, nom:"Lu",   txt:"garde 3 navettes de Furies" }];
+  ok("une épingle s'écrit rang, nom, texte",
+     E(l) === "1~Roro~on attaque à 21 h|2~Lu~garde 3 navettes de Furies", E(l));
+  ok("… et se relit à l'identique", E(D(E(l))) === E(l));
+  ok("l'ordre est celui de la pose", D(E(l))[0].nom === "Roro" && D(E(l))[1].nom === "Lu");
+
+  /* LES SÉPARATEURS. Un message qui en contient ne doit pas couper la
+     liste en deux — c'est le seul défaut qui ferait perdre des épingles
+     à tout le salon d'un coup. */
+  var pipe = E([{ n:1, nom:"a|b~c", txt:"gauche | droite ~ fin" }]);
+  ok("les séparateurs sont retirés du nom et du texte",
+     pipe.split("|").length === 1 && pipe.split("~").length === 3, pipe);
+  ok("… et la relecture retrouve bien une seule épingle", D(pipe).length === 1);
+  ok("le texte survit, sans ses séparateurs",
+     D(pipe)[0].txt === "gauche droite fin", D(pipe)[0].txt);
+
+  /* --- LA COUPE : on garde les PLUS RÉCENTES --- */
+  var beaucoup = [], i;
+  for(i = 1; i <= N.EPINGLES_MAX + 5; i++) beaucoup.push({ n:i, nom:"x", txt:"m" + i });
+  var coupe = D(E(beaucoup));
+  ok("la liste est bornée", coupe.length === N.EPINGLES_MAX, coupe.length);
+  ok("… et c'est la plus ANCIENNE qui part, pas la dernière arrivée",
+     coupe[0].txt === "m6" && coupe[coupe.length - 1].txt === "m17",
+     coupe[0].txt + " → " + coupe[coupe.length - 1].txt);
+
+  /* --- LE RANG SUIVANT --- */
+  ok("le rang suivant dépasse tous les autres",
+     N.rangEpingleSuivant([{ n:3 }, { n:9 }, { n:1 }]) === 10);
+  ok("… et vaut 1 sur une liste vide", N.rangEpingleSuivant([]) === 1);
+
+  /* --- LA FUSION, ET SURTOUT LE RETRAIT --- */
+  var a1 = { ep:E(l), epn:1 };
+  var vide = { ep:"", epn:0 };
+  ok("une liste pleine bat une liste vide plus ancienne",
+     N.meilleuresEpingles(a1, vide).ep === E(l));
+  ok("… dans les deux sens", N.meilleuresEpingles(vide, a1).ep === E(l));
+
+  /* LE POINT DE CONCEPTION : DÉSÉPINGLER DOIT TENIR. Avec une union
+     monotone — celle des scores ou des podiums — l'épingle retirée
+     reviendrait au premier instantané d'un autre appareil qui l'a
+     encore. Avec le numéro, la liste plus RÉCENTE gagne, même si elle
+     est plus courte. */
+  var retire = { ep:E([l[0]]), epn:2 };
+  ok("une liste plus COURTE mais plus récente gagne",
+     N.meilleuresEpingles(a1, retire).ep === E([l[0]]));
+  ok("… et l'épingle retirée ne revient pas",
+     D(N.meilleuresEpingles(retire, a1).ep).length === 1);
+  var toutRetire = { ep:"", epn:3 };
+  ok("on peut tout retirer", N.meilleuresEpingles(retire, toutRetire).ep === "");
+
+  /* À numéro égal, la chaîne tranche : deux clients doivent converger. */
+  var x = { ep:"1~a~aaa", epn:5 }, y = { ep:"1~b~bbb", epn:5 };
+  ok("à numéro égal, les deux clients tranchent pareil",
+     N.meilleuresEpingles(x, y).ep === N.meilleuresEpingles(y, x).ep);
+
+  /* --- ET DANS L'INSTANTANÉ COMPLET --- */
+  var m1 = N.mondeVide(0, 1000, 1);
+  ok("un monde neuf part sans épingle", m1.ep === "" && m1.epn === 0);
+  var m2 = N.mondeVide(0, 1000, 1); m2.ep = E(l); m2.epn = 4;
+  var f = N.fusionneMonde(m1, m2);
+  ok("la fusion du monde emporte les épingles", f.ep === E(l) && f.epn === 4, f.ep);
+  ok("… et un monde sans épingle ne les efface pas",
+     N.fusionneMonde(m2, m1).ep === E(l));
+  /* le retrait traverse la fusion du monde, pas seulement celle du champ */
+  var m3 = N.mondeVide(0, 1000, 1); m3.ep = ""; m3.epn = 9;
+  ok("désépingler traverse la fusion du monde",
+     N.fusionneMonde(m2, m3).ep === "" && N.fusionneMonde(m3, m2).ep === "");
+
+  /* memeMonde doit VOIR la différence, sinon rien ne serait republié. */
+  var s1 = N.mondeVide(0, 1000, 1), s2 = N.mondeVide(0, 1000, 1);
+  s2.ep = E(l); s2.epn = 1;
+  ok("une épingle posée rend l'instantané sale", !N.memeMonde(s1, s2));
+
+  /* Une chaîne abîmée ne doit rien casser. */
+  ok("une épingle illisible est jetée, pas propagée",
+     D("nawak|3~ok~vrai|~~").length === 1 && D("nawak|3~ok~vrai|~~")[0].txt === "vrai");
+  ok("une chaîne vide rend une liste vide", D("").length === 0 && D(null).length === 0);
 })();
 
 /* ---------------- bilan ---------------- */

@@ -30,6 +30,11 @@ var mondeT = 0;              // étranglement des republications
    Ces trois-là voyagent dans l'instantané retenu, donc un joueur qui
    arrive trois heures plus tard reçoit la même carte que les autres. */
 var planSalon = "", numeroPlan = 0, tirageSalon = 0;
+/* Les messages épinglés du salon, et le numéro qui tranche entre deux
+   listes concurrentes — même patron que le plan, pour la même raison :
+   celle-ci doit pouvoir RÉTRÉCIR quand on désépingle, ce qu'une union
+   monotone ne sait pas faire. Voir 10-noyau.js, meilleuresEpingles. */
+var epinglesSalon = "", numeroEpingles = 0;
 
 /* LE TABLEAU DES SCORES DU SALON.
    `autresJoueurs` ne retient QUE les joueurs actuellement entendus : il
@@ -530,12 +535,14 @@ function mondeCourant(){
        personne n'aurait débarqué. */
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.bd || "") === blindageSalon && (monde.bn | 0) === numeroBlindage &&
+       (monde.ep || "") === epinglesSalon && (monde.epn | 0) === numeroEpingles &&
        (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
     return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              bl:monde.bl || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   /* En expédition, la campagne ne bouge PAS : on republie l'île
      normale telle que l'instantané la connaît, et c'est la voie de la
@@ -547,7 +554,8 @@ function mondeCourant(){
              bl:mm.bl || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   var bits = [], bl = [], i;
   for(i = 0; i < jeu.batiments.length; i++){
@@ -570,7 +578,8 @@ function mondeCourant(){
               faits, et même à la déconnexion de tout le monde. */
            s:tableauScores(),
            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -651,6 +660,15 @@ function adopteMonde(m, source){
     if(typeof majMondes === "function" && document.getElementById("mn0"))
       majMondes();
     if(typeof rafraichitPlan === "function") rafraichitPlan();
+  }
+
+  /* LA LISTE ÉPINGLÉE DU SALON, adoptée avant le plan : elle est
+     indépendante de l'île et du tirage, et le panneau doit la voir
+     arriver même quand rien d'autre n'a bougé. */
+  if((monde.ep || "") !== epinglesSalon || (monde.epn | 0) !== numeroEpingles){
+    epinglesSalon  = monde.ep || "";
+    numeroEpingles = monde.epn | 0;
+    if(typeof majEpingles === "function") majEpingles();
   }
 
   if((monde.p || "") !== planSalon || (monde.pn | 0) !== numeroPlan ||
@@ -948,7 +966,8 @@ function publieEtat(m, jg){
                        g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
                        tg:tirageSalon | 0,
-                       bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+                       bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
@@ -1207,7 +1226,8 @@ function remetSalonAZero(){
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
-            bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+            bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -1258,7 +1278,8 @@ function nouvelleCampagneSalon(){
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
             pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
   sauveMondeLocal();
@@ -1279,7 +1300,8 @@ function nouveauTirageSalon(){
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
             p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
-            bd:blindageSalon, bn:numeroBlindage | 0 },
+            bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -1409,10 +1431,55 @@ function reprendCampagneA(index){
        demande : « sans perdre les scores par map ». */
     s:av.s || "",
     p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-    bd:blindageSalon, bn:numeroBlindage | 0
+    bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return true;
+}
+
+/* ================================================================
+   ÉPINGLER, DÉSÉPINGLER
+
+   Les deux gestes publient la liste ENTIÈRE avec un numéro de plus.
+   C'est ce qui permet de retirer — voir meilleuresEpingles dans le
+   noyau : une union monotone ne sait pas effacer, et l'épingle qu'on
+   enlèverait reviendrait au premier instantané d'un autre appareil.
+
+   ILS PASSENT PAR publieMonde ET NON PAR UNE TRAME À LA MAIN, parce
+   que publieMonde refuse d'écrire en mode aperçu : une visite ne doit
+   rien laisser derrière elle, ici comme partout ailleurs.
+   ================================================================ */
+function epingleMessage(nom, txt){
+  var l = decodeEpingles(epinglesSalon);
+  var t = nettoieEpingle(txt).substr(0, EPINGLE_TEXTE);
+  if(!t) return false;
+  /* déjà épinglé : on ne double pas, et l'on ne remonte pas non plus le
+     message — une épingle garde sa place dans l'ordre de pose */
+  for(var i = 0; i < l.length; i++) if(l[i].txt === t) return false;
+  l.push({ n:rangEpingleSuivant(l), nom:nom, txt:t });
+  return poseEpingles(encodeEpingles(l));
+}
+function desepingleMessage(n){
+  var l = decodeEpingles(epinglesSalon), g = [], i;
+  for(i = 0; i < l.length; i++) if(l[i].n !== (n | 0)) g.push(l[i]);
+  if(g.length === l.length) return false;
+  return poseEpingles(encodeEpingles(g));
+}
+function poseEpingles(chaine){
+  if(chaine === epinglesSalon) return false;
+  epinglesSalon  = chaine;
+  numeroEpingles = (numeroEpingles | 0) + 1;
+  if(monde){
+    monde.ep  = epinglesSalon;
+    monde.epn = numeroEpingles;
+    monde.v   = (monde.v | 0) + 1;
+    sauveMondeLocal();
+  }
+  mondeSale = true;                       // qu'on soit en jeu ou au briefing
+  if(typeof publieMonde === "function") publieMonde(true);
+  if(typeof majEpingles === "function") majEpingles();
   return true;
 }
 
@@ -1514,7 +1581,8 @@ function enregistrePlan(chaine, index){
       d:av.d || "", bl:av.bl || "", g:av.g || "", w:av.w || "", k:av.k || "",
       s:av.s || "",
       p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
-      bd:blindageSalon, bn:numeroBlindage | 0
+      bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
     }, jgP);
     sauveMondeLocal();
     if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -1539,7 +1607,8 @@ function enregistrePlan(chaine, index){
     pv:CARTES[carteSalon | 0].pvQG, d:"", bl:"", g:"", w:"", k:"",
     s:av.s || "",
     p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
-    bd:blindageSalon, bn:numeroBlindage | 0
+    bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));

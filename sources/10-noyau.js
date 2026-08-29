@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.89";
+var VERSION = "v0.90";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -6708,7 +6708,8 @@ function statsJournaux(journaux, aujourdhui){
 
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
-            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0 };
+            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
+            ep:"", epn:0 };
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
     var V = VOIES_EVT[q], R = reglagesEvt(V.i);
@@ -7428,6 +7429,104 @@ function inscritTop3(s, index, liste){
   return encodeTop3(t);
 }
 
+/* ================================================================
+   LES MESSAGES ÉPINGLÉS
+
+   « Est-ce qu'il y a moyen de conserver l'historique du chat, et
+   idéalement d'épingler certains messages importants ? »
+
+   L'HISTORIQUE, NON, ET CE N'EST PAS UNE PARESSE. Le jeu n'a pas de
+   serveur : il a un courtier public qui retient UN message par sujet.
+   Un fil partagé voudrait dire que chaque client republie toute la
+   conversation à chaque phrase, et deux joueurs qui parlent en même
+   temps s'écraseraient sans qu'on sache jamais ce qu'on a perdu. Voir
+   l'en-tête de 86-chat.js : mieux vaut un fil sans mémoire qu'une
+   mémoire qui ment.
+
+   LES ÉPINGLES, OUI, ET C'EST UNE AUTRE CHOSE. Épingler, ce n'est pas
+   garder le fil, c'est en retirer une poignée de phrases qui comptent.
+   Douze messages de cent soixante signes font deux kilo-octets : ça
+   tient dans l'instantané retenu, à côté des champions et des podiums,
+   et ça voyage donc à tout le salon et survit aux déconnexions.
+
+   POURQUOI « VALEUR + NUMÉRO » ET NON UNE UNION. C'est le point de
+   conception, et il tient à un mot : DÉSÉPINGLER. Une union monotone —
+   la fusion des scores, celle des podiums — ne sait pas retirer :
+   l'épingle qu'un joueur enlève reviendrait au premier instantané d'un
+   autre appareil qui l'a encore, et l'on ne pourrait plus jamais en
+   effacer une. On reprend donc le patron du PLAN et du BLINDAGE
+   (meilleurPlan, meilleurBlindage) : la liste voyage entière, avec un
+   numéro qui monte à chaque changement, et la plus récente gagne. On
+   perd la fusion de deux épinglages simultanés — c'est le prix, il est
+   payé une fois de temps en temps par un geste rare — et l'on gagne le
+   droit de défaire.
+
+   LE FORMAT : « n~nom~texte » par épingle, séparées par « | ». Les
+   deux séparateurs sont retirés du nom et du texte à l'encodage. Un
+   message de chat perd donc ses « | » et ses « ~ » en étant épinglé :
+   c'est le genre de perte qu'on accepte, parce qu'un pseudo et une
+   phrase n'ont pas d'autre structure à préserver.
+   ================================================================ */
+var EPINGLES_MAX = 12;        // ce que le salon garde
+var EPINGLE_TEXTE = 160;      // comme un message de chat
+
+function nettoieEpingle(s){
+  return String(s == null ? "" : s).replace(/[|~]/g, " ")
+         .replace(/\s+/g, " ").trim();
+}
+/* liste : [{ n, nom, txt }] — n est le rang de pose, il ordonne */
+function encodeEpingles(l){
+  var out = [], i;
+  for(i = 0; i < (l || []).length; i++){
+    var e = l[i];
+    if(!e) continue;
+    var t = nettoieEpingle(e.txt).substr(0, EPINGLE_TEXTE);
+    if(!t) continue;
+    out.push((e.n | 0) + "~" + nettoieEpingle(e.nom).substr(0, 14) + "~" + t);
+  }
+  /* LE PLUS RÉCENT D'ABORD POUR LA COUPE, le plus ancien d'abord pour
+     l'affichage : on trie par rang décroissant, on coupe, et l'on rend
+     dans l'ordre de pose. Sans quoi la douzième épingle chasserait la
+     première ARRIVÉE plutôt que la plus VIEILLE. */
+  out.sort(function(a, b){ return (parseInt(b, 10) | 0) - (parseInt(a, 10) | 0); });
+  if(out.length > EPINGLES_MAX) out.length = EPINGLES_MAX;
+  out.reverse();
+  return out.join("|");
+}
+function decodeEpingles(s){
+  if(!s || typeof s !== "string") return [];
+  var p = s.split("|"), out = [], i;
+  for(i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var c = p[i].split("~");
+    /* défensif : une épingle illisible est jetée, pas propagée */
+    if(c.length < 3) continue;
+    var t = c.slice(2).join("~");
+    if(!t) continue;
+    out.push({ n:parseInt(c[0], 10) | 0, nom:c[1] || "?", txt:t });
+  }
+  out.sort(function(a, b){ return a.n - b.n; });
+  return out;
+}
+/* Le prochain rang à poser : un de plus que le plus grand. */
+function rangEpingleSuivant(l){
+  var m = 0;
+  for(var i = 0; i < (l || []).length; i++) if(l[i].n > m) m = l[i].n;
+  return m + 1;
+}
+/* Deux listes concurrentes. Le numéro tranche ; à numéro égal, la
+   chaîne tranche. Commutatif, associatif, idempotent — exactement
+   meilleurPlan, et pour exactement la même raison : un « a.ep || b.ep »
+   n'aurait pas ces propriétés, et les deux clients se seraient
+   réécrit l'instantané en boucle. */
+function meilleuresEpingles(a, b){
+  var ea = (a && typeof a.ep === "string") ? a.ep : "", na = a ? (a.epn | 0) : 0;
+  var eb = (b && typeof b.ep === "string") ? b.ep : "", nb = b ? (b.epn | 0) : 0;
+  if(nb > na) return { ep:eb, epn:nb };
+  if(na > nb) return { ep:ea, epn:na };
+  return eb > ea ? { ep:eb, epn:nb } : { ep:ea, epn:na };
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -7552,6 +7651,10 @@ function fusionneMonde(a, b){
      voir avec l'avancée de la campagne. Un client peut très bien être
      en retard sur l'île et en avance sur le réglage. */
   var bd = meilleurBlindage(a, b);
+  /* Les épingles suivent leur propre numéro, comme le plan et le
+     blindage : elles n'ont rien à voir avec l'avancée de la campagne.
+     Un client peut être en retard sur l'île et à jour sur le fil. */
+  var ep = meilleuresEpingles(a, b);
   var jg = fusionneEvenements(a, b);
   /* Une île plus avancée écrase la précédente : ses destructions n'ont
      rien à voir avec celles de la précédente. La jungle, elle, suit sa
@@ -7579,7 +7682,7 @@ function fusionneMonde(a, b){
   if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", bl:b.bl || "", g:b.g || "", w:b.w || "",
                        p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "",
-                       bd:bd.bd, bn:bd.bn }, jg);
+                       bd:bd.bd, bn:bd.bn, ep:ep.ep, epn:ep.epn }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
@@ -7588,10 +7691,12 @@ function fusionneMonde(a, b){
        ni au tableau des dégâts, qui ne l'est pas davantage. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
        bd.bd === (a.bd || "") && bd.bn === (a.bn | 0) &&
+       ep.ep === (a.ep || "") && ep.epn === (a.epn | 0) &&
        sc === (a.s || "")) return a;
     return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              bl:a.bl || "", g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
-             s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn }, jg);
+             s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn,
+             ep:ep.ep, epn:ep.epn }, jg);
   }
   return poseEvenements({
     v : Math.max(a.v, b.v),
@@ -7612,7 +7717,9 @@ function fusionneMonde(a, b){
     /* le meilleur score de chacun survit à sa déconnexion */
     s : sc,
     p : pl.p, pn: pl.pn, tg: a.tg | 0,
-    bd: bd.bd, bn: bd.bn
+    bd: bd.bd, bn: bd.bn,
+    /* la liste épinglée du salon : elle ne dépend pas de l'île */
+    ep: ep.ep, epn: ep.epn
   }, jg);
 }
 /* L'instantané a-t-il déjà exactement cet état d'événements fusionné ?
@@ -7651,6 +7758,8 @@ function memeMonde(a, b){
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0) &&
+         /* ni une épingle posée ou retirée */
+         (a.ep || "") === (b.ep || "") && (a.epn | 0) === (b.epn | 0) &&
          /* ni un blindage : le réglage doit partir sur le réseau à la
             seconde où on le change, c'est toute la demande */
          (a.bd || "") === (b.bd || "") && (a.bn | 0) === (b.bn | 0) &&

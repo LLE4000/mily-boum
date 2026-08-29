@@ -184,19 +184,75 @@ function dessineFilChat(){
       var m = chatFil[i];
       /* Le pseudo porte l'identifiant : c'est par lui qu'on choisit de
          ne plus lire quelqu'un. Le sien propre n'est pas cliquable. */
+      /* L'ÉPINGLE EST SUR LE MESSAGE, pas dans un menu. Un geste qui
+         demande d'ouvrir quelque chose avant de servir ne sert jamais.
+         Elle ne s'offre pas sur les lignes du jeu : on épingle ce que
+         quelqu'un a dit, pas un message d'état. */
       h += m.sys
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
          : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
            + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
-           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
+           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt)
+           + '<i class="cep" data-ep="' + i + '" title="Épingler ce message">📌</i></div>';
     }
     e.innerHTML = h;
   }
+  majEpingles();
   /* toujours collé au dernier message : un chat qu'il faut faire
      défiler pour lire ce qui vient d'arriver ne sert à rien */
   e.scrollTop = e.scrollHeight;
   majQuiEstLa();
 }
+/* ================================================================
+   LES MESSAGES ÉPINGLÉS, EN TÊTE DU FIL
+
+   Le fil, lui, n'a pas d'historique et n'en aura pas : voir l'en-tête
+   de ce fichier. Les épingles sont la réponse à l'autre moitié de la
+   question — non pas « garder ce qui s'est dit », mais « retrouver ce
+   qui compte ». Une poignée de phrases, portées par l'instantané
+   retenu du salon, donc vues de tous et survivant aux déconnexions.
+
+   ELLES SONT AU-DESSUS DU FIL, ET REPLIABLES. Au-dessus, parce qu'un
+   pense-bête sous la conversation descend avec elle et disparaît.
+   Repliables, parce que douze messages mangeraient le fil sur un
+   téléphone : fermé, il ne reste que le compte, et l'on déplie quand
+   on cherche.
+   ================================================================ */
+var epinglesOuvertes = false;
+
+function majEpingles(){
+  var e = $("chatEp");
+  if(!e) return;
+  var l = (typeof decodeEpingles === "function")
+          ? decodeEpingles(typeof epinglesSalon === "string" ? epinglesSalon : "") : [];
+  if(!l.length){ e.innerHTML = ""; e.style.display = "none"; return; }
+  e.style.display = "";
+  var h = '<div class="epT" data-eptitre="1">📌 ' + l.length + " épinglé"
+        + (l.length > 1 ? "s" : "")
+        + '<span class="epC">' + (epinglesOuvertes ? "▾" : "▸") + "</span></div>";
+  if(epinglesOuvertes){
+    for(var i = 0; i < l.length; i++){
+      h += '<div class="epL"><b>' + echappe(l[i].nom) + "</b> "
+         + echappe(l[i].txt)
+         + '<i class="epX" data-epx="' + l[i].n + '" title="Retirer l\'épingle">✕</i></div>';
+    }
+  }
+  e.innerHTML = h;
+}
+
+/* Épingler le message de rang `i` du fil local. */
+function epingleDuFil(i){
+  var m = chatFil[i | 0];
+  if(!m || m.sys) return;
+  if(typeof epingleMessage !== "function") return;
+  if(epingleMessage(m.nom, m.txt)){
+    epinglesOuvertes = true;
+    majEpingles();
+  }else{
+    chatSysteme("Ce message est déjà épinglé.");
+  }
+}
+
 /* Qui est en ligne, en tête du panneau — LE COMPTE, PAS LES NOMS.
 
    Il a porté la liste dépliable un moment, et c'était un doublon : en
@@ -328,8 +384,29 @@ function installeChat(){
      🔇 du bandeau, c'est revenir dessus. */
   var l = $("chatL");
   if(l) l.addEventListener("click", function(ev){
+    /* L'ÉPINGLE D'ABORD : elle est DANS la ligne, et le pseudo aussi.
+       Sans ce retour, toucher l'épingle d'un message aurait aussi pu
+       remonter jusqu'au pseudo et rendre son auteur sourd. */
+    var ep = ev.target.closest ? ev.target.closest("[data-ep]") : null;
+    if(ep){ epingleDuFil(+ep.getAttribute("data-ep")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
     if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
+  });
+  /* Le bandeau des épinglés est réécrit en entier à chaque changement :
+     l'écouteur vit sur le CONTENEUR, jamais sur les lignes. */
+  var ep = $("chatEp");
+  if(ep) ep.addEventListener("click", function(ev){
+    var x = ev.target.closest ? ev.target.closest("[data-epx]") : null;
+    if(x){
+      if(typeof desepingleMessage === "function")
+        desepingleMessage(+x.getAttribute("data-epx"));
+      majEpingles();
+      return;
+    }
+    if(ev.target.closest && ev.target.closest("[data-eptitre]")){
+      epinglesOuvertes = !epinglesOuvertes;
+      majEpingles();
+    }
   });
   /* Le bandeau est réécrit en entier à chaque message : l'écouteur est
      posé sur le CONTENEUR une fois pour toutes, jamais sur le bouton

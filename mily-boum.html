@@ -354,7 +354,29 @@ select.champ{cursor:pointer}
   padding:7px 10px;display:flex;flex-direction:column;gap:3px;
   font-size:13px;line-height:1.42;
 }
-#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere}
+#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+/* L'ÉPINGLE NE SE MONTRE QU'AU SURVOL sur un écran qui en a un, et
+   reste toujours visible sur un écran tactile — où il n'y a pas de
+   survol, et où une commande invisible est une commande absente. */
+#chatL .cep{font-style:normal;opacity:.18;cursor:pointer;padding:0 3px;
+  font-size:11px;transition:opacity .12s}
+#chatL .cm:hover .cep{opacity:.75}
+#chatL .cep:hover{opacity:1}
+@media (hover:none){#chatL .cep{opacity:.45}}
+#chatEp{flex:0 0 auto;max-height:38%;overflow:auto;
+  border-bottom:1px solid rgba(125,230,255,.16);padding:4px 8px 5px;
+  background:rgba(255,196,74,.06)}
+#chatEp .epT{font-size:11px;letter-spacing:.06em;color:var(--or);
+  font-weight:700;cursor:pointer;user-select:none;display:flex;
+  justify-content:space-between;align-items:center;padding:2px 0}
+#chatEp .epC{opacity:.7;font-size:10px}
+#chatEp .epL{font-size:12px;color:var(--texte);padding:3px 0 3px 4px;
+  border-left:2px solid rgba(255,196,74,.5);margin:3px 0;
+  word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+#chatEp .epL b{color:var(--or);font-weight:700}
+#chatEp .epX{font-style:normal;opacity:.35;cursor:pointer;
+  padding:0 4px;font-size:11px}
+#chatEp .epX:hover{opacity:1;color:#ff8a8a}
 #chatL .cm b{color:var(--cyan);font-weight:700}
 #chatL .cm.moi b{color:var(--or)}
 #chatL .cs{color:var(--gris);font-size:11.5px;font-style:italic}
@@ -1442,6 +1464,9 @@ select.champ{cursor:pointer}
     <span id="chatQui"></span>
     <button id="chatFerme" title="Fermer le chat">✕</button>
   </div>
+  <!-- Les messages épinglés du salon : au-DESSUS du fil, parce qu'un
+       pense-bête posé sous la conversation descend avec elle. -->
+  <div id="chatEp" style="display:none"></div>
   <div id="chatL"></div>
   <div id="chatBas">
     <input id="chatSaisie" maxlength="160" autocomplete="off"
@@ -1518,7 +1543,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.89";
+var VERSION = "v0.90";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -8217,7 +8242,8 @@ function statsJournaux(journaux, aujourdhui){
 
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
-            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0 };
+            p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
+            ep:"", epn:0 };
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
     var V = VOIES_EVT[q], R = reglagesEvt(V.i);
@@ -8937,6 +8963,104 @@ function inscritTop3(s, index, liste){
   return encodeTop3(t);
 }
 
+/* ================================================================
+   LES MESSAGES ÉPINGLÉS
+
+   « Est-ce qu'il y a moyen de conserver l'historique du chat, et
+   idéalement d'épingler certains messages importants ? »
+
+   L'HISTORIQUE, NON, ET CE N'EST PAS UNE PARESSE. Le jeu n'a pas de
+   serveur : il a un courtier public qui retient UN message par sujet.
+   Un fil partagé voudrait dire que chaque client republie toute la
+   conversation à chaque phrase, et deux joueurs qui parlent en même
+   temps s'écraseraient sans qu'on sache jamais ce qu'on a perdu. Voir
+   l'en-tête de 86-chat.js : mieux vaut un fil sans mémoire qu'une
+   mémoire qui ment.
+
+   LES ÉPINGLES, OUI, ET C'EST UNE AUTRE CHOSE. Épingler, ce n'est pas
+   garder le fil, c'est en retirer une poignée de phrases qui comptent.
+   Douze messages de cent soixante signes font deux kilo-octets : ça
+   tient dans l'instantané retenu, à côté des champions et des podiums,
+   et ça voyage donc à tout le salon et survit aux déconnexions.
+
+   POURQUOI « VALEUR + NUMÉRO » ET NON UNE UNION. C'est le point de
+   conception, et il tient à un mot : DÉSÉPINGLER. Une union monotone —
+   la fusion des scores, celle des podiums — ne sait pas retirer :
+   l'épingle qu'un joueur enlève reviendrait au premier instantané d'un
+   autre appareil qui l'a encore, et l'on ne pourrait plus jamais en
+   effacer une. On reprend donc le patron du PLAN et du BLINDAGE
+   (meilleurPlan, meilleurBlindage) : la liste voyage entière, avec un
+   numéro qui monte à chaque changement, et la plus récente gagne. On
+   perd la fusion de deux épinglages simultanés — c'est le prix, il est
+   payé une fois de temps en temps par un geste rare — et l'on gagne le
+   droit de défaire.
+
+   LE FORMAT : « n~nom~texte » par épingle, séparées par « | ». Les
+   deux séparateurs sont retirés du nom et du texte à l'encodage. Un
+   message de chat perd donc ses « | » et ses « ~ » en étant épinglé :
+   c'est le genre de perte qu'on accepte, parce qu'un pseudo et une
+   phrase n'ont pas d'autre structure à préserver.
+   ================================================================ */
+var EPINGLES_MAX = 12;        // ce que le salon garde
+var EPINGLE_TEXTE = 160;      // comme un message de chat
+
+function nettoieEpingle(s){
+  return String(s == null ? "" : s).replace(/[|~]/g, " ")
+         .replace(/\s+/g, " ").trim();
+}
+/* liste : [{ n, nom, txt }] — n est le rang de pose, il ordonne */
+function encodeEpingles(l){
+  var out = [], i;
+  for(i = 0; i < (l || []).length; i++){
+    var e = l[i];
+    if(!e) continue;
+    var t = nettoieEpingle(e.txt).substr(0, EPINGLE_TEXTE);
+    if(!t) continue;
+    out.push((e.n | 0) + "~" + nettoieEpingle(e.nom).substr(0, 14) + "~" + t);
+  }
+  /* LE PLUS RÉCENT D'ABORD POUR LA COUPE, le plus ancien d'abord pour
+     l'affichage : on trie par rang décroissant, on coupe, et l'on rend
+     dans l'ordre de pose. Sans quoi la douzième épingle chasserait la
+     première ARRIVÉE plutôt que la plus VIEILLE. */
+  out.sort(function(a, b){ return (parseInt(b, 10) | 0) - (parseInt(a, 10) | 0); });
+  if(out.length > EPINGLES_MAX) out.length = EPINGLES_MAX;
+  out.reverse();
+  return out.join("|");
+}
+function decodeEpingles(s){
+  if(!s || typeof s !== "string") return [];
+  var p = s.split("|"), out = [], i;
+  for(i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var c = p[i].split("~");
+    /* défensif : une épingle illisible est jetée, pas propagée */
+    if(c.length < 3) continue;
+    var t = c.slice(2).join("~");
+    if(!t) continue;
+    out.push({ n:parseInt(c[0], 10) | 0, nom:c[1] || "?", txt:t });
+  }
+  out.sort(function(a, b){ return a.n - b.n; });
+  return out;
+}
+/* Le prochain rang à poser : un de plus que le plus grand. */
+function rangEpingleSuivant(l){
+  var m = 0;
+  for(var i = 0; i < (l || []).length; i++) if(l[i].n > m) m = l[i].n;
+  return m + 1;
+}
+/* Deux listes concurrentes. Le numéro tranche ; à numéro égal, la
+   chaîne tranche. Commutatif, associatif, idempotent — exactement
+   meilleurPlan, et pour exactement la même raison : un « a.ep || b.ep »
+   n'aurait pas ces propriétés, et les deux clients se seraient
+   réécrit l'instantané en boucle. */
+function meilleuresEpingles(a, b){
+  var ea = (a && typeof a.ep === "string") ? a.ep : "", na = a ? (a.epn | 0) : 0;
+  var eb = (b && typeof b.ep === "string") ? b.ep : "", nb = b ? (b.epn | 0) : 0;
+  if(nb > na) return { ep:eb, epn:nb };
+  if(na > nb) return { ep:ea, epn:na };
+  return eb > ea ? { ep:eb, epn:nb } : { ep:ea, epn:na };
+}
+
 /* Position d'un instantané dans la progression. Le TIRAGE domine tout :
    changer de tirage, c'est rebattre les défenses de l'île, donc les
    destructions de l'ancien tirage ne désignent plus rien. Vient
@@ -9061,6 +9185,10 @@ function fusionneMonde(a, b){
      voir avec l'avancée de la campagne. Un client peut très bien être
      en retard sur l'île et en avance sur le réglage. */
   var bd = meilleurBlindage(a, b);
+  /* Les épingles suivent leur propre numéro, comme le plan et le
+     blindage : elles n'ont rien à voir avec l'avancée de la campagne.
+     Un client peut être en retard sur l'île et à jour sur le fil. */
+  var ep = meilleuresEpingles(a, b);
   var jg = fusionneEvenements(a, b);
   /* Une île plus avancée écrase la précédente : ses destructions n'ont
      rien à voir avec celles de la précédente. La jungle, elle, suit sa
@@ -9088,7 +9216,7 @@ function fusionneMonde(a, b){
   if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", bl:b.bl || "", g:b.g || "", w:b.w || "",
                        p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "",
-                       bd:bd.bd, bn:bd.bn }, jg);
+                       bd:bd.bd, bn:bd.bn, ep:ep.ep, epn:ep.epn }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
@@ -9097,10 +9225,12 @@ function fusionneMonde(a, b){
        ni au tableau des dégâts, qui ne l'est pas davantage. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
        bd.bd === (a.bd || "") && bd.bn === (a.bn | 0) &&
+       ep.ep === (a.ep || "") && ep.epn === (a.epn | 0) &&
        sc === (a.s || "")) return a;
     return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              bl:a.bl || "", g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
-             s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn }, jg);
+             s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn,
+             ep:ep.ep, epn:ep.epn }, jg);
   }
   return poseEvenements({
     v : Math.max(a.v, b.v),
@@ -9121,7 +9251,9 @@ function fusionneMonde(a, b){
     /* le meilleur score de chacun survit à sa déconnexion */
     s : sc,
     p : pl.p, pn: pl.pn, tg: a.tg | 0,
-    bd: bd.bd, bn: bd.bn
+    bd: bd.bd, bn: bd.bn,
+    /* la liste épinglée du salon : elle ne dépend pas de l'île */
+    ep: ep.ep, epn: ep.epn
   }, jg);
 }
 /* L'instantané a-t-il déjà exactement cet état d'événements fusionné ?
@@ -9160,6 +9292,8 @@ function memeMonde(a, b){
          (a.k || "") === (b.k || "") &&
          /* sans ces deux-là, un plan modifié ne serait jamais republié */
          (a.p || "") === (b.p || "") && (a.pn | 0) === (b.pn | 0) &&
+         /* ni une épingle posée ou retirée */
+         (a.ep || "") === (b.ep || "") && (a.epn | 0) === (b.epn | 0) &&
          /* ni un blindage : le réglage doit partir sur le réseau à la
             seconde où on le change, c'est toute la demande */
          (a.bd || "") === (b.bd || "") && (a.bn | 0) === (b.bn | 0) &&
@@ -43516,6 +43650,11 @@ var mondeT = 0;              // étranglement des republications
    Ces trois-là voyagent dans l'instantané retenu, donc un joueur qui
    arrive trois heures plus tard reçoit la même carte que les autres. */
 var planSalon = "", numeroPlan = 0, tirageSalon = 0;
+/* Les messages épinglés du salon, et le numéro qui tranche entre deux
+   listes concurrentes — même patron que le plan, pour la même raison :
+   celle-ci doit pouvoir RÉTRÉCIR quand on désépingle, ce qu'une union
+   monotone ne sait pas faire. Voir 10-noyau.js, meilleuresEpingles. */
+var epinglesSalon = "", numeroEpingles = 0;
 
 /* LE TABLEAU DES SCORES DU SALON.
    `autresJoueurs` ne retient QUE les joueurs actuellement entendus : il
@@ -44016,12 +44155,14 @@ function mondeCourant(){
        personne n'aurait débarqué. */
     if((monde.p || "") === planSalon && (monde.pn | 0) === numeroPlan &&
        (monde.bd || "") === blindageSalon && (monde.bn | 0) === numeroBlindage &&
+       (monde.ep || "") === epinglesSalon && (monde.epn | 0) === numeroEpingles &&
        (monde.tg | 0) === tirageSalon && memeEvenements(monde, jg)) return monde;
     return poseEvenements({ v:monde.v, cy:monde.cy | 0, c:monde.c, pv:monde.pv, d:monde.d || "",
              bl:monde.bl || "",
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   /* En expédition, la campagne ne bouge PAS : on republie l'île
      normale telle que l'instantané la connaît, et c'est la voie de la
@@ -44033,7 +44174,8 @@ function mondeCourant(){
              bl:mm.bl || "",
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   var bits = [], bl = [], i;
   for(i = 0; i < jeu.batiments.length; i++){
@@ -44056,7 +44198,8 @@ function mondeCourant(){
               faits, et même à la déconnexion de tout le monde. */
            s:tableauScores(),
            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -44137,6 +44280,15 @@ function adopteMonde(m, source){
     if(typeof majMondes === "function" && document.getElementById("mn0"))
       majMondes();
     if(typeof rafraichitPlan === "function") rafraichitPlan();
+  }
+
+  /* LA LISTE ÉPINGLÉE DU SALON, adoptée avant le plan : elle est
+     indépendante de l'île et du tirage, et le panneau doit la voir
+     arriver même quand rien d'autre n'a bougé. */
+  if((monde.ep || "") !== epinglesSalon || (monde.epn | 0) !== numeroEpingles){
+    epinglesSalon  = monde.ep || "";
+    numeroEpingles = monde.epn | 0;
+    if(typeof majEpingles === "function") majEpingles();
   }
 
   if((monde.p || "") !== planSalon || (monde.pn | 0) !== numeroPlan ||
@@ -44434,7 +44586,8 @@ function publieEtat(m, jg){
                        g:m.g || "", w:m.w || "", s:m.s || "",
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
                        tg:tirageSalon | 0,
-                       bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+                       bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
 }
@@ -44693,7 +44846,8 @@ function remetSalonAZero(){
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
-            bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+            bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return monde;
@@ -44744,7 +44898,8 @@ function nouvelleCampagneSalon(){
   monde = poseEvenements({ v:(av.v | 0) + 1, cy:cycleSalon, c:depart,
             pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-             bd:blindageSalon, bn:numeroBlindage | 0 }, jg);
+             bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
   sauveMondeLocal();
@@ -44765,7 +44920,8 @@ function nouveauTirageSalon(){
   monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
             p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
-            bd:blindageSalon, bn:numeroBlindage | 0 },
+            bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -44895,10 +45051,55 @@ function reprendCampagneA(index){
        demande : « sans perdre les scores par map ». */
     s:av.s || "",
     p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
-    bd:blindageSalon, bn:numeroBlindage | 0
+    bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return true;
+}
+
+/* ================================================================
+   ÉPINGLER, DÉSÉPINGLER
+
+   Les deux gestes publient la liste ENTIÈRE avec un numéro de plus.
+   C'est ce qui permet de retirer — voir meilleuresEpingles dans le
+   noyau : une union monotone ne sait pas effacer, et l'épingle qu'on
+   enlèverait reviendrait au premier instantané d'un autre appareil.
+
+   ILS PASSENT PAR publieMonde ET NON PAR UNE TRAME À LA MAIN, parce
+   que publieMonde refuse d'écrire en mode aperçu : une visite ne doit
+   rien laisser derrière elle, ici comme partout ailleurs.
+   ================================================================ */
+function epingleMessage(nom, txt){
+  var l = decodeEpingles(epinglesSalon);
+  var t = nettoieEpingle(txt).substr(0, EPINGLE_TEXTE);
+  if(!t) return false;
+  /* déjà épinglé : on ne double pas, et l'on ne remonte pas non plus le
+     message — une épingle garde sa place dans l'ordre de pose */
+  for(var i = 0; i < l.length; i++) if(l[i].txt === t) return false;
+  l.push({ n:rangEpingleSuivant(l), nom:nom, txt:t });
+  return poseEpingles(encodeEpingles(l));
+}
+function desepingleMessage(n){
+  var l = decodeEpingles(epinglesSalon), g = [], i;
+  for(i = 0; i < l.length; i++) if(l[i].n !== (n | 0)) g.push(l[i]);
+  if(g.length === l.length) return false;
+  return poseEpingles(encodeEpingles(g));
+}
+function poseEpingles(chaine){
+  if(chaine === epinglesSalon) return false;
+  epinglesSalon  = chaine;
+  numeroEpingles = (numeroEpingles | 0) + 1;
+  if(monde){
+    monde.ep  = epinglesSalon;
+    monde.epn = numeroEpingles;
+    monde.v   = (monde.v | 0) + 1;
+    sauveMondeLocal();
+  }
+  mondeSale = true;                       // qu'on soit en jeu ou au briefing
+  if(typeof publieMonde === "function") publieMonde(true);
+  if(typeof majEpingles === "function") majEpingles();
   return true;
 }
 
@@ -45000,7 +45201,8 @@ function enregistrePlan(chaine, index){
       d:av.d || "", bl:av.bl || "", g:av.g || "", w:av.w || "", k:av.k || "",
       s:av.s || "",
       p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
-      bd:blindageSalon, bn:numeroBlindage | 0
+      bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
     }, jgP);
     sauveMondeLocal();
     if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -45025,7 +45227,8 @@ function enregistrePlan(chaine, index){
     pv:CARTES[carteSalon | 0].pvQG, d:"", bl:"", g:"", w:"", k:"",
     s:av.s || "",
     p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
-    bd:blindageSalon, bn:numeroBlindage | 0
+    bd:blindageSalon, bn:numeroBlindage | 0,
+            ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -45572,19 +45775,75 @@ function dessineFilChat(){
       var m = chatFil[i];
       /* Le pseudo porte l'identifiant : c'est par lui qu'on choisit de
          ne plus lire quelqu'un. Le sien propre n'est pas cliquable. */
+      /* L'ÉPINGLE EST SUR LE MESSAGE, pas dans un menu. Un geste qui
+         demande d'ouvrir quelque chose avant de servir ne sert jamais.
+         Elle ne s'offre pas sur les lignes du jeu : on épingle ce que
+         quelqu'un a dit, pas un message d'état. */
       h += m.sys
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
          : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
            + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
-           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt) + '</div>';
+           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt)
+           + '<i class="cep" data-ep="' + i + '" title="Épingler ce message">📌</i></div>';
     }
     e.innerHTML = h;
   }
+  majEpingles();
   /* toujours collé au dernier message : un chat qu'il faut faire
      défiler pour lire ce qui vient d'arriver ne sert à rien */
   e.scrollTop = e.scrollHeight;
   majQuiEstLa();
 }
+/* ================================================================
+   LES MESSAGES ÉPINGLÉS, EN TÊTE DU FIL
+
+   Le fil, lui, n'a pas d'historique et n'en aura pas : voir l'en-tête
+   de ce fichier. Les épingles sont la réponse à l'autre moitié de la
+   question — non pas « garder ce qui s'est dit », mais « retrouver ce
+   qui compte ». Une poignée de phrases, portées par l'instantané
+   retenu du salon, donc vues de tous et survivant aux déconnexions.
+
+   ELLES SONT AU-DESSUS DU FIL, ET REPLIABLES. Au-dessus, parce qu'un
+   pense-bête sous la conversation descend avec elle et disparaît.
+   Repliables, parce que douze messages mangeraient le fil sur un
+   téléphone : fermé, il ne reste que le compte, et l'on déplie quand
+   on cherche.
+   ================================================================ */
+var epinglesOuvertes = false;
+
+function majEpingles(){
+  var e = $("chatEp");
+  if(!e) return;
+  var l = (typeof decodeEpingles === "function")
+          ? decodeEpingles(typeof epinglesSalon === "string" ? epinglesSalon : "") : [];
+  if(!l.length){ e.innerHTML = ""; e.style.display = "none"; return; }
+  e.style.display = "";
+  var h = '<div class="epT" data-eptitre="1">📌 ' + l.length + " épinglé"
+        + (l.length > 1 ? "s" : "")
+        + '<span class="epC">' + (epinglesOuvertes ? "▾" : "▸") + "</span></div>";
+  if(epinglesOuvertes){
+    for(var i = 0; i < l.length; i++){
+      h += '<div class="epL"><b>' + echappe(l[i].nom) + "</b> "
+         + echappe(l[i].txt)
+         + '<i class="epX" data-epx="' + l[i].n + '" title="Retirer l\'épingle">✕</i></div>';
+    }
+  }
+  e.innerHTML = h;
+}
+
+/* Épingler le message de rang `i` du fil local. */
+function epingleDuFil(i){
+  var m = chatFil[i | 0];
+  if(!m || m.sys) return;
+  if(typeof epingleMessage !== "function") return;
+  if(epingleMessage(m.nom, m.txt)){
+    epinglesOuvertes = true;
+    majEpingles();
+  }else{
+    chatSysteme("Ce message est déjà épinglé.");
+  }
+}
+
 /* Qui est en ligne, en tête du panneau — LE COMPTE, PAS LES NOMS.
 
    Il a porté la liste dépliable un moment, et c'était un doublon : en
@@ -45716,8 +45975,29 @@ function installeChat(){
      🔇 du bandeau, c'est revenir dessus. */
   var l = $("chatL");
   if(l) l.addEventListener("click", function(ev){
+    /* L'ÉPINGLE D'ABORD : elle est DANS la ligne, et le pseudo aussi.
+       Sans ce retour, toucher l'épingle d'un message aurait aussi pu
+       remonter jusqu'au pseudo et rendre son auteur sourd. */
+    var ep = ev.target.closest ? ev.target.closest("[data-ep]") : null;
+    if(ep){ epingleDuFil(+ep.getAttribute("data-ep")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-sourd]") : null;
     if(b) ignoreAuChat(b.getAttribute("data-sourd"), b.textContent);
+  });
+  /* Le bandeau des épinglés est réécrit en entier à chaque changement :
+     l'écouteur vit sur le CONTENEUR, jamais sur les lignes. */
+  var ep = $("chatEp");
+  if(ep) ep.addEventListener("click", function(ev){
+    var x = ev.target.closest ? ev.target.closest("[data-epx]") : null;
+    if(x){
+      if(typeof desepingleMessage === "function")
+        desepingleMessage(+x.getAttribute("data-epx"));
+      majEpingles();
+      return;
+    }
+    if(ev.target.closest && ev.target.closest("[data-eptitre]")){
+      epinglesOuvertes = !epinglesOuvertes;
+      majEpingles();
+    }
   });
   /* Le bandeau est réécrit en entier à chaque message : l'écouteur est
      posé sur le CONTENEUR une fois pour toutes, jamais sur le bouton

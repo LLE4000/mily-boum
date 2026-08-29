@@ -354,7 +354,29 @@ select.champ{cursor:pointer}
   padding:7px 10px;display:flex;flex-direction:column;gap:3px;
   font-size:13px;line-height:1.42;
 }
-#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere}
+#chatL .cm{color:var(--texte);word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+/* L'ÉPINGLE NE SE MONTRE QU'AU SURVOL sur un écran qui en a un, et
+   reste toujours visible sur un écran tactile — où il n'y a pas de
+   survol, et où une commande invisible est une commande absente. */
+#chatL .cep{font-style:normal;opacity:.18;cursor:pointer;padding:0 3px;
+  font-size:11px;transition:opacity .12s}
+#chatL .cm:hover .cep{opacity:.75}
+#chatL .cep:hover{opacity:1}
+@media (hover:none){#chatL .cep{opacity:.45}}
+#chatEp{flex:0 0 auto;max-height:38%;overflow:auto;
+  border-bottom:1px solid rgba(125,230,255,.16);padding:4px 8px 5px;
+  background:rgba(255,196,74,.06)}
+#chatEp .epT{font-size:11px;letter-spacing:.06em;color:var(--or);
+  font-weight:700;cursor:pointer;user-select:none;display:flex;
+  justify-content:space-between;align-items:center;padding:2px 0}
+#chatEp .epC{opacity:.7;font-size:10px}
+#chatEp .epL{font-size:12px;color:var(--texte);padding:3px 0 3px 4px;
+  border-left:2px solid rgba(255,196,74,.5);margin:3px 0;
+  word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+#chatEp .epL b{color:var(--or);font-weight:700}
+#chatEp .epX{font-style:normal;opacity:.35;cursor:pointer;
+  padding:0 4px;font-size:11px}
+#chatEp .epX:hover{opacity:1;color:#ff8a8a}
 #chatL .cm b{color:var(--cyan);font-weight:700}
 #chatL .cm.moi b{color:var(--or)}
 #chatL .cs{color:var(--gris);font-size:11.5px;font-style:italic}
@@ -1442,6 +1464,9 @@ select.champ{cursor:pointer}
     <span id="chatQui"></span>
     <button id="chatFerme" title="Fermer le chat">✕</button>
   </div>
+  <!-- Les messages épinglés du salon : au-DESSUS du fil, parce qu'un
+       pense-bête posé sous la conversation descend avec elle. -->
+  <div id="chatEp" style="display:none"></div>
   <div id="chatL"></div>
   <div id="chatBas">
     <input id="chatSaisie" maxlength="160" autocomplete="off"
