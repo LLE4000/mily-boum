@@ -1287,6 +1287,19 @@ select.champ{cursor:pointer}
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminBlindage" class="bt">🛡 Blinder une île</button>
       </div>
+      <h3>Campagne</h3>
+      <div class="admNote">Reprendre la campagne à l'île de son choix, sans
+        toucher aux dégâts déjà inscrits ni aux podiums. Seule la bataille
+        en cours sur l'île qu'on quitte repart à neuf.<br>
+        « Récupérer mon cumul » relit les dégâts endormis dans CE navigateur
+        et les remet au Top carrière — à faire sur chaque appareil.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminReprise" class="bt">🏝 Reprendre la campagne à…</button>
+      </div>
+      <div class="ligne" style="margin-top:6px">
+        <button id="btAdminCumul" class="bt">🏆 Récupérer mon cumul</button>
+      </div>
+
       <h3>Passages</h3>
       <div class="admNote">Qui est venu, et quand. Un appareil note ses
         propres passages et les publie ; cette page les rassemble.
@@ -1502,7 +1515,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.83";
+var VERSION = "v0.84";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -43992,10 +44005,135 @@ function nouveauTirageSalon(){
   return tirageSalon;
 }
 
+/* ================================================================
+   PORTER LE CUMUL LOCAL D'UNE CAMPAGNE À L'AUTRE
+
+   Le cumul de dégâts de cet appareil est rangé sous la campagne où il
+   a été fait (voir chargeMesDegats) : `{ cy, d:{ carte:dégâts } }`.
+   Quand le numéro de campagne monte, il cesse d'être adopté — c'est
+   voulu pour une VRAIE campagne neuve, où chacun repart à zéro.
+
+   Mais il existe des montées de `cy` qui ne sont PAS des campagnes
+   neuves : elles servent seulement à faire monter le rang de
+   l'instantané pour qu'un tableau de destructions périmé soit bien
+   écrasé. Là, jeter le cumul est une perte sèche — et pire qu'une
+   perte : le tableau partagé, lui, garde les anciens totaux, si bien
+   que les nouveaux dégâts du joueur restent sous son propre record
+   pendant longtemps sans rien faire monter. C'est le mur décrit dans
+   nouvelleCampagneSalon, pris par l'autre bout.
+
+   On PORTE donc le cumul : on lui recolle le numéro de campagne
+   courant. La fusion se fait au MAXIMUM par carte — si un cumul plus
+   récent existe déjà sous la nouvelle campagne, on ne le rabaisse
+   pas.
+   ================================================================ */
+function porteMesDegats(){
+  var o = null;
+  try{ o = JSON.parse(localStorage.getItem(CLE_DEGATS) || "null"); }catch(e){}
+  if(!o || typeof o !== "object" || !o.d || typeof o.d !== "object") return 0;
+  var d = {}, k, n = 0;
+  for(k in o.d) if(o.d[k] > 0){ d[k | 0] = Math.round(o.d[k]); n++; }
+  for(k in mesDegats) if(mesDegats[k] > (d[k] || 0)) d[k | 0] = mesDegats[k];
+  try{
+    localStorage.setItem(CLE_DEGATS, JSON.stringify({ cy:cycleSalon | 0, d:d, p:o.p ? 1 : 0 }));
+  }catch(e){}
+  relitMesDegats();
+  return n;
+}
+
+/* ================================================================
+   REPUBLIER LE TABLEAU DES DÉGÂTS DEPUIS L'ACCUEIL
+
+   IL FAUT UNE PORTE À PART, et voici pourquoi : mondeCourant() ne
+   fabrique le tableau des scores qu'en JEU. Sans partie en cours —
+   c'est-à-dire depuis l'accueil, là où se trouve le panneau
+   d'administration — il republie `monde.s` tel quel :
+
+       if(!jeu){ … s:monde.s || "" … }        (voir mondeCourant)
+
+   C'est le bon comportement d'ordinaire : au briefing, on n'a rien
+   de plus frais à dire que ce qu'on a déjà publié. Mais après avoir
+   récupéré un cumul endormi, si — et publieMonde(true) aurait
+   sagement republié le tableau vide qu'on cherche justement à
+   remplir. On passe donc par tableauScores(), qui lit scoresAJour(),
+   qui pose nos seaux par-dessus le tableau partagé.
+   ================================================================ */
+function republieMesScores(){
+  if(!monde || modeApercu) return false;
+  var s = tableauScores();
+  if(s === (monde.s || "")) return false;
+  monde.s = s;
+  monde.v = (monde.v | 0) + 1;
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return true;
+}
+
+/* ================================================================
+   REPRENDRE LA CAMPAGNE À UNE ÎLE DONNÉE
+
+   « On était à la guinguette ! Sans tout casser, peut-on revenir à la
+   guinguette comme map en cours, sans perdre les scores par map ? »
+
+   C'est exactement le geste que le jeu fait déjà tout seul quand une
+   île tombe : on publie un instantané qui porte une île PLUS AVANCÉE,
+   avec ses destructions à neuf. La différence est qu'ici personne n'a
+   fait tomber quoi que ce soit — on répare une remise à zéro subie.
+
+   POURQUOI LES SCORES NE BOUGENT PAS. rangMonde vaut
+   tg × 1 000 000 + cy × 1 000 + c : avancer d'île fait monter le rang
+   sans toucher à `cy` ni à `tg`. Or fusionneMonde ne jette le tableau
+   des dégâts que lorsque la GUERRE change — campagne ou tirage
+   différents. Même guerre, île plus avancée : `fusionneScores` fusionne,
+   et pas un point ne se perd. Les champions et les podiums passent par
+   fusionneEvenements, qui est une union : eux non plus ne bougent pas.
+
+   RECULER, EN REVANCHE, COÛTE. Un rang plus bas serait tout simplement
+   refusé par les autres appareils : il faut alors faire monter `cy`,
+   donc changer de guerre — le tableau des dégâts republié tel quel
+   survit, mais le cumul LOCAL des autres joueurs, lui, ne suit pas.
+   On porte le nôtre, on prévient pour les leurs, et l'on ne recule que
+   si c'est demandé exprès.
+
+   CE QU'ON PERD DANS TOUS LES CAS, et c'est inévitable : la bataille
+   en cours sur l'île qu'on quitte — les défenses déjà tombées et les
+   PV entamés du Brasier. On ne peut pas être sur deux îles à la fois.
+   Les DÉGÂTS, eux, sont déjà rangés : ils restent au tableau.
+   ================================================================ */
+function reprendCampagneA(index){
+  index = index | 0;
+  if(!CARTES[index] || carteSpeciale(index)) return false;
+  var av = monde || {};
+  var recule = index <= (av.c | 0);
+  if(recule){
+    cycleSalon = (cycleSalon | 0) + 1;
+    porteMesDegats();                 // notre cumul ne meurt pas pour si peu
+  }
+  var jg = etatEvenements();
+  jg.ch = av.ch || "";                // les champions traversent
+  jg.t3 = av.t3 || "";                // les podiums aussi
+  carteSalon = index;
+  monde = poseEvenements({
+    v:(av.v | 0) + 1, cy:cycleSalon | 0, c:index,
+    pv:CARTES[index].pvQG,
+    /* l'île qu'on prend est intacte : ses bâtiments ne sont pas ceux
+       de celle qu'on quitte, son tableau de destructions non plus */
+    d:"", bl:"", g:"", w:"", k:"",
+    /* ET LE TABLEAU DES DÉGÂTS EST REPUBLIÉ TEL QUEL. C'est toute la
+       demande : « sans perdre les scores par map ». */
+    s:av.s || "",
+    p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
+    bd:blindageSalon, bn:numeroBlindage | 0
+  }, jg);
+  sauveMondeLocal();
+  if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+  return true;
+}
+
 function enregistrePlanCarte(index, chaine){
   var t = decodePlans(planSalon);
   if(chaine) t[index] = chaine; else delete t[index];
-  var r = enregistrePlan(encodePlans(t));
+  var r = enregistrePlan(encodePlans(t), index);
   /* Les onglets portent la pastille « déjà enregistrée » : ils doivent
      la voir apparaître au moment où elle devient vraie. */
   if(typeof construitOngletsCartes === "function") construitOngletsCartes();
@@ -44022,23 +44160,101 @@ function enregistrePlanCarte(index, chaine){
    POUR REJOUER LA MÊME RECETTE AUTREMENT, il y a un bouton, et il le
    dit : « Nouveau tirage ». Un geste explicite plutôt qu'un effet de
    bord.
+   ================================================================
+   ET ELLE NE RETIRAIT PAS QUE LE SORT : ELLE RETIRAIT LA CAMPAGNE
+   ENTIÈRE, ET LE TABLEAU DES SCORES AVEC.
+
+   LE DÉFAUT, constaté en v0.82. Enregistrer un plan — poser UNE
+   défense dans l'éditeur suffit — faisait trois choses de trop :
+
+       cycleSalon++       → « guerre neuve » pour fusionneMonde
+       carteSalon = 0     → retour à la première île
+       s:""               → le tableau des dégâts, effacé pour tous
+
+   Le salon était à la guinguette ; il s'est réveillé à la plage, sans
+   Top carrière. Les podiums par île ont survécu — eux passent par
+   fusionneEvenements, qui est une union — ce qui rendait le dégât
+   d'autant plus difficile à lire : les vignettes montraient encore
+   des chiffres, et l'on croyait n'avoir rien perdu.
+
+   POURQUOI CES TROIS LIGNES EXISTAIENT. Une seule d'entre elles avait
+   une raison : `d`, le tableau des bâtiments détruits, est une suite
+   de bits indexée sur l'ORDRE du tableau des bâtiments. Redessiner
+   une île change cet ordre, donc les bits ne désignent plus rien et
+   il faut les jeter. Et comme fusionneMonde fait l'UNION des bits à
+   rang égal, jeter ne suffit pas : il faut aussi que le rang MONTE,
+   sans quoi l'ancien tableau d'un autre appareil revient par la
+   fusion. D'où le `cycleSalon++`. Les deux autres lignes — l'île zéro
+   et le tableau des scores — ne servaient rien du tout : les dégâts
+   d'un joueur ne sont pas rangés par bâtiment, ils sont rangés par
+   ÎLE et par JOUEUR. Redessiner une carte ne les rend pas faux.
+
+   CE QU'ON FAIT MAINTENANT, et c'est la seule règle qui tienne :
+   ON NE JETTE QUE CE QUI EST DEVENU FAUX.
+
+     — le plan édité n'est PAS l'île en cours (le cas courant : on
+       dessine Ibiza pendant que le salon joue la guinguette) → RIEN
+       ne change dans la guerre. On republie le plan, son numéro monte,
+       les autres appareils l'adoptent par meilleurPlan, qui ne
+       regarde pas le rang. Ni campagne, ni île, ni score touchés.
+     — le plan édité EST l'île en cours → ses bâtiments ont changé, on
+       remet CETTE île à neuf, et l'on fait monter le rang pour que le
+       vieux tableau de destructions ne revienne pas. Mais on RESTE
+       sur cette île, on republie le tableau des scores tel quel, et
+       l'on porte le cumul local par-dessus la montée de campagne.
+
+   Les champions et les podiums traversent dans les deux cas, comme
+   pour la remise à zéro : ils ne sont pas de la guerre.
    ---------------------------------------------------------------- */
-function enregistrePlan(chaine){
+function enregistrePlan(chaine, index){
   if(chaine === planSalon) return false;
-  planSalon   = chaine;
-  numeroPlan  = (numeroPlan | 0) + 1;
-  cycleSalon  = (cycleSalon | 0) + 1;
-  carteSalon  = 0;
+  planSalon  = chaine;
+  numeroPlan = (numeroPlan | 0) + 1;
+  var av = monde || {};
+  /* Sans index, on ne sait pas quelle carte a bougé : on suppose le
+     pire, c'est-à-dire celle qu'on joue. */
+  var touche = (typeof index !== "number") || ((index | 0) === (carteSalon | 0));
+
+  if(!touche){
+    /* LA GUERRE NE BOUGE PAS. On repose l'instantané tel quel, plan et
+       numéro de plan mis à jour — c'est memeMonde qui verra la
+       différence et déclenchera la publication. */
+    var jgP = etatEvenements();
+    jgP.ch = av.ch || "";
+    jgP.t3 = av.t3 || "";
+    monde = poseEvenements({
+      v:(av.v | 0) + 1, cy:cycleSalon | 0, c:carteSalon | 0,
+      pv:(av.pv !== undefined) ? av.pv : CARTES[carteSalon | 0].pvQG,
+      d:av.d || "", bl:av.bl || "", g:av.g || "", w:av.w || "", k:av.k || "",
+      s:av.s || "",
+      p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
+      bd:blindageSalon, bn:numeroBlindage | 0
+    }, jgP);
+    sauveMondeLocal();
+    if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
+    return true;
+  }
+
+  /* L'ÎLE EN COURS A CHANGÉ DE DESSIN. Elle repart à neuf, et le rang
+     monte pour que ses anciennes destructions ne remontent pas par la
+     fusion. Le cumul local suit la montée : voir porteMesDegats. */
+  cycleSalon = (cycleSalon | 0) + 1;
+  porteMesDegats();
   /* LES VOIES D'ÉVÉNEMENT SE REMETTENT À ZÉRO, MAIS PAS LEURS
      RÉGLAGES. Ces champs étaient écrits à la main, dans les noms de la
      jungle : une carte événement ajoutée après coup se serait fait
      effacer son verrou et ses réglages à chaque tirage neuf, sans que
      personne le voie. voiesRemisesAZero() le fait pour toutes. */
-  monde = poseEvenements({ v:(monde ? monde.v : 0) + 1, cy:cycleSalon, c:0,
-            pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
-            p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
-            bd:blindageSalon, bn:numeroBlindage | 0 },
-            voiesRemisesAZero());
+  var jg = voiesRemisesAZero();
+  jg.ch = av.ch || "";
+  jg.t3 = av.t3 || "";
+  monde = poseEvenements({
+    v:(av.v | 0) + 1, cy:cycleSalon, c:carteSalon | 0,
+    pv:CARTES[carteSalon | 0].pvQG, d:"", bl:"", g:"", w:"", k:"",
+    s:av.s || "",
+    p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
+    bd:blindageSalon, bn:numeroBlindage | 0
+  }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   return true;
@@ -53213,6 +53429,123 @@ function installeAdmin(){
   if(r) r.addEventListener("click", regleJungleAdmin);
   var bl = $("btAdminBlindage");
   if(bl) bl.addEventListener("click", regleBlindageAdmin);
+  var rc = $("btAdminReprise");
+  if(rc) rc.addEventListener("click", reprendCampagneAdmin);
+  var cu = $("btAdminCumul");
+  if(cu) cu.addEventListener("click", recupereCumulAdmin);
+}
+
+/* ================================================================
+   REPRENDRE LA CAMPAGNE À UNE ÎLE
+
+   « On était à la guinguette ! Sans tout casser, peut-on revenir à la
+   guinguette comme map en cours, sans perdre les scores par map ? »
+
+   Oui, et c'est ce bouton. Il fait exactement ce que le jeu fait tout
+   seul quand une île tombe : il publie l'île suivante avec ses
+   défenses intactes. Les dégâts déjà inscrits ne bougent pas — voir
+   reprendCampagneA, qui republie le tableau tel quel.
+
+   L'AVERTISSEMENT N'EST PAS DÉCORATIF, et il dit deux choses
+   différentes selon le sens :
+     — AVANCER (le cas d'une réparation) ne coûte que la bataille en
+       cours sur l'île qu'on quitte. Les dégâts déjà faits restent au
+       tableau, ce sont les défenses tombées qui reviennent.
+     — RECULER oblige à changer de numéro de campagne pour que les
+       autres appareils acceptent le changement, et le cumul LOCAL des
+       autres joueurs ne suit pas cette montée : leurs prochains dégâts
+       repartiront sous leur propre record. On le dit avant, pas après.
+   ================================================================ */
+function reprendCampagneAdmin(){
+  var ordre = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++){
+    if(!carteSpeciale(ORDRE_CAMPAGNE[i])) ordre.push(ORDRE_CAMPAGNE[i]);
+  }
+  var l = "REPRENDRE LA CAMPAGNE À UNE ÎLE\n\n"
+        + "Île en cours : " + CARTES[carteSalon].nom + "\n\n"
+        + "Les dégâts déjà inscrits sur chaque île NE SONT PAS touchés,\n"
+        + "les champions et les podiums non plus.\n\n"
+        + "Où veux-tu reprendre ?\n\n";
+  for(i = 0; i < ordre.length; i++){
+    l += "  " + (i + 1) + " — " + CARTES[ordre[i]].nom
+       + (ordre[i] === carteSalon ? "   ← en cours" : "") + "\n";
+  }
+  var rep = prompt(l + "\nNuméro (rien pour annuler) :");
+  if(rep === null) return;
+  var n = parseInt(rep, 10);
+  if(!(n >= 1 && n <= ordre.length)){
+    if(rep.trim() !== "") alert("Numéro inconnu. Rien n'a été touché.");
+    return;
+  }
+  var cible = ordre[n - 1];
+  if(cible === carteSalon){ alert("C'est déjà l'île en cours. Rien n'a été touché."); return; }
+  var recule = rangCampagne(cible) <= rangCampagne(carteSalon);
+  var av = "Reprendre la campagne à « " + CARTES[cible].nom + " » ?\n\n"
+         + "CE QUI EST GARDÉ :\n"
+         + "• tous les dégâts déjà inscrits, île par île\n"
+         + "• le Top carrière\n"
+         + "• les champions et les podiums de chaque île\n"
+         + "• les plans de défense et les blindages\n\n"
+         + "CE QUI EST PERDU :\n"
+         + "• la bataille en cours sur « " + CARTES[carteSalon].nom + " » —\n"
+         + "  ses défenses détruites reviennent, le Brasier retrouve sa vie\n";
+  if(recule){
+    av += "\nATTENTION — tu RECULES dans la campagne. Il faut alors changer\n"
+        + "de numéro de campagne, et le cumul local des AUTRES joueurs ne\n"
+        + "suit pas : leurs prochains dégâts repartiront sous leur record.\n"
+        + "Chacun peut le récupérer avec « Récupérer mon cumul ».\n";
+  }
+  av += "\nLes autres joueurs verront le changement immédiatement.";
+  if(!confirm(av)) return;
+  if(!reprendCampagneA(cible)){ alert("Impossible de reprendre à cette île."); return; }
+  if(enJeu){ nouvelleCarte(cible); construitFondMini(); majBarres(); }
+  majMondes();
+  fermeAdminP();
+  alert("La campagne reprend à « " + CARTES[cible].nom + " ».\n"
+      + "Les scores par île n'ont pas bougé.");
+}
+
+/* ================================================================
+   RÉCUPÉRER SON CUMUL DE CARRIÈRE
+
+   À quoi ça sert. Le cumul de dégâts d'un appareil est rangé sous la
+   campagne où il a été fait. Quand le numéro de campagne monte sans
+   qu'une vraie campagne neuve ait commencé — c'est ce que faisait
+   l'enregistrement d'un plan avant qu'on le corrige —, ce cumul cesse
+   d'être lu. Il n'est PAS effacé : il dort dans le navigateur avec
+   l'ancien numéro.
+
+   Ce bouton lui recolle le numéro courant. Le Top carrière se
+   reconstruit alors tout seul, à partir de vrais chiffres — on ne
+   réinvente rien, on relit ce qui était déjà là.
+
+   IL EST À FAIRE SUR CHAQUE APPAREIL. Chacun ne tient que SON propre
+   cumul : c'est le principe du seau, et c'est aussi ce qui fait qu'on
+   ne peut pas récupérer le total de quelqu'un d'autre à sa place.
+   ================================================================ */
+function recupereCumulAdmin(){
+  if(!pseudoSaisi()){
+    alert("Écris d'abord ton pseudo : c'est sous lui que le cumul sera republié.");
+    return;
+  }
+  monNom = pseudoSaisi();
+  var n = (typeof porteMesDegats === "function") ? porteMesDegats() : 0;
+  if(!n){
+    alert("Aucun cumul en sommeil sur cet appareil.\n\n"
+        + "Soit il a déjà été récupéré, soit les dégâts ont été faits\n"
+        + "sur un autre appareil ou dans un autre navigateur — c'est là\n"
+        + "qu'il faut appuyer sur ce bouton.");
+    return;
+  }
+  var t = 0, k;
+  for(k in mesDegats) t += mesDegats[k];
+  if(typeof republieMesScores === "function") republieMesScores();
+  majMondes();
+  if(typeof majCarriere === "function") majCarriere();
+  alert("Cumul récupéré : " + nombre(t) + " points de dégâts sur "
+      + n + " île" + (n > 1 ? "s" : "") + ".\n\n"
+      + "Il repart dans le tableau du salon. Les autres joueurs doivent\n"
+      + "faire le même geste sur LEUR appareil pour retrouver le leur.");
 }
 
 /* ================================================================

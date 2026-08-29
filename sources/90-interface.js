@@ -2366,6 +2366,123 @@ function installeAdmin(){
   if(r) r.addEventListener("click", regleJungleAdmin);
   var bl = $("btAdminBlindage");
   if(bl) bl.addEventListener("click", regleBlindageAdmin);
+  var rc = $("btAdminReprise");
+  if(rc) rc.addEventListener("click", reprendCampagneAdmin);
+  var cu = $("btAdminCumul");
+  if(cu) cu.addEventListener("click", recupereCumulAdmin);
+}
+
+/* ================================================================
+   REPRENDRE LA CAMPAGNE À UNE ÎLE
+
+   « On était à la guinguette ! Sans tout casser, peut-on revenir à la
+   guinguette comme map en cours, sans perdre les scores par map ? »
+
+   Oui, et c'est ce bouton. Il fait exactement ce que le jeu fait tout
+   seul quand une île tombe : il publie l'île suivante avec ses
+   défenses intactes. Les dégâts déjà inscrits ne bougent pas — voir
+   reprendCampagneA, qui republie le tableau tel quel.
+
+   L'AVERTISSEMENT N'EST PAS DÉCORATIF, et il dit deux choses
+   différentes selon le sens :
+     — AVANCER (le cas d'une réparation) ne coûte que la bataille en
+       cours sur l'île qu'on quitte. Les dégâts déjà faits restent au
+       tableau, ce sont les défenses tombées qui reviennent.
+     — RECULER oblige à changer de numéro de campagne pour que les
+       autres appareils acceptent le changement, et le cumul LOCAL des
+       autres joueurs ne suit pas cette montée : leurs prochains dégâts
+       repartiront sous leur propre record. On le dit avant, pas après.
+   ================================================================ */
+function reprendCampagneAdmin(){
+  var ordre = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++){
+    if(!carteSpeciale(ORDRE_CAMPAGNE[i])) ordre.push(ORDRE_CAMPAGNE[i]);
+  }
+  var l = "REPRENDRE LA CAMPAGNE À UNE ÎLE\n\n"
+        + "Île en cours : " + CARTES[carteSalon].nom + "\n\n"
+        + "Les dégâts déjà inscrits sur chaque île NE SONT PAS touchés,\n"
+        + "les champions et les podiums non plus.\n\n"
+        + "Où veux-tu reprendre ?\n\n";
+  for(i = 0; i < ordre.length; i++){
+    l += "  " + (i + 1) + " — " + CARTES[ordre[i]].nom
+       + (ordre[i] === carteSalon ? "   ← en cours" : "") + "\n";
+  }
+  var rep = prompt(l + "\nNuméro (rien pour annuler) :");
+  if(rep === null) return;
+  var n = parseInt(rep, 10);
+  if(!(n >= 1 && n <= ordre.length)){
+    if(rep.trim() !== "") alert("Numéro inconnu. Rien n'a été touché.");
+    return;
+  }
+  var cible = ordre[n - 1];
+  if(cible === carteSalon){ alert("C'est déjà l'île en cours. Rien n'a été touché."); return; }
+  var recule = rangCampagne(cible) <= rangCampagne(carteSalon);
+  var av = "Reprendre la campagne à « " + CARTES[cible].nom + " » ?\n\n"
+         + "CE QUI EST GARDÉ :\n"
+         + "• tous les dégâts déjà inscrits, île par île\n"
+         + "• le Top carrière\n"
+         + "• les champions et les podiums de chaque île\n"
+         + "• les plans de défense et les blindages\n\n"
+         + "CE QUI EST PERDU :\n"
+         + "• la bataille en cours sur « " + CARTES[carteSalon].nom + " » —\n"
+         + "  ses défenses détruites reviennent, le Brasier retrouve sa vie\n";
+  if(recule){
+    av += "\nATTENTION — tu RECULES dans la campagne. Il faut alors changer\n"
+        + "de numéro de campagne, et le cumul local des AUTRES joueurs ne\n"
+        + "suit pas : leurs prochains dégâts repartiront sous leur record.\n"
+        + "Chacun peut le récupérer avec « Récupérer mon cumul ».\n";
+  }
+  av += "\nLes autres joueurs verront le changement immédiatement.";
+  if(!confirm(av)) return;
+  if(!reprendCampagneA(cible)){ alert("Impossible de reprendre à cette île."); return; }
+  if(enJeu){ nouvelleCarte(cible); construitFondMini(); majBarres(); }
+  majMondes();
+  fermeAdminP();
+  alert("La campagne reprend à « " + CARTES[cible].nom + " ».\n"
+      + "Les scores par île n'ont pas bougé.");
+}
+
+/* ================================================================
+   RÉCUPÉRER SON CUMUL DE CARRIÈRE
+
+   À quoi ça sert. Le cumul de dégâts d'un appareil est rangé sous la
+   campagne où il a été fait. Quand le numéro de campagne monte sans
+   qu'une vraie campagne neuve ait commencé — c'est ce que faisait
+   l'enregistrement d'un plan avant qu'on le corrige —, ce cumul cesse
+   d'être lu. Il n'est PAS effacé : il dort dans le navigateur avec
+   l'ancien numéro.
+
+   Ce bouton lui recolle le numéro courant. Le Top carrière se
+   reconstruit alors tout seul, à partir de vrais chiffres — on ne
+   réinvente rien, on relit ce qui était déjà là.
+
+   IL EST À FAIRE SUR CHAQUE APPAREIL. Chacun ne tient que SON propre
+   cumul : c'est le principe du seau, et c'est aussi ce qui fait qu'on
+   ne peut pas récupérer le total de quelqu'un d'autre à sa place.
+   ================================================================ */
+function recupereCumulAdmin(){
+  if(!pseudoSaisi()){
+    alert("Écris d'abord ton pseudo : c'est sous lui que le cumul sera republié.");
+    return;
+  }
+  monNom = pseudoSaisi();
+  var n = (typeof porteMesDegats === "function") ? porteMesDegats() : 0;
+  if(!n){
+    alert("Aucun cumul en sommeil sur cet appareil.\n\n"
+        + "Soit il a déjà été récupéré, soit les dégâts ont été faits\n"
+        + "sur un autre appareil ou dans un autre navigateur — c'est là\n"
+        + "qu'il faut appuyer sur ce bouton.");
+    return;
+  }
+  var t = 0, k;
+  for(k in mesDegats) t += mesDegats[k];
+  if(typeof republieMesScores === "function") republieMesScores();
+  majMondes();
+  if(typeof majCarriere === "function") majCarriere();
+  alert("Cumul récupéré : " + nombre(t) + " points de dégâts sur "
+      + n + " île" + (n > 1 ? "s" : "") + ".\n\n"
+      + "Il repart dans le tableau du salon. Les autres joueurs doivent\n"
+      + "faire le même geste sur LEUR appareil pour retrouver le leur.");
 }
 
 /* ================================================================
