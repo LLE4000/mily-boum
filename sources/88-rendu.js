@@ -2697,6 +2697,7 @@ function rendu(tps, dt){
   if(carteScene(jeu.index)){
     /* les bandes d'abord, le contour par-dessus : c'est le contour qui
        doit garder son arête, et il la perdrait sous douze halos */
+    dessinePisteIbiza(ctx, tps);
     dessineBandesIbiza(ctx, tps);
     dessineEtoileIbiza(ctx, tps);
   }

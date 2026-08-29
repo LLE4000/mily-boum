@@ -2284,7 +2284,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.16";
+var VERSION = "v1.17";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -13232,9 +13232,15 @@ function construitSol(carteC){
     c.save();
     c.globalAlpha = 0.72; c.fillStyle = "#0d0a1c"; c.fill();
     c.clip();
-    /* le damier du carrelage, dans les deux sens de la projection */
+    /* le damier du carrelage, dans les deux sens de la projection.
+       LE PAS EST CELUI DES DALLES ALLUMÉES, et ce n'est pas un détail
+       de rangement : les joints cuits ici et les losanges que
+       `dessinePisteIbiza` allume doivent tomber sur la MÊME grille.
+       Deux 2,6 écrits séparément se seraient décalés à la première
+       retouche, et un carrelage dont les joints ne suivent pas les
+       dalles se voit tout de suite. */
     c.globalAlpha = 0.13; c.strokeStyle = "#8fd8ff"; c.lineWidth = 1.2;
-    for(j = -ETOILE_R; j <= ETOILE_R; j += 2.6){
+    for(j = -ETOILE_R; j <= ETOILE_R; j += IBI_PAVE){
       var u1 = iso(SCENE_GX - ETOILE_R, SCENE_GY + j);
       var u2 = iso(SCENE_GX + ETOILE_R, SCENE_GY + j);
       c.beginPath(); c.moveTo(u1.x, u1.y); c.lineTo(u2.x, u2.y); c.stroke();
@@ -21460,37 +21466,67 @@ function dessineFeuIbiza(c, tps, p, z){
    une tache, et une tache n'a pas de mouvement.
    ================================================================ */
 /* ────────────────────────────────────────────────────────────────
-   SIX BUSES SUR TOUT LE POURTOUR, ET DEUX ANGLES PAR BUSE
+   SIX BUSES, SIX DIRECTIONS, ET LE SOUFFLE EST RADIAL
 
-   Trois buses au sud, c'était la moitié d'une régie : la scène est
-   ronde, la piste l'entoure, et rien ne sortait de l'autre côté.
+   « Il faudrait que ça ressorte des six directions, des six côtés,
+   parce que là on voit les six vers nous. Donc ce n'est pas bon. »
 
-   MAIS ON NE PEUT PAS SIMPLEMENT EN METTRE SIX EN COURONNE. Les trois
-   du fond soufflent vers le haut de l'écran, c'est-à-dire DERRIÈRE le
-   podium : leur nappe naît et meurt sans qu'on en voie rien, cachée
-   par la scène elle-même. On aurait payé six jets pour en voir trois.
+   Les six buses étaient déjà aux bons ENDROITS — leurs azimuts sont
+   très exactement ceux des six pointes de l'étoile, si bien qu'une
+   ligne tirée du centre de la scène à une pointe passe par une buse.
+   Ce qui était faux, c'était le SOUFFLE : chaque buse portait un
+   second angle, rabattu vers l'avant, et les six nappes convergeaient
+   donc vers le joueur au lieu de s'écarter. On voyait un seul nuage
+   qui vient sur soi, pas six jets.
 
-   Chaque buse porte donc deux angles : celui de sa POSITION sur la
-   couronne, et celui où elle SOUFFLE. Ils sont presque égaux pour les
-   trois de devant. Pour les trois du fond, le souffle est rabattu vers
-   l'avant : la nappe part de derrière le podium, le contourne, et
-   ÉMERGE sur les côtés — ce qui est plus beau que si elle était venue
-   de devant, parce qu'on la voit apparaître.
+   Ce second angle avait sa raison, et elle était bonne : une nappe qui
+   part vers le fond naît DERRIÈRE le podium, et on la peignait
+   par-dessus lui — de la fumée devant le DJ alors qu'elle est
+   derrière. On la corrige autrement, et à l'endroit du vrai problème :
+   les trois buses du fond sont peintes en excluant la silhouette du
+   cylindre, si bien que leur nappe ÉMERGE de derrière la scène au lieu
+   de la recouvrir. C'est un découpage, pas un mensonge sur la
+   direction.
 
-   Les six directions sont toutes distinctes. Deux nappes qui suivent
-   exactement le même cap depuis deux points différents ne se lisent
-   pas comme deux jets, mais comme un jet mal dessiné.
+   ET ELLES SORTENT DE LA FACE LATÉRALE, à mi-hauteur de la jupe.
+   « On dirait qu'elle fait trente, quarante centimètres de haut ; ça
+   part de la face latérale ronde de la scène. » La buse est donc sur
+   l'ellipse du bord — au rayon plein, plus à 92 % — et à mi-jupe, là
+   où une machine à fumée est boulonnée sur un praticable.
    ──────────────────────────────────────────────────────────────── */
-var IBI_FUM_BUSES = [
-  { a:0.5236, v:0.40 },    // avant droite
-  { a:1.5708, v:1.40 },    // avant centre
-  { a:2.6180, v:2.74 },    // avant gauche
-  { a:3.6652, v:2.18 },    // arrière gauche — sort par la gauche du podium
-  { a:4.7124, v:1.72 },    // arrière centre — le contourne et débouche devant
-  { a:5.7596, v:0.98 }     // arrière droite — sort par la droite
-];
+/* Les six azimuts des pointes de l'étoile. On ne les écrit pas à la
+   main : ETOILE_G les porte déjà, et deux tables qui disent la même
+   chose finissent toujours par se contredire. */
+var IBI_FUM_BUSES = (function(){
+  var out = [], i;
+  for(i = 0; i < ETOILE_POINTES; i++)
+    out.push(i / ETOILE_POINTES * 6.2832 - 0.5236);
+  return out;
+})();
 var IBI_FUM_VIE   = 1.5;                    // en mesures
-var IBI_FUM_N     = 7;                      // bouffées par buse
+var IBI_FUM_N     = 12;                     // bouffées par buse
+/* L'ÉCART ENTRE DEUX BOUFFÉES, ET C'EST LUI QUI FAIT LE PANACHE.
+   À 0,058 elles se suivaient de si près qu'elles occupaient le
+   dernier tiers de la course et rien avant : on voyait un nuage
+   DÉTACHÉ qui s'éloigne, pas une fumée qui sort de la scène. Écarté au
+   double, le chapelet couvre toute la course — de la buse à la tête —
+   et le jet part enfin du bord du praticable. */
+var IBI_FUM_ECART = 0.10;
+var IBI_FUM_RIM   = 1.0;                    // sur le bord même du cylindre
+var IBI_FUM_HAUT  = 0.45;                   // à mi-jupe
+
+/* La silhouette du cylindre à l'écran : la moitié NORD de l'ellipse du
+   dessus, les deux flancs, la moitié SUD de celle du pied. C'est ce
+   qu'il faut retirer du dessin pour que les nappes du fond sortent de
+   derrière la scène. */
+function silhouettePodium(c, p, z){
+  var LX = IBI_DEMI * RX * z, LY = IBI_DEMI * RY * z, H = IBI_H * z;
+  c.moveTo(p.x - LX, p.y - H);
+  c.ellipse(p.x, p.y - H, LX, LY, 0, Math.PI, 6.2832, false);
+  c.lineTo(p.x + LX, p.y);
+  c.ellipse(p.x, p.y, LX, LY, 0, 0, Math.PI, false);
+  c.closePath();
+}
 
 function dessineFumeeIbiza(c, tps, p, z){
   var H = horlogeIbiza(tps);
@@ -21502,14 +21538,32 @@ function dessineFumeeIbiza(c, tps, p, z){
   if(depuis > IBI_FUM_VIE) return;
   var LX = IBI_DEMI * RX, LY = IBI_DEMI * RY;
   var mes = mesureIbiza(tps), b, k;
-  c.save();
-  c.globalCompositeOperation = "lighter";
+  /* LES TROIS DU FOND D'ABORD, DÉCOUPÉES ; LES TROIS DE DEVANT
+     ENSUITE, LIBRES. L'ordre compte : une nappe de devant doit pouvoir
+     passer sur la jupe du podium, c'est même ce qui dit qu'elle est
+     devant. */
+  for(var passe = 0; passe < 2; passe++){
+    c.save();
+    if(passe === 0){
+      /* tout l'écran SAUF le cylindre : la règle pair-impair fait le
+         trou. Le grand rectangle est volontairement démesuré — il ne
+         dépend alors ni de la taille du canevas ni de sa densité de
+         pixels. */
+      c.beginPath();
+      c.rect(-1e5, -1e5, 2e5, 2e5);
+      silhouettePodium(c, p, z);
+      c.clip("evenodd");
+    }
+    c.globalCompositeOperation = "lighter";
   for(b = 0; b < IBI_FUM_BUSES.length; b++){
-    var B = IBI_FUM_BUSES[b];
-    var ca = Math.cos(B.a), sa = Math.sin(B.a);     // où elle est posée
-    var cv = Math.cos(B.v), sv = Math.sin(B.v);     // où elle souffle
-    var bx = p.x + ca * LX * 0.92 * z;
-    var by = p.y + (-IBI_H * 0.35 + sa * LY * 0.92) * z;
+    var A = IBI_FUM_BUSES[b];
+    var ca = Math.cos(A), sa = Math.sin(A);
+    /* sa < 0, c'est le fond de la scène : à l'écran les y descendent
+       vers le sud, donc le nord est négatif */
+    if((sa < 0) !== (passe === 0)) continue;
+    var cv = ca, sv = sa;                           // le souffle est RADIAL
+    var bx = p.x + ca * LX * IBI_FUM_RIM * z;
+    var by = p.y + (-IBI_H * IBI_FUM_HAUT + sa * LY * IBI_FUM_RIM) * z;
     var col = teinteIbiza(IBI_TEINTES, mes + b);
     /* UN SEUL DÉGRADÉ PAR BUSE, POUR UN DISQUE DE RAYON UN.
        Il en fallait un par bouffée — quarante-deux par image à six
@@ -21526,26 +21580,37 @@ function dessineFumeeIbiza(c, tps, p, z){
     /* « PLUS FORT » VEUT DIRE PLUS GROS, PAS PLUS BLANC.
        Monté à 1,04 d'opacité avec un cœur à 0,58, les six jets
        devenaient six lampes : en composition additive, tout ce qui
-       dépasse se cumule en blanc pur et la matière disparaît. Ce sont
-       la LONGUEUR et la TAILLE qui portent la force — le jet traverse
-       maintenant plus de la moitié de la piste et triple en chemin —
-       et l'opacité redescend pour que ça reste de la fumée éclairée. */
-    g.addColorStop(0, "rgba(255,250,244,.42)");
-    g.addColorStop(0.35, "rgba(" + col + ",.44)");
-    g.addColorStop(0.7, "rgba(" + col + ",.26)");
+       dépasse se cumule en blanc pur et la matière disparaît.
+
+       MAIS PLUS LONG NE VEUT PAS DIRE PLUS VISIBLE, ET C'EST L'ERREUR
+       QU'ON A FAITE ENSUITE. Le jet a été poussé jusqu'à treize cases
+       — plus de la moitié du rayon de la piste — en baissant l'opacité
+       d'autant : une bouffée de deux cents pixels de rayon à neuf
+       centièmes d'alpha additif, sur une piste déjà pleine de lasers,
+       ne se voit PAS. Mesuré : sept cent vingt remplissages par image,
+       et rien à l'écran. Le croquis du joueur donne la bonne cote —
+       ses six panaches font un rayon de scène et demi, pas quatre —
+       et c'est en les RACCOURCISSANT qu'ils deviennent lisibles. */
+    g.addColorStop(0, "rgba(255,250,244,.56)");
+    g.addColorStop(0.35, "rgba(" + col + ",.52)");
+    g.addColorStop(0.7, "rgba(" + col + ",.31)");
     g.addColorStop(1, "rgba(" + col + ",0)");
     for(k = 0; k < IBI_FUM_N; k++){
-      var v = depuis - k * 0.058;             // les bouffées se suivent
+      var v = depuis - k * IBI_FUM_ECART;     // les bouffées se suivent
       if(v <= 0 || v > IBI_FUM_VIE) continue;
       var u = v / IBI_FUM_VIE;                // 0 au départ, 1 à la fin
       /* elle part vite et ralentit : de l'air chassé, pas un projectile.
-         DE GROS JETS, ET C'ÉTAIT LA DEMANDE — deux fois. Ils traversent
-         maintenant plus que la moitié de la piste et triplent de taille
-         en chemin ; à six buses il fallait aussi qu'ils se rejoignent,
-         sinon on voit six traits au lieu d'une nappe qui monte. */
-      var d = (1 - Math.pow(1 - u, 2.2)) * 372 * z;
-      var r = (30 + u * 176) * z;
-      var op = Math.max(0, (1 - u) * (1 - u) * 0.88) * (1 - k * 0.06);
+         LES COTES VIENNENT DU CROQUIS. Le panache y part du bord de la
+         scène et s'arrête à un rayon et demi de scène ; il s'ouvre en
+         chemin sans devenir une boule. En unités de scène : un rayon
+         vaut IBI_DEMI × RX, soit cent vingt-neuf, et le jet en
+         parcourt un peu plus d'un et demi. */
+      var d = (1 - Math.pow(1 - u, 2.2)) * 215 * z;
+      /* un CÔNE, pas une boule : étroit à la buse, ouvert au bout. Le
+         chapelet en fait un panache quatre fois plus long que large,
+         ce qui est la proportion du croquis. */
+      var r = (16 + u * 46) * z;
+      var op = Math.max(0, (1 - u) * (1 - u) * 0.95) * (1 - k * 0.04);
       var fx = bx + cv * d, fy = by + sv * d * 0.5;
       c.save();
       c.globalAlpha = Math.min(1, op);
@@ -21555,7 +21620,8 @@ function dessineFumeeIbiza(c, tps, p, z){
       c.restore();
     }
   }
-  c.restore();
+    c.restore();
+  }
 }
 
 /* ================================================================
@@ -21826,6 +21892,207 @@ function dessineBandesIbiza(c, tps){
       c.globalAlpha = Math.min(0.9, g - 1);
       c.fill();
     }
+  }
+  c.globalAlpha = 1;
+  c.restore();
+}
+
+/* ================================================================
+   LE PLANCHER DE LA PISTE, EN LOSANGES ALLUMÉS
+
+   « L'étoile, je la trouve un peu trop sombre, elle est sur fond noir.
+   Est-ce qu'on saurait faire une animation lumineuse qui irait très
+   bien avec les couloirs ? Je me dis qu'elle peut être découpée en
+   losanges. »
+
+   LE PAVAGE EXISTE DÉJÀ, IL N'ÉTAIT PAS ALLUMÉ. Le sol cuit porte un
+   carrelage au pas de 2,6 cases, tracé dans les deux sens de la
+   grille ; et en projection isométrique, un carré du monde se projette
+   très exactement en LOSANGE. Le découpage demandé est donc celui du
+   décor, et il n'y a rien à inventer : on rallume les dalles qui sont
+   déjà dessinées. Une dalle inventée à côté de celles du sol aurait
+   fait deux carrelages superposés, décalés d'un demi-pas.
+
+   CHAQUE DALLE PREND LA COULEUR DE SON COULOIR. Douze allées partent
+   de la scène ; une dalle appartient à celle dont elle est le plus
+   proche en azimut, et elle en porte la teinte du moment. C'est ce
+   qui « va avec les couloirs » : quand l'allée du sud-est passe au
+   rose, le quartier de piste qui la prolonge passe au rose avec elle,
+   et l'on croit à une seule régie plutôt qu'à deux décors.
+
+   ET ELLE SUIT LE MÊME RÉGIME, TOURNÉ EN RADIAL. La machine des
+   sections est déjà écrite — repos, alternance, tour, boum, vague, une
+   par partie du morceau. Les allées la lisent en AZIMUT : la crête
+   tourne autour de l'étoile. La piste la lit en RAYON : la crête part
+   de la scène et file vers les pointes. Même horloge, même phase, même
+   accélération dans les montées ; deux lectures d'un seul mouvement.
+   Le DJ envoie la lumière, elle traverse la piste, elle sort par les
+   douze allées et va jusqu'au rivage.
+
+   CE QUE ÇA COÛTE, ET COMMENT ON LE PAIE. L'étoile fait trois cents
+   dalles. Trois cents remplissages par image seraient trois cents
+   changements d'état ; on les GROUPE donc par couleur et par palier
+   d'intensité — six teintes, huit paliers — ce qui ramène le tout à
+   quelques dizaines de tracés, chacun portant des dizaines de
+   losanges. Et les quatre coins de chaque dalle sont calculés UNE
+   FOIS, à la création de la carte : ils vivent dans le repère du
+   monde, où ils ne bougent jamais, et c'est la caméra qui les
+   transporte.
+   ================================================================ */
+var IBI_PAVE   = 2.6;      // le pas du carrelage cuit dans le sol
+var IBI_JOINT  = 0.90;     // la dalle est un peu plus petite que sa maille
+var IBI_PALIERS = 8;       // paliers d'intensité : ce qui permet de grouper
+var IBI_DALLES = null;
+
+/* Les dalles de la piste, calculées une fois. On garde des nombres à
+   plat plutôt que des objets : trois cents objets relus soixante fois
+   par seconde, c'est trois cents lectures de propriétés par image. */
+function paveLaPiste(){
+  var cx = [], cy = [], allee = [], rayon = [], damier = [], bouge = [];
+  /* UNE BOUGEOTTE PAR DALLE, TIRÉE UNE FOIS. Sans elle, toutes les
+     dalles d'un même secteur valent exactement la même chose et l'on
+     ne voit plus un carrelage mais un grand aplat en part de tarte.
+     Un dixième d'écart suffit à rendre chaque dalle à elle-même. Le
+     tirage est déterministe : la piste ne se réorganise pas entre deux
+     retours au briefing. */
+  var al = prng(0x1B12F);
+  var n = Math.ceil(ETOILE_R * 2 / IBI_PAVE), i, j;
+  for(i = 0; i < n; i++){
+    for(j = 0; j < n; j++){
+      var gx = SCENE_GX - ETOILE_R + (i + 0.5) * IBI_PAVE;
+      var gy = SCENE_GY - ETOILE_R + (j + 0.5) * IBI_PAVE;
+      if(!dansLaScene(gx, gy)) continue;
+      var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
+      var r = Math.sqrt(dx * dx + dy * dy);
+      /* sous le podium, rien ne se voit : autant ne pas le peindre */
+      if(r < IBI_DEMI + 0.4) continue;
+      var q = iso(gx, gy);
+      cx.push(q.x); cy.push(q.y);
+      rayon.push(r / ETOILE_R);
+      /* l'allée la plus proche en azimut — les douze partent du même
+         angle d'origine que l'étoile, d'où le même décalage */
+      var a = Math.atan2(dy, dx) + 0.5236;
+      var k = Math.round(a / 6.2832 * FAISC_N);
+      allee.push(((k % FAISC_N) + FAISC_N) % FAISC_N);
+      damier.push((i + j) & 1);
+      bouge.push(0.80 + al() * 0.34);
+    }
+  }
+  return { cx:cx, cy:cy, allee:allee, rayon:rayon, damier:damier,
+           bouge:bouge, n:cx.length,
+           dx:26 * IBI_PAVE * IBI_JOINT, dy:13 * IBI_PAVE * IBI_JOINT };
+}
+
+/* Ce que vaut une dalle, de 0 à 1 et un peu au-delà sur les drops.
+   C'est `gainAllee` lu en RAYON au lieu de l'azimut : même régimes,
+   même phase, même accélération. */
+/* LE FOND NE S'ÉTEINT JAMAIS, et c'est ce qui répond à la remarque.
+   « L'étoile, je la trouve un peu trop sombre. » Une dalle éteinte à
+   zéro rend le plancher noir dès que la crête est ailleurs, c'est-à-
+   dire les trois quarts du temps : on aurait remplacé un trou noir
+   immobile par un trou noir qui clignote. Les dalles gardent donc une
+   braise, et le carrelage se lit en permanence. */
+var IBI_BRAISE = 0.13;
+
+/* L'ANNEAU DE LA FRAPPE : à chaque temps, une couronne de dalles part
+   de la scène et file jusqu'aux pointes. C'est le geste qu'on regarde
+   — le DJ envoie la lumière dans la foule — et c'est le même que celui
+   des douze allées, joué sur le plancher au lieu du pourtour. */
+function anneauFrappe(rayon, H, largeur){
+  var k = H.t - Math.floor(H.t);          // 0 sur la frappe, 1 juste avant
+  var e = (rayon - k) * largeur;
+  return Math.exp(-e * e);
+}
+
+function gainDalle(rayon, damier, H, f, u, reg){
+  if(reg === "repos")
+    return IBI_BRAISE + 0.05 * Math.sin(H.t * 0.5 - rayon * 5.0);
+
+  if(reg === "alt"){
+    /* le damier bascule à chaque mesure : c'est le geste d'une piste
+       de danse à dalles, et il ne ressemble à rien d'autre sur l'île */
+    var demi = Math.floor(H.t / 4) & 1;
+    return (damier === demi) ? (0.42 + f * 0.34) : IBI_BRAISE;
+  }
+
+  if(reg === "tour"){
+    /* la crête part de la scène et file vers les pointes, et l'anneau
+       de la frappe court par-dessus */
+    var d = phaseTourIbiza(H, u) - rayon;
+    d -= Math.floor(d);
+    return IBI_BRAISE + Math.exp(-d * (4 + u * 6)) * (0.62 + f * 0.26)
+         + anneauFrappe(rayon, H, 5.5) * 0.30;
+  }
+
+  if(reg === "boum"){
+    /* tout d'un coup sur la frappe — mais PAS à plat : l'anneau garde
+       un mouvement dedans, sinon trois cents dalles clignotent comme
+       une seule et le carrelage disparaît sous l'aplat. */
+    return (0.20 + f * 0.62) + anneauFrappe(rayon, H, 4.0) * 0.46;
+  }
+
+  /* vague : une houle longue qui roule vers le large */
+  var v = 0.5 + 0.5 * Math.cos((H.t / 8 - rayon) * 6.2832);
+  return IBI_BRAISE + v * v * (0.44 + f * 0.24);
+}
+
+/* Les seaux de groupage, alloués une fois : six teintes × huit
+   paliers. Les vider coûte une affectation, les recréer coûterait
+   quarante-huit tableaux par image. */
+var IBI_SEAUX = null;
+function dessinePisteIbiza(c, tps){
+  if(!IBI_DALLES) IBI_DALLES = paveLaPiste();
+  var D = IBI_DALLES;
+  if(!D.n) return;
+  var H = horlogeIbiza(tps);
+  var f = frappe(tps), F = H.force, mes = mesureIbiza(tps);
+  var u = avanceSection(H);
+  var reg = IBI_REGIME[H.section];
+  if(!reg) reg = ["alt", "tour", "vague", "boum"][Math.floor(H.t / 32) & 3];
+  var nT = IBI_LASER_T.length, i, k;
+  if(!IBI_SEAUX){
+    IBI_SEAUX = [];
+    for(i = 0; i < nT * IBI_PALIERS; i++) IBI_SEAUX.push([]);
+  }
+  for(i = 0; i < IBI_SEAUX.length; i++) IBI_SEAUX[i].length = 0;
+
+  for(i = 0; i < D.n; i++){
+    var g = gainDalle(D.rayon[i], D.damier[i], H, f, u, reg) * F * D.bouge[i];
+    if(g < 0.04) continue;                   // rien à peindre, rien à payer
+    var pal = Math.min(IBI_PALIERS - 1, (g * IBI_PALIERS) | 0);
+    var ci = ((D.allee[i] + mes) % nT + nT) % nT;
+    IBI_SEAUX[ci * IBI_PALIERS + pal].push(i);
+  }
+
+  c.save();
+  /* DÉCOUPÉ À L'ÉTOILE : une dalle du bord dépasse de la piste, et
+     c'est l'arête de l'étoile qui fait la figure de cette île. */
+  c.beginPath();
+  for(i = 0; i < ETOILE_G.length; i += 2){
+    var e = iso(ETOILE_G[i], ETOILE_G[i + 1]);
+    if(i) c.lineTo(e.x, e.y); else c.moveTo(e.x, e.y);
+  }
+  c.closePath(); c.clip();
+  c.globalCompositeOperation = "lighter";
+  var DX = D.dx, DY = D.dy;
+  for(var b = 0; b < IBI_SEAUX.length; b++){
+    var seau = IBI_SEAUX[b];
+    if(!seau.length) continue;
+    /* le milieu du palier : une dalle par palier, donc pas de dégradé
+       à l'intérieur d'une dalle — c'est un carrelage, pas un halo */
+    var al = ((b % IBI_PALIERS) + 0.5) / IBI_PALIERS;
+    c.globalAlpha = Math.min(0.92, al * 0.62);
+    c.fillStyle = "rgba(" + IBI_LASER_T[(b / IBI_PALIERS) | 0] + ",1)";
+    c.beginPath();
+    for(k = 0; k < seau.length; k++){
+      var d = seau[k], x = D.cx[d], y = D.cy[d];
+      c.moveTo(x, y - DY);
+      c.lineTo(x + DX, y);
+      c.lineTo(x, y + DY);
+      c.lineTo(x - DX, y);
+      c.closePath();
+    }
+    c.fill();
   }
   c.globalAlpha = 1;
   c.restore();
@@ -55572,6 +55839,7 @@ function rendu(tps, dt){
   if(carteScene(jeu.index)){
     /* les bandes d'abord, le contour par-dessus : c'est le contour qui
        doit garder son arête, et il la perdrait sous douze halos */
+    dessinePisteIbiza(ctx, tps);
     dessineBandesIbiza(ctx, tps);
     dessineEtoileIbiza(ctx, tps);
   }

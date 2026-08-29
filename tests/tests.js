@@ -9462,6 +9462,104 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   }
 })();
 
+/* ================================================================
+   42. IBIZA : LES SIX JETS ET LE PLANCHER DE LA PISTE
+
+   Deux remarques sur le même écran :
+
+     « Il faudrait que ça ressorte des six directions, des six côtés,
+     parce que là on voit les six vers nous. Donc ce n'est pas bon. »
+
+     « L'étoile, je la trouve un peu trop sombre, elle est sur fond
+     noir. Je me dis qu'elle peut être découpée en losanges. »
+
+   Ce qui se MESURE — six panaches d'égale force, aucune dalle hors de
+   l'étoile, aucun régime qui laisse le plancher noir — est éprouvé
+   dans banc-ibiza-sol.js, sur la page qui tourne. Ce qui reste ici est
+   la STRUCTURE : les décisions qu'une retouche pourrait défaire sans
+   que rien ne casse à l'écran.
+   ================================================================ */
+(function(){
+  /* ---- 1. le souffle est radial, et il n'y a plus qu'un angle ---- */
+  ok("chaque buse souffle dans SA direction, pas vers le joueur",
+     /var cv = ca, sv = sa;/.test(html));
+  /* LA TABLE DES AZIMUTS N'EST PLUS ÉCRITE À LA MAIN. Six angles
+     recopiés à côté de ceux de l'étoile, c'est deux tables qui disent
+     la même chose — et qui finissent par se contredire. */
+  ok("… et les six azimuts se déduisent des pointes de l'étoile",
+     /IBI_FUM_BUSES = \(function\(\)\{[\s\S]{0,260}i \/ ETOILE_POINTES \* 6\.2832 - 0\.5236/
+       .test(html));
+  ok("… il ne reste donc aucun second angle rabattu",
+     html.indexOf("{ a:0.5236, v:0.40 }") < 0);
+
+  /* ---- 2. la buse est sur la face latérale du cylindre ---- */
+  ok("la buse est posée sur le bord même du praticable",
+     /IBI_FUM_RIM   = 1\.0;/.test(html));
+  ok("… à mi-hauteur de sa jupe", /IBI_FUM_HAUT  = 0\.45;/.test(html));
+  ok("… et le calcul l'y met vraiment",
+     /var bx = p\.x \+ ca \* LX \* IBI_FUM_RIM \* z;/.test(html) &&
+     /-IBI_H \* IBI_FUM_HAUT \+ sa \* LY \* IBI_FUM_RIM/.test(html));
+
+  /* ---- 3. les nappes du fond SORTENT de derrière la scène ----
+     C'est la contrepartie du souffle radial : sans découpe, une nappe
+     qui part vers le fond serait peinte PAR-DESSUS le podium, et l'on
+     verrait de la fumée devant le DJ alors qu'elle est derrière. */
+  ok("la silhouette du cylindre est construite pour la découpe",
+     /function silhouettePodium\(c, p, z\)\{/.test(html));
+  ok("… les trois buses du fond sont peintes en l'excluant",
+     /c\.rect\(-1e5, -1e5, 2e5, 2e5\);\s*silhouettePodium\(c, p, z\);\s*c\.clip\("evenodd"\);/
+       .test(html));
+  ok("… et le tri se fait sur le signe de l'ordonnée",
+     /if\(\(sa < 0\) !== \(passe === 0\)\) continue;/.test(html));
+
+  /* ---- 4. le plancher : une seule cote pour deux dessins ----
+     Les joints du carrelage sont cuits dans le sol, les dalles
+     allumées sont peintes à chaque image : si les deux ne lisent pas
+     le MÊME pas, la lumière ne tombe pas dans les cases. */
+  ok("le carrelage cuit lit le pas des dalles",
+     /for\(j = -ETOILE_R; j <= ETOILE_R; j \+= IBI_PAVE\)\{/.test(html));
+  ok("… et ce pas n'est écrit qu'une fois",
+     (html.match(/var IBI_PAVE   = 2\.6;/g) || []).length === 1);
+
+  /* ---- 5. le plancher suit la MÊME régie que les douze allées ----
+     C'est ce qui fait qu'on croit à une seule console : la table des
+     régimes est celle des allées, lue en rayon au lieu de l'azimut. */
+  ok("le plancher lit la table de régimes des allées",
+     /function dessinePisteIbiza\(c, tps\)\{[\s\S]{0,900}reg = IBI_REGIME\[H\.section\];/
+       .test(html));
+  ok("… et la même phase de rotation, accélération comprise",
+     /function gainDalle\([\s\S]{0,1400}phaseTourIbiza\(H, u\) - rayon/.test(html));
+  ok("… la crête part donc de la scène et va vers les pointes",
+     /var d = phaseTourIbiza\(H, u\) - rayon;\s*d -= Math\.floor\(d\);/.test(html));
+  /* et la couleur d'une dalle est celle du couloir qui la prolonge */
+  ok("une dalle prend la teinte de son couloir",
+     /var k = Math\.round\(a \/ 6\.2832 \* FAISC_N\);/.test(html) &&
+     /var ci = \(\(D\.allee\[i\] \+ mes\) % nT \+ nT\) % nT;/.test(html));
+
+  /* ---- 6. et la piste ne redevient jamais noire ---- */
+  ok("les dalles gardent une braise, quoi qu'il arrive",
+     /var IBI_BRAISE = 0\.13;/.test(html));
+  ok("… à chaque frappe un anneau part de la scène",
+     /function anneauFrappe\(rayon, H, largeur\)\{/.test(html));
+
+  /* ---- 7. ce que ça coûte est borné par CONSTRUCTION ----
+     Trois cents dalles, c'est trois cents remplissages si on les peint
+     une par une. On les groupe par teinte et par palier : quelques
+     dizaines de tracés, chacun portant des dizaines de losanges. */
+  ok("les dalles sont groupées par teinte et par palier",
+     /IBI_SEAUX\[ci \* IBI_PALIERS \+ pal\]\.push\(i\);/.test(html));
+  ok("… et les seaux ne sont pas réalloués à chaque image",
+     /for\(i = 0; i < IBI_SEAUX\.length; i\+\+\) IBI_SEAUX\[i\]\.length = 0;/.test(html));
+  ok("… les quatre coins d'une dalle sont calculés une seule fois",
+     /function paveLaPiste\(\)\{/.test(html) &&
+     /if\(!IBI_DALLES\) IBI_DALLES = paveLaPiste\(\);/.test(html));
+  /* et la piste se peint SOUS les danseurs : c'est de la lumière au
+     sol, on doit pouvoir marcher dessus */
+  ok("le plancher est peint avant les bandes et le contour",
+     /dessinePisteIbiza\(ctx, tps\);\s*dessineBandesIbiza\(ctx, tps\);\s*dessineEtoileIbiza\(ctx, tps\);/
+       .test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

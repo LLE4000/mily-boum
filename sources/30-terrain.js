@@ -1968,9 +1968,15 @@ function construitSol(carteC){
     c.save();
     c.globalAlpha = 0.72; c.fillStyle = "#0d0a1c"; c.fill();
     c.clip();
-    /* le damier du carrelage, dans les deux sens de la projection */
+    /* le damier du carrelage, dans les deux sens de la projection.
+       LE PAS EST CELUI DES DALLES ALLUMÉES, et ce n'est pas un détail
+       de rangement : les joints cuits ici et les losanges que
+       `dessinePisteIbiza` allume doivent tomber sur la MÊME grille.
+       Deux 2,6 écrits séparément se seraient décalés à la première
+       retouche, et un carrelage dont les joints ne suivent pas les
+       dalles se voit tout de suite. */
     c.globalAlpha = 0.13; c.strokeStyle = "#8fd8ff"; c.lineWidth = 1.2;
-    for(j = -ETOILE_R; j <= ETOILE_R; j += 2.6){
+    for(j = -ETOILE_R; j <= ETOILE_R; j += IBI_PAVE){
       var u1 = iso(SCENE_GX - ETOILE_R, SCENE_GY + j);
       var u2 = iso(SCENE_GX + ETOILE_R, SCENE_GY + j);
       c.beginPath(); c.moveTo(u1.x, u1.y); c.lineTo(u2.x, u2.y); c.stroke();
