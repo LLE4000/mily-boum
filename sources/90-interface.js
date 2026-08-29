@@ -1484,7 +1484,28 @@ function majMondes(){
           chose qui distingue cette île de celle qu'on connaissait. */
        + pastilleBlindage(i)
        + blocTop3(i)
-       + (i > carteSalon ? boutonVisite(i) : "") + '</div>';
+       /* L'ŒIL SUR LES ÎLES TOMBÉES AUSSI, ET PLUS SEULEMENT SUR CELLES
+          QU'ON N'A PAS ENCORE ATTEINTES.
+
+          C'était `i > carteSalon` : on pouvait regarder devant, jamais
+          derrière. Or une île tombée est justement celle que les
+          nouveaux venus n'ont jamais vue — la guinguette et ses
+          festons, les tornades des ténèbres, la pluie d'étoiles des
+          nuits. Elles étaient devenues invisibles à ceux qui arrivent,
+          et le seront de plus en plus à mesure que la campagne avance.
+
+          Rien à protéger de ce côté-là : la visite est déjà scellée.
+          `modeApercu` est levé AVANT lancePartie, donc rien ne sort —
+          ni message d'état, ni instantané, ni dégât rangé — et
+          appliqueMondeAuJeu sort en tête sur ce drapeau, donc rien
+          n'est LU non plus : l'île se montre intacte, telle que le
+          générateur la fait, et non amputée des défenses déjà
+          détruites. C'est exactement ce qu'on veut voir d'une carte
+          finie : à quoi elle ressemblait, pas ce qu'il en reste.
+
+          Seule la carte EN COURS n'a pas d'œil, et pour une raison qui
+          n'a pas changé : on y débarque, c'est mieux qu'une visite. */
+       + (i !== carteSalon ? boutonVisite(i) : "") + '</div>';
   }
   /* les cartes événement, après la grille et non dedans */
   for(i = 0; i < CARTES.length; i++)
