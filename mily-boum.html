@@ -1518,7 +1518,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.88";
+var VERSION = "v0.89";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -19551,6 +19551,13 @@ function dessineLasersIbiza(c, tps){
 
   c.restore();
 
+  /* LA FUMÉE RASANTE ET LE CIEL QUI S'OUVRE. Après le restore : ils ont
+     leur propre composition, et la fumée doit passer DEVANT les
+     danseurs — une nappe qui roule sur une piste cache les jambes de
+     ceux qu'elle traverse, c'est même à ça qu'on la reconnaît. */
+  dessineFumeeIbiza(c, tps, p, z);
+  dessineFeuIbiza(c, tps, p, z);
+
   /* ────────────────────────────────────────────────────────────
      5. LE STROBOSCOPE — sur les drops, et nulle part ailleurs
 
@@ -19571,6 +19578,246 @@ function dessineLasersIbiza(c, tps){
       c.restore();
     }
   }
+}
+
+/* ================================================================
+   LES FEUX D'ARTIFICE — DEUX FOIS PAR TOUR, ET AUX BONS ENDROITS
+
+   « Ajoute deux moments de beaux feux d'artifice, déclenchés aux
+   moments où le rythme musical s'y prête le mieux. »
+
+   OÙ, EXACTEMENT. Le morceau a trois moments qui appellent un feu, et
+   ce sont les trois DROPS — chacun arrive après une montée qui se
+   termine par une coupure totale d'un temps. Le silence, puis tout qui
+   repart : c'est là qu'un ciel doit s'ouvrir. On en garde deux, comme
+   demandé, et on prend les deux extrêmes plutôt que deux voisins :
+
+     MESURE 33 — le premier drop. Il tombe neuf mesures après notre
+     entrée sur l'île : on a le temps de choisir sa navette, et le ciel
+     s'ouvre pendant qu'on regarde la carte.
+     MESURE 113 — le drop final, celui où le tempo prend huit pour
+     cent et où le lead monte d'une octave. C'est la fin du morceau,
+     et c'est le plus gros.
+
+   Entre les deux, quatre-vingts mesures ; après le second, quarante-
+   huit avant que la boucle ne ramène le premier. Un feu d'artifice
+   n'est un événement que s'il se fait attendre.
+
+   RIEN N'EST GARDÉ EN MÉMOIRE, et c'est la règle de toute cette
+   carte : une fusée est une FONCTION DU TEMPS. On sait à quelle noire
+   elle part, on sait combien elle vit, donc on sait à tout instant où
+   elle en est. Aucune liste à entretenir, aucune fuite possible, et
+   deux joueurs côte à côte voient exactement le même ciel.
+   ================================================================ */
+var IBI_FEU_MESURES = [33, 113];  // les deux drops choisis
+var IBI_FEU_DUREE   = 15;         // la fenêtre, en noires (presque 4 mesures)
+/* SEPT, ET NON DOUZE. À douze, quatre gerbes vivaient en même temps sur
+   la même piste et l'œil n'y lisait plus des feux d'artifice mais des
+   confettis : une pluie de traits blancs sans centre. Sept laissent
+   respirer entre deux, et chacune a la place d'être grosse. */
+var IBI_FEU_N       = 7;          // fusées par fenêtre
+var IBI_FEU_VIE     = 5.0;        // ce que vit une fusée, en noires
+var IBI_FEU_MONTEE  = 1.05;       // dont la montée
+
+/* Où en est le feu d'artifice, ou null s'il n'y en a pas. */
+function feuIbiza(H){
+  if(!H.mus) return null;                    // pas de musique, pas de feu
+  for(var k = 0; k < IBI_FEU_MESURES.length; k++){
+    var d = H.t - IBI_FEU_MESURES[k] * 4;
+    if(d >= 0 && d < IBI_FEU_DUREE) return { p:d, n:k };
+  }
+  return null;
+}
+
+function dessineFeuIbiza(c, tps, p, z){
+  var H = horlogeIbiza(tps);
+  var F = feuIbiza(H);
+  if(!F) return;
+  var mes = mesureIbiza(tps), i, k;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  for(i = 0; i < IBI_FEU_N; i++){
+    /* Chaque fusée part à son tour, étalée sur la fenêtre. La dernière
+       doit avoir le temps de finir : on ne lance que sur les deux tiers. */
+    var t0 = i * (IBI_FEU_DUREE - IBI_FEU_VIE) / (IBI_FEU_N - 1) * 0.82;
+    var v = F.p - t0;
+    if(v < 0 || v > IBI_FEU_VIE) continue;
+
+    /* SA PLACE EST TIRÉE DE SON NUMÉRO, jamais d'un hasard : deux
+       joueurs doivent voir le même ciel, et la même fusée doit repartir
+       du même endroit au tour suivant. L'angle d'or ne repasse jamais
+       deux fois au même rayon — d'où douze départs bien répartis tout
+       autour de l'île sans qu'aucun ne se superpose. */
+    var ang = i * 2.399963 + F.n * 1.2;
+    /* AU-DESSUS DE LA PISTE, ET NON AU LARGE — et c'est l'isométrie qui
+       l'impose. Une case vaut VINGT-SIX pixels sur l'axe horizontal :
+       un cercle de cinquante cases fait donc deux mille six cents pixels
+       de large à l'écran, et au zoom de l'île, où l'on n'en voit que
+       quatorze cents, DIX des douze fusées éclataient hors du cadre.
+       Mesuré, pas deviné : deux visibles sur douze.
+       Douze à trente cases, elles tiennent toutes dans l'image, et
+       elles montent au-dessus de la foule — ce qui est de toute façon
+       la place d'un feu d'artifice de scène. */
+    var ray = 12 + (i % 4) * 6;
+    var base = versEcran(cam, SCENE_GX + Math.cos(ang) * ray,
+                              SCENE_GY + Math.sin(ang) * ray);
+    /* et elles éclatent plus bas : au zoom de l'île il n'y a que quatre
+       cents pixels de ciel au-dessus de la scène, pas huit cents */
+    var haut = (250 + ((i * 7) % 5) * 70) * z;      // la hauteur d'éclatement
+    var col = teinteIbiza(IBI_LASER_T, i * 5 + mes + F.n);
+
+    if(v < IBI_FEU_MONTEE){
+      /* LA MONTÉE. Elle ralentit en approchant du sommet — une fusée
+         qui monte à vitesse constante puis éclate net a l'air d'un
+         curseur. Le petit sillage derrière elle est ce qui la rend
+         rapide à l'œil. */
+      var u = v / IBI_FEU_MONTEE;
+      var e = 1 - (1 - u) * (1 - u);              // décélération
+      var y = base.y - haut * e;
+      var yq = base.y - haut * Math.max(0, e - 0.10);
+      var gm = c.createLinearGradient(base.x, yq, base.x, y);
+      gm.addColorStop(0, "rgba(" + col + ",0)");
+      gm.addColorStop(1, "rgba(255,240,210,.85)");
+      c.strokeStyle = gm;
+      c.lineWidth = 2.1 * z;
+      c.beginPath(); c.moveTo(base.x, yq); c.lineTo(base.x, y); c.stroke();
+      continue;
+    }
+
+    /* L'ÉCLATEMENT. Vingt-quatre branches, et chacune est un SEGMENT
+       entre deux rayons — pas un trait qui part du centre. C'est ce qui
+       fait une gerbe : au début les segments sont courts et serrés, à
+       la fin ils s'étirent et se séparent. Un trait plein depuis le
+       centre donne une roue de vélo. */
+    var w = (v - IBI_FEU_MONTEE) / (IBI_FEU_VIE - IBI_FEU_MONTEE);   // 0..1
+    var cy = base.y - haut;
+    var R = (30 + 185 * (1 - Math.pow(1 - w, 2.4))) * z;   // s'ouvre puis ralentit
+    var chute = 46 * w * w * z;                            // la gravité, en fin de vie
+    var op = Math.max(0, 1 - w * w * 1.25);
+
+    /* l'éclair du premier instant : c'est lui qui fait « boum » */
+    if(w < 0.16){
+      var fl = 1 - w / 0.16;
+      var rf = Math.max(40, 190 * fl * z);
+      var gf = c.createRadialGradient(base.x, cy, 0, base.x, cy, rf);
+      gf.addColorStop(0, "rgba(255,252,235," + (0.75 * fl) + ")");
+      gf.addColorStop(0.45, "rgba(255,236,180," + (0.30 * fl) + ")");
+      gf.addColorStop(1, "rgba(255,240,200,0)");
+      c.fillStyle = gf;
+      c.beginPath(); c.arc(base.x, cy, rf, 0, 6.2832); c.fill();
+    }
+
+    c.strokeStyle = "rgba(" + col + "," + (op * 0.95) + ")";
+    /* UN PLANCHER SUR L'ÉPAISSEUR. Multipliée par le zoom, une branche
+       tombait à neuf dixièmes de pixel au zoom de l'île : le canevas la
+       dessinait, mais transparente. Une étincelle a une taille minimale,
+       et c'est celle du pixel. */
+    c.lineWidth = Math.max(1.6, (3.2 - w * 2.0) * z);
+    c.beginPath();
+    for(k = 0; k < 24; k++){
+      var a2 = k / 24 * 6.2832 + i * 0.37;
+      var ca2 = Math.cos(a2), sa2 = Math.sin(a2);
+      /* une branche sur deux plus courte : une gerbe n'est pas un
+         cercle parfait, et c'est cette irrégularité qui la fait vivre */
+      var rr = R * (k & 1 ? 1 : 0.78);
+      /* LA BRANCHE FAIT PRESQUE LA MOITIÉ DU RAYON. À un quart, les
+         segments étaient trop courts pour se rejoindre à l'œil et la
+         gerbe se lisait comme des débris épars. */
+      var r0 = rr * 0.52;
+      c.moveTo(base.x + ca2 * r0, cy + sa2 * r0 * 0.92 + chute * 0.72);
+      c.lineTo(base.x + ca2 * rr, cy + sa2 * rr * 0.92 + chute);
+    }
+    c.stroke();
+    /* les têtes blanches, très brèves : elles donnent le piqué */
+    if(w < 0.55){
+      c.strokeStyle = "rgba(255,255,255," + (op * 0.5) + ")";
+      c.lineWidth = Math.max(1, 1.1 * z);
+      c.stroke();
+    }
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LES TROIS JETS DE FUMÉE, DU PIED DE LA SCÈNE VERS LES DANSEURS
+
+   « Ajoute aussi un à trois gros jets de fumée depuis le pied de la
+   scène vers les danseurs, synchronisés avec la musique. »
+
+   Ce ne sont pas les canons à CO₂ du bord du plateau — ceux-là tirent
+   vers le CIEL, une fois par mesure. Ceux-ci sont les machines à
+   fumée basses, posées au pied de la scène, qui envoient une nappe
+   RASANTE sur la piste. Trois buses, au sud du podium : celle du
+   milieu droit devant, les deux autres en biais.
+
+   QUAND : au premier temps d'une mesure sur quatre, et seulement dans
+   les drops. Une phrase musicale fait quatre mesures ; une nappe qui
+   part à chaque mesure est un brouillard permanent, une nappe qui part
+   à chaque phrase est un GESTE. Elle vit une mesure et demie, le temps
+   de traverser la piste et de se dissoudre.
+
+   COMMENT ELLE AVANCE. Six bouffées par buse, décalées, chacune un
+   disque écrasé — le sol est vu en isométrie, un rond y est deux fois
+   plus large que haut — qui s'éloigne du podium en grossissant et en
+   pâlissant. Six suffisent : au-delà on ne voit plus les bouffées mais
+   une tache, et une tache n'a pas de mouvement.
+   ================================================================ */
+var IBI_FUM_BUSES = [0.86, 1.5708, 2.28];   // les trois angles, plein sud
+var IBI_FUM_VIE   = 1.5;                    // en mesures
+var IBI_FUM_N     = 6;                      // bouffées par buse
+
+function dessineFumeeIbiza(c, tps, p, z){
+  var H = horlogeIbiza(tps);
+  if(!H.mus || !H.strobo) return;            // les drops, et eux seuls
+  var mesure = H.t / 4;
+  var bar = Math.floor(mesure);
+  /* la phrase de quatre mesures : on ne tire qu'à son premier temps */
+  var depuis = (bar % 4) + (mesure - bar);
+  if(depuis > IBI_FUM_VIE) return;
+  var LX = IBI_DEMI * RX, LY = IBI_DEMI * RY;
+  var mes = mesureIbiza(tps), b, k;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(b = 0; b < IBI_FUM_BUSES.length; b++){
+    var a = IBI_FUM_BUSES[b];
+    var ca = Math.cos(a), sa = Math.sin(a);
+    var bx = p.x + ca * LX * 0.92 * z;
+    var by = p.y + (-IBI_H * 0.35 + sa * LY * 0.92) * z;
+    var col = teinteIbiza(IBI_TEINTES, mes + b);
+    for(k = 0; k < IBI_FUM_N; k++){
+      var v = depuis - k * 0.062;             // les bouffées se suivent
+      if(v <= 0 || v > IBI_FUM_VIE) continue;
+      var u = v / IBI_FUM_VIE;                // 0 au départ, 1 à la fin
+      /* elle part vite et ralentit : de l'air chassé, pas un projectile */
+      /* DE GROS JETS, ET C'ÉTAIT LA DEMANDE. Le premier réglage donnait
+         une nappe de cent pixels à quatorze pour cent d'opacité : sur
+         une piste couverte de danseurs, on ne la voyait tout
+         simplement pas. Elle traverse maintenant la moitié de la piste
+         et double de taille en chemin. */
+      var d = (1 - Math.pow(1 - u, 2.2)) * 320 * z;
+      var r = (26 + u * 150) * z;
+      var op = Math.max(0, (1 - u) * (1 - u) * 0.90) * (1 - k * 0.07);
+      var fx = bx + ca * d, fy = by + sa * d * 0.5;
+      var g = c.createRadialGradient(fx, fy, 0, fx, fy, r);
+      /* blanche au cœur, teintée au bord : c'est la lumière de la
+         scène qui la colore, pas la fumée qui est colorée */
+      /* LE CŒUR N'EST PAS BLANC PUR. À quatre-vingt-cinq pour cent en
+         composition additive, les trois nappes devenaient trois lampes :
+         un disque brûlé au milieu, sans matière. De la fumée éclairée
+         garde toujours un peu de la couleur qui l'éclaire. */
+      g.addColorStop(0, "rgba(255,252,248," + (op * 0.58).toFixed(3) + ")");
+      g.addColorStop(0.35, "rgba(" + col + "," + (op * 0.52).toFixed(3) + ")");
+      g.addColorStop(0.7, "rgba(" + col + "," + (op * 0.30).toFixed(3) + ")");
+      g.addColorStop(1, "rgba(" + col + ",0)");
+      c.fillStyle = g;
+      c.save();
+      c.translate(fx, fy); c.scale(1, 0.5); c.translate(-fx, -fy);
+      c.beginPath(); c.arc(fx, fy, r, 0, 6.2832); c.fill();
+      c.restore();
+    }
+  }
+  c.restore();
 }
 
 /* ================================================================
