@@ -2747,8 +2747,9 @@ function rendu(tps, dt){
     if(zc < 0.22 && CRE[k2.t].fuit && !CRE[k2.t].protege) continue;
     pile.push({ d:k2.gx + k2.gy, k:2, o:k2 });
   }
-  /* unités grises des autres joueurs */
-  for(var idj in autresJoueurs){
+  /* unités grises des autres joueurs — pas en visite : voir
+     montreLesAutres, dans 85-reseau.js */
+  if(montreLesAutres()) for(var idj in autresJoueurs){
     var j = autresJoueurs[idj];
     for(var q = 0; q < j.unites.length; q++){
       var g = j.unites[q];
@@ -2932,8 +2933,9 @@ function rendu(tps, dt){
   }
   if(jeu.balise) dessineFusee(ctx, tps);
 
-  /* étiquettes des autres joueurs */
-  for(var idj2 in autresJoueurs){
+  /* étiquettes des autres joueurs — c'est ce nom-là qu'on voyait
+     flotter au-dessus d'une île qu'ils n'occupaient pas */
+  if(montreLesAutres()) for(var idj2 in autresJoueurs){
     var j2 = autresJoueurs[idj2];
     if(!j2.unites.length) continue;
     var mx = 0, my = 0;
@@ -3541,7 +3543,9 @@ function majMinicarte(tps){
     miniCtx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
   }
   miniCtx.fillStyle = "#b9b2c0";
-  for(var id in autresJoueurs){
+  /* et pas davantage sur la minicarte : deux points gris qui bougent
+     tout seuls sur une île déserte sont la même fausse information */
+  if(montreLesAutres()) for(var id in autresJoueurs){
     var j = autresJoueurs[id];
     for(var k = 0; k < j.unites.length; k++){
       var p2 = px(j.unites[k].gx, j.unites[k].gy);

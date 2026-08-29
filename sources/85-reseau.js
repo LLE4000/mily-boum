@@ -1726,11 +1726,27 @@ function recoit(txt){
       var ent = scoresSalon[m.id];
       if(ent){ ent.gc = m.gc; ent.gcC = m.gcC | 0; }
     }
-    majUnitesDistantes(j, m.p || []);
-    if(m.m && m.f){
-      if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
-      j.fantome.gx = m.f[0]; j.fantome.gy = m.f[1]; j.fantome.nom = j.nom;
-    }else j.fantome = null;
+    /* SES TROUPES NE VALENT QUE SUR SON ÎLE. La règle est celle de
+       « deg » juste en dessous, et la prudence aussi : un index ABSENT
+       est accepté — c'est un client d'une version antérieure, qui se
+       comportera comme avant plutôt que de disparaître — et sans
+       partie chargée il n'y a rien à dessiner de toute façon. Seul un
+       index EXPLICITEMENT différent écarte. Le score, le nom et le
+       palier, eux, restent : le classement est global, il ne dépend
+       d'aucune île. */
+    if(!jeu || typeof m.c !== "number" || (m.c | 0) === jeu.index){
+      majUnitesDistantes(j, m.p || []);
+      if(m.m && m.f){
+        if(!j.fantome) j.fantome = { gx:m.f[0], gy:m.f[1], ph:Math.random() * 6, nom:j.nom };
+        j.fantome.gx = m.f[0]; j.fantome.gy = m.f[1]; j.fantome.nom = j.nom;
+      }else j.fantome = null;
+    }else{
+      /* On VIDE, on ne se contente pas de ne pas remplir : ses
+         dernières positions connues dateraient de l'île qu'il vient de
+         quitter, et resteraient plantées sur la nôtre. */
+      j.unites.length = 0;
+      j.fantome = null;
+    }
     majPodium();
   }else if(m.t === "deg"){
     if(jeu && typeof m.d === "number" && typeof m.s === "number" &&
@@ -1828,6 +1844,38 @@ function majUnitesDistantes(j, p){
   }
   j.unites.length = p.length;
 }
+
+/* ================================================================
+   LES AUTRES JOUEURS NE SE VOIENT QUE SUR L'ÎLE QU'ON PARTAGE
+
+   « Ibiza n'est pas encore ouverte, je la visite, et je vois les gens
+   attaquer sur la map en cours. »
+
+   Le défaut était entier et il datait du début : le message « etat »
+   porte les troupes de son expéditeur mais PAS l'île où il se trouve.
+   « deg » et « det » ont ce champ depuis toujours et s'en servent —
+   `m.c === jeu.index`, sinon on jette. Les troupes, non : elles
+   étaient rangées quoi qu'il arrive, et dessinées sur la carte qu'on
+   avait sous les yeux, quelle qu'elle soit. Tant que tout le monde
+   jouait sur la même île, ça ne se voyait pas. Depuis qu'il y a des
+   visites et des expéditions, si.
+
+   DEUX GARDE-FOUS, ET C'EST VOULU.
+
+   Celui-ci est local et absolu : en visite, on ne montre personne. Il
+   ne dépend de la version de personne d'autre — c'est notre propre
+   drapeau, sur notre propre appareil, et il est faux partout ailleurs.
+   Un joueur en partie normale n'est donc JAMAIS concerné : masquer en
+   visite ne masque rien sur la carte en cours, ni chez soi ni chez les
+   autres, puisque rien de tout cela ne voyage.
+
+   L'autre est plus bas, dans la réception : on jette les troupes d'un
+   joueur qui n'est pas sur notre île. Il répare le cas général — une
+   expédition dans la jungle pendant que les autres sont sur la
+   campagne — mais il suppose que l'expéditeur envoie son index, donc
+   qu'il a cette version-ci. D'où le premier, qui ne suppose rien.
+   ================================================================ */
+function montreLesAutres(){ return !modeApercu; }
 function interpoleDistants(dt){
   for(var id in autresJoueurs){
     var j = autresJoueurs[id];
@@ -1924,9 +1972,14 @@ function majReseau(dt){
          Les trois champs sont ajoutés à la FIN, comme `sq` et `pu`
          avant eux : une version précédente les ignore et n'apparaît
          que par l'instantané retenu, qui est déjà rangé par île. */
+      /* `c` — l'île où ces troupes se trouvent. Ajouté à la FIN comme
+         tous ceux qui l'ont précédé : une version antérieure l'ignore,
+         et une version d'aujourd'hui qui ne le reçoit pas retombe sur
+         l'ancien comportement. Voir montreLesAutres. */
       var msg = { t:"etat", nom:monNom, sq:monSeau, n:n,
                   g:Math.round(monTotalLocal()), p:p, pu:jeu.palier | 0,
-                  gc:Math.round(monTotalCarte(jeu.index)), gcC:jeu.index | 0 };
+                  gc:Math.round(monTotalCarte(jeu.index)), gcC:jeu.index | 0,
+                  c:jeu.index | 0 };
       if(jeu.mort && jeu.fantome){
         msg.m = 1;
         msg.f = [Math.round(jeu.fantome.gx * 10) / 10, Math.round(jeu.fantome.gy * 10) / 10];
