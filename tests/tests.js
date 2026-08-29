@@ -1212,8 +1212,14 @@ G("4. Déterminisme de la génération de carte");
          — une seule forteresse en mémoire à la fois ;
          — la flamme froide doit être VRAIMENT froide.
        ================================================================ */
-    ok("les nuits ont leur palais, les autres îles gardent le Brasier",
-       /function styleQGdeCarte\(i\)\{[\s\S]{0,160}biome === "nuits"[\s\S]{0,40}"palais"[\s\S]{0,20}"brasier"/.test(html));
+    /* TROIS FORTERESSES MAINTENANT, et le test dit les trois : les
+       nuits ont leur palais, Ibiza a sa robe, et TOUTES LES AUTRES
+       gardent le Brasier. C'est cette dernière clause qui compte —
+       ajouter un style ne doit jamais repeindre une île en cours. */
+    ok("chaque île a sa forteresse, et le Brasier reste le défaut",
+       /function styleQGdeCarte\(i\)\{[\s\S]{0,400}"nuits"\)\s*return "palais";[\s\S]{0,80}"ibiza"\)\s*return "robe";[\s\S]{0,40}return "brasier";/.test(html));
+    ok("… et le style se lit sur l'ÎLE, jamais sur un tirage",
+       /function styleQGdeCarte\(i\)\{[\s\S]{0,300}CARTES\[i\][\s\S]{0,40}biome/.test(html));
     /* LA PALETTE DU BRASIER, AU CARACTÈRE PRÈS. Une « harmonisation »
        des deux tables repeindrait onze îles en cours de partie. */
     ok("… et la palette du Brasier est celle d'avant, au caractère près",

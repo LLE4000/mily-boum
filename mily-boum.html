@@ -1543,7 +1543,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.92";
+var VERSION = "v0.93";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -31915,6 +31915,59 @@ var STYLES_QG = {
       flaque:["255,250,226", "255,206,92", "122,86,255"],
       surtitre:["255,196,96", "255,240,190"], menace:"255,214,120", plaque:"8,6,26"
     }
+  },
+  /* ================================================================
+     LA ROBE D'IBIZA — LA FORTERESSE S'HABILLE
+
+     « On peut faire un thème design du QG, version belle robe Ibiza
+     avec les reflets des lampes dessus, on garde juste son visage, sans
+     rien casser au fonctionnement, elle doit être élégante. »
+
+     CE QU'ON A DÉCOUVERT EN CHERCHANT LA ROBE : elle était déjà là.
+     Les quatre terrasses sont quatre troncs de cône empilés, du plus
+     large en bas au plus étroit en haut, surmontés d'un visage. C'est
+     la silhouette exacte d'une robe de bal à volants — il n'y avait
+     donc rien à re-sculpter, seulement à ENLEVER ce qui en faisait une
+     forteresse. C'est la meilleure nouvelle possible : la géométrie ne
+     bouge pas d'un pixel, donc le halo, les foyers, les canons, le
+     bouclier et la boîte de collision ne s'aperçoivent de rien.
+
+     ON RETIRE : les créneaux, les piques, l'appareillage de pierre et
+     les fenêtres. Une robe n'a ni remparts ni meurtrières, et ce sont
+     ces quatre choses-là, et pas la forme, qui disaient « citadelle ».
+
+     ON MET À LA PLACE : des PLIS verticaux — le tombé du tissu —, un
+     LISERÉ clair sur chaque volant, une CEINTURE d'or à la taille, des
+     PAILLETTES semées, et une TRAÎNE de satin étalée au pied.
+
+     ET LES REFLETS DES LAMPES SONT VIVANTS, eux. Le reste est cuit une
+     fois pour toutes dans le sprite ; les reflets, non — ils prennent
+     la couleur et le battement de la scène du DJ, à l'autre bout de
+     l'île. Une robe de soirée n'a pas de couleur propre : elle a celle
+     des projecteurs qui la balaient, et celle-là change à chaque temps.
+     Voir refletsRobeQG, plus bas.
+     ================================================================ */
+  robe: {
+    CQ:{
+      /* le satin : prune profond, éclairé de mauve et de rose */
+      pierre:"#4a2350", pierreC:"#8f4d8e", pierreT:"#c78ec2", pierreO:"#1d0d24",
+      metal:"#b98a2e", metalC:"#f7dd9c", metalO:"#4a340c",
+      lave:"#ff4d8d", laveC:"#ffd9ec", laveO:"#a3134f",
+      banniere:"#7a1f5e", banniereO:"#3d0f2f", or:"#f2cf72"
+    },
+    vitre:["rgba(255,236,250,.95)", "rgba(255,110,180,.9)", "rgba(120,20,80,.85)"],
+    vitreHalo:"rgba(255,120,190,.30)", vitreHalo0:"rgba(255,60,150,0)",
+    ogive:0, dome:0, croissant:0, froid:0, mosaique:0,
+    /* le drapeau qui commande tout l'habillage */
+    robe:1,
+    halo:["#ff4d8d", "#8f4de0"],
+    portail:["rgba(255,240,250,.95)", "rgba(255,120,190,.95)", "rgba(96,12,64,.98)"],
+    fournaise:["255,226,244", "255,110,180", "170,30,110"],
+    fissure:["255,200,235", "255,80,160"],
+    voile:["rgba(30,12,34,.30)", "rgba(30,12,34,0)", "rgba(18,6,22,.26)"],
+    /* la colère garde le rouge d'origine : une robe ne change pas ce
+       qui sort des yeux */
+    veng:null
   }
 };
 /* Le style en vigueur, et sa palette. `CQ` reste le nom que tout le
@@ -31926,7 +31979,10 @@ var CQ = SQ.CQ;
    carteOrageuse() : c'est une propriété de l'ÎLE, jamais d'un tirage
    ni d'un tableau qui pourrait revenir vide. */
 function styleQGdeCarte(i){
-  return (CARTES[i] && CARTES[i].biome === "nuits") ? "palais" : "brasier";
+  var b = CARTES[i] && CARTES[i].biome;
+  if(b === "nuits") return "palais";
+  if(b === "ibiza") return "robe";
+  return "brasier";
 }
 /* On ne garde EN MÉMOIRE QU'UNE forteresse à la fois. Deux jeux de
    sprites feraient huit méga-octets de canevas pour un objet qu'on ne
@@ -32103,8 +32159,41 @@ function pique(c, x, y, h, larg, sansCroissant){
   c.strokeStyle = "rgba(255,190,120,.28)"; c.lineWidth = 0.9;
   c.beginPath(); c.moveTo(x - larg * 0.5, y - h * 0.4); c.lineTo(x, y - h); c.stroke();
 }
+/* ================================================================
+   L'APPAREILLAGE — ET IL SAIT SE TAIRE
+
+   C'est le tracé qui dit « pierre » : des lits horizontaux et des
+   joints décalés d'une assise à l'autre. Il est appelé à QUATRE
+   endroits — les volants, la couronne du visage, les tours et la
+   façade — et c'est précisément pour ça que l'aiguillage est ICI et
+   non chez les quatre appelants : une robe n'a pas de joints de
+   maçonnerie, et il aurait fallu penser aux quatre. Un seul oubli, et
+   il reste un mur quelque part sur la robe.
+
+   Sur la robe, les mêmes lignes deviennent donc VERTICALES : le tombé
+   du tissu. Même fonction, même appel, même découpage — c'est le trait
+   qui change de sens, et avec lui la matière.
+   ================================================================ */
 function appareillage(c, x0, x1, y, n, ec){
   c.save();
+  if(SQ.robe){
+    /* LE TOMBÉ. Deux traits par pli, l'un clair et l'autre sombre
+       décalé de deux pixels : c'est le décalage qui fait l'arête, pas
+       l'ombre seule. Ils s'écartent très légèrement vers le bas —
+       assez pour qu'on ne les prenne pas pour des barreaux. */
+    var haut = n * ec, np = Math.max(5, Math.round((x1 - x0) / 26));
+    for(var j = 1; j < np; j++){
+      var u = j / np;
+      var xh = x0 + (x1 - x0) * u;
+      var xb = xh + (u - 0.5) * (x1 - x0) * 0.05;
+      c.strokeStyle = "rgba(255,232,250,.13)"; c.lineWidth = 1.3;
+      c.beginPath(); c.moveTo(xh, y - haut); c.lineTo(xb, y + 6); c.stroke();
+      c.strokeStyle = "rgba(26,8,32,.26)"; c.lineWidth = 2.0;
+      c.beginPath(); c.moveTo(xh + 2.2, y - haut); c.lineTo(xb + 2.4, y + 6); c.stroke();
+    }
+    c.restore();
+    return;
+  }
   c.strokeStyle = "rgba(16,10,14,.34)"; c.lineWidth = 1.2;
   for(var i = 0; i < n; i++){
     var yy = y - i * ec;
@@ -32359,6 +32448,144 @@ function dessineFoyer(c, F, tps){
 /* ---------------------------------------------------------------
    Construction des deux sprites
    --------------------------------------------------------------- */
+/* ================================================================
+   UN VOLANT DE ROBE, À LA PLACE D'UN MUR
+
+   Appelée à la place d'`appareillage` quand le style est la robe, et
+   sous le même découpage : elle peint DANS le tronc de cône que
+   `prisme` vient de poser, sans jamais en déborder.
+
+   TROIS COUCHES, ET CHACUNE FAIT UN TIERS DU TRAVAIL :
+
+     LE SATIN — un dégradé horizontal, clair au tiers gauche, sombre
+     aux bords. C'est le galbe : sans lui, un tronc de cône reste un
+     tronc de cône, avec lui il devient un volume tendu de tissu.
+
+     LES PLIS — des traits verticaux qui s'écartent vers le bas, un
+     clair suivi d'un sombre. Le tombé d'un tissu ne se dessine pas en
+     ombrant : il se dessine en alternant l'arête éclairée et le creux,
+     et c'est le DÉCALAGE d'un pixel entre les deux qui fait le pli.
+
+     LE LISERÉ — un trait clair sur l'arête basse du volant, là où le
+     tissu retombe et attrape la lumière. C'est le détail qui coûte le
+     moins et qui dit « couture » le plus fort.
+
+   Et par-dessus, quelques PAILLETTES, semées d'un tirage FIXE : deux
+   joueurs doivent voir la même robe, et la même au retour au briefing.
+   ================================================================ */
+function volantRobe(c, t, z, rang){
+  var x0 = -t.r * RX, x1 = t.r * RX;
+  var yh = iso(0, 0).y - z - t.h;          // l'arête haute du volant
+  var yb = iso(0, t.r).y - z;              // le bas, au plus près du sol
+  var i;
+
+  /* 1. LE SATIN */
+  var g = c.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, ecl(CQ.pierre, 0.62));
+  g.addColorStop(0.30, ecl(CQ.pierre, 1.42));
+  g.addColorStop(0.52, ecl(CQ.pierre, 1.06));
+  g.addColorStop(1, ecl(CQ.pierre, 0.50));
+  c.fillStyle = g;
+  c.fillRect(x0, yh, x1 - x0, yb - yh + 46);
+
+  /* 2. LES PLIS — et c'est `appareillage` qui les trace, pas nous.
+     Il sait déjà le faire pour la robe (voir son commentaire), et le
+     tombé du tissu doit être le MÊME partout : sur les volants, sur la
+     couronne du visage, sur les tours, sur la façade. Deux tracés de
+     plis réglés séparément se seraient désaccordés à la première
+     retouche, et c'est exactement le genre d'écart qu'on ne voit qu'à
+     l'écran, longtemps après. Une hauteur, un pas : n = 1. */
+  appareillage(c, x0, x1, yb + 34, 1, yb + 34 - yh);
+
+  /* 3. LE LISERÉ du bas, en suivant l'ellipse du volant */
+  c.strokeStyle = "rgba(255,222,246,.42)";
+  c.lineWidth = 2.2;
+  c.beginPath();
+  c.ellipse(0, iso(0, 0).y - z, t.r * RX, t.r * RY, 0, 0, Math.PI);
+  c.stroke();
+
+  /* 4. LES PAILLETTES, d'un tirage fixe */
+  var al = prng(0x51ab + rang * 977);
+  for(i = 0; i < 34 - rang * 4; i++){
+    var px = x0 + al() * (x1 - x0);
+    var py = yh + al() * (yb - yh + 30);
+    var rr = 0.8 + al() * 1.5;
+    c.fillStyle = al() < 0.55 ? "rgba(255,246,255,.75)" : "rgba(255,206,120,.70)";
+    c.beginPath(); c.arc(px, py, rr, 0, 6.2832); c.fill();
+  }
+}
+
+/* ================================================================
+   LES REFLETS DES LAMPES SUR LA ROBE
+
+   « Avec les reflets des lampes dessus. »
+
+   C'est la seule partie de la robe qui ne peut pas être cuite dans le
+   sprite, et la raison est le cœur de l'idée : une robe de soirée n'a
+   pas de couleur propre, elle a celle des projecteurs qui la balaient.
+   Or ces projecteurs-là existent — ce sont ceux de la scène du DJ, à
+   l'autre bout de l'île, et ils changent de teinte à chaque temps. La
+   robe lit donc la MÊME horloge et la MÊME rampe de couleurs que la
+   piste : quand la piste passe au rose, elle aussi. C'est ce qui fait
+   que les deux appartiennent à la même soirée au lieu d'être deux
+   décors posés côte à côte.
+
+   TROIS BANDES QUI DESCENDENT, décalées. Une seule nappe uniforme
+   n'aurait pas de mouvement ; trois, à des vitesses proches mais pas
+   égales, ne repassent jamais au même endroit et donnent le
+   miroitement du satin sous une lumière qui tourne.
+
+   ELLES SONT DÉCOUPÉES À LA SILHOUETTE, et c'est indispensable : sans
+   le découpage, la lumière baverait sur le sable autour du QG et l'on
+   verrait trois rectangles au lieu d'une robe éclairée. Le découpage
+   se fait sur les quatre volants — on connaît leur rayon et leur
+   hauteur, ce sont les mêmes TERRASSES que le sprite.
+
+   SI LA SCÈNE N'EST PAS LÀ — une autre île, un fichier absent — la
+   fonction se tait plutôt que d'inventer un battement. Un reflet qui
+   pulse sur une musique qu'on n'entend pas est le défaut qu'on a déjà
+   corrigé une fois sur le discours.
+   ================================================================ */
+function refletsRobeQG(c, tps){
+  if(typeof horlogeIbiza !== "function" || typeof IBI_TEINTES === "undefined") return;
+  var H = horlogeIbiza(tps);
+  if(!H.mus) return;                       // pas de musique, pas de lampes
+  var f = frappe(tps), F = H.force, mes = mesureIbiza(tps);
+  var i, b;
+  c.save();
+  /* le découpage à la silhouette : les quatre volants, empilés */
+  c.beginPath();
+  for(i = 0; i < TERRASSES.length; i++){
+    var t = TERRASSES[i], z = Z_TERRASSE[i];
+    c.rect(-t.r * RX, iso(0, 0).y - z - t.h, t.r * RX * 2, t.h + 30);
+  }
+  c.clip();
+  c.globalCompositeOperation = "lighter";
+  var haut = iso(0, 0).y - Z_TERRASSE[4] - 40;
+  var bas  = iso(0, TERRASSES[0].r).y + 30;
+  for(b = 0; b < 3; b++){
+    /* chacune descend à sa vitesse et repart en haut : le reste de la
+       division est ce qui fait la boucle sans état */
+    var v = (tps * (0.16 + b * 0.045) + b * 0.37) % 1;
+    var y = haut + (bas - haut + 260) * v - 130;
+    var ep = 90 + b * 34;
+    var col = teinteIbiza(IBI_TEINTES, mes + b);
+    var g = c.createLinearGradient(0, y - ep, 0, y + ep);
+    g.addColorStop(0, "rgba(" + col + ",0)");
+    g.addColorStop(0.5, "rgba(" + col + "," + ((0.13 + f * 0.14) * F).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(" + col + ",0)");
+    c.fillStyle = g;
+    c.fillRect(-360, y - ep, 720, ep * 2);
+  }
+  /* et l'éclat du satin sur la frappe : un voile blanc très bref, qui
+     fait respirer toute la robe avec la grosse caisse */
+  if(f > 0.25){
+    c.fillStyle = "rgba(255,240,252," + ((f - 0.25) * 0.10 * F).toFixed(3) + ")";
+    c.fillRect(-360, haut, 720, bas - haut + 60);
+  }
+  c.restore();
+}
+
 function construitSpriteQG(){
   spriteQGArriere = nouveauCanvas(QG_W, QG_H);
   spriteQGAvant   = nouveauCanvas(QG_W, QG_H);
@@ -32383,7 +32610,21 @@ function construitSpriteQG(){
     var a0 = al() * 6.2832, r0 = 6.4 + al() * 1.8;
     var pr = iso(Math.cos(a0) * r0, Math.sin(a0) * r0);
     var t0 = al(), t1 = al(), t2 = al();
-    if(SQ.mosaique){
+    if(SQ.robe){
+      /* LA TRAÎNE. Les mêmes cent dix taches, à la même place — mais
+         étirées vers le bas et pâlies : du satin qui s'étale au sol
+         plutôt que des pierres tombées. Elles restent semées par le
+         MÊME tirage que les éboulis, ce qui garantit qu'aucune ne se
+         retrouve sous la robe ni trop loin d'elle : c'est le semis qui
+         a été réglé, pas les cailloux. */
+      A.fillStyle = t0 < 0.45 ? ecl(CQ.pierre, 0.72)
+                  : (t0 < 0.82 ? ecl(CQ.pierre, 1.10) : CQ.or);
+      A.globalAlpha = 0.30 + t1 * 0.34;
+      A.beginPath();
+      A.ellipse(pr.x, pr.y + 3, 7 + t1 * 13, 2.4 + t2 * 3.4, a0 * 0.35, 0, 6.2832);
+      A.fill();
+      A.globalAlpha = 1;
+    }else if(SQ.mosaique){
       /* des tesselles, donc des losanges nets et non des galets */
       A.fillStyle = t0 < 0.38 ? "#2f3d8e" : (t0 < 0.74 ? "#1f7ca6" : CQ.or);
       A.globalAlpha = 0.55 + t1 * 0.35;
@@ -32410,22 +32651,34 @@ function construitSpriteQG(){
     A.beginPath();
     A.rect(-t.r * RX, iso(0, 0).y - z - t.h, t.r * RX * 2, t.h + 44);
     A.clip();
-    appareillage(A, -t.r * RX, t.r * RX, iso(0, t.r).y - z - 4, Math.floor(t.h / 9) + 2, 9);
+    if(SQ.robe) volantRobe(A, t, z, i);
+    else appareillage(A, -t.r * RX, t.r * RX, iso(0, t.r).y - z - 4, Math.floor(t.h / 9) + 2, 9);
     A.restore();
-    var nf = 11 - i;
-    for(k = 0; k < nf; k++){
-      var af = (k + 0.5) / nf * Math.PI;
-      var pf = iso(Math.cos(af) * t.r * 0.99, Math.sin(af) * t.r * 0.99);
-      fenetreArc(A, pf.x, pf.y - z - t.h * 0.26, 4.4 - i * 0.3, 13 - i);
+    /* LES FENÊTRES, LES CRÉNEAUX ET LES PIQUES SONT CE QUI FAIT UNE
+       FORTERESSE, et c'est très exactement pour ça qu'une robe n'en a
+       aucun. On ne les remplace pas : on les enlève, et le volant
+       reste nu, ce qui est tout le propos. Le liseré du bord, lui,
+       est posé par volantRobe. */
+    if(!SQ.robe){
+      var nf = 11 - i;
+      for(k = 0; k < nf; k++){
+        var af = (k + 0.5) / nf * Math.PI;
+        var pf = iso(Math.cos(af) * t.r * 0.99, Math.sin(af) * t.r * 0.99);
+        fenetreArc(A, pf.x, pf.y - z - t.h * 0.26, 4.4 - i * 0.3, 13 - i);
+      }
+      creneaux(A, 0, 0, t.r * 0.99, z + t.h, t.cr,
+               ecl(CQ.pierre, 1.38), ecl(CQ.pierre, 0.58), t.ct);
+      for(k = 0; k < 12; k++){
+        var ap = k / 12 * 6.2832 + 0.2;
+        var pp = iso(Math.cos(ap) * t.r * 0.99, Math.sin(ap) * t.r * 0.99);
+        pique(A, pp.x, pp.y - z - t.h - 6, 16 - i * 2, 2.6);
+      }
     }
-    creneaux(A, 0, 0, t.r * 0.99, z + t.h, t.cr,
-             ecl(CQ.pierre, 1.38), ecl(CQ.pierre, 0.58), t.ct);
-    for(k = 0; k < 12; k++){
-      var ap = k / 12 * 6.2832 + 0.2;
-      var pp = iso(Math.cos(ap) * t.r * 0.99, Math.sin(ap) * t.r * 0.99);
-      pique(A, pp.x, pp.y - z - t.h - 6, 16 - i * 2, 2.6);
-    }
-    prisme(A, 0, 0, t.r * 1.02, 12, 0.26, z + t.h - 9, 5,
+    /* LE BANDEAU DU HAUT reste dans les deux cas : c'est lui qui pose
+       le volant suivant sur celui-ci. En or sur la robe — et sur le
+       deuxième volant, plus large : c'est la CEINTURE. */
+    prisme(A, 0, 0, t.r * (SQ.robe && i === 1 ? 1.05 : 1.02), 12, 0.26,
+           z + t.h - 9, SQ.robe && i === 1 ? 9 : 5,
            ecl(CQ.metal, 1.3), ecl(CQ.metal, 0.66));
   }
 
@@ -32840,6 +33093,12 @@ function dessineQGcorps(c, tps, eff){
 
   /* la façade repasse devant la chevelure */
   if(spriteQGAvant) c.drawImage(spriteQGAvant, -QG_OX, -QG_OY, QG_W, QG_H);
+
+  /* LES REFLETS DES LAMPES, et ils sont VIVANTS. Tout le reste de la
+     robe est cuit ; ceux-ci ne peuvent pas l'être, puisqu'ils prennent
+     la couleur et le battement de la scène du DJ, à l'autre bout de
+     l'île. Voir refletsRobeQG. */
+  if(SQ.robe && detail) refletsRobeQG(c, tps);
 
   if(detail){
     for(var k = 0; k < FOYERS.length; k++){
