@@ -8184,6 +8184,99 @@ G("32. La voix du discours, et la case qui a changé de sens");
      /voixDiscours\.pose\(voixDiscours\.choix\);/.test(html));
 })();
 
+/* ================================================================ */
+G("33. Le sol d'Ibiza : la découpe et la chorégraphie");
+(function(){
+  /* LES ALLÉES SONT BORNÉES DES DEUX CÔTÉS.
+     Dedans par l'étoile, dehors par le mur de pierre. Le trou se fait
+     par la règle `evenodd` sur un chemin qui porte les deux contours —
+     c'est ce qui donne la terminaison suivant l'angle de l'étoile sans
+     qu'aucune bande ait à connaître sa forme. */
+  ok("la zone des allées se trace en un chemin percé",
+     /function decoupeAlleesIbiza\(c\)\{[\s\S]{0,220}traceTerreBatie\(c\);[\s\S]{0,80}traceEtoileIbiza\(c\);[\s\S]{0,80}c\.clip\("evenodd"\)/
+       .test(html));
+  ok("… et ses bornes sont LUES, jamais recopiées",
+     /traceTerreBatie[\s\S]{0,400}LARGEUR_ROCHE[\s\S]{0,120}PLAGE_X0/.test(html),
+     "le jour où le mur s'épaissit, les allées suivent");
+  /* LES DEUX COUCHES SONT BORNÉES PAREIL. Le sol cuit et le calque
+     vivant peignent les mêmes couloirs : borner l'un sans l'autre
+     laisserait l'animation déborder de ce que le décor a découpé. */
+  ok("la couche cuite et la couche vivante partagent la découpe",
+     (html.match(/decoupeAlleesIbiza\(c\);/g) || []).length === 2,
+     "une fois dans construitSol, une fois dans dessineBandesIbiza");
+
+  /* LA TABLE DES SECTIONS EST UNE COPIE, ET C'EST LE VRAI RISQUE.
+     `IBI_BORNES` redit en mesures ce que `sectionName` décide dans le
+     moteur audio. Le moteur ne sait dire que la section EN COURS,
+     jamais depuis quand — et une montée qui accélère a besoin de
+     savoir ce qu'il lui reste. Deux tables pour un seul fait : le jour
+     où l'une bouge sans l'autre, la lumière accélérerait vers un drop
+     qui tombe ailleurs, et rien ne planterait. On les confronte donc
+     mesure par mesure, sur tout le morceau. */
+  var mB = html.match(/var IBI_BORNES = \{[\s\S]*?\n\};/);
+  var mS = html.match(/function sectionName\(b\) \{[\s\S]*?\n  \}/);
+  ok("les deux tables se relisent dans le fichier livré", !!mB && !!mS);
+  if(mB && mS){
+    var BORNES = eval("(" + mB[0].replace(/^var IBI_BORNES = /, "").replace(/;$/, "") + ")");
+    var nom = eval("(" + mS[0].replace(/^function sectionName/, "function") + ")");
+    var desaccords = [], mes, attendu;
+    for(mes = 0; mes < 144; mes++){
+      attendu = nom(mes);
+      var b = BORNES[attendu];
+      if(!b || mes < b[0] || mes >= b[1]) desaccords.push(mes + ":" + attendu);
+    }
+    ok("chaque mesure du morceau tombe dans la bonne section",
+       desaccords.length === 0, desaccords.slice(0, 4).join(", "));
+    /* et l'inverse : aucune borne ne recouvre une autre, aucun trou */
+    var couvert = [], k;
+    for(k in BORNES) for(mes = BORNES[k][0]; mes < BORNES[k][1]; mes++)
+      couvert[mes] = (couvert[mes] || 0) + 1;
+    var trous = 0, doubles = 0;
+    for(mes = 0; mes < 144; mes++){
+      if(!couvert[mes]) trous++;
+      else if(couvert[mes] > 1) doubles++;
+    }
+    ok("… et les sections pavent le morceau sans trou ni recouvrement",
+       trous === 0 && doubles === 0, trous + " trou(s), " + doubles + " recouvrement(s)");
+  }
+
+  /* CHAQUE SECTION A SON RÉGIME, et les trois drops sont les trois
+     seuls « boum » : c'est ce qui fait que le drop se voit. */
+  var mR = html.match(/var IBI_REGIME = \{[\s\S]*?\n\};/);
+  if(mR && mB){
+    var REG = eval("(" + mR[0].replace(/^var IBI_REGIME = /, "").replace(/;$/, "") + ")");
+    var BOR = eval("(" + mB[0].replace(/^var IBI_BORNES = /, "").replace(/;$/, "") + ")");
+    var manque = [];
+    for(var s in BOR) if(!REG[s]) manque.push(s);
+    ok("aucune section n'est sans régime", manque.length === 0, manque.join(", "));
+    var boums = Object.keys(REG).filter(function(x){ return REG[x] === "boum"; }).sort();
+    ok("et « boum » est réservé aux trois drops",
+       boums.join(",") === "drop1,drop2,final", boums.join(","));
+    var tours = Object.keys(REG).filter(function(x){ return REG[x] === "tour"; }).sort();
+    ok("… la rotation accélérée aux montées, et à elles seules",
+       tours.join(",") === "build,build2,build3,montee", tours.join(","));
+  }
+
+  /* L'ACCÉLÉRATION EST UNE INTÉGRALE, PAS UN PRODUIT.
+     Écrire « vitesse × temps » fait reculer la crête à chaque fois que
+     la vitesse change : toute la trajectoire passée est recalculée
+     avec la nouvelle valeur. C'est le piège du morceau, et il ne se
+     voit qu'à l'écran. Le test garde la forme de la primitive. */
+  ok("la phase de rotation est l'intégrale de la vitesse",
+     /IBI_TOUR0 \* m \+ \(IBI_TOUR1 - IBI_TOUR0\) \* L \* u \* u \* u \/ 3/.test(html));
+  ok("… et elle accélère bien, de un demi-tour à trois tours par mesure",
+     /var IBI_TOUR0 = 0\.5, IBI_TOUR1 = 3\.0;/.test(html));
+
+  /* LE DÉGRADÉ EST FABRIQUÉ UNE FOIS. Douze allées × six teintes, en
+     coordonnées du monde : la caméra peut zoomer, il reste bon. C'est
+     ce cache qui rend la nouvelle version PLUS RAPIDE que l'ancienne
+     malgré les tracés supplémentaires. */
+  ok("les dégradés des allées sont mis en cache",
+     /function degradeAllee\(c, i, ci, D0, D1, blanc\)\{[\s\S]{0,300}IBI_DEG\.g\[cle\]/.test(html));
+  ok("… et l'animation passe par globalAlpha, pas par de nouveaux dégradés",
+     /c\.globalAlpha = Math\.min\(1, g\);[\s\S]{0,80}c\.fillStyle = degradeAllee\(/.test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

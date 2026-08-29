@@ -1902,15 +1902,191 @@ function dessineFumeeIbiza(c, tps, p, z){
    cent. Ici les neuf positions sont fixes et c'est l'ONDE qu'on y
    évalue : toujours croissantes, toujours valides.
    ================================================================ */
+/* ================================================================
+   LA CHORÉGRAPHIE DES DOUZE ALLÉES
+
+   « Je veux que le sol devienne un élément du show. »
+
+   Il l'était déjà un peu : une onde tournait, une par mesure, toujours
+   la même, à toutes les mesures du morceau. C'est le défaut qu'il faut
+   nommer avant de le corriger — le sol RÉAGISSAIT au rythme, mais il
+   ne SUIVAIT pas le morceau. Un break et un drop lui donnaient le même
+   mouvement à deux intensités près, alors que ce sont deux moments
+   opposés.
+
+   Cinq régimes, un par nature de moment :
+
+     REPOS     pendant le discours. Une respiration, presque rien : ce
+               qui vient après ne vaut que par ce qui le précède.
+     ALTERNANCE les paires, puis les impaires, un changement par
+               mesure. C'est le « 1+3+5 puis 2+4+6 » demandé — sur
+               douze allées et six couleurs, cela revient exactement au
+               même, deux allées opposées partageant leur teinte.
+     TOUR      une crête qui fait le tour de l'étoile, avec sa traîne
+               derrière elle, ET QUI ACCÉLÈRE. C'est le régime des
+               montées, et l'accélération est ce qui fait qu'on SENT le
+               drop arriver avant de l'entendre.
+     BOUM      tout ensemble, franc, sur la frappe. Réservé aux trois
+               drops.
+     VAGUE     une onde douce qui traverse, pour les respirations.
+
+   L'ACCÉLÉRATION SE CALCULE PAR SON INTÉGRALE, et c'est le seul piège
+   sérieux du morceau de code. On veut une vitesse qui monte, donc
+   v(u) = v0 + (v1−v0)·u². Écrire la position comme « v(u) × temps »
+   paraît naturel et fait RECULER la crête : quand la vitesse change,
+   toute la trajectoire passée est recalculée avec la nouvelle valeur,
+   et la lumière saute en arrière à chaque image. La position d'un
+   mobile qui accélère est l'INTÉGRALE de sa vitesse, pas son produit
+   par le temps :
+
+       position(m) = v0·m + (v1−v0)·L·u³/3
+
+   Elle est croissante, continue, et la crête ne revient jamais.
+
+   ET C'EST LE MORCEAU QUI COMMANDE, PAS UNE HORLOGE. Tout se lit sur
+   `horlogeIbiza`, donc sur la position réelle dans l'audio : le sol
+   est calé sur ce que le joueur ENTEND, y compris s'il a mis l'onglet
+   en veille et que la musique a repris trois mesures plus loin.
+   ================================================================ */
+
+/* Où commence et où finit chaque partie, EN MESURES. C'est la seule
+   chose que le moteur ne sache pas dire : il donne la section en
+   cours, jamais depuis combien de temps elle dure. Or une montée qui
+   accélère doit savoir ce qu'il lui reste. Recopié de `sectionName`
+   dans 93-musique.js — et le test le vérifie, pour que les deux ne
+   puissent pas diverger en silence. */
+var IBI_BORNES = {
+  discours:[0, 8],    entree:[8, 16],    montee:[16, 24],  build:[24, 32],
+  drop1:[32, 48],     break:[48, 56],    build2:[56, 64],  drop2:[64, 80],
+  descente:[80, 88],  ibiza:[88, 104],   build3:[104, 112],
+  final:[112, 136],   boucle:[136, 144]
+};
+/* Ce que chaque partie fait faire au sol. */
+var IBI_REGIME = {
+  discours:"repos",  entree:"alt",   montee:"tour",  build:"tour",
+  drop1:"boum",      break:"vague",  build2:"tour",  drop2:"boum",
+  descente:"vague",  ibiza:"alt",    build3:"tour",
+  final:"boum",      boucle:"alt"
+};
+/* La rotation part d'un demi-tour par mesure et finit à trois tours :
+   six fois plus vite à la fin d'une montée qu'à son début. */
+var IBI_TOUR0 = 0.5, IBI_TOUR1 = 3.0;
+
+/* 0 au début de la partie en cours, 1 à sa fin. */
+function avanceSection(H){
+  var b = IBI_BORNES[H.section];
+  if(!b) return 0.5;
+  var u = (H.t / 4 - b[0]) / (b[1] - b[0]);
+  return u < 0 ? 0 : (u > 1 ? 1 : u);
+}
+
+/* Où en est la crête, en tours, depuis le début de la section — voir
+   l'intégrale expliquée plus haut. */
+function phaseTourIbiza(H, u){
+  var b = IBI_BORNES[H.section];
+  if(!b) return H.t / 4 * IBI_TOUR0;
+  var L = b[1] - b[0], m = H.t / 4 - b[0];
+  return IBI_TOUR0 * m + (IBI_TOUR1 - IBI_TOUR0) * L * u * u * u / 3;
+}
+
+/* La distance de l'allée i DERRIÈRE la crête, de 0 (dessous) à 1 :
+   c'est elle qui met la traîne du bon côté. Prise à l'envers, la
+   lumière s'allumerait avant l'arrivée de la crête et le mouvement
+   se lirait en sens inverse. */
+function retardAllee(i, tours){
+  var n = FAISC_N;
+  var d = ((tours * n - i) % n + n) % n;
+  return d / n;
+}
+
+/* Ce que vaut l'allée i, de 0 à 1 et un peu au-delà sur les drops. */
+function gainAllee(i, H, f){
+  var u = avanceSection(H);
+  var reg = IBI_REGIME[H.section];
+  /* PAS DE MUSIQUE, PAS DE SECTION — et le show doit continuer. Sans
+     moteur audio, l'horloge tourne quand même au tempo nominal : on
+     fait alors défiler les régimes tous les huit mesures, pour que le
+     sol ne se fige pas sur un seul mouvement. */
+  if(!reg) reg = ["alt", "tour", "vague", "boum"][Math.floor(H.t / 32) & 3];
+
+  if(reg === "repos")
+    return 0.09 + 0.05 * Math.sin(H.t * 0.55 + i * 0.52);
+
+  if(reg === "alt"){
+    /* un changement par mesure, et la moitié éteinte n'est pas noire :
+       elle garde une braise, sinon l'île clignote au lieu de danser */
+    var demi = Math.floor(H.t / 4) & 1;
+    return ((i & 1) === demi) ? (0.52 + f * 0.42) : 0.09;
+  }
+
+  if(reg === "tour"){
+    var d = retardAllee(i, phaseTourIbiza(H, u));
+    /* la traîne se resserre à mesure que ça accélère : une comète
+       lente est large, une comète rapide est un trait */
+    return 0.06 + Math.exp(-d * (5 + u * 7)) * (0.85 + f * 0.35);
+  }
+
+  if(reg === "boum"){
+    /* TOUT ENSEMBLE, mais pas plat : un souffle lent tourne par-dessus
+       pour que douze rectangles ne clignotent pas comme un seul. */
+    var db = retardAllee(i, H.t * 0.22);
+    return (0.30 + f * 1.10) * (0.80 + 0.20 * Math.exp(-db * 3));
+  }
+
+  /* vague : une onde longue, huit noires pour faire le tour */
+  var s = 0.5 + 0.5 * Math.cos((H.t / 8 - i / FAISC_N) * 6.2832);
+  return 0.10 + s * s * (0.52 + f * 0.28);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LE DÉGRADÉ D'UNE ALLÉE, FABRIQUÉ UNE FOIS
+
+   Il était refait à chaque image, pour chacune des douze allées, avec
+   neuf arrêts chacun : cent huit arrêts de dégradé par image, rien que
+   pour le sol. On peut s'en passer entièrement, parce qu'un dégradé de
+   canevas est interprété dans le REPÈRE COURANT au moment du
+   remplissage — la même raison qui rend le cache du char valide. Ses
+   bornes sont ici en coordonnées du MONDE et ne bougent jamais : la
+   caméra peut tourner et zoomer, le dégradé reste bon.
+
+   Le profil intérieur → extérieur est donc cuit dans le dégradé, une
+   fois pour toutes, et c'est `globalAlpha` qui porte toute
+   l'animation. Douze allées × six teintes = soixante-douze dégradés au
+   plus, contre cent quarante-quatre par seconde auparavant.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_DEG = null;
+function degradeAllee(c, i, ci, D0, D1, blanc){
+  if(!IBI_DEG || IBI_DEG.c !== c) IBI_DEG = { c:c, g:{} };
+  var cle = i + "|" + ci + "|" + (blanc ? 1 : 0);
+  var g = IBI_DEG.g[cle];
+  if(g) return g;
+  var col = blanc ? "255,252,242" : IBI_LASER_T[ci];
+  g = c.createLinearGradient(D0.x, D0.y, D1.x, D1.y);
+  /* LE PROFIL QUE LE JOUEUR A DEMANDÉ DE GARDER : fort au pied,
+     éteint vers le mur. Un projecteur perd sa force avec la distance,
+     et c'est ce dégradé qui donne à l'île sa profondeur. */
+  g.addColorStop(0.00, "rgba(" + col + ",0.42)");
+  g.addColorStop(0.22, "rgba(" + col + ",0.30)");
+  g.addColorStop(0.55, "rgba(" + col + ",0.17)");
+  g.addColorStop(0.82, "rgba(" + col + ",0.07)");
+  g.addColorStop(1.00, "rgba(" + col + ",0)");
+  IBI_DEG.g[cle] = g;
+  return g;
+}
+
 function dessineBandesIbiza(c, tps){
   var H = horlogeIbiza(tps);
   var f = frappe(tps), F = H.force, mes = mesureIbiza(tps);
-  /* la phase dans la MESURE : un aller-retour de lumière par mesure */
-  var vague = (H.t / 4) - Math.floor(H.t / 4);
-  var i, k;
+  var i;
   c.save();
+  /* MÊME DÉCOUPE QUE LE SOL CUIT. Sans elle, l'animation repasserait
+     sur la piste et sur le mur que la couche cuite vient justement de
+     libérer — on aurait borné une moitié du décor. */
+  decoupeAlleesIbiza(c);
   c.globalCompositeOperation = "lighter";
   for(i = 0; i < FAISC_N; i++){
+    var g = gainAllee(i, H, f) * F;
+    if(g < 0.02) continue;                    // rien à peindre, rien à payer
     var a = i / FAISC_N * 6.2832 - 0.5236;
     var ca = Math.cos(a), sa = Math.sin(a);
     var r0 = FAISC_R0 - 1, r1 = FAISC_R1;
@@ -1922,25 +2098,44 @@ function dessineBandesIbiza(c, tps){
     var B1 = iso(SCENE_GX + ca * r1 + sa * w1, SCENE_GY + sa * r1 - ca * w1);
     var D0 = iso(SCENE_GX + ca * r0, SCENE_GY + sa * r0);
     var D1 = iso(SCENE_GX + ca * r1, SCENE_GY + sa * r1);
-    var col = teinteIbiza(IBI_LASER_T, i + mes);
-    var g = c.createLinearGradient(D0.x, D0.y, D1.x, D1.y);
-    for(k = 0; k <= 8; k++){
-      var u = k / 8;
-      /* la distance DERRIÈRE la crête, en tournant : la traîne suit la
-         lumière au lieu de la précéder */
-      var d = u - vague; if(d < 0) d += 1;
-      var onde = Math.exp(-d * 5.5);
-      /* et l'on s'éteint vers le rivage, comme le faisceau du sol :
-         un projecteur perd sa force avec la distance */
-      var al = (0.045 + onde * 0.26 + f * 0.05) * (1 - u * 0.55) * F;
-      g.addColorStop(u, "rgba(" + col + "," + al.toFixed(3) + ")");
-    }
-    c.fillStyle = g;
+    var ci = ((i + mes) % IBI_LASER_T.length + IBI_LASER_T.length) % IBI_LASER_T.length;
+
+    c.globalAlpha = Math.min(1, g);
+    c.fillStyle = degradeAllee(c, i, ci, D0, D1);
     c.beginPath();
     c.moveTo(A0.x, A0.y); c.lineTo(A1.x, A1.y);
     c.lineTo(B1.x, B1.y); c.lineTo(B0.x, B0.y);
     c.closePath(); c.fill();
+
+    /* LE CŒUR BLANC, ET SEULEMENT QUAND ÇA COGNE. C'est lui qui fait
+       la différence entre « la bande est allumée » et « la bande
+       EXPLOSE » : une lame étroite de lumière blanche au milieu du
+       couloir, sur le dernier tiers de l'intensité. En dessous, on ne
+       verrait rien et on paierait douze tracés de plus. */
+    if(g > 0.72){
+      var b = (g - 0.72) / 0.5;
+      /* IL S'ARRÊTE À MI-COULOIR, ET C'EST GRATUIT.
+         Le dégradé est déjà presque transparent passé 0,55 : la moitié
+         extérieure du cœur blanc ne peignait rien de visible et
+         remplissait pourtant la moitié la plus large du quadrilatère —
+         celle qui coûte le plus, puisqu'elle s'évase. Mesuré au zoom du
+         combat, sur un drop : 2,8 ms le calque entier, dont l'essentiel
+         partait là. On le coupe où il cesse de se voir. */
+      var rc = r0 + (r1 - r0) * 0.55;
+      var v0 = largeurFaisceau(r0) * 0.5, v1 = largeurFaisceau(rc) * 0.5;
+      var C0 = iso(SCENE_GX + ca * r0 - sa * v0, SCENE_GY + sa * r0 + ca * v0);
+      var E0 = iso(SCENE_GX + ca * r0 + sa * v0, SCENE_GY + sa * r0 - ca * v0);
+      var C1 = iso(SCENE_GX + ca * rc - sa * v1, SCENE_GY + sa * rc + ca * v1);
+      var E1 = iso(SCENE_GX + ca * rc + sa * v1, SCENE_GY + sa * rc - ca * v1);
+      c.globalAlpha = Math.min(0.85, b * 0.8);
+      c.fillStyle = degradeAllee(c, i, ci, D0, D1, 1);
+      c.beginPath();
+      c.moveTo(C0.x, C0.y); c.lineTo(C1.x, C1.y);
+      c.lineTo(E1.x, E1.y); c.lineTo(E0.x, E0.y);
+      c.closePath(); c.fill();
+    }
   }
+  c.globalAlpha = 1;
   c.restore();
 }
 

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.04";
+var VERSION = "v1.05";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1605,6 +1605,60 @@ function dansLaScene(gx, gy){
   if(q > ETOILE_R * ETOILE_R) return false;
   if(q < ETOILE_R2 * ETOILE_R2) return true;
   return dansPolygone(ETOILE_G, gx, gy);
+}
+
+/* ================================================================
+   OÙ LES ALLÉES LUMINEUSES ONT LE DROIT D'ÊTRE PEINTES
+
+   Elles couraient de r = 13 à r = 100, c'est-à-dire depuis l'INTÉRIEUR
+   de la piste jusqu'au-delà des coins de l'île. Deux débordements, et
+   chacun coûtait quelque chose :
+
+     DEDANS, la lumière passait sous le plancher noir laqué de la
+     piste. On voyait donc six traînées pâles traverser la scène — or
+     une piste de club REFLÈTE, elle ne rayonne pas, et c'est son noir
+     qui fait ressortir les couleurs autour. Les faisceaux avaient
+     l'air de passer DERRIÈRE elle au lieu d'en partir.
+
+     DEHORS, elles montaient sur le mur de pierre et jusque dans la
+     mer. Un projecteur de piste n'éclaire pas la falaise.
+
+   La zone juste est donc la TERRE PLATE MOINS LA PISTE : un anneau,
+   percé en son milieu par l'étoile. On le trace en un seul chemin —
+   le rectangle bâti, puis l'étoile — et la règle `evenodd` fait le
+   trou toute seule. C'est aussi ce qui donne la découpe demandée :
+   chaque bande se termine exactement sur l'arête de l'étoile, donc
+   suivant SON angle, sans qu'aucune bande ait à connaître la forme.
+
+   LE RECTANGLE EST CELUI DE `matiereCase` : la roche court sur les
+   trois bords fermés à moins de LARGEUR_ROCHE, et la plage commence à
+   PLAGE_X0. On ne redit pas ces bornes ici, on les lit — le jour où
+   le mur s'épaissit, les allées se raccourcissent d'elles-mêmes.
+   ================================================================ */
+function traceTerreBatie(c){
+  var p = [[LARGEUR_ROCHE, LARGEUR_ROCHE], [PLAGE_X0, LARGEUR_ROCHE],
+           [PLAGE_X0, GH - LARGEUR_ROCHE], [LARGEUR_ROCHE, GH - LARGEUR_ROCHE]];
+  for(var i = 0; i < 4; i++){
+    var q = iso(p[i][0], p[i][1]);
+    if(i) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y);
+  }
+  c.closePath();
+}
+function traceEtoileIbiza(c){
+  for(var j = 0; j < ETOILE_G.length; j += 2){
+    var e = iso(ETOILE_G[j], ETOILE_G[j + 1]);
+    if(j) c.lineTo(e.x, e.y); else c.moveTo(e.x, e.y);
+  }
+  c.closePath();
+}
+/* À poser AVANT de peindre les allées, cuites comme vivantes : les
+   deux couches doivent être bornées pareil, sans quoi l'animation
+   déborderait de ce que le sol a déjà découpé. */
+function decoupeAlleesIbiza(c){
+  c.beginPath();
+  traceTerreBatie(c);
+  traceEtoileIbiza(c);
+  c.clip("evenodd");
 }
 
 /* ================================================================

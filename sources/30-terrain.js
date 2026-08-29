@@ -1852,6 +1852,14 @@ function construitSol(carteC){
        cellule électrique (voir `dansLeFaisceau`). On les peint donc
        aussi, deux fois plus discrets : un jeu de projecteurs n'a pas
        douze lampes de même puissance. */
+    /* LES ALLÉES SONT BORNÉES : dedans par l'étoile, dehors par le mur
+       de pierre. Voir `decoupeAlleesIbiza` dans 10-noyau.js — c'est un
+       seul chemin percé, et il vaut aussi pour le calque vivant. Posé
+       ICI, autour de la boucle entière, il prend les faisceaux ET
+       leurs néons de bord : un néon qui monterait sur la falaise
+       pendant que sa bande s'arrête serait pire que les deux. */
+    c.save();
+    decoupeAlleesIbiza(c);
     c.globalCompositeOperation = "lighter";
     for(i = 0; i < FAISC_N * 2; i++){
       var finI = (i & 1);                       // un sur deux est un mince
@@ -1930,6 +1938,7 @@ function construitSol(carteC){
         c.globalAlpha = 1;
       }
     }
+    c.restore();                       // fin de la découpe des allées
 
     /* --- 3. LA NAPPE DE LA SCÈNE ---
        Le point où tous les faisceaux se rejoignent doit être le plus
