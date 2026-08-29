@@ -1774,6 +1774,35 @@ function construitSol(carteC){
      fois au débarquement.
      ================================================================ */
   if(carteC.biome === "ibiza"){
+    /* ================================================================
+       LA NUIT D'IBIZA, ET ELLE NE TOMBE QUE SUR LE SOL
+
+       « On ne ferait pas la nuit un peu plus sombre, comme ça on voit
+       un peu mieux les lasers ? Mais les gens pas plus sombres. »
+
+       C'est exactement ce que fait ce voile, et c'est la POSITION qui
+       le garantit, pas un réglage : il est peint ICI, tout au début du
+       bloc, sur le sable et la mer déjà en place — et AVANT les douze
+       faisceaux, l'étoile, les néons et les confettis, qui viennent
+       tous par-dessus en « lighter ». La lumière ne perd donc rien ;
+       seul ce qui n'en émet pas s'assombrit.
+
+       Et les gens, les défenses, la scène ? Ils ne sont pas du sol.
+       Le sol est un canevas cuit une fois au débarquement ; tout le
+       reste est peint par-dessus, image par image. Un voile ici ne les
+       atteint pas — c'est pour ça qu'il ne coûte rien, aussi : une
+       seule opération, une seule fois, jamais dans la boucle.
+
+       Le rectangle est volontairement plus grand que le monde. On est
+       dans le repère iso, où l'île va d'environ −3500 à +3950 en x ;
+       déborder ne coûte rien, le canevas coupe, et l'on n'a pas à
+       relire les bornes du sol pour une teinte.
+       ================================================================ */
+    c.save();
+    c.fillStyle = "rgba(5,7,20,.52)";
+    c.fillRect(-6000, -3000, 14000, 10000);
+    c.restore();
+
     c.save();
     traceIle(c, 0, 0, 0); c.clip();
 

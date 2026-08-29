@@ -1118,7 +1118,7 @@ function dessineSceneIbiza(c, tps){
    régulier, mais une scène qui a la même forme que le morceau.
    ================================================================ */
 var IBI_LASER_N = 16;        // les projecteurs du pourtour
-var IBI_LASER_H = 1200;      // leur portée, en unités de scène
+var IBI_LASER_H = 1800;      // leur portée, en unités de scène — « un peu plus haut »
 /* Les six teintes des balayeurs du portique. */
 var IBI_LASER_T = ["255,60,120", "62,224,208", "255,200,70", "150,110,255",
                    "80,255,160", "255,120,60"];
@@ -1164,17 +1164,32 @@ function dessineLasersIbiza(c, tps){
     /* la teinte tourne autour du cercle et change à chaque temps :
        c'est une chenille de couleur, pas un clignotant */
     var col = IBI_LASER_T[(i + mes) % 6];
-    var op = (0.09 + f * 0.17) * F;
-    /* LE FAISCEAU S'ALLUME À DIX POUR CENT DE SA COURSE, et c'est une
-       correction, pas un effet : à pleine intensité dès la lampe,
-       seize faisceaux font une palissade devant la scène et l'on ne
-       voit plus ni le DJ ni la régie. Le dixième du bas, c'est très
-       exactement la hauteur du bonhomme. La lampe, elle, reste nette :
-       c'est elle qui plante le faisceau sur le bord du plateau. */
+    var op = (0.11 + f * 0.19) * F;
+    /* ────────────────────────────────────────────────────────────
+       LE FAISCEAU S'ALLUME À UNE DISTANCE FIXE, ET C'EST TOUT LE
+       PIÈGE DE CE BLOC.
+
+       POURQUOI IL S'ALLUME PLUS HAUT QUE SA LAMPE : à pleine
+       intensité dès le bord du plateau, seize faisceaux font une
+       palissade devant la scène et l'on ne voit plus ni le DJ ni la
+       régie. Le bas du faisceau est donc éteint sur la hauteur d'un
+       bonhomme — cent vingt unités de scène.
+
+       POURQUOI EN DISTANCE ET NON EN FRACTION. C'était écrit « 0,10 »,
+       soit un dixième de la course. Le jour où l'on a allongé les
+       faisceaux de douze cents à dix-huit cents unités pour les faire
+       monter plus haut, ce dixième a suivi : l'allumage est passé de
+       cent vingt à cent quatre-vingts unités, puis la bande vive de
+       456 à 684 — et tout le faisceau visible est sorti du cadre par
+       le haut. On avait des lasers plus longs et INVISIBLES.
+       La cote qui compte est en unités de monde, pas en pourcentage
+       d'une longueur qu'on se réserve de changer.
+       ──────────────────────────────────────────────────────────── */
+    var mont = Math.min(0.30, 120 * z / lg);      // 120 unités, quelle que soit la portée
     var g = c.createLinearGradient(x0, y0, x1, y1);
     g.addColorStop(0, "rgba(" + col + ",0)");
-    g.addColorStop(0.10, "rgba(" + col + "," + (op * 1.35) + ")");
-    g.addColorStop(0.38, "rgba(" + col + "," + op + ")");
+    g.addColorStop(mont, "rgba(" + col + "," + (op * 1.35) + ")");
+    g.addColorStop(Math.min(0.9, mont * 3.5), "rgba(" + col + "," + op + ")");
     g.addColorStop(1, "rgba(" + col + ",0)");
     c.strokeStyle = g;
     /* deux passes : un halo doux, puis un cœur net. C'est ce qui
@@ -1257,6 +1272,73 @@ function dessineLasersIbiza(c, tps){
   c.lineTo(p.x - LX * 1.8 * z, y0c - hc);
   c.closePath(); c.fill();
 
+  /* ================================================================
+     3 bis. LES DOUZE TOURS, ET C'ÉTAIT LE BON ANCRAGE
+
+     « Les lasers, on peut peut-être en remettre à certains endroits
+     sur la map de manière harmonieuse. »
+
+     On ne va pas en semer au hasard : une carte a déjà ses points
+     forts, et en inventer d'autres fait du bruit. Ceux-ci existent —
+     ce sont les DOUZE TOURS ÉLECTRIQUES, une au bout de chaque
+     secteur, posées sur les bissectrices des couloirs. Elles sont
+     déjà réparties tous les trente degrés autour du Brasier : la
+     seule disposition parfaitement régulière de l'île, et personne
+     n'a eu à la dessiner.
+
+     Un faisceau sur chacune, et l'on obtient une seconde couronne,
+     douze fois plus large que celle de la scène et concentrique avec
+     elle. De l'île entière, les deux se répondent.
+
+     ILS S'INCLINENT VERS LE CENTRE, et c'est ce qui fait le dessin :
+     douze verticales seraient une palissade ; douze faisceaux qui
+     convergent vers la scène font une TENTE de lumière au-dessus de
+     la fête. L'inclinaison se lit sur la position de la tour — chacune
+     penche vers le milieu, donc chacune penche autrement.
+
+     ET UNE TOUR MORTE S'ÉTEINT. C'est gratuit — on lit `bat.vivant`,
+     qui est déjà là — et ça dit quelque chose de vrai : à mesure qu'on
+     démonte les cellules du Brasier, le show s'éteint secteur par
+     secteur. La carte raconte la bataille.
+     ================================================================ */
+  if(jeu && jeu.reacteurs && z > 0.16){
+    for(i = 0; i < jeu.reacteurs.length; i++){
+      var R = jeu.reacteurs[i];
+      if(!R.bat || !R.bat.vivant) continue;
+      var pr = versEcran(cam, R.gx, R.gy);
+      /* la lampe est en HAUT du mât, pas à ses pieds : soixante-deux
+         unités, la hauteur d'une tour telle qu'elle est dessinée */
+      var rx0 = pr.x, ry0 = pr.y - 62 * z;
+      /* l'inclinaison vers la scène, lue sur la position à l'écran :
+         une tour à l'ouest penche vers l'est, et réciproquement */
+      var vers = (p.x - pr.x) / (Math.abs(p.x - pr.x) + 260);
+      var inc = vers * 0.38 + Math.sin(tps * 0.6 + i * 0.9) * 0.10 * F;
+      var lgt = (900 * (0.55 + F * 0.45) + f * 180 * F) * z;
+      var ct = IBI_LASER_T[(i * 2 + mes) % 6];
+      var opt = (0.07 + f * 0.15) * F;
+      var gt = c.createLinearGradient(rx0, ry0, rx0 + Math.sin(inc) * lgt,
+                                      ry0 - Math.cos(inc) * lgt);
+      gt.addColorStop(0, "rgba(" + ct + ",0)");
+      gt.addColorStop(0.09, "rgba(" + ct + "," + (opt * 1.3) + ")");
+      gt.addColorStop(0.45, "rgba(" + ct + "," + opt + ")");
+      gt.addColorStop(1, "rgba(" + ct + ",0)");
+      c.strokeStyle = gt;
+      c.lineWidth = (1.6 + f * 1.5) * F * z;
+      c.beginPath();
+      c.moveTo(rx0, ry0);
+      c.lineTo(rx0 + Math.sin(inc) * lgt, ry0 - Math.cos(inc) * lgt);
+      c.stroke();
+      c.lineWidth = (0.6 + f * 0.5) * z;
+      c.beginPath();
+      c.moveTo(rx0, ry0);
+      c.lineTo(rx0 + Math.sin(inc) * lgt, ry0 - Math.cos(inc) * lgt);
+      c.stroke();
+      /* la lampe au sommet du mât : c'est elle qui ancre le faisceau */
+      c.fillStyle = "rgba(" + ct + "," + (0.40 + f * 0.5) + ")";
+      c.beginPath(); c.arc(rx0, ry0, (0.8 + f * 0.8) * z, 0, 6.2832); c.fill();
+    }
+  }
+
   /* ────────────────────────────────────────────────────────────
      4. LES CANONS À FUMÉE, une fois par mesure sur les drops
 
@@ -1318,7 +1400,7 @@ function dessineLasersIbiza(c, tps){
     var ecl = Math.max(0, 1 - (HH.t - Math.floor(HH.t)) * 14);
     if(ecl > 0.02){
       c.save();
-      c.fillStyle = "rgba(240,248,255," + (ecl * 0.075) + ")";
+      c.fillStyle = "rgba(240,248,255," + (ecl * 0.05) + ")";
       c.fillRect(0, 0, W, H);
       c.restore();
     }
