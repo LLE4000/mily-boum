@@ -2638,6 +2638,16 @@ function rendu(tps, dt){
   dessineSol(ctx, vue);
   if(mer){ dessineEcume(ctx, tps); dessineRessac(ctx, tps); }
   dessineZonesSol(ctx, tps);
+  /* LE CONTOUR VIVANT DE L'ÉTOILE D'IBIZA. Ici et pas ailleurs : dans
+     le repère du monde, après le sol, avant tout ce qui se tient
+     dessus. C'est de la lumière AU SOL — un danseur doit pouvoir
+     marcher dessus, pas passer dessous. */
+  if(carteScene(jeu.index)){
+    /* les bandes d'abord, le contour par-dessus : c'est le contour qui
+       doit garder son arête, et il la perdrait sous douze halos */
+    dessineBandesIbiza(ctx, tps);
+    dessineEtoileIbiza(ctx, tps);
+  }
   /* L'AIR DES MILLE ET UNE NUITS, PREMIÈRE COUCHE — celle qui passe
      DERRIÈRE les tours, les troupes et les fontaines. C'est elle qui
      met la poussière DANS la carte au lieu de la coller sur l'écran :

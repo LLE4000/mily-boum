@@ -123,8 +123,28 @@ var BIOMES = {
        de l'eau et tirait toute la carte vers le terne. */
     sol1:"#f2e0ba", sol2:"#e9d4a4", sable:"#fbf2dc", sableO:"#d6b98c",
     herbe:"#96ac72", allee:"#fffaee", roche:"#e8e2d4",
-    eauC:"#8ffff0", eau:"#12b6e0", eauO:"#0a4fa8", ecume:"#ffffff",
-    fond:"#25c4dc", basFond:"#8df0ec", ciel:"#7fd8f5"
+    /* ================================================================
+       LA MER DE NUIT — « l'eau bleue aussi, ça ne va pas »
+
+       Elle était turquoise de carte postale : #12b6e0 au large,
+       #8ffff0 sur la crête. C'était juste tant que l'île avait un
+       soleil ; depuis que la nuit est tombée sur le sol, cette mer-là
+       était le seul endroit de la carte où il faisait encore midi —
+       un anneau de plein jour autour d'une piste de danse.
+
+       ET ON NE POUVAIT PAS LA RATTRAPER PAR LE VOILE DE NUIT : la mer
+       est peinte à l'EXÉCUTION par dessineEau, après le sol cuit. Le
+       voile passe donc dessous. C'est la palette qu'il faut changer,
+       et c'est tant mieux — ça ne coûte pas un tracé de plus.
+
+       CE QU'ON GARDE : la crête turquoise. Une mer entièrement sombre
+       aurait aussi effacé les vagues, et une île sans ressac ne flotte
+       plus, elle est posée. Le large devient de l'encre, la crête
+       reste néon : la vague ne se voit plus qu'au reflet de la fête,
+       ce qui est exactement ce qu'on voit d'un bateau la nuit.
+       ================================================================ */
+    eauC:"#3ad9d0", eau:"#0a2340", eauO:"#03101f", ecume:"#d6fbff",
+    fond:"#0d4460", basFond:"#1f8f9c", ciel:"#141a38"
   },
   /* LES MILLE ET UNE NUITS — une nuit qu'on regarde, pas une nuit où
      l'on ne voit rien. C'est toute la difficulté de cette carte, et
@@ -1959,8 +1979,30 @@ function construitSol(carteC){
     }
     c.restore();
 
-    /* le liseré de l'étoile : c'est lui qui dit où finit la piste, et
-       il doit se lire de l'île entière */
+    /* ================================================================
+       LE LISERÉ DE L'ÉTOILE — LA FORME EST CUITE, LA LUMIÈRE EST VIVE
+
+       « Le contour de l'étoile peut aussi être lumineux et aller au
+       rythme de la musique, en différentes couleurs. »
+
+       Il était entièrement peint ici, en rose et cyan francs : un
+       néon magnifique, et parfaitement immobile. Le partage se fait
+       maintenant en deux, et chaque moitié est là où elle doit être :
+
+         ICI, dans le sol cuit — un trait SOURD, presque neutre. Il ne
+         dit qu'une chose : où finit la piste. Il ne coûte rien parce
+         qu'il est calculé une fois, et il garantit que l'étoile se
+         lit même si tout le reste s'éteint.
+
+         DANS dessineEtoileIbiza — la couleur, la pulsation, le tour
+         de piste. Elle change à chaque temps et fait le tour de
+         l'étoile pointe par pointe : voir 35-ibiza-scene.js.
+
+       Pourquoi ne pas tout mettre dans le vivant ? Parce qu'un trait
+       de trente-six mètres de long dessiné à chaque image sur douze
+       sommets, ça se paie ; et parce qu'un décor doit rester lisible
+       quand le spectacle s'arrête.
+       ================================================================ */
     c.save();
     c.globalCompositeOperation = "lighter";
     c.beginPath();
@@ -1970,9 +2012,8 @@ function construitSol(carteC){
     }
     c.closePath();
     c.lineJoin = "round";
-    c.globalAlpha = 0.36; c.strokeStyle = "#ff2e8a"; c.lineWidth = 15; c.stroke();
-    c.globalAlpha = 0.80; c.strokeStyle = "#8fe8ff"; c.lineWidth = 3.4; c.stroke();
-    c.globalAlpha = 0.95; c.strokeStyle = "#ffffff"; c.lineWidth = 1.2; c.stroke();
+    c.globalAlpha = 0.16; c.strokeStyle = "#7a5fa8"; c.lineWidth = 11; c.stroke();
+    c.globalAlpha = 0.34; c.strokeStyle = "#9fd8ee"; c.lineWidth = 2.2; c.stroke();
     c.restore();
 
     /* --- 5. LES CONFETTIS ---

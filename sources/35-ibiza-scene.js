@@ -1339,6 +1339,81 @@ function dessineLasersIbiza(c, tps){
     }
   }
 
+  /* ================================================================
+     3 ter. LES DEUX GROS PROJECTEURS DE CIEL
+
+     « On ne mettrait pas sur la carte, à deux endroits symétriques,
+     les gros lasers qui tournent dans le ciel verticalement en légère
+     rotation ? Assez éloignés de la scène pour ne pas surcharger. »
+
+     Ce sont les tours de ciel des grands festivals : un fût de lumière
+     large, presque vertical, qui décrit lentement un cône. Deux, pas
+     douze — ils tiennent leur effet de leur RARETÉ et de leur taille,
+     et douze auraient refait la couronne qu'on a déjà.
+
+     LA SYMÉTRIE EST CELLE DE L'ÉCRAN, pas celle de la grille. En
+     isométrie, iso(gx,gy) met (gx−gy) en abscisse et (gx+gy) en
+     ordonnée : deux points à ±d sur gx et ∓d sur gy ont donc la MÊME
+     ordonnée et des abscisses opposées. Ils encadrent la scène
+     exactement, à la même profondeur — ce qu'un décalage naïf de ±d
+     sur gx seul n'aurait pas donné, il les aurait mis en diagonale.
+
+     ILS SONT LOIN : quarante-deux cases du centre, contre trente pour
+     le rayon de l'étoile. Ils se dressent donc dans les secteurs de
+     défense, bien au-delà de la piste, et leurs faisceaux entrent dans
+     le cadre par les côtés au lieu de passer sur la fête.
+
+     LA ROTATION SE FAIT EN DEUX TEMPS, et c'est ce qui la rend
+     crédible sur une image plate : l'inclinaison balance de gauche à
+     droite, ET la largeur du fût respire sur le quart de tour d'écart.
+     Un cône vu de face est large, vu de profil il est mince ; en liant
+     les deux par un quart de période, on voit un fût qui TOURNE et non
+     un fût qui se dandine. Les deux stations sont en opposition de
+     phase : quand l'un s'ouvre, l'autre se referme, et ils se croisent
+     au-dessus de la scène deux fois par tour.
+     ================================================================ */
+  var IBI_TOUR_D = 30;                     // l'écart, en cases, sur chaque axe
+  for(i = 0; i < 2; i++){
+    var sg = i ? 1 : -1;
+    var st = versEcran(cam, SCENE_GX + sg * IBI_TOUR_D, SCENE_GY - sg * IBI_TOUR_D);
+    var ph = tps * 0.20 + i * 3.1416;      // en opposition de phase
+    var ang = Math.sin(ph) * 0.42;
+    /* le quart de tour d'écart : le cône est large de face, mince de
+       profil, et c'est ce déphasage qui fait qu'il TOURNE */
+    var ouvre = 0.40 + 0.60 * Math.abs(Math.cos(ph));
+    var hb = 34 * z;                        // la lanterne, au-dessus de son socle
+    var bx2 = st.x, by2 = st.y - hb;
+    var lgT = 1700 * (0.6 + F * 0.4) * z;
+    var tx = bx2 + Math.sin(ang) * lgT, ty = by2 - Math.cos(ang) * lgT;
+    /* le fût : un trapèze qui s'ouvre vers le ciel, et non un trait —
+       un projecteur de ciel se voit à son ÉVASEMENT */
+    var w0 = (7 + f * 3) * ouvre * z;
+    var w1 = (34 + f * 14) * ouvre * z;
+    var nx = Math.cos(ang), ny = Math.sin(ang);   // la normale au faisceau
+    var gT = c.createLinearGradient(bx2, by2, tx, ty);
+    var opT = (0.13 + f * 0.13) * F * ouvre;
+    gT.addColorStop(0, "rgba(235,246,255," + (opT * 1.6) + ")");
+    gT.addColorStop(0.35, "rgba(210,238,255," + (opT * 0.7) + ")");
+    gT.addColorStop(1, "rgba(190,225,255,0)");
+    c.fillStyle = gT;
+    c.beginPath();
+    c.moveTo(bx2 - nx * w0, by2 - ny * w0);
+    c.lineTo(bx2 + nx * w0, by2 + ny * w0);
+    c.lineTo(tx + nx * w1, ty + ny * w1);
+    c.lineTo(tx - nx * w1, ty - ny * w1);
+    c.closePath(); c.fill();
+    /* le cœur du fût, plus net */
+    c.strokeStyle = "rgba(255,255,255," + (opT * 1.4) + ")";
+    c.lineWidth = (2.2 + f * 1.6) * ouvre * z;
+    c.beginPath(); c.moveTo(bx2, by2); c.lineTo(tx, ty); c.stroke();
+    /* la lanterne, et son halo au sol */
+    var gl = c.createRadialGradient(bx2, by2, 0, bx2, by2, 26 * z);
+    gl.addColorStop(0, "rgba(255,255,255," + (0.55 + f * 0.35) + ")");
+    gl.addColorStop(1, "rgba(210,235,255,0)");
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(bx2, by2, 26 * z, 0, 6.2832); c.fill();
+  }
+
   /* ────────────────────────────────────────────────────────────
      4. LES CANONS À FUMÉE, une fois par mesure sur les drops
 
@@ -1405,6 +1480,160 @@ function dessineLasersIbiza(c, tps){
       c.restore();
     }
   }
+}
+
+/* ================================================================
+   LES DOUZE BANDES, ET C'EST ELLES QU'ON REGARDE
+
+   « Ce sont les 12 bandes à illuminer, dans un jeu de lumière calé
+   sur le rythme de la musique. » — avec le dessin qui va avec, douze
+   traits rouges, bleus et jaunes posés sur les couloirs.
+
+   Les douze couloirs sont la FIGURE de cette île : c'est le vide
+   qu'ils creusent dans les défenses qui dessine l'étoile, et c'est
+   par eux que l'œil arrive à la scène. Ils étaient peints dans le sol
+   cuit, en couleurs fixes — magnifiques et immobiles. Ils bougent
+   maintenant, et de deux façons qui ne se répètent pas ensemble :
+
+     LA CRÊTE COURT VERS LE LARGE, un aller par MESURE. La lumière
+     part du pied de la scène et file jusqu'au rivage : le DJ envoie
+     la lumière dans les douze allées. C'est le mouvement qui se lit
+     de l'île entière, celui qu'on voit avant de comprendre pourquoi.
+
+     LA COULEUR TOURNE AUTOUR DE L'ÉTOILE, un cran par temps. Six
+     teintes pour douze couloirs, comme dans le sol : deux couloirs
+     opposés partagent la leur, et l'œil y lit une symétrie au lieu
+     d'un arc-en-ciel. Ce sont les MÊMES six que les lasers — la
+     bande au sol et le faisceau qui la surmonte passent au rose
+     ensemble, et c'est ce qui fait croire à une seule régie.
+
+   LA GÉOMÉTRIE EST CELLE DU SOL, prise aux mêmes fonctions : même
+   angle, même `largeurPeinte`, même départ à FAISC_R0. Deux tracés
+   calculés séparément se seraient désalignés à la première retouche
+   d'un rayon — et un halo décalé d'une case sur son couloir se voit
+   tout de suite.
+
+   NEUF ARRÊTS PAR DÉGRADÉ, ÉVALUÉS, ET NON TROIS ARRÊTS DÉPLACÉS.
+   Poser un arrêt « à la position de la crête » oblige à trier des
+   bornes qui se croisent quand la crête approche de 0 ou de 1, et
+   c'est le genre de code qui rend un dégradé invalide une image sur
+   cent. Ici les neuf positions sont fixes et c'est l'ONDE qu'on y
+   évalue : toujours croissantes, toujours valides.
+   ================================================================ */
+function dessineBandesIbiza(c, tps){
+  var H = horlogeIbiza(tps);
+  var f = frappe(tps), F = H.force, mes = mesureIbiza(tps);
+  /* la phase dans la MESURE : un aller-retour de lumière par mesure */
+  var vague = (H.t / 4) - Math.floor(H.t / 4);
+  var i, k;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(i = 0; i < FAISC_N; i++){
+    var a = i / FAISC_N * 6.2832 - 0.5236;
+    var ca = Math.cos(a), sa = Math.sin(a);
+    var r0 = FAISC_R0 - 1, r1 = FAISC_R1;
+    var w0 = largeurPeinte(r0) + 1.1, w1 = largeurPeinte(r1) + 1.1;
+    /* la perpendiculaire au rayon, dans la grille */
+    var A0 = iso(SCENE_GX + ca * r0 - sa * w0, SCENE_GY + sa * r0 + ca * w0);
+    var B0 = iso(SCENE_GX + ca * r0 + sa * w0, SCENE_GY + sa * r0 - ca * w0);
+    var A1 = iso(SCENE_GX + ca * r1 - sa * w1, SCENE_GY + sa * r1 + ca * w1);
+    var B1 = iso(SCENE_GX + ca * r1 + sa * w1, SCENE_GY + sa * r1 - ca * w1);
+    var D0 = iso(SCENE_GX + ca * r0, SCENE_GY + sa * r0);
+    var D1 = iso(SCENE_GX + ca * r1, SCENE_GY + sa * r1);
+    var col = IBI_LASER_T[(i + mes) % 6];
+    var g = c.createLinearGradient(D0.x, D0.y, D1.x, D1.y);
+    for(k = 0; k <= 8; k++){
+      var u = k / 8;
+      /* la distance DERRIÈRE la crête, en tournant : la traîne suit la
+         lumière au lieu de la précéder */
+      var d = u - vague; if(d < 0) d += 1;
+      var onde = Math.exp(-d * 5.5);
+      /* et l'on s'éteint vers le rivage, comme le faisceau du sol :
+         un projecteur perd sa force avec la distance */
+      var al = (0.045 + onde * 0.26 + f * 0.05) * (1 - u * 0.55) * F;
+      g.addColorStop(u, "rgba(" + col + "," + al.toFixed(3) + ")");
+    }
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(A0.x, A0.y); c.lineTo(A1.x, A1.y);
+    c.lineTo(B1.x, B1.y); c.lineTo(B0.x, B0.y);
+    c.closePath(); c.fill();
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LE CONTOUR DE L'ÉTOILE, VIVANT
+
+   « Le contour de l'étoile peut aussi être lumineux et aller au
+   rythme de la musique, en différentes couleurs. »
+
+   La forme est cuite dans le sol, en sourdine (voir 30-terrain.js) ;
+   ici on ne peint que la LUMIÈRE, et elle bouge de trois façons à la
+   fois, ce qui suffit à ne jamais se répéter à l'œil :
+
+     LA COULEUR change à chaque temps — les quatre teintes de la
+     scène, dans l'ordre, les mêmes que les projecteurs. La piste et
+     le portique passent donc au rose au même moment : c'est ce qui
+     fait qu'on croit à UNE régie plutôt qu'à deux décors.
+
+     L'ÉPAISSEUR pompe sur la frappe, comme le liseré du podium.
+
+     ET UNE ONDE FAIT LE TOUR. C'est le détail qui coûte le moins et
+     qui se voit le plus : on ne trace pas le contour d'un seul trait,
+     mais segment par segment, chacun avec sa propre avance sur le
+     battement. Une crête de lumière court alors le long de l'étoile,
+     un tour par mesure. Un néon qui clignote entier est un néon ; un
+     néon qui court est une piste de danse.
+
+   OÙ ELLE EST PEINTE : dans le repère du MONDE, juste après le sol et
+   avant tout le reste. Donc sous les danseurs, sous les défenses,
+   sous la scène — c'est de la lumière AU SOL, et un danseur doit
+   pouvoir se tenir dessus.
+   ================================================================ */
+var IBI_ONDE = 12;           // combien de segments par côté de l'étoile
+function dessineEtoileIbiza(c, tps){
+  var H = horlogeIbiza(tps);
+  var f = frappe(tps), F = H.force, mes = mesureIbiza(tps);
+  var n = ETOILE_G.length / 2, i, k;
+  /* la phase dans la MESURE, pas dans le temps : l'onde fait un tour
+     complet toutes les quatre noires */
+  var tour = (H.t / 4) - Math.floor(H.t / 4);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  for(i = 0; i < n; i++){
+    var a = iso(ETOILE_G[i * 2], ETOILE_G[i * 2 + 1]);
+    var b = iso(ETOILE_G[((i + 1) % n) * 2], ETOILE_G[((i + 1) % n) * 2 + 1]);
+    for(k = 0; k < IBI_ONDE; k++){
+      var u0 = k / IBI_ONDE, u1 = (k + 1) / IBI_ONDE;
+      /* où en est ce morceau par rapport à la crête qui tourne */
+      var pos = (i + u0) / n;
+      var d = pos - tour; d -= Math.floor(d);        // 0 = la crête est ici
+      var onde = Math.exp(-d * 7) + Math.exp(-(1 - d) * 7) * 0.35;
+      var col = IBI_TEINTES[(mes + i) % 4];
+      var vif = (0.20 + f * 0.30 + onde * 0.55) * F;
+      c.strokeStyle = "rgba(" + col + "," + Math.min(0.95, vif * 0.5) + ")";
+      c.lineWidth = (5 + onde * 9 + f * 4) * F;
+      c.beginPath();
+      c.moveTo(a.x + (b.x - a.x) * u0, a.y + (b.y - a.y) * u0);
+      c.lineTo(a.x + (b.x - a.x) * u1, a.y + (b.y - a.y) * u1);
+      c.stroke();
+      /* LE CŒUR BLANC, MINCE, ET SEULEMENT SOUS LA CRÊTE. C'est lui qui
+         donne l'arête nette — mais un second tracé sur chacun des cent
+         quarante-quatre morceaux du contour, à chaque image, se paie en
+         millisecondes sur une tablette. Or hors de la crête il est
+         presque transparent : on ne dessinait rien, cher. Le seuil
+         retire les trois quarts des tracés et ne retire aucun pixel
+         qu'on voyait. */
+      if(onde > 0.22){
+        c.strokeStyle = "rgba(255,255,255," + Math.min(0.9, vif * 0.45) + ")";
+        c.lineWidth = 1.1 + onde * 1.8;
+        c.stroke();
+      }
+    }
+  }
+  c.restore();
 }
 
 /* Tout ce qui danse, dans le tri de profondeur. */

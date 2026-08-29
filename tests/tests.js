@@ -3443,9 +3443,21 @@ G("4. Déterminisme de la génération de carte");
        palette n'affiche pas une île moche — elle laisse un écran noir
        et une tablette qui ne répond plus, parce que construitBriefing
        tourne avant la boucle de rendu. */
+    /* LA FENÊTRE EST BORNÉE PAR LE BLOC SUIVANT, ET NON PAR UN NOMBRE
+       D'OCTETS. Elle valait « les 9000 caractères après var BIOMES »,
+       et ce test a fini par tomber pour une raison qui n'avait rien à
+       voir avec lui : un commentaire ajouté à la palette d'Ibiza a
+       poussé `nuits:` au-delà du neuf-millième caractère. Un test qui
+       casse quand on documente le code au-dessus de ce qu'il regarde
+       ne mesure pas ce qu'il croit mesurer. */
+    function palette(nom, apres){
+      var d = html.indexOf("var " + nom);
+      var f = html.indexOf("var " + apres, d + 1);
+      return d < 0 ? "" : html.slice(d, f > d ? f : d + 40000);
+    }
     ok("son biome a bien sa palette de terrain et sa palette de matières",
-       /nuits:\s*\{/.test(html.slice(html.indexOf("var BIOMES"), html.indexOf("var BIOMES") + 9000)) &&
-       /nuits:\s*\{/.test(html.slice(html.indexOf("var MATIERES"), html.indexOf("var MATIERES") + 9000)));
+       /nuits:\s*\{/.test(palette("BIOMES", "MATIERES")) &&
+       /nuits:\s*\{/.test(palette("MATIERES", "BIOMES")));
     ok("… et ses quatre décors sont branchés dans dessineDecor",
        /jardinNuits/.test(html) && /lanternesNuits/.test(html) &&
        /fontaineNuits/.test(html) && /tapisNuits/.test(html));
