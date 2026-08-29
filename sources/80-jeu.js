@@ -1068,6 +1068,17 @@ function toucheUnite(u, degats, opt){
       jeu.secousse = Math.min(8, jeu.secousse + 3.0);
       if(son.tankDetruit) son.tankDetruit();
     }
+    /* LE PYR-120 LAISSE UNE ÉPAVE, ET PLUS LONGTEMPS QUE LE CHAR.
+       C'est la troupe qu'on envoie devant pour qu'elle encaisse :
+       l'endroit où elle a fini est une information — c'est là que la
+       colonne s'est heurtée à quelque chose. Et il transporte deux
+       fûts de naphte, donc il part plus fort. */
+    if(u.t === "pyr"){
+      jeu.effets.push({ t:"epavePyr", gx:u.gx, gy:u.gy, age:0, duree:8.0,
+                        ang:u.angBase || 0, angT:u.angTour || 0, n:u.n });
+      jeu.secousse = Math.min(9, jeu.secousse + 4.0);
+      if(son.pyrDetruit) son.pyrDetruit();
+    }
     /* Un Ogre abattu d'une seule balle, ça doit se VOIR : sans marque
        propre, le joueur voit sa plus grosse unité disparaître d'une
        image à l'autre sans comprendre ce qui l'a touchée. */
@@ -1756,6 +1767,10 @@ function majUnites(dt){
        la branche qui l'a produit — la marche ordinaire, la balise, la
        poussée d'un sanglier. */
     if(f.tourelle) majTank(u, dt);
+    /* Le lance-flammes a son propre état — la montée et la retombée
+       de la flamme, et le souffle. Posé APRÈS majTank : il lit le cap
+       de l'arme que celui-ci vient de lisser. */
+    if(f.flamme && typeof majPyr === "function") majPyr(u, dt);
 
     /* --- SOUS BROUILLARD : postée, muette ---------------------------
        Tant que l'unité est dans la fumée, elle est cachée. Elle
@@ -2041,6 +2056,24 @@ function tireUnite(u, but, c){
     u.recul = 1; u.flash = 1;
     jeu.secousse = Math.min(6, jeu.secousse + 0.9);
     if(son.canonTank) son.canonTank();
+    return;
+  }
+  if(u.t === "pyr"){
+    /* LE LANCE-FLAMMES N'EST PAS UN TIR, C'EST UN ROBINET.
+
+       Il n'y a donc ni projectile, ni départ de coup, ni recul : les
+       dégâts s'appliquent tout de suite, et la seule chose qu'on
+       laisse derrière soi est un compte à rebours. Tant que ce
+       compteur n'est pas retombé à zéro, 63-pyr.js dessine le jet ;
+       comme la cadence est de 120 ms et que le compteur vaut 0,22 s,
+       il ne retombe jamais à zéro tant que l'engin tire — la flamme
+       est donc CONTINUE, sans un trou entre deux coups, et elle
+       s'éteint deux dixièmes après le dernier.
+
+       Aucune secousse de caméra non plus : un jet de naphte ne
+       recule pas, et la secousse est le langage des gros canons. */
+    appliqueDegatsCible(c, f.degats, but);
+    u.feuT = 0.22;
     return;
   }
   if(u.t === "furie"){

@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.99";
+var VERSION = "v1.00";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -784,7 +784,60 @@ var UNI = {
   tank:{ nom:"TX-90", role:"blindé lourd à canon", pv:1300, portee:5.5, arret:5.2,
          degats:480, cadence:4000, vitesse:1.30, rayon:1.22, places:2,
          tourelle:1, vitesseObus:16, ech:2, intercepteur:2,
-         vuln:{ bete:0, precision:3.2, mortier:2 } }
+         vuln:{ bete:0, precision:3.2, mortier:2 } },
+  /* ------------------------------------------------------------
+     LE PYR-120 — L'EXACT CONTRAIRE DU TX-90, ET C'EST VOULU
+
+     « Très grosse santé, faibles dégâts. Il doit être impressionnant
+     parce qu'il refuse de mourir, pas parce qu'il détruit tout. »
+
+     Les nombres disent cette phrase, et ils la disent seuls :
+
+       LA VIE : 4200 contre 1300, soit trois fois le char. Et sa
+       vulnérabilité aux armes de précision tombe de 3,2 à 1,9 : face
+       à un Frelon, il encaisse cinq fois et demie ce qu'encaisse un
+       TX-90. C'est là que tout son intérêt se trouve.
+
+       LES DÉGÂTS : 7 toutes les 120 ms, soit 58 par seconde — MOINS
+       DE LA MOITIÉ des 120 du char. Il lui faut douze secondes pour
+       venir à bout d'un Crible et quatorze pour un Frelon. Un joueur
+       qui le regarde brûler une défense comprend immédiatement que ça
+       va prendre du temps, et c'est exactement ce qu'on veut lui
+       faire comprendre.
+
+       LA PORTÉE : 2,0, et il s'arrête à 1,6. Le char tire à 5,5 ; le
+       PYR-120 doit ALLER AU CONTACT, sous le feu, et c'est ce trajet
+       qui est son vrai rôle — encaisser pendant que les autres
+       travaillent derrière lui.
+
+       LA VITESSE : 1,00 contre 1,30. Il arrive lentement, et il
+       arrive quand même.
+
+       ET CE 1,00 N'EST PAS UN CHIFFRE ROND CHOISI AU HASARD — c'est
+       un PLANCHER, et le banc l'a trouvé avant nous. Il était à 0,82
+       au premier jet, ce qui était plus beau à lire ; sauf que le jeu
+       garantit depuis les ténèbres que l'avertissement d'une tornade
+       laisse à la troupe LA PLUS LENTE le temps de sortir du couloir
+       mortel. Deux cases et demie à franchir, 2,6 secondes de préavis :
+       en dessous de 0,97 case par seconde, la garantie tombe — et
+       elle tombe pour la seule troupe qu'on ne peut pas remplacer,
+       puisqu'il n'y en a qu'une par barge. Un blindé qui ne peut
+       PAS esquiver n'est pas lourd, il est piégé, et ce n'est pas la
+       même chose.
+       Si l'on veut un jour le ralentir encore, c'est TORNADE_DESCENTE
+       qu'il faudra rallonger, pas cette ligne.
+
+     `flamme` remplace `vitesseObus` : son arme n'est pas un
+     projectile mais un jet continu, voir tireUnite et 63-pyr.js.
+     Il garde `tourelle` — c'est ce champ, et non son type, qui lui
+     donne la caisse et l'arme à deux caps distincts, l'orientation
+     progressive, et le refus de tirer avant d'être aligné.
+     Et UNE SEULE place par barge : `places:1`.
+     ------------------------------------------------------------ */
+  pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.0, arret:1.6,
+        degats:7, cadence:120, vitesse:1.00, rayon:1.62, places:1,
+        tourelle:1, flamme:1, ech:2.6,
+        vuln:{ bete:0, precision:1.9, mortier:1.4 } }
 };
 /* ================================================================
    LE DOC — la quatrième troupe, et la première qui ne tire pas.
@@ -814,7 +867,7 @@ var UNI = {
    (voir 85-reseau.js). Un type qu'on intercale renomme toutes les
    troupes des joueurs déjà connectés : on ajoute À LA FIN, jamais
    ailleurs. */
-var TYPES_TROUPE = ["furie", "commando", "ogre", "doc", "tank"];
+var TYPES_TROUPE = ["furie", "commando", "ogre", "doc", "tank", "pyr"];
 
 var CRE = {
   braisard:{ nom:"Braisard",           pv:210, detection:8.5, portee:2.5, degats:13, cadence:230,  vitesse:1.15, rayon:0.40 },

@@ -962,6 +962,58 @@ function dessineEffet(c, e, tps){
               (4 + pf * 13) * z, (1 - pf) * 0.44 * (1 - t * 0.7), "#2e2b28");
     }
     c.restore();
+  }else if(e.t === "epavePyr"){
+    /* ---- L'ÉPAVE D'UN PYR-120 ----
+       Même grammaire que celle du char, et volontairement : trois
+       temps, la déflagration, la carcasse, la colonne. Deux choses
+       diffèrent, et ce sont les deux fûts de naphte qu'il porte :
+       la boule est plus large et plus longue, et le sol garde une
+       flaque qui brûle pendant que la fumée monte. */
+    c.save();
+    if(t < 0.13){
+      var tp = t / 0.13;
+      c.globalCompositeOperation = "lighter";
+      var rp = (14 + tp * 52) * z;
+      var gp = c.createRadialGradient(p.x, p.y - 16 * z, 0, p.x, p.y - 16 * z, rp);
+      gp.addColorStop(0, "rgba(255,252,224," + (0.95 * (1 - tp)) + ")");
+      gp.addColorStop(0.3, "rgba(255,176,54," + (0.74 * (1 - tp)) + ")");
+      gp.addColorStop(0.7, "rgba(206,62,20," + (0.44 * (1 - tp)) + ")");
+      gp.addColorStop(1, "rgba(84,18,8,0)");
+      c.fillStyle = gp;
+      c.beginPath(); c.arc(p.x, p.y - 16 * z, rp, 0, 6.2832); c.fill();
+      c.globalCompositeOperation = "source-over";
+    }
+    /* la flaque de naphte : elle brûle la moitié du temps de l'épave */
+    if(t > 0.06 && t < 0.62){
+      var tf = (t - 0.06) / 0.56;
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      var rf = (26 + Math.sin(e.age * 6 + e.n) * 3) * z;
+      var gf = c.createRadialGradient(p.x, p.y + 2 * z, 0, p.x, p.y + 2 * z, rf);
+      gf.addColorStop(0, "rgba(255,206,130," + (0.34 * (1 - tf)) + ")");
+      gf.addColorStop(0.45, "rgba(240,110,32," + (0.20 * (1 - tf)) + ")");
+      gf.addColorStop(1, "rgba(150,40,10,0)");
+      c.fillStyle = gf;
+      c.beginPath(); c.ellipse(p.x, p.y + 2 * z, rf, rf * 0.5, 0, 0, 6.2832); c.fill();
+      c.restore();
+    }
+    if(t > 0.05 && typeof charPYR === "function"){
+      c.save();
+      c.globalAlpha = Math.min(1, (t - 0.05) * 12) * Math.min(1, (1 - t) * 6);
+      c.translate(p.x, p.y);
+      c.scale(z, z);
+      /* la suie par la PALETTE, jamais par un voile de composition :
+         voir le commentaire de l'épave du char, juste au-dessus. */
+      charPYR(c, e.ang, e.angT + 0.6, 0, 1, 1, 1, 0, e.age);
+      c.restore();
+    }
+    for(var fp = 0; fp < 5; fp++){
+      var pq = (t * 1.35 + fp * 0.2) % 1;
+      if(t * 1.35 + fp * 0.2 < 0.1) continue;
+      bouffee(c, p.x + Math.sin(pq * 3 + fp) * 8 * z, p.y - (14 + pq * 54) * z,
+              (5 + pq * 16) * z, (1 - pq) * 0.46 * (1 - t * 0.7), "#2b2926");
+    }
+    c.restore();
   }else if(e.t === "frappe"){
     c.save();
     c.globalAlpha = 1 - t;
@@ -2856,6 +2908,14 @@ function rendu(tps, dt){
       case 16: dessineVoeuMonde(ctx, it.o, tps); break;
     }
   }
+  /* LES JETS DES PYR-120, après la pile et avant la Nova. Une flamme
+     qui lèche une tourelle doit passer DEVANT elle : dessinée dans la
+     pile, elle se serait retrouvée derrière le bâtiment dès que
+     celui-ci est plus proche de la caméra que le véhicule — c'est-à-
+     dire une fois sur deux. Le repère est celui de l'écran, comme
+     pour la pile ; dessineJetPYR projette lui-même ses points. */
+  if(typeof dessineFlammesPYR === "function") dessineFlammesPYR(ctx, tps);
+
   /* LA NOVA, APRÈS TOUT LE RESTE — voir le long commentaire au moment
      où on la retire de la pile. Le missile d'abord, l'explosion
      ensuite : dans cet ordre, la boule de feu recouvre la fin de la

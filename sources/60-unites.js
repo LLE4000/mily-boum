@@ -962,6 +962,10 @@ function dessineUnite(c, type, phase, variante, tir){
      par ici : il a besoin de ses deux angles, et dessineUniteMonde le
      confie directement à dessineTankMonde. */
   if(type === "tank" && typeof dessineTank === "function"){ dessineTank(c, phase, variante, tir); return; }
+  /* Le PYR-120 suit exactement le même chemin que le char, et pour la
+     même raison : pose fixe pour les dessins figés, sortie propre pour
+     le véhicule vivant qui a besoin de ses deux caps. */
+  if(type === "pyr" && typeof dessinePyr === "function"){ dessinePyr(c, phase, variante, tir); return; }
   if(type === "commando") dessineCommando(c, phase, variante, tir);
   else dessineFurie(c, phase, variante, tir);
 }
@@ -1046,6 +1050,12 @@ function dessineUniteMonde(c, u, tps){
      décorations communes (brûlure, ralenti, barre de vie). */
   if(u.t === "tank" && typeof dessineTankMonde === "function"){
     dessineTankMonde(c, u, tps);
+  }else if(u.t === "pyr" && typeof dessinePyrMonde === "function"){
+    /* Même raison que le char : une caisse et une arme qui pointent
+       chacune où elles veulent ne se retournent pas au miroir. Le JET,
+       lui, n'est pas dessiné ici — il passe après toute la pile, pour
+       lécher le bâtiment par-devant. Voir dessineFlammesPYR. */
+    dessinePyrMonde(c, u, tps);
   }else{
   c.save();
   /* Postée sous Brouillard : on l'estompe. Le joueur doit deviner où

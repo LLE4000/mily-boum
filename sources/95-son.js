@@ -176,6 +176,27 @@ var son = {
     this.bip("sine", 96, 34, 0.34, 0.12);
     this.souffle(1200, 240, 0.26, 0.09);
   },
+  /* LE LANCE-FLAMMES DU PYR-120. Un canon claque ; un lance-flammes
+     SOUFFLE — c'est du bruit blanc filtré, pas une note. Deux
+     souffles qui se recouvrent : un grave long qui porte la masse
+     d'air, un plus aigu et plus court qui donne le crépitement du
+     naphte qui s'enflamme. Aucune fréquence tenue : la moindre
+     hauteur reconnaissable transformerait le souffle en sirène, et
+     il se répète toutes les quatre dixièmes de seconde. */
+  lanceFlamme:function(){
+    this.souffle(700, 190, 0.46, 0.15);
+    this.souffle(2600, 900, 0.20, 0.10);
+    this.bip("sawtooth", 68, 52, 0.20, 0.16);
+  },
+  /* Le PYR-120 qui part : il transporte deux fûts de naphte, donc
+     c'est plus grave et plus long que le char, avec la déchirure de
+     tôle par-dessus. */
+  pyrDetruit:function(){
+    this.bip("sawtooth", 150, 26, 0.44, 0.62);
+    this.bip("sine", 62, 21, 0.50, 0.80);
+    this.souffle(900, 120, 0.52, 0.55);
+    this.souffle(3000, 700, 0.22, 0.24);
+  },
   /* L'INTERCEPTION. Deux temps très courts et très hauts : le départ
      de la charge, puis la roquette qui casse. Aigu, sec, et bref —
      c'est une bonne nouvelle qui doit s'entendre au milieu du

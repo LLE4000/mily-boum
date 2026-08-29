@@ -2101,9 +2101,18 @@ G("4. Déterminisme de la génération de carte");
       ok("le char est la SEULE troupe qui échappe au miroir de profil",
          /u\.t === "tank" && typeof dessineTankMonde === "function"/.test(html) &&
          /function dessineTankMonde\(/.test(html));
-      ok("il porte le drapeau tourelle, et il est seul",
-         K.tourelle === 1 &&
-         Object.keys(N.UNI).filter(function(t){ return N.UNI[t].tourelle; }).length === 1);
+      /* LE DRAPEAU `tourelle` DÉSIGNE UN VÉHICULE, PAS LE TX-90.
+         Il valait « et il est seul » tant que le char était le seul
+         engin du jeu ; le PYR-120 le porte aussi, et c'est ce qui lui
+         donne les deux caps, l'orientation progressive et le refus de
+         tirer de travers. Ce qu'on garde, c'est la clause qui compte :
+         les véhicules l'ont, AUCUNE troupe à pied ne l'a. Le jour où
+         une Furie le porterait, elle hériterait d'une tourelle qu'elle
+         n'a pas et cesserait de se retourner au miroir. */
+      ok("le drapeau tourelle est celui des véhicules, et d'eux seuls",
+         K.tourelle === 1 && N.UNI.pyr.tourelle === 1 &&
+         !N.UNI.furie.tourelle && !N.UNI.commando.tourelle &&
+         !N.UNI.ogre.tourelle && !N.UNI.doc.tourelle);
       ok("il ne tire pas tant que sa tourelle n'est pas alignée",
          (html.match(/f\.tourelle && !tankAligne\(u\)/g) || []).length === 2,
          "les deux branches de tir, la balise et la chasse");
