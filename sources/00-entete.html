@@ -1022,13 +1022,13 @@ select.champ{cursor:pointer}
 .vusL .vr{color:#7fb2ff}
 #vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
 
-#classP,#voixP{
+#classP,#voixP,#badgesP,#edBadgeP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
   align-items:center;justify-content:center;padding:16px;
   overscroll-behavior:contain;
 }
-#classP.on,#voixP.on{display:flex}
+#classP.on,#voixP.on,#badgesP.on,#edBadgeP.on{display:flex}
 /* Le sélecteur de voix emprunte l'ossature du classement — même boîte,
    même haut, même façon de s'ouvrir. Il n'ajoute que la ligne-bouton :
    deux étages de texte, le nom puis la langue, et une marque sur celle
@@ -1066,6 +1066,61 @@ select.champ{cursor:pointer}
   padding:10px 14px 0;font-size:12px;line-height:1.5;color:var(--gris);
 }
 .clCorps{padding:10px 14px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
+
+/* ---- L'ÉDITEUR DE BADGE ----
+   Volontairement austère : c'est un outil d'administration, pas une
+   page à regarder. L'aperçu, lui, est en haut et en grand — on règle
+   un dessin, il faut le voir pendant qu'on le règle. */
+.edLn{display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap}
+.edLn label{width:190px;flex:0 0 auto;font-size:12px;color:var(--gris);letter-spacing:.4px}
+.edLn input,.edLn select{
+  background:rgba(0,0,0,.32);color:var(--texte);border:1px solid rgba(255,255,255,.16);
+  border-radius:8px;padding:7px 9px;font-size:14px;font-family:inherit;
+}
+.edLn input[type=number]{width:74px;font-variant-numeric:tabular-nums}
+.edLn input[list]{flex:1;min-width:150px}
+.edLn select{flex:1;min-width:150px}
+.edApercu{
+  display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  margin:14px 0 4px;padding:14px 0;border-top:1px solid rgba(255,255,255,.10);
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+.edApercu>div:first-child{line-height:0}
+.edTitre{font-size:15px;font-weight:700}
+.edDetail{font-size:12px;color:var(--gris);line-height:1.45}
+.edP16{margin-top:9px;display:flex;align-items:center;gap:10px}
+.edP16 span:first-child{line-height:0}
+#badgesCorps h4,.edH{
+  margin:20px 0 10px;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;
+  color:var(--or);font-weight:700;border-top:1px solid rgba(255,255,255,.10);padding-top:14px;
+}
+.edBoutons{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 8px}
+@media(max-width:560px){.edLn label{width:100%}}
+
+
+/* ---- LA PAGE DES BADGES ----
+   Quatre sections, chacune une grille de cases. Le badge est montré
+   GRAND — on vient ici pour comprendre le dessin —, et une seconde
+   fois à seize pixels juste dessous : c'est la taille qu'il aura
+   partout ailleurs, et c'est celle-là qu'il faut savoir reconnaître.
+   Le bouton d'appel, lui, se range sous le classement. */
+#btBadges{margin-top:8px;width:100%;justify-content:center}
+#badgesCorps h4{
+  margin:20px 0 4px;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;
+  color:var(--or);font-weight:700;border-top:1px solid rgba(255,255,255,.10);padding-top:14px;
+}
+#badgesCorps h4:first-child{margin-top:2px;border-top:0;padding-top:0}
+#badgesCorps .bgN{color:var(--gris);font-size:12.5px;line-height:1.45;margin-bottom:10px;max-width:62ch}
+.bgGrille{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
+.bgCase{
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);
+  border-radius:12px;padding:14px 8px 11px;text-align:center;
+}
+.bgCase .gr{line-height:0}
+.bgCase .nm{font-size:12.5px;font-weight:700;margin-top:9px}
+.bgCase .cd{font-size:10.5px;color:var(--gris);margin-top:2px;line-height:1.3}
+/* le même badge à sa vraie taille : c'est celui-là qu'on croisera */
+.bgCase .p16{margin-top:8px;line-height:0;opacity:.95}
 
 #adminP{
   position:fixed;inset:0;z-index:34;display:none;
@@ -1479,6 +1534,12 @@ select.champ{cursor:pointer}
         <span id="carriereCompte"></span>
         <button id="btCarriere" class="bt ptt">Voir tout ↗</button>
       </div>
+      <!-- LE BOUTON DES BADGES, SOUS LE CLASSEMENT.
+           C'est là qu'on vient de voir cinq petits insignes sans savoir
+           ce qu'ils veulent dire : la question se pose ICI, la réponse
+           doit être à portée de doigt. Petit, en retrait — on ne
+           l'ouvre qu'une fois. -->
+      <button id="btBadges" class="bt ptt" title="Ce que veut dire chaque badge">🎖 Les badges</button>
     </div>
     </aside>
 
@@ -1638,6 +1699,19 @@ select.champ{cursor:pointer}
         <button id="btAdminCarrieres" class="bt">🧮 Reconstruire les carrières</button>
       </div>
 
+      <h3>Badges</h3>
+      <div class="admNote">Le badge se CALCULE à partir de ce que le jeu a
+        compté : les podiums gelés de chaque île, et les campagnes gagnées.
+        Ce qui se règle ici s'ajoute à ce compte, ou le remplace.<br><br>
+        <b>Pour rendre des titres perdus, utilise le BONUS, jamais le niveau
+        forcé.</b> Avec un bonus de 3, le joueur retrouve ses trois rubis
+        <i>et il continue de progresser</i> : deux campagnes de plus et il
+        décroche la Couronne tout seul. Avec un niveau forcé, il reste figé
+        pour toujours, et il faudra le corriger à la main à chaque palier.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminBadges" class="bt">🎖 Éditer un badge</button>
+      </div>
+
       <h3>Passages</h3>
       <div class="admNote">Qui est venu, et quand. Un appareil note ses
         propres passages et les publie ; cette page les rassemble.
@@ -1694,6 +1768,84 @@ select.champ{cursor:pointer}
     <div class="clSous">Tous les dégâts, toutes les îles confondues, depuis
       le début du salon. Un joueur parti garde sa place.</div>
     <div class="clCorps"><div id="classListe"></div></div>
+  </div>
+</div>
+
+<!-- ==================== LES BADGES ====================
+     Sœur de #classP : même ossature, même façon de s'ouvrir.
+
+     ELLE NE CONTIENT AUCUN NOM ET AUCUN SEUIL. Tout ce qui s'affiche
+     ici sort de MilyBadges.legende() — les paliers, leurs conditions,
+     et un joueur d'exemple pour chacun. Le badge montré est donc
+     EXACTEMENT celui que le jeu produira. Recopier « 5 victoires »
+     dans cette page aurait suffi à la faire mentir au premier
+     réglage. -->
+<div id="badgesP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">🎖 Les badges</div>
+      <button id="btBadgesFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">Un seul badge par joueur, et tout le monde en a un dès
+      sa première attaque. Trois zones, trois questions : le disque dit où tu
+      en es sur les huit îles, les pointes ce que tu vaux sur les deux cartes
+      spéciales, le rouge si tu as gagné une campagne.</div>
+    <div class="clCorps"><div id="badgesCorps"></div></div>
+  </div>
+</div>
+
+<!-- ============ L'ÉDITEUR DE BADGE, CÔTÉ ADMINISTRATION ============
+     Sœur des autres pages, et volontairement AUSTÈRE : sept champs de
+     bonus, trois listes de niveau forcé, une liste hors échelle, une
+     remise à zéro. L'aperçu est en haut, en grand et à seize pixels,
+     et il suit la frappe — sans quoi on réglerait à l'aveugle. -->
+<div id="edBadgeP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">🎖 Éditer un badge</div>
+      <button id="btEdBadgeFerme" class="bt ptt">↩ Retour</button>
+    </div>
+    <div class="clSous">Le bonus s'AJOUTE à ce que le jeu a compté ; le niveau
+      forcé remplace le compte et fige le joueur. Pour rendre des titres perdus,
+      c'est le bonus qu'il faut.</div>
+    <div class="clCorps">
+      <div class="edLn">
+        <label for="edBadgeQui">Joueur</label>
+        <input id="edBadgeQui" list="edBadgeNoms" placeholder="pseudo" autocomplete="off">
+        <datalist id="edBadgeNoms"></datalist>
+      </div>
+      <div class="edApercu">
+        <div id="edBadgeGros"></div>
+        <div>
+          <div class="edTitre" id="edBadgeTitre"></div>
+          <div class="edDetail" id="edBadgeDetail"></div>
+          <div class="edP16"><span id="edBadge16"></span><span class="edDetail">16 px, la taille du jeu</span></div>
+        </div>
+      </div>
+
+      <h4 class="edH">Bonus — il s'ajoute au compte du jeu</h4>
+      <div class="edLn"><label>Îles : 1er / 2e / 3e</label>
+        <input id="edBio" type="number" value="0"><input id="edBia" type="number" value="0"><input id="edBib" type="number" value="0"></div>
+      <div class="edLn"><label>Spéciales : 1er / 2e / 3e</label>
+        <input id="edBso" type="number" value="0"><input id="edBsa" type="number" value="0"><input id="edBsb" type="number" value="0"></div>
+      <div class="edLn"><label>Titres carrière</label>
+        <input id="edBca" type="number" value="0">
+        <span class="edDetail">l'outil pour rendre des titres perdus</span></div>
+
+      <h4 class="edH">Niveau forcé — il remplace le compte, et fige</h4>
+      <div class="edLn"><label>Disque</label><select id="edFdisque"></select></div>
+      <div class="edLn"><label>Pointes</label><select id="edFpointes"></select></div>
+      <div class="edLn"><label>Rouge</label><select id="edFrouge"></select></div>
+
+      <h4 class="edH">Hors échelle</h4>
+      <div class="edLn"><label>Badge d'honneur</label><select id="edSpecial"></select></div>
+
+      <div class="edBoutons">
+        <button id="btEdBadgeAppl" class="bt">✔ Appliquer</button>
+        <button id="btEdBadgeRaz" class="bt danger">↺ Tout remettre à zéro</button>
+      </div>
+      <div class="edDetail" id="edBadgeEtat"></div>
+    </div>
   </div>
 </div>
 

@@ -3003,8 +3003,29 @@ function rendu(tps, dt){
     mx /= j2.unites.length; my /= j2.unites.length;
     if(!visible(vueL, mx, my)) continue;
     var pe = versEcran(cam, mx, my);
-    texteCerne(ctx, j2.nom + " · " + j2.n, pe.x, pe.y - 62 * cam.z,
-               Math.max(10, 12 * cam.z), "#c9c2ce");
+    var etq = j2.nom + " · " + j2.n;
+    var yE = pe.y - 62 * cam.z, tE = Math.max(10, 12 * cam.z);
+    texteCerne(ctx, etq, pe.x, yE, tE, "#c9c2ce");
+    /* LE BADGE À CÔTÉ DU NOM, ET JAMAIS RECONSTRUIT ICI.
+       drawOnCanvas ne dessine qu'une image déjà en cache — le SVG est
+       devenu image une seule fois, au préchargement. Reconstruire un
+       SVG dans la boucle de rendu, à soixante images par seconde et
+       par joueur présent, serait exactement ce que la notice interdit.
+
+       SEIZE PIXELS, FIXES, ET SURTOUT PAS À L'ÉCHELLE DE LA CAMÉRA.
+       Le cache est rangé sur « clé du badge @ taille » : une taille qui
+       suivrait le zoom en demanderait une nouvelle à chaque fraction de
+       pixel, donc une image neuve à chaque image — exactement la
+       faute qu'on croyait éviter, et en pire, puisqu'elle passerait
+       inaperçue tant qu'on ne touche pas au zoom. Le badge garde donc
+       la taille qu'il a partout ailleurs dans le jeu. */
+    if(typeof MilyBadges !== "undefined"){
+      ctx.save();
+      ctx.font = tE + "px system-ui, sans-serif";
+      var demi = ctx.measureText(etq).width / 2;
+      ctx.restore();
+      MilyBadges.drawOnCanvas(ctx, joueurBadge(j2.nom), pe.x + demi + 3, yE, BADGE_CARTE);
+    }
   }
 
   /* L'ORAGE, par-dessus la carte : la pluie et les éclairs sont dans

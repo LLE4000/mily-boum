@@ -83,6 +83,11 @@ function nouvelleCarte(index, pvConnu){
      l'île précédente, reviennent avec la nouvelle */
   var hud = document.getElementById("hud");
   if(hud) hud.classList.remove("fin");
+  /* LES BADGES DEVIENNENT DES IMAGES ICI, UNE FOIS. La plaque de nom
+     d'un joueur les dessine à chaque image ; sans ce passage, les
+     premières secondes de sa présence se joueraient sans badge, le
+     temps que le navigateur charge une image de trente-deux pixels. */
+  if(typeof prechargeBadges === "function") prechargeBadges();
   /* La carte suit le plan du salon et son tirage courant : c'est ce
      couple, diffusé dans l'instantané retenu, qui garantit que tout le
      monde voit exactement les mêmes défenses. */

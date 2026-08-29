@@ -209,10 +209,14 @@ function dessineFilChat(){
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
          : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
            + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
-           + '>' + echappe(m.nom) + '</b> ' + echappe(m.txt)
+           + '>' + echappe(m.nom) + '</b>' + balliseBadge(m.nom) + ' ' + echappe(m.txt)
            + '<i class="cep" data-ep="' + i + '" title="Épingler ce message">📌</i></div>';
     }
     e.innerHTML = h;
+    /* Le badge suit le pseudo jusque dans le fil : c'est le même
+       joueur, et il n'y a aucune raison qu'il change d'identité en
+       changeant de panneau. */
+    poseBadges(e);
   }
   majEpingles();
   /* toujours collé au dernier message : un chat qu'il faut faire

@@ -35,6 +35,8 @@ function demarre(){
   installeListeEnLigne();
   installeQuiSalon();
   installeClassement();
+  installePageBadges();
+  installeEditeurBadges();
   installeVus();
   installeVoixP();
   rafraichitPlan();

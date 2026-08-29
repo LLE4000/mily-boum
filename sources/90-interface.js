@@ -886,7 +886,8 @@ function majPodium(){
   for(var i = 0; i < Math.min(3, l.length); i++){
     h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
        + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "") + '</span>'
+       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "")
+       + balliseBadge(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
   /* ================================================================
@@ -961,7 +962,11 @@ function majPodium(){
       h += '</div>';
     }
   }
-  if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; }
+  /* On compare la CHAÎNE bâtie, pas ce qu'il y a dans la page : les
+     badges y sont posés après coup, donc la page ne ressemble plus au
+     texte qui l'a produite. C'est la chaîne qui dit si quelque chose a
+     changé. */
+  if(h !== podiumHtml){ podiumHtml = h; $("podiumL").innerHTML = h; poseBadges($("podiumL")); }
 }
 /* Une ligne de la liste des présents. Le nombre d'unités dit qui se
    bat vraiment : zéro, c'est quelqu'un qui regarde le menu ou qui vient
@@ -998,7 +1003,8 @@ function nomsEnLigne(max){
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'
-       + '<span class="n">' + echappe(nom || "?") + (moi ? " (toi)" : "") + '</span>'
+       + '<span class="n">' + echappe(nom || "?") + (moi ? " (toi)" : "")
+       + balliseBadge(nom) + '</span>'
        + '<span class="u">' + (n > 0 ? n + " unité" + (n > 1 ? "s" : "") : "au menu") + '</span>'
        + '</div>';
 }
@@ -1530,7 +1536,7 @@ function blocTop3(i){
   var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
   for(var k = 0; k < liste.length && k < 3; k++){
     h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
-       + '<span class="n">' + echappe(liste[k].nom) + '</span>'
+       + '<span class="n">' + echappe(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
        + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
   }
   var ph = phraseTop3(i);
@@ -1540,12 +1546,24 @@ function blocTop3(i){
 /* Le podium de l'île EN COURS bouge sans arrêt. On le réécrit en place
    plutôt que de reconstruire tout le menu, qui relancerait toutes les
    animations à chaque seconde. */
+var top3Bati = {};
 function majTop3Vivant(){
   if(enJeu) return;
   var e = document.querySelector('.top3[data-t3="' + carteSalon + '"]');
   if(!e || carteSpeciale(carteSalon)) return;
   var neuf = blocTop3(carteSalon);
-  if(neuf && e.outerHTML !== neuf) e.outerHTML = neuf;
+  /* ON COMPARE À CE QU'ON A BÂTI, PLUS À CE QUI EST DANS LA PAGE.
+     Les badges sont posés APRÈS coup dans les balises vides : le
+     outerHTML de la page ne ressemble donc plus jamais à la chaîne qui
+     l'a produite, et la comparaison d'origine aurait trouvé une
+     différence à chaque seconde — donc réécrit le bloc à chaque
+     seconde, et redessiné trois badges pour rien. */
+  if(neuf && top3Bati[carteSalon] !== neuf){
+    top3Bati[carteSalon] = neuf;
+    e.outerHTML = neuf;
+    var e2 = document.querySelector('.top3[data-t3="' + carteSalon + '"]');
+    poseBadges(e2);
+  }
 }
 
 /* Combien de joueurs le salon entend en ce moment, moi compris. */
@@ -1802,6 +1820,12 @@ function majMondes(){
   for(i = 0; i < CARTES.length; i++)
     if(carteSpeciale(i)) h += vignetteEvenement(i);
   $("mondes").innerHTML = h;
+  /* Les vignettes viennent d'être refaites : les badges de leurs
+     podiums avec, et la mémoire du podium vivant repart à vide —
+     sinon majTop3Vivant croirait n'avoir rien à réécrire dans un bloc
+     qui, lui, a été remplacé. */
+  top3Bati = {};
+  poseBadges($("mondes"));
   /* LA FORTERESSE DES VIGNETTES EST CELLE DU BRASIER, TOUJOURS.
      dessineApercu peint la silhouette du QG dans chaque vignette
      d'île, et il peint le sprite QUI SE TROUVE EN MÉMOIRE. Depuis
@@ -2194,7 +2218,8 @@ function ligneClassement(o, rang){
   return '<div class="clR' + (o.moi ? " moi" : "") + (o.absent ? " parti" : "")
        + (rang < 3 ? " pod" : "") + '">'
        + '<span class="rg">' + (med[rang] || (rang + 1)) + '</span>'
-       + '<span class="nm">' + echappe(o.nom) + (o.absent ? " ⏻" : "") + '</span>'
+       + '<span class="nm">' + echappe(o.nom) + (o.absent ? " ⏻" : "")
+       + balliseBadge(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
 function majCarriere(){
@@ -2204,6 +2229,7 @@ function majCarriere(){
   var h = "", i;
   for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
   e.innerHTML = h;
+  poseBadges(e);
   var c = $("carriereCompte");
   if(c) c.textContent = l.length
       ? (l.length + " joueur" + (l.length > 1 ? "s" : "") + " au classement")
@@ -2346,6 +2372,7 @@ function ouvreClassement(){
   for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
   e.innerHTML = h || '<div class="clSous" style="padding:0">'
                    + "Personne n'a encore marqué le moindre dégât.</div>";
+  poseBadges(e);
   $("classP").classList.add("on");
 }
 function fermeClassement(){ $("classP").classList.remove("on"); }

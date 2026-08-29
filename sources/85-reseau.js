@@ -467,7 +467,15 @@ function envoie(obj){
    l'usine, et son expédition en cours disparaîtrait.
    ---------------------------------------------------------------- */
 function etatEvenements(){
-  var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "" };
+  /* ON COMPTE LES PODIUMS AVANT DE LIRE. C'est le seul endroit qui
+     convienne : toute publication passe par ici, donc un podium gelé
+     entre l'image précédente et celle-ci est compté avant de partir,
+     et jamais après. Compter dans la boucle de rendu aurait fait la
+     même chose soixante fois par seconde pour rien. */
+  if(typeof compteLesPodiums === "function") compteLesPodiums();
+  var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
+                             bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
+                             bo:m.bo || "", bon:m.bon | 0 };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -633,6 +641,12 @@ function adopteMonde(m, source){
   var avant = monde;
   monde = fusionneMonde(monde, m);
   if(!memeMonde(avant, monde)) sauveMondeLocal();
+  /* L'instantané reçu peut porter des podiums qu'on n'avait pas : on
+     les compte tout de suite, sinon le badge ne monterait qu'à la
+     prochaine publication — et l'on préchauffe les images dans la
+     foulée, tant qu'on est hors de la boucle de rendu. */
+  if(typeof compteLesPodiums === "function") compteLesPodiums();
+  if(typeof prechargeBadges === "function") prechargeBadges();
 
   /* Le plan ou le tirage ont changé ailleurs : notre carte n'est plus
      la bonne. On l'adopte AVANT d'appliquer les destructions, sinon on
@@ -1263,6 +1277,18 @@ function remetSalonAZero(){
    c'est précisément là que « Derniers champions » prend son sens.
    ---------------------------------------------------------------- */
 function nouvelleCampagneSalon(){
+  /* LE TITRE CARRIÈRE SE DÉCERNE ICI, ET AVANT TOUT LE RESTE.
+     Les huit îles sont tombées : le classement des dégâts de cette
+     campagne ne bougera plus, et son premier vient de la gagner. Trois
+     lignes plus bas scoresSalon repart à vide et l'instantané publie
+     s:"" — après, il n'y aurait plus personne à couronner.
+     La clé est le numéro de la campagne QUI SE TERMINE : c'est lui qui
+     garantit qu'aucun tour du monde n'est crédité deux fois, quel que
+     soit le nombre de clients qui le voient se refermer. */
+  if(typeof crediteTitreCarriere === "function"){
+    var podium = (typeof classementSalon === "function") ? classementSalon() : [];
+    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "");
+  }
   cycleSalon = (cycleSalon | 0) + 1;
   /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de
      campagne qui dit où l'on repart. Aujourd'hui les deux valent la

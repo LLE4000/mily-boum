@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.09";
+var VERSION = "v1.10";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -6851,7 +6851,10 @@ function statsJournaux(journaux, aujourdhui){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
-            ep:"", epn:0 };
+            ep:"", epn:0,
+            /* les badges partent vides comme le reste : ils se
+               remplissent tout seuls au premier podium lu */
+            bg:"", bgn:"", bgc:0, bo:"", bon:0 };
   /* une voie neuve par carte événement, chacune avec SES défauts */
   for(var q = 0; q < VOIES_EVT.length; q++){
     var V = VOIES_EVT[q], R = reglagesEvt(V.i);
@@ -7753,8 +7756,24 @@ function fusionneVoie(a, b, P, i){
 /* TOUT l'état d'événement d'un instantané : chaque voie, plus les deux
    champs communs à toutes les cartes. */
 function fusionneEvenements(a, b){
+  /* LES BADGES VOYAGENT AVEC LES CHAMPIONS ET LES PODIUMS, et par le
+     même chemin : ils décrivent la même chose — ce que quelqu'un a
+     fait —, ils traversent les mêmes remises à zéro, et aucun client
+     n'a autorité sur les autres pour les écrire.
+
+     Trois par maximum, une par numéro. Les compteurs, les chutes déjà
+     comptées et la campagne créditée ne redescendent jamais : le
+     maximum suffit, et il est commutatif. Les réglages
+     d'administration, eux, doivent pouvoir RÉTRÉCIR quand on corrige
+     un bonus — un maximum ne sait pas redescendre —, donc ils suivent
+     le patron des épingles : un numéro tranche. */
+  var rg = meilleursReglagesBadge(a, b);
   var E = { v:{}, ch:fusionneChampions(a && a.ch, b && b.ch),
-                  t3:fusionneTop3(a && a.t3, b && b.t3) };
+                  t3:fusionneTop3(a && a.t3, b && b.t3),
+                  bg:fusionneBadges(a && a.bg, b && b.bg),
+                  bgn:fusionneChutesBadge(a && a.bgn, b && b.bgn),
+                  bgc:Math.max((a && a.bgc) | 0, (b && b.bgc) | 0),
+                  bo:rg.bo, bon:rg.bon };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     E.v[V.P] = fusionneVoie(a, b, V.P, V.i);
@@ -7768,6 +7787,8 @@ function poseEvenements(o, E){
     if(E.v[V.P]) voiePosee(o, V.P, E.v[V.P]);
   }
   o.ch = E.ch; o.t3 = E.t3;
+  o.bg = E.bg || ""; o.bgn = E.bgn || ""; o.bgc = E.bgc | 0;
+  o.bo = E.bo || ""; o.bon = E.bon | 0;
   return o;
 }
 /* Les deux noms d'origine, gardés : la jungle est UN événement, et
@@ -7869,6 +7890,13 @@ function fusionneMonde(a, b){
    plus avancée emporterait avec elle des voies périmées. */
 function memeEvenements(m, E){
   if((m.ch || "") !== E.ch || (m.t3 || "") !== (E.t3 || "")) return false;
+  /* SANS CES CINQ-LÀ, UN BADGE GAGNÉ NE PARTIRAIT JAMAIS. C'est cette
+     comparaison qui décide si l'on republie : un compteur qui monte
+     sans rendre l'instantané « sale » resterait sur l'appareil qui l'a
+     compté, et personne d'autre ne verrait le badge changer. */
+  if((m.bg || "") !== (E.bg || "") || (m.bgn || "") !== (E.bgn || "") ||
+     (m.bgc | 0) !== (E.bgc | 0) ||
+     (m.bo || "") !== (E.bo || "") || (m.bon | 0) !== (E.bon | 0)) return false;
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;
@@ -7928,4 +7956,236 @@ function mitraTouche(distance, tirage){
   if(distance <= EQ.MITRA_SEUIL_PRECISION) return true;
   return tirage < EQ.MITRA_CHANCE_LOIN;
 }
+
+/* ================================================================
+   LES COMPTEURS DU BADGE — le calcul pur
+
+   Le DESSIN du badge vit dans 89-badges.js, module fourni qu'on ne
+   touche pas. Ce qui est ici, c'est le transport : comment sept
+   nombres par pseudo se rangent dans une chaîne, se relisent, et se
+   fusionnent entre deux clients qui ne se parlent pas.
+
+   ILS SONT DANS LE NOYAU parce qu'ils sont du calcul et rien d'autre —
+   aucune page, aucun canevas, aucun réseau. C'est aussi ce qui les
+   rend vérifiables : les tests lisent ce bloc et l'exécutent seul.
+   ================================================================ */
+var BADGE_OCTETS = 3072;        // budget de la table dans l'instantané
+var BADGE_GARDES = 200;         // garde-fou dur, très au-dessus du budget
+var CHAMPS_BG = ["io", "ia", "ib", "so", "sa", "sb", "ca"];
+
+function bgVide(){ return { io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0 }; }
+
+/* ---- bg : « pseudo:7 nombres », séparés par | ---- */
+function encodeBadges(tab){
+  var l = [], poids = {}, k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e) continue;
+    var nom = nettoieNomScore(k);
+    if(!nom) continue;
+    var v = [], i, somme = 0;
+    for(i = 0; i < CHAMPS_BG.length; i++){
+      var x = Math.max(0, Math.min(9999, e[CHAMPS_BG[i]] | 0));
+      v.push(x); somme += x;
+    }
+    /* UN JOUEUR À ZÉRO N'A RIEN À DIRE. Son absence de la table VEUT
+       DIRE « Assaillant » — le premier palier, celui que tout le monde
+       a. L'écrire quand même coûterait des octets pour redire ce que
+       le silence dit déjà. */
+    if(!somme) continue;
+    l.push({ n:nom, t:somme, s:nom + ":" + v.join(":") });
+    poids[nom] = somme;
+  }
+  /* L'ORDRE EST GRAVÉ, et il suit les PSEUDOS, jamais les compteurs :
+     deux clients au même état doivent produire exactement la même
+     chaîne, sinon ils se republient l'un l'autre sans fin. */
+  l.sort(function(a, b){ return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
+  var octets = 0, i2;
+  for(i2 = 0; i2 < l.length; i2++) octets += octetsUtf8(l[i2].s) + 1;
+  if(octets > BADGE_OCTETS || l.length > BADGE_GARDES){
+    /* On coupe par le BAS du palmarès, et le départage à total égal
+       est le pseudo : deux clients doivent couper au même endroit. */
+    var ordre = l.slice().sort(function(a, b){
+      return (b.t - a.t) || (a.n < b.n ? -1 : a.n > b.n ? 1 : 0);
+    });
+    var garde = {}, budget = BADGE_OCTETS, places = BADGE_GARDES, k2;
+    for(k2 = 0; k2 < ordre.length; k2++){
+      var c2 = octetsUtf8(ordre[k2].s) + 1;
+      if(c2 > budget || places <= 0) continue;
+      garde[ordre[k2].n] = 1; budget -= c2; places--;
+    }
+    l = l.filter(function(e2){ return garde[e2.n]; });
+  }
+  return l.map(function(e3){ return e3.s; }).join("|");
+}
+function decodeBadges(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var c = p[i].split(":");
+    if(c.length < CHAMPS_BG.length + 1) continue;
+    var nom = nettoieNomScore(c[0]);
+    if(!nom) continue;
+    var e = bgVide();
+    for(var j = 0; j < CHAMPS_BG.length; j++){
+      var x = parseInt(c[j + 1], 10);
+      /* Le plafond écarte l'impossible par le haut, exactement comme
+         pour les scores : un compteur entre dans un MAXIMUM, donc ce
+         qui y entre une fois n'en ressort jamais. */
+      e[CHAMPS_BG[j]] = (x > 0 && x <= 9999) ? x : 0;
+    }
+    out[nom] = e;
+  }
+  return out;
+}
+function fusionneBadges(a, b){
+  var x = decodeBadges(a), y = decodeBadges(b), k, j;
+  for(k in y){
+    if(!x[k]){ x[k] = y[k]; continue; }
+    for(j = 0; j < CHAMPS_BG.length; j++){
+      var c = CHAMPS_BG[j];
+      if(y[k][c] > x[k][c]) x[k][c] = y[k][c];
+    }
+  }
+  return encodeBadges(x);
+}
+
+/* ---- bgn : la chute déjà comptée, par carte ---- */
+function encodeChutesBadge(t){
+  var l = [], k;
+  for(k in t){
+    var n = t[k] | 0;
+    if(!(n > 0)) continue;
+    l.push((k | 0) + ":" + n);
+  }
+  l.sort(function(a, b){ return parseInt(a, 10) - parseInt(b, 10); });
+  return l.join("|");
+}
+function decodeChutesBadge(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var m = p[i].split(":");
+    if(m.length !== 2) continue;
+    var idx = parseInt(m[0], 10), n = parseInt(m[1], 10);
+    if(!(idx >= 0) || !(n > 0)) continue;
+    if(n > (out[idx] | 0)) out[idx] = n;
+  }
+  return out;
+}
+function fusionneChutesBadge(a, b){
+  var x = decodeChutesBadge(a), y = decodeChutesBadge(b), k;
+  for(k in y) if((y[k] | 0) > (x[k] | 0)) x[k] = y[k];
+  return encodeChutesBadge(x);
+}
+
+/* ---- bo : les réglages d'administration ----
+   « pseudo:spécial:disque:pointes:rouge:7 bonus ». Les identifiants de
+   paliers ne contiennent ni « : » ni « | », le pseudo en est lavé. */
+function reglageVide(){
+  return { special:"", disque:"", pointes:"", rouge:"",
+           io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0 };
+}
+function motPalier(s){ return String(s == null ? "" : s).replace(/[^a-z]/g, "").substr(0, 12); }
+function encodeReglagesBadge(tab){
+  var l = [], k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e) continue;
+    var nom = nettoieNomScore(k);
+    if(!nom) continue;
+    var v = [], i, vif = 0;
+    for(i = 0; i < CHAMPS_BG.length; i++){
+      /* UN BONUS PEUT ÊTRE NÉGATIF, et c'est voulu : c'est ainsi qu'on
+         retire une victoire attribuée par erreur sans toucher au
+         compteur du jeu, qui appartient au jeu. */
+      var x = Math.max(-9999, Math.min(9999, e[CHAMPS_BG[i]] | 0));
+      v.push(x); if(x) vif = 1;
+    }
+    var sp = motPalier(e.special), d = motPalier(e.disque),
+        pt = motPalier(e.pointes), rg = motPalier(e.rouge);
+    if(!vif && !sp && !d && !pt && !rg) continue;   // rien à dire
+    l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":"));
+  }
+  l.sort();
+  return l.join("|");
+}
+function decodeReglagesBadge(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var c = p[i].split(":");
+    if(c.length < CHAMPS_BG.length + 5) continue;
+    var nom = nettoieNomScore(c[0]);
+    if(!nom) continue;
+    var e = reglageVide();
+    e.special = motPalier(c[1]); e.disque = motPalier(c[2]);
+    e.pointes = motPalier(c[3]); e.rouge = motPalier(c[4]);
+    for(var j = 0; j < CHAMPS_BG.length; j++){
+      var x = parseInt(c[j + 5], 10);
+      e[CHAMPS_BG[j]] = (x >= -9999 && x <= 9999) ? (x | 0) : 0;
+    }
+    out[nom] = e;
+  }
+  return out;
+}
+/* Le patron des épingles : le plus haut numéro l'emporte EN ENTIER.
+   À numéro égal, la chaîne tranche — l'ordre d'arrivée ne change rien. */
+function meilleursReglagesBadge(a, b){
+  var na = a ? (a.bon | 0) : 0, nb = b ? (b.bon | 0) : 0;
+  var va = (a && a.bo) || "", vb = (b && b.bo) || "";
+  if(nb > na) return { bo:vb, bon:nb };
+  if(na > nb) return { bo:va, bon:na };
+  return vb < va ? { bo:vb, bon:nb } : { bo:va, bon:na };
+}
+
+
+/* La version PURE du comptage : elle prend trois chaînes et en rend
+   deux, sans toucher à quoi que ce soit. Le monde partagé, lui, est
+   affaire de 89-badges.js — voir compteLesPodiums, qui n'est que
+   l'enveloppe de celle-ci.
+
+   Rendre `null` quand rien ne change n'est pas une commodité : c'est
+   ce qui empêche de republier un instantané identique, et donc deux
+   clients de se le renvoyer sans fin. */
+function compteLesPodiumsPur(bg, bgn, t3){
+  var t = decodeTop3(t3 || "");
+  var vues = decodeChutesBadge(bgn || "");
+  var tab = decodeBadges(bg || "");
+  var change = false, c;
+  for(c in t){
+    var i = c | 0, n = (t[c] && t[c].n) | 0;
+    if(!(n > (vues[i] | 0))) continue;
+    var l = (t[c] && t[c].l) || [], sp = carteSpeciale(i);
+    for(var k = 0; k < l.length && k < 3; k++){
+      var nom = nettoieNomScore(l[k].nom);
+      if(!nom) continue;
+      if(!tab[nom]) tab[nom] = bgVide();
+      /* io/ia/ib pour les îles, so/sa/sb pour les deux spéciales : le
+         RANG donne la lettre, le drapeau de la carte donne la famille.
+         C'est mot pour mot la règle de la notice. */
+      tab[nom][(sp ? "s" : "i") + ["o", "a", "b"][k]]++;
+    }
+    vues[i] = n;
+    change = true;
+  }
+  if(!change) return null;
+  return { bg:encodeBadges(tab), bgn:encodeChutesBadge(vues) };
+}
+/* Ajoute un titre carrière à un pseudo dans la table. Rendue à part
+   pour la même raison : c'est du calcul, et ça se vérifie seul. */
+function ajouteTitreCarriere(bg, nom){
+  var n = nettoieNomScore(nom);
+  if(!n) return bg || "";
+  var tab = decodeBadges(bg || "");
+  if(!tab[n]) tab[n] = bgVide();
+  tab[n].ca++;
+  return encodeBadges(tab);
+}
+
 /*==NOYAU_FIN==*/

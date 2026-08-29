@@ -38,6 +38,10 @@ try{
     "evenementEnCours","carteEvenementEnCours","fusionneEvenements","poseEvenements",
     "memeEvenements","meilleurReglage","bonusPvDeCarte","poseBonusPvEvt","poseJungle",
     "encodeChampions","decodeChampions","fusionneChampions",
+    "encodeBadges","decodeBadges","fusionneBadges","bgVide","CHAMPS_BG",
+    "encodeChutesBadge","decodeChutesBadge","fusionneChutesBadge",
+    "encodeReglagesBadge","decodeReglagesBadge","meilleursReglagesBadge","reglageVide",
+    "compteLesPodiumsPur","ajouteTitreCarriere","BADGE_OCTETS","BADGE_GARDES",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone",
     "encodePieces","decodePieces","partiePieces","partieFormes","partieQuadrillage",
@@ -8576,6 +8580,222 @@ G("35. L'interface de jeu allégée");
   ok("… et la jauge récupère toute la droite sous 800 px",
      /@media \(max-width:800px\)\{[\s\S]{0,600}left:calc\(221px \+ var\(--sal\)\);right:calc\(8px \+ var\(--sar\)\);/
        .test(html));
+})();
+
+
+/* ================================================================ */
+G("36. Le badge : les compteurs, la fusion, le dessin");
+(function(){
+
+  /* LE MODULE FOURNI EST EXÉCUTÉ TEL QUEL, extrait du fichier livré.
+     C'est la seule façon de vérifier le DESSIN sans le recopier : si
+     un palier change là-bas, ces vérifications changent avec lui ou
+     tombent — ce qui est exactement ce qu'on veut d'un test. */
+  var d0 = html.indexOf("(function (root) {\n  'use strict';");
+  var f0 = html.indexOf("})(typeof window !== 'undefined' ? window : this);");
+  var B = null;
+  if(d0 > 0 && f0 > d0){
+    var src = html.slice(d0, f0).replace(/\}\)\(typeof window[\s\S]*$/, "");
+    B = new Function("var root = {};\n" + src + "})(root);\nreturn root.MilyBadges;")();
+  }
+  ok("le module des badges s'exécute et s'expose", !!B && B.version === "3.3.0");
+  if(!B) return;
+
+  function J(i, sp, c){ return { stats:{ iles:i || {}, speciales:sp || {}, carriere:c || 0 } }; }
+
+  /* ---- LA LISTE DE CONTRÔLE DE LA NOTICE, point par point ---- */
+
+  /* « Un joueur qui n'a jamais rien gagné a quand même un badge
+     visible. » C'est la promesse la plus importante du système : le
+     badge doit donner envie de jouer, pas seulement récompenser ceux
+     qui gagnent déjà. */
+  {
+    var vierge = B.compute(J());
+    ok("un joueur qui n'a rien gagné a quand même un badge",
+       vierge.disque.id === "assaillant" && /<svg/.test(B.svg(vierge, { size:16 })));
+  }
+
+  /* « Un seul badge par pseudo, jamais deux. » Une image, une seule. */
+  {
+    var riche = B.svg(B.compute(J({ or:5 }, { or:5 }, 5)), { size:16 });
+    ok("un badge est UNE image, jamais deux",
+       (riche.match(/<svg/g) || []).length === 1);
+  }
+
+  /* « Les cinq disques ont exactement le même diamètre. » La place
+     réservée ne bouge pas, sinon les pseudos sauteraient quand
+     quelqu'un progresse. */
+  {
+    var ex = [J(), J({ bronze:1 }), J({ argent:1 }), J({ or:1 }), J({ or:5 })];
+    var w = ex.map(function(j){
+      var m = B.svg(B.compute(j), { size:16 }).match(/width="(\d+)"/);
+      return m ? m[1] : "?";
+    });
+    ok("les cinq disques occupent la même place",
+       w.every(function(x){ return x === "16"; }), w.join(","));
+    /* et le dernier palier change bien de FORME, pas de teinte */
+    ok("… mais le dernier cesse d'être rond",
+       B.compute(ex[4]).disque.facettes === 12 &&
+       B.compute(ex[3]).disque.facettes === 0);
+  }
+
+  /* « Passer d'un top 3 à un top 2 change visiblement le badge. » */
+  ok("un top 3 et un top 2 ne donnent pas le même badge",
+     B.svg(B.compute(J({ bronze:1 })), { size:16 }) !==
+     B.svg(B.compute(J({ argent:1 })), { size:16 }));
+
+  /* « Titres 0 + bonus 3 donne trois rubis ; passer les titres à 2
+     donne la Couronne. » C'est LE cas de la notice — celui qui dit la
+     différence entre le bonus et le niveau forcé. */
+  {
+    var bon = { overrides:{ bonus:{ carriere:3 } } };
+    var a = B.compute({ stats:{ carriere:0 }, overrides:bon.overrides });
+    var b = B.compute({ stats:{ carriere:2 }, overrides:bon.overrides });
+    ok("zéro titre plus un bonus de trois donne trois rubis",
+       a.rouge.id === "trois" && a.rouge.rubis === 3, a.rouge.id);
+    ok("… et deux titres de plus donnent la Couronne, tout seuls",
+       b.rouge.id === "couronne" && b.rouge.aura === 1, b.rouge.id);
+    /* alors qu'un niveau FORCÉ, lui, fige : c'est toute la différence,
+       et c'est pour ça que l'aide dit d'employer le bonus */
+    var fige = B.compute({ stats:{ carriere:9 }, overrides:{ force:{ rouge:"trois" } } });
+    ok("… là où un niveau forcé reste figé malgré neuf titres",
+       fige.rouge.id === "trois");
+  }
+
+  /* Le badge hors échelle REMPLACE tout, et c'est le seul hexagone. */
+  {
+    var dev = B.compute({ stats:{ iles:{ or:5 } }, overrides:{ special:"dev" } });
+    ok("un badge hors échelle remplace le badge mérité",
+       !!dev.special && dev.id === 0 && dev.ip === 0 && dev.ir === 0);
+    ok("… et c'est le seul à être dessiné en hexagone",
+       /<polygon points="16.00,5.40/.test(B.svg(dev, { size:16 })));
+  }
+
+  /* ---- LE TRANSPORT, côté noyau ---- */
+
+  /* Aller-retour : ce qui entre ressort. */
+  {
+    var t = { Lu:{ io:5, ia:1, ib:2, so:1, sa:0, sb:3, ca:2 } };
+    var r = N.decodeBadges(N.encodeBadges(t)).Lu;
+    ok("les sept compteurs font l'aller-retour sans perte",
+       r && r.io === 5 && r.ia === 1 && r.ib === 2 &&
+       r.so === 1 && r.sa === 0 && r.sb === 3 && r.ca === 2);
+  }
+  /* UN JOUEUR À ZÉRO NE S'ÉCRIT PAS : son absence dit « Assaillant »,
+     et l'écrire coûterait des octets pour redire le silence. */
+  ok("un joueur à zéro ne prend pas de place dans la table",
+     N.encodeBadges({ So:{ io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0 } }) === "");
+
+  /* LA FUSION EST UN MAXIMUM, CHAMP PAR CHAMP — donc commutative, donc
+     l'ordre d'arrivée des messages ne change rien. */
+  {
+    var a2 = N.encodeBadges({ Lu:{ io:3, ia:0, ib:0, so:0, sa:0, sb:0, ca:1 } });
+    var b2 = N.encodeBadges({ Lu:{ io:1, ia:2, ib:0, so:0, sa:0, sb:0, ca:0 },
+                              Max:{ io:0, ia:0, ib:1, so:0, sa:0, sb:0, ca:0 } });
+    var ab = N.decodeBadges(N.fusionneBadges(a2, b2));
+    var ba = N.decodeBadges(N.fusionneBadges(b2, a2));
+    ok("la fusion garde le plus grand de chaque compteur",
+       ab.Lu.io === 3 && ab.Lu.ia === 2 && ab.Lu.ca === 1 && ab.Max.ib === 1);
+    ok("… et elle donne le même résultat dans les deux sens",
+       N.fusionneBadges(a2, b2) === N.fusionneBadges(b2, a2));
+    ok("… et refusionner ne change plus rien",
+       N.fusionneBadges(N.fusionneBadges(a2, b2), a2) === N.fusionneBadges(a2, b2));
+  }
+
+  /* LES RÉGLAGES D'ADMIN, EUX, DOIVENT POUVOIR RÉTRÉCIR. Un maximum ne
+     redescend jamais : c'est pourquoi ils suivent le patron des
+     épingles, un numéro qui tranche en entier. */
+  {
+    var v1 = { bo:N.encodeReglagesBadge({ Roro:{ special:"", disque:"", pointes:"", rouge:"",
+                io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:3 } }), bon:1 };
+    var v2 = { bo:N.encodeReglagesBadge({ Roro:{ special:"", disque:"", pointes:"", rouge:"",
+                io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:1 } }), bon:2 };
+    var g = N.meilleursReglagesBadge(v1, v2);
+    ok("un bonus corrigé À LA BAISSE l'emporte grâce à son numéro",
+       N.decodeReglagesBadge(g.bo).Roro.ca === 1 && g.bon === 2);
+    ok("… et l'ordre d'arrivée n'y change rien",
+       N.meilleursReglagesBadge(v2, v1).bo === g.bo);
+  }
+
+  /* ---- LE COMPTAGE DES PODIUMS ---- */
+
+  /* Le rang donne la lettre, le drapeau de la carte donne la famille.
+     On prend une carte ORDINAIRE et une SPÉCIALE, choisies dans la
+     table des cartes — pas écrites en dur. */
+  {
+    var iOrd = -1, iSpe = -1, q;
+    for(q = 0; q < N.CARTES.length; q++){
+      if(N.carteSpeciale(q)){ if(iSpe < 0) iSpe = q; }
+      else if(iOrd < 0) iOrd = q;
+    }
+    var t3 = N.inscritTop3("", iOrd, [{ nom:"Lu", g:9 }, { nom:"Roro", g:8 }, { nom:"Max", g:7 }]);
+    t3 = N.inscritTop3(t3, iSpe, [{ nom:"Roro", g:9 }, { nom:"Lu", g:8 }]);
+    var r1 = N.compteLesPodiumsPur("", "", t3);
+    var tb = N.decodeBadges(r1.bg);
+    ok("le premier d'une île ordinaire prend un or d'île",
+       tb.Lu.io === 1 && tb.Lu.ia === 0);
+    ok("… le deuxième un argent, le troisième un bronze",
+       tb.Roro.ia === 1 && tb.Max.ib === 1);
+    ok("… et une carte SPÉCIALE alimente les pointes, jamais le disque",
+       tb.Roro.so === 1 && tb.Roro.io === 0 && tb.Lu.sa === 1);
+
+    /* UNE CHUTE NE SE COMPTE QU'UNE FOIS. Sans cette garantie, deux
+       clients qui voient le même podium le compteraient deux fois, et
+       un simple rechargement de page gonflerait le badge. */
+    ok("recompter le même podium ne donne plus rien",
+       N.compteLesPodiumsPur(r1.bg, r1.bgn, t3) === null);
+    /* mais une NOUVELLE chute de la même île compte, elle */
+    var t3b = N.inscritTop3(t3, iOrd, [{ nom:"Lu", g:9 }, { nom:"So", g:8 }]);
+    var r2 = N.compteLesPodiumsPur(r1.bg, r1.bgn, t3b);
+    ok("… alors qu'une nouvelle chute de la même île compte",
+       r2 && N.decodeBadges(r2.bg).Lu.io === 2);
+  }
+
+  /* Le titre carrière s'ajoute, et lui aussi se relit. */
+  ok("un titre carrière s'ajoute au compteur du joueur",
+     N.decodeBadges(N.ajouteTitreCarriere(
+       N.ajouteTitreCarriere("", "Lu"), "Lu")).Lu.ca === 2);
+
+  /* ---- CE QUI NE DOIT PAS SE PERDRE DANS L'INSTANTANÉ ---- */
+
+  ok("les cinq voies du badge voyagent avec les champions et les podiums",
+     /bg:fusionneBadges\(a && a\.bg, b && b\.bg\),\s*bgn:fusionneChutesBadge/.test(html) &&
+     /o\.bg = E\.bg \|\| ""; o\.bgn = E\.bgn \|\| ""; o\.bgc = E\.bgc \| 0;/.test(html));
+  ok("… et un compteur qui monte rend bien l'instantané « sale »",
+     /if\(\(m\.bg \|\| ""\) !== \(E\.bg \|\| ""\)[\s\S]{0,200}return false;/.test(html));
+  ok("le titre carrière se décerne à la fermeture d'une campagne",
+     /function nouvelleCampagneSalon\(\)\{[\s\S]{0,900}crediteTitreCarriere\(cycleSalon \| 0/.test(html));
+
+  /* LE BADGE NE SE RANGE JAMAIS. C'est la promesse de fond : on garde
+     des compteurs, on calcule le dessin. Un instantané neuf ne porte
+     donc que des compteurs vides, aucun badge. */
+  ok("un monde neuf ne porte que des compteurs, aucun badge",
+     /bg:"", bgn:"", bgc:0, bo:"", bon:0 \}/.test(html));
+
+  /* LA PAGE DES BADGES NE RECOPIE RIEN. Elle demande à legende() ses
+     noms, ses conditions et ses joueurs d'exemple : le jour où un
+     palier change, elle suit toute seule. */
+  ok("la page des badges se construit depuis legende()",
+     /var L = MilyBadges\.legende\(\), h = "", i, k;/.test(html) &&
+     /MilyBadges\.svg\(b, \{ size:62 \}\)/.test(html));
+  ok("… et elle montre aussi chaque badge à seize pixels",
+     /MilyBadges\.svg\(b, \{ size:16 \}\)/.test(html));
+
+  /* LE CANEVAS NE RECONSTRUIT RIEN, et la taille y est FIXE : le cache
+     est rangé sur « clé du badge @ taille », donc une taille qui
+     suivrait le zoom demanderait une image neuve à chaque image. */
+  ok("la plaque de nom dessine le badge à taille fixe",
+     /MilyBadges\.drawOnCanvas\(ctx, joueurBadge\(j2\.nom\), pe\.x \+ demi \+ 3, yE, BADGE_CARTE\)/
+       .test(html) && /var BADGE_CARTE = 16;/.test(html));
+  ok("… et les images sont préchargées hors de la boucle de rendu",
+     /MilyBadges\.precharger\(l, BADGE_CARTE\);/.test(html) &&
+     /if\(typeof prechargeBadges === "function"\) prechargeBadges\(\);/.test(html));
+
+  /* L'AIDE DE L'ADMINISTRATION DIT LA DIFFÉRENCE. Sans cette phrase,
+     la distinction entre bonus et niveau forcé ne se voit pas avant
+     des semaines. */
+  ok("l'aide de l'administration dit d'employer le bonus, pas le niveau forcé",
+     /Pour rendre des titres perdus, utilise le BONUS, jamais le niveau\s*forcé/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */
