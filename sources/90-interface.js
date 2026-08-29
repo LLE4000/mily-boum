@@ -886,7 +886,7 @@ function majPodium(){
   for(var i = 0; i < Math.min(3, l.length); i++){
     h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
        + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "")
+       + '<span class="n">' + nomOrne(l[i].nom) + (l[i].absent ? " ⏻" : "")
        + balliseBadge(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
@@ -1003,7 +1003,7 @@ function nomsEnLigne(max){
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'
-       + '<span class="n">' + echappe(nom || "?") + (moi ? " (toi)" : "")
+       + '<span class="n">' + nomOrne(nom || "?") + (moi ? " (toi)" : "")
        + balliseBadge(nom) + '</span>'
        + '<span class="u">' + (n > 0 ? n + " unité" + (n > 1 ? "s" : "") : "au menu") + '</span>'
        + '</div>';
@@ -1536,7 +1536,7 @@ function blocTop3(i){
   var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
   for(var k = 0; k < liste.length && k < 3; k++){
     h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
-       + '<span class="n">' + echappe(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
+       + '<span class="n">' + nomOrne(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
        + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
   }
   var ph = phraseTop3(i);
@@ -2218,7 +2218,7 @@ function ligneClassement(o, rang){
   return '<div class="clR' + (o.moi ? " moi" : "") + (o.absent ? " parti" : "")
        + (rang < 3 ? " pod" : "") + '">'
        + '<span class="rg">' + (med[rang] || (rang + 1)) + '</span>'
-       + '<span class="nm">' + echappe(o.nom) + (o.absent ? " ⏻" : "")
+       + '<span class="nm">' + nomOrne(o.nom) + (o.absent ? " ⏻" : "")
        + balliseBadge(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
@@ -2302,7 +2302,13 @@ function barresDesJours(parJour, aujourdhui){
 function majPageVus(){
   if(!pageVusOuverte) return;
   var aujourdhui = jourDe(new Date());
-  var S = statsJournaux(tousLesJournaux(), aujourdhui);
+  /* LES COMPTES RETIRÉS SORTENT AVANT LE COMPTAGE. « J'ai mon compte
+     et mon développeur qui visitent beaucoup, ça fausse toutes les
+     statistiques » : les écarter à l'affichage seulement aurait laissé
+     leurs passages dans les barres et dans les totaux, c'est-à-dire
+     dans tout ce qui fausse. */
+  var exclus = (typeof nomsMasques === "function") ? nomsMasques() : null;
+  var S = statsJournaux(tousLesJournaux(), aujourdhui, exclus);
   var e = $("vusListe"), b = $("vusJours"), sous = $("vusSous");
   if(!e) return;
   b.innerHTML = barresDesJours(S.parJour, aujourdhui);
@@ -2315,7 +2321,14 @@ function majPageVus(){
     var meilleure = -1, mieux = 0, k;
     for(k in L.iles) if(L.iles[k] > mieux){ mieux = L.iles[k]; meilleure = k | 0; }
     h += '<div class="vusL">'
-       + '<div class="vn">' + echappe(L.nom) + '</div>'
+       + '<div class="vn">' + nomOrne(L.nom)
+       /* LE RETRAIT SE FAIT D'ICI, sur la ligne du fautif : c'est là
+          qu'on le voit fausser la page, et un aller-retour par
+          l'éditeur de badge pour taper un nom qu'on a sous les yeux
+          serait une corvée. Le réglage, lui, est le MÊME que celui de
+          l'éditeur — une seule vérité, deux portes. */
+       + ' <button class="vx" data-masque="' + echappe(L.nom)
+       + '" title="Retirer ce compte des statistiques">✕</button></div>'
        + '<div class="vq">' + L.visites + " passage" + (L.visites > 1 ? "s" : "")
        +   '</div>'
        + '<div class="vd">' + ditQuand(L.dernier, L.derniereHeure, aujourdhui)
@@ -2328,6 +2341,11 @@ function majPageVus(){
        +   '</div>'
        + '</div>';
   }
+  /* et de quoi les faire revenir : un retrait qu'on ne peut pas
+     annuler n'est pas un réglage, c'est un piège */
+  if(S.ecartes) h += '<div class="vusEcartes">' + S.ecartes + " compte"
+    + (S.ecartes > 1 ? "s retirés" : " retiré") + " des statistiques."
+    + ' <button class="vx" id="vusRendre">Tout remettre</button></div>';
   e.innerHTML = h || '<div id="vusVide">Aucun journal reçu pour l\'instant.<br><br>'
     + "Chaque appareil publie le sien quand il se connecte au relais. "
     + "Les passages commencent à être notés à partir de cette version — "
@@ -2361,6 +2379,24 @@ function installeVus(){
   var b = $("btAdminVus"), f = $("btVusFerme"), p = $("vusP");
   if(b) b.addEventListener("click", function(){ fermeAdminP(); ouvreVus(); });
   if(f) f.addEventListener("click", fermeVus);
+  /* La liste est réécrite en entier à chaque rafraîchissement :
+     l'écouteur va sur le CONTENEUR, une fois pour toutes, comme pour
+     les deux replis du panneau du haut-gauche. */
+  var l = $("vusListe");
+  if(l) l.addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    var x = ev.target.closest("[data-masque]");
+    if(x){
+      var n = x.getAttribute("data-masque");
+      if(confirm("Retirer « " + n + " » des statistiques de passage ?\n\n"
+               + "Ses passages ne compteront plus, ni dans la liste, ni dans\n"
+               + "les barres, ni dans les totaux. Son journal n'est pas effacé,\n"
+               + "et le retrait s'annule d'un bouton."))
+        if(poseDrapeauBadge(n, "masque", 1)) majPageVus();
+      return;
+    }
+    if(ev.target.closest("#vusRendre")){ if(rendLesMasques()) majPageVus(); }
+  });
   /* le fond ferme aussi, comme partout ailleurs dans ce jeu */
   if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeVus(); });
 }

@@ -42,6 +42,7 @@ try{
     "encodeChutesBadge","decodeChutesBadge","fusionneChutesBadge",
     "encodeReglagesBadge","decodeReglagesBadge","meilleursReglagesBadge","reglageVide",
     "compteLesPodiumsPur","ajouteTitreCarriere","BADGE_OCTETS","BADGE_GARDES",
+    "statsJournaux",
     "encodeTop3","decodeTop3","fusionneTop3","top3DeCarte","inscritTop3","poseJungle","mondeVide",
     "NB_REACTEURS","encodeScores","decodeScores","fusionneScores","SCORES_GARDES","plafondScore","FileDegats","carteOrageuse","carteTornades","carteTourbillons","carteAirMagique","carteAvecTornades","profilTornade","paireTornade","carteFoudre","periodeEclair","styleCiel","CIELS_ILE","encodePlans","planCarte","faitZone",
     "encodePieces","decodePieces","partiePieces","partieFormes","partieQuadrillage",
@@ -8863,6 +8864,152 @@ G("36. Le badge : les compteurs, la fusion, le dessin");
      des semaines. */
   ok("l'aide de l'administration dit d'employer le bonus, pas le niveau forcé",
      /Pour rendre des titres perdus, utilise le BONUS, jamais le niveau\s*forcé/.test(html));
+})();
+
+
+/* ================================================================ */
+G("37. Le nom en rose, et le retrait des passages");
+(function(){
+
+  /* ---- LES DEUX DRAPEAUX VOYAGENT DANS LA TABLE DU BADGE ---- */
+  {
+    var r = N.reglageVide();
+    ok("un réglage neuf porte les deux drapeaux, éteints",
+       r.eclat === 0 && r.masque === 0);
+  }
+  {
+    var t = { Havana:{ special:"", disque:"", pointes:"", rouge:"",
+                       io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0,
+                       eclat:1, masque:0 } };
+    var ch = N.encodeReglagesBadge(t);
+    var d = N.decodeReglagesBadge(ch).Havana;
+    ok("le nom en rose fait l'aller-retour", !!d && d.eclat === 1 && d.masque === 0, ch);
+    /* UN DRAPEAU SEUL SUFFIT À ÉCRIRE LA LIGNE. Sans ça, un pseudo
+       qui n'a QUE le rose — ni bonus, ni badge — ne serait jamais
+       publié, et la couleur ne quitterait pas l'appareil qui l'a
+       posée. */
+    ok("… et il suffit à lui seul pour que la ligne soit publiée", ch.length > 0);
+  }
+  /* LA COMPATIBILITÉ, qui est la vraie promesse : les réglages déjà
+     publiés n'ont que douze morceaux, les neufs en ont quatorze, et le
+     contrôle de longueur est resté à douze. Ce qui manque vaut zéro. */
+  {
+    var vieille = N.decodeReglagesBadge("Roro:::::0:0:0:0:0:0:3").Roro;
+    ok("une ligne publiée AVANT ces drapeaux se relit encore",
+       !!vieille && vieille.ca === 3, JSON.stringify(vieille));
+    ok("… et ses deux drapeaux absents valent zéro",
+       vieille.eclat === 0 && vieille.masque === 0);
+  }
+  /* Et ils rétrécissent comme le reste, par le numéro : une couleur
+     retirée doit s'éteindre chez tout le monde, ce qu'un maximum ne
+     saurait pas faire. */
+  {
+    var a = { bo:N.encodeReglagesBadge({ H:{ special:"", disque:"", pointes:"", rouge:"",
+               io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0, eclat:1, masque:0 } }), bon:1 };
+    var b = { bo:N.encodeReglagesBadge({ H:{ special:"", disque:"", pointes:"", rouge:"",
+               io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0, eclat:0, masque:0 } }), bon:2 };
+    var g = N.meilleursReglagesBadge(a, b);
+    ok("un nom en rose RETIRÉ s'éteint bien chez les autres",
+       (N.decodeReglagesBadge(g.bo).H || { eclat:0 }).eclat === 0 && g.bon === 2);
+  }
+
+  /* ---- LE RETRAIT DES PASSAGES ---- */
+  {
+    var jx = [
+      { sq:"a", n:"Roro", p:[[20450, 1400, 1, 0], [20451, 1200, 0, 0]] },
+      { sq:"b", n:"Lu",   p:[[20450, 900, 1, 0], [20451, 910, 1, 0], [20452, 920, 0, 0]] }
+    ];
+    function barres(S){ var n = 0, k; for(k in S.parJour) n += S.parJour[k].n; return n; }
+    var sans = N.statsJournaux(jx, 20452, null);
+    var avec = N.statsJournaux(jx, 20452, { lu:1 });
+    ok("sans exclusion, les deux appareils comptent", sans.lignes.length === 2);
+    ok("le compte retiré sort de la liste", avec.lignes.length === 1 &&
+       avec.lignes[0].nom === "Roro");
+    /* ET DES BARRES, qui sont exactement ce qui faussait : un exclu
+       qu'on verrait encore dans les trente jours n'aurait rien réglé. */
+    ok("… et de la courbe des trente jours", barres(avec) === barres(sans) - 3,
+       barres(sans) + " → " + barres(avec));
+    ok("… et la page sait combien elle en a retirés", avec.ecartes === 1);
+    /* LA CASSE NE DOIT PAS COMPTER : on tape « lu », le journal dit
+       « Lu », c'est la même personne. */
+    ok("… quelle que soit la casse du pseudo",
+       N.statsJournaux(jx, 20452, { lu:1 }).lignes.length ===
+       N.statsJournaux([{ sq:"b", n:"LU", p:jx[1].p }, jx[0]], 20452, { lu:1 }).lignes.length);
+    /* Et sans exclusion, rien ne change : c'est la garantie que les
+       appels d'avant, à deux arguments, se comportent comme avant. */
+    ok("… un appel sans exclusion se comporte comme avant",
+       N.statsJournaux(jx, 20452).lignes.length === 2);
+  }
+
+  /* ---- CE QUI SE VOIT ---- */
+
+  ok("le nom en rose s'écrit partout où un pseudo paraît",
+     /nomOrne\(o\.nom\)/.test(html) &&        // le Top carrière et sa page
+     /nomOrne\(l\[i\]\.nom\)/.test(html) &&   // le podium du jeu
+     /nomOrne\(nom \|\| "\?"\)/.test(html) && // qui est là
+     /nomOrne\(liste\[k\]\.nom\)/.test(html) && // les podiums des îles
+     /nomOrne\(m\.nom\)/.test(html) &&        // le fil du salon
+     /nomOrne\(L\.nom\)/.test(html));         // la page des passages
+  /* IL ÉCHAPPE TOUJOURS, orné ou non : c'est ce qui permet de le
+     substituer à echappe() partout sans se demander lequel on tenait.
+     Un pseudo est du texte venu du réseau. */
+  ok("… et il échappe le pseudo dans les deux cas",
+     /function nomOrne\(nom\)\{\s*var t = echappe\(nom == null \? "" : nom\);/.test(html));
+
+  ok("la plaque de nom sur la carte passe elle aussi au rose",
+     /if\(typeof estScintillant === "function" && estScintillant\(j2\.nom\)\)\{[\s\S]{0,400}degradeRoseTexte/
+       .test(html));
+  /* LE HALO SOMBRE EST CE QUI REND LE ROSE LISIBLE, dans la page
+     comme sur la carte — et sur le sable clair d'une plage, c'est LUI
+     qui porte tout : mesuré, une teinte rose sur du sable ne donne que
+     1,2 pour 1. Sur la page il ne peut PAS être un text-shadow : le
+     texte est peint par son fond découpé, une ombre de texte passerait
+     devant et éteindrait le dégradé. */
+  ok("le nom en rose garde son halo sombre dans la page",
+     /\.nomRose\{[\s\S]{0,700}filter:drop-shadow\(0 1px 1px rgba\(24,4,16,\.78\)\)/.test(html));
+  ok("… et sur la carte, c'est le contour de texteCerne qui le porte",
+     /c\.strokeStyle = "rgba\(8,4,12,\.85\)";\s*c\.strokeText\(s, x, y\);\s*c\.fillStyle = coul;/
+       .test(html));
+  /* Et il ne bouge pas la ligne : un nom qui pulse dans un classement
+     qu'on lit serait insupportable au bout de dix secondes. */
+  ok("… et l'animation ne déplace rien : elle fait glisser le dégradé",
+     /@keyframes rosePasse\{ from\{background-position:120% 0\} to\{background-position:-120% 0\} \}/
+       .test(html));
+  ok("… un appareil réglé sur « moins d'animations » garde le rose sans le mouvement",
+     /@media \(prefers-reduced-motion:reduce\)\{\s*\.nomRose\{animation:none/.test(html));
+
+  /* ET LE ROSE N'EST PAS UN CAPRICE DE TEINTE. Dans un classement, les
+     SCORES sont déjà en or et les médailles aussi : un nom doré s'y
+     fondait au lieu d'en sortir. On vérifie donc que la couleur du nom
+     n'est AUCUNE de celles que l'interface emploie déjà. */
+  ok("le nom ne reprend pas l'or déjà employé par les scores",
+     !/\.nomRose\{[\s\S]{0,400}#F5A623/.test(html) &&
+     !/\.nomRose\{[\s\S]{0,400}#FFD166/.test(html));
+
+  /* ---- IL NE S'EXPLIQUE NULLE PART ---- */
+  /* Ce n'est pas une récompense qui se gagne, c'est une décision
+     d'administration : la page publique des badges ne doit pas en
+     souffler mot. On vérifie que ses quatre sections ne le nomment
+     nulle part. */
+  ok("la page des badges ne parle ni du nom en rose ni du retrait",
+     /var BADGES_SECTIONS = \[[\s\S]{0,1800}\];/.test(html) &&
+     !/BADGES_SECTIONS[\s\S]{0,1800}nomRose/.test(html) &&
+     !/BADGES_SECTIONS[\s\S]{0,1800}en rose/.test(html));
+
+  /* ---- UNE SEULE PORTE D'ÉCRITURE ---- */
+  /* Deux chemins mènent au réglage — l'éditeur, et le bouton posé sur
+     la page des passages —, et ils doivent écrire par la MÊME
+     fonction : deux copies, c'est la garantie qu'un jour l'une des
+     deux oubliera de monter le numéro, et le réglage ne partira pas. */
+  ok("les deux portes écrivent par la même fonction",
+     /function publieReglagesBadge\(tab\)\{[\s\S]{0,700}monde\.bon = \(monde\.bon \| 0\) \+ 1;/
+       .test(html) &&
+     /function poseDrapeauBadge\(nom, champ, valeur\)\{[\s\S]{0,300}return publieReglagesBadge\(tab\);/
+       .test(html) &&
+     /else tab\[nom\] = lisEditeurBadge\(\);\s*publieReglagesBadge\(tab\);/.test(html));
+  ok("… et le retrait s'annule",
+     /function rendLesMasques\(\)\{[\s\S]{0,300}if\(tab\[k\]\.masque\)\{ tab\[k\]\.masque = 0;/
+       .test(html) && /id="vusRendre"/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

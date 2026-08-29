@@ -746,6 +746,8 @@ function lisEditeurBadge(){
   r.pointes = $("edFpointes") ? $("edFpointes").value : "";
   r.rouge   = $("edFrouge")   ? $("edFrouge").value   : "";
   r.special = $("edSpecial")  ? $("edSpecial").value  : "";
+  r.eclat   = ($("edEclat")  && $("edEclat").value  === "1") ? 1 : 0;
+  r.masque  = ($("edMasque") && $("edMasque").value === "1") ? 1 : 0;
   return r;
 }
 function ecrisEditeurBadge(r){
@@ -755,6 +757,8 @@ function ecrisEditeurBadge(r){
   if($("edFpointes")) $("edFpointes").value = r.pointes || "";
   if($("edFrouge"))   $("edFrouge").value   = r.rouge   || "";
   if($("edSpecial"))  $("edSpecial").value  = r.special || "";
+  if($("edEclat"))    $("edEclat").value    = r.eclat  ? "1" : "0";
+  if($("edMasque"))   $("edMasque").value   = r.masque ? "1" : "0";
 }
 /* L'APERÇU MONTRE LE BADGE QU'ON OBTIENDRA, pas celui qui est rangé :
    les compteurs du jeu pour ce pseudo, PLUS les réglages en cours de
@@ -777,6 +781,13 @@ function majApercuBadge(){
     }
   };
   var b = MilyBadges.compute(j);
+  /* L'APERÇU MONTRE AUSSI LE NOM quand il est en rose : le badge seul
+     ne dirait rien de ce que le rose donne, et c'est pourtant lui
+     qu'on règle ici. */
+  var eo = $("edBadgeNomOr");
+  if(eo) eo.innerHTML = r.eclat
+    ? '<span class="nomRose">' + echappe(nom || "Havana") + "</span>"
+    : '<span style="opacity:.5">' + echappe(nom || "—") + "</span>";
   if($("edBadgeGros")) $("edBadgeGros").innerHTML = MilyBadges.svg(b, { size:104 });
   if($("edBadge16"))   $("edBadge16").innerHTML   = MilyBadges.svg(b, { size:16 });
   if($("edBadgeTitre")) $("edBadgeTitre").textContent =
@@ -806,6 +817,23 @@ function appliqueEditeurBadge(razr){
   var tab = decodeReglagesBadge(monde.bo || "");
   if(razr){ delete tab[nom]; ecrisEditeurBadge(reglageVide()); }
   else tab[nom] = lisEditeurBadge();
+  publieReglagesBadge(tab);
+  majApercuBadge();
+  if(etat) etat.textContent = razr
+    ? ("Réglages effacés pour « " + nom + " ». Son badge repart de ce que le jeu a compté.")
+    : ("Réglages appliqués à « " + nom + " » et publiés dans le salon.");
+}
+
+/* ================================================================
+   ÉCRIRE LA TABLE DES RÉGLAGES, ET LA PUBLIER
+
+   Deux portes mènent ici — l'éditeur de badge, et le bouton de retrait
+   posé sur la page des passages —, et il ne doit y avoir qu'un seul
+   chemin d'écriture. Deux copies de ces quinze lignes, c'est la
+   garantie qu'un jour l'une des deux oubliera de monter le numéro.
+   ================================================================ */
+function publieReglagesBadge(tab){
+  if(!monde) return false;
   monde.bo = encodeReglagesBadge(tab);
   /* LE NUMÉRO MONTE À CHAQUE ÉCRITURE, et c'est lui qui autorise un
      réglage à RÉTRÉCIR : sans numéro, la fusion prendrait le maximum
@@ -821,11 +849,28 @@ function appliqueEditeurBadge(razr){
   prechargeBadges();
   if(typeof majCarriere === "function") majCarriere();
   if(typeof majMondes === "function" && !enJeu) majMondes();
-  majApercuBadge();
-  if(etat) etat.textContent = razr
-    ? ("Réglages effacés pour « " + nom + " ». Son badge repart de ce que le jeu a compté.")
-    : ("Réglages appliqués à « " + nom + " » et publiés dans le salon.");
+  return true;
 }
+/* Un seul drapeau, pour un seul pseudo. Sert au retrait depuis la page
+   des passages ; l'éditeur, lui, écrit la ligne entière. */
+function poseDrapeauBadge(nom, champ, valeur){
+  var n = nettoieNomScore(nom);
+  if(!n || !monde) return false;
+  var tab = decodeReglagesBadge(monde.bo || "");
+  if(!tab[n]) tab[n] = reglageVide();
+  tab[n][champ] = valeur ? 1 : 0;
+  return publieReglagesBadge(tab);
+}
+/* Et le retour en arrière : on rend tous les comptes retirés d'un
+   coup. Un retrait sans marche arrière ne serait pas un réglage. */
+function rendLesMasques(){
+  if(!monde) return false;
+  var tab = decodeReglagesBadge(monde.bo || ""), k, n = 0;
+  for(k in tab) if(tab[k].masque){ tab[k].masque = 0; n++; }
+  if(!n) return false;
+  return publieReglagesBadge(tab);
+}
+
 function ouvreEditeurBadges(){
   if(typeof MilyBadges === "undefined") return;
   remplitListeBadge("edFdisque",  MilyBadges.DISQUE,  "— aucun (le jeu compte)");
@@ -866,7 +911,8 @@ function installeEditeurBadges(){
   var q = $("edBadgeQui");
   if(q){ q.addEventListener("input", chargeEditeurBadge);
          q.addEventListener("change", chargeEditeurBadge); }
-  var k, ids = ["edFdisque", "edFpointes", "edFrouge", "edSpecial"];
+  var k, ids = ["edFdisque", "edFpointes", "edFrouge", "edSpecial",
+                "edEclat", "edMasque"];
   for(k in EDB_CHAMPS) ids.push(EDB_CHAMPS[k]);
   for(k = 0; k < ids.length; k++){
     var e = $(ids[k]);
@@ -880,4 +926,39 @@ function installeEditeurBadges(){
              + "Son badge repartira de ce que le jeu a compté.\n"
              + "Les compteurs du jeu, eux, ne sont pas touchés.")) appliqueEditeurBadge(1);
   });
+}
+
+/* ================================================================
+   LE NOM EN ROSE
+
+   Un pseudo, désigné depuis l'administration, s'écrit en rose
+   scintillant partout où il paraît : classements, salon, fil, et plaque de nom sur
+   la carte. C'est un ORNEMENT, pas un badge — il ne dit rien de ce que
+   le joueur a gagné, et il n'a donc rien à faire sur la page qui
+   explique les badges. Il ne s'explique nulle part : on le voit, c'est
+   tout.
+
+   IL SUIT LE PSEUDO, ET C'EST VOULU. Le compte peut changer de nom ;
+   il suffit alors de désigner le nouveau. Un marquage attaché à
+   l'appareil aurait suivi le téléphone plutôt que la personne.
+   ================================================================ */
+function estScintillant(nom){
+  var r = tablesBadge().r[nettoieNomScore(nom)];
+  return !!(r && r.eclat);
+}
+/* Le nom prêt à poser dans une chaîne de page. Il ÉCHAPPE toujours —
+   c'est le même contrat que echappe(), pour qu'on puisse le substituer
+   partout sans avoir à se demander lequel des deux on tenait. */
+function nomOrne(nom){
+  var t = echappe(nom == null ? "" : nom);
+  return estScintillant(nom) ? '<span class="nomRose">' + t + "</span>" : t;
+}
+
+/* Les pseudos retirés de la page des passages, en minuscules — la
+   forme que statsJournaux attend. */
+function nomsMasques(){
+  var T = tablesBadge(), out = {}, k, n = 0;
+  for(k in T.r) if(T.r[k].masque){ out[String(k).trim().toLowerCase()] = 1; n++; }
+  out.__n = n;
+  return out;
 }

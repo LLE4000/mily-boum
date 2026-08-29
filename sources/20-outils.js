@@ -485,3 +485,59 @@ function barreVie(c, x, y, larg, frac, coul){
   c.fillStyle = coul || (frac > 0.5 ? "#6ee08a" : frac > 0.22 ? "#ffd070" : "#ff5a4a");
   c.fillRect(x - larg / 2, y, larg * Math.max(0, frac), h);
 }
+
+/* ================================================================
+   LE NOM EN ROSE, SUR LE CANEVAS
+
+   Le pendant de la classe .nomRose de la feuille de style. Même rose,
+   même promesse : ça doit rester LISIBLE, sur le sable clair d'une
+   plage comme sur la lave des ténèbres.
+
+   LE DÉGRADÉ EST BÂTI EN COORDONNÉES D'ÉCRAN, autour du texte, et
+   glisse avec le temps — c'est la même bande claire qui traverse que
+   dans la page. Il est reconstruit à chaque image, et c'est voulu :
+   un dégradé de canevas se fige à sa fabrication, on ne peut pas
+   l'animer autrement. Quatre arrêts de couleur pour une poignée de
+   pseudos, ça ne se mesure pas ; c'est le SVG du badge qu'il ne
+   fallait pas refaire par image, pas ça.
+
+   LE CONTOUR SOMBRE VIENT DE texteCerne, qui le trace AVANT de
+   remplir : le rose se pose dedans, et le nom tient sur n'importe quel
+   fond. C'est exactement ce que fait le drop-shadow de la page.
+   ================================================================ */
+function degradeRoseTexte(c, x, larg, tps){
+  var l = Math.max(30, larg);
+  /* la bande fait deux fois le mot et se promène : à un instant donné
+     on n'en voit qu'un morceau, et c'est ce morceau qui brille */
+  var d = ((tps || 0) * 0.34) % 1;
+  var g = c.createLinearGradient(x - l * (1.6 - d * 2.2), 0,
+                                 x + l * (0.6 + d * 2.2), 0);
+  g.addColorStop(0.00, "#FFD9EC");
+  g.addColorStop(0.34, "#FFF0F8");
+  g.addColorStop(0.55, "#FF7FC0");
+  g.addColorStop(1.00, "#FFD9EC");
+  return g;
+}
+/* Deux étincelles, aux deux bouts, à contretemps — comme les deux
+   pseudo-éléments de .nomRose. Deux, pas six : à cette taille, trois
+   de plus ne pétillent pas, elles salissent. */
+function etincellesNom(c, x, y, larg, tps){
+  var t = tps || 0, i, ph, r;
+  c.save();
+  for(i = 0; i < 2; i++){
+    ph = (t * 0.345 + i * 0.5) % 1;
+    if(ph < 0.72) continue;                       // éteinte la plupart du temps
+    var u = (ph - 0.72) / 0.28;                   // 0 → 1 sur le temps allumé
+    var a = Math.sin(u * Math.PI);                // s'allume et s'éteint
+    r = 1.6 + a * 1.5;
+    var px = x + (i ? larg * 0.5 + 3 : -larg * 0.5 - 3);
+    var py = y + (i ? 4 : -4);
+    var g = c.createRadialGradient(px, py, 0, px, py, r * 2.2);
+    g.addColorStop(0, "rgba(255,255,255," + (0.95 * a).toFixed(3) + ")");
+    g.addColorStop(0.45, "rgba(255,190,225," + (0.55 * a).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,150,205,0)");
+    c.fillStyle = g;
+    c.beginPath(); c.arc(px, py, r * 2.2, 0, 6.2832); c.fill();
+  }
+  c.restore();
+}

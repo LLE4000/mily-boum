@@ -209,7 +209,7 @@ function dessineFilChat(){
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
          : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
            + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
-           + '>' + echappe(m.nom) + '</b>' + balliseBadge(m.nom) + ' ' + echappe(m.txt)
+           + '>' + nomOrne(m.nom) + '</b>' + balliseBadge(m.nom) + ' ' + echappe(m.txt)
            + '<i class="cep" data-ep="' + i + '" title="Épingler ce message">📌</i></div>';
     }
     e.innerHTML = h;

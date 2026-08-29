@@ -3005,7 +3005,22 @@ function rendu(tps, dt){
     var pe = versEcran(cam, mx, my);
     var etq = j2.nom + " · " + j2.n;
     var yE = pe.y - 62 * cam.z, tE = Math.max(10, 12 * cam.z);
-    texteCerne(ctx, etq, pe.x, yE, tE, "#c9c2ce");
+    /* LE NOM EN ROSE VAUT ICI AUSSI. « Que ce soit dans les
+       classements ou dans le jeu » : une distinction qui ne tiendrait
+       que sur les panneaux ne serait qu'à moitié faite. texteCerne
+       accepte déjà un dégradé pour couleur de remplissage — il trace
+       son contour sombre d'abord, puis remplit avec ce qu'on lui
+       donne. */
+    if(typeof estScintillant === "function" && estScintillant(j2.nom)){
+      ctx.save();
+      ctx.font = "700 " + tE + "px 'Trebuchet MS', 'Segoe UI', Roboto, sans-serif";
+      var lE = ctx.measureText(etq).width;
+      ctx.restore();
+      texteCerne(ctx, etq, pe.x, yE, tE, degradeRoseTexte(ctx, pe.x, lE, tps));
+      etincellesNom(ctx, pe.x, yE, lE, tps);
+    }else{
+      texteCerne(ctx, etq, pe.x, yE, tE, "#c9c2ce");
+    }
     /* LE BADGE À CÔTÉ DU NOM, ET JAMAIS RECONSTRUIT ICI.
        drawOnCanvas ne dessine qu'une image déjà en cache — le SVG est
        devenu image une seule fois, au préchargement. Reconstruire un

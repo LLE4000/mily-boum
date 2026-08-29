@@ -1067,6 +1067,93 @@ select.champ{cursor:pointer}
 }
 .clCorps{padding:10px 14px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
 
+/* Le retrait d'un compte des passages : discret sur la ligne, franc
+   au survol. Il ne doit pas attirer l'œil plus que le nom qu'il
+   accompagne — on ne vient pas sur cette page pour retirer des gens. */
+.vusL .vx{
+  background:none;border:0;color:var(--gris);cursor:pointer;
+  font-size:12px;line-height:1;padding:2px 5px;border-radius:6px;opacity:.35;
+  vertical-align:middle;
+}
+.vusL:hover .vx{opacity:.8}
+.vusL .vx:hover{background:rgba(255,90,74,.18);color:#ff9a8a;opacity:1}
+.vusEcartes{
+  margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.10);
+  font-size:12px;color:var(--gris);
+}
+.vusEcartes .vx{
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  color:var(--texte);cursor:pointer;border-radius:8px;padding:4px 10px;
+  font-size:12px;font-family:inherit;margin-left:6px;
+}
+.vusEcartes .vx:hover{background:rgba(255,255,255,.14)}
+
+/* ================================================================
+   LE NOM EN ROSE
+
+   Trois couches, et la première n'est pas négociable : ÇA DOIT RESTER
+   LISIBLE. Un nom qu'on admire mais qu'on ne lit pas a raté ce qu'on
+   lui demande.
+
+   POURQUOI ROSE, ET PAS OR. L'or était le premier essai, et il était
+   mauvais pour une raison qui ne se voit qu'une fois posée : dans un
+   classement, les SCORES sont déjà en or et les médailles aussi. Un
+   nom doré au milieu de tout cet or ne se distinguait plus, il s'y
+   fondait. Le rose n'existe nulle part ailleurs dans cette interface —
+   c'est ce qui le fait ressortir d'un coup d'œil, et c'est tout ce
+   qu'on lui demande.
+
+   1. LA MATIÈRE. Un dégradé de roses CLAIRS — crème rosée, rose vif,
+      éclat blanc. Les quatre teintes restent au-dessus de 38 % de
+      luminance, donc le contraste tient partout où un pseudo
+      s'affiche dans ce jeu : panneau violet comme sable de plage.
+
+   2. LE REFLET QUI PASSE. Le dégradé fait deux fois la largeur du
+      texte et glisse dessous : c'est la bande claire qui traverse, et
+      non le texte qui clignote. Rien ne bouge, rien ne saute, la ligne
+      garde exactement sa place — un nom qui pulse dans un classement
+      qu'on lit serait insupportable au bout de dix secondes.
+
+   3. LES ÉTINCELLES. Deux points minuscules, de part et d'autre, qui
+      s'allument à contretemps. Deux, pas six : à onze pixels de haut,
+      trois étincelles de plus ne pétillent pas, elles salissent.
+
+   ET LE HALO EST SOMBRE. `background-clip:text` retire au texte sa
+   couleur propre, donc son ombre portée doit venir d'un `drop-shadow`
+   sur l'élément — un `text-shadow` se peindrait DEVANT le dégradé et
+   éteindrait le rose. C'est ce halo qui tient la lisibilité sur les
+   fonds clairs de la carte comme sur le violet des panneaux. */
+.nomRose{
+  position:relative;display:inline-block;font-weight:800;letter-spacing:.2px;
+  background:linear-gradient(100deg,
+    #FFD9EC 0%, #FF9ED2 22%, #FFF0F8 34%, #FF7FC0 48%, #FFD9EC 70%, #FF9ED2 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 1px 1px rgba(24,4,16,.78)) drop-shadow(0 0 6px rgba(255,140,200,.38));
+  animation:rosePasse 5.5s linear infinite;
+}
+@keyframes rosePasse{ from{background-position:120% 0} to{background-position:-120% 0} }
+.nomRose::before,.nomRose::after{
+  content:"";position:absolute;width:3px;height:3px;border-radius:50%;
+  background:radial-gradient(circle,#FFFFFF 0%,rgba(255,190,225,.9) 45%,rgba(255,150,205,0) 70%);
+  pointer-events:none;opacity:0;
+}
+.nomRose::before{ left:-4px;  top:-1px;    animation:rosePetille 2.9s ease-in-out infinite }
+.nomRose::after { right:-4px; bottom:-1px; animation:rosePetille 2.9s ease-in-out 1.45s infinite }
+@keyframes rosePetille{
+  0%,72%,100%{opacity:0;transform:scale(.5)}
+  80%{opacity:1;transform:scale(1.25)}
+  90%{opacity:.35;transform:scale(.8)}
+}
+/* Un joueur peut avoir réglé « moins d'animations » sur son appareil :
+   le rose reste, le mouvement s'arrête. La lisibilité, elle, ne
+   dépendait déjà pas de l'animation. */
+@media (prefers-reduced-motion:reduce){
+  .nomRose{animation:none;background-position:40% 0}
+  .nomRose::before,.nomRose::after{animation:none;opacity:.55}
+}
+
 /* ---- L'ÉDITEUR DE BADGE ----
    Volontairement austère : c'est un outil d'administration, pas une
    page à regarder. L'aperçu, lui, est en haut et en grand — on règle
@@ -1820,6 +1907,7 @@ select.champ{cursor:pointer}
           <div class="edTitre" id="edBadgeTitre"></div>
           <div class="edDetail" id="edBadgeDetail"></div>
           <div class="edP16"><span id="edBadge16"></span><span class="edDetail">16 px, la taille du jeu</span></div>
+          <div class="edP16"><span id="edBadgeNomOr"></span><span class="edDetail">le nom, tel qu'il s'affichera</span></div>
         </div>
       </div>
 
@@ -1839,6 +1927,27 @@ select.champ{cursor:pointer}
 
       <h4 class="edH">Hors échelle</h4>
       <div class="edLn"><label>Badge d'honneur</label><select id="edSpecial"></select></div>
+
+      <!-- CES DEUX-LÀ NE SONT EXPLIQUÉS NULLE PART AILLEURS.
+           La page « Les badges » ne les mentionne pas, et c'est
+           voulu : ce ne sont pas des récompenses qui se gagnent, ce
+           sont deux décisions d'administration. Elles ne se décrivent
+           donc qu'ici, derrière le mot de passe. -->
+      <h4 class="edH">Réservé</h4>
+      <div class="edLn"><label>Nom en rose</label><select id="edEclat">
+        <option value="0">non</option><option value="1">oui</option></select></div>
+      <div class="edDetail" style="margin:-4px 0 12px">Ce pseudo s'écrit en rose
+        scintillant partout où il paraît : classements, salon, fil, et plaque de
+        nom sur la carte. Il suit le PSEUDO — si le compte change de nom, il
+        suffit de désigner le nouveau ici. Rien n'en est dit ailleurs dans le
+        jeu.</div>
+      <div class="edLn"><label>Retirer des passages</label><select id="edMasque">
+        <option value="0">non</option><option value="1">oui</option></select></div>
+      <div class="edDetail" style="margin:-4px 0 4px">Ce pseudo ne compte plus
+        dans « Qui est venu » : ni ses passages, ni ses barres de jours, ni les
+        totaux. À employer pour les comptes de développement, qui viennent trop
+        souvent pour que la page reste parlante. Rien n'est effacé — le journal
+        reste, il n'est plus compté.</div>
 
       <div class="edBoutons">
         <button id="btEdBadgeAppl" class="bt">✔ Appliquer</button>
@@ -2058,7 +2167,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.11";
+var VERSION = "v1.12";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -8894,11 +9003,24 @@ function decodeJournal(s){
    tient le journal, et deux personnes qui se renomment ne doivent
    pas fusionner. Le pseudo affiché est le dernier connu.
    ================================================================ */
-function statsJournaux(journaux, aujourdhui){
-  var lignes = [], parJour = {}, i, k;
+/* `exclus` : les pseudos qu'on ne compte pas, en minuscules.
+
+   POURQUOI ON EXCLUT UN NOM, ET PAS UN APPAREIL. « J'ai mon compte, et
+   mon développeur qui visite beaucoup : ça fausse toutes les
+   statistiques. » Le journal est tenu par APPAREIL, mais c'est bien la
+   personne qu'on veut retirer — et elle peut avoir deux téléphones.
+   Le nom couvre les deux ; l'appareil n'en couvrirait qu'un.
+
+   ET L'EXCLUSION EST TOTALE, pas cosmétique : la ligne saute AVANT
+   d'être comptée, donc elle sort aussi des trente barres de jours et
+   des totaux du bas. Un exclu qu'on verrait encore dans les barres
+   n'aurait rien réglé. */
+function statsJournaux(journaux, aujourdhui, exclus){
+  var lignes = [], parJour = {}, i, k, ecartes = 0;
   for(k = 0; k < journaux.length; k++){
     var j = journaux[k];
     if(!j || !j.p) continue;
+    if(exclus && exclus[String(j.n || "").trim().toLowerCase()]){ ecartes++; continue; }
     var L = { sq:j.sq, nom:j.n || "?", visites:0, jouees:0, regardees:0,
               dernier:0, derniereHeure:0, premier:0,
               j7:0, j30:0, aujourdhui:0, iles:{} };
@@ -8928,7 +9050,7 @@ function statsJournaux(journaux, aujourdhui){
     return (b.dernier - a.dernier) || (b.derniereHeure - a.derniereHeure)
         || (b.visites - a.visites);
   });
-  return { lignes:lignes, parJour:parJour };
+  return { lignes:lignes, parJour:parJour, ecartes:ecartes };
 }
 
 function mondeVide(index, pvMax, cycle){
@@ -10168,9 +10290,26 @@ function fusionneChutesBadge(a, b){
 /* ---- bo : les réglages d'administration ----
    « pseudo:spécial:disque:pointes:rouge:7 bonus ». Les identifiants de
    paliers ne contiennent ni « : » ni « | », le pseudo en est lavé. */
+/* DEUX DRAPEAUX EN PLUS DU BADGE, et ils vivent dans la même table.
+
+   `eclat`  — ce pseudo s'écrit en lettres d'or, partout où il paraît.
+   `masque` — ce pseudo ne compte plus dans la page des passages.
+
+   Ils n'ont rien à voir avec le badge, mais ils ont TOUT à voir avec sa
+   table : ce sont des décisions d'administration attachées à un pseudo,
+   qui doivent voyager dans le salon et pouvoir être ANNULÉES. C'est
+   exactement ce que `bo` sait faire, avec son numéro qui autorise un
+   réglage à rétrécir. Leur ouvrir une voie de plus dans l'instantané
+   aurait été une seconde mécanique à tenir pour rien.
+
+   ILS S'AJOUTENT EN QUEUE DE LIGNE, et c'est ce qui rend les réglages
+   déjà publiés relisibles : une ligne d'avant-hier a douze morceaux,
+   une d'aujourd'hui en a quatorze, et le contrôle de longueur reste à
+   douze. Ce qui manque vaut zéro. */
 function reglageVide(){
   return { special:"", disque:"", pointes:"", rouge:"",
-           io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0 };
+           io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0,
+           eclat:0, masque:0 };
 }
 function motPalier(s){ return String(s == null ? "" : s).replace(/[^a-z]/g, "").substr(0, 12); }
 function encodeReglagesBadge(tab){
@@ -10190,8 +10329,10 @@ function encodeReglagesBadge(tab){
     }
     var sp = motPalier(e.special), d = motPalier(e.disque),
         pt = motPalier(e.pointes), rg = motPalier(e.rouge);
-    if(!vif && !sp && !d && !pt && !rg) continue;   // rien à dire
-    l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":"));
+    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0;
+    if(!vif && !sp && !d && !pt && !rg && !ec && !mq) continue;   // rien à dire
+    l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":")
+         + ":" + ec + ":" + mq);
   }
   l.sort();
   return l.join("|");
@@ -10213,6 +10354,10 @@ function decodeReglagesBadge(s){
       var x = parseInt(c[j + 5], 10);
       e[CHAMPS_BG[j]] = (x >= -9999 && x <= 9999) ? (x | 0) : 0;
     }
+    /* les deux drapeaux de queue : absents des lignes d'avant, et
+       absent vaut zéro — c'est ce qui les rend relisibles */
+    e.eclat  = (c[CHAMPS_BG.length + 5] === "1") ? 1 : 0;
+    e.masque = (c[CHAMPS_BG.length + 6] === "1") ? 1 : 0;
     out[nom] = e;
   }
   return out;
@@ -10760,6 +10905,62 @@ function barreVie(c, x, y, larg, frac, coul){
   c.fillRect(x - larg / 2 - 1, y - 1, larg + 2, h + 2);
   c.fillStyle = coul || (frac > 0.5 ? "#6ee08a" : frac > 0.22 ? "#ffd070" : "#ff5a4a");
   c.fillRect(x - larg / 2, y, larg * Math.max(0, frac), h);
+}
+
+/* ================================================================
+   LE NOM EN ROSE, SUR LE CANEVAS
+
+   Le pendant de la classe .nomRose de la feuille de style. Même rose,
+   même promesse : ça doit rester LISIBLE, sur le sable clair d'une
+   plage comme sur la lave des ténèbres.
+
+   LE DÉGRADÉ EST BÂTI EN COORDONNÉES D'ÉCRAN, autour du texte, et
+   glisse avec le temps — c'est la même bande claire qui traverse que
+   dans la page. Il est reconstruit à chaque image, et c'est voulu :
+   un dégradé de canevas se fige à sa fabrication, on ne peut pas
+   l'animer autrement. Quatre arrêts de couleur pour une poignée de
+   pseudos, ça ne se mesure pas ; c'est le SVG du badge qu'il ne
+   fallait pas refaire par image, pas ça.
+
+   LE CONTOUR SOMBRE VIENT DE texteCerne, qui le trace AVANT de
+   remplir : le rose se pose dedans, et le nom tient sur n'importe quel
+   fond. C'est exactement ce que fait le drop-shadow de la page.
+   ================================================================ */
+function degradeRoseTexte(c, x, larg, tps){
+  var l = Math.max(30, larg);
+  /* la bande fait deux fois le mot et se promène : à un instant donné
+     on n'en voit qu'un morceau, et c'est ce morceau qui brille */
+  var d = ((tps || 0) * 0.34) % 1;
+  var g = c.createLinearGradient(x - l * (1.6 - d * 2.2), 0,
+                                 x + l * (0.6 + d * 2.2), 0);
+  g.addColorStop(0.00, "#FFD9EC");
+  g.addColorStop(0.34, "#FFF0F8");
+  g.addColorStop(0.55, "#FF7FC0");
+  g.addColorStop(1.00, "#FFD9EC");
+  return g;
+}
+/* Deux étincelles, aux deux bouts, à contretemps — comme les deux
+   pseudo-éléments de .nomRose. Deux, pas six : à cette taille, trois
+   de plus ne pétillent pas, elles salissent. */
+function etincellesNom(c, x, y, larg, tps){
+  var t = tps || 0, i, ph, r;
+  c.save();
+  for(i = 0; i < 2; i++){
+    ph = (t * 0.345 + i * 0.5) % 1;
+    if(ph < 0.72) continue;                       // éteinte la plupart du temps
+    var u = (ph - 0.72) / 0.28;                   // 0 → 1 sur le temps allumé
+    var a = Math.sin(u * Math.PI);                // s'allume et s'éteint
+    r = 1.6 + a * 1.5;
+    var px = x + (i ? larg * 0.5 + 3 : -larg * 0.5 - 3);
+    var py = y + (i ? 4 : -4);
+    var g = c.createRadialGradient(px, py, 0, px, py, r * 2.2);
+    g.addColorStop(0, "rgba(255,255,255," + (0.95 * a).toFixed(3) + ")");
+    g.addColorStop(0.45, "rgba(255,190,225," + (0.55 * a).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,150,205,0)");
+    c.fillStyle = g;
+    c.beginPath(); c.arc(px, py, r * 2.2, 0, 6.2832); c.fill();
+  }
+  c.restore();
 }
 
 /* ===== 30-terrain.js ===== */
@@ -49706,7 +49907,7 @@ function dessineFilChat(){
          ? '<div class="cs">' + echappe(m.txt) + '</div>'
          : '<div class="cm' + (m.moi ? " moi" : "") + '"><b'
            + ((!m.moi && m.id) ? ' data-sourd="' + echappe(m.id) + '"' : "")
-           + '>' + echappe(m.nom) + '</b>' + balliseBadge(m.nom) + ' ' + echappe(m.txt)
+           + '>' + nomOrne(m.nom) + '</b>' + balliseBadge(m.nom) + ' ' + echappe(m.txt)
            + '<i class="cep" data-ep="' + i + '" title="Épingler ce message">📌</i></div>';
     }
     e.innerHTML = h;
@@ -55247,7 +55448,22 @@ function rendu(tps, dt){
     var pe = versEcran(cam, mx, my);
     var etq = j2.nom + " · " + j2.n;
     var yE = pe.y - 62 * cam.z, tE = Math.max(10, 12 * cam.z);
-    texteCerne(ctx, etq, pe.x, yE, tE, "#c9c2ce");
+    /* LE NOM EN ROSE VAUT ICI AUSSI. « Que ce soit dans les
+       classements ou dans le jeu » : une distinction qui ne tiendrait
+       que sur les panneaux ne serait qu'à moitié faite. texteCerne
+       accepte déjà un dégradé pour couleur de remplissage — il trace
+       son contour sombre d'abord, puis remplit avec ce qu'on lui
+       donne. */
+    if(typeof estScintillant === "function" && estScintillant(j2.nom)){
+      ctx.save();
+      ctx.font = "700 " + tE + "px 'Trebuchet MS', 'Segoe UI', Roboto, sans-serif";
+      var lE = ctx.measureText(etq).width;
+      ctx.restore();
+      texteCerne(ctx, etq, pe.x, yE, tE, degradeRoseTexte(ctx, pe.x, lE, tps));
+      etincellesNom(ctx, pe.x, yE, lE, tps);
+    }else{
+      texteCerne(ctx, etq, pe.x, yE, tE, "#c9c2ce");
+    }
     /* LE BADGE À CÔTÉ DU NOM, ET JAMAIS RECONSTRUIT ICI.
        drawOnCanvas ne dessine qu'une image déjà en cache — le SVG est
        devenu image une seule fois, au préchargement. Reconstruire un
@@ -56910,6 +57126,8 @@ function lisEditeurBadge(){
   r.pointes = $("edFpointes") ? $("edFpointes").value : "";
   r.rouge   = $("edFrouge")   ? $("edFrouge").value   : "";
   r.special = $("edSpecial")  ? $("edSpecial").value  : "";
+  r.eclat   = ($("edEclat")  && $("edEclat").value  === "1") ? 1 : 0;
+  r.masque  = ($("edMasque") && $("edMasque").value === "1") ? 1 : 0;
   return r;
 }
 function ecrisEditeurBadge(r){
@@ -56919,6 +57137,8 @@ function ecrisEditeurBadge(r){
   if($("edFpointes")) $("edFpointes").value = r.pointes || "";
   if($("edFrouge"))   $("edFrouge").value   = r.rouge   || "";
   if($("edSpecial"))  $("edSpecial").value  = r.special || "";
+  if($("edEclat"))    $("edEclat").value    = r.eclat  ? "1" : "0";
+  if($("edMasque"))   $("edMasque").value   = r.masque ? "1" : "0";
 }
 /* L'APERÇU MONTRE LE BADGE QU'ON OBTIENDRA, pas celui qui est rangé :
    les compteurs du jeu pour ce pseudo, PLUS les réglages en cours de
@@ -56941,6 +57161,13 @@ function majApercuBadge(){
     }
   };
   var b = MilyBadges.compute(j);
+  /* L'APERÇU MONTRE AUSSI LE NOM quand il est en rose : le badge seul
+     ne dirait rien de ce que le rose donne, et c'est pourtant lui
+     qu'on règle ici. */
+  var eo = $("edBadgeNomOr");
+  if(eo) eo.innerHTML = r.eclat
+    ? '<span class="nomRose">' + echappe(nom || "Havana") + "</span>"
+    : '<span style="opacity:.5">' + echappe(nom || "—") + "</span>";
   if($("edBadgeGros")) $("edBadgeGros").innerHTML = MilyBadges.svg(b, { size:104 });
   if($("edBadge16"))   $("edBadge16").innerHTML   = MilyBadges.svg(b, { size:16 });
   if($("edBadgeTitre")) $("edBadgeTitre").textContent =
@@ -56970,6 +57197,23 @@ function appliqueEditeurBadge(razr){
   var tab = decodeReglagesBadge(monde.bo || "");
   if(razr){ delete tab[nom]; ecrisEditeurBadge(reglageVide()); }
   else tab[nom] = lisEditeurBadge();
+  publieReglagesBadge(tab);
+  majApercuBadge();
+  if(etat) etat.textContent = razr
+    ? ("Réglages effacés pour « " + nom + " ». Son badge repart de ce que le jeu a compté.")
+    : ("Réglages appliqués à « " + nom + " » et publiés dans le salon.");
+}
+
+/* ================================================================
+   ÉCRIRE LA TABLE DES RÉGLAGES, ET LA PUBLIER
+
+   Deux portes mènent ici — l'éditeur de badge, et le bouton de retrait
+   posé sur la page des passages —, et il ne doit y avoir qu'un seul
+   chemin d'écriture. Deux copies de ces quinze lignes, c'est la
+   garantie qu'un jour l'une des deux oubliera de monter le numéro.
+   ================================================================ */
+function publieReglagesBadge(tab){
+  if(!monde) return false;
   monde.bo = encodeReglagesBadge(tab);
   /* LE NUMÉRO MONTE À CHAQUE ÉCRITURE, et c'est lui qui autorise un
      réglage à RÉTRÉCIR : sans numéro, la fusion prendrait le maximum
@@ -56985,11 +57229,28 @@ function appliqueEditeurBadge(razr){
   prechargeBadges();
   if(typeof majCarriere === "function") majCarriere();
   if(typeof majMondes === "function" && !enJeu) majMondes();
-  majApercuBadge();
-  if(etat) etat.textContent = razr
-    ? ("Réglages effacés pour « " + nom + " ». Son badge repart de ce que le jeu a compté.")
-    : ("Réglages appliqués à « " + nom + " » et publiés dans le salon.");
+  return true;
 }
+/* Un seul drapeau, pour un seul pseudo. Sert au retrait depuis la page
+   des passages ; l'éditeur, lui, écrit la ligne entière. */
+function poseDrapeauBadge(nom, champ, valeur){
+  var n = nettoieNomScore(nom);
+  if(!n || !monde) return false;
+  var tab = decodeReglagesBadge(monde.bo || "");
+  if(!tab[n]) tab[n] = reglageVide();
+  tab[n][champ] = valeur ? 1 : 0;
+  return publieReglagesBadge(tab);
+}
+/* Et le retour en arrière : on rend tous les comptes retirés d'un
+   coup. Un retrait sans marche arrière ne serait pas un réglage. */
+function rendLesMasques(){
+  if(!monde) return false;
+  var tab = decodeReglagesBadge(monde.bo || ""), k, n = 0;
+  for(k in tab) if(tab[k].masque){ tab[k].masque = 0; n++; }
+  if(!n) return false;
+  return publieReglagesBadge(tab);
+}
+
 function ouvreEditeurBadges(){
   if(typeof MilyBadges === "undefined") return;
   remplitListeBadge("edFdisque",  MilyBadges.DISQUE,  "— aucun (le jeu compte)");
@@ -57030,7 +57291,8 @@ function installeEditeurBadges(){
   var q = $("edBadgeQui");
   if(q){ q.addEventListener("input", chargeEditeurBadge);
          q.addEventListener("change", chargeEditeurBadge); }
-  var k, ids = ["edFdisque", "edFpointes", "edFrouge", "edSpecial"];
+  var k, ids = ["edFdisque", "edFpointes", "edFrouge", "edSpecial",
+                "edEclat", "edMasque"];
   for(k in EDB_CHAMPS) ids.push(EDB_CHAMPS[k]);
   for(k = 0; k < ids.length; k++){
     var e = $(ids[k]);
@@ -57044,6 +57306,41 @@ function installeEditeurBadges(){
              + "Son badge repartira de ce que le jeu a compté.\n"
              + "Les compteurs du jeu, eux, ne sont pas touchés.")) appliqueEditeurBadge(1);
   });
+}
+
+/* ================================================================
+   LE NOM EN ROSE
+
+   Un pseudo, désigné depuis l'administration, s'écrit en rose
+   scintillant partout où il paraît : classements, salon, fil, et plaque de nom sur
+   la carte. C'est un ORNEMENT, pas un badge — il ne dit rien de ce que
+   le joueur a gagné, et il n'a donc rien à faire sur la page qui
+   explique les badges. Il ne s'explique nulle part : on le voit, c'est
+   tout.
+
+   IL SUIT LE PSEUDO, ET C'EST VOULU. Le compte peut changer de nom ;
+   il suffit alors de désigner le nouveau. Un marquage attaché à
+   l'appareil aurait suivi le téléphone plutôt que la personne.
+   ================================================================ */
+function estScintillant(nom){
+  var r = tablesBadge().r[nettoieNomScore(nom)];
+  return !!(r && r.eclat);
+}
+/* Le nom prêt à poser dans une chaîne de page. Il ÉCHAPPE toujours —
+   c'est le même contrat que echappe(), pour qu'on puisse le substituer
+   partout sans avoir à se demander lequel des deux on tenait. */
+function nomOrne(nom){
+  var t = echappe(nom == null ? "" : nom);
+  return estScintillant(nom) ? '<span class="nomRose">' + t + "</span>" : t;
+}
+
+/* Les pseudos retirés de la page des passages, en minuscules — la
+   forme que statsJournaux attend. */
+function nomsMasques(){
+  var T = tablesBadge(), out = {}, k, n = 0;
+  for(k in T.r) if(T.r[k].masque){ out[String(k).trim().toLowerCase()] = 1; n++; }
+  out.__n = n;
+  return out;
 }
 
 /* ===== 90-interface.js ===== */
@@ -57935,7 +58232,7 @@ function majPodium(){
   for(var i = 0; i < Math.min(3, l.length); i++){
     h += '<div class="r' + (l[i].moi ? " moi" : "") + (l[i].absent ? " parti" : "")
        + '"><span>' + med[i] + '</span>'
-       + '<span class="n">' + echappe(l[i].nom) + (l[i].absent ? " ⏻" : "")
+       + '<span class="n">' + nomOrne(l[i].nom) + (l[i].absent ? " ⏻" : "")
        + balliseBadge(l[i].nom) + '</span>'
        + '<span class="v">' + nombre(l[i].g) + '</span></div>';
   }
@@ -58052,7 +58349,7 @@ function nomsEnLigne(max){
 function ligneEnLigne(nom, n, moi){
   return '<div class="ql' + (moi ? " moi" : "") + '">'
        + '<span class="p">' + (moi ? "🔸" : "🔹") + '</span>'
-       + '<span class="n">' + echappe(nom || "?") + (moi ? " (toi)" : "")
+       + '<span class="n">' + nomOrne(nom || "?") + (moi ? " (toi)" : "")
        + balliseBadge(nom) + '</span>'
        + '<span class="u">' + (n > 0 ? n + " unité" + (n > 1 ? "s" : "") : "au menu") + '</span>'
        + '</div>';
@@ -58585,7 +58882,7 @@ function blocTop3(i){
   var h = '<div class="top3" data-t3="' + i + '"><div class="t3t">' + titre + '</div>';
   for(var k = 0; k < liste.length && k < 3; k++){
     h += '<div class="t3l r' + k + '"><span class="m">' + MEDAILLES[k] + '</span>'
-       + '<span class="n">' + echappe(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
+       + '<span class="n">' + nomOrne(liste[k].nom) + balliseBadge(liste[k].nom) + '</span>'
        + '<span class="g">' + nombre(liste[k].g) + '</span></div>';
   }
   var ph = phraseTop3(i);
@@ -59267,7 +59564,7 @@ function ligneClassement(o, rang){
   return '<div class="clR' + (o.moi ? " moi" : "") + (o.absent ? " parti" : "")
        + (rang < 3 ? " pod" : "") + '">'
        + '<span class="rg">' + (med[rang] || (rang + 1)) + '</span>'
-       + '<span class="nm">' + echappe(o.nom) + (o.absent ? " ⏻" : "")
+       + '<span class="nm">' + nomOrne(o.nom) + (o.absent ? " ⏻" : "")
        + balliseBadge(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
@@ -59351,7 +59648,13 @@ function barresDesJours(parJour, aujourdhui){
 function majPageVus(){
   if(!pageVusOuverte) return;
   var aujourdhui = jourDe(new Date());
-  var S = statsJournaux(tousLesJournaux(), aujourdhui);
+  /* LES COMPTES RETIRÉS SORTENT AVANT LE COMPTAGE. « J'ai mon compte
+     et mon développeur qui visitent beaucoup, ça fausse toutes les
+     statistiques » : les écarter à l'affichage seulement aurait laissé
+     leurs passages dans les barres et dans les totaux, c'est-à-dire
+     dans tout ce qui fausse. */
+  var exclus = (typeof nomsMasques === "function") ? nomsMasques() : null;
+  var S = statsJournaux(tousLesJournaux(), aujourdhui, exclus);
   var e = $("vusListe"), b = $("vusJours"), sous = $("vusSous");
   if(!e) return;
   b.innerHTML = barresDesJours(S.parJour, aujourdhui);
@@ -59364,7 +59667,14 @@ function majPageVus(){
     var meilleure = -1, mieux = 0, k;
     for(k in L.iles) if(L.iles[k] > mieux){ mieux = L.iles[k]; meilleure = k | 0; }
     h += '<div class="vusL">'
-       + '<div class="vn">' + echappe(L.nom) + '</div>'
+       + '<div class="vn">' + nomOrne(L.nom)
+       /* LE RETRAIT SE FAIT D'ICI, sur la ligne du fautif : c'est là
+          qu'on le voit fausser la page, et un aller-retour par
+          l'éditeur de badge pour taper un nom qu'on a sous les yeux
+          serait une corvée. Le réglage, lui, est le MÊME que celui de
+          l'éditeur — une seule vérité, deux portes. */
+       + ' <button class="vx" data-masque="' + echappe(L.nom)
+       + '" title="Retirer ce compte des statistiques">✕</button></div>'
        + '<div class="vq">' + L.visites + " passage" + (L.visites > 1 ? "s" : "")
        +   '</div>'
        + '<div class="vd">' + ditQuand(L.dernier, L.derniereHeure, aujourdhui)
@@ -59377,6 +59687,11 @@ function majPageVus(){
        +   '</div>'
        + '</div>';
   }
+  /* et de quoi les faire revenir : un retrait qu'on ne peut pas
+     annuler n'est pas un réglage, c'est un piège */
+  if(S.ecartes) h += '<div class="vusEcartes">' + S.ecartes + " compte"
+    + (S.ecartes > 1 ? "s retirés" : " retiré") + " des statistiques."
+    + ' <button class="vx" id="vusRendre">Tout remettre</button></div>';
   e.innerHTML = h || '<div id="vusVide">Aucun journal reçu pour l\'instant.<br><br>'
     + "Chaque appareil publie le sien quand il se connecte au relais. "
     + "Les passages commencent à être notés à partir de cette version — "
@@ -59410,6 +59725,24 @@ function installeVus(){
   var b = $("btAdminVus"), f = $("btVusFerme"), p = $("vusP");
   if(b) b.addEventListener("click", function(){ fermeAdminP(); ouvreVus(); });
   if(f) f.addEventListener("click", fermeVus);
+  /* La liste est réécrite en entier à chaque rafraîchissement :
+     l'écouteur va sur le CONTENEUR, une fois pour toutes, comme pour
+     les deux replis du panneau du haut-gauche. */
+  var l = $("vusListe");
+  if(l) l.addEventListener("click", function(ev){
+    if(!ev.target.closest) return;
+    var x = ev.target.closest("[data-masque]");
+    if(x){
+      var n = x.getAttribute("data-masque");
+      if(confirm("Retirer « " + n + " » des statistiques de passage ?\n\n"
+               + "Ses passages ne compteront plus, ni dans la liste, ni dans\n"
+               + "les barres, ni dans les totaux. Son journal n'est pas effacé,\n"
+               + "et le retrait s'annule d'un bouton."))
+        if(poseDrapeauBadge(n, "masque", 1)) majPageVus();
+      return;
+    }
+    if(ev.target.closest("#vusRendre")){ if(rendLesMasques()) majPageVus(); }
+  });
   /* le fond ferme aussi, comme partout ailleurs dans ce jeu */
   if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermeVus(); });
 }

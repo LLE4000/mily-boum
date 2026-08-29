@@ -1067,6 +1067,93 @@ select.champ{cursor:pointer}
 }
 .clCorps{padding:10px 14px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
 
+/* Le retrait d'un compte des passages : discret sur la ligne, franc
+   au survol. Il ne doit pas attirer l'œil plus que le nom qu'il
+   accompagne — on ne vient pas sur cette page pour retirer des gens. */
+.vusL .vx{
+  background:none;border:0;color:var(--gris);cursor:pointer;
+  font-size:12px;line-height:1;padding:2px 5px;border-radius:6px;opacity:.35;
+  vertical-align:middle;
+}
+.vusL:hover .vx{opacity:.8}
+.vusL .vx:hover{background:rgba(255,90,74,.18);color:#ff9a8a;opacity:1}
+.vusEcartes{
+  margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.10);
+  font-size:12px;color:var(--gris);
+}
+.vusEcartes .vx{
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  color:var(--texte);cursor:pointer;border-radius:8px;padding:4px 10px;
+  font-size:12px;font-family:inherit;margin-left:6px;
+}
+.vusEcartes .vx:hover{background:rgba(255,255,255,.14)}
+
+/* ================================================================
+   LE NOM EN ROSE
+
+   Trois couches, et la première n'est pas négociable : ÇA DOIT RESTER
+   LISIBLE. Un nom qu'on admire mais qu'on ne lit pas a raté ce qu'on
+   lui demande.
+
+   POURQUOI ROSE, ET PAS OR. L'or était le premier essai, et il était
+   mauvais pour une raison qui ne se voit qu'une fois posée : dans un
+   classement, les SCORES sont déjà en or et les médailles aussi. Un
+   nom doré au milieu de tout cet or ne se distinguait plus, il s'y
+   fondait. Le rose n'existe nulle part ailleurs dans cette interface —
+   c'est ce qui le fait ressortir d'un coup d'œil, et c'est tout ce
+   qu'on lui demande.
+
+   1. LA MATIÈRE. Un dégradé de roses CLAIRS — crème rosée, rose vif,
+      éclat blanc. Les quatre teintes restent au-dessus de 38 % de
+      luminance, donc le contraste tient partout où un pseudo
+      s'affiche dans ce jeu : panneau violet comme sable de plage.
+
+   2. LE REFLET QUI PASSE. Le dégradé fait deux fois la largeur du
+      texte et glisse dessous : c'est la bande claire qui traverse, et
+      non le texte qui clignote. Rien ne bouge, rien ne saute, la ligne
+      garde exactement sa place — un nom qui pulse dans un classement
+      qu'on lit serait insupportable au bout de dix secondes.
+
+   3. LES ÉTINCELLES. Deux points minuscules, de part et d'autre, qui
+      s'allument à contretemps. Deux, pas six : à onze pixels de haut,
+      trois étincelles de plus ne pétillent pas, elles salissent.
+
+   ET LE HALO EST SOMBRE. `background-clip:text` retire au texte sa
+   couleur propre, donc son ombre portée doit venir d'un `drop-shadow`
+   sur l'élément — un `text-shadow` se peindrait DEVANT le dégradé et
+   éteindrait le rose. C'est ce halo qui tient la lisibilité sur les
+   fonds clairs de la carte comme sur le violet des panneaux. */
+.nomRose{
+  position:relative;display:inline-block;font-weight:800;letter-spacing:.2px;
+  background:linear-gradient(100deg,
+    #FFD9EC 0%, #FF9ED2 22%, #FFF0F8 34%, #FF7FC0 48%, #FFD9EC 70%, #FF9ED2 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 1px 1px rgba(24,4,16,.78)) drop-shadow(0 0 6px rgba(255,140,200,.38));
+  animation:rosePasse 5.5s linear infinite;
+}
+@keyframes rosePasse{ from{background-position:120% 0} to{background-position:-120% 0} }
+.nomRose::before,.nomRose::after{
+  content:"";position:absolute;width:3px;height:3px;border-radius:50%;
+  background:radial-gradient(circle,#FFFFFF 0%,rgba(255,190,225,.9) 45%,rgba(255,150,205,0) 70%);
+  pointer-events:none;opacity:0;
+}
+.nomRose::before{ left:-4px;  top:-1px;    animation:rosePetille 2.9s ease-in-out infinite }
+.nomRose::after { right:-4px; bottom:-1px; animation:rosePetille 2.9s ease-in-out 1.45s infinite }
+@keyframes rosePetille{
+  0%,72%,100%{opacity:0;transform:scale(.5)}
+  80%{opacity:1;transform:scale(1.25)}
+  90%{opacity:.35;transform:scale(.8)}
+}
+/* Un joueur peut avoir réglé « moins d'animations » sur son appareil :
+   le rose reste, le mouvement s'arrête. La lisibilité, elle, ne
+   dépendait déjà pas de l'animation. */
+@media (prefers-reduced-motion:reduce){
+  .nomRose{animation:none;background-position:40% 0}
+  .nomRose::before,.nomRose::after{animation:none;opacity:.55}
+}
+
 /* ---- L'ÉDITEUR DE BADGE ----
    Volontairement austère : c'est un outil d'administration, pas une
    page à regarder. L'aperçu, lui, est en haut et en grand — on règle
@@ -1820,6 +1907,7 @@ select.champ{cursor:pointer}
           <div class="edTitre" id="edBadgeTitre"></div>
           <div class="edDetail" id="edBadgeDetail"></div>
           <div class="edP16"><span id="edBadge16"></span><span class="edDetail">16 px, la taille du jeu</span></div>
+          <div class="edP16"><span id="edBadgeNomOr"></span><span class="edDetail">le nom, tel qu'il s'affichera</span></div>
         </div>
       </div>
 
@@ -1839,6 +1927,27 @@ select.champ{cursor:pointer}
 
       <h4 class="edH">Hors échelle</h4>
       <div class="edLn"><label>Badge d'honneur</label><select id="edSpecial"></select></div>
+
+      <!-- CES DEUX-LÀ NE SONT EXPLIQUÉS NULLE PART AILLEURS.
+           La page « Les badges » ne les mentionne pas, et c'est
+           voulu : ce ne sont pas des récompenses qui se gagnent, ce
+           sont deux décisions d'administration. Elles ne se décrivent
+           donc qu'ici, derrière le mot de passe. -->
+      <h4 class="edH">Réservé</h4>
+      <div class="edLn"><label>Nom en rose</label><select id="edEclat">
+        <option value="0">non</option><option value="1">oui</option></select></div>
+      <div class="edDetail" style="margin:-4px 0 12px">Ce pseudo s'écrit en rose
+        scintillant partout où il paraît : classements, salon, fil, et plaque de
+        nom sur la carte. Il suit le PSEUDO — si le compte change de nom, il
+        suffit de désigner le nouveau ici. Rien n'en est dit ailleurs dans le
+        jeu.</div>
+      <div class="edLn"><label>Retirer des passages</label><select id="edMasque">
+        <option value="0">non</option><option value="1">oui</option></select></div>
+      <div class="edDetail" style="margin:-4px 0 4px">Ce pseudo ne compte plus
+        dans « Qui est venu » : ni ses passages, ni ses barres de jours, ni les
+        totaux. À employer pour les comptes de développement, qui viennent trop
+        souvent pour que la page reste parlante. Rien n'est effacé — le journal
+        reste, il n'est plus compté.</div>
 
       <div class="edBoutons">
         <button id="btEdBadgeAppl" class="bt">✔ Appliquer</button>

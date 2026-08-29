@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.11";
+var VERSION = "v1.12";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -6845,11 +6845,24 @@ function decodeJournal(s){
    tient le journal, et deux personnes qui se renomment ne doivent
    pas fusionner. Le pseudo affiché est le dernier connu.
    ================================================================ */
-function statsJournaux(journaux, aujourdhui){
-  var lignes = [], parJour = {}, i, k;
+/* `exclus` : les pseudos qu'on ne compte pas, en minuscules.
+
+   POURQUOI ON EXCLUT UN NOM, ET PAS UN APPAREIL. « J'ai mon compte, et
+   mon développeur qui visite beaucoup : ça fausse toutes les
+   statistiques. » Le journal est tenu par APPAREIL, mais c'est bien la
+   personne qu'on veut retirer — et elle peut avoir deux téléphones.
+   Le nom couvre les deux ; l'appareil n'en couvrirait qu'un.
+
+   ET L'EXCLUSION EST TOTALE, pas cosmétique : la ligne saute AVANT
+   d'être comptée, donc elle sort aussi des trente barres de jours et
+   des totaux du bas. Un exclu qu'on verrait encore dans les barres
+   n'aurait rien réglé. */
+function statsJournaux(journaux, aujourdhui, exclus){
+  var lignes = [], parJour = {}, i, k, ecartes = 0;
   for(k = 0; k < journaux.length; k++){
     var j = journaux[k];
     if(!j || !j.p) continue;
+    if(exclus && exclus[String(j.n || "").trim().toLowerCase()]){ ecartes++; continue; }
     var L = { sq:j.sq, nom:j.n || "?", visites:0, jouees:0, regardees:0,
               dernier:0, derniereHeure:0, premier:0,
               j7:0, j30:0, aujourdhui:0, iles:{} };
@@ -6879,7 +6892,7 @@ function statsJournaux(journaux, aujourdhui){
     return (b.dernier - a.dernier) || (b.derniereHeure - a.derniereHeure)
         || (b.visites - a.visites);
   });
-  return { lignes:lignes, parJour:parJour };
+  return { lignes:lignes, parJour:parJour, ecartes:ecartes };
 }
 
 function mondeVide(index, pvMax, cycle){
@@ -8119,9 +8132,26 @@ function fusionneChutesBadge(a, b){
 /* ---- bo : les réglages d'administration ----
    « pseudo:spécial:disque:pointes:rouge:7 bonus ». Les identifiants de
    paliers ne contiennent ni « : » ni « | », le pseudo en est lavé. */
+/* DEUX DRAPEAUX EN PLUS DU BADGE, et ils vivent dans la même table.
+
+   `eclat`  — ce pseudo s'écrit en lettres d'or, partout où il paraît.
+   `masque` — ce pseudo ne compte plus dans la page des passages.
+
+   Ils n'ont rien à voir avec le badge, mais ils ont TOUT à voir avec sa
+   table : ce sont des décisions d'administration attachées à un pseudo,
+   qui doivent voyager dans le salon et pouvoir être ANNULÉES. C'est
+   exactement ce que `bo` sait faire, avec son numéro qui autorise un
+   réglage à rétrécir. Leur ouvrir une voie de plus dans l'instantané
+   aurait été une seconde mécanique à tenir pour rien.
+
+   ILS S'AJOUTENT EN QUEUE DE LIGNE, et c'est ce qui rend les réglages
+   déjà publiés relisibles : une ligne d'avant-hier a douze morceaux,
+   une d'aujourd'hui en a quatorze, et le contrôle de longueur reste à
+   douze. Ce qui manque vaut zéro. */
 function reglageVide(){
   return { special:"", disque:"", pointes:"", rouge:"",
-           io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0 };
+           io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0,
+           eclat:0, masque:0 };
 }
 function motPalier(s){ return String(s == null ? "" : s).replace(/[^a-z]/g, "").substr(0, 12); }
 function encodeReglagesBadge(tab){
@@ -8141,8 +8171,10 @@ function encodeReglagesBadge(tab){
     }
     var sp = motPalier(e.special), d = motPalier(e.disque),
         pt = motPalier(e.pointes), rg = motPalier(e.rouge);
-    if(!vif && !sp && !d && !pt && !rg) continue;   // rien à dire
-    l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":"));
+    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0;
+    if(!vif && !sp && !d && !pt && !rg && !ec && !mq) continue;   // rien à dire
+    l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":")
+         + ":" + ec + ":" + mq);
   }
   l.sort();
   return l.join("|");
@@ -8164,6 +8196,10 @@ function decodeReglagesBadge(s){
       var x = parseInt(c[j + 5], 10);
       e[CHAMPS_BG[j]] = (x >= -9999 && x <= 9999) ? (x | 0) : 0;
     }
+    /* les deux drapeaux de queue : absents des lignes d'avant, et
+       absent vaut zéro — c'est ce qui les rend relisibles */
+    e.eclat  = (c[CHAMPS_BG.length + 5] === "1") ? 1 : 0;
+    e.masque = (c[CHAMPS_BG.length + 6] === "1") ? 1 : 0;
     out[nom] = e;
   }
   return out;
