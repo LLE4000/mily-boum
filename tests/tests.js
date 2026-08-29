@@ -2118,6 +2118,58 @@ G("4. Déterminisme de la génération de carte");
          "les deux branches de tir, la balise et la chasse");
       ok("… et l'attente ne coûte aucun délai : le compteur reste à zéro",
          /f\.tourelle && !tankAligne\(u\)\)\{ u\.prochainTir = 0; \}/.test(html));
+      /* SOUS BALISE, LE BLINDÉ BALAIE LA VERMINE EN ROULANT.
+         Deux règles interdisaient jusqu'ici de tirer sous balise, et
+         toutes les deux tiennent au mot « s'arrêter » : une troupe à
+         pied n'a qu'un cap, donc tirer lui coûte sa marche. Un
+         véhicule en a deux — la caisse et la tourelle — et le tir ne
+         lui coûte RIEN. C'est ce que ce bloc autorise, et à eux seuls.
+         Le test garde les trois clauses qui font que la porte reste
+         fermée pour les autres : le drapeau `tourelle` en garde, les
+         DEUX branches de marche câblées (sans la seconde, une balise
+         posée au sol n'aurait rien changé), et le respect du
+         Brouillard. */
+      ok("un véhicule sous balise cherche la vermine à sa portée",
+         /function betePresVehicule\(u, f\)\{[\s\S]{0,400}md = f\.portee/.test(html));
+      ok("et la porte de ce tir est le drapeau des véhicules",
+         /function tirBeteEnMarche\(u, f, dt, cachee\)\{\s*if\(!f\.tourelle\) return 0;/
+           .test(html));
+      ok("les DEUX branches de marche sous balise le câblent",
+         (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length === 2,
+         "la balise sur cible ET la balise au sol");
+      ok("… sans jamais désobéir au Brouillard",
+         /if\(cachee\)\{ armeSansTirer\(u\); return 1; \}/.test(html));
+      /* LE CAMOUFLAGE COUVRE TOUT LE VÉHICULE.
+         Il s'arrêtait aux quatre grandes faces : les plaques
+         boulonnées, les fûts, le masque et le tube restaient d'un gris
+         uni au milieu des taches. Deux faits gardent la couverture —
+         l'ORDRE (on peint après avoir monté les pièces rapportées,
+         sinon elles restent nues) et le fait que les pièces RONDES ont
+         leur propre peintre, `camoFaceT` ne sachant découper qu'un
+         quadrilatère plat. */
+      var dc = html.indexOf("function caissePY(");
+      var fc = dc < 0 ? -1 : html.indexOf("\nfunction ", dc + 10);
+      ok("caissePY se relit dans le fichier livré", dc > 0 && fc > dc);
+      if(dc > 0 && fc > dc){
+        var cai = html.slice(dc, fc);
+        ok("la caisse est peinte APRÈS ses plaques rapportées",
+           cai.indexOf("LES PLAQUES RAPPORTÉES") < cai.indexOf("CA.flanc"),
+           "sinon les plaques restent blanches au milieu des taches");
+        ok("les six faces de caisse sont peintes",
+           ["CA.flanc", "CA.toit", "CA.glacis", "CA.avant", "CA.arriere"]
+             .every(function(k){ return cai.indexOf(k) > 0; }));
+      }
+      ok("les pièces rondes ont leur peintre à elles",
+         /function camoTubePY\(c, a, b, r, ca, sa, lot, C, opa\)\{/.test(html));
+      /* Trois appels, pas quatre : les deux fûts partagent le leur,
+         ils sont peints dans la boucle qui les dessine. */
+      ok("… et il sert aux fûts, au masque et au tube",
+         (html.match(/camoTubePY\(/g) || []).length === 4,
+         "la définition, les fûts, le masque, la buse");
+      ok("le peintre plat du PYR règle son opacité, celui du char non",
+         /function camoFacePY\(c, P, lot, ca, sa, C, opa\)\{/.test(html) &&
+         /c\.globalAlpha = 0\.62;/.test(html),
+         "le TX-90 garde son 0,62 en dur");
       /* LES CHENILLES SONT ANIMÉES PAR LE DÉPLACEMENT, PAS PAR
          L'HORLOGE. C'est ce qui fait qu'un char à l'arrêt a des
          chenilles à l'arrêt et qu'un char englué les fait défiler au

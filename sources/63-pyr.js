@@ -125,7 +125,18 @@ function camoPYR(){
     toit:taches(11, 0.10, 0.26),
     flanc:taches(12, 0.10, 0.28),
     glacis:taches(8, 0.11, 0.30),
-    tourelle:taches(9, 0.10, 0.24)
+    tourelle:taches(9, 0.10, 0.24),
+    /* LE RESTE DU VÉHICULE. Le camouflage s'arrêtait aux quatre
+       grandes surfaces, et ça se voyait : l'avant, l'arrière, les fûts
+       et le manchon d'arme restaient d'un gris uni au milieu d'un engin
+       tacheté, comme si on avait peint la moitié de l'atelier. Un
+       camouflage qui s'arrête à une arête n'en est pas un — il désigne
+       la pièce qu'il laisse nue. */
+    avant:taches(6, 0.12, 0.30),
+    arriere:taches(8, 0.11, 0.28),
+    fut:taches(7, 0.10, 0.26),
+    masque:taches(5, 0.14, 0.34),
+    buse:taches(4, 0.12, 0.28)
   };
   return CAMO_PYR;
 }
@@ -242,6 +253,98 @@ function tubePY(c, a, b, r, ca, sa, teinte, clair){
   c.beginPath();
   c.ellipse(pb.x, pb.y, r, r * 0.62, Math.atan2(dy, dx), 0, 6.2832);
   c.fill();
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LE CAMOUFLAGE SUR UNE PIÈCE RONDE
+
+   `camoFaceT` découpe à un quadrilatère plat ; il ne sait rien faire
+   d'un fût ni d'un manchon. Ici la découpe est la silhouette du tube
+   — le rectangle plus l'ellipse du bout — et les taches vivent en
+   (le long, en travers).
+
+   ET ELLES SE RESSERRENT SUR LES BORDS. Étalées linéairement en
+   travers, elles donnaient un ruban plat collé sur le tube ; passées
+   par un sinus, elles s'écrasent près de la silhouette exactement
+   comme le ferait une peinture qui tourne autour du cylindre. C'est
+   ce resserrement, et lui seul, qui dit que la pièce est ronde.
+   ──────────────────────────────────────────────────────────────── */
+function camoTubePY(c, a, b, r, ca, sa, lot, C, opa){
+  if(!lot || !lot.length) return;
+  var pa = ptT(a[0], a[1], a[2], ca, sa), pb = ptT(b[0], b[1], b[2], ca, sa);
+  var dx = pb.x - pa.x, dy = pb.y - pa.y;
+  var lg = Math.hypot(dx, dy) || 1;
+  var ux = dx / lg, uy = dy / lg, nx = -uy, ny = ux;
+  var i, k, t, u, v, o, x, y;
+  c.save();
+  c.beginPath();
+  c.moveTo(pa.x + nx * r, pa.y + ny * r);
+  c.lineTo(pb.x + nx * r, pb.y + ny * r);
+  c.lineTo(pb.x - nx * r, pb.y - ny * r);
+  c.lineTo(pa.x - nx * r, pa.y - ny * r);
+  c.closePath();
+  c.ellipse(pb.x, pb.y, r, r * 0.62, Math.atan2(dy, dx), 0, 6.2832);
+  c.clip();
+  c.globalAlpha = opa || 0.72;
+  for(t = 0; t < 2; t++){
+    c.beginPath();
+    var rien = true;
+    for(i = 0; i < lot.length; i++){
+      if((lot[i].t ? 1 : 0) !== t) continue;
+      rien = false;
+      for(k = 0; k < lot[i].pts.length; k++){
+        u = lot[i].pts[k][0]; v = lot[i].pts[k][1];
+        o = Math.sin((v - 0.5) * 3.1416) * r;
+        x = pa.x + ux * lg * u + nx * o;
+        y = pa.y + uy * lg * u + ny * o;
+        if(k === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      c.closePath();
+    }
+    if(rien) continue;
+    c.fillStyle = t ? C.camoV : C.camoB;
+    c.fill();
+  }
+  c.restore();
+}
+
+/* Le même peintre que celui du char, mais l'OPACITÉ SE RÈGLE.
+
+   `camoFaceT` écrit 0,62 en dur, et cette valeur est juste — pour le
+   TX-90, qui est vert foncé : des taches trop franches sur du vert
+   font une peau de vache. Sur une coque blanche, la même opacité
+   donne un gris lavé, et le PYR-120 se retrouvait avec une tourelle
+   nettement camouflée posée sur une caisse presque nue — deux engins
+   sur le même châssis. La tourelle peint à 0,85 ; la caisse doit en
+   faire autant.
+
+   On ne touche pas au peintre du char pour autant : il appartient au
+   TX-90, et le TX-90 ne change pas. */
+function camoFacePY(c, P, lot, ca, sa, C, opa){
+  if(!lot || !lot.length) return;
+  var i, k, t, b, p;
+  c.save();
+  cheminT(c, P, ca, sa);
+  c.clip();
+  c.globalAlpha = opa;
+  for(t = 0; t < 2; t++){
+    c.beginPath();
+    var rien = true;
+    for(i = 0; i < lot.length; i++){
+      if((lot[i].t ? 1 : 0) !== t) continue;
+      rien = false;
+      for(k = 0; k < lot[i].pts.length; k++){
+        b = bilinT(P, lot[i].pts[k][0], lot[i].pts[k][1]);
+        p = ptT(b[0], b[1], b[2], ca, sa);
+        if(k === 0) c.moveTo(p.x, p.y); else c.lineTo(p.x, p.y);
+      }
+      c.closePath();
+    }
+    if(rien) continue;
+    c.fillStyle = t ? C.camoV : C.camoB;
+    c.fill();
+  }
+  c.restore();
 }
 
 /* Un anneau de renfort autour d'un tube — deux traits suffisent. */
@@ -416,27 +519,6 @@ function caissePY(c, ca, sa, C, detail){
 
   if(!detail) return;
 
-  /* ---- LE CAMOUFLAGE, ET C'EST LUI QUI SAUVE LE BLANC ----
-     Sans taches, une caisse blanche est un aplat : les faces se
-     distinguent par leur seule valeur, et l'engin ressemble à une
-     maquette non peinte. Les taches lui rendent une surface — et
-     elles seules l'empêchent de disparaître sur le sable clair de la
-     première île, où une peinture d'hiver n'a rien à faire.
-     On réutilise le peintre du char, `camoFaceT` : il découpe à la
-     face et n'ouvre que deux remplissages pour toutes les taches. */
-  var CA = camoPYR();
-  var yc = devantG ? PY.coY : -PY.coY;
-  camoFaceT(c, [[PY.coX0, yc, PY.coZ0], [PY.coX1, yc, PY.coZ0],
-                [PY.coX1, yc, PY.coZ1], [PY.coX0, yc, PY.coZ1]],
-            CA.flanc, ca, sa, C);
-  camoFaceT(c, [[PY.coX0, -PY.coY, PY.coZ1], [PY.coX1, -PY.coY, PY.coZ1],
-                [PY.coX1, PY.coY, PY.coZ1], [PY.coX0, PY.coY, PY.coZ1]],
-            CA.toit, ca, sa, C);
-  if(devant)
-    camoFaceT(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
-                  [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
-              CA.glacis, ca, sa, C);
-
   /* LE GLACIS N'EST PAS UNE DALLE. C'est la plus grande surface du
      véhicule et celle qu'on voit en premier quand il arrive sur soi :
      laissée nue, elle aplatissait tout l'avant. Quatre pièces y
@@ -480,6 +562,50 @@ function caissePY(c, ca, sa, C, detail){
     rivetsT(c, [x0 + 1, yP, PY.coZ0 + 3], [x1 - 1, yP, PY.coZ0 + 3], 4, ca, sa, C);
     rivetsT(c, [x0 + 1, yP, PY.coZ1 - 3], [x1 - 1, yP, PY.coZ1 - 3], 4, ca, sa, C);
   }
+
+  /* ---- LE CAMOUFLAGE, ET C'EST LUI QUI SAUVE LE BLANC ----
+     Sans taches, une caisse blanche est un aplat : les faces se
+     distinguent par leur seule valeur, et l'engin ressemble à une
+     maquette non peinte. Les taches lui rendent une surface — et
+     elles seules l'empêchent de disparaître sur le sable clair de la
+     première île, où une peinture d'hiver n'a rien à faire.
+     On réutilise le peintre du char, `camoFaceT` : il découpe à la
+     face et n'ouvre que deux remplissages pour toutes les taches.
+
+     IL VIENT APRÈS LES PIÈCES RAPPORTÉES, ET C'EST TOUT LE SUJET.
+     Peint avant, il laissait blanches les seules pièces qu'on regarde
+     de près — les trois plaques de flanc, le volet du conducteur, la
+     plaque de choc — et le véhicule se retrouvait avec des rectangles
+     nus au milieu des taches, comme un blindé qu'on aurait repeint en
+     oubliant de démonter ses accessoires. Un atelier peint la machine
+     montée : le rouleau passe sur les plaques, sur les boulons, sur
+     tout. On peint donc en dernier, et la découpe à la face suffit à
+     tenir la peinture sur la tôle. */
+  var CA = camoPYR();
+  var yc = devantG ? PY.coY : -PY.coY;
+  camoFacePY(c, [[PY.coX0, yc, PY.coZ0], [PY.coX1, yc, PY.coZ0],
+                [PY.coX1, yc, PY.coZ1], [PY.coX0, yc, PY.coZ1]],
+             CA.flanc, ca, sa, C, 0.85);
+  camoFacePY(c, [[PY.coX0, -PY.coY, PY.coZ1], [PY.coX1, -PY.coY, PY.coZ1],
+                [PY.coX1, PY.coY, PY.coZ1], [PY.coX0, PY.coY, PY.coZ1]],
+             CA.toit, ca, sa, C, 0.85);
+  /* LE BOUT VISIBLE, avant OU arrière — jamais les deux. `boiteT`
+     n'en montre qu'un, et peindre l'autre serait payer pour une face
+     que personne ne verra. On se règle donc sur la même normale que
+     lui : le tri est déjà fait, on le lit. */
+  if(devant){
+    camoFacePY(c, [[PY.glX, -PY.glY, PY.coZ0 + 2], [PY.coX1 - 2, -PY.glY + 2, PY.glZ],
+                  [PY.coX1 - 2, PY.glY - 2, PY.glZ], [PY.glX, PY.glY, PY.coZ0 + 2]],
+               CA.glacis, ca, sa, C, 0.85);
+    camoFacePY(c, [[PY.coX1, -PY.coY, PY.coZ0], [PY.coX1, PY.coY, PY.coZ0],
+                  [PY.coX1, PY.coY, PY.coZ1], [PY.coX1, -PY.coY, PY.coZ1]],
+               CA.avant, ca, sa, C, 0.85);
+  }else{
+    camoFacePY(c, [[PY.coX0, -PY.coY, PY.coZ0], [PY.coX0, PY.coY, PY.coZ0],
+                  [PY.coX0, PY.coY, PY.coZ1], [PY.coX0, -PY.coY, PY.coZ1]],
+               CA.arriere, ca, sa, C, 0.85);
+  }
+
   /* et deux traits de tôle sur le toit, pour qu'il ne soit pas un aplat */
   toleT(c, [PY.coX0 + 6, -PY.coY, PY.coZ1], [PY.coX0 + 6, PY.coY, PY.coZ1], ca, sa);
   toleT(c, [PY.coX1 - 8, -PY.coY, PY.coZ1], [PY.coX1 - 8, PY.coY, PY.coZ1], ca, sa);
@@ -521,12 +647,20 @@ function caissePY(c, ca, sa, C, detail){
    court vers l'avant et monte à la casemate : c'est ce trajet visible
    du carburant qui explique l'arme sans un mot.
    ──────────────────────────────────────────────────────────────── */
+function CA_FUT(){ return camoPYR().fut; }
 function reservoirsPY(c, ca, sa, C, detail){
   for(var k = 0; k < 2; k++){
     var y = (k ? 1 : -1) * PY.reY;
     tubePY(c, [PY.reX0, y, PY.reZ], [PY.reX1, y, PY.reZ], PY.reR, ca, sa,
            ecl(C.plaque, 1.14), ecl(C.plaqueC, 1.05));
     if(!detail) continue;
+    /* LES FÛTS SONT PEINTS COMME LE RESTE. Ils sont posés sur le pont,
+       à hauteur de toit, et c'est la première chose qu'on voit d'un
+       PYR-120 vu de dos : deux cylindres unis suffisaient à trahir la
+       machine sur la neige. Le deuxième fût prend l'autre moitié du
+       lot pour que les deux ne soient pas jumeaux. */
+    camoTubePY(c, [PY.reX0, y, PY.reZ], [PY.reX1, y, PY.reZ], PY.reR, ca, sa,
+               k ? CA_FUT().slice(3) : CA_FUT().slice(0, 4), C, 0.66);
     /* les cercles de renfort */
     for(var b = 0; b < 3; b++){
       var xb = PY.reX0 + 3 + b * ((PY.reX1 - PY.reX0 - 6) / 2);
@@ -739,7 +873,14 @@ function tourellePYR(c, at, C, detail, feu, tps){
   /* ---- LE MASQUE : le manchon par lequel la buse sort ---- */
   tubePY(c, [PY.maX0, 0, PY.buZ], [PY.maX1, 0, PY.buZ], PY.maR,
          cat, sat, ecl(C.plaque, 0.94), ecl(C.plaqueC, 0.98));
-  if(detail) bagueP(c, [PY.maX1 - 1, 0, PY.buZ], PY.maR + 0.6, cat, sat, "rgba(30,38,46,.55)");
+  if(detail){
+    /* Il est peint : c'est une pièce de tourelle, pas une pièce
+       d'arme, et c'est la plus grosse masse de l'avant. Le laisser nu
+       revenait à dessiner une cible grise au milieu du blanc. */
+    camoTubePY(c, [PY.maX0, 0, PY.buZ], [PY.maX1, 0, PY.buZ], PY.maR,
+               cat, sat, camoPYR().masque, C, 0.70);
+    bagueP(c, [PY.maX1 - 1, 0, PY.buZ], PY.maR + 0.6, cat, sat, "rgba(30,38,46,.55)");
+  }
 
   /* PAS DE FLEXIBLE SUR LE TOIT. Deux essais, deux échecs : quel que
      soit leur tracé, des tuyaux de cuivre posés sur une tourelle
@@ -748,11 +889,22 @@ function tourellePYR(c, at, C, detail, feu, tps){
      déjà raconté deux fois — par les fûts et par la tuyauterie qui
      longe le pont — et une troisième fois de trop ne raconte rien. */
 
-  /* ---- LA BUSE. Acier NU et sombre : c'est la seule pièce qui doive
-     trancher sur la neige, et du blanc sur du blanc ne tranche rien.
-     Elle s'évase au bout — un pavillon, pas un tube coupé net. ---- */
+  /* ---- LA BUSE. Acier sombre, et elle s'évase au bout — un pavillon,
+     pas un tube coupé net.
+
+     ELLE EST PEINTE, MAIS PAS JUSQU'AU BOUT. Sur les deux photos de
+     référence le camouflage court jusque sur le tube : s'arrêter au
+     manchon aurait laissé une barre grise en travers de tout l'avant.
+     Le PAVILLON, lui, reste nu — et pas par oubli : c'est la pièce qui
+     crache, aucune peinture n'y tiendrait une journée, et c'est aussi
+     le seul repère sombre qui dise dans quel sens l'engin tire. Un
+     camouflage qui va jusqu'à effacer la bouche du canon a cessé de
+     camoufler pour se camoufler lui-même. ---- */
   tubePY(c, [PY.buX0, 0, PY.buZ], [PY.buX1, 0, PY.buZ], PY.buR,
          cat, sat, C.buse, ecl(C.buseC, 1.10));
+  if(detail)
+    camoTubePY(c, [PY.buX0, 0, PY.buZ], [PY.buX1 - 6, 0, PY.buZ], PY.buR,
+               cat, sat, camoPYR().buse, C, 0.62);
   tubePY(c, [PY.buX1 - 5.5, 0, PY.buZ], [PY.buX1 + 1.5, 0, PY.buZ], PY.buR * 1.52,
          cat, sat, ecl(C.buse, 1.12), ecl(C.buseC, 0.98));
   if(detail){
@@ -914,18 +1066,28 @@ function dessineJetPYR(c, u, tps){
   var z = cam.z;
   if(z < 0.06) return;
 
-  /* D'OÙ, ET VERS OÙ. La bouche suit la tourelle ; la cible est celle
-     que l'unité a vraiment choisie — sinon le jet part tout droit
-     pendant que l'arme, elle, s'est déjà tournée. */
+  /* D'OÙ, ET VERS OÙ. LE JET SORT DE LA BUSE, DONC IL SUIT LA
+     TOURELLE — toujours, sans exception. C'est `u.cible` qu'on ne peut
+     pas suivre : sous balise, la caisse roule vers un bâtiment
+     désigné pendant que la tourelle brûle une bestiole qui mord le
+     flanc (voir tirBeteEnMarche). Prendre la cible aurait dessiné la
+     flamme vers le bâtiment et le feu aurait manqué la bête à
+     l'écran alors qu'il la tue dans les chiffres.
+     La cible ne sert donc plus qu'à UNE chose : la longueur. Et
+     seulement quand l'arme la regarde vraiment — un quart de radian
+     de tolérance, le temps que la tourelle finisse de tourner. */
   var b = bouchePYR(u);
   var A = versEcran(cam, b.gx, b.gy);
   A.y -= b.z * z;                        // la buse est en hauteur
   var cib = u.cible ? u.cible.o : null;
   var at = u.angTour || 0;
   var portee = (f.arret + 1.2);
-  var tx, ty;
-  if(cib){ tx = cib.gx; ty = cib.gy; }
-  else { tx = u.gx + Math.cos(at) * portee; ty = u.gy + Math.sin(at) * portee; }
+  if(cib && Math.abs(ecartAngulaire(at,
+       Math.atan2(cib.gy - u.gy, cib.gx - u.gx))) < 0.25){
+    portee = Math.max(portee,
+             Math.hypot(cib.gx - u.gx, cib.gy - u.gy));
+  }
+  var tx = u.gx + Math.cos(at) * portee, ty = u.gy + Math.sin(at) * portee;
   var B = versEcran(cam, tx, ty);
   B.y -= 8 * z;                          // on vise le corps, pas les pieds
 

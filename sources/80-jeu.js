@@ -904,6 +904,71 @@ function capMarcheUnite(u, dx, dy){
 }
 
 /* ================================================================
+   UN VÉHICULE SOUS BALISE TIRE QUAND MÊME SUR LES BESTIOLES
+
+   « Que ce soit le TX-90 ou le PYR-120, quand elles sont guidées par
+   une balise elles peuvent quand même tirer sur toutes les petites
+   bêtes qui viennent les attaquer durant leur avancée. »
+
+   POURQUOI C'ÉTAIT INTERDIT, ET POURQUOI ÇA NE L'EST PLUS.
+
+   Deux règles se croisaient ici, chacune bonne pour sa raison.
+
+   La première : sous balise, on MARCHE. Une troupe qui s'arrête pour
+   tirer n'arrive jamais, et une balise qui n'amène personne ne sert à
+   rien — d'où le `u.cible = null` de la marche.
+
+   La seconde : un char ne perd pas son temps avec ce qui ne peut pas
+   le blesser. Le TX-90 est immunisé aux bestioles (vuln.bete = 0), le
+   PYR-120 aussi ; s'arrêter quatre secondes pour tuer au canon un
+   piqueur qui ne leur fait rien pendant qu'une tour de guet leur prend
+   deux cent vingt-quatre points par balle, c'est le pire des échanges.
+
+   OR LES DEUX RAISONS TIENNENT AU MÊME MOT : « s'arrêter ». Et un
+   véhicule ne s'arrête pas pour tirer — il a DEUX caps. La caisse
+   continue vers la balise, seule la tourelle tourne. Le tir est donc
+   littéralement gratuit : il ne coûte ni une seconde de marche, ni un
+   pas de retard. Ce qui rendait la règle juste a disparu.
+
+   Et il rapporte : les bestioles ne peuvent rien contre le blindé,
+   mais elles peuvent beaucoup contre les Furies qui avancent derrière
+   lui. Un char qui balaie la vermine en roulant protège le groupe
+   sans rien lui coûter — c'est exactement le rôle qu'on lui demande.
+
+   RÉSERVÉ AUX VÉHICULES, et le drapeau `tourelle` le dit : une troupe
+   à pied n'a qu'un cap, elle devrait s'arrêter et se tourner, donc
+   pour elle la première règle vaut toujours.
+   ================================================================ */
+function betePresVehicule(u, f){
+  var meilleure = null, md = f.portee, k, cr, d;
+  for(k = 0; k < jeu.creatures.length; k++){
+    cr = jeu.creatures[k];
+    if(cr.pv <= 0) continue;
+    d = Math.hypot(cr.gx - u.gx, cr.gy - u.gy);
+    if(d < md){ md = d; meilleure = cr; }
+  }
+  return meilleure;
+}
+/* Rend 1 si la tourelle s'occupe d'une bestiole : l'appelant sait
+   alors qu'il ne doit PAS réécrire le cap de l'arme par-dessus. */
+function tirBeteEnMarche(u, f, dt, cachee){
+  if(!f.tourelle) return 0;
+  var cr = betePresVehicule(u, f);
+  if(!cr) return 0;
+  u.capTour = Math.atan2(cr.gy - u.gy, cr.gx - u.gx);
+  /* Sous Brouillard on vise sans tirer, comme partout ailleurs. */
+  if(cachee){ armeSansTirer(u); return 1; }
+  u.prochainTir -= dt * 1000;
+  if(u.prochainTir > 0) return 1;
+  /* et il ne tire pas de travers : la tourelle doit être en ligne */
+  if(!tankAligne(u)){ u.prochainTir = 0; return 1; }
+  u.prochainTir = f.cadence;
+  u.tir = 1;
+  tireUnite(u, { gx:cr.gx, gy:cr.gy }, { k:"cre", o:cr });
+  return 1;
+}
+
+/* ================================================================
    LE CHAR, D'UNE IMAGE À L'AUTRE
 
    Trois choses, et elles tiennent en quinze lignes parce qu'elles
@@ -1814,6 +1879,12 @@ function majUnites(dt){
           capMarcheUnite(u, dxb + u.ancX * eb, dyb + u.ancY * eb);
           deplace(u, dxb + u.ancX * eb, dyb + u.ancY * eb, vit * dt);
           u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
+          /* EN ROULANT VERS L'OBJECTIF, la tourelle reste libre :
+             elle balaie les bestioles pendant que la caisse avance.
+             Posé APRÈS capUnite et capMarcheUnite, qui viennent
+             d'écrire les deux caps — celui de l'arme est le seul
+             qu'on reprend. */
+          tirBeteEnMarche(u, f, dt, cachee);
         }else{
           u.phase += dt * 1.5;
           u.prochainTir -= dt * 1000;
@@ -1865,6 +1936,12 @@ function majUnites(dt){
           u.phase += dt * 9;
           capUnite(u, dxf, dyf, 1);
           u.cible = null;
+          /* … SAUF LA VERMINE. capUnite vient de poser les deux caps
+             sur la balise ; si une bestiole est à portée, la tourelle
+             la reprend pour elle et la caisse garde le sien. Voir
+             tirBeteEnMarche : c'est gratuit, un véhicule ne s'arrête
+             pas pour tirer. */
+          tirBeteEnMarche(u, f, dt, cachee);
           continue;                       // rien d'autre ne la concerne
         }
       }
