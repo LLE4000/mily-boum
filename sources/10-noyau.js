@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.13";
+var VERSION = "v1.14";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -7982,6 +7982,31 @@ function memeMonde(a, b){
          (a.bd || "") === (b.bd || "") && (a.bn | 0) === (b.bn | 0) &&
          /* ni un champion, ni un podium */
          (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "") &&
+         /* ════════════════════════════════════════════════════════
+            NI UN BADGE, NI UN RÉGLAGE D'ADMINISTRATION.
+
+            CE QUE LEUR ABSENCE COÛTAIT, mesuré sur deux appareils.
+            Cette fonction ne dit pas « ces deux instantanés
+            sont-ils égaux » : elle dit « ai-je quelque chose de neuf
+            à publier », et publieMonde s'en sert pour se taire. Cinq
+            champs qu'elle ne regardait pas, c'étaient cinq champs
+            qu'on n'envoyait JAMAIS.
+
+            L'admin posait le rose sur un pseudo depuis sa tablette :
+            l'instantané local le portait, l'écran de la tablette le
+            montrait — et zéro trame partait. Le téléphone d'à côté ne
+            pouvait pas le savoir, puisque personne ne le lui avait
+            dit. Le badge « Développeur » et les titres carrière
+            tombaient de la même falaise.
+
+            Et le même oubli frappait à la RÉCEPTION : adopteMonde ne
+            repeint l'accueil que si memeMonde voit du neuf. Un
+            instantané qui n'apportait qu'un badge arrivait bien, se
+            rangeait bien, et ne s'affichait pas.
+            ════════════════════════════════════════════════════════ */
+         (a.bg || "") === (b.bg || "") && (a.bgn || "") === (b.bgn || "") &&
+         (a.bgc | 0) === (b.bgc | 0) &&
+         (a.bo || "") === (b.bo || "") && (a.bon | 0) === (b.bon | 0) &&
          /* ni un lancement d'expédition, sur AUCUNE des voies : sans
             cette boucle, une carte événement neuve serait muette — son
             lancement ne serait jamais republié, donc personne d'autre

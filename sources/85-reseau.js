@@ -746,7 +746,14 @@ function adopteMonde(m, source){
      relais — il porte le même cy. */
   mondeRecu = true;
   chargeMesDegats();
-  if(source === "relais" && avant && !memeMonde(avant, monde)) majMondes();
+  /* ET LE TOP CARRIÈRE AVEC LES VIGNETTES. Il vit dans un autre
+     panneau, il se peint par une autre fonction, et il porte les mêmes
+     pseudos : le repeindre seulement quand on y pense, c'était le
+     laisser en retard d'un badge ou d'un nom en rose. */
+  if(source === "relais" && avant && !memeMonde(avant, monde)){
+    majMondes();
+    if(typeof majCarriere === "function") majCarriere();
+  }
 }
 
 function recoitMonde(txt){

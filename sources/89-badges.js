@@ -843,7 +843,11 @@ function publieReglagesBadge(tab){
   monde.v   = (monde.v | 0) + 1;
   BADGE_LU.bg = null;                       // la table relue a changé
   if(typeof sauveMondeLocal === "function") sauveMondeLocal();
-  if(typeof publieMonde === "function") publieMonde();
+  /* PUBLICATION FORCÉE, et ce n'est pas de la ceinture-bretelles : un
+     geste d'administration doit partir à la seconde où on le fait, pas
+     au prochain battement de deux secondes — et surtout pas seulement
+     si le tour de piste veut bien trouver l'instantané « sale ». */
+  if(typeof publieMonde === "function") publieMonde(true);
   else if(typeof reseau === "object" && reseau.connecte && typeof envoieTrame === "function")
     envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
   prechargeBadges();

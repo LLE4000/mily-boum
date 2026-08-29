@@ -9089,6 +9089,67 @@ G("38. Les classements : un chiffre, le badge, le pseudo");
      /\.monde \.t3l \.m\{[\s\S]{0,160}text-align:right/.test(html));
 })();
 
+
+/* ================================================================ */
+G("39. Un réglage d'administration doit QUITTER l'appareil");
+(function(){
+
+  /* CE QUE CE GROUPE GARDE, ET POURQUOI IL EXISTE.
+
+     « Quand je mets Havana en rose depuis ma tablette, je suis le seul
+     à le voir. » C'était exact, et la cause tenait en une fonction :
+     memeMonde ne dit pas « ces deux instantanés sont-ils égaux », elle
+     dit « ai-je quelque chose de neuf à publier » — et publieMonde
+     s'en sert pour SE TAIRE. Cinq champs qu'elle ne regardait pas,
+     c'étaient cinq champs qui ne partaient jamais.
+
+     Mesuré sur deux appareils avant correction : ZÉRO trame émise au
+     moment du réglage. L'instantané local le portait, l'écran de la
+     tablette le montrait, et rien ne sortait.
+
+     Le même oubli frappait à la réception : adopteMonde ne repeint
+     l'accueil que si memeMonde voit du neuf, donc un instantané
+     n'apportant qu'un badge arrivait, se rangeait, et ne s'affichait
+     pas. */
+
+  /* On construit deux instantanés qui ne diffèrent QUE par un champ de
+     badge, et l'on vérifie que memeMonde les distingue. C'est
+     exactement le cas qui se taisait. */
+  function paire(champ, valeur){
+    var a = N.mondeVide(0, N.CARTES[0].pvQG, 3);
+    var b = N.mondeVide(0, N.CARTES[0].pvQG, 3);
+    b[champ] = valeur;
+    return N.memeMonde(a, b);
+  }
+  ok("un réglage d'administration rend l'instantané neuf",
+     paire("bo", "Havana:::::0:0:0:0:0:0:0:1:0") === false);
+  ok("… son numéro aussi", paire("bon", 3) === false);
+  ok("un compteur de badge rend l'instantané neuf",
+     paire("bg", "Lu:1:0:0:0:0:0:0") === false);
+  ok("… la chute déjà comptée aussi", paire("bgn", "0:1") === false);
+  ok("… et la campagne créditée aussi", paire("bgc", 2) === false);
+  /* Et l'inverse : deux instantanés identiques restent identiques,
+     sinon les clients se republieraient l'un l'autre sans fin. */
+  {
+    var x = N.mondeVide(0, N.CARTES[0].pvQG, 3);
+    var y = N.mondeVide(0, N.CARTES[0].pvQG, 3);
+    x.bo = y.bo = "Havana:::::0:0:0:0:0:0:0:1:0";
+    x.bon = y.bon = 4; x.bg = y.bg = "Lu:1:0:0:0:0:0:0"; x.bgc = y.bgc = 2;
+    ok("… mais deux instantanés vraiment égaux le restent",
+       N.memeMonde(x, y) === true);
+  }
+
+  /* LE GESTE D'ADMINISTRATION PART TOUT DE SUITE, et pas au prochain
+     battement de deux secondes : on force la publication. */
+  ok("écrire un réglage publie sur-le-champ",
+     /if\(typeof publieMonde === "function"\) publieMonde\(true\);/.test(html));
+  /* ET L'ACCUEIL SE REPEINT À LA RÉCEPTION — les vignettes ET le Top
+     carrière, qui vit dans un autre panneau et se peint autrement. */
+  ok("l'accueil se repeint quand un instantané neuf arrive",
+     /if\(source === "relais" && avant && !memeMonde\(avant, monde\)\)\{\s*majMondes\(\);\s*if\(typeof majCarriere === "function"\) majCarriere\(\);/
+       .test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");
