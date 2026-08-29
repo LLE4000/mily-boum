@@ -1280,7 +1280,6 @@ select.champ{cursor:pointer}
 
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
       <button id="btSon" class="bt ptt">🔊 Son activé</button>
-      <button id="btVoix" class="bt ptt" title="La voix qui dit le discours d'ouverture à Ibiza, choisie sur cet appareil">🎙 Voix du discours</button>
       <button id="btPlein" class="bt ptt">⛶ Plein écran</button>
     </div>
     <div class="ligne" style="justify-content:center;gap:8px;margin-bottom:6px">
@@ -1319,6 +1318,21 @@ select.champ{cursor:pointer}
       <div class="ligne" style="margin-top:10px">
         <button id="btAdminReglages" class="bt">🌿 Régler la jungle</button>
       </div>
+      <!-- Le sélecteur de voix vit ICI depuis la v0.96, et plus à
+           l'accueil. Le défaut est la voix du moteur, la même pour tous :
+           un joueur n'a donc plus rien à régler, et un réglage qu'on ne
+           touche jamais n'a rien à faire sous les yeux de tout le monde.
+           Il reste accessible parce que sur un appareil donné, une vraie
+           voix sonne mieux que la synthèse. -->
+      <h3>Voix du discours</h3>
+      <div class="admNote">La voix qui annonce « We all came here for Mily »
+        à Ibiza. Par défaut c'est celle du moteur, identique pour tous les
+        joueurs. On peut lui préférer une voix de CET appareil : elle sonne
+        mieux, mais elle n'existe que sur lui.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btVoix" class="bt">🎙 Choisir la voix</button>
+      </div>
+
       <h3>Blindage des défenses</h3>
       <div class="admNote">Un pourcentage de vie EN PLUS sur les défenses
         d'une île, et sur elles seules : le Brasier garde exactement la
@@ -1402,7 +1416,9 @@ select.champ{cursor:pointer}
   <div class="clBoite">
     <div class="clHaut">
       <div class="clTitre">🎙 La voix du discours</div>
-      <button id="btVoixFerme" class="bt ptt">↩ Accueil</button>
+      <!-- « Retour » et non « Accueil » : ce panneau s'ouvre depuis
+           l'administration, qui reste dessous et réapparaît. -->
+      <button id="btVoixFerme" class="bt ptt">↩ Retour</button>
     </div>
     <div class="clSous">À Ibiza, l'ouverture est une voix qui annonce
       « We all came here for Mily ». Par défaut c'est celle du moteur,
