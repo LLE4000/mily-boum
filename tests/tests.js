@@ -9518,8 +9518,15 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      le MÊME pas, la lumière ne tombe pas dans les cases. */
   ok("le carrelage cuit lit le pas des dalles",
      /for\(j = -ETOILE_R; j <= ETOILE_R; j \+= IBI_PAVE\)\{/.test(html));
-  ok("… et ce pas n'est écrit qu'une fois",
-     (html.match(/var IBI_PAVE   = 2\.6;/g) || []).length === 1);
+  /* LA PROMESSE EST « UNE SEULE COTE », PAS « 2,6 ». Elle citait la
+     valeur, et la valeur a changé — les dalles sont passées à quatre
+     cinquièmes. Ce qu'on veut garantir tient sans elle : le pas est
+     déclaré une fois, et le carrelage cuit le lit au lieu de le
+     recopier (vérifié juste au-dessus). */
+  ok("… et ce pas n'est déclaré qu'une fois",
+     (html.match(/var IBI_PAVE {3}= [0-9.]+;/g) || []).length === 1);
+  ok("… il ne reste donc aucun pas de carrelage écrit en clair",
+     /j \+= IBI_PAVE\)/.test(html) && !/j \+= 2\.6\)/.test(html));
 
   /* ---- 5. le plancher suit la MÊME régie que les douze allées ----
      C'est ce qui fait qu'on croit à une seule console : la table des
@@ -9535,6 +9542,60 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("une dalle prend la teinte de son couloir",
      /var k = Math\.round\(a \/ 6\.2832 \* FAISC_N\);/.test(html) &&
      /var ci = \(\(D\.allee\[i\] \+ mes\) % nT \+ nT\) % nT;/.test(html));
+
+  /* ---- 5 bis. LES DEUX DÉCORS SE PASSENT LA MAIN ----
+     « Ce que j'aime, c'est quand les allées s'alternent, qu'on dirait
+     une rotation, et que la rotation s'accélère. Quand l'étoile est
+     très lumineuse, on ne voit plus ce mouvement. »
+     La règle est écrite une ligne par régime, et son ORDRE est ce qui
+     compte : le plancher se met en sourdine pendant que la crête
+     tourne, et repart à pleine puissance sur le drop. Le banc mesure
+     que ça se voit ; ici on garde que la règle existe et va dans le
+     bon sens. */
+  {
+    var mt = html.match(/var IBI_SOL_MENE = \{\s*([^}]*)\}/);
+    var t = {};
+    if(mt) mt[1].split(",").forEach(function(p2){
+      var kv = p2.split(":"); if(kv.length === 2) t[kv[0].trim()] = parseFloat(kv[1]);
+    });
+    ok("une règle dit qui mène, régime par régime",
+       t.repos !== undefined && t.alt !== undefined && t.tour !== undefined &&
+       t.boum !== undefined && t.vague !== undefined, JSON.stringify(t));
+    ok("… le plancher s'efface pendant que la crête tourne",
+       t.tour < t.alt && t.tour < t.boum * 0.5, "tour " + t.tour + ", boum " + t.boum);
+    ok("… et il repart à pleine puissance sur le drop",
+       t.boum === 1.00 && t.boum > t.alt, "boum " + t.boum);
+    ok("… le discours reste le plus sourd de tous",
+       t.repos <= t.tour + 0.05 && t.repos < t.alt, "repos " + t.repos);
+    /* et elle s'applique VRAIMENT, en plus de la force de section */
+    ok("… et cette règle multiplie bien le gain de chaque dalle",
+       /\* F \* mene \* D\.bouge\[i\] \* D\.sourd\[i\];/.test(html));
+  }
+  /* LE PLAFOND, pour que ce qui est POSÉ sur la piste reste lisible :
+     cinq cents danseurs et les troupes qui la traversent. */
+  ok("le plancher a un plafond, et il est bas",
+     /var IBI_SOL_MAX = 0\.72;/.test(html) &&
+     /c\.globalAlpha = Math\.min\(IBI_SOL_MAX, al \* 0\.62\);/.test(html));
+
+  /* ---- 5 ter. LES PASSAGES SOMBRES SONT DESSINÉS, PAS TIRÉS ----
+     « J'aime bien, tu as fait des tons un peu sombres, des passages.
+     Il faudrait qu'il y en ait un peu plus. » Ils venaient d'un hasard
+     par dalle, qui fait du poivre et sel, pas des plages. */
+  ok("les passages sombres sont deux ondes lentes, pas un tirage",
+     /var o = Math\.sin\(dx \* 0\.42 \+ dy \* 0\.17\) \* Math\.sin\(dx \* 0\.13 - dy \* 0\.48\);/
+       .test(html));
+  ok("… et une dalle au creux d'un passage garde quand même sa dalle",
+     /var IBI_SOURD = 0\.34;/.test(html));
+
+  /* ---- 5 quater. LE CARRELAGE VA JUSQU'AUX DEUX BORDS ----
+     « On dirait qu'il manque des pavés, des découpes triangulaires »,
+     et « au bord de scène, une coupe arrondie, des dalles partout ». */
+  ok("les dalles du bord sont gardées entières, pour être taillées",
+     /function dalleMord\(gx, gy, h\)\{/.test(html) &&
+     /if\(!dalleMord\(gx, gy, IBI_PAVE \* 0\.5\)\) continue;/.test(html));
+  ok("… et le pied de la scène est évidé d'un arc à la cote du podium",
+     /c\.ellipse\(qc\.x, qc\.y, IBI_DEMI \* RX, IBI_DEMI \* RY, 0, 0, 6\.2832\);\s*c\.clip\("evenodd"\);/
+       .test(html));
 
   /* ---- 6. et la piste ne redevient jamais noire ---- */
   ok("les dalles gardent une braise, quoi qu'il arrive",

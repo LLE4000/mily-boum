@@ -2284,7 +2284,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.17";
+var VERSION = "v1.18";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -21939,16 +21939,55 @@ function dessineBandesIbiza(c, tps){
    monde, où ils ne bougent jamais, et c'est la caméra qui les
    transporte.
    ================================================================ */
-var IBI_PAVE   = 2.6;      // le pas du carrelage cuit dans le sol
+var IBI_PAVE   = 2.08;     // le pas du carrelage cuit dans le sol
 var IBI_JOINT  = 0.90;     // la dalle est un peu plus petite que sa maille
 var IBI_PALIERS = 8;       // paliers d'intensité : ce qui permet de grouper
 var IBI_DALLES = null;
 
+/* ────────────────────────────────────────────────────────────────
+   LES PASSAGES SOMBRES
+
+   « J'aime bien, tu as fait des tons un peu sombres dans l'étoile, des
+   passages. Il faudrait qu'il y en ait un peu plus comme ça. »
+
+   Ces zones-là étaient un ACCIDENT : elles venaient de la bougeotte
+   par dalle, qui tire chacune indépendamment de ses voisines et fait
+   donc du poivre et sel, pas des passages. Ce qu'on voyait comme des
+   plages sombres n'était qu'un hasard de tirage, et il changeait
+   d'une carte à l'autre.
+
+   On les DESSINE maintenant, avec deux ondes lentes dont on prend le
+   produit : deux sinus de longueurs d'onde différentes se croisent en
+   damier mou, et leur produit creuse de larges taches qui ne se
+   répètent pas à l'œil. Les dalles y restent visibles — c'est une
+   sourdine, pas un trou — et le carrelage y gagne une profondeur que
+   trois cents dalles toutes égales n'avaient pas.
+
+   Elles servent aussi les petits bonshommes : « quand je dis que c'est
+   trop clair, c'est parce qu'il y a des petits bonhommes dessus et des
+   fois on ne voit pas très bien ». Une piste entièrement allumée est
+   un fond uniforme dont rien ne se détache ; une piste marbrée rend un
+   danseur lisible où qu'il se tienne. */
+var IBI_SOURD = 0.34;      // ce que vaut une dalle au creux d'un passage
+
 /* Les dalles de la piste, calculées une fois. On garde des nombres à
    plat plutôt que des objets : trois cents objets relus soixante fois
    par seconde, c'est trois cents lectures de propriétés par image. */
+/* La dalle mord-elle sur la piste ? On éprouve son centre ET ses
+   quatre coins : garder les seules dalles dont le CENTRE tombe dedans
+   laissait, tout le long des six branches, une frange de triangles
+   noirs — « on dirait qu'il manque des pavés, des découpes
+   triangulaires ». Les dalles du bord sont donc gardées entières et
+   c'est le découpage à l'étoile qui les taille : elles deviennent les
+   triangles qui manquaient, et le carrelage va jusqu'à l'arête. */
+function dalleMord(gx, gy, h){
+  return dansLaScene(gx, gy)
+      || dansLaScene(gx - h, gy - h) || dansLaScene(gx + h, gy - h)
+      || dansLaScene(gx - h, gy + h) || dansLaScene(gx + h, gy + h);
+}
+
 function paveLaPiste(){
-  var cx = [], cy = [], allee = [], rayon = [], damier = [], bouge = [];
+  var cx = [], cy = [], allee = [], rayon = [], damier = [], bouge = [], sourd = [];
   /* UNE BOUGEOTTE PAR DALLE, TIRÉE UNE FOIS. Sans elle, toutes les
      dalles d'un même secteur valent exactement la même chose et l'on
      ne voit plus un carrelage mais un grand aplat en part de tarte.
@@ -21961,11 +22000,18 @@ function paveLaPiste(){
     for(j = 0; j < n; j++){
       var gx = SCENE_GX - ETOILE_R + (i + 0.5) * IBI_PAVE;
       var gy = SCENE_GY - ETOILE_R + (j + 0.5) * IBI_PAVE;
-      if(!dansLaScene(gx, gy)) continue;
+      if(!dalleMord(gx, gy, IBI_PAVE * 0.5)) continue;
       var dx = gx - SCENE_GX, dy = gy - SCENE_GY;
       var r = Math.sqrt(dx * dx + dy * dy);
-      /* sous le podium, rien ne se voit : autant ne pas le peindre */
-      if(r < IBI_DEMI + 0.4) continue;
+      /* ON PAVE JUSQU'AU PIED DE LA SCÈNE. Sauter l'anneau du podium
+         laissait un cerne de plancher nu tout autour : « au bord de
+         scène, tu peux faire une coupe arrondie et vraiment mettre les
+         pavés partout, ça fait un truc bien fini ». Les dalles vont
+         donc jusqu'au bout et c'est le découpage qui creuse le disque,
+         d'un seul arc net. On ne garde toutefois pas celles qui sont
+         ENTIÈREMENT dessous : elles seraient calculées pour être
+         découpées en totalité. */
+      if(r < IBI_DEMI - IBI_PAVE) continue;
       var q = iso(gx, gy);
       cx.push(q.x); cy.push(q.y);
       rayon.push(r / ETOILE_R);
@@ -21975,11 +22021,16 @@ function paveLaPiste(){
       var k = Math.round(a / 6.2832 * FAISC_N);
       allee.push(((k % FAISC_N) + FAISC_N) % FAISC_N);
       damier.push((i + j) & 1);
-      bouge.push(0.80 + al() * 0.34);
+      bouge.push(0.86 + al() * 0.24);
+      /* les passages : le produit de deux ondes lentes, de longueurs
+         d'onde premières l'une à l'autre pour qu'aucun motif ne se
+         referme sur lui-même à la taille de la piste */
+      var o = Math.sin(dx * 0.42 + dy * 0.17) * Math.sin(dx * 0.13 - dy * 0.48);
+      sourd.push(IBI_SOURD + (1 - IBI_SOURD) * (0.5 + 0.5 * o));
     }
   }
   return { cx:cx, cy:cy, allee:allee, rayon:rayon, damier:damier,
-           bouge:bouge, n:cx.length,
+           bouge:bouge, sourd:sourd, n:cx.length,
            dx:26 * IBI_PAVE * IBI_JOINT, dy:13 * IBI_PAVE * IBI_JOINT };
 }
 
@@ -22036,6 +22087,49 @@ function gainDalle(rayon, damier, H, f, u, reg){
   return IBI_BRAISE + v * v * (0.44 + f * 0.24);
 }
 
+/* ────────────────────────────────────────────────────────────────
+   QUI MÈNE LE SPECTACLE, ET QUAND
+
+   « Il ne faut pas non plus que l'étoile prenne trop le dessus sur les
+   allées. Ce que j'aime, c'est quand elles s'alternent, qu'on dirait
+   une rotation, et que la rotation s'accélère. Là, quand l'étoile est
+   très lumineuse, on ne voit plus ce mouvement. Donc j'assombrirais un
+   peu l'étoile à ce moment-là, puis je la repartirais au plus fort. »
+
+   C'est une règle, pas un réglage : les deux décors ne doivent pas
+   briller en même temps, ils doivent se PASSER la main. On l'écrit
+   donc là où elle se lit, une ligne par régime.
+
+     tour     la crête tourne dans les douze allées et accélère au fil
+              de la montée. C'est LE mouvement de l'île, et il se
+              regarde de loin. Le plancher se met en sourdine : il
+              garde son carrelage et son anneau de frappe, il cesse
+              d'être ce qu'on regarde.
+
+     boum     le drop. Là, c'est le plancher qui porte, à pleine
+              puissance — les allées font déjà tout ensemble, il n'y a
+              plus de mouvement fin à protéger.
+
+     alt      l'alternance : les deux décors font le même geste, un
+              damier qui bascule. Ils partagent, à mi-force.
+
+     vague    une houle lente ; on reste bas, c'est un moment calme.
+
+     repos    le discours. La piste respire, elle n'éclaire pas.
+
+   Cette table s'applique EN PLUS de la force de section : une même
+   sourdine ne dit pas la même chose sur un build à 1,0 et sur une
+   descente à 0,62. L'une dit qui mène, l'autre dit à quel volume.
+   ──────────────────────────────────────────────────────────────── */
+var IBI_SOL_MENE = {
+  repos:0.34, alt:0.60, tour:0.30, boum:1.00, vague:0.46
+};
+/* Le plafond du plancher. Il est bas, et c'est voulu : ce qui est
+   posé dessus — cinq cents danseurs, et les troupes qui traversent —
+   doit rester lisible. Une piste plus brillante que ce qu'elle
+   porte est un fond, pas un sol. */
+var IBI_SOL_MAX = 0.72;
+
 /* Les seaux de groupage, alloués une fois : six teintes × huit
    paliers. Les vider coûte une affectation, les recréer coûterait
    quarante-huit tableaux par image. */
@@ -22049,6 +22143,8 @@ function dessinePisteIbiza(c, tps){
   var u = avanceSection(H);
   var reg = IBI_REGIME[H.section];
   if(!reg) reg = ["alt", "tour", "vague", "boum"][Math.floor(H.t / 32) & 3];
+  var mene = IBI_SOL_MENE[reg];
+  if(mene === undefined) mene = 0.60;
   var nT = IBI_LASER_T.length, i, k;
   if(!IBI_SEAUX){
     IBI_SEAUX = [];
@@ -22057,7 +22153,8 @@ function dessinePisteIbiza(c, tps){
   for(i = 0; i < IBI_SEAUX.length; i++) IBI_SEAUX[i].length = 0;
 
   for(i = 0; i < D.n; i++){
-    var g = gainDalle(D.rayon[i], D.damier[i], H, f, u, reg) * F * D.bouge[i];
+    var g = gainDalle(D.rayon[i], D.damier[i], H, f, u, reg)
+          * F * mene * D.bouge[i] * D.sourd[i];
     if(g < 0.04) continue;                   // rien à peindre, rien à payer
     var pal = Math.min(IBI_PALIERS - 1, (g * IBI_PALIERS) | 0);
     var ci = ((D.allee[i] + mes) % nT + nT) % nT;
@@ -22065,14 +22162,25 @@ function dessinePisteIbiza(c, tps){
   }
 
   c.save();
-  /* DÉCOUPÉ À L'ÉTOILE : une dalle du bord dépasse de la piste, et
-     c'est l'arête de l'étoile qui fait la figure de cette île. */
+  /* DÉCOUPÉ À L'ÉTOILE, ET ÉVIDÉ AU PIED DE LA SCÈNE. Les dalles du
+     bord dépassent volontairement de la piste — c'est ce découpage qui
+     les taille en triangles le long des six branches — et l'arête de
+     l'étoile reste nette, ce qui est la figure de cette île.
+     Le disque du podium est retiré par la règle pair-impair : le
+     carrelage vient donc mourir sur un ARC net au pied de la scène, au
+     lieu de s'arrêter en escalier une dalle plus loin. Un cercle du
+     monde se projette en ellipse droite de demi-axes R·RX et R·RY —
+     c'est ce que le podium lui-même dessine, à la même cote. */
   c.beginPath();
   for(i = 0; i < ETOILE_G.length; i += 2){
     var e = iso(ETOILE_G[i], ETOILE_G[i + 1]);
     if(i) c.lineTo(e.x, e.y); else c.moveTo(e.x, e.y);
   }
-  c.closePath(); c.clip();
+  c.closePath();
+  var qc = iso(SCENE_GX, SCENE_GY);
+  c.moveTo(qc.x + IBI_DEMI * RX, qc.y);
+  c.ellipse(qc.x, qc.y, IBI_DEMI * RX, IBI_DEMI * RY, 0, 0, 6.2832);
+  c.clip("evenodd");
   c.globalCompositeOperation = "lighter";
   var DX = D.dx, DY = D.dy;
   for(var b = 0; b < IBI_SEAUX.length; b++){
@@ -22081,7 +22189,7 @@ function dessinePisteIbiza(c, tps){
     /* le milieu du palier : une dalle par palier, donc pas de dégradé
        à l'intérieur d'une dalle — c'est un carrelage, pas un halo */
     var al = ((b % IBI_PALIERS) + 0.5) / IBI_PALIERS;
-    c.globalAlpha = Math.min(0.92, al * 0.62);
+    c.globalAlpha = Math.min(IBI_SOL_MAX, al * 0.62);
     c.fillStyle = "rgba(" + IBI_LASER_T[(b / IBI_PALIERS) | 0] + ",1)";
     c.beginPath();
     for(k = 0; k < seau.length; k++){
