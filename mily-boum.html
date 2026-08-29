@@ -1405,9 +1405,10 @@ select.champ{cursor:pointer}
       <button id="btVoixFerme" class="bt ptt">↩ Accueil</button>
     </div>
     <div class="clSous">À Ibiza, l'ouverture est une voix qui annonce
-      « We all came here for Mily ». Elle vient de cet appareil-ci, pas
-      du jeu. <b>Touchez une voix pour l'entendre</b> — elle est gardée
-      aussitôt, et sur cet appareil seulement.</div>
+      « We all came here for Mily ». Par défaut c'est celle du moteur,
+      la même pour tous les joueurs. Les suivantes viennent de cet
+      appareil-ci et sonnent mieux, mais seulement ici.
+      <b>Touchez-en une pour l'entendre</b> — elle est gardée aussitôt.</div>
     <div class="clCorps"><div id="voixListe"></div></div>
   </div>
 </div>
@@ -1585,7 +1586,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v0.94";
+var VERSION = "v0.95";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -53652,7 +53653,7 @@ function construitBriefing(){
       }
     }
     if(sauv.relais) $("relais").value = sauv.relais;
-    if(sauv.voix) voixDiscours.nom = sauv.voix;
+    if(sauv.voix) voixDiscours.choix = sauv.voix;
   }
   /* Aucun pseudo inventé : le champ reste vide avec son intitulé, et
      rien ne part tant que le joueur ne s'est pas nommé. Un « Recrue267 »
@@ -53732,7 +53733,7 @@ function sauvegarde(){
       /* La voix du discours est un réglage d'APPAREIL — elle n'a de
          sens que là où elle est installée, donc elle vit ici et ne
          part jamais dans l'instantané partagé. */
-      voix:voixDiscours.nom || ""
+      voix:voixDiscours.choix || "moteur"
     }));
   }catch(e){}
 }
@@ -56518,11 +56519,39 @@ var VOIX_HAUTEUR = 0.85, VOIX_DEBIT = 0.72;
    disent « Maïli ». */
 var VOIX_ESSAI = "We all came here for Milly.";
 
+/* ================================================================
+   TROIS CHOIX, PAS DEUX — ET LE DÉFAUT EST CELUI DU MOTEUR
+
+   L'auteur conseille `setVoiceMode('synth')` : sa voix synthétisée,
+   fabriquée par le code, donc rigoureusement la même partout. Il a
+   raison, et c'est le défaut ici. Ce qu'il ne pouvait pas savoir,
+   c'est que le jeu a un sélecteur : le conseil n'a donc pas à être un
+   choix entre deux maux.
+
+     « moteur »  la voix synthétisée du morceau. Identique sur tous les
+                 appareils, zéro octet, robotique par construction —
+                 c'est un vocodeur à formants, pas une voix. LE DÉFAUT :
+                 un joueur qui n'a rien réglé entend ce que les autres
+                 entendent, au lieu de la loterie d'avant (une vieille
+                 dame chez l'un, rien du tout chez l'autre).
+     « auto »    le classement de l'auteur sur les voix de l'appareil.
+     « v:NOM »   une voix précise, choisie à l'oreille.
+
+   Le préfixe « v: » n'est pas une coquetterie : sans lui, une voix qui
+   s'appellerait « auto » serait indiscernable du mode automatique.
+   ================================================================ */
 var voixDiscours = {
 
-  /* Le nom exact de la voix retenue, ou null pour le choix
-     automatique. C'est la seule chose qu'on retient. */
-  nom:null,
+  /* « moteur », « auto », ou « v:NOM ». C'est la seule chose qu'on
+     retient, et elle tient en une chaîne — donc dans le stockage local
+     à côté du pseudo. */
+  choix:"moteur",
+
+  /* Le nom de la voix retenue, ou null si le choix n'en désigne
+     aucune. Les autres fichiers lisent ceci, pas `choix`. */
+  nom:function(){
+    return this.choix.indexOf("v:") === 0 ? this.choix.slice(2) : null;
+  },
 
   /* Les voix anglaises de l'appareil, les mieux classées en tête.
      Rend un tableau vide si le moteur manque ou si l'appareil n'a
@@ -56534,24 +56563,43 @@ var voixDiscours = {
     try{ return M.listVoices() || []; }catch(e){ return []; }
   },
 
-  /* Retenir un nom et l'appliquer. Passe aussi la hauteur et le débit :
-     c'est le seul endroit qui les écrit, donc le seul à pouvoir
-     garantir qu'ils valent partout la même chose. */
-  pose:function(nom){
-    this.nom = nom || null;
+  /* Retenir un choix et l'appliquer. Passe aussi la hauteur et le
+     débit : c'est le seul endroit qui les écrit, donc le seul à
+     pouvoir garantir qu'ils valent partout la même chose. */
+  pose:function(choix){
+    this.choix = choix || "moteur";
     var M = musique.moteur();
     if(!M) return;
     if(M.setVoicePitch) M.setVoicePitch(VOIX_HAUTEUR);
     if(M.setVoiceRate) M.setVoiceRate(VOIX_DEBIT);
-    if(M.setVoiceName) M.setVoiceName(this.nom);
+    if(M.setVoiceName) M.setVoiceName(this.nom());
+    /* Le mode en dernier : c'est lui qui décide si l'appareil parle du
+       tout, et les deux réglages au-dessus ne coûtent rien s'il ne
+       parle pas. */
+    if(M.setVoiceMode) M.setVoiceMode(this.choix === "moteur" ? "synth" : "system");
   },
 
-  /* Faire parler une voix, tout de suite, sans passer par la musique.
-     On ne peut pas se servir du discours du morceau pour essayer une
-     voix : il est programmé sur l'horloge audio et n'arrive qu'aux
-     huit premières mesures. On parle donc directement — mêmes réglages,
-     même phrase, même prononciation. */
-  essaie:function(nom){
+  /* ── ESSAYER, PARCE QU'ON NE CHOISIT PAS UNE VOIX SUR SON NOM ──
+     Deux chemins, parce qu'il y a deux natures de voix.
+
+     Une voix de l'APPAREIL se fait dire une phrase, tout de suite : on
+     ne peut pas se servir du discours du morceau, qui est programmé
+     sur l'horloge audio et n'arrive qu'aux huit premières mesures.
+
+     La voix du MOTEUR, elle, n'existe qu'à l'intérieur du morceau —
+     c'est de la synthèse par formants, pas un moteur vocal qu'on
+     appelle. On joue donc le vrai début du morceau et on l'arrête au
+     bout de quelques secondes. Sans danger : le sélecteur ne s'ouvre
+     que depuis l'accueil, où rien ne joue. */
+  essai:0,
+
+  essaie:function(choix){
+    this.taisEssai();
+    if(choix === "moteur") return this.essaieMoteur();
+    return this.essaieAppareil(this.choix.indexOf("v:") === 0 ? this.choix.slice(2) : null);
+  },
+
+  essaieAppareil:function(nom){
     if(typeof speechSynthesis === "undefined") return false;
     try{
       speechSynthesis.cancel();
@@ -56562,6 +56610,31 @@ var voixDiscours = {
       speechSynthesis.speak(u);
       return true;
     }catch(e){ return false; }
+  },
+
+  essaieMoteur:function(){
+    var M = musique.moteur();
+    if(!M) return false;
+    /* Si une musique tourne déjà, on ne la piétine pas : on a changé
+       le mode, ça suffit. Le cas ne se présente pas depuis l'accueil,
+       mais un sélecteur qui coupe la musique serait une panne. */
+    if(M.isPlaying()) return false;
+    musique.debloque();
+    M.setVolume(son.actif ? MUS_VOL : 0);
+    M.play("intro");
+    var self = this;
+    this.essai = setTimeout(function(){ self.taisEssai(); }, 9000);
+    return true;
+  },
+
+  /* Couper l'essai en cours, quel qu'il soit. Appelée avant chaque
+     nouvel essai et à la fermeture du panneau : un extrait qui
+     continue de jouer derrière un panneau fermé est une panne. */
+  taisEssai:function(){
+    if(this.essai){ clearTimeout(this.essai); this.essai = 0; }
+    musique.tais();
+    var M = musique.moteur();
+    if(M && M.isPlaying()) M.stop();
   },
 
   /* L'objet SpeechSynthesisVoice qui porte ce nom. On redemande la
@@ -56584,33 +56657,39 @@ var voixDiscours = {
    une voix sur son nom, on la choisit en l'ENTENDANT. Chaque ligne
    parle quand on la touche et devient le choix courant du même geste —
    deux touchers pour comparer deux voix, et on repart quand ça sonne
-   bien. Le premier bouton rend la main au choix automatique.
+   bien. Les deux premières lignes ne sont pas des voix de l'appareil :
+   celle du moteur, qui est le défaut, et le choix automatique.
    ================================================================ */
 function majListeVoix(){
   var l = $("voixListe");
   if(!l) return;
   var t = voixDiscours.liste(), h = "", i;
-  var choisi = voixDiscours.nom;
+  var c = voixDiscours.choix;
 
-  h += '<button class="voxL' + (choisi ? '' : ' vsel') + '" data-voix="">'
+  h += '<button class="voxL' + (c === "moteur" ? " vsel" : "") + '" data-voix="moteur">'
+     + '<span class="voxN">🤖 Voix du moteur</span>'
+     + '<span class="voxL2">Identique sur tous les appareils — un peu robotique</span>'
+     + '</button>';
+
+  h += '<button class="voxL' + (c === "auto" ? " vsel" : "") + '" data-voix="auto">'
      + '<span class="voxN">✨ Choix automatique</span>'
-     + '<span class="voxL2">La voix la plus grave que trouve le moteur</span>'
+     + '<span class="voxL2">La meilleure voix que trouve cet appareil-ci</span>'
      + '</button>';
 
   for(i = 0; i < t.length; i++){
-    h += '<button class="voxL' + (t[i].name === choisi ? ' vsel' : '') + '" data-voix="'
-       + echappe(t[i].name) + '">'
+    h += '<button class="voxL' + (c === "v:" + t[i].name ? " vsel" : "") + '" data-voix="'
+       + echappe("v:" + t[i].name) + '">'
        + '<span class="voxN">' + echappe(t[i].name) + '</span>'
        + '<span class="voxL2">' + echappe(t[i].lang) + '</span>'
        + '</button>';
   }
 
-  /* Aucune voix : ce n'est ni une panne ni quelque chose qu'on peut
-     réparer d'ici. On le dit, et on dit la porte de sortie. */
+  /* Aucune voix de l'appareil : ce n'est ni une panne ni quelque chose
+     qu'on peut réparer d'ici, et le défaut couvre déjà le cas. */
   if(!t.length){
     h += '<div class="voxVide">Cet appareil n\'annonce aucune voix anglaise.'
-       + ' Le discours sera dit par la voix synthétisée du moteur, la même'
-       + ' pour tout le monde.</div>';
+       + ' Le discours sera dit par la voix du moteur, la même pour tout'
+       + ' le monde.</div>';
   }
   l.innerHTML = h;
 }
@@ -56626,14 +56705,16 @@ function ouvreVoixP(){
 function fermeVoixP(){
   var e = $("voixP");
   if(e) e.classList.remove("on");
+  /* Un extrait qui continue de jouer derrière un panneau fermé est une
+     panne, et l'extrait du moteur dure neuf secondes. */
+  voixDiscours.taisEssai();
 }
 
 function installeVoixP(){
-  /* Le choix relu du stockage n'est encore qu'un nom : c'est ici qu'il
-     entre dans le moteur, avec la hauteur et le débit. Appelé même
-     sans choix retenu — `pose(null)` pose quand même les deux
-     réglages, et rend la main au classement automatique. */
-  voixDiscours.pose(voixDiscours.nom);
+  /* Le choix relu du stockage n'est encore qu'une chaîne : c'est ici
+     qu'il entre dans le moteur, avec la hauteur, le débit et le mode.
+     Appelé même sans choix retenu — c'est ce qui pose le défaut. */
+  voixDiscours.pose(voixDiscours.choix);
 
   var b = $("btVoix"), f = $("btVoixFerme"), l = $("voixListe");
   if(b) b.addEventListener("click", ouvreVoixP);
@@ -56642,13 +56723,11 @@ function installeVoixP(){
     var n = ev.target;
     while(n && n !== l && !n.hasAttribute("data-voix")) n = n.parentNode;
     if(!n || n === l) return;
-    /* La chaîne vide est le choix automatique, et c'est bien une
-       valeur : `pose(null)` remet le classement du moteur en marche. */
-    var nom = n.getAttribute("data-voix") || null;
-    voixDiscours.pose(nom);
+    var choix = n.getAttribute("data-voix") || "moteur";
+    voixDiscours.pose(choix);
     sauvegarde();
     majListeVoix();
-    voixDiscours.essaie(nom);
+    voixDiscours.essaie(choix);
   });
   /* Le moteur vocal publie ses voix après coup, souvent une seconde
      après le chargement. Si le panneau est ouvert à ce moment-là, il
