@@ -9736,6 +9736,54 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /le salon joue « " \+ CARTES\[carteSalon \| 0\]\.nom \+ " », pas celle-ci/.test(html));
 })();
 
+/* ================================================================
+   44. L'ÉDITEUR MONTRE LES ALLÉES D'IBIZA
+
+   « Il y a des défenses qui sont en plein milieu de l'allée. Est-ce
+   qu'on ne pourrait pas cliquer dessus et la faire bouger ? »
+
+   On PEUT déjà : le mode « À l'unité » attrape la pièce sous le doigt
+   et la fait suivre — vérifié par un vrai glissé de souris, elle est
+   passée de (100 ; 40) à (112 ; 52). Ce qui manquait n'était pas le
+   geste, c'était le REPÈRE : le générateur creuse les douze couloirs,
+   mais une pièce posée à la main est ajoutée en dernier, sans passer
+   par ce découpage — elle tombe donc où le doigt la met, et rien ne
+   disait où étaient les couloirs.
+
+   Le guide est SOUS tout le reste, en sourdine, et sa géométrie est
+   prise aux mêmes fonctions que le jeu : un repère qui ment vaut
+   moins que pas de repère.
+   ================================================================ */
+(function(){
+  ok("l'éditeur dessine la figure de l'île à scène",
+     /if\(carteScene\(planCarteIdx\)\)\{[\s\S]{0,200}for\(i = 0; i < FAISC_N; i\+\+\)\{/
+       .test(html));
+  /* LA MÊME GÉOMÉTRIE QUE LE JEU, pas une copie : même angle
+     d'origine, même largeur, mêmes rayons. */
+  ok("… au même angle d'origine que les douze allées",
+     /var aF = i \/ FAISC_N \* 6\.2832 - 0\.5236;/.test(html));
+  ok("… à la même largeur, prise à largeurPeinte",
+     /var w0 = largeurPeinte\(FAISC_R0\), w1 = largeurPeinte\(FAISC_PEINT_R1\);/
+       .test(html));
+  ok("… et le pourtour de l'étoile vient d'ETOILE_G",
+     /for\(i = 0; i < ETOILE_G\.length; i \+= 2\)\{\s*var ex2 = ox \+ ETOILE_G\[i\] \* e/
+       .test(html));
+  /* C'EST UN REPÈRE, PAS DU CONTENU : il reste pâle, et il ne se
+     dessine que là où la figure existe. */
+  ok("… il reste en sourdine", /rgba\(120,210,255,\.085\)/.test(html));
+  /* ET LE GESTE EXISTE DÉJÀ — on garde ses trois pièces, parce
+     qu'elles se défont facilement sans qu'on s'en aperçoive. */
+  ok("on attrape une pièce en gardant son décalage de prise",
+     /planPiecePrise = \{ dx:planPieces\[i\]\.gx - p\.gx, dy:planPieces\[i\]\.gy - p\.gy \};/
+       .test(html));
+  /* la fenêtre était trop courte : entre l'en-tête de bougePiece et
+     l'affectation, il y a le commentaire qui explique l'historique */
+  ok("… elle suit le doigt", /function bougePiece\(sx, sy\)\{[\s\S]{0,800}P\.gx = nx; P\.gy = ny;/
+       .test(html));
+  ok("… et « Annuler » défait le déplacement entier, pas le pixel",
+     /if\(!planDejaEmpile\)\{ poussePile\(\); planDejaEmpile = 1; \}/.test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

@@ -913,6 +913,57 @@ function dessinePlan(){
     c.stroke();
   }
 
+  /* ================================================================
+     LA FIGURE DE L'ÎLE, EN GUIDE
+
+     « Il y a des défenses qui sont en plein milieu de l'allée. »
+
+     Elles y sont parce que rien ne montrait l'allée. Le générateur,
+     lui, creuse les douze couloirs et l'étoile — mais une pièce posée
+     À LA MAIN est ajoutée en dernier, sans passer par ce découpage :
+     elle tombe donc où le doigt la met, y compris au milieu d'un
+     couloir, et l'éditeur n'avait aucun moyen de le dire.
+
+     On dessine donc la figure SOUS tout le reste, en sourdine : les
+     douze allées et le pourtour de l'étoile. Ce n'est pas du contenu,
+     c'est un repère — d'où le trait pâle et l'absence de remplissage
+     franc. La géométrie est prise aux MÊMES fonctions que le jeu et
+     que le sol cuit : même angle d'origine, même `largeurPeinte`,
+     mêmes rayons. Deux tracés calculés séparément se seraient
+     désalignés à la première retouche, et un repère faux vaut moins
+     que pas de repère du tout.
+     ================================================================ */
+  if(carteScene(planCarteIdx)){
+    c.save();
+    c.lineWidth = Math.max(1, e * 0.14);
+    for(i = 0; i < FAISC_N; i++){
+      var aF = i / FAISC_N * 6.2832 - 0.5236;
+      var caF = Math.cos(aF), saF = Math.sin(aF);
+      var w0 = largeurPeinte(FAISC_R0), w1 = largeurPeinte(FAISC_PEINT_R1);
+      /* le couloir est un trapèze : il s'élargit en s'éloignant */
+      c.fillStyle = "rgba(120,210,255,.085)";
+      c.beginPath();
+      c.moveTo(ox + (SCENE_GX + caF * FAISC_R0 - saF * w0) * e,
+               oy + (SCENE_GY + saF * FAISC_R0 + caF * w0) * e);
+      c.lineTo(ox + (SCENE_GX + caF * FAISC_PEINT_R1 - saF * w1) * e,
+               oy + (SCENE_GY + saF * FAISC_PEINT_R1 + caF * w1) * e);
+      c.lineTo(ox + (SCENE_GX + caF * FAISC_PEINT_R1 + saF * w1) * e,
+               oy + (SCENE_GY + saF * FAISC_PEINT_R1 - caF * w1) * e);
+      c.lineTo(ox + (SCENE_GX + caF * FAISC_R0 + saF * w0) * e,
+               oy + (SCENE_GY + saF * FAISC_R0 - caF * w0) * e);
+      c.closePath(); c.fill();
+    }
+    /* le pourtour de l'étoile, par-dessus les couloirs */
+    c.strokeStyle = "rgba(150,225,255,.42)";
+    c.beginPath();
+    for(i = 0; i < ETOILE_G.length; i += 2){
+      var ex2 = ox + ETOILE_G[i] * e, ey2 = oy + ETOILE_G[i + 1] * e;
+      if(i) c.lineTo(ex2, ey2); else c.moveTo(ex2, ey2);
+    }
+    c.closePath(); c.stroke();
+    c.restore();
+  }
+
   /* LE DÉCOR ET LES BÊTES, sous les défenses.
      Ils ne sont pas là pour décorer l'éditeur : ils sont la PREUVE, à
      l'écran, que peindre des défenses ne les efface pas. On les
