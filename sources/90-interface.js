@@ -1791,7 +1791,7 @@ function majMondes(){
        + '<canvas width="360" height="148" id="mn' + i + '"></canvas>'
        + '<div class="etat">' + etat + '</div>'
        + '<div class="nom">' + CARTES[i].nom + '<br><span style="font-size:11px;color:#a99cb4">QG '
-       + nombre(CARTES[i].pvQG) + ' PV</span></div>'
+       + nombre(pvQGDeCarte(i)) + ' PV</span></div>'
        /* LE BLINDAGE SE VOIT, ET SEULEMENT S'IL EXISTE. Une pastille
           de plus sur les huit vignettes quand il vaut zéro partout
           serait du bruit ; quand il ne vaut pas zéro, c'est la seule
@@ -1980,7 +1980,7 @@ function vignetteEvenement(i){
        + '<div class="etat">' + etiq + '</div>'
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
-       + nombre(CARTES[i].pvQG) + ' PV — événement multijoueur</span></div>'
+       + nombre(pvQGDeCarte(i)) + ' PV — événement multijoueur</span></div>'
        /* Le joueur doit savoir CE QUI L'ATTEND avant d'appuyer, et le
           savoir en une seconde. Deux pastilles, deux chiffres, pas une
           phrase : ce sont les seuls réglages qui rendent cette carte
@@ -2797,6 +2797,8 @@ function installeAdmin(){
   if(r) r.addEventListener("click", regleJungleAdmin);
   var bl = $("btAdminBlindage");
   if(bl) bl.addEventListener("click", regleBlindageAdmin);
+  var sq = $("btAdminSanteQG");
+  if(sq) sq.addEventListener("click", regleSanteQGAdmin);
   var rc = $("btAdminReprise");
   if(rc) rc.addEventListener("click", reprendCampagneAdmin);
   var cu = $("btAdminCumul");
@@ -3085,6 +3087,109 @@ function regleBlindageAdmin(){
       + "réinitialisé — les ruines restent des ruines, un bâtiment à\n"
       + "moitié abattu reste à moitié abattu — et les dégâts prennent\n"
       + "effet au coup suivant.");
+}
+
+/* ================================================================
+   RÉGLER LA SANTÉ D'UN BRASIER
+
+   « Pour l'instant les QG sont beaucoup trop énormes. »
+
+   Deux questions, et un avertissement au milieu — le même que celui du
+   blindage, et pour la même raison : LE SCORE SE COMPTE EN POINTS DE
+   VIE RETIRÉS. Diviser un Brasier par dix, c'est rendre les prochains
+   scores dix fois plus petits que ceux déjà inscrits sur cette île. Le
+   joueur doit le lire avant de valider, pas après.
+
+   ON SAISIT EN MILLIONS, et ce n'est pas un détail d'ergonomie. Les
+   Brasiers valent entre quinze et soixante-quinze millions : demander
+   « 5 » plutôt que « 5000000 » retire six occasions de se tromper
+   d'un zéro sur une valeur qui part aussitôt chez tout le monde. La
+   virgule est acceptée, et la valeur est bornée à la saisie.
+
+   ET LA LISTE MONTRE LES DEUX CHIFFRES quand ils diffèrent — celui de
+   la fiche et celui qui est réglé : sans quoi on ne peut pas savoir
+   d'où l'on part, ni ce qu'on rendrait en remettant zéro.
+   ================================================================ */
+function regleSanteQGAdmin(){
+  var l = "SANTÉ DU BRASIER\n\nQuel Brasier veux-tu régler ?\n\n";
+  var ordre = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++) ordre.push(ORDRE_CAMPAGNE[i]);
+  for(i = 0; i < CARTES.length; i++) if(ordre.indexOf(i) < 0) ordre.push(i);
+  for(i = 0; i < ordre.length; i++){
+    var k = ordre[i], fiche = CARTES[k].pvQG || 0, vaut = pvQGDeCarte(k);
+    l += "  " + (i + 1) + " — " + CARTES[k].nom
+       + "   " + nombre(vaut) + " PV"
+       + (santeQGReglee(k) ? "   [réglé, fiche : " + nombre(fiche) + "]" : "")
+       + (carteSpeciale(k) ? "   (carte spéciale)" : "")
+       + "\n";
+  }
+  var rep = prompt(l + "\nEntre un numéro :", "1");
+  if(rep === null) return;
+  var q = parseInt(rep, 10);
+  if(!(q >= 1 && q <= ordre.length)){
+    alert("Il faut un numéro entre 1 et " + ordre.length + ". Rien n'a été changé.");
+    return;
+  }
+  var idx = ordre[q - 1], nom = "« " + CARTES[idx].nom + " »";
+  var avant = pvQGDeCarte(idx), fiche = CARTES[idx].pvQG || 0;
+  var jouee = dejaJouee(idx);
+  var av = jouee
+    ? "\n⚠ ATTENTION : des scores existent déjà sur cette île.\n"
+      + "Le TOP DÉGÂTS compte les points de vie retirés. En divisant\n"
+      + "ce Brasier par dix, les prochains scores y vaudront dix fois\n"
+      + "moins que ceux déjà inscrits. Rien ne sera effacé, mais les\n"
+      + "anciens et les nouveaux ne se compareront plus tout à fait.\n"
+    : "\nCette île n'a pas encore été jouée : rien à comparer,\n"
+      + "le réglage y est sans conséquence pour le classement.\n";
+  /* ET L'ÉTAT DE LA BATAILLE EN COURS, s'il y en a une sur cette île :
+     c'est la phrase qu'il a demandée, et il doit la voir AVANT de
+     valider, avec le chiffre qu'elle donnera. */
+  var enCours = "";
+  if(jeu && jeu.index === idx && jeu.qg.pvMax > 0){
+    var part = Math.max(0, Math.min(1, jeu.qg.pv / jeu.qg.pvMax));
+    enCours = "\nUne bataille est EN COURS sur cette île : il reste\n"
+            + Math.round(part * 100) + " % du Brasier. Ce pourcentage sera "
+            + "conservé\ntel quel — seule la taille change.\n";
+  }
+  var defaut = Math.round(avant / 1e5) / 10;
+  var rp = prompt(
+    "SANTÉ DU BRASIER DE " + nom.toUpperCase() + "\n\n"
+    + "Sa vie, EN MILLIONS de points.\n"
+    + "Valeur actuelle : " + (Math.round(avant / 1e5) / 10) + " M"
+    + (santeQGReglee(idx) ? "   (fiche : " + (Math.round(fiche / 1e5) / 10) + " M)" : "")
+    + ".\n"
+    + "Entre 0 pour lui rendre celle de sa fiche.\n"
+    + av + enCours
+    + "\nLes défenses ne changent pas, et les armes non plus : un\n"
+    + "Brasier deux fois plus petit tombe deux fois plus vite.\n\n"
+    + "Entre un nombre entre " + (QG_PV_MIN / 1e6) + " et "
+    + (QG_PV_MAX / 1e6) + " (ou 0) :", "" + defaut);
+  if(rp === null) return;
+  var m = parseFloat(String(rp).replace(",", "."));
+  if(!isFinite(m) || m < 0){
+    alert("Il faut un nombre. Rien n'a été changé.");
+    return;
+  }
+  var points = Math.round(m * 1e6);
+  if(points > 0 && (points < QG_PV_MIN || points > QG_PV_MAX)){
+    alert("Il faut un nombre entre " + (QG_PV_MIN / 1e6) + " et "
+        + (QG_PV_MAX / 1e6) + " millions, ou 0 pour revenir à la fiche.\n"
+        + "Rien n'a été changé.");
+    return;
+  }
+  var pose = regleSanteQG(idx, points);
+  if(!pose){ alert("Carte inconnue. Rien n'a été changé."); return; }
+  evtEtat = "";
+  majMondes();
+  if(typeof rafraichitPlan === "function") rafraichitPlan();
+  alert("Brasier de " + nom + " : " + nombre(pose.pv) + " PV"
+      + (pose.regle ? "" : "   (valeur de sa fiche)") + ".\n\n"
+      + "Le réglage vaut pour TOUT LE SALON, voyage dans l'instantané\n"
+      + "partagé et survit à la fermeture du navigateur.\n\n"
+      + "Il s'applique IMMÉDIATEMENT, y compris à une partie en cours :\n"
+      + "le pourcentage déjà détruit est conservé, et rien d'autre n'a\n"
+      + "bougé — ni les ruines, ni les blessures, ni les scores, ni la\n"
+      + "campagne.");
 }
 
 /* Cette île a-t-elle déjà été jouée dans ce salon ? On le lit sur

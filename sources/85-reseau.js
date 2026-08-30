@@ -498,7 +498,11 @@ function etatEvenements(){
       }
       o.d = encodeBits(bits);
       o.bl = encodeBlessures(bl);
-      o.q = Math.max(0, Math.round(jeu.qg.pv));
+      /* DANS L'ÉCHELLE D'ORIGINE DE LA CARTE, jamais dans la nôtre :
+         c'est ce qui permet de régler la santé du Brasier sans que la
+         fusion monotone ait rien à refuser, et ce qui laisse un client
+         resté sur l'ancienne version lire ce champ correctement. */
+      o.q = Math.max(0, Math.round(versEchelleFiche(jeu.qg.pv, jeu.index)));
     }
     E.v[V.P] = o;
   }
@@ -550,6 +554,7 @@ function mondeCourant(){
              g:monde.g || "", w:monde.w || "", s:monde.s || "", k:monde.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
              bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   /* En expédition, la campagne ne bouge PAS : on republie l'île
@@ -563,6 +568,7 @@ function mondeCourant(){
              g:mm.g || "", w:mm.w || "", s:tableauScores(), k:mm.k || "",
              p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
              bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   }
   var bits = [], bl = [], i;
@@ -577,7 +583,12 @@ function mondeCourant(){
     if(n < BLESSURE_CRANS) bl.push({ i:i, n:n });
   }
   return poseEvenements({ v:(monde ? monde.v : 0), cy:cycleSalon, c:jeu.index,
-           pv:Math.max(0, Math.round(jeu.qg.pv)), d:encodeBits(bits),
+           /* DANS L'ÉCHELLE D'ORIGINE : c'est la monnaie commune de
+              l'instantané, celle que comprennent aussi bien un client
+              qui a réglé la santé du Brasier qu'un client qui n'en
+              sait rien. */
+           pv:Math.max(0, Math.round(versEchelleFiche(jeu.qg.pv, jeu.index))),
+           d:encodeBits(bits),
            bl:encodeBlessures(bl),
            g:jeu.tueurGege || "", w:jeu.tueurTweety || "",
            k:encodeChats(jeu.tueurChats),
@@ -587,6 +598,7 @@ function mondeCourant(){
            s:tableauScores(),
            p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
              bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
 }
 
@@ -671,6 +683,27 @@ function adopteMonde(m, source){
        n'existent pas. La branche d'à côté, celle du plan, ne repeint
        pas non plus pour la même raison — elle se contente de
        rafraichitPlan. */
+    if(typeof majMondes === "function" && document.getElementById("mn0"))
+      majMondes();
+    if(typeof rafraichitPlan === "function") rafraichitPlan();
+  }
+
+  /* LA SANTÉ DU BRASIER, ADOPTÉE JUSTE APRÈS LE BLINDAGE ET POUR LA
+     MÊME RAISON : la carte qu'on va peut-être refaire doit sortir du
+     générateur avec le bon Brasier du premier coup. Et si l'on est
+     déjà en jeu sur la carte concernée, on ne la refait pas — on remet
+     le Brasier à l'échelle, ce qui garde la fraction déjà détruite.
+
+     ELLE VIENT AVANT LA LECTURE DE `pv`, PLUS BAS, ET C'EST L'ORDRE
+     QUI COMPTE : `versEchelleIle` consulte la table, donc la table doit
+     être à jour avant qu'on convertisse quoi que ce soit. Dans l'autre
+     ordre, le premier instantané portant un nouveau réglage serait lu
+     dans l'ancienne échelle. */
+  if((monde.qv || "") !== santeQGSalon || (monde.qn | 0) !== numeroSanteQG){
+    var qgAvant = jeu ? pvQGDeCarte(jeu.index) : 0;
+    poseSanteQGSalon(monde.qv || "", monde.qn | 0);
+    if(jeu && typeof remetLeBrasierALEchelle === "function")
+      remetLeBrasierALEchelle(jeu.index, qgAvant, pvQGDeCarte(jeu.index));
     if(typeof majMondes === "function" && document.getElementById("mn0"))
       majMondes();
     if(typeof rafraichitPlan === "function") rafraichitPlan();
@@ -819,7 +852,9 @@ function appliqueMondeAuJeu(m){
       }
     }
   }
-  jeu.file.adopteMinimum(m.pv);
+  /* `m.pv` compte dans l'échelle d'ORIGINE de la carte : on le ramène
+     à la nôtre avant de comparer (voir versEchelleIle). */
+  jeu.file.adopteMinimum(versEchelleIle(m.pv, jeu.index));
   jeu.qg.pv = jeu.file.pv;
   if(change){
     if(jeu.balise && jeu.balise.cible && !jeu.balise.cible.vivant) jeu.balise = null;
@@ -848,7 +883,7 @@ function appliqueEvenementAuJeu(m, idx){
   /* et les blessures de l'expédition, sur les survivants */
   change += appliqueBlessuresAuJeu(m[P + "bl"] || "");
   var q = m[P + "q"] | 0;
-  if(q){ jeu.file.adopteMinimum(q); jeu.qg.pv = jeu.file.pv; }
+  if(q){ jeu.file.adopteMinimum(versEchelleIle(q, idx)); jeu.qg.pv = jeu.file.pv; }
   if(change){
     if(jeu.balise && jeu.balise.cible && !jeu.balise.cible.vivant) jeu.balise = null;
     demandeMajBarres();
@@ -988,6 +1023,7 @@ function publieEtat(m, jg){
                        k:m.k || "", p:planSalon, pn:numeroPlan | 0,
                        tg:tirageSalon | 0,
                        bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   publieMonde(true);
@@ -1132,6 +1168,35 @@ function regleBlindage(index, pourcentPv, pourcentDegats){
   publieEtat(m, etatEvenements());
   return { pv:t[index].pv, dg:t[index].dg };
 }
+
+/* ================================================================
+   ET LA SANTÉ DU BRASIER — MÊME CHEMIN, MÊME DISCIPLINE
+
+   « Dès que j'appuie, ça se met instantanément. » On modifie la table,
+   on incrémente SON numéro, on remet la partie en cours à l'échelle,
+   et l'on republie. Les autres l'auront à l'instantané suivant, par
+   l'adoption de recoitMonde.
+
+   UNE VALEUR DE ZÉRO REND LA CARTE À SA FICHE, et c'est voulu : c'est
+   la seule façon d'annuler un réglage sans avoir à retrouver la valeur
+   d'origine à la main. `encodeSanteQG` saute les entrées nulles, donc
+   la table rétrécit au lieu de porter un zéro qui ne veut rien dire.
+   ================================================================ */
+function regleSanteQG(index, points){
+  if(!(index >= 0) || index >= CARTES.length) return null;
+  var t = decodeSanteQG(santeQGSalon);
+  var avantMax = pvQGDeCarte(index);
+  var v = Math.round(points);
+  if(v > 0) t[index] = borne(v, QG_PV_MIN, QG_PV_MAX);
+  else delete t[index];
+  var chaine = encodeSanteQG(t);
+  if(chaine === santeQGSalon) return { pv:avantMax, regle:santeQGReglee(index) };
+  poseSanteQGSalon(chaine, (numeroSanteQG | 0) + 1);
+  if(jeu) remetLeBrasierALEchelle(index, avantMax, pvQGDeCarte(index));
+  var m2 = monde || mondeVide(0, CARTES[0].pvQG, cycleSalon);
+  publieEtat(m2, etatEvenements());
+  return { pv:pvQGDeCarte(index), regle:santeQGReglee(index) };
+}
 /* Combien de millisecondes avant que cette carte rouvre. 0 = ouverte.
    L'heure de référence vient de l'instantané PARTAGÉ : un client dont
    l'horloge retarde ne peut pas ouvrir la carte plus tôt pour les
@@ -1248,6 +1313,7 @@ function remetSalonAZero(){
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon,
             bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   sauveMondeLocal();
   if(reseau.connecte) envoieTrame(paquetPublish(SUJET_MONDE, JSON.stringify(monde), true));
@@ -1312,6 +1378,7 @@ function nouvelleCampagneSalon(){
             pv:CARTES[depart].pvQG, d:"", bl:"", g:"", w:"", s:"", k:"",
             p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
              bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
   chargeMesDegats();          // le cumul local suit la campagne
   degatsReplies = 0;
@@ -1334,6 +1401,7 @@ function nouveauTirageSalon(){
             pv:CARTES[0].pvQG, d:"", bl:"", g:"", w:"",
             p:planSalon, pn:numeroPlan, tg:tirageSalon, s:"", k:"",
             bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 },
             voiesRemisesAZero());
   sauveMondeLocal();
@@ -1465,6 +1533,7 @@ function reprendCampagneA(index){
     s:av.s || "",
     p:planSalon, pn:numeroPlan | 0, tg:tirageSalon | 0,
     bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
@@ -1615,6 +1684,7 @@ function enregistrePlan(chaine, index){
       s:av.s || "",
       p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
       bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0
     }, jgP);
     sauveMondeLocal();
@@ -1641,6 +1711,7 @@ function enregistrePlan(chaine, index){
     s:av.s || "",
     p:planSalon, pn:numeroPlan, tg:tirageSalon | 0,
     bd:blindageSalon, bn:numeroBlindage | 0,
+             qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0
   }, jg);
   sauveMondeLocal();
@@ -1716,7 +1787,8 @@ function recoit(txt){
   if(m.t === "bonjour"){
     j.nom = (m.nom || "?").substr(0, 14);
     noteScore(m.id, j.nom, 0);
-    if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index, pv:jeu.qg.pv });
+    if(jeu) envoie({ t:"sync", nom:monNom, c:jeu.index,
+                    pv:versEchelleFiche(jeu.qg.pv, jeu.index) });
     annonce("<b>" + echappe(j.nom) + "</b> a rejoint le salon");
     if(typeof chatSysteme === "function") chatSysteme(j.nom + " a rejoint le salon.");
   }else if(m.t === "chat"){
@@ -1738,7 +1810,9 @@ function recoit(txt){
       else if(monde.cy === cycleSalon) carteSalon = Math.max(carteSalon, monde.c | 0);
     }
     if(jeu && typeof m.c === "number" && m.c === jeu.index && typeof m.pv === "number"){
-      jeu.file.adopteMinimum(m.pv);
+      /* comme partout : ce qui vient du réseau parle l'échelle
+         d'origine de la carte, pas la nôtre */
+      jeu.file.adopteMinimum(versEchelleIle(m.pv, jeu.index));
       jeu.qg.pv = jeu.file.pv;
       demandeMajBarres();
     }

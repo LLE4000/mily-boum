@@ -2027,8 +2027,9 @@ function majPanneauPlan(){
     + (hausseTotalePv(planCarteIdx) > 0
         ? ' <span style="color:#e8a94a">(+' + hausseTotalePv(planCarteIdx) + ' %)</span>'
         : "")
-    + '<br><span style="color:#8f86a0">Brasier : ' + nombre(CARTES[planCarteIdx].pvQG)
-    + " PV, jamais blindé</span><br>"
+    + '<br><span style="color:#8f86a0">Brasier : ' + nombre(pvQGDeCarte(planCarteIdx))
+    + " PV, jamais blindé"
+    + (santeQGReglee(planCarteIdx) ? " (réglé)" : "") + "</span><br>"
     + "<b>" + c.cellules + "</b> cellules à récolter<br>"
     /* CE QUE LE PLAN NE REMPLACE JAMAIS. La première question qu'on se
        pose en peignant une carte est « est-ce que je détruis son

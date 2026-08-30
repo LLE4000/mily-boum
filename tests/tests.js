@@ -56,6 +56,9 @@ try{
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
+    "QG_PV_MIN","QG_PV_MAX","encodeSanteQG","decodeSanteQG","santeQGDans",
+    "meilleureSanteQG","poseSanteQGSalon","pvQGDeCarte","santeQGReglee",
+    "versEchelleIle","versEchelleFiche",
     "ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
     "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
     "encodeJournal","decodeJournal","statsJournaux",
@@ -5895,13 +5898,16 @@ G("8. Cohérence des règles de jeu");
     }
     var fini = 0;
     function lance(j, m){
+      /* `versEchelleIle` entre dans la portée avec le reste : la
+         fonction convertit maintenant les PV du Brasier reçus, et
+         sans réglage cette conversion est l'identité. */
       return new Function("jeu", "voieDeCarte", "evenementEnCours", "decodeBits",
                           "marqueEmprise", "demandeMajBarres", "decodeBlessures",
-                          "BLESSURE_CRANS", "finExpeditionLocale",
+                          "BLESSURE_CRANS", "finExpeditionLocale", "versEchelleIle",
         srcBl[0] + "\n" + src[0] + "\nreturn appliqueEvenementAuJeu;")(
         j, function(){ return "j"; }, N.evenementEnCours, N.decodeBits,
         function(){}, function(){}, N.decodeBlessures, N.BLESSURE_CRANS,
-        function(){ fini++; })(m, 5);
+        function(){ fini++; }, N.versEchelleIle)(m, 5);
     }
     /* une expédition en cours : index 0 détruit, index 1 blessé à
        moitié, index 2 déjà plus bas que ce qu'on annonce */
@@ -9782,6 +9788,241 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        .test(html));
   ok("… et « Annuler » défait le déplacement entier, pas le pixel",
      /if\(!planDejaEmpile\)\{ poussePile\(\); planDejaEmpile = 1; \}/.test(html));
+})();
+
+/* ================================================================
+   45. LA SANTÉ DU BRASIER, RÉGLÉE PAR CARTE
+
+   « Si une map en cours fait cinquante millions et que moi je mets
+   cinq millions, le pourcentage qui est déjà détruit doit suivre. Est-ce
+   qu'elle peut faire tout ça sans réinitialiser la partie en cours ? »
+
+   TOUT CE GROUPE ÉPROUVE UNE SEULE PROMESSE, et c'est celle-là. Elle
+   tient à une idée : l'instantané partagé continue de compter la vie du
+   Brasier dans l'ÉCHELLE D'ORIGINE de la carte, et le réglage n'est
+   qu'un facteur appliqué à la lecture, retiré à l'écriture. On vérifie
+   donc, dans l'ordre : la table et sa fusion ; que l'aller-retour des
+   deux conversions est l'identité ; que ce qui part sur le réseau ne
+   bouge PAS quand la santé change — c'est la preuve qu'il n'y a rien à
+   réinitialiser ; et que la fusion monotone laisse passer une santé
+   qu'on REMONTE, ce qu'elle aurait refusé si l'on avait publié des
+   points locaux.
+   ================================================================ */
+(function(){
+  N.poseSanteQGSalon("", 0);
+
+  /* --- la table --- */
+  ok("une table vide ne dit rien de personne",
+     N.santeQGDans("", 3) === 0 && Object.keys(N.decodeSanteQG("")).length === 0);
+  var t = N.encodeSanteQG({ 3:5000000, 8:12000000 });
+  ok("la table s'encode par index croissant", t === "3:5000000|8:12000000", t);
+  ok("… et se relit à l'identique",
+     N.santeQGDans(t, 3) === 5000000 && N.santeQGDans(t, 8) === 12000000);
+  ok("une carte absente de la table vaut zéro", N.santeQGDans(t, 0) === 0);
+  /* LE ZÉRO N'EST PAS UNE VALEUR, C'EST UNE ABSENCE : c'est ce qui
+     permet de rendre sa fiche à une carte sans avoir à retrouver son
+     chiffre d'origine à la main. */
+  ok("un zéro ne s'écrit pas dans la table",
+     N.encodeSanteQG({ 3:0, 8:12000000 }) === "8:12000000");
+  ok("une valeur hors bornes est ramenée dans les clous",
+     N.santeQGDans(N.encodeSanteQG({ 2:1 }), 2) === N.QG_PV_MIN &&
+     N.santeQGDans(N.encodeSanteQG({ 2:9e12 }), 2) === N.QG_PV_MAX);
+  ok("une chaîne abîmée ne fait pas tomber le décodeur",
+     Object.keys(N.decodeSanteQG("bruit|3:|:9|3:5000000")).length === 1 &&
+     N.santeQGDans("bruit|3:|:9|3:5000000", 3) === 5000000);
+
+  /* --- la fusion, copie conforme de celle du blindage --- */
+  ok("le plus grand numéro l'emporte",
+     N.meilleureSanteQG({ qv:"1:200000", qn:2 }, { qv:"1:900000", qn:5 }).qv === "1:900000");
+  ok("… dans les deux sens",
+     N.meilleureSanteQG({ qv:"1:900000", qn:5 }, { qv:"1:200000", qn:2 }).qv === "1:900000");
+  /* À NUMÉRO ÉGAL, LA PLUS GRANDE CHAÎNE : sans cette règle, deux
+     clients qui règlent en même temps se renvoient leurs versions
+     indéfiniment. */
+  ok("… et à numéro égal, la chaîne la plus grande tranche",
+     N.meilleureSanteQG({ qv:"1:200000", qn:3 }, { qv:"1:900000", qn:3 }).qv === "1:900000" &&
+     N.meilleureSanteQG({ qv:"1:900000", qn:3 }, { qv:"1:200000", qn:3 }).qv === "1:900000");
+
+  /* --- ce que la carte vaut, et ce que le générateur en fait --- */
+  var fiche = N.CARTES[8].pvQG;
+  ok("sans réglage, la carte garde la valeur de sa fiche",
+     N.pvQGDeCarte(8) === fiche && N.santeQGReglee(8) === false);
+  N.poseSanteQGSalon("8:5000000", 1);
+  ok("avec un réglage, c'est lui qui vaut",
+     N.pvQGDeCarte(8) === 5000000 && N.santeQGReglee(8) === true);
+  ok("… et les autres cartes n'ont pas bougé",
+     N.pvQGDeCarte(7) === N.CARTES[7].pvQG);
+  var c8 = N.genereCarte("MILY", 8, "", 0);
+  ok("le générateur sort le Brasier à la santé réglée",
+     c8.qg.pvMax === 5000000 && c8.qg.pv === 5000000);
+  /* LE BRASIER N'EST PAS UN BÂTIMENT : changer sa vie ne peut pas
+     déplacer un rang, donc l'index des destructions ne le voit pas. */
+  N.poseSanteQGSalon("", 0);
+  var avant = N.genereCarte("MILY", 8, "", 0);
+  N.poseSanteQGSalon("8:5000000", 1);
+  var apres = N.genereCarte("MILY", 8, "", 0);
+  var memeIndex = avant.batiments.length === apres.batiments.length;
+  for(var i = 0; memeIndex && i < avant.batiments.length; i++)
+    if(avant.batiments[i].t !== apres.batiments[i].t ||
+       Math.round(avant.batiments[i].gx * 1000) !== Math.round(apres.batiments[i].gx * 1000))
+      memeIndex = false;
+  ok("… et pas un seul bâtiment ne change de rang", memeIndex,
+     avant.batiments.length + " bâtiments");
+
+  /* --- LES DEUX CONVERSIONS, LE CŒUR DE LA PROMESSE --- */
+  N.poseSanteQGSalon("8:5000000", 1);
+  ok("ce qui vient du réseau se ramène à l'échelle de l'île",
+     Math.round(N.versEchelleIle(fiche, 8)) === 5000000);
+  ok("… et ce qui part y retourne",
+     Math.round(N.versEchelleFiche(5000000, 8)) === fiche);
+  /* L'ALLER-RETOUR EST L'IDENTITÉ, et c'est ce qui rend le réglage
+     transparent pour tout le reste du jeu. */
+  var idem = true;
+  for(var v = 0; v <= fiche; v += fiche / 17){
+    if(Math.abs(N.versEchelleFiche(N.versEchelleIle(v, 8), 8) - v) > 1e-6) idem = false;
+  }
+  ok("… l'aller-retour est l'identité", idem);
+  ok("une carte non réglée traverse les deux conversions sans rien changer",
+     N.versEchelleIle(1234, 7) === 1234 && N.versEchelleFiche(1234, 7) === 1234);
+
+  /* LA FRACTION EST L'INVARIANT — c'est sa phrase, éprouvée telle
+     qu'il l'a dite : cinquante millions entamés de quarante pour cent
+     deviennent cinq millions entamés de quarante pour cent. */
+  var restant = fiche * 0.6;                    /* 40 % déjà détruits */
+  var surLeReseau = N.versEchelleFiche(N.versEchelleIle(restant, 8), 8);
+  ok("40 % détruits restent 40 % détruits, quelle que soit la taille",
+     Math.abs(N.versEchelleIle(restant, 8) / 5000000 - 0.6) < 1e-9 &&
+     Math.abs(surLeReseau - restant) < 1e-6);
+
+  /* --- CE QUI PART SUR LE RÉSEAU NE BOUGE PAS --- */
+  /* La preuve qu'il n'y a rien à réinitialiser : le même Brasier, à
+     deux réglages différents, publie exactement le même nombre. */
+  N.poseSanteQGSalon("", 0);
+  var pubA = N.versEchelleFiche(fiche * 0.6, 8);
+  N.poseSanteQGSalon("8:5000000", 1);
+  var pubB = N.versEchelleFiche(5000000 * 0.6, 8);
+  ok("le même Brasier publie le même nombre sous deux réglages",
+     Math.abs(pubA - pubB) < 1e-6, pubA.toFixed(0) + " vs " + pubB.toFixed(0));
+
+  /* --- ET LA FUSION MONOTONE LAISSE PASSER UNE SANTÉ QU'ON REMONTE --- */
+  /* Le piège qu'on a fermé : `adopteMinimum` refuse toute remontée. En
+     points LOCAUX, passer de 5 à 50 millions ferait passer un Brasier
+     entamé de 3 à 30 millions — refusé, et l'île resterait presque
+     morte. En points d'ORIGINE, rien ne remonte : il n'y a rien à
+     refuser. */
+  function file(pv){
+    return { pv:pv, adopteMinimum:function(v){ if(v >= 0 && v < this.pv) this.pv = v; } };
+  }
+  N.poseSanteQGSalon("8:5000000", 1);
+  var recu = N.versEchelleFiche(5000000 * 0.6, 8);   /* ce qui circule */
+  var f = file(5000000 * 0.6);
+  f.adopteMinimum(N.versEchelleIle(recu, 8));
+  ok("à réglage égal, la fusion ne retire rien", Math.abs(f.pv - 3000000) < 1);
+  /* on REMONTE la santé : la même trame reçue doit rendre 30 M, pas 3 */
+  N.poseSanteQGSalon("", 0);
+  var f2 = file(N.versEchelleIle(recu, 8));
+  ok("… et remonter la santé rend bien la fraction, pas les anciens points",
+     Math.abs(f2.pv / fiche - 0.6) < 1e-9, (f2.pv / fiche).toFixed(4));
+
+  /* --- LE PLAFOND DES SCORES SUIT --- */
+  /* Sans cela le réglage deviendrait lui-même le bogue : un score
+     honnête fait sur un Brasier remonté passerait pour une triche. */
+  N.poseSanteQGSalon("", 0);
+  var pl0 = N.plafondScore();
+  N.poseSanteQGSalon("8:" + N.QG_PV_MAX, 2);
+  ok("remonter un Brasier remonte le plafond des scores",
+     N.plafondScore() > pl0, pl0 + " → " + N.plafondScore());
+  N.poseSanteQGSalon("", 0);
+  ok("… et le rendre à sa fiche le redescend", N.plafondScore() === pl0);
+
+  /* --- LE CHEMIN COMPLET DANS LE FICHIER LIVRÉ --- */
+  ok("l'instantané porte la table et son numéro",
+     /qv:santeQGSalon, qn:numeroSanteQG \| 0,/.test(html));
+  ok("… la fusion des deux instantanés la tranche",
+     /var qg = meilleureSanteQG\(a, b\);/.test(html));
+  ok("… memeMonde la regarde, sinon un réglage ne partirait jamais",
+     /\(a\.qv \|\| ""\) === \(b\.qv \|\| ""\) && \(a\.qn \| 0\) === \(b\.qn \| 0\)/.test(html));
+  ok("… et on l'adopte à la réception",
+     /if\(\(monde\.qv \|\| ""\) !== santeQGSalon \|\| \(monde\.qn \| 0\) !== numeroSanteQG\)\{/
+       .test(html));
+  /* L'ORDRE COMPTE : la table doit être posée AVANT qu'on convertisse
+     le moindre `pv`, sinon le premier instantané portant un réglage
+     neuf serait lu dans l'ancienne échelle. */
+  ok("… avant la lecture du plan, donc avant toute conversion",
+     html.indexOf("!== santeQGSalon || (monde.qn | 0) !== numeroSanteQG")
+       < html.indexOf('if((monde.p || "") !== planSalon'));
+  ok("le générateur lit la santé réglée, pas la fiche",
+     /qg:\{ gx:QG_GX, gy:QG_GY, pvMax:pvQGDeCarte\(index\), pv:pvQGDeCarte\(index\) \}/
+       .test(html));
+  /* TOUTES LES SORTIES CONVERTIES, ET TOUTES LES ENTRÉES AUSSI : il
+     suffit d'en oublier une pour qu'un Brasier reparte intact. */
+  ok("tout ce qui part sur le réseau passe par versEchelleFiche",
+     (html.match(/versEchelleFiche\(jeu\.qg\.pv, jeu\.index\)/g) || []).length === 3,
+     (html.match(/versEchelleFiche\(jeu\.qg\.pv, jeu\.index\)/g) || []).length + " sorties");
+  ok("… et tout ce qui en vient passe par versEchelleIle",
+     (html.match(/adopteMinimum\(versEchelleIle\(/g) || []).length === 5,
+     (html.match(/adopteMinimum\(versEchelleIle\(/g) || []).length + " entrées");
+  ok("aucune lecture de PV réseau n'est restée sans conversion",
+     !/adopteMinimum\((monde\.pv|m\.pv|ve\.q|q)\)/.test(html));
+
+  /* --- LA REMISE À L'ÉCHELLE D'UNE PARTIE EN COURS --- */
+  var src = html.match(/function remetLeBrasierALEchelle\([\s\S]*?\n\}/);
+  ok("remetLeBrasierALEchelle est dans le fichier livré", !!src);
+  if(src){
+    function scene(max, part){
+      return { index:8, qg:{ pv:max * part, pvMax:max },
+               file:{ pv:max * part, pvMax:max } };
+    }
+    function joue(j, a, b){
+      return new Function("jeu", "demandeMajBarres", "message",
+        src[0] + "\nreturn remetLeBrasierALEchelle;")(
+        j, function(){}, function(){})(8, a, b);
+    }
+    var j = scene(50000000, 0.6);
+    joue(j, 50000000, 5000000);
+    ok("cinquante millions entamés de 40 % deviennent cinq millions entamés de 40 %",
+       j.qg.pvMax === 5000000 && Math.abs(j.qg.pv - 3000000) < 1,
+       j.qg.pv.toFixed(0) + " / " + j.qg.pvMax);
+    /* LA FILE EST L'AUTORITÉ, pas jeu.qg : ne remettre que l'affichage
+       à l'échelle rendrait sa vraie taille au premier obus suivant. */
+    ok("… et la file suit, pas seulement l'affichage",
+       j.file.pvMax === 5000000 && j.file.pv === j.qg.pv);
+    /* ON REMONTE, et c'est le sens que la fusion locale aurait refusé */
+    var j2 = scene(5000000, 0.6);
+    joue(j2, 5000000, 50000000);
+    ok("… et l'on peut remonter un Brasier sans perdre sa fraction",
+       j2.qg.pvMax === 50000000 && Math.abs(j2.qg.pv - 30000000) < 10,
+       j2.qg.pv.toFixed(0));
+    var j3 = scene(50000000, 0);
+    joue(j3, 50000000, 5000000);
+    ok("un Brasier déjà à zéro reste à zéro", j3.qg.pv === 0);
+    var j4 = scene(50000000, 0.6);
+    ok("un réglage qui ne change rien ne touche à rien",
+       joue(j4, 50000000, 50000000) === 0 && j4.qg.pv === 30000000);
+    /* LA CARTE DOIT ÊTRE LA BONNE : régler les ténèbres pendant qu'on
+       joue à Ibiza ne doit pas toucher au Brasier d'Ibiza. */
+    var j5 = scene(50000000, 0.6);
+    var horsSujet = new Function("jeu", "demandeMajBarres", "message",
+      src[0] + "\nreturn remetLeBrasierALEchelle;")(
+      j5, function(){}, function(){})(7, 50000000, 5000000);
+    ok("… et régler une AUTRE île ne touche pas à celle qu'on joue",
+       horsSujet === 0 && j5.qg.pvMax === 50000000);
+  }
+
+  /* --- LE PANNEAU LE DIT AVANT DE LAISSER VALIDER --- */
+  ok("le panneau d'administration porte le bouton",
+     /id="btAdminSanteQG"/.test(html) &&
+     /sq\.addEventListener\("click", regleSanteQGAdmin\)/.test(html));
+  ok("… il avertit que le classement se compte en points de vie",
+     /Le TOP DÉGÂTS compte les points de vie retirés\. En divisant/.test(html));
+  ok("… il annonce le pourcentage qui sera conservé",
+     /Ce pourcentage sera "\s*\+\s*"conservé/.test(html));
+  ok("… et zéro rend sa fiche à la carte",
+     /Entre 0 pour lui rendre celle de sa fiche\./.test(html));
+  ok("l'accueil montre la santé réglée, pas celle de la fiche",
+     /nombre\(pvQGDeCarte\(i\)\) \+ ' PV<\/span><\/div>'/.test(html));
+
+  N.poseSanteQGSalon("", 0);
 })();
 
 /* ---------------- bilan ---------------- */

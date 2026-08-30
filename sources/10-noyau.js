@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.23";
+var VERSION = "v1.24";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2072,7 +2072,14 @@ function genereCarte(codeSalon, index, plan, tirage){
   var c = {
     index:index, graine:gr, nom:fic.nom, biome:fic.biome, tirage:tirage,
     batiments:[], rochers:[], decors:[], creatures:[],
-    qg:{ gx:QG_GX, gy:QG_GY, pvMax:fic.pvQG, pv:fic.pvQG }
+    /* LA SANTÉ RÉGLÉE, PAS CELLE DE LA FICHE. C'est le seul endroit du
+       générateur qui la lit, et il la lit à CHAQUE appel : le réglage
+       doit valoir pour la carte qu'on est en train de fabriquer, pas
+       pour celle qui était en vigueur au chargement de la page. Le
+       Brasier n'est pas dans `c.batiments` — changer sa vie ne déplace
+       donc aucun rang, et l'index des destructions ne le voit pas
+       passer. */
+    qg:{ gx:QG_GX, gy:QG_GY, pvMax:pvQGDeCarte(index), pv:pvQGDeCarte(index) }
   };
 
   /* --- Bâtiments : lattice militaire tous les 5 carreaux, 30 % sautés --- */
@@ -6701,6 +6708,177 @@ function pvDefensesCarte(c){
 }
 
 /* ================================================================
+   LA SANTÉ DU BRASIER, RÉGLÉE CARTE PAR CARTE
+
+   « Les QG sont beaucoup trop énormes. Il faudrait que je puisse
+   éditer moi-même la valeur de santé du QG, et dès que j'appuie, ça
+   se met instantanément. Et par exemple, si une map en cours fait
+   cinquante millions et que moi je mets cinq millions, le pourcentage
+   qui est déjà détruit doit suivre. »
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI REND LA CHOSE POSSIBLE SANS RIEN RÉINITIALISER
+
+   Ce n'est pas une chance, c'est le choix de conception de tout ce
+   bloc : L'INSTANTANÉ PARTAGÉ CONTINUE DE COMPTER LA VIE DU BRASIER
+   DANS L'ÉCHELLE D'ORIGINE DE LA CARTE. Le réglage n'est qu'un
+   facteur, appliqué à la lecture et retiré à l'écriture — `pv` sur le
+   réseau veut toujours dire « points sur les cinquante millions de la
+   fiche », jamais « points sur ce que l'administrateur a tapé ».
+
+   Trois conséquences, et ce sont les trois qu'on voulait :
+
+     LA FRACTION DÉTRUITE EST INVARIANTE. Passer de cinquante à cinq
+     millions ne change pas d'un point ce qui circule sur le réseau :
+     un Brasier entamé de quarante pour cent reste entamé de quarante
+     pour cent, et il lui reste trois millions au lieu de trente. La
+     demande est satisfaite par construction, sans conversion à faire
+     au moment du réglage, donc sans instant où deux clients
+     pourraient être en désaccord.
+
+     LA FUSION RESTE MONOTONE, ET DANS LES DEUX SENS. Elle compare des
+     points d'origine, donc des grandeurs comparables. C'est ce qui
+     permet de MONTER la santé autant que de la baisser : dans
+     l'échelle locale, remonter le Brasier de cinq à cinquante
+     millions le fait passer de trois à trente, et la règle « la vie
+     du Brasier ne remonte jamais » l'aurait refusé net. Dans
+     l'échelle d'origine, rien ne bouge, donc rien n'est refusé.
+
+     UN CLIENT EN RETARD NE CASSE RIEN. Il lit et écrit dans l'échelle
+     d'origine sans le savoir — c'est exactement ce que fait la
+     version d'avant ce réglage. Il affichera le Brasier à l'ancienne
+     taille tant qu'il n'aura pas rechargé la page, et pas une seule
+     destruction ne sera perdue.
+
+   ────────────────────────────────────────────────────────────────
+   LES DÉGÂTS, EUX, NE SE METTENT PAS À L'ÉCHELLE
+
+   Un obus retire le même nombre de points quelle que soit la santé du
+   Brasier. C'est précisément ce qu'on demande — « les QG sont beaucoup
+   trop énormes » — : un Brasier de cinq millions tombe dix fois plus
+   vite qu'un Brasier de cinquante, parce que les armes n'ont pas
+   changé.
+
+   ────────────────────────────────────────────────────────────────
+   ET LE PRIX À CONNAÎTRE, LE MÊME QUE POUR LE BLINDAGE
+
+   Le TOP DÉGÂTS compte les POINTS DE VIE RETIRÉS. Diviser un Brasier
+   par dix, c'est rendre les prochains scores dix fois plus petits que
+   ceux déjà inscrits sur cette carte. Ce n'est pas un défaut qu'on
+   pourrait corriger sans changer la nature du classement ; c'est un
+   fait, et le panneau d'administration le dit en toutes lettres avant
+   de laisser valider une carte déjà jouée.
+
+   ────────────────────────────────────────────────────────────────
+   COMMENT IL VOYAGE
+
+   Sur le modèle exact du plan et du blindage, et c'est un champ à part
+   plutôt qu'un quatrième membre de `bd` : le blindage est un
+   POURCENTAGE borné à neuf cents, la santé du Brasier est un NOMBRE DE
+   POINTS en millions. Les mêler dans une table dont le décodeur borne
+   tout à `BLINDAGE_MAX` aurait demandé une exception par membre, et
+   c'est exactement ainsi qu'on casse un réglage en réglant l'autre.
+
+     qv   la table, encodée « index:points|index:points »
+     qn   un compteur monotone — la dernière édition l'emporte
+   À numéro égal, la chaîne la plus grande gagne : deux clients qui
+   éditeraient en même temps convergent au lieu de se renvoyer la
+   balle. C'est mot pour mot meilleurBlindage().
+   ================================================================ */
+/* Les bornes du réglage. En deçà d'un dixième de million, le Brasier
+   tombe avant que la première navette ait touché terre et la carte
+   n'a plus de partie ; au-delà d'un demi-milliard, on retombe dans ce
+   dont il se plaint. */
+var QG_PV_MIN = 100000;
+var QG_PV_MAX = 500000000;
+
+function encodeSanteQG(o){
+  if(!o) return "";
+  var l = [], k, cles = [];
+  /* ON PARCOURT LES CLÉS DE LA TABLE, PAS LE TABLEAU DES CARTES —
+     même raison qu'au blindage : un client qui ne connaît pas encore
+     une île doit la recopier sans la comprendre, jamais l'effacer. */
+  for(k in o) if(o.hasOwnProperty(k) && (k | 0) >= 0 && String(k | 0) === String(k))
+    cles.push(k | 0);
+  cles.sort(function(a, b){ return a - b; });
+  for(var i = 0; i < cles.length; i++){
+    var v = Math.round(o[cles[i]] || 0);
+    if(!(v > 0)) continue;
+    l.push(cles[i] + ":" + borne(v, QG_PV_MIN, QG_PV_MAX));
+  }
+  return l.join("|");
+}
+function decodeSanteQG(s){
+  var o = {};
+  if(!s || typeof s !== "string") return o;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    var m = p[i].split(":");
+    if(m.length < 2) continue;
+    var idx = parseInt(m[0], 10), v = parseInt(m[1], 10);
+    if(!(idx >= 0) || !(v > 0)) continue;
+    o[idx] = borne(v, QG_PV_MIN, QG_PV_MAX);
+  }
+  return o;
+}
+function santeQGDans(s, index){
+  var t = decodeSanteQG(s);
+  return t[index] ? (t[index] | 0) : 0;
+}
+/* Lequel des deux instantanés porte la table qui fait foi. Copie
+   conforme de meilleurBlindage, pour la même raison qu'elle est une
+   copie conforme de meilleurPlan : le numéro tranche, et à numéro égal
+   la chaîne la plus grande — pour que deux clients convergent au lieu
+   de se renvoyer indéfiniment leurs versions. */
+function meilleureSanteQG(a, b){
+  var qa = (a && typeof a.qv === "string") ? a.qv : "", na = a ? (a.qn | 0) : 0;
+  var qb = (b && typeof b.qv === "string") ? b.qv : "", nb = b ? (b.qn | 0) : 0;
+  if(nb > na) return { qv:qb, qn:nb };
+  if(na > nb) return { qv:qa, qn:na };
+  return qb > qa ? { qv:qb, qn:nb } : { qv:qa, qn:na };
+}
+
+/* LA TABLE EN VIGUEUR, côté client — même rôle et même discipline que
+   `blindageSalon`. */
+var santeQGSalon = "", numeroSanteQG = 0;
+function poseSanteQGSalon(qv, qn){
+  santeQGSalon = (typeof qv === "string") ? qv : "";
+  numeroSanteQG = qn | 0;
+  return santeQGSalon;
+}
+/* LA SANTÉ EN VIGUEUR POUR UNE CARTE. C'est elle que tout le jeu
+   consulte — jamais `CARTES[i].pvQG` en direct, sauf les deux
+   fonctions de conversion ci-dessous, à qui l'échelle d'origine est
+   justement nécessaire. */
+function pvQGDeCarte(i){
+  var v = santeQGDans(santeQGSalon, i);
+  return v > 0 ? v : ((CARTES[i] && CARTES[i].pvQG) || 0);
+}
+/* Cette carte porte-t-elle un réglage, ou sa valeur de fiche ? */
+function santeQGReglee(i){ return santeQGDans(santeQGSalon, i) > 0; }
+
+/* ────────────────────────────────────────────────────────────────
+   LES DEUX SEULES CONVERSIONS DU RÉGLAGE, ET TOUT LE RESTE DU JEU
+   IGNORE QU'IL EXISTE.
+
+   `versEchelleIle`  ce qui arrive du réseau → mes points à moi
+   `versEchelleFiche` mes points à moi → ce qui part sur le réseau
+
+   Elles ne se croisent nulle part ailleurs : une valeur qui traverse
+   les deux revient identique au point d'arrondi près, et une valeur
+   qui n'en traverse aucune est un bogue. */
+function versEchelleIle(pv, index){
+  var o = (CARTES[index] && CARTES[index].pvQG) || 0;
+  if(!(o > 0) || !(typeof pv === "number") || !isFinite(pv)) return pv;
+  return pv * (pvQGDeCarte(index) / o);
+}
+function versEchelleFiche(pv, index){
+  var m = pvQGDeCarte(index);
+  if(!(m > 0) || !(typeof pv === "number") || !isFinite(pv)) return pv;
+  return pv * (((CARTES[index] && CARTES[index].pvQG) || 0) / m);
+}
+
+/* ================================================================
    LE JOURNAL DES PASSAGES — QUI EST VENU, ET QUAND
 
    « C'est possible dans le tableau admin de faire une page avec des
@@ -6898,6 +7076,7 @@ function statsJournaux(journaux, aujourdhui, exclus){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
+            qv:"", qn:0,
             ep:"", epn:0,
             /* les badges partent vides comme le reste : ils se
                remplissent tout seuls au premier podium lu */
@@ -7123,12 +7302,22 @@ function encodeScores(tab){
    n'a pas pu être produite en jouant. La ramener à 300 millions
    laisserait le tricheur en tête ; l'écarter le renvoie à ce qu'il a
    vraiment fait. */
-var scorePlafond = 0;
+/* ET LE PLAFOND SUIT LA SANTÉ RÉGLÉE, sans quoi il deviendrait
+   lui-même le bogue : remonter un Brasier au-dessus de sa valeur de
+   fiche rendrait les scores honnêtes qu'on y ferait au-dessus du
+   plafond, donc REJETÉS. On prend donc la plus grande des deux
+   valeurs, carte par carte. Le mémo est gardé — la fonction est
+   appelée à chaque score décodé — mais il est estampillé de la table
+   qui l'a produit : changer un réglage le refait, ne pas y toucher ne
+   coûte rien. */
+var scorePlafond = 0, scorePlafondPour = null;
 function plafondScore(){
-  if(scorePlafond) return scorePlafond;
+  if(scorePlafond && scorePlafondPour === santeQGSalon) return scorePlafond;
   var m = 0;
-  for(var i = 0; i < CARTES.length; i++) m += CARTES[i].pvQG || 0;
+  for(var i = 0; i < CARTES.length; i++)
+    m += Math.max(CARTES[i].pvQG || 0, pvQGDeCarte(i) || 0);
   scorePlafond = Math.round(m * 1.5 + 20e6);
+  scorePlafondPour = santeQGSalon;
   return scorePlafond;
 }
 
@@ -7861,6 +8050,8 @@ function fusionneMonde(a, b){
      voir avec l'avancée de la campagne. Un client peut très bien être
      en retard sur l'île et en avance sur le réglage. */
   var bd = meilleurBlindage(a, b);
+  /* La santé du Brasier suit le sien, et pour la même raison. */
+  var qg = meilleureSanteQG(a, b);
   /* Les épingles suivent leur propre numéro, comme le plan et le
      blindage : elles n'ont rien à voir avec l'avancée de la campagne.
      Un client peut être en retard sur l'île et à jour sur le fil. */
@@ -7892,7 +8083,8 @@ function fusionneMonde(a, b){
   if(rb > ra) return poseEvenements({ v:Math.max(a.v, b.v) + 1, cy:b.cy | 0, c:b.c, pv:b.pv,
                        d:b.d || "", bl:b.bl || "", g:b.g || "", w:b.w || "",
                        p:pl.p, pn:pl.pn, tg:b.tg | 0, s:sc, k:b.k || "",
-                       bd:bd.bd, bn:bd.bn, ep:ep.ep, epn:ep.epn }, jg);
+                       bd:bd.bd, bn:bd.bn, qv:qg.qv, qn:qg.qn,
+                       ep:ep.ep, epn:ep.epn }, jg);
   if(ra > rb){
     /* Le raccourci « return a » perdrait un plan plus récent au profit
        d'une île plus avancée : on ne renvoie a tel quel que si c'est
@@ -7901,11 +8093,13 @@ function fusionneMonde(a, b){
        ni au tableau des dégâts, qui ne l'est pas davantage. */
     if(pl.p === (a.p || "") && pl.pn === (a.pn | 0) && memeEvenements(a, jg) &&
        bd.bd === (a.bd || "") && bd.bn === (a.bn | 0) &&
+       qg.qv === (a.qv || "") && qg.qn === (a.qn | 0) &&
        ep.ep === (a.ep || "") && ep.epn === (a.epn | 0) &&
        sc === (a.s || "")) return a;
     return poseEvenements({ v:a.v, cy:a.cy | 0, c:a.c, pv:a.pv, d:a.d || "",
              bl:a.bl || "", g:a.g || "", w:a.w || "", p:pl.p, pn:pl.pn, tg:a.tg | 0,
              s:sc, k:a.k || "", bd:bd.bd, bn:bd.bn,
+             qv:qg.qv, qn:qg.qn,
              ep:ep.ep, epn:ep.epn }, jg);
   }
   return poseEvenements({
@@ -7928,6 +8122,11 @@ function fusionneMonde(a, b){
     s : sc,
     p : pl.p, pn: pl.pn, tg: a.tg | 0,
     bd: bd.bd, bn: bd.bn,
+    /* la santé du Brasier : elle ne dépend pas non plus de l'île, et
+       c'est bien pour ça que `pv` ci-dessus se fusionne sans elle —
+       il compte dans l'échelle d'origine de la carte, la même pour
+       les deux instantanés quel que soit leur réglage */
+    qv: qg.qv, qn: qg.qn,
     /* la liste épinglée du salon : elle ne dépend pas de l'île */
     ep: ep.ep, epn: ep.epn
   }, jg);
@@ -7980,6 +8179,9 @@ function memeMonde(a, b){
          /* ni un blindage : le réglage doit partir sur le réseau à la
             seconde où on le change, c'est toute la demande */
          (a.bd || "") === (b.bd || "") && (a.bn | 0) === (b.bn | 0) &&
+         /* ni une santé de Brasier, pour exactement la même raison :
+            « dès que j'appuie, ça se met instantanément » */
+         (a.qv || "") === (b.qv || "") && (a.qn | 0) === (b.qn | 0) &&
          /* ni un champion, ni un podium */
          (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "") &&
          /* ════════════════════════════════════════════════════════

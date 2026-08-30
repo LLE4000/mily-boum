@@ -209,7 +209,11 @@ function nouvelleCarte(index, pvConnu){
     /* ET LES BLESSURES, sur ce qui est encore debout — APRÈS le bitmap
        des morts, et seulement sur les survivants. */
     appliqueBlessuresAuJeu(monde.bl);
-    jeu.file.adopteMinimum(monde.pv);
+    /* `monde.pv` compte dans l'échelle d'ORIGINE de la carte : on le
+       ramène à la nôtre avant de le comparer, sinon un Brasier réglé
+       à cinq millions adopterait les cinquante millions du réseau et
+       repartirait intact. */
+    jeu.file.adopteMinimum(versEchelleIle(monde.pv, index));
     jeu.qg.pv = jeu.file.pv;
     if(monde.g){
       /* quelqu'un l'a déjà tuée dans ce salon : elle reste morte */
@@ -263,8 +267,10 @@ function nouvelleCarte(index, pvConnu){
     appliqueBlessuresAuJeu(ve.bl);
     /* q vaut 0 tant que personne n'a encore publié depuis la carte :
        le Brasier reste alors plein, ce qui est la vérité. */
-    if(ve.q){ jeu.file.adopteMinimum(ve.q); jeu.qg.pv = jeu.file.pv; }
+    if(ve.q){ jeu.file.adopteMinimum(versEchelleIle(ve.q, index)); jeu.qg.pv = jeu.file.pv; }
   }
+  /* `pvConnu` vient déjà de chez nous — c'est la vie que l'appelant
+     avait sous les yeux, dans notre échelle. Elle ne se convertit pas. */
   if(typeof pvConnu === "number" && pvConnu >= 0 && pvConnu < jeu.qg.pvMax){
     jeu.file.adopteMinimum(pvConnu);
     jeu.qg.pv = jeu.file.pv;
@@ -376,6 +382,47 @@ function reblindeLeJeu(index, avant, apres){
     message("Blindage des défenses : " + ((apres | 0) >= 0 ? "+" : "")
             + (apres | 0) + " % — " + n + " défenses remises à l'échelle.");
   return n;
+}
+
+/* ================================================================
+   ET LE BRASIER, REMIS À L'ÉCHELLE EN PLEINE BATAILLE
+
+   « Si une map en cours fait cinquante millions et que moi je mets
+   cinq millions, le pourcentage qui est déjà détruit doit suivre. »
+
+   C'est ici que cette phrase devient du code, et elle tient en une
+   multiplication parce que tout le reste a été mis en place pour
+   qu'elle y tienne. On multiplie la vie MAXIMALE et la vie COURANTE
+   par le même rapport : un Brasier entamé de quarante pour cent reste
+   entamé de quarante pour cent.
+
+   ON TOUCHE À `jeu.file` ET PAS SEULEMENT À `jeu.qg`. La file est
+   l'autorité — `jeu.qg.pv` n'en est que le reflet, recopié après
+   chaque coup. Ne remettre à l'échelle que l'affichage donnerait un
+   Brasier qui reprend sa vraie valeur au premier obus suivant, et
+   c'est le genre de correction qui passe pour un bogue de réseau.
+
+   RIEN N'EST PUBLIÉ D'INHABITUEL, et c'est le point : l'instantané
+   compte la vie du Brasier dans l'échelle d'ORIGINE de la carte (voir
+   `versEchelleFiche`), or cette remise à l'échelle ne change pas la
+   fraction. Ce qui part sur le réseau après est donc mot pour mot ce
+   qui en partait avant. Personne n'a rien à adopter, rien à refuser,
+   et la fusion monotone n'a aucune occasion de dire non.
+   ================================================================ */
+function remetLeBrasierALEchelle(index, avantMax, apresMax){
+  if(!jeu || jeu.index !== index) return 0;
+  if(!(avantMax > 0) || !(apresMax > 0) || avantMax === apresMax) return 0;
+  var r = apresMax / avantMax;
+  var part = jeu.file.pvMax > 0 ? (jeu.file.pv / jeu.file.pvMax) : 1;
+  jeu.file.pvMax = apresMax;
+  jeu.file.pv    = Math.max(0, Math.round(jeu.file.pv * r));
+  jeu.qg.pvMax   = apresMax;
+  jeu.qg.pv      = jeu.file.pv;
+  if(typeof demandeMajBarres === "function") demandeMajBarres();
+  if(typeof message === "function")
+    message("Santé du Brasier : " + Math.round(apresMax / 1e6 * 10) / 10
+            + " M — " + Math.round(part * 100) + " % restant, comme avant.");
+  return 1;
 }
 
 function appliqueBlessuresAuJeu(chaine){
