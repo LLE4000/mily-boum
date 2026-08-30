@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.30";
+var VERSION = "v1.31";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1032,59 +1032,112 @@ function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] |
    à la fin y passe des heures — mesuré, environ six heures quarante de
    jeu continu à la puissance de feu d'un débarquement complet. La
    montée en puissance divise cette corvée par DEUX : la même corvée
-   revient à trente et un millions de travail au lieu de soixante,
-   quarante-sept pour cent de moins.
+   revient à trente millions de travail au lieu de soixante, cinquante
+   pour cent de moins. (C'était quarante-sept pour cent tant que le
+   barème mettait dix millions à plafonner ; resserré à un million, il
+   rend maintenant tout ce qu'il peut rendre.)
 
    LES PALIERS SONT DES VALEURS ABSOLUES, PAS UNE ACCUMULATION.
-   À cinq cent mille on frappe à 105 % de sa base. À un million, 110 %
-   — et non 105 plus 10. À deux millions 120 %, à trois millions 130 %,
-   et ainsi de suite jusqu'à DEUX FOIS PLUS FORT à dix millions, où
-   l'on plafonne. C'est une table qu'on lit, pas une somme qu'on
-   empile.
+   À cent mille on frappe à 110 % de sa base. À deux cent mille, 120 %
+   — et non 110 plus 10. À trois cent mille 130 %, et ainsi de suite
+   jusqu'à DEUX FOIS PLUS FORT à un million, où l'on plafonne. C'est une
+   table qu'on lit, pas une somme qu'on empile.
 
-   Le premier palier est à cinq cent mille et non à un million, et ce
-   n'est pas un détail : un million demande près de quarante minutes de
-   jeu utile, et un joueur qui vient d'arriver ne verrait jamais la
-   moindre flamme. À cinq cent mille il en voit une avant d'avoir eu le
-   temps de s'ennuyer.
-
-   OÙ PASSE LE TEMPS, sur les soixante millions du Brasier : dix-neuf
-   pour cent entre ×1,10 et ×1,90, et QUATRE-VINGTS POUR CENT au
-   plafond. Le plafond n'est donc pas une décoration de fin de courbe,
-   c'est la valeur à laquelle on joue presque tout le temps — d'où
-   l'importance de ne pas le monter au-delà de deux.
+   OÙ PASSE LE TEMPS. Le plafond est atteint à un million de dégâts,
+   c'est-à-dire avant d'avoir entamé le Brasier de la moindre île de
+   fiche : on joue donc presque toute la partie AU PLAFOND, et la corvée
+   du Brasier est divisée par deux tout rond — le maximum que ce
+   mécanisme puisse rendre. D'où l'importance de ne pas monter ce
+   plafond au-delà de deux.
 
    LE SEUIL EST FIXE et non indexé sur la taille de l'île, à dessein :
-   il s'auto-équilibre. Sur la jungle (soixante millions) on gagne
-   quarante-sept pour cent, sur la plage (quinze millions) trente-neuf.
-   Plus la corvée est longue, plus l'aide est forte.
+   il s'auto-équilibre. Plus la corvée est longue, plus l'aide est
+   forte — et depuis que la santé d'un Brasier se règle à la main, un
+   barème indexé aurait suivi ce réglage au lieu de le compenser.
 
    CE QUE LE BONUS NE TOUCHE PAS : les capacités. Il ne multiplie que
    ce que les TROUPES infligent. La Nova, elle, a son propre saut —
    voir PALIER_SUPERNOVA.
    ================================================================ */
+/* ════════════════════════════════════════════════════════════════
+   LE BARÈME RESSERRÉ — « comme on a réduit la santé du QG »
+
+   « On change les paliers : dix pour cent tous les cent mille dégâts.
+   Si je fais cent mille dégâts, la puissance de mes troupes augmente de
+   dix pour cent ; deux cent mille, vingt pour cent ; et ainsi de suite
+   jusqu'à un million où l'on a plus cent pour cent. »
+
+   LE RAISONNEMENT EST JUSTE, ET IL VIENT DE LUI : depuis que la santé
+   d'un Brasier se règle à la main, un salon peut jouer des îles de cinq
+   millions au lieu de cinquante. Un barème qui commençait à cinq cent
+   mille et plafonnait à DIX MILLIONS n'avait alors plus aucun sens —
+   toute une île y tenait sous le deuxième palier, et le joueur ne
+   voyait jamais la moindre marche.
+
+   Le plafond ne bouge pas : ×2,00, deux fois plus fort, exactement
+   comme avant. Ce qui change est la VITESSE à laquelle on y arrive —
+   un million au lieu de dix. Et la règle reste la même : ce sont des
+   VALEURS ABSOLUES qu'on lit dans une table, pas une somme qu'on
+   empile. À trois cent mille on frappe à 130 % de sa base, pas à
+   110 + 10 + 10.
+
+   ONZE MARCHES ÉGALES au lieu de douze inégales : cent mille dégâts,
+   dix pour cent, à chaque fois. C'est aussi ce qui le rend lisible —
+   le joueur n'a plus à retenir une table, il compte ses centaines de
+   milliers.
+   ════════════════════════════════════════════════════════════════ */
 var PALIERS_PUISSANCE = [
-  { seuil:        0, mult:1.00 },
-  { seuil:   500000, mult:1.05 },
-  { seuil:  1000000, mult:1.10 },
-  { seuil:  2000000, mult:1.20 },
-  { seuil:  3000000, mult:1.30 },
-  { seuil:  4000000, mult:1.40 },
-  { seuil:  5000000, mult:1.50 },
-  { seuil:  6000000, mult:1.60 },
-  { seuil:  7000000, mult:1.70 },
-  { seuil:  8000000, mult:1.80 },
-  { seuil:  9000000, mult:1.90 },
-  { seuil: 10000000, mult:2.00 }      // plafond : deux fois plus fort
+  { seuil:       0, mult:1.00 },
+  { seuil:  100000, mult:1.10 },
+  { seuil:  200000, mult:1.20 },
+  { seuil:  300000, mult:1.30 },
+  { seuil:  400000, mult:1.40 },
+  { seuil:  500000, mult:1.50 },
+  { seuil:  600000, mult:1.60 },
+  { seuil:  700000, mult:1.70 },
+  { seuil:  800000, mult:1.80 },
+  { seuil:  900000, mult:1.90 },
+  { seuil: 1000000, mult:2.00 }      // plafond : deux fois plus fort
 ];
-/* Le palier à partir duquel la Nova devient une SUPER Nova. Trois
-   millions, c'est-à-dire toute la carte (deux millions sept) plus deux
-   cent soixante-dix mille de Brasier : elle se débloque exactement au
-   moment où l'on attaque le Brasier. */
-var PALIER_SUPERNOVA = 4;             // l'indice de la ligne « 3 000 000 »
-/* Et le palier où la super Nova prend son plein calibre : cinq
-   millions, soit deux millions de Brasier déjà entamés. */
-var PALIER_NOVA_MAX  = 6;             // l'indice de la ligne « 5 000 000 »
+/* ════════════════════════════════════════════════════════════════
+   LA NOVA SE DÉTACHE DES PALIERS DE PUISSANCE, ET ELLE LE DEVAIT
+
+   Ses deux marches étaient des INDICES dans la table des paliers : la
+   ligne 4 (trois millions) et la ligne 6 (cinq millions). Le barème
+   resserré plafonne maintenant à un million — au-dessus, il n'y a plus
+   d'indice du tout. Les seuils demandés pour la Nova, eux, montent à
+   cinq millions :
+
+     à 1 M     la SUPER Nova se débloque
+     à 1,5 M   10 000
+     à 2 M     20 000
+     à 2,5 M   30 000
+     à 3 M     40 000
+     à 5 M     50 000
+
+   Les deux barèmes ne peuvent donc plus partager la même échelle. La
+   Nova prend ses PROPRES SEUILS, en dégâts absolus, et `calibreNova`
+   reçoit désormais les dégâts et non un indice — c'est le seul
+   changement de signature, et il rend d'ailleurs la fonction plus
+   simple à lire qu'avant.
+
+   LE PALIER D'OUVERTURE VAUT 5 000, et c'est une lecture de sa série :
+   il a donné cinq chiffres espacés de dix mille, de 1,5 M à 3 M, sans
+   dire ce que vaut la Super Nova à sa sortie. La demi-marche est le
+   seul chiffre qui prolonge sa suite vers le bas sans la contredire.
+
+   LE SOUFFLE SUIT LE CŒUR À TRENTE-CINQ POUR CENT, la proportion qu'il
+   avait déjà (16 000 pour 50 000, puis 50 000 pour 100 000 — entre un
+   tiers et la moitié). On la fixe plutôt que de la laisser dériver
+   d'une ligne à l'autre.
+
+   ET ELLE FRAPPE BEAUCOUP MOINS FORT QU'AVANT : 50 000 au plein
+   calibre là où elle en mettait 100 000. C'est cohérent avec tout le
+   reste de ce lot — des Brasiers plus petits appellent une bombe plus
+   petite, sans quoi une Nova emporterait un dixième d'une île réglée à
+   cinq millions.
+   ════════════════════════════════════════════════════════════════ */
+var NOVA_SOUFFLE_PART = 0.35;         // le souffle, en part du cœur
 
 /* ================================================================
    LES TROIS CALIBRES DE LA NOVA.
@@ -1115,20 +1168,38 @@ var PALIER_NOVA_MAX  = 6;             // l'indice de la ligne « 5 000 000 »
    progressé.
    ================================================================ */
 var CALIBRES_NOVA = [
-  { seuil:0,                degats:"degats",    souffle:"degatsSouffle",     ech:1 },
-  { seuil:PALIER_SUPERNOVA, degats:"degatsSuper", souffle:"degatsSouffleSuper", ech:3 },
-  { seuil:PALIER_NOVA_MAX,  degats:"degatsMax",  souffle:"degatsSouffleMax",  ech:3 }
+  { seuil:       0, degats:null,  ech:1 },   // la Nova ordinaire : 130 + 45
+  { seuil: 1000000, degats:5000,  ech:3 },   // la SUPER Nova se débloque
+  { seuil: 1500000, degats:10000, ech:3 },
+  { seuil: 2000000, degats:20000, ech:3 },
+  { seuil: 2500000, degats:30000, ech:3 },
+  { seuil: 3000000, degats:40000, ech:3 },
+  { seuil: 5000000, degats:50000, ech:3 }    // plein calibre
 ];
 /* Rend les trois chiffres du tir : le cœur, le souffle, et le facteur
-   d'agrandissement du rayon côté ennemi. `rang` (0, 1, 2) sert au
-   dessin et aux messages — c'est le seul endroit qui nomme la marche. */
-function calibreNova(palier){
-  var p = (palier | 0) > 0 ? (palier | 0) : 0, i, c = CALIBRES_NOVA[0], rang = 0;
+   d'agrandissement du rayon côté ennemi. `rang` sert au dessin et aux
+   messages — c'est le seul endroit qui nomme la marche.
+
+   IL PREND LES DÉGÂTS, PLUS UN INDICE DE PALIER : les deux barèmes ne
+   partagent plus la même échelle, voir le bloc ci-dessus. La ligne 0
+   garde ses chiffres dans CAP.nova — ils servent AUSSI au côté allié,
+   qui ne change jamais de calibre. */
+function calibreNova(degatsCarte){
+  var d = degatsCarte > 0 ? degatsCarte : 0, i, rang = 0;
   for(i = CALIBRES_NOVA.length - 1; i > 0; i--)
-    if(p >= CALIBRES_NOVA[i].seuil){ c = CALIBRES_NOVA[i]; rang = i; break; }
-  return { degats:CAP.nova[c.degats], souffle:CAP.nova[c.souffle],
+    if(d >= CALIBRES_NOVA[i].seuil){ rang = i; break; }
+  var c = CALIBRES_NOVA[rang];
+  if(!rang) return { degats:CAP.nova.degats, souffle:CAP.nova.degatsSouffle,
+                     ech:c.ech, rang:0 };
+  return { degats:c.degats,
+           souffle:Math.round(c.degats * NOVA_SOUFFLE_PART),
            ech:c.ech, rang:rang };
 }
+/* Le premier rang où la Nova devient une SUPER Nova, et celui de son
+   plein calibre. Calculés, jamais écrits en dur : ajouter une marche au
+   milieu du barème ne doit rien avoir à apprendre ailleurs. */
+var RANG_SUPERNOVA = 1;
+var RANG_NOVA_MAX  = CALIBRES_NOVA.length - 1;
 
 /* L'indice du palier atteint. On parcourt du haut vers le bas : la
    table est courte et cette écriture rend le plafond gratuit. */
@@ -1141,13 +1212,13 @@ function palierPuissance(degatsCarte){
 function multPuissance(degatsCarte){
   return PALIERS_PUISSANCE[palierPuissance(degatsCarte)].mult;
 }
-/* Trois ÉTATS VISUELS seulement, pour douze paliers. Au zoom de jeu
+/* Trois ÉTATS VISUELS seulement, pour onze paliers. Au zoom de jeu
    personne ne distingue ×1,40 de ×1,50 ; trois marches franches se
-   lisent, onze nuances ne se lisent pas.
+   lisent, dix nuances ne se lisent pas.
      0  rien
-     1  un anneau d'énergie au sol            (×1,05 à ×1,30)
-     2  l'anneau se resserre, des étincelles  (×1,40 à ×1,70)
-     3  l'enveloppe                           (×1,80 à ×2,00) */
+     1  un anneau d'énergie au sol            (×1,10 à ×1,40)
+     2  l'anneau se resserre, des étincelles  (×1,50 à ×1,80)
+     3  l'enveloppe                           (×1,90 à ×2,00) */
 function auraPuissance(palier){
   if(palier <= 0) return 0;
   if(palier <= 4) return 1;
@@ -1176,8 +1247,13 @@ var CAP = {
      servent AUSSI de dégâts alliés, à tous les calibres : eux ne
      montent jamais. */
   nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45,
-               degatsSuper:50000,  degatsSouffleSuper:16000,
-               degatsMax:100000,   degatsSouffleMax:50000,   echSuper:3 },
+               /* LES CHIFFRES DE LA SUPER NOVA VIVENT DÉSORMAIS DANS
+                  `CALIBRES_NOVA`, avec leurs seuils : ils y sont six et
+                  non plus deux, et les tenir à deux endroits aurait été
+                  l'assurance d'en oublier un. Ne restent ici que ceux
+                  de la Nova ORDINAIRE — qui servent aussi au côté
+                  allié, lequel ne change jamais de calibre. */
+               echSuper:3 },
   poulets   :{ nb:10, pv:40, duree:22, rayon:2.4 },
   brouillard:{ rayon:4.2, duree:20.0 },
   salve     :{ nb:16, rayon:4.2, duree:2.4, degats:60, zone:1.2 },

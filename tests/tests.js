@@ -49,7 +49,7 @@ try{
     "encodeEpingles","decodeEpingles","nettoieEpingle","rangEpingleSuivant",
     "meilleuresEpingles","EPINGLES_MAX","EPINGLE_TEXTE",
     "encodePlanComplet","planVide","pieceEstPosable","MARQUE_PIECES","MARQUE_FORMES",
-    "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","PALIER_SUPERNOVA","PALIER_NOVA_MAX","calibreNova","CALIBRES_NOVA",
+    "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","RANG_SUPERNOVA","RANG_NOVA_MAX","NOVA_SOUFFLE_PART","calibreNova","CALIBRES_NOVA",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","seauxHerites","reconstruitCarrieres","encodeTop3","decodeTop3","inscritTop3","top3DeCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
@@ -1294,24 +1294,43 @@ G("4. Déterminisme de la génération de carte");
     ok("à zéro dégât, on frappe à 100 %", N.multPuissance(0) === 1);
     ok("un score négatif ou absurde ne donne pas de bonus",
        N.multPuissance(-500000) === 1 && N.multPuissance(NaN) === 1);
-    ok("500 k donne 105 %", N.multPuissance(500000) === 1.05);
-    ok("1 M donne 110 %, PAS 115 %", N.multPuissance(1000000) === 1.10);
-    ok("2 M donne 120 %", N.multPuissance(2000000) === 1.20);
-    ok("3 M donne 130 %", N.multPuissance(3000000) === 1.30);
+    /* ════════════════════════════════════════════════════════
+       LE BARÈME RESSERRÉ : dix pour cent tous les cent mille dégâts,
+       jusqu'à un million où l'on plafonne à deux fois plus fort.
+
+       « Comme on a réduit la santé du QG. » Depuis que la vie d'un
+       Brasier se règle à la main, une île peut valoir cinq millions au
+       lieu de cinquante : un barème qui commençait à cinq cent mille et
+       plafonnait à dix millions y était invisible d'un bout à l'autre.
+       ════════════════════════════════════════════════════════ */
+    ok("100 k donne 110 %", N.multPuissance(100000) === 1.10);
+    ok("200 k donne 120 %, PAS 121 %", N.multPuissance(200000) === 1.20);
+    ok("500 k donne 150 %", N.multPuissance(500000) === 1.50);
+    ok("1 M plafonne à 200 %", N.multPuissance(1000000) === 2.00);
     ok("juste sous un palier, on garde le précédent",
-       N.multPuissance(999999) === 1.05 && N.multPuissance(2999999) === 1.20);
-    ok("10 M plafonne à 200 %", N.multPuissance(10000000) === 2);
+       N.multPuissance(99999) === 1 && N.multPuissance(299999) === 1.20);
     ok("et rien ne dépasse le plafond, même très loin",
        N.multPuissance(50000000) === 2 && N.multPuissance(1e12) === 2);
+    /* LA MARCHE EST RÉGULIÈRE : cent mille dégâts, dix pour cent, à
+       chaque fois. C'est ce qui la rend lisible sans table. */
+    ok("onze marches égales, cent mille dégâts et dix points chacune",
+       (function(){
+         if(N.PALIERS_PUISSANCE.length !== 11) return false;
+         for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++){
+           if(N.PALIERS_PUISSANCE[i].seuil !== i * 100000) return false;
+           if(Math.abs(N.PALIERS_PUISSANCE[i].mult - (1 + i * 0.10)) > 1e-9) return false;
+         }
+         return true;
+       })(), N.PALIERS_PUISSANCE.length + " lignes");
 
     /* LA TABLE EST ABSOLUE, ET ON LE PROUVE : si les paliers
-       s'accumulaient, 3 M vaudrait 1,05 × 1,10 × 1,20 × 1,30 = 1,80.
+       s'accumulaient, 300 k vaudrait 1,10 × 1,20 × 1,30 = 1,716.
        Il vaut 1,30. */
     ok("les paliers ne s'accumulent pas", (function(){
       var cumul = 1;
-      for(var i = 1; i <= 4; i++) cumul *= N.PALIERS_PUISSANCE[i].mult;
-      return Math.abs(cumul - 1.8018) < 0.001 && N.multPuissance(3000000) === 1.30;
-    })(), "1,30 et non 1,80");
+      for(var i = 1; i <= 3; i++) cumul *= N.PALIERS_PUISSANCE[i].mult;
+      return Math.abs(cumul - 1.716) < 0.001 && N.multPuissance(300000) === 1.30;
+    })(), "1,30 et non 1,72");
     ok("la table monte sans redescendre", (function(){
       for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++){
         if(N.PALIERS_PUISSANCE[i].seuil <= N.PALIERS_PUISSANCE[i-1].seuil) return false;
@@ -1320,103 +1339,118 @@ G("4. Déterminisme de la génération de carte");
       return true;
     })());
 
-    /* LA SUPER NOVA arrive à trois millions, c'est-à-dire après toute
-       la carte : c'est ce qui la cale sur l'attaque du Brasier. */
-    ok("la super Nova se débloque à 3 M",
-       N.PALIERS_PUISSANCE[N.PALIER_SUPERNOVA].seuil === 3000000);
-    ok("3 M, c'est plus que toutes les défenses de la jungle", (function(){
-      var c = N.genereCarte("MILY", N.IDX_JUNGLE, N.planDeCarte(N.IDX_JUNGLE, null), 0);
-      var pv = 0;
-      for(var i = 0; i < c.batiments.length; i++) pv += c.batiments[i].pvMax;
-      return pv < 3000000 && pv > 2000000;
-    })(), "elle arrive avec le Brasier");
+    /* ════════════════════════════════════════════════════════
+       LA NOVA A SON PROPRE BARÈME, ET IL LE FALLAIT
 
-    /* LES TROIS CALIBRES DE LA NOVA. Ce n'est jamais le NOMBRE de Novas
-       qui monte — une par vie, du début à la fin — c'est le calibre.
-       Deux marches, à trois millions puis à cinq. */
+       Ses marches étaient des INDICES dans la table des paliers. Cette
+       table plafonne maintenant à un million, et les seuils demandés
+       pour la Nova montent à cinq : les deux ne peuvent plus partager
+       la même échelle. `calibreNova` reçoit donc les DÉGÂTS.
+
+         1 M    la SUPER Nova se débloque, 5 000
+         1,5 M  10 000      2,5 M  30 000      5 M  50 000
+         2 M    20 000      3 M    40 000
+       ════════════════════════════════════════════════════════ */
     ok("une seule Nova par vie, à tous les paliers", N.EQ.NOVA_PAR_VIE === 1);
-    ok("le plein calibre arrive à 5 M",
-       N.PALIERS_PUISSANCE[N.PALIER_NOVA_MAX].seuil === 5000000,
-       "" + N.PALIERS_PUISSANCE[N.PALIER_NOVA_MAX].seuil);
-    ok("il arrive APRÈS la super Nova, pas avant",
-       N.PALIER_NOVA_MAX > N.PALIER_SUPERNOVA);
+    ok("la super Nova se débloque à un million de dégâts",
+       N.CALIBRES_NOVA[N.RANG_SUPERNOVA].seuil === 1000000);
+    ok("… et le plein calibre à cinq millions",
+       N.CALIBRES_NOVA[N.RANG_NOVA_MAX].seuil === 5000000);
     (function(){
-      var C = N.CAP.nova;
-      var ord = N.calibreNova(0), sup = N.calibreNova(N.PALIER_SUPERNOVA),
-          max = N.calibreNova(N.PALIER_NOVA_MAX);
-      ok("avant 3 M : la Nova ordinaire, 130 + 45, rayon ×1",
-         ord.rang === 0 && ord.degats === 130 && ord.souffle === 45 && ord.ech === 1,
-         JSON.stringify(ord));
-      ok("à 3 M : la SUPER Nova, 50 000 + 16 000, rayon ×3",
-         sup.rang === 1 && sup.degats === 50000 && sup.souffle === 16000 && sup.ech === 3,
-         JSON.stringify(sup));
-      ok("à 5 M : le plein calibre, 100 000 + 50 000",
-         max.rang === 2 && max.degats === 100000 && max.souffle === 50000,
-         JSON.stringify(max));
-      ok("le plein calibre frappe exactement deux fois plus fort au cœur",
-         max.degats === sup.degats * 2);
-      ok("et plus de trois fois plus fort au souffle",
-         max.souffle > sup.souffle * 3, max.souffle + " contre " + sup.souffle);
-      ok("le rayon ne bouge plus après le premier saut", max.ech === sup.ech);
-      /* Le dernier palier avant chaque marche doit rendre le calibre
-         d'AVANT : c'est là que se logent les erreurs de borne. */
-      ok("le palier juste avant 3 M reste ordinaire",
-         N.calibreNova(N.PALIER_SUPERNOVA - 1).rang === 0);
-      ok("le palier juste avant 5 M reste la super Nova simple",
-         N.calibreNova(N.PALIER_NOVA_MAX - 1).rang === 1,
-         "" + N.calibreNova(N.PALIER_NOVA_MAX - 1).degats);
-      ok("le calibre ne redescend jamais quand le palier monte", (function(){
-        for(var i = 1; i < N.PALIERS_PUISSANCE.length; i++){
-          var a = N.calibreNova(i - 1), b = N.calibreNova(i);
-          if(b.rang < a.rang || b.degats < a.degats || b.souffle < a.souffle) return false;
+      var attendu = [[0, 130], [1000000, 5000], [1500000, 10000], [2000000, 20000],
+                     [2500000, 30000], [3000000, 40000], [5000000, 50000]];
+      ok("les sept marches sont exactement celles demandées", (function(){
+        if(N.CALIBRES_NOVA.length !== attendu.length) return false;
+        for(var i = 0; i < attendu.length; i++){
+          var c = N.calibreNova(attendu[i][0]);
+          if(c.degats !== attendu[i][1] || c.rang !== i) return false;
         }
         return true;
-      })());
-      ok("chacun des trois calibres est atteint par la table", (function(){
-        var vus = {};
-        for(var i = 0; i < N.PALIERS_PUISSANCE.length; i++) vus[N.calibreNova(i).rang] = 1;
-        return vus[0] && vus[1] && vus[2];
-      })());
-      ok("un palier absurde ne rend jamais undefined", (function(){
-        var a = N.calibreNova(-3), b = N.calibreNova(999), c = N.calibreNova(NaN);
-        return a.degats === 130 && c.degats === 130 && b.degats === 100000;
+      })(), attendu.map(function(a){ return a[1]; }).join(" · "));
+
+      var ord = N.calibreNova(0), sup = N.calibreNova(1000000),
+          max = N.calibreNova(5000000);
+      ok("avant un million : la Nova ordinaire, 130 + 45, rayon ×1",
+         ord.rang === 0 && ord.degats === 130 && ord.souffle === 45 && ord.ech === 1,
+         JSON.stringify(ord));
+      ok("le souffle suit le cœur à trente-cinq pour cent",
+         sup.souffle === Math.round(5000 * N.NOVA_SOUFFLE_PART)
+         && max.souffle === Math.round(50000 * N.NOVA_SOUFFLE_PART),
+         sup.souffle + " et " + max.souffle);
+      ok("le rayon triple dès la super Nova, et ne bouge plus",
+         sup.ech === 3 && max.ech === 3 && ord.ech === 1);
+      /* Le dernier dégât avant chaque marche doit rendre le calibre
+         d'AVANT : c'est là que se logent les erreurs de borne. */
+      ok("juste sous un million, la Nova reste ordinaire",
+         N.calibreNova(999999).rang === 0);
+      ok("juste sous cinq millions, on n'a pas encore le plein calibre",
+         N.calibreNova(4999999).degats === 40000,
+         "" + N.calibreNova(4999999).degats);
+      ok("le calibre ne redescend jamais quand les dégâts montent",
+         (function(){
+           var prec = N.calibreNova(0);
+           for(var d = 0; d <= 6000000; d += 50000){
+             var c = N.calibreNova(d);
+             if(c.rang < prec.rang || c.degats < prec.degats
+                || c.souffle < prec.souffle) return false;
+             prec = c;
+           }
+           return true;
+         })());
+      ok("un chiffre absurde ne rend jamais undefined", (function(){
+        var a = N.calibreNova(-3), b = N.calibreNova(1e12), c = N.calibreNova(NaN);
+        return a.degats === 130 && c.degats === 130 && b.degats === 50000;
       })());
 
-      /* CE QU'UNE NOVA RETIRE VRAIMENT, contre ce que pèse une
-         forteresse. C'est le calcul qui dit si le bombardement à
-         distance peut remplacer le débarquement — la crainte à écarter.
-         Le cœur ET le souffle touchent le Brasier : il est dans les
-         deux rayons. */
+      /* ════════════════════════════════════════════════════════
+         CE QU'UNE NOVA RETIRE VRAIMENT, ET POURQUOI CE N'EST PAS UN
+         RACCOURCI. C'est le calcul qui dit si le bombardement à
+         distance peut remplacer le débarquement — la crainte à
+         écarter. Le cœur ET le souffle touchent le Brasier : il est
+         dans les deux rayons.
+
+         ET LE PLUS PETIT BRASIER N'EST PLUS CELUI DE LA FICHE : la
+         santé se règle à la main jusqu'à QG_PV_MIN. C'est contre ce
+         plancher-là qu'il faut se mesurer, sinon la garantie ne vaut
+         que pour les îles qu'on n'a pas réglées.
+         ════════════════════════════════════════════════════════ */
       var parVie = max.degats + max.souffle;
       ok("au plein calibre, une Nova retire " + parVie + " au Brasier",
-         parVie === 150000, "" + parVie);
-      ok("… et l'on n'en a qu'une par vie", N.EQ.NOVA_PAR_VIE === 1);
+         parVie === 67500, "" + parVie);
       var pirePart = 0, nomPire = "";
       for(var i = 0; i < N.CARTES.length; i++){
         var part = parVie / N.CARTES[i].pvQG;
         if(part > pirePart){ pirePart = part; nomPire = N.CARTES[i].nom; }
       }
-      ok("même sur la plus petite île (" + nomPire + ") cela ne fait que "
-         + (pirePart * 100).toFixed(1) + " % de la forteresse par vie",
-         pirePart < 0.02, (pirePart * 100).toFixed(2) + " %");
+      ok("sur la plus petite île de fiche (" + nomPire + ") cela ne fait que "
+         + (pirePart * 100).toFixed(2) + " % de la forteresse par vie",
+         pirePart < 0.01, (pirePart * 100).toFixed(2) + " %");
       ok("il faudrait " + Math.ceil(1 / pirePart)
          + " vies entières pour l'abattre au seul bombardement",
          Math.ceil(1 / pirePart) > 90, "" + Math.ceil(1 / pirePart));
       /* Et une vie ne se rejoue pas à volonté : il faut avoir perdu ses
          huit navettes ET toutes ses troupes. */
       ok("une vie coûte les huit navettes entières", N.EQ.NB_BARGES === 8);
+      /* AU PLANCHER RÉGLABLE, la Nova pèse forcément plus lourd — mais
+         il faut encore une vie entière par tir, et l'on ne peut pas en
+         enchaîner. On le CHIFFRE plutôt que de le laisser en angle
+         mort. */
+      var partMini = parVie / N.QG_PV_MIN;
+      ok("et sur un Brasier réglé au minimum, une Nova en retire "
+         + (partMini * 100).toFixed(0) + " % — à savoir, pas à ignorer",
+         partMini < 1, (partMini * 100).toFixed(0) + " %");
     })();
     /* LES ALLIÉS NE PAIENT PAS LA MONTÉE EN GAMME. Le cœur allié garde
        ses dégâts ET son rayon d'origine à tous les calibres : la Nova
-       qui double côté ennemi ne double rien côté ami. */
+       qui monte côté ennemi ne monte rien côté ami. */
     ok("le cœur allié reste à " + N.CAP.nova.degats + " sur " + N.CAP.nova.rayon + " cases",
        N.CAP.nova.degats < N.UNI.commando.pv
-       && N.CAP.nova.degats < N.CAP.nova.degatsMax / 100);
+       && N.CAP.nova.degats < N.calibreNova(5000000).degats / 100);
     ok("le souffle allié reste à " + N.CAP.nova.degatsSouffle,
        N.CAP.nova.degatsSouffle < N.UNI.furie.pv
-       && N.CAP.nova.degatsSouffle < N.CAP.nova.degatsSouffleMax / 100);
+       && N.CAP.nova.degatsSouffle < N.calibreNova(5000000).souffle / 100);
 
-    /* TROIS ÉTATS VISUELS POUR DOUZE PALIERS. */
+    /* TROIS ÉTATS VISUELS POUR ONZE PALIERS. */
     ok("l'aura est muette au palier zéro", N.auraPuissance(0) === 0);
     ok("les trois états couvrent toute la table", (function(){
       var vus = {};
@@ -1431,12 +1465,25 @@ G("4. Déterminisme de la génération de carte");
     ok("le plafond porte l'enveloppe",
        N.auraPuissance(N.PALIERS_PUISSANCE.length - 1) === 3);
 
-    /* LE GAIN RÉEL SUR LE BRASIER — la raison d'être de tout ceci. */
-    ok("la corvée du Brasier est divisée par presque deux", (function(){
+    /* ════════════════════════════════════════════════════════
+       LE GAIN RÉEL SUR LE BRASIER — la raison d'être de tout ceci.
+
+       Il était de quarante-sept pour cent : le barème mettait dix
+       millions à plafonner, donc on passait une bonne part de la corvée
+       en dessous de ×2. Le barème resserré plafonne à un million, et à
+       un million on n'a pas encore entamé le Brasier d'une île de
+       fiche : la corvée est donc divisée par DEUX TOUT ROND, ce qui est
+       le maximum que ce mécanisme puisse rendre.
+
+       On le mesure sur les soixante millions de la jungle, la plus
+       lourde : le compte part à un million de dégâts, c'est-à-dire
+       juste après avoir démonté les défenses.
+       ════════════════════════════════════════════════════════ */
+    ok("la corvée du Brasier est divisée par deux tout rond", (function(){
       var reste = 60000000, s = 1000000, travail = 0, pas = 10000;
       while(reste > 0){ travail += pas / N.multPuissance(s); s += pas; reste -= pas; }
-      /* 60 M de Brasier ne coûtent plus que ~31,7 M de travail */
-      return travail < 33000000 && travail > 30000000;
+      /* 60 M de Brasier ne coûtent plus que 30 M de travail */
+      return Math.abs(travail - 30000000) < 1000;
     })(), "≈ 47 % de moins");
   })();
 

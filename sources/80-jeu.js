@@ -184,7 +184,7 @@ function nouvelleCarte(index, pvConnu){
        coup : trois cents tirs par seconde n'ont pas à reparcourir la
        table des paliers. `puissance` multiplie ce que les troupes
        infligent, `palier` sert au visuel et part sur le réseau. */
-    puissance:1, palier:0,
+    puissance:1, palier:0, rangNova:0,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -3551,7 +3551,9 @@ function explosionNova(gx, gy, distante){
      doit pas se mettre à mourir parce que le joueur a progressé, et
      sans cette dissymétrie la super Nova tuerait tout le débarquement
      à chaque emploi. */
-  var cal = calibreNova(jeu.palier);
+  /* LES DÉGÂTS, ET PLUS LE PALIER : la Nova a ses propres seuils
+     depuis que le barème de puissance plafonne à un million. */
+  var cal = calibreNova(degatsMaCarte());
   var sup = cal.rang > 0;
   var rC = C.rayon * cal.ech, rS = C.rayonSouffle * cal.ech;
   if(!distante){
@@ -4105,26 +4107,48 @@ function degatsMaCarte(){
   if(!(vif > 0)) vif = 0;
   return range + vif;
 }
+/* ════════════════════════════════════════════════════════════════
+   DEUX BARÈMES, DONC DEUX ANNONCES
+
+   Elles n'en faisaient qu'une : la marche de la Nova était un palier de
+   puissance, donc le message des troupes portait la nouvelle de la
+   Nova en incise. Depuis que les deux barèmes ont leurs propres seuils
+   — la puissance plafonne à un million, la Nova monte à cinq — ils ne
+   tombent plus jamais ensemble, et une incise sur un message qui ne
+   part pas ne dirait rien à personne.
+
+   On surveille donc les deux séparément, et chacun parle quand il a
+   quelque chose à dire. La Nova a droit à sa propre ligne : passer de
+   130 à 5 000 dégâts, puis de 5 000 à 50 000, mérite mieux qu'une
+   parenthèse.
+   ════════════════════════════════════════════════════════════════ */
 function majPuissance(){
-  var p = palierPuissance(degatsMaCarte());
+  var d = degatsMaCarte();
+  var p = palierPuissance(d);
   if(p !== jeu.palier){
     jeu.palier = p;
     jeu.puissance = PALIERS_PUISSANCE[p].mult;
     /* on ne fête que la montée, et une seule fois par palier */
-    /* Les deux marches de la Nova s'annoncent. La tuile du menu change
-       maintenant de visage à trois millions — voir majTuileNova dans
-       90-interface.js — mais le message reste : on peut très bien être
-       en train de regarder l'île et non le menu au moment où la marche
-       se franchit, et le passage de 130 à 50 000 dégâts mérite qu'on
-       le dise. */
     if(p > 0 && typeof message === "function")
       message("Palier " + p + " — tes troupes frappent à "
-            + Math.round(jeu.puissance * 100) + " %"
-            + (p === PALIER_SUPERNOVA
-               ? " — et ta Nova devient une SUPER Nova."
-               : p === PALIER_NOVA_MAX
-               ? " — et ta SUPER Nova passe à son plein calibre : deux fois plus fort."
-               : "."));
+            + Math.round(jeu.puissance * 100) + " %.");
+  }
+  /* LA NOVA, SUR SON PROPRE BARÈME. La tuile du menu change de visage
+     toute seule (voir majTuileNova), mais on peut très bien être en
+     train de regarder l'île et non le menu au moment où la marche se
+     franchit. */
+  var rg = calibreNova(d).rang | 0;
+  if(rg !== (jeu.rangNova | 0)){
+    var monte = rg > (jeu.rangNova | 0);
+    jeu.rangNova = rg;
+    if(monte && rg > 0 && typeof message === "function")
+      message(rg === RANG_SUPERNOVA
+        ? "Ta Nova devient une SUPER Nova."
+        : rg === RANG_NOVA_MAX
+        ? "Ta SUPER Nova passe à son plein calibre : "
+          + nombre(CALIBRES_NOVA[rg].degats) + " au cœur."
+        : "Ta SUPER Nova monte en calibre : "
+          + nombre(CALIBRES_NOVA[rg].degats) + " au cœur.");
   }
 }
 

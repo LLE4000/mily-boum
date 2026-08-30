@@ -456,7 +456,7 @@ function construitMenu(){
 var novaRangTuile = -1;
 function majTuileNova(){
   if(!jeu || typeof calibreNova !== "function") return;
-  var r = calibreNova(jeu.palier).rang | 0;
+  var r = calibreNova(typeof degatsMaCarte === "function" ? degatsMaCarte() : 0).rang | 0;
   if(r === novaRangTuile) return;
   novaRangTuile = r;
   var cv = $("ic_nova");
