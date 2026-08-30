@@ -5286,8 +5286,18 @@ G("8. Cohérence des règles de jeu");
      N.EQ.ENERGIE_BONUS_RENFORT === 90 && N.EQ.POUDRE_DEPART === undefined);
   /* l'attente de renfort est un choix de rythme, pas un détail : on la
      verrouille pour qu'un réglage ne la rallonge pas en douce. */
-  ok("quinze secondes d'attente après la mort",
-     N.EQ.ATTENTE_RENFORT === 15, N.EQ.ATTENTE_RENFORT + " s");
+  ok("cinq secondes d'attente après la mort",
+     N.EQ.ATTENTE_RENFORT === 5, N.EQ.ATTENTE_RENFORT + " s");
+  /* ET UN SEUL ENDROIT LA POSE, mort et abandon confondus : abandonner
+     ne recopie pas la machine à états, ça vide la flotte et laisse
+     majMort lever le fantôme. Si un second compte à rebours apparaissait
+     un jour, ce compte le dirait. */
+  ok("… et un seul endroit la pose, pour la mort comme pour l'abandon",
+     (html.match(/jeu\.tempsRenfort = EQ\.ATTENTE_RENFORT;/g) || []).length === 1,
+     (html.match(/jeu\.tempsRenfort = EQ\.ATTENTE_RENFORT;/g) || []).length + " endroit(s)");
+  ok("… abandonner passe bien par la condition de mort, sans son propre minuteur",
+     /function abandonneLaVague\(\)\{[\s\S]{0,1600}jeu\.unites\.length = 0;/.test(html) &&
+     !/function abandonneLaVague\(\)\{[\s\S]{0,1600}tempsRenfort/.test(html));
   (function(){
     var m = N.genereCarte("MILY", 0);
     var cel = m.batiments.filter(function(b){ return b.t === "cellule"; }).length;

@@ -2309,7 +2309,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.24";
+var VERSION = "v1.25";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2337,8 +2337,15 @@ var EQ = {
      moins nombreuses qu'un Commando. */
   PLACES_PAR_BARGE     : 15,
 
-  /* Mort / renaissance */
-  ATTENTE_RENFORT      : 15,    // secondes
+  /* Mort / renaissance.
+     CINQ SECONDES, ET PLUS QUINZE. « Quand on meurt ou qu'on abandonne,
+     on a un petit fantôme et on doit patienter quinze secondes ;
+     j'aimerais bien le réduire à cinq. » C'est le seul nombre à changer :
+     abandonner ne recopie pas la machine à états, ça se contente de
+     créer la condition de mort, donc les deux chemins passent ici.
+     Ce n'est ni dans l'instantané partagé ni dans c.batiments : rien à
+     réinitialiser, et une partie en cours le prend à la mort suivante. */
+  ATTENTE_RENFORT      : 5,     // secondes
 
   /* QG */
   QG_ERUPTION_MIN      : 7.0,   // secondes entre deux éruptions
