@@ -559,10 +559,25 @@ select.champ{cursor:pointer}
 /* EN VISITE, ON RANGE TOUT CE QUI SERT À COMBATTRE. L'île n'est pas
    ouverte : ces boutons ne mèneraient nulle part, et les laisser
    promettrait une bataille qu'on ne peut pas livrer. Restent la
-   carte, la caméra, le retour à l'accueil et le chat. */
+   carte, la caméra, le retour à l'accueil et le chat.
+
+   ET LE RETOUR À L'ACCUEIL AVAIT DISPARU AVEC EUX. Cette règle
+   masquait `#bd`, le bloc de droite entier. Elle était juste tant que
+   ce bloc ne portait que les capacités : le retour vivait alors dans
+   le coin haut-gauche. La v1.15 a rangé les trois ovales — retour,
+   abandon, énergie — dans ce même bloc, et le retour est tombé avec
+   le reste : plus aucune sortie depuis une visite, sinon recharger la
+   page. Le commentaire ci-dessus promettait pourtant qu'il restait ;
+   personne ne l'a relu.
+
+   On masque donc ce qui sert à COMBATTRE, nommément, plutôt que le
+   bloc qui les contient. Une liste de boutons se relit ; un bloc
+   entier avale ce qu'on y range plus tard. */
 #hud.visite #bg,
-#hud.visite #bd,
 #hud.visite #bc{display:none}
+#hud.visite #capsBoite,
+#hud.visite #btAbandon,
+#hud.visite #ovEnergie{display:none}
 
 /* ---- LES ONGLETS DE CARTES DE L'ÉDITEUR ----
    Six onglets qui défilent horizontalement : sur une tablette tenue en

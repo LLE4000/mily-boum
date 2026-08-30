@@ -9673,6 +9673,69 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        .test(html));
 })();
 
+/* ================================================================
+   43. ENREGISTRER UN PLAN NE FAIT PLUS PEUR POUR RIEN
+
+   « Si j'enregistre la map Ibiza alors qu'on est sur les ténèbres, la
+   campagne repart à zéro et on perd tout le classement, c'est ça ? »
+
+   Non — et c'est la boîte de dialogue qui mentait. Elle annonçait sans
+   condition « la campagne repart de la première île » et « les dégâts
+   déjà infligés sont perdus », alors que `enregistrePlan` ne touche
+   à la guerre QUE si la carte éditée est celle qu'on joue. Le
+   comportement avait été corrigé ; le texte, lui, était resté.
+
+   Ce qui se mesure — l'instantané identique champ pour champ — est
+   éprouvé dans banc-plan-degats.js, qui appelle vraiment la fonction,
+   réseau coupé. Ici on garde les deux choses qui pourraient se
+   défaire en silence : que la fonction lise bien la MÊME condition
+   que l'avertissement, et que l'avertissement ne réaffirme plus ce
+   qui est faux.
+   ================================================================ */
+(function(){
+  /* LA CONDITION EST UNIQUE, ET LES DEUX CÔTÉS LA LISENT PAREIL. */
+  ok("la sauvegarde ne touche la guerre que pour l'île qu'on joue",
+     /var touche = \(typeof index !== "number"\) \|\| \(\(index \| 0\) === \(carteSalon \| 0\)\);/
+       .test(html));
+  ok("… et l'avertissement pose exactement la même question",
+     /planCarteIdx === \(carteSalon \| 0\)/.test(html));
+
+  /* CE QUE LA BRANCHE « PAS L'ÎLE EN COURS » PRÉSERVE. On le lit sur
+     le code qui repose l'instantané : chaque champ de la guerre y est
+     recopié depuis l'ancien. */
+  {
+    /* ON PART DE LA FONCTION, PAS DE `if(!touche){` : ces trois mots
+       existent aussi dans le code de combat, pour une balle qui rate,
+       et c'est là que l'ancre tombait — sur un tout autre fichier. */
+    var df = html.indexOf("function enregistrePlan(chaine, index){");
+    var d = df > 0 ? html.indexOf("if(!touche){", df) : -1;
+    var corps = d > 0 ? html.slice(d, d + 900) : "";
+    ok("… et alors elle recopie la guerre telle quelle",
+       /cy:cycleSalon \| 0, c:carteSalon \| 0/.test(corps) &&
+       /d:av\.d \|\| "",/.test(corps) && /s:av\.s \|\| "",/.test(corps),
+       corps ? "" : "branche introuvable");
+    ok("… sans faire monter le numéro de campagne",
+       corps.indexOf("cycleSalon = (cycleSalon") < 0);
+  }
+  /* ET MÊME QUAND C'EST L'ÎLE EN COURS : on reste dessus, et le
+     tableau des scores traverse. Seules ses destructions sont jetées. */
+  ok("même sur l'île en cours, on ne repart pas de la première",
+     /cycleSalon = \(cycleSalon \| 0\) \+ 1;[\s\S]{0,900}v:\(av\.v \| 0\) \+ 1, cy:cycleSalon, c:carteSalon \| 0,/
+       .test(html));
+  ok("… et le tableau des scores y traverse aussi",
+     /pv:CARTES\[carteSalon \| 0\]\.pvQG, d:"", bl:"", g:"", w:"", k:"",\s*s:av\.s \|\| "",/
+       .test(html));
+
+  /* L'AVERTISSEMENT NE RÉAFFIRME PLUS CE QUI EST FAUX. */
+  ok("l'avertissement ne promet plus un retour à la première île",
+     html.indexOf("la campagne repart de la première île") < 0);
+  ok("… il dit au contraire ce qui est gardé",
+     /tout est gardé, rien ne repart à zéro/.test(html) &&
+     /scores, champions et podiums sont gardés/.test(html));
+  ok("… et il nomme l'île que le salon joue vraiment",
+     /le salon joue « " \+ CARTES\[carteSalon \| 0\]\.nom \+ " », pas celle-ci/.test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

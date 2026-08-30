@@ -2126,9 +2126,35 @@ function validePlan(){
                   ? "\n  ils restent en place, sauf ce qui poussait très\n"
                     + "  exactement là où tu poses une défense"
                   : "\n  ils ne bougeront pas d'un pouce")
-            + "\n• la campagne repart de la première île, pour tout le salon\n"
-            + "• les dégâts déjà infligés sont perdus\n\n"
-            + "C'est inévitable : les bâtiments ne sont plus les mêmes.")) return;
+            /* ================================================================
+               CE QU'ON PERD DÉPEND D'UNE SEULE CHOSE : EST-CE L'ÎLE
+               QU'ON JOUE ?
+
+               Cet avertissement disait, sans condition, « la campagne
+               repart de la première île » et « les dégâts déjà infligés
+               sont perdus ». Il décrivait un comportement qui a été
+               CORRIGÉ — voir enregistrePlan dans 85-reseau.js, qui
+               raconte le défaut et sa réparation. Le code a changé, le
+               texte est resté, et il a fait peur à quelqu'un qui
+               s'apprêtait à faire quelque chose de parfaitement sûr.
+               Un avertissement faux coûte plus cher qu'un
+               avertissement absent : on finit par ne plus le lire.
+
+               La condition est EXACTEMENT celle d'enregistrePlan — la
+               carte éditée est-elle `carteSalon` ? Les deux doivent
+               dire la même chose, et c'est pour ça qu'elles se lisent
+               au même endroit.
+               ================================================================ */
+            + (planCarteIdx === (carteSalon | 0)
+                ? "\n• c'est l'île que le salon joue EN CE MOMENT : les dégâts\n"
+                  + "  déjà infligés dessus sont perdus — ses bâtiments ne sont\n"
+                  + "  plus les mêmes, le tableau ne veut plus rien dire\n"
+                  + "• on RESTE sur cette île, la campagne ne recule pas\n"
+                  + "• scores, champions et podiums sont gardés"
+                : "\n• le salon joue « " + CARTES[carteSalon | 0].nom + " », pas celle-ci :\n"
+                  + "  sa partie continue sans rien perdre\n"
+                  + "• scores, champions, podiums et dégâts déjà infligés :\n"
+                  + "  tout est gardé, rien ne repart à zéro"))) return;
 
   pousseHistoriquePlan(planCarteIdx, chaine);
   enregistrePlanCarte(planCarteIdx, chaine);
