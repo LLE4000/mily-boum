@@ -4442,14 +4442,20 @@ G("4. Déterminisme de la génération de carte");
       N.VOIES_EVT.push({ i:nAvant, P:"z" });
       var Z = nAvant;
       try{
+        /* LA JUNGLE PORTE MAINTENANT LE SIEN, ÉCRIT SUR SA FICHE.
+           L'ancre lisait EQ.JUNGLE_MIN_JOUEURS, qui n'est plus que le
+           repli d'une carte événement sans valeur propre : la jungle
+           demande six joueurs, les nuits neuf, et chacune le dit
+           elle-même. Ce que ce test doit prouver n'a pas changé — que
+           deux voies ne se marchent pas dessus. */
         ok("chaque événement porte SES réglages, et la jungle garde les siens",
            N.reglagesEvt(Z).minJoueurs === 9 && N.reglagesEvt(Z).attenteH === 24 &&
            N.reglagesEvt(Z).pvBonus === 150 && N.reglagesEvt(Z).degBonus === 70 &&
-           N.reglagesEvt(N.IDX_JUNGLE).minJoueurs === N.EQ.JUNGLE_MIN_JOUEURS &&
+           N.reglagesEvt(N.IDX_JUNGLE).minJoueurs === 6 &&
            N.reglagesEvt(N.IDX_JUNGLE).attenteH === N.EQ.JUNGLE_ATTENTE_H);
         var vide = N.mondeVide(0, 100, 0);
         ok("un monde neuf porte les DEUX voies, chacune à ses défauts",
-           vide.je === 0 && vide.jm === N.EQ.JUNGLE_MIN_JOUEURS &&
+           vide.je === 0 && vide.jm === 6 &&
            vide.ze === 0 && vide.zm === 9 && vide.zb === 150,
            JSON.stringify({ jm:vide.jm, jb:vide.jb, zm:vide.zm, zb:vide.zb }));
         function w(o){
@@ -10147,6 +10153,70 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /if\(!\(\(u\.contourneJusque \|\| 0\) > jeu\.tps\)\)\{/.test(html));
   ok("… et la tenue se relâche en arrivant",
      /if\(dLoin < 3\)\{ u\.contourneJusque = 0; return null; \}/.test(html));
+})();
+
+/* ================================================================
+   47. LES DEUX CARTES BONUS SONT OUVERTES
+
+   « Les deux cartes bonus doivent être ouvertes : la jungle l'est déjà,
+   les Mily et une nuits est encore en travaux. Dans la jungle il faut
+   au minimum six joueurs, et dans les Mily et une nuits neuf. »
+
+   TROIS PORTES ÉTAIENT FERMÉES par le drapeau `chantier` — lancer,
+   rejoindre, visiter. Ce groupe vérifie qu'aucune ne l'est plus, et
+   que les deux cartes portent bien leur minimum.
+
+   ET IL VERROUILLE UNE CONSÉQUENCE QU'ON POURRAIT OUBLIER : en sortant
+   de chantier, l'index des Mily et une nuits cesse d'être modifiable.
+   `verif-campagne` le voit tout seul — l'exception est attachée au
+   drapeau — mais ce test le dit ici pour qui relira ce fichier.
+   ================================================================ */
+(function(){
+  var iJ = -1, iN = -1, i;
+  for(i = 0; i < N.CARTES.length; i++){
+    if(N.CARTES[i].biome === "jungle") iJ = i;
+    if(N.CARTES[i].biome === "nuits") iN = i;
+  }
+  ok("les deux cartes bonus existent", iJ >= 0 && iN >= 0);
+  ok("aucune n'est plus en chantier",
+     N.carteEnChantier(iJ) === false && N.carteEnChantier(iN) === false);
+  /* PLUS AUCUNE CARTE DU JEU, d'ailleurs : le drapeau ne doit pas
+     traîner ailleurs sans qu'on s'en aperçoive. */
+  var enTravaux = [];
+  for(i = 0; i < N.CARTES.length; i++) if(N.carteEnChantier(i)) enTravaux.push(N.CARTES[i].nom);
+  ok("… et plus aucune carte du jeu ne l'est", enTravaux.length === 0,
+     enTravaux.join(", ") || "aucune");
+
+  ok("la jungle demande six joueurs", N.reglagesEvt(iJ).minJoueurs === 6,
+     N.reglagesEvt(iJ).minJoueurs + " joueurs");
+  ok("les Mily et une nuits en demandent neuf", N.reglagesEvt(iN).minJoueurs === 9,
+     N.reglagesEvt(iN).minJoueurs + " joueurs");
+  /* CHACUNE PORTE LE SIEN SUR SA FICHE, et ne le prend plus au repli
+     commun : sans ça, régler la jungle réglerait toute carte
+     événement future du même geste. */
+  ok("… et chacune le porte sur sa fiche, pas au repli commun",
+     N.CARTES[iJ].minJoueurs === 6 && N.CARTES[iN].minJoueurs === 9);
+
+  /* LES DEUX VOIES VIVENT CÔTE À CÔTE dans l'instantané, chacune avec
+     SON minimum : c'est ce qui permet d'en ouvrir une sans l'autre. */
+  var vide = N.mondeVide(0, 100, 0);
+  ok("un monde neuf porte les deux minimums, chacun sur sa voie",
+     vide.jm === 6 && vide.nm === 9,
+     JSON.stringify({ jungle:vide.jm, nuits:vide.nm }));
+  ok("… et les deux voies partent fermées, comme il se doit",
+     (vide.je | 0) === 0 && (vide.ne | 0) === 0);
+
+  /* ET LE MINIMUM RESTE UN DÉFAUT : c'est la valeur du salon qui fait
+     foi, sinon le panneau d'administration ne servirait à rien. */
+  var regle = N.voiePosee(N.mondeVide(0, 100, 0), "n", {
+    e:0, f:0, d:"", bl:"", q:0, t:0, mj:4, mn:0, b:130 });
+  ok("le salon peut régler ce minimum, et c'est lui qui fait foi",
+     N.voieLue(regle, "n", iN).mj === 4);
+
+  /* LA VIGNETTE NE DIT PLUS « BIENTÔT DISPONIBLE » pour personne. */
+  ok("l'accueil ne peut plus afficher une carte en travaux",
+     /if\(carteEnChantier\(i\)\) return "chantier";/.test(html) &&
+     !/chantier:1/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

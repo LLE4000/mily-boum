@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.26";
+var VERSION = "v1.27";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1198,8 +1198,17 @@ var CARTES = [
      dorment déjà dans l'instantané retenu de tous les salons du monde,
      et les renommer perdrait tout ce qu'ils portent. Toute carte
      événement neuve prend une lettre libre. */
+  /* SON MINIMUM EST ÉCRIT ICI, ET PLUS PRIS AU DÉFAUT COMMUN. « Dans la
+     jungle il faut au minimum six joueurs pour la débloquer. » Il vivait
+     dans EQ.JUNGLE_MIN_JOUEURS, qui sert de repli à TOUTE carte
+     événement sans valeur propre : y toucher aurait réglé la jungle et
+     toutes celles qui viendront après elle, du même geste. Chaque carte
+     porte donc le sien, comme les nuits le font déjà.
+     Et ce n'est qu'un DÉFAUT : la valeur qui fait foi vit dans
+     l'instantané partagé et se règle depuis le panneau administrateur.
+     Celle-ci ne sert qu'à un salon qui n'a jamais rien réglé. */
   { nom:"Mily dans la jungle",    biome:"jungle",   pvQG:60000000,
-    special:1, voie:"j",
+    special:1, voie:"j", minJoueurs:6,
     victoire:"Mily lui offre un verre sous la pluie !" },
   /* ----------------------------------------------------------------
      LES TROIS ÎLES AJOUTÉES APRÈS COUP, ET POURQUOI ELLES SONT ICI.
@@ -1239,17 +1248,26 @@ var CARTES = [
      jungle fermée et les nuits ouvertes : c'est même ce qu'on cherche,
      pour qu'il y ait presque toujours quelque chose à prendre.
      ---------------------------------------------------------------- */
-  /* `chantier` : la carte est EN TRAVAUX. Elle apparaît sur l'accueil
-     — c'est même le but, on veut la voir arriver — et tout le monde
-     peut la VISITER, mais personne ne peut y entrer ni y rejoindre
-     une expédition. Le drapeau ferme deux portes, plus trois : la
-     visite ne publie rien, ne range aucun dégât et n'entame aucun
-     verrou de 48 h, donc elle ne gardait plus rien.
-     Retirer cette ligne le jour de la sortie suffit à l'ouvrir à tout
-     le monde : c'est un seul mot à effacer, et rien d'autre à toucher. */
+  /* ELLE EST SORTIE DE CHANTIER. « Les deux cartes bonus doivent être
+     ouvertes : la jungle l'est déjà, les Mily et une nuits est encore
+     en travaux, il faut que les deux soient disponibles. »
+
+     Le drapeau `chantier` fermait trois portes — la lancer, la
+     rejoindre, la visiter — et il ne restait qu'un geste caché pour y
+     entrer. Le retirer suffit à l'ouvrir à tout le monde, et c'était
+     écrit ici depuis le premier jour : un seul mot à effacer, rien
+     d'autre à toucher.
+
+     CE QUE ÇA CHANGE POUR L'INDEX, ET C'EST LA VRAIE CONSÉQUENCE.
+     `verif-campagne` laissait passer un changement de structure sur une
+     carte en chantier, puisque personne ne pouvait y jouer et qu'aucun
+     bitmap de destruction ne désignait ses rangs. À partir de cette
+     ligne, l'exception tombe d'elle-même : l'index des Mily et une
+     nuits devient intouchable comme celui des huit autres. Rien à se
+     rappeler, l'outil le voit tout seul. */
   { nom:"Les Mily et une nuits", biome:"nuits", pvQG:75000000,
-    special:1, voie:"n", chantier:1,
-    minJoueurs:7, attenteH:48, pvBonus:130, degBonus:60,
+    special:1, voie:"n",
+    minJoueurs:9, attenteH:48, pvBonus:130, degBonus:60,
     victoire:"Mily t'emmène voir le jour se lever sur les dômes !" }
 ];
 /* Combien de cartes participent à l'enchaînement ordinaire. Tout le
