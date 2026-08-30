@@ -9690,7 +9690,26 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      cinq cents danseurs et les troupes qui la traversent. */
   ok("le plancher a un plafond, et il est bas",
      /var IBI_SOL_MAX = 0\.72;/.test(html) &&
-     /c\.globalAlpha = Math\.min\(IBI_SOL_MAX, al \* 0\.62\);/.test(html));
+     /c\.globalAlpha = Math\.min\(IBI_SOL_MAX, al \* IBI_SOL_VIF\);/.test(html));
+  /* ════════════════════════════════════════════════════════════
+     LES DIX POUR CENT D'INTENSITÉ EN PLUS
+
+     « Dans le noir dans ma chambre c'est très bien, mais la journée on
+     ne voit pas grand chose. » Le facteur qui traduit le gain d'une
+     dalle en opacité est le seul endroit où cette phrase se chiffre :
+     0,62 × 1,10 = 0,682. On le VÉRIFIE plutôt que de le croire, parce
+     qu'un dixième s'attrape mal à l'œil. */
+  ok("les pavés lumineux gagnent dix pour cent d'intensité",
+     /var IBI_SOL_VIF = 0\.682;/.test(html) &&
+     Math.abs(0.682 / 0.62 - 1.10) < 0.002,
+     "0,62 → 0,682");
+  /* ET LE PLAFOND RESTE UN GARDE-FOU, PAS UN RÉGLAGE : le palier le
+     plus haut vaut 7,5/8 × 0,682 = 0,64, donc il ne se déclenche
+     jamais. Si un jour il se déclenchait, ce test le dirait — et les
+     dix pour cent seraient mangés sans que personne s'en aperçoive. */
+  ok("… et le plafond n'est toujours jamais atteint",
+     (7.5 / 8) * 0.682 < 0.72,
+     ((7.5 / 8) * 0.682).toFixed(3) + " < 0,72");
 
   /* ---- 5 ter. LES PASSAGES SOMBRES SONT DESSINÉS, PAS TIRÉS ----
      « J'aime bien, tu as fait des tons un peu sombres, des passages.

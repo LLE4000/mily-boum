@@ -2606,8 +2606,31 @@ var IBI_SOL_CREUX = 0.62;
 /* Le plafond du plancher. Il est bas, et c'est voulu : ce qui est
    posé dessus — cinq cents danseurs, et les troupes qui traversent —
    doit rester lisible. Une piste plus brillante que ce qu'elle
-   porte est un fond, pas un sol. */
+   porte est un fond, pas un sol.
+   IL NE SE DÉCLENCHE JAMAIS AUJOURD'HUI, et c'est bien : le palier le
+   plus haut vaut 7,5/8 × IBI_SOL_VIF, soit 0,64 — sous le plafond.
+   C'est un garde-fou, pas un réglage. */
 var IBI_SOL_MAX = 0.72;
+/* ════════════════════════════════════════════════════════════════
+   CE QU'UN PALIER VAUT EN OPACITÉ — ET POURQUOI IL VIENT DE MONTER
+
+   « Quand je regarde dans le noir dans ma chambre, c'est très bien.
+   Mais la journée, quand il y a de la lumière, on ne voit pas grand
+   chose. Augmente juste de dix pour cent l'intensité des pavés
+   lumineux. »
+
+   C'est le seul facteur qui traduit le gain d'une dalle en opacité, et
+   donc le seul endroit où « dix pour cent de plus » veut dire quelque
+   chose de vérifiable : 0,62 × 1,10 = 0,682. Tout le reste de la
+   chaîne — le régime, la force de section, le damier, la sourdine —
+   garde exactement ses proportions, donc le carrelage garde son
+   dessin : il monte d'un dixième, il ne change pas de figure.
+
+   POURQUOI PAS LE PLAFOND. Il n'est jamais atteint (voir ci-dessus),
+   donc le monter n'aurait rien éclairci ; et le monter « au cas où »
+   aurait déplacé un garde-fou sans raison mesurée.
+   ════════════════════════════════════════════════════════════════ */
+var IBI_SOL_VIF = 0.682;        // 0,62 d'origine, plus dix pour cent
 
 /* Les seaux de groupage, alloués une fois : six teintes × huit
    paliers. Les vider coûte une affectation, les recréer coûterait
@@ -2670,7 +2693,7 @@ function dessinePisteIbiza(c, tps){
     /* le milieu du palier : une dalle par palier, donc pas de dégradé
        à l'intérieur d'une dalle — c'est un carrelage, pas un halo */
     var al = ((b % IBI_PALIERS) + 0.5) / IBI_PALIERS;
-    c.globalAlpha = Math.min(IBI_SOL_MAX, al * 0.62);
+    c.globalAlpha = Math.min(IBI_SOL_MAX, al * IBI_SOL_VIF);
     c.fillStyle = "rgba(" + IBI_LASER_T[(b / IBI_PALIERS) | 0] + ",1)";
     c.beginPath();
     for(k = 0; k < seau.length; k++){
