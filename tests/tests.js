@@ -56,6 +56,7 @@ try{
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
+    "voieLibre",
     "QG_PV_MIN","QG_PV_MAX","encodeSanteQG","decodeSanteQG","santeQGDans",
     "meilleureSanteQG","poseSanteQGSalon","pvQGDeCarte","santeQGReglee",
     "versEchelleIle","versEchelleFiche",
@@ -9455,8 +9456,11 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
     var n = (html.match(/= capChemin\(u,/g) || []).length;
     ok("les trois marches passent par le champ de distance", n === 3, n + " appels");
     /* et la ligne droite reste là, pour l'éventail d'arrivée */
+    /* L'ANCRE A VIEILLI AVEC LA CORRECTION DU COUDE : la même ligne
+       relâche aussi la tenue du contournement. La promesse, elle, n'a
+       pas bougé — près du but, c'est la ligne droite et son éventail. */
     ok("… mais près du but, on rend la main à la ligne droite",
-       /if\(dLoin < 3\) return null;/.test(html));
+       /if\(dLoin < 3\)\{ u\.contourneJusque = 0; return null; \}/.test(html));
     /* les champs se périment quand une défense tombe */
     ok("une emprise qui change périme les champs",
        /function marqueEmprise\(b, v\)\{\s*GEN_CHEMIN\+\+;/.test(html));
@@ -10033,6 +10037,116 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /nombre\(pvQGDeCarte\(i\)\) \+ ' PV<\/span><\/div>'/.test(html));
 
   N.poseSanteQGSalon("", 0);
+})();
+
+/* ================================================================
+   46. ELLES VONT DROIT QUAND RIEN NE BARRE
+
+   « Quand je les débarque, au lieu d'avancer vers la défense la plus
+   proche, elles s'écartent bizarrement : elles partent sur la gauche et
+   sur la droite de la map. »
+
+   LE DÉFAUT SE PROUVE SUR UNE GRILLE VIDE, sans rien du jeu autour, et
+   c'est ce qui le rend indiscutable : la vague de `champDepuis` compte
+   un par pas, diagonale comprise, donc sa distance est max(|dx|,|dy|)
+   et tous les escaliers monotones valent pareil. `pasVersLeBut` prend
+   la première voisine minimale, et les orthogonales viennent avant les
+   diagonales dans la table : la troupe part plein axe, puis coupe.
+
+   Ce groupe verrouille les deux moitiés de la correction : que
+   `voieLibre` dise vrai là où c'est vrai, et que `capChemin` la
+   consulte AVANT le champ.
+   ================================================================ */
+(function(){
+  var W = 40, H = 40;
+  function grille(){ return new Uint8Array(W * H); }
+
+  /* --- LA VUE DIRECTE --- */
+  var vide = grille();
+  ok("sur un terrain vide, la vue passe toujours",
+     N.voieLibre(vide, W, H, 3, 20, 35, 20) === 1 &&
+     N.voieLibre(vide, W, H, 3, 20, 35, 28) === 1 &&
+     N.voieLibre(vide, W, H, 3, 3, 35, 35) === 1);
+  ok("un point sur lui-même est toujours visible",
+     N.voieLibre(vide, W, H, 10, 10, 10, 10) === 1);
+  /* un mur plein, avec une seule porte */
+  var mur = grille(), y;
+  for(y = 0; y < H; y++) if(y !== 20) mur[y * W + 18] = 1;
+  ok("un mur coupe la vue", N.voieLibre(mur, W, H, 3, 25, 35, 25) === 0);
+  ok("… mais pas au droit de sa porte", N.voieLibre(mur, W, H, 3, 20, 35, 20) === 1);
+  /* LA PORTÉE BORNE LE REGARD : au-delà, on ne se prononce pas. */
+  ok("on ne voit pas plus loin que sa portée",
+     N.voieLibre(mur, W, H, 3, 25, 35, 25, 10) === 1 &&
+     N.voieLibre(mur, W, H, 3, 25, 35, 25, 20) === 0);
+  /* LE PAS DE DEMI-CASE NE SAUTE PAS UN BÂTIMENT : une case isolée
+     posée en travers doit se voir, quelle que soit la pente. */
+  var seule = grille(); seule[20 * W + 20] = 1;
+  var vue = 0, rate = 0;
+  /* ON VISE LE CENTRE DE LA CASE, pas un point décalé : la première
+     écriture de ce test tirait vers (20 + cos/2, 20 + sin/2), qui pour
+     un cosinus négatif tombe dans la case D'À CÔTÉ — le rayon ne
+     traversait donc jamais l'obstacle, et c'était le test qui avait
+     tort, pas la fonction. */
+  for(y = 0; y < 40; y++){
+    var a2 = y / 40 * 6.2832;
+    var x0 = 20.5 - Math.cos(a2) * 12, y0 = 20.5 - Math.sin(a2) * 12;
+    if(N.voieLibre(seule, W, H, x0, y0, 20.5, 20.5)) rate++; else vue++;
+  }
+  ok("une case isolée est vue sous tous les angles", rate === 0,
+     vue + " vues, " + rate + " ratées");
+  ok("hors de la grille, la vue ne passe pas",
+     N.voieLibre(vide, W, H, 3, 20, -8, 20) === 0);
+
+  /* --- LE DÉFAUT LUI-MÊME, SUR UNE GRILLE VIDE --- */
+  /* On refait le chemin case par case comme le fait le jeu, et l'on
+     compte les pas PLEIN AXE alors que le but est en biais. */
+  function marche(occ, sx, sy, bx, by){
+    var champ = N.champDepuis(occ, W, H, bx, by);
+    var x = sx, y = sy, pas = [], n = 0;
+    while((x !== bx || y !== by) && n++ < 400){
+      var v = N.pasVersLeBut(champ, occ, W, H, x, y);
+      if(v < 0) break;
+      var nx = v % W, ny = (v / W) | 0;
+      pas.push([nx - x, ny - y]);
+      x = nx; y = ny;
+    }
+    return pas;
+  }
+  var p = marche(vide, 3, 20, 35, 28);   /* pente 0,25 : franchement en biais */
+  var axe = p.filter(function(d){ return d[0] === 0 || d[1] === 0; }).length;
+  /* LE CHAMP SEUL FAIT LE COUDE, et le test le DIT au lieu de le
+     cacher : c'est la raison d'être de la vue directe, et le jour où
+     quelqu'un voudra s'en passer, ce chiffre lui expliquera pourquoi. */
+  ok("le champ seul part bien plein axe — c'est le défaut constaté",
+     axe > p.length * 0.6, axe + " pas plein axe sur " + p.length);
+  /* … ET LA VUE DIRECTE LE COUPE À LA RACINE : sur ce même trajet,
+     rien ne barre, donc le jeu n'appelle jamais le champ. */
+  ok("… et sur ce même trajet la vue directe passe, donc le champ ne sert pas",
+     N.voieLibre(vide, W, H, 3, 20, 35, 28) === 1);
+
+  /* --- ET LE CHAMP RESTE CE QU'IL EST QUAND IL FAUT CONTOURNER --- */
+  var p2 = marche(mur, 3, 25, 35, 25);
+  var fini = p2.length && (3 + p2.reduce(function(s, d){ return s + d[0]; }, 0)) === 35;
+  ok("là où c'est muré, le champ trouve toujours la porte", fini,
+     p2.length + " pas");
+  ok("… et la vue directe, elle, dit bien que c'est barré",
+     N.voieLibre(mur, W, H, 3, 25, 35, 25) === 0);
+
+  /* --- LE CHEMIN DANS LE FICHIER LIVRÉ --- */
+  ok("capChemin consulte la vue directe avant le champ",
+     /if\(voieLibre\(occ, GW, GH, u\.gx, u\.gy, bx, by, Math\.min\(CHEMIN_VUE, dLoin\)\)\)\{[\s\S]{0,120}return null;/
+       .test(html));
+  ok("… et elle est bien AVANT champVers",
+     html.indexOf("voieLibre(occ, GW, GH, u.gx, u.gy, bx, by")
+       < html.indexOf("var champ = champVers(bx, by);"));
+  /* LA TENUE : sans elle, la troupe rebascule à chaque image et chaque
+     bascule est un coup de barre. Mesuré : 1039° de virage sans, 870°
+     avec — pour le même trajet, le même détour et la même durée. */
+  ok("une fois qu'elle contourne, elle s'y tient un instant",
+     /u\.contourneJusque = jeu\.tps \+ CHEMIN_TENUE;/.test(html) &&
+     /if\(!\(\(u\.contourneJusque \|\| 0\) > jeu\.tps\)\)\{/.test(html));
+  ok("… et la tenue se relâche en arrivant",
+     /if\(dLoin < 3\)\{ u\.contourneJusque = 0; return null; \}/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

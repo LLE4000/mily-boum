@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.25";
+var VERSION = "v1.26";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -8600,6 +8600,102 @@ function champDepuis(occ, larg, haut, sx, sy){
     }
   }
   return d;
+}
+
+/* ================================================================
+   LA VUE DIRECTE — ET POURQUOI ELLE COMMANDE TOUT LE RESTE
+
+   « Quand je les débarque, au lieu d'avancer vers la défense la plus
+   proche, elles s'écartent bizarrement : elles partent sur la gauche
+   et sur la droite de la map. »
+
+   LE DÉFAUT, MESURÉ SUR UN TERRAIN TOTALEMENT VIDE. La vague de
+   `champDepuis` compte UN par pas, diagonale comprise : la distance
+   qu'elle range dans chaque case est donc max(|dx|, |dy|), et non la
+   vraie. Or ce nombre-là ne distingue pas la ligne droite du coude.
+   D'un point à un autre, tout escalier monotone vaut exactement
+   pareil — et `pasVersLeBut`, qui prend la PREMIÈRE voisine minimale,
+   trouve les orthogonales avant les diagonales dans sa table. La
+   troupe part donc plein axe, puis coupe en biais à la fin :
+
+     de (5,30) vers (50,40), sur une grille sans le moindre obstacle
+        35 pas plein est, PUIS 10 pas en diagonale
+
+   En vue isométrique, un pas plein axe s'affiche à trente degrés :
+   trente-cinq d'affilée, c'est une troupe qui « part sur la gauche »
+   quand son objectif est devant elle. Deux troupes dont les objectifs
+   penchent de part et d'autre partent donc l'une à gauche, l'autre à
+   droite. C'est exactement ce qu'il décrit.
+
+   ON NE CORRIGE PAS LE COÛT DE LA DIAGONALE, ET IL FAUT DIRE POURQUOI.
+   Facturer la diagonale à racine de deux rend le champ EXACT — et n'y
+   change rien : la distance d'octile est elle aussi additive, donc
+   tous les escaliers monotones restent à égalité, et la voisine
+   choisie reste la même. Essayé, mesuré : le même coude. Le défaut
+   n'est pas dans le coût, il est dans le fait qu'un champ de cases ne
+   sait pas dire « va tout droit ».
+
+   CE QU'ON MET À LA PLACE. On demande au champ SEULEMENT quand il y a
+   quelque chose à contourner. Tant que le segment qui mène au but est
+   libre, la troupe y va droit — ce qu'elle faisait avant la recherche
+   de chemin, et ce que l'œil attend. Dès qu'un bâtiment entre dans sa
+   vue, le champ reprend la main et la contourne. Le test se refait à
+   chaque image : elle reprend donc la ligne droite à la seconde où
+   elle s'est dégagée.
+
+   C'est de la navigation À TOUT ANGLE, obtenue pour le prix d'un
+   rayon de vingt-quatre lectures — et c'est le meilleur des deux
+   mondes : la droite dans le vide, le contournement dans le dense.
+
+   ON MARCHE DE FRONTIÈRE EN FRONTIÈRE, PAS À PAS RÉGULIER, et c'est
+   la seule chose délicate de cette fonction. La première écriture
+   échantillonnait le rayon toutes les demi-cases, ce qui paraissait
+   assez fin pour une empreinte d'une case entière. C'est faux, et le
+   test le dit : sur quarante angles autour d'une case isolée, un
+   rayon la traversait sans la voir — il entrait et ressortait par le
+   même coin, entre deux échantillons. Un pas plus fin ne ferait que
+   déplacer le problème et coûterait plus cher.
+
+   On avance donc jusqu'à la prochaine frontière de case, en x ou en y
+   selon laquelle vient en premier : on visite ainsi TOUTES les cases
+   que le segment touche, aucune de plus, aucune de moins, et le
+   nombre de lectures est celui du chemin et non celui d'un pas
+   arbitraire.
+
+   LA CASE DE DÉPART N'EST PAS TESTÉE, et c'est voulu : une troupe
+   collée à un bâtiment — ou poussée dedans par la bousculade — se
+   déclarerait aveugle pour toujours, et ne repartirait jamais en
+   ligne droite.
+   ================================================================ */
+function voieLibre(occ, larg, haut, x0, y0, x1, y1, portee){
+  var dx = x1 - x0, dy = y1 - y0;
+  var d = Math.sqrt(dx * dx + dy * dy);
+  if(d < 1e-9) return 1;
+  var lim = (typeof portee === "number" && portee < d) ? portee : d;
+  if(lim <= 0) return 1;
+  var ux = dx / d, uy = dy / d;
+  var i = Math.floor(x0), j = Math.floor(y0);
+  if(i < 0 || i >= larg || j < 0 || j >= haut) return 0;
+  var INF = 1e30;
+  var ax = Math.abs(ux), ay = Math.abs(uy);
+  var sx = (ux > 0) ? 1 : -1, sy = (uy > 0) ? 1 : -1;
+  var dtx = ax > 1e-12 ? 1 / ax : INF;
+  var dty = ay > 1e-12 ? 1 / ay : INF;
+  /* la distance qui reste à parcourir avant de changer de colonne, et
+     avant de changer de ligne */
+  var tx = ax > 1e-12 ? ((ux > 0 ? (i + 1 - x0) : (x0 - i)) / ax) : INF;
+  var ty = ay > 1e-12 ? ((uy > 0 ? (j + 1 - y0) : (y0 - j)) / ay) : INF;
+  for(;;){
+    if(tx < ty){
+      if(tx > lim) return 1;
+      i += sx; tx += dtx;
+    }else{
+      if(ty > lim) return 1;
+      j += sy; ty += dty;
+    }
+    if(i < 0 || i >= larg || j < 0 || j >= haut) return 0;
+    if(occ[j * larg + i] !== 0) return 0;
+  }
 }
 
 /* La case voisine la plus proche du but, ou -1 s'il n'y en a pas.

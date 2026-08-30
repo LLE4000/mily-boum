@@ -701,12 +701,65 @@ function champVers(bx, by){
    reprend alors la ligne droite : c'est elle qui porte l'éventail
    d'arrivée, et il ne faut pas la lui enlever. */
 var DIR_CHEMIN = { x:0, y:0 };
+/* JUSQU'OÙ LA TROUPE REGARDE AVANT DE SE POSER LA QUESTION. Trop court,
+   elle marche dans le mur et ne fait appel au champ qu'au contact ;
+   trop long, le champ reprend la main dès qu'un bâtiment traîne à
+   l'horizon et l'on retrouve le coude en terrain dégagé. Douze cases
+   valent la largeur d'un pâté de défenses et de sa ruelle. */
+var CHEMIN_VUE = 12;
+/* ET UNE FOIS QU'ELLE CONTOURNE, ELLE S'Y TIENT UN INSTANT.
+   Sans ce délai, la vue se dégage et se rebouche d'une image à l'autre
+   pendant qu'on longe un pâté : la troupe rend alternativement la
+   ligne droite et le champ, et chaque bascule est un coup de barre.
+
+   MESURÉ SUR LA TRAVERSÉE DES TÉNÈBRES, 259 cases de chemin praticable.
+   Le balayage de la tenue, de zéro à deux secondes, donne une pente
+   régulière et sans surprise : plus on tient, moins on braque. Sur ce
+   balayage, RIEN D'AUTRE NE BOUGE — douze arrivées sur douze partout,
+   détour 0,99 partout, 258 secondes partout. La tenue n'achète que du
+   lissage, elle ne coûte ni un pas ni une seconde.
+
+   Aux 1,2 s retenues, et face à la version qui n'avait que le champ :
+
+                     virage total    arrivées   détour   durée
+     le champ seul    692° / 471°      12/12      0,99    257 s
+     corrigé          858° / 566°      12/12      0,99    258 s
+                    (commando / furie)
+
+   Il reste donc un cinquième de braquage en plus, et c'est le prix
+   honnête de l'alternance : on redresse vers le but à chaque fois que
+   la vue se dégage. Sans la tenue, ce prix était de moitié.
+
+   ELLE NE RAMÈNE PAS LE DÉFAUT, et c'était la crainte : la part
+   d'images passées PLEIN AXE reste à zéro pour cent jusqu'à deux
+   secondes de tenue, contre 61 % avec le champ seul. C'est logique —
+   la tenue ne s'arme QU'APRÈS avoir vu un obstacle, donc pendant un
+   contournement réel, jamais en terrain dégagé.
+
+   On prend 1,2 s : l'essentiel du lissage, et la moitié de
+   l'engagement de deux secondes — assez pour dépasser le coin qu'on
+   contourne, assez peu pour ne pas s'entêter devant une ouverture. */
+var CHEMIN_TENUE = 1.2;
 function capChemin(u, bx, by, dLoin){
   /* TROP PRÈS, ON NE PLANIFIE PLUS. Les dernières cases se font en
      ligne droite : c'est là que l'éventail écarte la troupe autour de
      son objectif, et un champ de distance ramènerait tout le monde sur
      la même case. */
-  if(dLoin < 3) return null;
+  if(dLoin < 3){ u.contourneJusque = 0; return null; }
+  /* LA VUE DIRECTE PASSE AVANT LE CHAMP. Tant que rien ne barre le
+     segment, on y va tout droit : c'est ce que fait l'œil, et c'est ce
+     que le champ ne sait pas faire (voir `voieLibre` dans le noyau —
+     sa vague ne distingue pas la droite du coude, et la troupe partait
+     plein axe). Dès qu'un bâtiment entre dans sa vue, le champ reprend
+     la main — et le garde `CHEMIN_TENUE` secondes, le temps de dépasser
+     le coin au lieu de rebasculer à l'image suivante. */
+  if(!((u.contourneJusque || 0) > jeu.tps)){
+    if(voieLibre(occ, GW, GH, u.gx, u.gy, bx, by, Math.min(CHEMIN_VUE, dLoin))){
+      u.contourneJusque = 0;
+      return null;
+    }
+    u.contourneJusque = jeu.tps + CHEMIN_TENUE;
+  }
   var champ = champVers(bx, by);
   if(!champ) return null;
   var v = pasVersLeBut(champ, occ, GW, GH, u.gx, u.gy);
