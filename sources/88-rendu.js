@@ -3338,6 +3338,85 @@ function dessineGege(c, tps){
 var COULEURS_CONFETTIS = ["#ff5a4a", "#ffd070", "#6ee08a", "#7de6ff", "#c98adf", "#ff8a1e"];
 var TEINTES_DEBRIS = ["#6d5a60", "#463a40", "#3a2f34"];
 
+/* ════════════════════════════════════════════════════════════════
+   LE TAMPON DES GRAINS — un tableau d'octets, pas un pinceau
+
+   Il est alloué UNE FOIS et réemployé : le rallouer à chaque image
+   ferait quatre mégaoctets de déchets par seconde, et le ramasse-miettes
+   les rendrait en saccades — exactement au moment où l'image doit être
+   la plus fluide de toute la partie.
+
+   Il se redimensionne quand la fenêtre change, et il est effacé au
+   début de chaque image par `fill(0)` : sur un tableau de un virgule
+   trois mégaoctet, c'est un dixième de milliseconde.
+
+   ON ÉCRIT UN CARRÉ DE DEUX PAR DEUX par grain, en ADDITIONNANT : deux
+   grains superposés donnent une braise plus vive, ce qui est
+   exactement ce qu'on veut d'une poussière incandescente. La borne à
+   255 est faite à la main — un Uint8ClampedArray la ferait tout seul,
+   mais l'addition doit lire l'ancienne valeur de toute façon.
+   ════════════════════════════════════════════════════════════════ */
+var grainCv = null, grainImg = null, grainW = 0, grainH = 0;
+/* Le tampon, alloué à la demande — et appelé une fois PENDANT
+   L'ASPIRATION pour que l'allocation ne tombe pas sur l'image de la
+   déflagration. */
+function preparerGrains(){
+  var w = Math.max(2, (W * 0.5) | 0), h = Math.max(2, (H * 0.5) | 0);
+  if(grainCv && grainW === w && grainH === h) return;
+  grainCv = nouveauCanvas(w, h);
+  grainImg = grainCv.getContext("2d").createImageData(w, h);
+  grainW = w; grainH = h;
+}
+function dessineGrains(c, F, pq, z){
+  preparerGrains();
+  var w = grainW, h = grainH;
+  var d = grainImg.data;
+  d.fill(0);
+  var ox = pq.x * 0.5, oy = pq.y * 0.5, zz = z * 0.5;
+  var n = F.grains.length, i;
+  for(i = 0; i < n; i++){
+    var G = F.grains[i];
+    if(G.age < G.retard){
+      /* PAS ENCORE PARTI : il attend, chauffé à blanc. C'est ce qui
+         fait qu'on voit la désintégration BALAYER la forteresse. */
+      var xw = (ox + G.x * zz) | 0, yw = (oy + G.y * zz) | 0;
+      if(xw < 0 || xw >= w - 1 || yw < 0 || yw >= h - 1) continue;
+      poseGrain(d, w, xw, yw, 255, 250, 240, 1);
+      continue;
+    }
+    var t = (G.age - G.retard) / G.duree;
+    if(t >= 1) continue;
+    /* LA CHAUFFE : blanc au départ, sa propre couleur en trois
+       dixièmes de seconde, puis l'extinction. */
+    var chaud = Math.max(0, 1 - (G.age - G.retard) / 0.30);
+    var af = (1 - t) * (1 - t * 0.35);
+    var r = G.r + (255 - G.r) * chaud;
+    var v = G.v + (250 - G.v) * chaud;
+    var b = G.b + (232 - G.b) * chaud;
+    var x2 = (ox + G.x * zz) | 0, y2 = (oy + G.y * zz) | 0;
+    if(x2 < 0 || x2 >= w - 1 || y2 < 0 || y2 >= h - 1) continue;
+    poseGrain(d, w, x2, y2, r, v, b, af);
+  }
+  grainCv.getContext("2d").putImageData(grainImg, 0, 0);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.drawImage(grainCv, 0, 0, w, h, 0, 0, W, H);
+  c.restore();
+}
+/* Un grain, en carré de deux par deux, additionné au tampon. */
+function poseGrain(d, w, x, y, r, v, b, a){
+  var rr = r * a, vv = v * a, bb = b * a;
+  for(var j = 0; j < 2; j++){
+    var k = ((y + j) * w + x) * 4;
+    for(var i2 = 0; i2 < 2; i2++, k += 4){
+      var q = d[k] + rr;       d[k]     = q > 255 ? 255 : q;
+      q = d[k + 1] + vv;       d[k + 1] = q > 255 ? 255 : q;
+      q = d[k + 2] + bb;       d[k + 2] = q > 255 ? 255 : q;
+      d[k + 3] = 255;
+    }
+  }
+}
+
 function dessineFin(c, tps){
   var F = jeu.fin;
   repereEcran(c);
@@ -3359,15 +3438,97 @@ function dessineFin(c, tps){
     c.restore();
   }
 
-  /* ---- colonne de fumée : elle s'élève et s'épaissit ---- */
+  /* ---- LE CRATÈRE : ce qui reste du Brasier ----
+     Il vient AVANT la fumée, donc dessous : c'est un trou dans le sol,
+     pas un objet posé dessus. Une ellipse sombre, un bord encore chaud
+     qui refroidit en une quinzaine de secondes. Sans lui, la forteresse
+     disparaissait en laissant le sol intact — et l'œil, qui vient de
+     voir six mille grains s'envoler, cherche la trace de ce qui a
+     brûlé. */
+  if(F.poussiere){
+    var tc = Math.min(1, (F.age - FIN_SOUFFLE) / 0.5);
+    var rc = 190 * tc * z;
+    c.save();
+    var gc2 = c.createRadialGradient(pq.x, pq.y - 8 * z, rc * 0.15,
+                                     pq.x, pq.y - 8 * z, rc);
+    gc2.addColorStop(0, "rgba(14,8,10,.90)");
+    gc2.addColorStop(0.62, "rgba(26,14,12,.72)");
+    gc2.addColorStop(1, "rgba(30,16,12,0)");
+    c.fillStyle = gc2;
+    c.beginPath(); c.ellipse(pq.x, pq.y - 8 * z, rc, rc * 0.5, 0, 0, 6.2832); c.fill();
+    /* la lèvre du cratère, braise qui s'éteint lentement */
+    var chaudC = Math.max(0, 1 - (F.age - FIN_SOUFFLE) / 14);
+    if(chaudC > 0){
+      c.globalCompositeOperation = "lighter";
+      var gl2 = c.createRadialGradient(pq.x, pq.y - 8 * z, rc * 0.45,
+                                       pq.x, pq.y - 8 * z, rc * 0.92);
+      gl2.addColorStop(0, "rgba(255,120,30,0)");
+      gl2.addColorStop(0.78, "rgba(255,132,38," + (0.34 * chaudC) + ")");
+      gl2.addColorStop(1, "rgba(255,80,20,0)");
+      c.fillStyle = gl2;
+      c.beginPath(); c.ellipse(pq.x, pq.y - 8 * z, rc * 0.92, rc * 0.46, 0, 0, 6.2832); c.fill();
+    }
+    c.restore();
+  }
+
+  /* ---- colonne de fumée : elle s'élève et s'épaissit ----
+     PLUS SOMBRE ET PLUS TRANSPARENTE QU'AVANT. À plus d'un demi
+     d'opacité et en gris moyen, les vingt-six bouffées se recouvraient
+     en un DISQUE gris uniforme posé sur l'île — on ne lisait plus de la
+     fumée, on lisait une tache. Une fumée se lit à ses bords et à ce
+     qu'on voit à travers ; elle est donc assombrie au ton de la suie et
+     ramenée à un tiers d'opacité. */
   for(var f2 = 0; f2 < F.colonne.length; f2++){
     var fu = F.colonne[f2];
     var tf = fu.age / fu.duree;
-    var af = Math.min(1, fu.age * 3) * (1 - tf) * 0.55;
-    var teinte = tf < 0.35 ? "#4a3a3a" : "#6a6068";
+    var af = Math.min(1, fu.age * 3) * (1 - tf) * (1 - tf) * 0.34;
+    var teinte = tf < 0.35 ? "#241a1c" : "#3a3238";
     bouffee(c, pq.x + fu.x * z + Math.sin(fu.age * 1.1 + f2) * 14 * z,
             pq.y + (fu.y - 30) * z,
             (fu.r + tf * 26) * z, af, teinte);
+  }
+
+  /* ---- L'ASPIRATION : l'écran s'éteint, les braises convergent ----
+     Un voile sombre qui monte pendant six dixièmes de seconde. Ce n'est
+     pas un effet, c'est une RESPIRATION : sans elle la déflagration
+     partait sur une image déjà saturée de fumée et de flammes, et une
+     explosion qui ne fait pas contraste ne se voit pas. */
+  if(F.aspire > 0){
+    var va = F.aspire * F.aspire;
+    c.fillStyle = "rgba(6,3,10," + (0.72 * va) + ")";
+    c.fillRect(0, 0, W, H);
+    /* le foyer, lui, se met à briller par en dessous */
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    var rr = (30 + va * 120) * z;
+    var ga2 = c.createRadialGradient(pq.x, pq.y - 200 * z, 0, pq.x, pq.y - 200 * z, rr);
+    ga2.addColorStop(0, "rgba(226,244,255," + (0.85 * va) + ")");
+    ga2.addColorStop(0.45, "rgba(150,206,255," + (0.40 * va) + ")");
+    ga2.addColorStop(1, "rgba(90,150,255,0)");
+    c.fillStyle = ga2;
+    c.beginPath(); c.arc(pq.x, pq.y - 200 * z, rr, 0, 6.2832); c.fill();
+    c.restore();
+  }
+  /* les braises happées, en traits qui filent vers le foyer */
+  if(F.aspires && F.aspires.length){
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.lineCap = "round";
+    for(var qa2 = 0; qa2 < F.aspires.length; qa2++){
+      var br = F.aspires[qa2];
+      var kb = Math.min(1, br.age / br.duree);
+      var bx = pq.x + br.x * z, by = pq.y + br.y * z;
+      /* la traînée pointe vers le foyer : c'est elle qui dit le sens */
+      var tx = pq.x - bx, ty = (pq.y - 200 * z) - by;
+      var tn = Math.hypot(tx, ty) || 1;
+      c.strokeStyle = "rgba(255,214,150," + (0.75 * (1 - kb * 0.4)) + ")";
+      c.lineWidth = br.r * z;
+      c.beginPath();
+      c.moveTo(bx, by);
+      c.lineTo(bx + tx / tn * 26 * z, by + ty / tn * 26 * z);
+      c.stroke();
+    }
+    c.restore();
   }
 
   /* flash blanc */
@@ -3376,24 +3537,69 @@ function dessineFin(c, tps){
     c.fillRect(0, 0, W, H);
   }
 
-  /* ---- boule de feu, juste après la déflagration ---- */
+  /* ════════════════════════════════════════════════════════════
+     LA FORTERESSE EN POUSSIÈRE
+
+     Chaque grain porte la couleur du pixel qu'il remplace. On ne les
+     dessine PAS un par un au pinceau : quatre mille `fillRect` avec
+     autant de changements de `fillStyle` coûtent plusieurs
+     millisecondes par image, et cette séquence tourne aussi sur
+     tablette. On écrit dans un TABLEAU DE PIXELS — de simples
+     écritures dans un tableau d'octets, sans état de contexte à
+     changer — puis on pose ce tableau d'un seul coup, en fondu
+     additif.
+
+     LE TAMPON EST À MOITIÉ RÉSOLUTION, et c'est un choix de rendu
+     autant que de vitesse : un grain y couvre deux pixels d'écran, ce
+     qui lui donne le grain — c'est le cas de le dire — d'une braise
+     plutôt que celui d'un point mathématique.
+     ════════════════════════════════════════════════════════════ */
+  if(F.grains && F.grains.length) dessineGrains(c, F, pq, z);
+
+  /* ════════════════════════════════════════════════════════════
+     LA BOULE D'ÉNERGIE
+
+     « Un gros flash, une grosse boule un peu d'énergie qui explose. »
+
+     Ce n'est plus une boule de feu, et la différence tient en deux
+     choses. D'abord le CŒUR EST BLANC-BLEU : c'est la couleur de
+     l'énergie dans ce jeu — les cellules, les Bobines, le bouclier —,
+     et elle tranche sur l'orange du Brasier au lieu de s'y noyer.
+     Ensuite il y a un FRONT : un anneau mince et très clair qui court
+     devant la boule. Sans lui on voit un dégradé qui grandit ; avec
+     lui on voit quelque chose qui ARRIVE, et c'est ce qui fait la
+     violence.
+
+     La boule s'ouvre en racine du temps — vite au début, elle
+     s'essouffle —, le front la précède d'un cheveu. Les deux montent
+     à neuf cents unités de monde : à la distance où la caméra cadre la
+     fin, cela remplit l'écran.
+     ════════════════════════════════════════════════════════════ */
   if(F.tete && F.tete.age < 2.4){
     var tb = F.tete.age / 2.4;
-    /* la boule monte à 900 unités monde : à la distance de jeu elle
-       remplit l'écran, ce qui est bien le but d'une déflagration */
-    var rb = (110 + Math.sqrt(tb) * 900) * z;
+    var cyb = pq.y - 170 * z;
+    var rb = (90 + Math.sqrt(tb) * 940) * z;
+    var ab = (1 - tb) * (1 - tb) * (1 - tb * 0.35);
     c.save();
     c.globalCompositeOperation = "lighter";
-    var ab = (1 - tb) * (1 - tb) * (1 - tb * 0.35);
-    var gb = c.createRadialGradient(pq.x, pq.y - 130 * z, rb * 0.08,
-                                    pq.x, pq.y - 130 * z, rb);
-    gb.addColorStop(0.00, "rgba(255,252,232," + (0.95 * ab) + ")");
-    gb.addColorStop(0.22, "rgba(255,206,110," + (0.85 * ab) + ")");
-    gb.addColorStop(0.52, "rgba(255,118,28," + (0.60 * ab) + ")");
-    gb.addColorStop(0.80, "rgba(190,44,12," + (0.30 * ab) + ")");
-    gb.addColorStop(1.00, "rgba(90,16,6,0)");
+    var gb = c.createRadialGradient(pq.x, cyb, rb * 0.05, pq.x, cyb, rb);
+    gb.addColorStop(0.00, "rgba(255,255,255," + (0.98 * ab) + ")");
+    gb.addColorStop(0.10, "rgba(214,240,255," + (0.92 * ab) + ")");
+    gb.addColorStop(0.26, "rgba(150,200,255," + (0.72 * ab) + ")");
+    gb.addColorStop(0.46, "rgba(255,214,140," + (0.62 * ab) + ")");
+    gb.addColorStop(0.70, "rgba(255,126,34," + (0.38 * ab) + ")");
+    gb.addColorStop(0.90, "rgba(150,36,10," + (0.16 * ab) + ")");
+    gb.addColorStop(1.00, "rgba(60,10,4,0)");
     c.fillStyle = gb;
-    c.beginPath(); c.arc(pq.x, pq.y - 130 * z, rb, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(pq.x, cyb, rb, 0, 6.2832); c.fill();
+    /* LE FRONT, mince et net. Il court devant la boule et s'affine en
+       s'élargissant — c'est ce qui donne la sensation de vitesse. */
+    if(tb < 0.55){
+      var af2 = (1 - tb / 0.55);
+      c.strokeStyle = "rgba(238,250,255," + (0.9 * af2 * af2) + ")";
+      c.lineWidth = Math.max(1.5, 40 * af2 * af2 * z);
+      c.beginPath(); c.arc(pq.x, cyb, rb * 1.04, 0, 6.2832); c.stroke();
+    }
     c.restore();
   }
 
@@ -3423,140 +3629,202 @@ function dessineFin(c, tps){
       c.restore();
     }
   }
-  /* la tête qui décolle */
-  if(F.tete && F.tete.age < 3){
-    var p = versEcran(cam, jeu.qg.gx, jeu.qg.gy);
-    var x = p.x, y = p.y + Y_TETE * cam.z + F.tete.y * cam.z;
-    /* traînée de fumée en boules */
-    for(var i = 0; i < 14; i++){
-      var t = i / 14;
-      bouffee(c, x + Math.sin(t * 9 + F.tete.age * 4) * 12 * t,
-              y + t * 190 * cam.z, (5 + t * 22) * cam.z, (1 - t) * 0.4, "#6a6068");
-    }
-    c.save();
-    c.translate(x, y);
-    c.rotate(F.tete.rot);
-    var eg = ECH_GARD * 0.55 * cam.z;
-    c.scale(eg, eg);
-    /* la gardienne, en version qui louche */
-    gardienne3D(c, 0, 0, 1, 1, tps);
-    /* yeux barrés d'une croix + bouche de travers */
-    c.save();
-    c.strokeStyle = "#150f18"; c.lineWidth = 2.2; c.lineCap = "round";
-    [VT_YEUX.g, VT_YEUX.d].forEach(function(o){
-      c.beginPath(); c.moveTo(o[0] - 4, o[1] - 4); c.lineTo(o[0] + 4, o[1] + 4); c.stroke();
-      c.beginPath(); c.moveTo(o[0] + 4, o[1] - 4); c.lineTo(o[0] - 4, o[1] + 4); c.stroke();
-    });
-    c.strokeStyle = "#8a3a34"; c.lineWidth = 2.6;
-    c.beginPath(); c.moveTo(-7, 8); c.quadraticCurveTo(0, 14, 7, 5); c.stroke();
-    c.restore();
-    c.restore();
-  }
-  /* confettis */
+  /* ════════════════════════════════════════════════════════════
+     LA TÊTE QUI DÉCOLLE : RETIRÉE.
+
+     La gardienne s'envolait entière, tournant sur elle-même, les yeux
+     barrés d'une croix et la bouche de travers, avec « la gardienne a
+     décollé » écrit dessous. C'était le gag du dessin animé, et c'est
+     précisément ce qu'on ne veut plus voir ici.
+
+     Et ce n'est pas qu'une question de ton : elle CONTREDISAIT l'effet.
+     La forteresse part en poussière, pixel par pixel, gardienne
+     comprise — voir `pixelsDuBrasier`. Un morceau qui s'envole intact
+     au milieu de cette poussière dit que la désintégration n'était
+     qu'un décor.
+
+     `F.tete` reste : il ne dessine plus rien, mais il marque l'instant
+     de la déflagration pour tout ce qui en dépend — la boule, le
+     titre, le sacre, le minutage du bilan.
+     ════════════════════════════════════════════════════════════ */
+
+  /* ---- les braises qui dérivent, à la place des confettis ---- */
   if(F.confettis){
-    for(var k = 0; k < F.confettis.length; k++){
-      var cf = F.confettis[k];
-      c.save();
-      c.translate(cf.x * W, cf.y * H);
-      c.rotate(cf.rot);
-      c.fillStyle = COULEURS_CONFETTIS[cf.c];
-      c.fillRect(-cf.w / 2, -cf.w / 4, cf.w, cf.w / 2);
-      c.restore();
-    }
-  }
-  /* ---- MILY BOUM ! puis le sacre du meilleur contributeur ---- */
-  if(F.age >= FIN_SOUFFLE + 1.3){
-    var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.3) / 0.75);
-    var ela = 1 + Math.sin(tt * 9) * Math.exp(-tt * 4) * 0.55;
-    var osc = Math.sin(F.age * 3) * 0.035;
-    /* le titre remonte pour laisser la place au message de victoire, puis
-       une seconde fois quand le classement s'installe en bas : les trois
-       — explosion, sacre, classement — doivent tenir à l'écran ensemble */
-    var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.6) / 0.6));
-    var monte2 = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
-    c.save();
-    c.translate(W / 2, H * (0.42 - monte * 0.14 - monte2 * 0.12));
-    c.scale(ela * (1 - monte * 0.24), ela * (1 - monte * 0.24));
-    c.rotate(osc);
-    var taille = Math.min(W, H) * 0.155;
-    c.font = "900 " + taille + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
-    c.textAlign = "center"; c.textBaseline = "middle";
-    c.lineJoin = "round"; c.lineWidth = taille * 0.22;
-    c.strokeStyle = "#180a04";
-    c.strokeText("MILY BOUM !", 0, 0);
-    var g = c.createLinearGradient(0, -taille * 0.6, 0, taille * 0.6);
-    g.addColorStop(0, "#ffe6a8"); g.addColorStop(0.5, "#ff8a1e"); g.addColorStop(1, "#e0431a");
-    c.fillStyle = g;
-    c.fillText("MILY BOUM !", 0, 0);
-    if(monte < 0.5){
-      c.globalAlpha = 1 - monte * 2;
-      c.font = "700 " + (taille * 0.26) + "px 'Trebuchet MS', sans-serif";
-      c.lineWidth = taille * 0.07;
-      c.strokeText("la gardienne a décollé", 0, taille * 0.68);
-      c.fillStyle = "#ffd9a8";
-      c.fillText("la gardienne a décollé", 0, taille * 0.68);
-    }
-    c.restore();
-  }
-
-  /* ---- le sacre : qui a le plus contribué, et ce que Mily lui offre ---- */
-  if(F.age >= FIN_SOUFFLE + 2.8 && F.champion){
-    var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.8) / 0.7);
-    var elv = 1 + Math.sin(tv * 8.5) * Math.exp(-tv * 4.2) * 0.5;
-    var lignes = texteVictoire(jeu.index, F.champion.nom);
-    var mv = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
-    c.save();
-    c.translate(W / 2, H * (0.56 - mv * 0.14));
-    c.scale(elv * (1 - mv * 0.12), elv * (1 - mv * 0.12));
-    c.rotate(Math.sin(F.age * 2.2) * 0.018);
-    var tv2 = Math.min(W * 0.052, H * 0.078);
-    c.textAlign = "center"; c.textBaseline = "middle";
-    c.lineJoin = "round";
-
-    /* écusson doré derrière le texte */
     c.save();
     c.globalCompositeOperation = "lighter";
-    var gs = c.createRadialGradient(0, 0, tv2 * 0.4, 0, 0, tv2 * 7);
-    gs.addColorStop(0, "rgba(255,214,120,.30)");
-    gs.addColorStop(1, "rgba(255,150,40,0)");
-    c.fillStyle = gs;
-    c.beginPath(); c.arc(0, 0, tv2 * 7, 0, 6.2832); c.fill();
+    for(var k = 0; k < F.confettis.length; k++){
+      var cf = F.confettis[k];
+      /* un battement lent : une braise n'a pas une lumière fixe */
+      var vif = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(cf.ph + F.age * cf.vp * 2.2));
+      var teinteB = cf.ch < 0.72 ? "255,168,72" : "255,232,180";
+      c.fillStyle = "rgba(" + teinteB + "," + (0.62 * vif) + ")";
+      c.beginPath();
+      c.arc(cf.x * W, cf.y * H, cf.w, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }
+  /* ════════════════════════════════════════════════════════════
+     LE TITRE — ET C'EST ICI QUE SE JOUAIT LE « GADGET »
+
+     « On ne met pas félicitations vous avez fait sauter la gardienne,
+     on met un truc comme félicitations, vous avez détruit… Il faudrait
+     un peu plus professionnel, ça ne doit pas faire gadget. »
+
+     CE QUI FAISAIT ENFANTIN, ET C'ÉTAIT QUATRE CHOSES PRÉCISES —
+     les mêmes que celles du logo, corrigées ici pour les mêmes
+     raisons :
+
+       1. LE REBOND ÉLASTIQUE. « MILY BOUM ! » arrivait en sautant,
+          puis oscillait indéfiniment. Un titre qui tremble est un
+          titre de jeu pour enfants. Il ARRIVE maintenant : il monte de
+          quelques pixels, se pose, et ne bouge plus.
+       2. LE CONTOUR NOIR ÉPAIS, aussi large que le fût des lettres.
+          Il transformait le mot en autocollant. Remplacé par une
+          ombre portée basse et une lueur chaude — le texte se détache
+          sur l'explosion sans être cerné.
+       3. LE MOT LUI-MÊME. « MILY BOUM ! » avec son point
+          d'exclamation, puis « la gardienne a décollé » : deux
+          plaisanteries au moment le plus solennel de la partie. Ce qui
+          se dit maintenant est ce qu'il a demandé — ÎLE CONQUISE, puis
+          « Félicitations, vous avez détruit », puis le NOM DE L'ÎLE.
+       4. LES CAPITALES ESPACÉES ET FINES. Une graisse 300 avec un
+          seizième de cadratin d'interlettrage se lit comme un
+          générique ; une graisse 900 collée se lit comme une réclame.
+
+     LE NOM DE L'ÎLE EST LE HÉROS de ce panneau : c'est la seule chose
+     qu'on vient d'accomplir, et elle est la plus grande à l'écran.
+     ════════════════════════════════════════════════════════════ */
+  if(F.age >= FIN_SOUFFLE + 1.0){
+    var tt = Math.min(1, (F.age - FIN_SOUFFLE - 1.0) / 0.9);
+    /* une pose, pas un rebond : cubique sortante, elle s'arrête net */
+    var pose = 1 - Math.pow(1 - tt, 3);
+    var monte = Math.min(1, Math.max(0, (F.age - FIN_SOUFFLE - 2.4) / 0.7));
+    var monte2 = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
+    var base = Math.min(W, H);
+    var nomIle = (CARTES[jeu.index] && CARTES[jeu.index].nom) || "";
+    c.save();
+    c.translate(W / 2, H * (0.34 - monte * 0.06 - monte2 * 0.10)
+                       + (1 - pose) * base * 0.05);
+    c.globalAlpha = pose;
+    c.textAlign = "center"; c.textBaseline = "middle";
+
+    /* --- l'eyebrow : ÎLE CONQUISE, fin et très espacé --- */
+    var tp = Math.max(11, base * 0.021);
+    c.font = "300 " + tp + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.letterSpacing = (tp * 0.42) + "px";
+    c.fillStyle = "rgba(255,214,150,.82)";
+    c.fillText("ÎLE CONQUISE", 0, -base * 0.062);
+    c.letterSpacing = "0px";
+
+    /* --- le filet, il s'ouvre depuis le milieu --- */
+    var lg = base * 0.20 * pose;
+    var gl = c.createLinearGradient(-lg, 0, lg, 0);
+    gl.addColorStop(0, "rgba(255,196,110,0)");
+    gl.addColorStop(0.5, "rgba(255,214,150,.55)");
+    gl.addColorStop(1, "rgba(255,196,110,0)");
+    c.fillStyle = gl;
+    c.fillRect(-lg, -base * 0.040, lg * 2, 1);
+
+    /* --- la phrase --- */
+    var tf = Math.max(12, base * 0.026);
+    c.font = "400 " + tf + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.fillStyle = "rgba(238,232,240,.90)";
+    c.fillText("Félicitations, vous avez détruit", 0, -base * 0.006);
+
+    /* --- LE NOM DE L'ÎLE, le héros du panneau --- */
+    var tn = Math.min(base * 0.072, W / Math.max(8, nomIle.length) * 1.55);
+    c.font = "600 " + tn + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.letterSpacing = (tn * 0.03) + "px";
+    /* une ombre portée basse, et pas un cerne : le mot repose sur
+       l'explosion au lieu d'être découpé dedans */
+    c.save();
+    c.shadowColor = "rgba(0,0,0,.75)";
+    c.shadowBlur = tn * 0.5;
+    c.shadowOffsetY = tn * 0.06;
+    var gn = c.createLinearGradient(0, base * 0.020, 0, base * 0.075);
+    gn.addColorStop(0, "#fff3d6");
+    gn.addColorStop(0.55, "#ffd489");
+    gn.addColorStop(1, "#e9a63f");
+    c.fillStyle = gn;
+    c.fillText(nomIle, 0, base * 0.048);
+    c.restore();
+    c.letterSpacing = "0px";
+    c.restore();
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     LE SACRE — MÊME LANGUE QUE LE TITRE
+
+     Il restait dans l'ancien registre pendant que le titre changeait de
+     ton, et deux typographies contraires sur le même écran se lisent
+     comme une erreur de fabrication : le pseudo en 900 gras cerné de
+     noir avec sa couronne de laurier dorée, juste sous une capitale
+     fine et espacée.
+
+     Trois choses tombent, les mêmes qu'au-dessus :
+       — LE REBOND ÉLASTIQUE, remplacé par une pose ;
+       — LE CERNE NOIR, remplacé par une ombre portée ;
+       — LA COURONNE DE LAURIER et son écusson doré. Un laurier est un
+         signe de podium sportif ; ce qu'on célèbre ici est une
+         destruction. Restent deux filets fins, qui encadrent sans
+         décorer.
+
+     LE PSEUDO GARDE SA TAILLE : c'est la seule information de ce bloc,
+     et il doit rester lisible d'un coup d'œil sur un téléphone.
+     ════════════════════════════════════════════════════════════ */
+  if(F.age >= FIN_SOUFFLE + 2.4 && F.champion){
+    var tv = Math.min(1, (F.age - FIN_SOUFFLE - 2.4) / 0.8);
+    var posv = 1 - Math.pow(1 - tv, 3);
+    var lignes = texteVictoire(jeu.index, F.champion.nom);
+    var mv = Math.min(1, Math.max(0, (F.age - 10.5) / 0.8));
+    var bs = Math.min(W, H);
+    c.save();
+    c.translate(W / 2, H * (0.60 - mv * 0.12) + (1 - posv) * bs * 0.035);
+    c.globalAlpha = posv;
+    c.textAlign = "center"; c.textBaseline = "middle";
+
+    /* l'étiquette, aussi fine que « ÎLE CONQUISE » plus haut */
+    var te = Math.max(10, bs * 0.019);
+    c.font = "300 " + te + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.letterSpacing = (te * 0.40) + "px";
+    c.fillStyle = "rgba(255,214,150,.70)";
+    c.fillText("MEILLEUR ASSAUT", 0, -bs * 0.052);
+    c.letterSpacing = "0px";
+
+    /* le pseudo, seule information de ce bloc */
+    var tp2 = Math.min(bs * 0.052, W / Math.max(10, lignes[0].length) * 1.5);
+    c.font = "600 " + tp2 + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.save();
+    c.shadowColor = "rgba(0,0,0,.72)";
+    c.shadowBlur = tp2 * 0.55;
+    c.shadowOffsetY = tp2 * 0.07;
+    var gp = c.createLinearGradient(0, -tp2 * 0.55, 0, tp2 * 0.55);
+    gp.addColorStop(0, "#fff6de");
+    gp.addColorStop(0.55, "#ffd489");
+    gp.addColorStop(1, "#e2a03a");
+    c.fillStyle = gp;
+    c.fillText(lignes[0], 0, -bs * 0.010);
     c.restore();
 
-    /* couronne de laurier, deux arcs de feuilles */
-    c.strokeStyle = "rgba(255,206,110,.85)";
-    c.lineWidth = Math.max(2, tv2 * 0.09);
-    [-1, 1].forEach(function(sn){
-      c.beginPath();
-      c.arc(0, tv2 * 0.1, tv2 * 4.6, sn > 0 ? -0.9 : Math.PI + 0.9,
-            sn > 0 ? 0.9 : Math.PI - 0.9, sn < 0);
-      c.stroke();
-      for(var lf = 0; lf < 7; lf++){
-        var al2 = (-0.8 + lf * 0.266) * sn + (sn < 0 ? Math.PI : 0);
-        var lx = Math.cos(al2) * tv2 * 4.6, ly = tv2 * 0.1 + Math.sin(al2) * tv2 * 4.6;
-        c.save();
-        c.translate(lx, ly); c.rotate(al2 + 1.57);
-        c.fillStyle = "rgba(255,196,84,.8)";
-        c.beginPath(); c.ellipse(0, 0, tv2 * 0.34, tv2 * 0.13, 0, 0, 6.2832); c.fill();
-        c.restore();
-      }
-    });
+    /* deux filets courts, de part et d'autre de la récompense */
+    var lr = bs * 0.115;
+    var gr = c.createLinearGradient(-lr, 0, lr, 0);
+    gr.addColorStop(0, "rgba(255,196,110,0)");
+    gr.addColorStop(0.5, "rgba(255,214,150,.40)");
+    gr.addColorStop(1, "rgba(255,196,110,0)");
+    c.fillStyle = gr;
+    c.fillRect(-lr, bs * 0.020, lr * 2, 1);
 
-    /* première ligne : le pseudo, en grand */
-    c.font = "900 " + (tv2 * 1.18) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
-    c.lineWidth = tv2 * 0.26; c.strokeStyle = "#1a0e02";
-    c.strokeText(lignes[0], 0, -tv2 * 0.62);
-    var g2 = c.createLinearGradient(0, -tv2 * 1.2, 0, tv2 * 0.1);
-    g2.addColorStop(0, "#fff6d4"); g2.addColorStop(0.5, "#ffcf4e"); g2.addColorStop(1, "#e08a12");
-    c.fillStyle = g2;
-    c.fillText(lignes[0], 0, -tv2 * 0.62);
-
-    /* seconde ligne : la récompense, propre à l'île */
-    c.font = "800 " + (tv2 * 0.74) + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
-    c.lineWidth = tv2 * 0.20;
-    c.strokeText(lignes[1], 0, tv2 * 0.72);
-    c.fillStyle = "#ffe9b8";
-    c.fillText(lignes[1], 0, tv2 * 0.72);
+    /* la récompense propre à l'île, en clair et sans emphase */
+    var tr2 = Math.max(11, bs * 0.024);
+    c.font = "400 " + tr2 + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    c.fillStyle = "rgba(236,228,238,.88)";
+    c.save();
+    c.shadowColor = "rgba(0,0,0,.6)";
+    c.shadowBlur = tr2 * 0.7;
+    c.fillText(lignes[1], 0, bs * 0.045);
+    c.restore();
     c.restore();
   }
 }

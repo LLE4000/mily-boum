@@ -3706,6 +3706,11 @@ function declencheFin(){
     champion:championDeLaPartie(),
     effondrement:0,          // 0 → 1 : la forteresse s'enfonce et penche
     debris:[], ondes:[], colonne:[],
+    /* LA MATIÈRE DE LA DÉSINTÉGRATION. `grains` porte la forteresse
+       réduite en poussière — un grain par pixel lu —, `aspires` les
+       braises happées pendant le temps suspendu, et `poussiere` dit au
+       dessin que la forteresse n'existe plus. */
+    grains:null, aspires:[], aspire:0, poussiere:0,
     prochaineFumee:0
   };
   /* On annonce l'île d'APRÈS au sens de la campagne, pas l'index
@@ -3721,8 +3726,77 @@ function declencheFin(){
   if(h) h.classList.add("fin");
   son.grondement();
 }
-var FIN_EFFONDREMENT = 3.2;      // s : la forteresse s'écroule d'abord
+/* ================================================================
+   LA CHUTE DU BRASIER — LE MINUTAGE, ET POURQUOI IL A CHANGÉ
+
+   « Il faut vraiment que ça ait un bel effet… un peu plus
+   professionnel, pas un truc en français. Ça ne doit pas faire
+   gadget. »
+
+   CE QUI MANQUAIT N'ÉTAIT PAS DE LA MATIÈRE, C'ÉTAIT UN TEMPS. La
+   version d'avant enchaînait l'effondrement et la déflagration sans
+   respirer : la boule de feu partait sur une image pleine de fumée, de
+   débris et de confettis, et rien ne ressortait. Une explosion ne se
+   lit pas à sa taille, elle se lit au SILENCE qui la précède.
+
+   On ajoute donc une ASPIRATION : six dixièmes de seconde pendant
+   lesquels tout est tiré vers le Brasier — la lumière, les braises, la
+   fumée — pendant que l'image s'assombrit et que le son monte. Puis le
+   flash. C'est le seul ajout de rythme, et c'est lui qui fait la
+   différence entre une explosion et un feu d'artifice.
+
+     0,0 → 2,6   la forteresse s'enfonce, se déchire, fume
+     2,6 → 3,2   L'ASPIRATION : tout rentre, l'écran s'éteint
+     3,2         LE FLASH, et la forteresse part en pixels
+     3,2 → 5,6   la poussière retombe, la boule d'énergie s'ouvre
+     4,4 →       le titre, puis le sacre
+   ================================================================ */
+/* LE FOYER DE LA DÉFLAGRATION, en unités locales de la forteresse. Pas
+   son centre géométrique : le cœur du Brasier est au tiers de sa
+   hauteur, sous la gardienne, et c'est de là que la matière doit
+   partir. Placé au centre, la robe et le visage s'envolaient vers le
+   haut pendant que le socle descendait — deux mouvements contraires,
+   et l'œil ne savait plus où était l'explosion. */
+var PIX_FOYER_Y = -260;
+
+var FIN_EFFONDREMENT = 2.6;      // s : la forteresse s'écroule d'abord
+var FIN_ASPIRATION = 0.6;        // s : le temps suspendu avant le coup
 var FIN_SOUFFLE = 3.2;           // s : instant de la déflagration
+
+/* ════════════════════════════════════════════════════════════════
+   LA FABRIQUE DES GRAINS
+
+   Elle est appelée PENDANT L'ASPIRATION, six dixièmes de seconde avant
+   la déflagration, et c'est tout son intérêt : lire les pixels de la
+   forteresse et allouer six mille cinq cents objets coûte une
+   soixantaine de millisecondes — un hoquet parfaitement visible, et il
+   tombait PILE sur l'image qu'on veut la plus nette de la partie.
+   Fait ici, il tombe pendant que l'écran s'assombrit et qu'il ne se
+   passe rien d'autre.
+
+   Les grains sont fabriqués À L'ARRÊT : leur position est celle du
+   pixel, leur vitesse est calculée mais ne s'applique qu'au
+   déclenchement. Rien ne bouge avant l'heure.
+   ════════════════════════════════════════════════════════════════ */
+function fabriqueGrains(){
+  var px = (typeof pixelsDuBrasier === "function") ? pixelsDuBrasier() : [];
+  var out = [];
+  for(var g = 0; g < px.length; g++){
+    var P = px[g];
+    var ddx = P.lx, ddy = P.ly - PIX_FOYER_Y;
+    var dd = Math.hypot(ddx, ddy) || 1;
+    var vit = (60 + dd * 1.15) * (0.72 + Math.random() * 0.62);
+    out.push({
+      x:P.lx, y:P.ly,
+      vx:ddx / dd * vit + (Math.random() - 0.5) * 60,
+      vy:ddy / dd * vit - 130 - Math.random() * 90,
+      r:P.r, v:P.v, b:P.b,
+      retard:dd / 1500 * (0.7 + Math.random() * 0.6),
+      age:0, duree:1.9 + Math.random() * 1.5
+    });
+  }
+  return out;
+}
 
 function majFin(dt){
   var F = jeu.fin;
@@ -3764,23 +3838,129 @@ function majFin(dt){
     }
   }
 
+  /* ---- 1 bis. L'ASPIRATION — le temps suspendu ----
+     Tout rentre : la fumée redescend vers le foyer, des braises
+     convergent, et l'écran s'éteint. C'est le seul moment de la
+     séquence où il ne se passe RIEN de bruyant, et c'est lui qui donne
+     sa force au coup d'après. */
+  if(F.age >= FIN_EFFONDREMENT && F.age < FIN_SOUFFLE){
+    var ta = (F.age - FIN_EFFONDREMENT) / FIN_ASPIRATION;
+    F.aspire = ta;
+    F.effondrement = 1;
+    /* la fumée déjà en l'air est happée vers le bas */
+    for(var fa = 0; fa < F.colonne.length; fa++){
+      var cf = F.colonne[fa];
+      cf.vy += 260 * dt;
+      cf.x *= 1 - dt * 1.4;
+    }
+    /* des braises arrivent de partout et convergent sur le foyer */
+    F.prochaineBraise = (F.prochaineBraise || 0) - dt;
+    if(F.prochaineBraise <= 0){
+      F.prochaineBraise = 0.012;
+      var ab = Math.random() * 6.2832, rb = 320 + Math.random() * 520;
+      F.aspires.push({ x:Math.cos(ab) * rb, y:Math.sin(ab) * rb * 0.55 - 180,
+                       age:0, duree:0.30 + Math.random() * 0.22,
+                       r:1.4 + Math.random() * 2.4 });
+    }
+    if(!F.souffleAnnonce){
+      F.souffleAnnonce = 1;
+      son.sifflet();
+      /* ════════════════════════════════════════════════════════
+         ON PRÉPARE PENDANT LE TEMPS MORT, ET C'EST TOUT L'INTÉRÊT
+         D'AVOIR UN TEMPS MORT.
+
+         La lecture des pixels de la forteresse coûte treize
+         millisecondes et demie, et l'allocation du tampon des grains
+         en coûtait autant : faites à l'instant de la déflagration,
+         elles donnaient une image à soixante-douze millisecondes —
+         un hoquet visible, PILE sur le coup qu'on veut spectaculaire.
+
+         Faites ici, six dixièmes de seconde plus tôt, elles tombent
+         pendant que l'écran s'assombrit et qu'il ne se passe rien.
+         Mesuré : l'image de la déflagration retombe dans le rang.
+         ════════════════════════════════════════════════════════ */
+      F.grainsPrets = fabriqueGrains();
+      if(typeof preparerGrains === "function") preparerGrains();
+    }
+  }
+  for(var qa = F.aspires.length - 1; qa >= 0; qa--){
+    var br = F.aspires[qa];
+    br.age += dt;
+    var ka = Math.min(1, br.age / br.duree);
+    /* course accélérée vers le foyer : elles arrivent toutes ensemble */
+    br.x *= 1 - dt * (3 + ka * 9);
+    br.y = (br.y + 180) * (1 - dt * (3 + ka * 9)) - 180;
+    if(br.age >= br.duree) F.aspires.splice(qa, 1);
+  }
+
   /* ---- 2. la déflagration ---- */
   if(F.age >= FIN_SOUFFLE && !F.tete){
-    F.flash = 1.9;
+    F.flash = 1.15;
     F.effondrement = 1;
+    F.aspire = 0;
+    F.aspires.length = 0;
     F.tete = { x:0, y:0, vy:-340, rot:0, age:0 };
-    jeu.secousse = 30;
-    son.boum(2.2);
-    son.sifflet();
+    jeu.secousse = 34;
+    son.boum(2.4);
+    /* ════════════════════════════════════════════════════════
+       LA FORTERESSE PART EN PIXELS.
+
+       On lit ses propres pixels (voir `pixelsDuBrasier`) et chacun
+       devient un grain qui garde SA couleur. Trois réglages font tout
+       le rendu, et aucun n'est décoratif :
+
+         LA VITESSE CROÎT AVEC LA DISTANCE AU FOYER. C'est ce qui fait
+         que la silhouette s'ÉTIRE au lieu de se disperser : pendant
+         deux ou trois dixièmes de seconde on reconnaît encore la
+         forteresse, dilatée. Une vitesse uniforme donne un nuage tout
+         de suite, et l'on ne voit plus ce qui explose.
+
+         CHAQUE GRAIN A SON RETARD, proportionnel à sa distance : la
+         désintégration BALAIE la forteresse du foyer vers les bords,
+         en un tiers de seconde. Sans ce retard, tout part à la même
+         image et l'on perd le mouvement.
+
+         ILS PARTENT BLANCS ET REVIENNENT À LEUR COULEUR. Au premier
+         instant tout est chauffé à blanc ; la teinte propre du pixel
+         reparaît en trois dixièmes de seconde, puis s'éteint en
+         braise. C'est ce dégradé qui donne l'impression de matière
+         qui brûle plutôt que de peinture qui s'envole.
+       ════════════════════════════════════════════════════════ */
+    /* fabriqués pendant l'aspiration ; le repli n'est là que si l'on
+       arrive ici sans être passé par elle */
+    F.grains = F.grainsPrets || fabriqueGrains();
+    F.grainsPrets = null;
+    F.poussiere = 1;              // la forteresse cesse d'être dessinée
     /* trois ondes de choc concentriques */
     for(var o = 0; o < 3; o++) F.ondes.push({ age:-o * 0.16, r:0 });
-    /* et une pluie de débris, dans toutes les directions */
-    ajouteDebris(F, 90, 2.6);
+    /* QUELQUES BLOCS, ET PLUS UNE PLUIE. Ils étaient quatre-vingt-dix
+       petits rectangles bruns : au milieu de six mille grains
+       incandescents, ils ne lisaient plus comme de la maçonnerie mais
+       comme des confettis — exactement ce qu'on venait de retirer
+       ailleurs. Vingt-deux suffisent, et ils servent à autre chose
+       qu'avant : ce sont les seules formes SOMBRES de l'image, donc
+       les seules qui donnent l'échelle de la boule derrière elles. */
+    ajouteDebris(F, 22, 2.9);
     /* le champignon de fumée */
     for(var m = 0; m < 26; m++){
       F.colonne.push({ x:(Math.random() - 0.5) * 130, y:-Math.random() * 90,
                        vy:-52 - Math.random() * 70, r:22 + Math.random() * 36,
                        age:0, duree:4.5 + Math.random() * 3 });
+    }
+  }
+
+  /* ---- 2 bis. la vie des grains ---- */
+  if(F.grains){
+    for(var gi = F.grains.length - 1; gi >= 0; gi--){
+      var G = F.grains[gi];
+      G.age += dt;
+      if(G.age < G.retard) continue;         // il n'est pas encore parti
+      G.x += G.vx * dt;
+      G.y += G.vy * dt;
+      G.vy += 210 * dt;                      // gravité
+      var fr2 = 1 - dt * 0.9;                // et l'air les freine
+      G.vx *= fr2; G.vy *= fr2;
+      if(G.age > G.duree + G.retard) F.grains.splice(gi, 1);
     }
   }
 
@@ -3819,25 +3999,49 @@ function majFin(dt){
     F.tete.vy += 60 * dt;
     F.tete.rot += dt * 7;
   }
-  if(F.age >= FIN_SOUFFLE + 1.8 && !F.confettis){
+  /* ════════════════════════════════════════════════════════════
+     DES BRAISES, ET PLUS DES CONFETTIS.
+
+     Cent soixante rectangles roses, verts et bleus qui tombaient sur
+     une île en feu : c'est le seul endroit du jeu où le décor disait
+     « goûter d'anniversaire » pendant que l'image disait « forteresse
+     rasée ». Ce qui retombe après une explosion, ce sont des cendres
+     qui rougeoient, et elles montent autant qu'elles descendent.
+
+     Elles remplacent les confettis un pour un, au même instant et au
+     même endroit dans le code : rien d'autre n'a bougé.
+     ════════════════════════════════════════════════════════════ */
+  if(F.age >= FIN_SOUFFLE + 1.0 && !F.confettis){
     F.confettis = [];
-    for(var i = 0; i < 160; i++){
+    for(var i = 0; i < 110; i++){
       F.confettis.push({
-        x:Math.random(), y:-Math.random() * 0.6, vy:0.18 + Math.random() * 0.35,
-        vx:(Math.random() - 0.5) * 0.1, rot:Math.random() * 6.2832,
-        vr:(Math.random() - 0.5) * 9, c:(Math.random() * 6) | 0, w:5 + Math.random() * 7
+        x:Math.random(), y:0.15 + Math.random() * 1.1,
+        /* elles DÉRIVENT, elles ne tombent pas : une braise chaude
+           monte, une braise froide descend, et le mélange des deux est
+           ce qui fait vivre un ciel après un incendie. */
+        vy:-0.055 + Math.random() * 0.13,
+        vx:(Math.random() - 0.5) * 0.045,
+        ph:Math.random() * 6.2832, vp:0.7 + Math.random() * 1.7,
+        w:1.1 + Math.random() * 2.3, ch:Math.random()
       });
     }
-    son.confettis();
   }
   if(F.confettis){
     for(var k = 0; k < F.confettis.length; k++){
       var c = F.confettis[k];
-      c.y += c.vy * dt; c.x += c.vx * dt; c.rot += c.vr * dt;
-      if(c.y > 1.2){ c.y = -0.1; c.x = Math.random(); }
+      c.y += c.vy * dt;
+      c.x += (c.vx + Math.sin(c.ph + F.age * c.vp) * 0.012) * dt;
+      if(c.y > 1.15){ c.y = -0.05; c.x = Math.random(); }
+      if(c.y < -0.15){ c.y = 1.1; c.x = Math.random(); }
     }
   }
-  if(F.flash > 0) F.flash -= dt * 2.2;
+  /* LE FLASH EST BREF, ET C'EST TOUT SON INTÉRÊT. Il durait presque une
+     seconde pleine à l'écran blanc : on ne voyait ni la forteresse
+     partir en poussière, ni la boule s'ouvrir — le moment le plus
+     spectaculaire de la partie était caché derrière un rectangle blanc.
+     Un flash d'appareil photo dure un centième de seconde ; celui-ci
+     tient le blanc un dixième, puis s'efface en deux dixièmes. */
+  if(F.flash > 0) F.flash -= dt * 7.5;
   /* le sacre doit avoir le temps d'être lu avant que le tableau
      de bilan ne recouvre l'écran */
   if(F.age >= 10.5 && !F.bilanMontre){

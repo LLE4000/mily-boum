@@ -1269,7 +1269,74 @@ function construitSpriteQG(){
 /* ---------------------------------------------------------------
    Dessin en direct
    --------------------------------------------------------------- */
+/* ================================================================
+   LES PIXELS DE LA FORTERESSE — la matière de sa désintégration
+
+   « On voit le Brasier, mais qui se détruit par pixels. »
+
+   C'est la seule façon honnête de le faire : on ne DESSINE pas une
+   explosion par-dessus la forteresse, on prend la forteresse elle-même
+   et on la rend en poussière. Chaque grain part avec LA COULEUR DU
+   PIXEL qu'il remplace — la robe garde son doré, la maçonnerie son
+   gris, la lave son rouge — et c'est ce qui distingue une
+   désintégration d'un nuage de confettis oranges.
+
+   ON LIT LES SPRITES, ON NE REDESSINE RIEN. La forteresse est déjà
+   cuite dans deux canevas de 700 × 880 (`spriteQGArriere` et
+   `spriteQGAvant`) : il n'y a qu'à les recomposer une fois, avec la
+   gardienne entre les deux — exactement l'ordre de `dessineQGcorps` —
+   et à lire le tableau de pixels. Une seule lecture, à l'instant de la
+   déflagration, jamais pendant le jeu.
+
+   LA GARDIENNE EN FAIT PARTIE, et il faut le dire : c'est SON visage
+   qui se défait, et c'est là que l'œil va. La sauter aurait laissé un
+   trou en forme de silhouette au milieu de la poussière.
+
+   LE PAS DE SEPT UNITÉS LOCALES n'est pas cosmétique. À 700 × 880, un
+   pas de 1 donnerait six cent seize mille grains — injouable. Sept en
+   donne moins de dix mille, et à l'échelle où la caméra cadre la fin
+   (z ≈ 0,5) chaque grain couvre trois pixels et demi d'écran : assez
+   gros pour se voir, assez fin pour qu'on lise une forme et non des
+   confettis. Mesuré à cinq : dix-neuf mille grains pour un gain
+   invisible.
+   ================================================================ */
+var PIX_PAS = 7;                 // unités locales entre deux grains
+function pixelsDuBrasier(){
+  assureSpriteQG();
+  if(!spriteQGArriere || !spriteQGAvant) return [];
+  var cv = nouveauCanvas(QG_W, QG_H);
+  var c = cv.getContext("2d");
+  /* l'origine locale de la forteresse, comme dans dessineQGcorps */
+  c.setTransform(1, 0, 0, 1, QG_OX, QG_OY);
+  c.drawImage(spriteQGArriere, -QG_OX, -QG_OY, QG_W, QG_H);
+  gardienne3D(c, 0, Y_TETE, ECH_GARD, 1, 0);
+  c.drawImage(spriteQGAvant, -QG_OX, -QG_OY, QG_W, QG_H);
+  var d;
+  /* Un canevas peint uniquement par nous : la lecture est permise.
+     On se garde tout de même du cas où elle échoue — mieux vaut une
+     fin sans poussière qu'une fin qui s'arrête. */
+  try{ d = c.getImageData(0, 0, QG_W, QG_H).data; }
+  catch(e){ return []; }
+  var out = [], x, y;
+  for(y = 0; y < QG_H; y += PIX_PAS){
+    for(x = 0; x < QG_W; x += PIX_PAS){
+      var i = (y * QG_W + x) * 4;
+      /* SOUS SOIXANTE, C'EST DU HALO, PAS DE LA PIERRE. Garder les
+         pixels presque transparents doublait le nombre de grains pour
+         n'ajouter qu'une brume grise autour de la silhouette. */
+      if(d[i + 3] < 60) continue;
+      out.push({ lx:x - QG_OX, ly:y - QG_OY, r:d[i], v:d[i + 1], b:d[i + 2] });
+    }
+  }
+  return out;
+}
+
 function dessineQG(c, tps){
+  /* LA FORTERESSE DISPARAÎT QUAND SES PIXELS SONT PARTIS. Sans cette
+     ligne, la poussière s'envolait ET la forteresse restait debout
+     derrière : on voyait une explosion posée devant un décor intact,
+     et c'est exactement ce qui faisait « gadget ». */
+  if(jeu.fin && jeu.fin.poussiere) return;
   /* Pendant la séquence finale, la forteresse s'enfonce, penche et
      s'assombrit. Tout le dessin qui suit passe par cette transformation,
      sprites et flammes comprises. */
