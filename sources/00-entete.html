@@ -170,6 +170,24 @@ canvas{display:block}
 .colCote #carriereBas{flex-wrap:wrap;gap:6px;justify-content:space-between}
 .colCote #btCarriere{flex:1 1 auto;white-space:nowrap}
 
+/* LE PALMARÈS. Il emprunte la carte du Top carrière et n'invente rien :
+   deux blocs voisins qui se ressembleraient « presque » se liraient
+   comme une erreur. La seule chose qui lui est propre est le SÉPARATEUR
+   entre deux campagnes — sans lui, huit lignes de trois noms font un
+   mur, et l'on ne voit plus où commence un tour du monde. */
+.palmaresP{margin-top:12px}
+.palC + .palC{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07)}
+.palC .palT{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:#8f86a0;margin:0 0 4px 2px}
+.palC .palL{display:grid;grid-template-columns:16px 1fr auto;align-items:center;
+  gap:7px;padding:2px 2px;font-size:12px}
+.palC .palL .r{text-align:center;font-size:11px}
+.palC .palL .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.palC .palL .v{font-size:10.5px;color:#8f86a0;font-variant-numeric:tabular-nums}
+.palC .palL.or .n{color:#ffd27a;font-weight:600}
+.palC .palL.ar .n{color:#d8d8e4}
+.palC .palL.br .n{color:#d9a878}
+
 /* SOUS 1040 px : UNE SEULE COLONNE, ET LE CLASSEMENT PASSE DESSOUS.
    C'est le seul ordre acceptable sur un téléphone — un classement
    au-dessus du bouton DÉBARQUER serait un mur avant l'essentiel.
@@ -1748,6 +1766,18 @@ select.champ{cursor:pointer}
            doit être à portée de doigt. Petit, en retrait — on ne
            l'ouvre qu'une fois. -->
       <button id="btBadges" class="bt ptt" title="Ce que veut dire chaque badge">🎖 Les badges</button>
+    </div>
+    <!-- ---- LE PALMARÈS DES CAMPAGNES ----
+         Sous le Top carrière, et pas ailleurs : l'un dit où l'on en est
+         MAINTENANT, l'autre ce qui est déjà gagné. On lit les deux dans
+         le même mouvement, et la colonne raconte alors une histoire au
+         lieu d'afficher un chiffre.
+         Le bloc n'existe QUE s'il y a quelque chose dedans : une
+         première campagne n'a pas de passé, et un cadre vide qui
+         attend est une promesse qu'on ne tient pas encore. -->
+    <div class="carteP palmaresP" id="palmaresBoite" style="display:none">
+      <h2>Palmarès des campagnes</h2>
+      <div id="palmaresListe"></div>
     </div>
     </aside>
 

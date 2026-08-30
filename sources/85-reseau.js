@@ -475,7 +475,8 @@ function etatEvenements(){
   if(typeof compteLesPodiums === "function") compteLesPodiums();
   var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
                              bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
-                             bo:m.bo || "", bon:m.bon | 0 };
+                             bo:m.bo || "", bon:m.bon | 0,
+                             hc:m.hc || "" };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -1360,7 +1361,12 @@ function nouvelleCampagneSalon(){
      soit le nombre de clients qui le voient se refermer. */
   if(typeof crediteTitreCarriere === "function"){
     var podium = (typeof classementSalon === "function") ? classementSalon() : [];
-    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "");
+    /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
+       il peut : trois lignes plus bas l'instantané publie s:"", et le
+       classement de cette campagne n'existe plus nulle part. On grave
+       donc les trois premiers dans le palmarès en même temps qu'on
+       couronne le premier. */
+    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium);
   }
   cycleSalon = (cycleSalon | 0) + 1;
   /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de

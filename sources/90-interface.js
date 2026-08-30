@@ -2260,6 +2260,58 @@ function majCarriere(){
   var b = $("btCarriere");
   /* le bouton ne sert à rien tant que tout tient dans l'aperçu */
   if(b) b.style.display = l.length > CARRIERE_APERCU ? "" : "none";
+  majPalmares();
+}
+
+/* ================================================================
+   LE PALMARÈS DES CAMPAGNES
+
+   « À la fin de la campagne, est-ce qu'il y a un tableau récapitulatif
+   du top trois ? On pourrait mettre campagne 1, puis les trois
+   premiers, pour avoir un historique. »
+
+   LE PLUS RÉCENT EN HAUT, et sans bouton « voir tout » : le palmarès
+   n'est pas un classement qu'on consulte, c'est une frise qu'on
+   parcourt. Quatre campagnes tiennent dans la colonne ; au-delà on la
+   fait défiler comme le reste de la page, ce qui est le geste juste
+   pour une histoire.
+
+   LA CAMPAGNE EST NUMÉROTÉE À PARTIR DE UN à l'écran, alors qu'elle
+   part de zéro dans l'instantané. Ce n'est pas une coquetterie :
+   personne n'appelle son premier tour du monde « la campagne zéro », et
+   le numéro interne n'a aucune raison de sortir du code.
+   ================================================================ */
+var PALMARES_APERCU = 6;
+function majPalmares(){
+  var boite = $("palmaresBoite"), liste = $("palmaresListe");
+  if(!boite || !liste) return;
+  var l = (monde && typeof palmaresListe === "function")
+          ? palmaresListe(monde.hc) : [];
+  /* PAS DE CADRE VIDE : une première campagne n'a pas de passé, et un
+     bloc qui attend est une promesse qu'on ne tient pas encore. */
+  if(!l.length){ boite.style.display = "none"; liste.innerHTML = ""; return; }
+  boite.style.display = "";
+  var RANGS = ["or", "ar", "br"], MED = ["🥇", "🥈", "🥉"];
+  var h = "", i, k;
+  for(i = 0; i < l.length && i < PALMARES_APERCU; i++){
+    var e = l[i];
+    h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
+    if(!e.l.length){
+      /* Une campagne bouclée sans classement lisible est quand même
+         inscrite — elle a eu lieu. On le dit plutôt que de la cacher. */
+      h += '<div class="palL"><span class="r">·</span>'
+         + '<span class="n" style="color:#8f86a0">personne au classement</span>'
+         + '<span class="v"></span></div>';
+    }
+    for(k = 0; k < e.l.length; k++){
+      h += '<div class="palL ' + RANGS[k] + '">'
+         + '<span class="r">' + MED[k] + '</span>'
+         + '<span class="n">' + nomOrne(e.l[k].nom) + '</span>'
+         + '<span class="v">' + nombre(e.l[k].g) + '</span></div>';
+    }
+    h += '</div>';
+  }
+  liste.innerHTML = h;
 }
 /* ================================================================
    LA PAGE DES PASSAGES — QUI EST VENU, ET QUAND

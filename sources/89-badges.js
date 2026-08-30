@@ -527,13 +527,35 @@ function compteLesPodiums(){
    chute sert de clé aux podiums : on ne crédite jamais deux fois le
    même tour du monde, quel que soit le nombre de clients qui le
    voient se refermer. */
-function crediteTitreCarriere(cycle, nom){
+/* ================================================================
+   LE GARDE-FOU A CHANGÉ, ET IL FALLAIT QU'IL CHANGE
+
+   Il lisait « ce numéro de campagne est-il plus grand que le dernier
+   crédité ? », avec le compteur à zéro sur un salon neuf. La toute
+   PREMIÈRE campagne d'un salon porte le numéro zéro : zéro n'étant pas
+   plus grand que zéro, elle ne pouvait pas être créditée. Jamais. Un
+   salon perdait un titre, une seule fois, et personne ne pouvait s'en
+   apercevoir autrement qu'en le cherchant.
+
+   Le palmarès a la clé qu'il fallait : une TABLE indexée par numéro de
+   campagne, où « la campagne zéro est-elle dedans ? » a toujours une
+   réponse. On s'y garde donc, et l'inscription vaut crédit.
+
+   ON CONTINUE DE TENIR `bgc` À JOUR, et ce n'est pas de la politesse :
+   un client resté sur l'ancienne version lit ce compteur et lui seul.
+   Le laisser en arrière lui ferait recréditer le titre à chaque
+   publication. Il monte donc comme avant, et l'ancien client ne voit
+   rien passer.
+   ================================================================ */
+function crediteTitreCarriere(cycle, nom, podium){
   if(!monde) return false;
   var c = cycle | 0;
-  if(!(c > (monde.bgc | 0))) return false;
-  monde.bgc = c;
-  /* Une campagne sans vainqueur lisible est quand même créditée : sans
+  if(!(c >= 0)) return false;
+  if(palmaresPorte(monde.hc, c)) return false;
+  /* Une campagne sans vainqueur lisible est quand même inscrite : sans
      ça, on la recompterait indéfiniment à chaque publication. */
+  monde.hc = inscritPalmares(monde.hc, c, podium || []);
+  if((monde.bgc | 0) < c) monde.bgc = c;
   if(nettoieNomScore(nom)) monde.bg = ajouteTitreCarriere(monde.bg, nom);
   return true;
 }

@@ -57,6 +57,8 @@ try{
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "voieLibre",
+    "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
+    "palmaresPorte","palmaresListe","inscritPalmares",
     "QG_PV_MIN","QG_PV_MAX","encodeSanteQG","decodeSanteQG","santeQGDans",
     "meilleureSanteQG","poseSanteQGSalon","pvQGDeCarte","santeQGReglee",
     "versEchelleIle","versEchelleFiche",
@@ -8873,8 +8875,16 @@ G("36. Le badge : les compteurs, la fusion, le dessin");
      /o\.bg = E\.bg \|\| ""; o\.bgn = E\.bgn \|\| ""; o\.bgc = E\.bgc \| 0;/.test(html));
   ok("… et un compteur qui monte rend bien l'instantané « sale »",
      /if\(\(m\.bg \|\| ""\) !== \(E\.bg \|\| ""\)[\s\S]{0,200}return false;/.test(html));
+  /* la fenêtre a dû s'élargir : le palmarès a ajouté son commentaire
+     entre l'en-tête de la fonction et l'appel. La promesse, elle, est
+     la même — et elle en porte une seconde depuis : le PODIUM ENTIER
+     part avec le titre, puisque c'est le seul instant où il existe
+     encore. */
   ok("le titre carrière se décerne à la fermeture d'une campagne",
-     /function nouvelleCampagneSalon\(\)\{[\s\S]{0,900}crediteTitreCarriere\(cycleSalon \| 0/.test(html));
+     /function nouvelleCampagneSalon\(\)\{[\s\S]{0,1600}crediteTitreCarriere\(cycleSalon \| 0/.test(html));
+  ok("… et le podium entier est gravé au même instant",
+     /crediteTitreCarriere\(cycleSalon \| 0, podium\.length \? podium\[0\]\.nom : "", podium\)/
+       .test(html));
 
   /* LE BADGE NE SE RANGE JAMAIS. C'est la promesse de fond : on garde
      des compteurs, on calcule le dessin. Un instantané neuf ne porte
@@ -10217,6 +10227,124 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("l'accueil ne peut plus afficher une carte en travaux",
      /if\(carteEnChantier\(i\)\) return "chantier";/.test(html) &&
      !/chantier:1/.test(html));
+})();
+
+/* ================================================================
+   48. LE PALMARÈS DES CAMPAGNES
+
+   « À la fin de la campagne, est-ce qu'il y a un tableau récapitulatif
+   du top trois ? Est-ce que ça s'enregistre ? On pourrait mettre
+   campagne 1, puis les trois premiers, pour avoir un historique. »
+
+   Rien ne s'enregistrait : `nouvelleCampagneSalon` publie s:"", donc le
+   classement de la campagne écoulée disparaissait à l'instant même où
+   il devenait définitif.
+
+   ET LA CLÉ CHOISIE RÉPARE UN SECOND DÉFAUT. Le titre de carrière se
+   gardait sur « numéro > dernier crédité », avec les deux à zéro sur un
+   salon neuf : la toute PREMIÈRE campagne ne pouvait jamais être
+   créditée. Une table indexée par numéro n'a pas cette ambiguïté.
+   ================================================================ */
+(function(){
+  /* --- l'écriture, et son idempotence --- */
+  ok("un palmarès vide ne dit rien",
+     N.encodePalmares({}) === "" && N.palmaresListe("").length === 0);
+  var p0 = N.inscritPalmares("", 0, [{nom:"Roro", g:900}, {nom:"Lu", g:700}]);
+  ok("une campagne s'inscrit avec son podium", p0 === "0:Roro:900:Lu:700", p0);
+  /* IDEMPOTENCE : deux appareils voient la même campagne se refermer et
+     écrivent la même ligne. Sans ça, le palmarès se réécrirait sans fin
+     et l'instantané repartirait à chaque publication. */
+  ok("… et se réinscrire ne la réécrit pas",
+     N.inscritPalmares(p0, 0, [{nom:"Autre", g:1}]) === p0);
+  ok("une campagne sans vainqueur s'inscrit quand même",
+     N.inscritPalmares("", 4, []) === "4", N.inscritPalmares("", 4, []));
+  ok("… sinon on la recompterait sans fin",
+     N.palmaresPorte(N.inscritPalmares("", 4, []), 4) === true);
+  /* LA CAMPAGNE ZÉRO EST UNE CAMPAGNE COMME UNE AUTRE, et c'est tout
+     l'objet du changement de garde-fou. */
+  ok("la campagne ZÉRO est reconnue",
+     N.palmaresPorte(p0, 0) === true && N.palmaresPorte(p0, 1) === false);
+
+  /* --- la lecture --- */
+  var p2 = N.inscritPalmares(N.inscritPalmares(p0, 1, [{nom:"Dan", g:500}]),
+                             2, [{nom:"Lu", g:800}]);
+  var l = N.palmaresListe(p2);
+  ok("la plus récente vient en tête",
+     l.length === 3 && l[0].cy === 2 && l[2].cy === 0,
+     l.map(function(e){ return e.cy; }).join(" "));
+  ok("… avec ses noms et ses chiffres",
+     l[2].l[0].nom === "Roro" && l[2].l[0].g === 900 && l[2].l[1].nom === "Lu");
+  ok("… et la chaîne reste rangée par numéro croissant",
+     p2 === "0:Roro:900:Lu:700|1:Dan:500|2:Lu:800", p2);
+  /* DEUX CLIENTS AU MÊME ÉTAT DOIVENT PRODUIRE LA MÊME CHAÎNE, sinon
+     memeMonde les croit différents et l'on republie en boucle. */
+  ok("deux tables identiques s'encodent pareil",
+     N.encodePalmares(N.decodePalmares(p2)) === p2);
+  /* « bruit » et « : » n'ont pas de numéro lisible et sont jetés ;
+     « 3:Roro:x » a un numéro mais pas de score, donc la campagne est
+     retenue SANS podium — elle a eu lieu, on ne l'invente pas. */
+  ok("une chaîne abîmée ne fait pas tomber le décodeur",
+     N.palmaresListe("bruit|:|3:Roro:x|4:Lu:600").length === 2,
+     JSON.stringify(N.palmaresListe("bruit|:|3:Roro:x|4:Lu:600"))); 
+
+  /* --- la fusion : une union par numéro --- */
+  var A = N.inscritPalmares(N.inscritPalmares("", 0, [{nom:"Roro", g:900}]),
+                            2, [{nom:"Lu", g:700}]);
+  var B = N.inscritPalmares(N.inscritPalmares("", 1, [{nom:"Dan", g:500}]),
+                            2, [{nom:"Lu", g:700}]);
+  var F = N.fusionnePalmares(A, B);
+  ok("la fusion réunit les campagnes des deux appareils",
+     F === "0:Roro:900|1:Dan:500|2:Lu:700", F);
+  ok("… et l'ordre d'arrivée ne change rien",
+     N.fusionnePalmares(B, A) === F);
+  /* UN CLIENT EN RETARD N'ÉCRASE PAS UNE LIGNE PLUS COMPLÈTE : il a vu
+     la campagne se refermer avec un classement qui n'était pas encore
+     arrivé chez lui. On garde celle dont le premier a le plus gros
+     score. */
+  var tard = N.inscritPalmares("", 2, [{nom:"Lu", g:100}]);
+  ok("un client en retard n'écrase pas une ligne plus complète",
+     N.fusionnePalmares(F, tard) === F && N.fusionnePalmares(tard, F) === F);
+  /* IDEMPOTENTE ET ASSOCIATIVE : c'est ce qui rend l'ordre des messages
+     sans importance, comme pour tout le reste de l'instantané. */
+  ok("… la fusion est idempotente", N.fusionnePalmares(F, F) === F);
+
+  /* --- LE BUDGET : on garde les plus RÉCENTES --- */
+  var long = "";
+  for(var i = 0; i < N.PALMARES_GARDES + 12; i++)
+    long = N.inscritPalmares(long, i, [{nom:"Roro", g:1000 + i}]);
+  var ll = N.palmaresListe(long);
+  ok("le palmarès est borné aux dernières campagnes",
+     ll.length === N.PALMARES_GARDES, ll.length + " lignes");
+  ok("… et ce sont bien les plus RÉCENTES qu'on garde",
+     ll[0].cy === N.PALMARES_GARDES + 11 && ll[ll.length - 1].cy === 12,
+     "de " + ll[ll.length - 1].cy + " à " + ll[0].cy);
+  ok("… le champ reste sous deux kilo-octets", long.length < 2048,
+     long.length + " octets");
+
+  /* --- LE CHEMIN COMPLET DANS LE FICHIER LIVRÉ --- */
+  ok("le palmarès voyage avec les champions et les badges",
+     /hc:fusionnePalmares\(a && a\.hc, b && b\.hc\),/.test(html) &&
+     /o\.hc = E\.hc \|\| "";/.test(html) &&
+     /hc:m\.hc \|\| ""/.test(html));
+  ok("… un monde neuf le porte, vide",
+     /qv:"", qn:0, hc:"",/.test(html));
+  ok("… et memeMonde le regarde, sinon il ne partirait jamais",
+     /\(a\.hc \|\| ""\) === \(b\.hc \|\| ""\)/.test(html));
+  ok("le titre de carrière se garde désormais sur le palmarès",
+     /if\(palmaresPorte\(monde\.hc, c\)\) return false;/.test(html));
+  ok("… et `bgc` reste tenu à jour pour un client resté en arrière",
+     /if\(\(monde\.bgc \| 0\) < c\) monde\.bgc = c;/.test(html));
+  ok("l'accueil peint le palmarès sous le Top carrière",
+     /id="palmaresBoite"/.test(html) && /function majPalmares\(\)\{/.test(html) &&
+     /majPalmares\(\);/.test(html));
+  /* LE CADRE N'EXISTE QUE S'IL Y A QUELQUE CHOSE DEDANS. */
+  ok("… et il reste caché tant qu'aucune campagne n'est bouclée",
+     /if\(!l\.length\)\{ boite\.style\.display = "none"; liste\.innerHTML = ""; return; \}/
+       .test(html));
+  /* LE NUMÉRO AFFICHÉ PART DE UN : personne n'appelle son premier tour
+     du monde « la campagne zéro ». */
+  ok("… en numérotant les campagnes à partir de un",
+     /Campagne ' \+ \(e\.cy \+ 1\)/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

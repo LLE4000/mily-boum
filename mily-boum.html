@@ -170,6 +170,24 @@ canvas{display:block}
 .colCote #carriereBas{flex-wrap:wrap;gap:6px;justify-content:space-between}
 .colCote #btCarriere{flex:1 1 auto;white-space:nowrap}
 
+/* LE PALMARÈS. Il emprunte la carte du Top carrière et n'invente rien :
+   deux blocs voisins qui se ressembleraient « presque » se liraient
+   comme une erreur. La seule chose qui lui est propre est le SÉPARATEUR
+   entre deux campagnes — sans lui, huit lignes de trois noms font un
+   mur, et l'on ne voit plus où commence un tour du monde. */
+.palmaresP{margin-top:12px}
+.palC + .palC{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07)}
+.palC .palT{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:#8f86a0;margin:0 0 4px 2px}
+.palC .palL{display:grid;grid-template-columns:16px 1fr auto;align-items:center;
+  gap:7px;padding:2px 2px;font-size:12px}
+.palC .palL .r{text-align:center;font-size:11px}
+.palC .palL .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.palC .palL .v{font-size:10.5px;color:#8f86a0;font-variant-numeric:tabular-nums}
+.palC .palL.or .n{color:#ffd27a;font-weight:600}
+.palC .palL.ar .n{color:#d8d8e4}
+.palC .palL.br .n{color:#d9a878}
+
 /* SOUS 1040 px : UNE SEULE COLONNE, ET LE CLASSEMENT PASSE DESSOUS.
    C'est le seul ordre acceptable sur un téléphone — un classement
    au-dessus du bouton DÉBARQUER serait un mur avant l'essentiel.
@@ -1749,6 +1767,18 @@ select.champ{cursor:pointer}
            l'ouvre qu'une fois. -->
       <button id="btBadges" class="bt ptt" title="Ce que veut dire chaque badge">🎖 Les badges</button>
     </div>
+    <!-- ---- LE PALMARÈS DES CAMPAGNES ----
+         Sous le Top carrière, et pas ailleurs : l'un dit où l'on en est
+         MAINTENANT, l'autre ce qui est déjà gagné. On lit les deux dans
+         le même mouvement, et la colonne raconte alors une histoire au
+         lieu d'afficher un chiffre.
+         Le bloc n'existe QUE s'il y a quelque chose dedans : une
+         première campagne n'a pas de passé, et un cadre vide qui
+         attend est une promesse qu'on ne tient pas encore. -->
+    <div class="carteP palmaresP" id="palmaresBoite" style="display:none">
+      <h2>Palmarès des campagnes</h2>
+      <div id="palmaresListe"></div>
+    </div>
     </aside>
 
     <!-- ---- COLONNE PRINCIPALE ---- -->
@@ -2309,7 +2339,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.27";
+var VERSION = "v1.28";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -9401,7 +9431,7 @@ function statsJournaux(journaux, aujourdhui, exclus){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
-            qv:"", qn:0,
+            qv:"", qn:0, hc:"",
             ep:"", epn:0,
             /* les badges partent vides comme le reste : ils se
                remplissent tout seuls au premier podium lu */
@@ -10080,6 +10110,150 @@ function top3DeCarte(s, index){
   var t = decodeTop3(s);
   return t[index | 0] ? t[index | 0].l : null;
 }
+
+/* ================================================================
+   LE PALMARÈS DES CAMPAGNES — UNE LIGNE PAR TOUR DU MONDE
+
+   « À la fin de la campagne, est-ce qu'il y a un tableau récapitulatif
+   du top trois ? Est-ce que ça s'enregistre ? On pourrait mettre
+   campagne 1, puis les trois premiers, pour avoir un historique. »
+
+   Rien ne s'enregistrait, et c'était le seul moment du jeu où une
+   information mourait : les huit îles tombent, `nouvelleCampagneSalon`
+   publie s:"" — le classement de la campagne écoulée disparaît de
+   l'instantané à l'instant même où il devient définitif. Le titre de
+   carrière en gardait UNE trace, un compteur par joueur ; le podium,
+   les chiffres, l'ordre, tout le reste s'effaçait.
+
+   ────────────────────────────────────────────────────────────────
+   CE QUI DÉCIDE DU FORMAT : LA CLÉ EST LE NUMÉRO DE CAMPAGNE
+
+   Elle est déjà unique, elle ne se réutilise jamais, et surtout elle
+   rend l'écriture IDEMPOTENTE — deux appareils qui voient la même
+   campagne se refermer écrivent la même ligne sous la même clé, et
+   la fusion n'a rien à arbitrer. C'est ce que les podiums par carte
+   ne pouvaient pas faire : eux se réécrivent à chaque reconquête,
+   d'où leur numéro de victoire et leur départage.
+
+   ET C'EST CE QUI RÉPARE LE TROU DE LA CAMPAGNE ZÉRO. Le titre de
+   carrière se gardait sur « campagne > dernière créditée », avec les
+   deux à zéro au départ : la toute première campagne d'un salon ne
+   pouvait pas être créditée, jamais. Une table indexée par numéro
+   n'a pas cette ambiguïté — « la campagne zéro est-elle dedans ? » a
+   toujours une réponse. Le compteur `bgc` continue d'être tenu à jour
+   pour qu'un client resté sur l'ancienne version ne recrédite rien.
+
+   Format : « numéro:nom:dégâts:nom:dégâts:nom:dégâts », les campagnes
+   séparées par « | », rangées par numéro croissant — deux clients au
+   même état doivent produire exactement la même chaîne, sinon
+   memeMonde les croit différents et l'on republie en boucle.
+
+   LE BUDGET. Une ligne pèse une soixantaine d'octets ; on en garde les
+   `PALMARES_GARDES` dernières, ce qui borne le champ à moins de deux
+   kilo-octets quoi qu'il arrive. On garde les PLUS RÉCENTES et non les
+   premières : un palmarès qui s'arrête au bout de quarante campagnes
+   serait un palmarès mort.
+   ================================================================ */
+var PALMARES_GARDES = 40;      // campagnes gardées, les plus récentes
+function encodePalmares(tab){
+  var l = [], k, cles = [];
+  for(k in tab) if(tab.hasOwnProperty(k) && (k | 0) >= 0 && String(k | 0) === String(k))
+    cles.push(k | 0);
+  cles.sort(function(a, b){ return a - b; });
+  /* on ne garde que la queue : les campagnes les plus récentes */
+  if(cles.length > PALMARES_GARDES) cles = cles.slice(cles.length - PALMARES_GARDES);
+  for(var c = 0; c < cles.length; c++){
+    var e = tab[cles[c]];
+    /* ON NE SAUTE PAS UNE LIGNE VIDE, et c'est tout l'objet du
+       commentaire ci-dessous : une campagne bouclée sans classement
+       lisible DOIT s'inscrire, sinon `palmaresPorte` dit non et on la
+       recompte à chaque publication. Le premier jet écrivait
+       `if(!e || !e.length) continue;` et se contredisait deux lignes
+       plus bas ; le test l'a dit tout de suite. */
+    if(!e) continue;
+    var bouts = [cles[c]];
+    for(var i = 0; i < e.length && i < TOP3_GARDES; i++){
+      var nom = nettoieNomScore(e[i].nom);
+      var g = Math.max(0, Math.round(e[i].g || 0));
+      if(!nom || !g) continue;
+      bouts.push(nom, g);
+    }
+    /* UNE CAMPAGNE SANS VAINQUEUR LISIBLE S'INSCRIT QUAND MÊME, sans
+       personne derrière. Sans cela on la recompterait indéfiniment —
+       et elle a bel et bien eu lieu. */
+    l.push(bouts.join(":"));
+  }
+  return l.join("|");
+}
+function decodePalmares(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var m = p[i].split(":");
+    var cy = parseInt(m[0], 10);
+    if(!(cy >= 0)) continue;
+    var l = [];
+    for(var j = 1; j + 1 < m.length && l.length < TOP3_GARDES; j += 2){
+      var nom = nettoieNomScore(m[j]), g = parseInt(m[j + 1], 10);
+      if(!nom || !(g > 0)) continue;
+      l.push({ nom:nom, g:g });
+    }
+    out[cy] = l;
+  }
+  return out;
+}
+/* La fusion est une UNION PAR NUMÉRO DE CAMPAGNE, et elle n'a presque
+   rien à arbitrer : une campagne bouclée ne se rejoue pas, donc deux
+   clients qui l'ont vue se refermer portent la même ligne. Le seul cas
+   de désaccord est un client qui l'a vue avec un classement en retard :
+   on garde alors celle dont le PREMIER a le plus gros score — la plus
+   complète — et, à égalité, la chaîne la plus grande, pour que l'ordre
+   d'arrivée ne change rien. */
+function fusionnePalmares(a, b){
+  var x = decodePalmares(a), y = decodePalmares(b), k;
+  function poids(l){ return (l && l.length) ? (l[0].g | 0) : -1; }
+  for(k in y){
+    if(!x.hasOwnProperty(k)){ x[k] = y[k]; continue; }
+    var px = poids(x[k]), py = poids(y[k]);
+    if(py > px){ x[k] = y[k]; continue; }
+    if(py === px){
+      var ex = {}, ey = {};
+      ex[k] = x[k]; ey[k] = y[k];
+      if(encodePalmares(ey) > encodePalmares(ex)) x[k] = y[k];
+    }
+  }
+  return encodePalmares(x);
+}
+/* Cette campagne est-elle déjà inscrite ? C'est le garde-fou du
+   crédit : il remplace « numéro > dernier crédité », qui ne savait pas
+   parler de la campagne zéro. */
+function palmaresPorte(s, cycle){
+  return decodePalmares(s).hasOwnProperty(cycle | 0);
+}
+/* Le palmarès, du plus récent au plus ancien : c'est l'ordre dans
+   lequel on le lit, et l'accueil n'a rien à retourner. */
+function palmaresListe(s){
+  var t = decodePalmares(s), out = [], k;
+  for(k in t) if(t.hasOwnProperty(k)) out.push({ cy:k | 0, l:t[k] });
+  out.sort(function(a, b){ return b.cy - a.cy; });
+  return out;
+}
+/* On inscrit une campagne, une seule fois. Rend la chaîne inchangée si
+   elle y était déjà — c'est ce qui rend l'appel sans danger depuis
+   n'importe quel client. */
+function inscritPalmares(s, cycle, podium){
+  var c = cycle | 0;
+  if(!(c >= 0)) return s || "";
+  var t = decodePalmares(s);
+  if(t.hasOwnProperty(c)) return s || "";
+  var l = [];
+  for(var i = 0; podium && i < podium.length && i < TOP3_GARDES; i++)
+    l.push({ nom:podium[i].nom, g:podium[i].g });
+  t[c] = l;
+  return encodePalmares(t);
+}
 /* ================================================================
    RECONSTRUIRE LES CARRIÈRES À PARTIR DES PODIUMS GELÉS
 
@@ -10334,6 +10508,11 @@ function fusionneEvenements(a, b){
                   bg:fusionneBadges(a && a.bg, b && b.bg),
                   bgn:fusionneChutesBadge(a && a.bgn, b && b.bgn),
                   bgc:Math.max((a && a.bgc) | 0, (b && b.bgc) | 0),
+                  /* LE PALMARÈS SUIT LE MÊME CHEMIN, et pour les mêmes
+                     trois raisons : il décrit ce que quelqu'un a fait,
+                     il traverse les remises à zéro, et aucun client n'a
+                     autorité sur les autres pour l'écrire. */
+                  hc:fusionnePalmares(a && a.hc, b && b.hc),
                   bo:rg.bo, bon:rg.bon };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
@@ -10350,6 +10529,7 @@ function poseEvenements(o, E){
   o.ch = E.ch; o.t3 = E.t3;
   o.bg = E.bg || ""; o.bgn = E.bgn || ""; o.bgc = E.bgc | 0;
   o.bo = E.bo || ""; o.bon = E.bon | 0;
+  o.hc = E.hc || "";
   return o;
 }
 /* Les deux noms d'origine, gardés : la jungle est UN événement, et
@@ -10467,7 +10647,8 @@ function memeEvenements(m, E){
      compté, et personne d'autre ne verrait le badge changer. */
   if((m.bg || "") !== (E.bg || "") || (m.bgn || "") !== (E.bgn || "") ||
      (m.bgc | 0) !== (E.bgc | 0) ||
-     (m.bo || "") !== (E.bo || "") || (m.bon | 0) !== (E.bon | 0)) return false;
+     (m.bo || "") !== (E.bo || "") || (m.bon | 0) !== (E.bon | 0) ||
+     (m.hc || "") !== (E.hc || "")) return false;
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;
@@ -10507,6 +10688,9 @@ function memeMonde(a, b){
          /* ni une santé de Brasier, pour exactement la même raison :
             « dès que j'appuie, ça se met instantanément » */
          (a.qv || "") === (b.qv || "") && (a.qn | 0) === (b.qn | 0) &&
+         /* ni une campagne inscrite au palmarès : elle ne s'inscrit
+            qu'une fois, et si personne ne la republie elle est perdue */
+         (a.hc || "") === (b.hc || "") &&
          /* ni un champion, ni un podium */
          (a.ch || "") === (b.ch || "") && (a.t3 || "") === (b.t3 || "") &&
          /* ════════════════════════════════════════════════════════
@@ -49500,7 +49684,8 @@ function etatEvenements(){
   if(typeof compteLesPodiums === "function") compteLesPodiums();
   var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
                              bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
-                             bo:m.bo || "", bon:m.bon | 0 };
+                             bo:m.bo || "", bon:m.bon | 0,
+                             hc:m.hc || "" };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -50385,7 +50570,12 @@ function nouvelleCampagneSalon(){
      soit le nombre de clients qui le voient se refermer. */
   if(typeof crediteTitreCarriere === "function"){
     var podium = (typeof classementSalon === "function") ? classementSalon() : [];
-    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "");
+    /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
+       il peut : trois lignes plus bas l'instantané publie s:"", et le
+       classement de cette campagne n'existe plus nulle part. On grave
+       donc les trois premiers dans le palmarès en même temps qu'on
+       couronne le premier. */
+    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium);
   }
   cycleSalon = (cycleSalon | 0) + 1;
   /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de
@@ -58444,13 +58634,35 @@ function compteLesPodiums(){
    chute sert de clé aux podiums : on ne crédite jamais deux fois le
    même tour du monde, quel que soit le nombre de clients qui le
    voient se refermer. */
-function crediteTitreCarriere(cycle, nom){
+/* ================================================================
+   LE GARDE-FOU A CHANGÉ, ET IL FALLAIT QU'IL CHANGE
+
+   Il lisait « ce numéro de campagne est-il plus grand que le dernier
+   crédité ? », avec le compteur à zéro sur un salon neuf. La toute
+   PREMIÈRE campagne d'un salon porte le numéro zéro : zéro n'étant pas
+   plus grand que zéro, elle ne pouvait pas être créditée. Jamais. Un
+   salon perdait un titre, une seule fois, et personne ne pouvait s'en
+   apercevoir autrement qu'en le cherchant.
+
+   Le palmarès a la clé qu'il fallait : une TABLE indexée par numéro de
+   campagne, où « la campagne zéro est-elle dedans ? » a toujours une
+   réponse. On s'y garde donc, et l'inscription vaut crédit.
+
+   ON CONTINUE DE TENIR `bgc` À JOUR, et ce n'est pas de la politesse :
+   un client resté sur l'ancienne version lit ce compteur et lui seul.
+   Le laisser en arrière lui ferait recréditer le titre à chaque
+   publication. Il monte donc comme avant, et l'ancien client ne voit
+   rien passer.
+   ================================================================ */
+function crediteTitreCarriere(cycle, nom, podium){
   if(!monde) return false;
   var c = cycle | 0;
-  if(!(c > (monde.bgc | 0))) return false;
-  monde.bgc = c;
-  /* Une campagne sans vainqueur lisible est quand même créditée : sans
+  if(!(c >= 0)) return false;
+  if(palmaresPorte(monde.hc, c)) return false;
+  /* Une campagne sans vainqueur lisible est quand même inscrite : sans
      ça, on la recompterait indéfiniment à chaque publication. */
+  monde.hc = inscritPalmares(monde.hc, c, podium || []);
+  if((monde.bgc | 0) < c) monde.bgc = c;
   if(nettoieNomScore(nom)) monde.bg = ajouteTitreCarriere(monde.bg, nom);
   return true;
 }
@@ -61147,6 +61359,58 @@ function majCarriere(){
   var b = $("btCarriere");
   /* le bouton ne sert à rien tant que tout tient dans l'aperçu */
   if(b) b.style.display = l.length > CARRIERE_APERCU ? "" : "none";
+  majPalmares();
+}
+
+/* ================================================================
+   LE PALMARÈS DES CAMPAGNES
+
+   « À la fin de la campagne, est-ce qu'il y a un tableau récapitulatif
+   du top trois ? On pourrait mettre campagne 1, puis les trois
+   premiers, pour avoir un historique. »
+
+   LE PLUS RÉCENT EN HAUT, et sans bouton « voir tout » : le palmarès
+   n'est pas un classement qu'on consulte, c'est une frise qu'on
+   parcourt. Quatre campagnes tiennent dans la colonne ; au-delà on la
+   fait défiler comme le reste de la page, ce qui est le geste juste
+   pour une histoire.
+
+   LA CAMPAGNE EST NUMÉROTÉE À PARTIR DE UN à l'écran, alors qu'elle
+   part de zéro dans l'instantané. Ce n'est pas une coquetterie :
+   personne n'appelle son premier tour du monde « la campagne zéro », et
+   le numéro interne n'a aucune raison de sortir du code.
+   ================================================================ */
+var PALMARES_APERCU = 6;
+function majPalmares(){
+  var boite = $("palmaresBoite"), liste = $("palmaresListe");
+  if(!boite || !liste) return;
+  var l = (monde && typeof palmaresListe === "function")
+          ? palmaresListe(monde.hc) : [];
+  /* PAS DE CADRE VIDE : une première campagne n'a pas de passé, et un
+     bloc qui attend est une promesse qu'on ne tient pas encore. */
+  if(!l.length){ boite.style.display = "none"; liste.innerHTML = ""; return; }
+  boite.style.display = "";
+  var RANGS = ["or", "ar", "br"], MED = ["🥇", "🥈", "🥉"];
+  var h = "", i, k;
+  for(i = 0; i < l.length && i < PALMARES_APERCU; i++){
+    var e = l[i];
+    h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
+    if(!e.l.length){
+      /* Une campagne bouclée sans classement lisible est quand même
+         inscrite — elle a eu lieu. On le dit plutôt que de la cacher. */
+      h += '<div class="palL"><span class="r">·</span>'
+         + '<span class="n" style="color:#8f86a0">personne au classement</span>'
+         + '<span class="v"></span></div>';
+    }
+    for(k = 0; k < e.l.length; k++){
+      h += '<div class="palL ' + RANGS[k] + '">'
+         + '<span class="r">' + MED[k] + '</span>'
+         + '<span class="n">' + nomOrne(e.l[k].nom) + '</span>'
+         + '<span class="v">' + nombre(e.l[k].g) + '</span></div>';
+    }
+    h += '</div>';
+  }
+  liste.innerHTML = h;
 }
 /* ================================================================
    LA PAGE DES PASSAGES — QUI EST VENU, ET QUAND
