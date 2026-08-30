@@ -1993,10 +1993,27 @@ G("4. Déterminisme de la génération de carte");
       var r = puisT / puisF;
       ok("sept barges donnent bien " + nT + " chars contre " + nF + " Furies",
          nT === 14 && nF === 84);
+      /* ════════════════════════════════════════════════════════
+         LA FENÊTRE S'OUVRE, ET C'EST UNE DÉCISION, PAS UNE DÉRIVE.
+
+         « Augmente la santé des TX-90 de trente pour cent. » Le char
+         passe de 1300 à 1690 points de vie, et comme cette mesure est
+         le PRODUIT de la vie par les dégâts, la flotte de chars gagne
+         exactement les mêmes trente pour cent : elle valait autant
+         qu'une flotte de Furies à 5 % près, elle vaut maintenant 23 %
+         de plus.
+
+         On ne rattrape donc PAS l'écart en affaiblissant autre chose —
+         ce serait défaire ce qui vient d'être demandé. On déplace la
+         borne, et on écrit ici pourquoi : le char est délibérément la
+         troupe forte depuis cette version. La borne basse ne bouge
+         pas, elle : le jour où l'on affaiblirait le char sans le
+         vouloir, ce test le dirait encore.
+         ════════════════════════════════════════════════════════ */
       ok("les deux flottes valent autant à " + Math.round(Math.abs(1 - r) * 100)
          + " % près (" + (puisT / 1e6).toFixed(1) + " M contre "
          + (puisF / 1e6).toFixed(1) + " M)",
-         r > 0.80 && r < 1.15, "rapport " + r.toFixed(3));
+         r > 0.80 && r < 1.30, "rapport " + r.toFixed(3));
       ok("… mais par l'autre bout : bien plus de vie, bien moins de dégâts",
          nT * K.pv > nF * F.pv * 1.5 && nT * dpsT < nF * dpsF * 0.7,
          "vie ×" + ((nT * K.pv) / (nF * F.pv)).toFixed(2)
@@ -10345,6 +10362,69 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      du monde « la campagne zéro ». */
   ok("… en numérotant les campagnes à partir de un",
      /Campagne ' \+ \(e\.cy \+ 1\)/.test(html));
+})();
+
+/* ================================================================
+   49. LE TX-90 PLUS RÉSISTANT, LE PYR-120 DEUX FOIS PLUS RAPIDE
+
+   « Augmente la santé des TX-90 de trente pour cent, et augmente la
+   vitesse des PYR-120 qu'ils aillent deux fois plus vite. »
+
+   Deux nombres, et deux conséquences qu'il vaut mieux avoir écrites
+   que découvertes : le Doc doit pouvoir suivre le PYR-120, sans quoi
+   il ne soigne plus rien ; et la flotte de chars devient délibérément
+   plus forte que la flotte de Furies.
+   ================================================================ */
+(function(){
+  var K = N.UNI.tank, P = N.UNI.pyr, D = N.UNI.doc;
+
+  ok("le TX-90 gagne trente pour cent de vie", K.pv === 1690,
+     "1300 → " + K.pv + " (×" + (K.pv / 1300).toFixed(2) + ")");
+  ok("le PYR-120 va deux fois plus vite", P.vitesse === 2.00,
+     "1,00 → " + P.vitesse.toFixed(2));
+
+  /* CE QUE ÇA CHANGE VRAIMENT, ET C'EST LE POINT : le Mirador reste
+     son contre, mais il lui faut trois obus de plus. On le compte
+     plutôt que de l'affirmer. */
+  var coupsMirador = Math.ceil(K.pv / (N.DEF.mirador.degats * K.vuln.precision));
+  ok("le Mirador reste son contre, mais il lui faut trois coups de plus",
+     coupsMirador === 8, coupsMirador + " coups pour abattre un TX-90");
+
+  /* --- LE PYR-120 EST DÉSORMAIS LA TROUPE LA PLUS RAPIDE --- */
+  var plusVite = 0, nomVite = "";
+  Object.keys(N.UNI).forEach(function(t){
+    if(t === "doc") return;
+    if(N.UNI[t].vitesse > plusVite){ plusVite = N.UNI[t].vitesse; nomVite = N.UNI[t].nom; }
+  });
+  ok("il devient la troupe la plus rapide du jeu", nomVite === "PYR-120",
+     nomVite + " à " + plusVite);
+  ok("… devant l'Ogre et la Furie", P.vitesse > N.UNI.ogre.vitesse
+     && P.vitesse > N.UNI.furie.vitesse,
+     "ogre " + N.UNI.ogre.vitesse + ", furie " + N.UNI.furie.vitesse);
+
+  /* ET LE DOC DOIT LE RATTRAPER, sinon le blindé le plus fragile au
+     contact — deux virgule quatre cases de portée, il DOIT y aller —
+     part se battre sans soigneur. La vitesse du Doc est un plafond que
+     majDoc ramène à celle de l'escorte : elle ne sert qu'au
+     rattrapage, mais sans elle il n'y a pas de rattrapage du tout. */
+  ok("le Doc suit toujours la plus rapide", D.vitesse > P.vitesse,
+     D.vitesse + " > " + P.vitesse);
+  ok("… avec une marge de rattrapage, pas une course",
+     D.vitesse / P.vitesse < 1.20,
+     "×" + (D.vitesse / P.vitesse).toFixed(3));
+
+  /* SON CARACTÈRE NE CHANGE PAS. Il reste le blindé qui encaisse et
+     qui brûle de près : quatre mille deux cents points, deux virgule
+     quatre cases de portée. Ce qui change est le TRAJET pour y
+     arriver — c'était son seul vrai défaut. */
+  ok("le PYR-120 garde sa vie et sa portée de contact",
+     P.pv === 4200 && P.portee === 2.4);
+  ok("… et il reste le plus résistant des deux blindés",
+     P.pv > K.pv, P.pv + " contre " + K.pv);
+  /* LE TX-90 GARDE SON CANON : la demande portait sur la vie, et rien
+     d'autre ne devait bouger. */
+  ok("le TX-90 garde son canon inchangé",
+     K.degats === 480 && K.cadence === 4000 && K.portee === 5.5);
 })();
 
 /* ---------------- bilan ---------------- */

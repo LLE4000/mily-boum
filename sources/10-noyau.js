@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.29";
+var VERSION = "v1.30";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -717,8 +717,17 @@ var UNI = {
   /* LE DOC. `degats: 0` n'est pas un oubli : c'est ce qui le fait
      sortir de toute la chaîne de tir. `soin` est le champ qui le
      remplace, et il n'existe que sur lui. */
+  /* SA VITESSE SUIT CELLE DU PYR-120, ET ELLE N'A PAS LE CHOIX. Elle
+     est un PLAFOND, pas une allure : majDoc la ramène à celle de
+     l'escorte, donc elle ne sert qu'au rattrapage — et pour rattraper
+     il faut aller plus vite que la plus rapide des troupes. Le PYR-120
+     étant passé à 2,00, un Doc à 1,85 ne le revoyait plus jamais après
+     le débarquement : il partait soigner un blindé lance-flammes qui
+     s'éloignait plus vite que lui, ce qui est la seule façon de rendre
+     le Doc inutile. Deux virgule un, soit cinq pour cent de marge —
+     la même « marge de rattrapage » qu'il avait avant. */
   doc     :{ nom:"Doc",      role:"soigne les blessés",  pv:300, portee:3.4, arret:2.6,
-             degats:0,   cadence:0,    vitesse:1.85,  rayon:0.36, places:5, soin:12 },
+             degats:0,   cadence:0,    vitesse:2.10,  rayon:0.36, places:5, soin:12 },
 
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
@@ -822,7 +831,14 @@ var UNI = {
      intercepté du tout : il reste LE contre du char, et c'est bien
      ainsi qu'on l'a voulu.
      ------------------------------------------------------------ */
-  tank:{ nom:"TX-90", role:"blindé lourd à canon", pv:1300, portee:5.5, arret:5.2,
+  /* SA VIE MONTE DE TRENTE POUR CENT, de 1300 à 1690, à la demande.
+     Ce que ça change concrètement : le Mirador reste son contre — il
+     n'est pas intercepté — mais il lui faut désormais treize obus au
+     lieu de dix pour le mettre à terre. Les roquettes de Frelon, elles,
+     passent d'une sur deux interceptée à 128 points l'unité : le char
+     en encaisse treize au lieu de dix. Son caractère ne bouge pas, sa
+     marge de manœuvre oui. */
+  tank:{ nom:"TX-90", role:"blindé lourd à canon", pv:1690, portee:5.5, arret:5.2,
          degats:480, cadence:4000, vitesse:1.30, rayon:1.22, places:2,
          tourelle:1, vitesseObus:16, ech:2, intercepteur:2,
          vuln:{ bete:0, precision:3.2, mortier:2 } },
@@ -880,8 +896,15 @@ var UNI = {
      progressive, et le refus de tirer avant d'être aligné.
      Et UNE SEULE place par barge : `places:1`.
      ------------------------------------------------------------ */
+  /* SA VITESSE DOUBLE, de 1,00 à 2,00, à la demande — et c'est le
+     réglage qui lui manquait. Tout son dessin repose sur un fait : il
+     ne tire qu'à 2,4 cases, donc il DOIT aller au contact sous le feu,
+     et ce trajet était le sien le plus long de toutes les troupes. À
+     2,00 il devient le plus rapide du jeu, devant le Doc (1,85) et
+     l'Ogre (1,78) : ses quatre mille deux cents points de vie servent
+     enfin à traverser plutôt qu'à encaisser sur place. */
   pyr:{ nom:"PYR-120", role:"blindé lance-flammes", pv:4200, portee:2.4, arret:2.0,
-        degats:7, cadence:120, vitesse:1.00, rayon:1.62, places:1,
+        degats:7, cadence:120, vitesse:2.00, rayon:1.62, places:1,
         tourelle:1, flamme:1, ech:2.6,
         vuln:{ bete:0, precision:1.9, mortier:1.4 } }
 };
