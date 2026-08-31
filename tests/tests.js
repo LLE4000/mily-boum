@@ -56,7 +56,8 @@ try{
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
-    "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT",
+    "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
+    "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -10270,9 +10271,11 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("capChemin consulte la vue directe avant le champ",
      /if\(voieLibre\(occ, GW, GH, u\.gx, u\.gy, bx, by, Math\.min\(CHEMIN_VUE, dLoin\)\)\)\{[\s\S]{0,120}return null;/
        .test(html));
+  /* champVers prend maintenant le gabarit en second argument : deux
+     tailles ne suivent plus le même chemin, donc plus le même champ. */
   ok("… et elle est bien AVANT champVers",
      html.indexOf("voieLibre(occ, GW, GH, u.gx, u.gy, bx, by")
-       < html.indexOf("var champ = champVers(bx, by);"));
+       < html.indexOf("var champ = champVers(bx, by, degagementDeType(u.t));"));
   /* LA TENUE : sans elle, la troupe rebascule à chaque image et chaque
      bascule est un coup de barre. Mesuré : 1039° de virage sans, 870°
      avec — pour le même trajet, le même détour et la même durée. */
@@ -11179,6 +11182,69 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /var ouvre = Math\.max\(0, Math\.min\(1, \(2 \* rf - dCentreAv\) \/ rf\)\);/.test(mu));
   ok("… et l'éventail ne s'ouvre que dans les deux derniers rayons",
      /var pvx = balise\.gx \+ u\.ancX \* rf \* ouvre;/.test(mu));
+
+  /* ---- ⑦ LE GABARIT EST UN COÛT, PAS UN MUR ---- */
+  /* Interdire les cases serrées aux blindés coupait la carte : 27 %
+     de cases praticables pour le TX-90, et le débarquement plus relié
+     au centre. On en fait une préférence. */
+  ok("une case trop serrée coûte plus cher, elle n'est pas interdite",
+     /var nd = cour \+ CHEMIN_COUT\[k\];\s*\n?\s*if\(deg && deg\[v\] < degMin\) nd \+= CHEMIN_SERRE;/
+       .test(html));
+  ok("… et les seaux portent le surcoût",
+     N.CHEMIN_SEAUX > N.CHEMIN_DIAG + N.CHEMIN_SERRE,
+     N.CHEMIN_SEAUX + " > " + (N.CHEMIN_DIAG + N.CHEMIN_SERRE));
+  (function(){
+    /* deux couloirs parallèles : un d'une case, un de trois. Le petit
+       gabarit prend le court, le gros descend chercher l'avenue. */
+    var W = 22, H = 11, occ = new Uint8Array(W * H), i, j;
+    for(i = 0; i < W; i++){ occ[0 * W + i] = 1; occ[2 * W + i] = 1;
+                            occ[4 * W + i] = 1; occ[8 * W + i] = 1; occ[10 * W + i] = 1; }
+    for(j = 0; j < H; j++){ occ[j * W] = 0; occ[j * W + W - 1] = 0; }
+    var deg = N.champDegagement(occ, W, H);
+    function rangs(req){
+      var ch = N.champDepuis(occ, W, H, 1, 1, deg, req);
+      var x = W - 2, y = 1, vus = {}, n = 0;
+      while(n++ < 300){
+        var v = N.pasVersLeBut(ch, occ, W, H, x + 0.5, y + 0.5);
+        if(v < 0) break;
+        x = v % W; y = (v / W) | 0; vus[y] = (vus[y] | 0) + 1;
+        if(x <= 1 && y <= 1) break;
+      }
+      return vus;
+    }
+    var petit = rangs(N.degagementRequis(N.UNI.furie.rayon));
+    var gros  = rangs(N.degagementRequis(N.UNI.tank.rayon));
+    ok("le petit gabarit prend le couloir d'une case",
+       (petit[1] | 0) > 10 && !(petit[6] | 0), JSON.stringify(petit));
+    ok("… et le gros descend chercher l'avenue de trois",
+       (gros[6] | 0) > 10, JSON.stringify(gros));
+  })();
+  /* LE DÉGAGEMENT SE MESURE JUSTE : un couloir de trois cases rend 2,0
+     au milieu et 1,0 sur les bords. */
+  (function(){
+    var W = 11, H = 7, occ = new Uint8Array(W * H), i;
+    for(i = 0; i < W; i++){ occ[1 * W + i] = 1; occ[5 * W + i] = 1; }
+    var d = N.champDegagement(occ, W, H);
+    ok("le dégagement d'un couloir de trois cases vaut 2 au milieu, 1 au bord",
+       d[3 * W + 5] === 2 * N.CHEMIN_DROIT && d[2 * W + 5] === N.CHEMIN_DROIT,
+       d[3 * W + 5] + " / " + d[2 * W + 5]);
+    ok("… et une Furie n'a besoin que de 0,84 case",
+       N.degagementRequis(N.UNI.furie.rayon) <= N.CHEMIN_DROIT,
+       N.degagementRequis(N.UNI.furie.rayon) + " ≤ " + N.CHEMIN_DROIT);
+  })();
+
+  /* ---- ⑧ LA COLONNE SE SERRE, SANS RALENTIR PERSONNE ---- */
+  var sc = corps("serreLaColonne");
+  ok("le corps de serreLaColonne se lit", sc.length > 200);
+  /* ON NE TIRE QUE DE CÔTÉ : une attraction vers le centre freinerait
+     les premières et pousserait les dernières. */
+  ok("le rappel est projeté sur la perpendiculaire à la marche",
+     /var proj = ex \* ux \+ ey \* uy;/.test(sc)
+     && /var px = ex - ux \* proj, py = ey - uy \* proj;/.test(sc));
+  ok("… il ne s'arme qu'au-delà du rayon de formation",
+     /if\(d <= rf \|\| d < 1e-6\) return COL_DIR;/.test(sc));
+  ok("… et un petit groupe n'a rien à serrer",
+     /if\(centreColonne\(\) < 8\) return COL_DIR;/.test(sc));
 
   /* ---- ⑥ CE QUI N'A PAS BOUGÉ ---- */
   /* La grille de marche ne sert qu'à marcher : elle ne touche ni aux

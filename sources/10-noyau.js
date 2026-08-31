@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.35";
+var VERSION = "v1.36";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -9211,12 +9211,117 @@ var CHEMIN_DY = [0, 0, 1, -1,  1, -1,  1, -1];
    ════════════════════════════════════════════════════════════════ */
 var CHEMIN_DROIT = 10;
 var CHEMIN_DIAG  = 14;
-var CHEMIN_SEAUX = 15;              // > le plus gros coût d'arête
+/* ════════════════════════════════════════════════════════════════
+   LE GABARIT EST UN COÛT, PAS UN MUR — ET C'EST UNE MESURE QUI L'A
+   DÉCIDÉ
+
+   « Ce n'est pas la grille qui décide si le passage est possible ;
+   c'est la largeur réellement disponible par rapport au gabarit. »
+
+   L'instinct dit d'interdire à un blindé les cases trop serrées.
+   Mesuré sur les ténèbres, cet interdit COUPE LA CARTE : avec son
+   vrai rayon, le TX-90 ne garde que 27 % des cases libres et le
+   débarquement n'est plus relié au centre de l'île ; le PYR-120
+   tombe à 20 %. Même en rabattant le rayon aux trois quarts, la
+   liaison ne revient pas. Un blindé n'aurait plus eu de chemin du
+   tout — on aurait remplacé un défaut par un pire.
+
+   Le rayon de ces engins est une taille de DESSIN, employée pour
+   qu'ils ne se chevauchent pas ; ce n'est pas la largeur du couloir
+   qu'ils savent négocier. On en fait donc une PRÉFÉRENCE : une case
+   trop serrée pour ce gabarit coûte deux cases de plus. Le blindé
+   prend les avenues quand elles existent — c'est ce qu'on veut voir —
+   et se faufile quand même s'il n'y a que ça, au lieu de rester
+   planté. Une Furie, elle, ne paie jamais rien : aucune case libre
+   n'est trop étroite pour elle, y compris celle qui longe le mur de
+   pierre.
+   ════════════════════════════════════════════════════════════════ */
+var CHEMIN_SERRE = 20;              // deux cases de détour par case étroite
+var CHEMIN_SEAUX = 35;              // > le plus gros coût d'arête (14 + 20)
 var CHEMIN_COUT = [CHEMIN_DROIT, CHEMIN_DROIT, CHEMIN_DROIT, CHEMIN_DROIT,
                    CHEMIN_DIAG,  CHEMIN_DIAG,  CHEMIN_DIAG,  CHEMIN_DIAG];
 
 var CHEMIN_EMPRISE = 9;             // cases : la borne de l'inondation du but
-function champDepuis(occ, larg, haut, sx, sy){
+
+/* ════════════════════════════════════════════════════════════════
+   LE DÉGAGEMENT — CE QUI DIT SI UNE FURIE PASSE OÙ UN PYR NE PASSE PAS
+
+   « Ce n'est pas la grille qui décide si le passage est possible ;
+   c'est la largeur réellement disponible par rapport au gabarit de
+   l'unité. Une Furie doit pouvoir longer entre le mur en pierre et
+   les défenses. »
+
+   LA GRILLE ÉTAIT AVEUGLE À LA TAILLE. `bloque()` rend le même
+   booléen pour une Furie de 0,34 de rayon et un PYR-120 de 1,62 : un
+   couloir où la première se faufile facilement était refusé à
+   personne, et un couloir trop étroit pour le second lui était
+   pourtant proposé. Les deux se trompaient, en sens contraire.
+
+   ON MESURE DONC LA PLACE, UNE FOIS. Pour chaque case libre, la
+   distance à la case murée la plus proche : c'est une transformée en
+   distance par chanfrein, deux balayages de la grille, et elle emploie
+   les mêmes coûts 10/14 que le champ de chemin — même échelle, même
+   erreur connue, rien de nouveau à retenir.
+
+   CE QU'ON EN FAIT : le champ de chemin peut alors refuser les cases
+   trop serrées pour QUI le demande. Une Furie garde toute la carte,
+   un blindé se voit proposer les vraies avenues. Et le dégagement ne
+   touche PAS à la collision : une troupe déjà engagée dans un goulet
+   n'y reste pas coincée, elle finit simplement de le traverser.
+
+   LA MARGE DU DEMI-PAS. Le dégagement se mesure de centre à centre :
+   une case libre collée à un mur en rend dix, c'est-à-dire une case,
+   alors que le vide réel devant elle n'est que d'une demi-case. Le
+   rayon utile d'une case vaut donc son dégagement moins un demi.
+   ════════════════════════════════════════════════════════════════ */
+function champDegagement(occ, larg, haut){
+  var n = larg * haut, d = new Uint16Array(n), i, j, c;
+  var GRAND = 30000;
+  for(c = 0; c < n; c++) d[c] = occ[c] !== 0 ? 0 : GRAND;
+  /* balayage avant : haut-gauche vers bas-droite */
+  for(j = 0; j < haut; j++) for(i = 0; i < larg; i++){
+    c = j * larg + i;
+    if(d[c] === 0) continue;
+    var m = d[c];
+    if(i > 0            && d[c - 1] + CHEMIN_DROIT < m)        m = d[c - 1] + CHEMIN_DROIT;
+    if(j > 0            && d[c - larg] + CHEMIN_DROIT < m)     m = d[c - larg] + CHEMIN_DROIT;
+    if(i > 0 && j > 0   && d[c - larg - 1] + CHEMIN_DIAG < m)  m = d[c - larg - 1] + CHEMIN_DIAG;
+    if(i < larg - 1 && j > 0 && d[c - larg + 1] + CHEMIN_DIAG < m) m = d[c - larg + 1] + CHEMIN_DIAG;
+    d[c] = m;
+  }
+  /* balayage arrière : bas-droite vers haut-gauche */
+  for(j = haut - 1; j >= 0; j--) for(i = larg - 1; i >= 0; i--){
+    c = j * larg + i;
+    if(d[c] === 0) continue;
+    var m2 = d[c];
+    if(i < larg - 1              && d[c + 1] + CHEMIN_DROIT < m2)        m2 = d[c + 1] + CHEMIN_DROIT;
+    if(j < haut - 1              && d[c + larg] + CHEMIN_DROIT < m2)     m2 = d[c + larg] + CHEMIN_DROIT;
+    if(i < larg - 1 && j < haut - 1 && d[c + larg + 1] + CHEMIN_DIAG < m2) m2 = d[c + larg + 1] + CHEMIN_DIAG;
+    if(i > 0 && j < haut - 1     && d[c + larg - 1] + CHEMIN_DIAG < m2)  m2 = d[c + larg - 1] + CHEMIN_DIAG;
+    d[c] = m2;
+  }
+  /* HORS GRILLE = MURÉ. Sans ce rabot, les cases du bord auraient un
+     dégagement infini alors qu'elles touchent le vide du monde. */
+  for(i = 0; i < larg; i++){
+    if(d[i] > CHEMIN_DROIT) d[i] = CHEMIN_DROIT;
+    c = (haut - 1) * larg + i;
+    if(d[c] > CHEMIN_DROIT) d[c] = CHEMIN_DROIT;
+  }
+  for(j = 0; j < haut; j++){
+    c = j * larg;
+    if(d[c] > CHEMIN_DROIT) d[c] = CHEMIN_DROIT;
+    c = j * larg + larg - 1;
+    if(d[c] > CHEMIN_DROIT) d[c] = CHEMIN_DROIT;
+  }
+  return d;
+}
+/* Le dégagement qu'il faut à un rayon donné, dans l'échelle du champ.
+   Voir la marge du demi-pas ci-dessus. */
+function degagementRequis(rayon){
+  return Math.round((rayon + 0.5) * CHEMIN_DROIT);
+}
+
+function champDepuis(occ, larg, haut, sx, sy, deg, degMin){
   var n = larg * haut;
   var d = new Uint16Array(n);
   d.fill(CHEMIN_LOIN);
@@ -9284,7 +9389,11 @@ function champDepuis(occ, larg, haut, sx, sy){
          n'est ouverte que si les deux orthogonales qui la bordent
          le sont */
       if(k >= 4 && (occ[j * larg + ni] !== 0 || occ[nj * larg + i] !== 0)) continue;
+      /* TROP SERRÉ POUR CE GABARIT : la case reste ouverte, elle coûte
+         seulement plus cher. Voir CHEMIN_SERRE — l'interdire couperait
+         la carte pour les blindés. */
       var nd = cour + CHEMIN_COUT[k];
+      if(deg && deg[v] < degMin) nd += CHEMIN_SERRE;
       if(nd >= CHEMIN_LOIN || nd >= d[v]) continue;
       d[v] = nd;
       seau[nd % CHEMIN_SEAUX].push(v);

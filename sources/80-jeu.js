@@ -723,8 +723,31 @@ function bloque(gx, gy){
    destruction — ce serait payer pour des buts que plus personne ne
    vise.
    ================================================================ */
+/* ════════════════════════════════════════════════════════════════
+   LE DÉGAGEMENT, CALCULÉ UNE FOIS PAR ÉTAT DE GRILLE
+
+   Deux balayages sur vingt mille cases : moins cher qu'un seul champ
+   de chemin, et il sert à TOUS les gabarits. On le refait quand une
+   défense tombe — elle élargit un couloir, et c'est justement ce que
+   le dégagement doit savoir.
+   ════════════════════════════════════════════════════════════════ */
+var degOcc = null, degGen = -1;
+function degagementCourant(){
+  if(degGen !== GEN_CHEMIN || !degOcc){
+    degOcc = champDegagement(occ, GW, GH);
+    degGen = GEN_CHEMIN;
+  }
+  return degOcc;
+}
+/* Ce qu'il faut à cette troupe. Une Furie ne paie jamais rien —
+   aucune case libre n'est trop étroite pour elle. */
+function degagementDeType(t){
+  var f = UNI[t];
+  return degagementRequis((f && f.rayon) || 0.4);
+}
+
 var CHEMIN_MAX = 8;
-var chemins = [];                 // { cle, champ, gen, vu }
+var chemins = [];                 // { cle, dm, champ, gen, vu }
 var cheminHorloge = 0;
 /* UN SEUL REBÂTISSEMENT PAR IMAGE, et c'est une mesure qui l'impose.
    Une défense qui tombe périme les huit champs d'un coup ; s'ils sont
@@ -750,13 +773,19 @@ var cheminHorloge = 0;
    et reçoit son champ à la suivante. Une demi-seconde au pire pour que
    trente troupes soient servies. */
 var cheminImage = -1;
-function champVers(bx, by){
+/* LE CACHE EST DÉSORMAIS PAR (BUT, GABARIT), et il le fallait : deux
+   gabarits ne suivent plus le même chemin, donc ils ne peuvent plus
+   partager le même champ. Les fantassins se ramènent tous au même
+   `dm` — leur exigence est identique et jamais contraignante —, donc
+   cent Furies continuent de n'en demander qu'un seul. */
+function champVers(bx, by, dm){
   var i = bx | 0, j = by | 0;
   if(i < 0 || i >= GW || j < 0 || j >= GH) return null;
+  dm = dm | 0;
   var cle = j * GW + i, k, e;
   for(k = 0; k < chemins.length; k++){
     e = chemins[k];
-    if(e.cle !== cle) continue;
+    if(e.cle !== cle || e.dm !== dm) continue;
     if(e.gen === GEN_CHEMIN){ e.vu = ++cheminHorloge; return e.champ; }
     /* périmé : on le sert tel quel si l'image a déjà bâti le sien */
     if(cheminImage === jeu.tps) return e.champ;
@@ -764,9 +793,9 @@ function champVers(bx, by){
   }
   if(cheminImage === jeu.tps) return null;   // rien à servir, et l'image est prise
   cheminImage = jeu.tps;
-  var champ = champDepuis(occ, GW, GH, i, j);
+  var champ = champDepuis(occ, GW, GH, i, j, degagementCourant(), dm);
   if(k < chemins.length){                    // on remplace le périmé
-    chemins[k] = { cle:cle, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge };
+    chemins[k] = { cle:cle, dm:dm, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge };
     return champ;
   }
   if(chemins.length >= CHEMIN_MAX){
@@ -774,7 +803,7 @@ function champVers(bx, by){
     for(k = 1; k < chemins.length; k++) if(chemins[k].vu < chemins[vieux].vu) vieux = k;
     chemins.splice(vieux, 1);
   }
-  chemins.push({ cle:cle, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge });
+  chemins.push({ cle:cle, dm:dm, champ:champ, gen:GEN_CHEMIN, vu:++cheminHorloge });
   return champ;
 }
 /* La direction à prendre pour se rapprocher du but en CONTOURNANT ce
@@ -842,7 +871,7 @@ function capChemin(u, bx, by, dLoin){
     }
     u.contourneJusque = jeu.tps + CHEMIN_TENUE;
   }
-  var champ = champVers(bx, by);
+  var champ = champVers(bx, by, degagementDeType(u.t));
   if(!champ) return null;
   var v = pasVersLeBut(champ, occ, GW, GH, u.gx, u.gy);
   if(v < 0) return null;
@@ -851,6 +880,90 @@ function capChemin(u, bx, by, dLoin){
   DIR_CHEMIN.x = (v % GW) + 0.5 - u.gx;
   DIR_CHEMIN.y = ((v / GW) | 0) + 0.5 - u.gy;
   return DIR_CHEMIN;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SERRER LA COLONNE — SANS RALENTIR PERSONNE
+
+   « Elles doivent avoir une direction générale commune ; ensuite les
+   unités se répartissent légèrement autour de cette trajectoire. Un
+   gros groupe devrait occuper soixante-dix pour cent du diamètre du
+   brouillard au maximum. »
+
+   D'OÙ VIENT LA LARGEUR. Mesurée à cent Furies sur la diagonale des
+   ténèbres : seize cases et demie, deux fois le brouillard. La
+   séparation seule n'en explique que sept — cent Furies à 0,68 de
+   distance tiennent dans un disque de sept cases. Les dix autres
+   viennent de la ROUTE : deux unités séparées d'une case ne
+   descendent pas forcément la même pente du champ, et l'écart, une
+   fois pris, ne se rattrape jamais.
+
+   ON NE TIRE QUE DE CÔTÉ, et c'est toute l'astuce. Une attraction
+   vers le centre du groupe freinerait les premières et pousserait les
+   dernières — le groupe avancerait au rythme du milieu. On projette
+   donc le rappel sur la PERPENDICULAIRE à la marche : il resserre la
+   colonne sans qu'aucune unité y perde une seule case d'avance.
+
+   ET IL NE S'ARME QU'AU-DELÀ DU RAYON DE FORMATION : à l'intérieur,
+   la séparation fait déjà son travail, et deux forces contraires sur
+   la même paire ne produiraient qu'un frisson.
+   ════════════════════════════════════════════════════════════════ */
+/* LE PLANCHER EST PHYSIQUE, ET IL EST MESURÉ. Cent Furies séparées de
+   0,68 case tiennent au mieux dans un disque de 7,1 cases de diamètre
+   — soit 85 % du brouillard. Les 70 % demandés valent 5,9 cases : ils
+   sont hors d'atteinte à CENT unités, quelle que soit la force du
+   rappel ; ils le sont en revanche pour un groupe ordinaire, et c'est
+   ce que règle FORMATION_PART_SURFACE.
+
+   LA FORCE A ÉTÉ CHOISIE PAR BALAYAGE, pas au jugé. Cent Furies sur
+   la diagonale des ténèbres :
+     rappel   largeur   détour   virage    bloquées
+      aucun     16,5     ×1,10    21 100°     0
+      0,55      13,1     ×1,12    24 900°     0
+      0,80      12,0     ×1,14    35 500°     0
+      1,35      12,1     ×1,24    53 400°     7
+   Au-delà de 0,55 on paie le virage — c'est-à-dire le dandinement
+   qu'on voit à l'écran — pour une case et demie de largeur, et à 1,35
+   la colonne se met à se gêner elle-même. On prend 0,55 : trois cases
+   et demie de moins qu'avant, et rien de perdu. */
+var COL_RAPPEL = 0.55;              // part du rappel latéral reprise
+var COL_SEUIL  = 1.00;              // … et il s'arme à cette part du rayon
+var colX = 0, colY = 0, colN = 0, colTps = -1;
+function centreColonne(){
+  /* une fois par image, et pour tout le monde : les troupes d'un même
+     joueur marchent ensemble, c'est ce centre-là qui les rassemble */
+  if(colTps === jeu.tps) return colN;
+  colTps = jeu.tps; colX = 0; colY = 0; colN = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0) continue;
+    colX += u.gx; colY += u.gy; colN++;
+  }
+  if(colN){ colX /= colN; colY /= colN; }
+  return colN;
+}
+var COL_DIR = { x:0, y:0 };
+function serreLaColonne(u, vx, vy){
+  COL_DIR.x = vx; COL_DIR.y = vy;
+  if(centreColonne() < 8) return COL_DIR;         // un petit groupe n'a rien à serrer
+  var ex = colX - u.gx, ey = colY - u.gy;
+  var d = Math.hypot(ex, ey), rf = rayonFormation() * COL_SEUIL;
+  if(d <= rf || d < 1e-6) return COL_DIR;
+  var l = Math.hypot(vx, vy);
+  if(l < 1e-6) return COL_DIR;
+  /* la part du rappel qui est PERPENDICULAIRE à la marche */
+  var ux = vx / l, uy = vy / l;
+  var proj = ex * ux + ey * uy;
+  var px = ex - ux * proj, py = ey - uy * proj;
+  var pl = Math.hypot(px, py);
+  if(pl < 1e-6) return COL_DIR;
+  /* l'excédent au-delà du rayon dit la force, plafonnée à une
+     demi-case de correction par pas : au-delà, on verrait braquer */
+  var trop = Math.min(1, (d - rf) / rf);
+  var g = COL_RAPPEL * trop * l / pl;
+  COL_DIR.x = vx + px * g;
+  COL_DIR.y = vy + py * g;
+  return COL_DIR;
 }
 
 /* Index spatial des unités, reconstruit à chaque image */
@@ -2386,8 +2499,9 @@ function majUnites(dt){
              elle qui range la troupe en arc autour de la cible, et un
              champ de distance les ramènerait toutes sur la même case. */
           var chb = capChemin(u, bc.gx, bc.gy, db);
-          var mvx = chb ? chb.x : dxb + u.ancX * eb;
-          var mvy = chb ? chb.y : dyb + u.ancY * eb;
+          var sb = serreLaColonne(u, chb ? chb.x : dxb + u.ancX * eb,
+                                     chb ? chb.y : dyb + u.ancY * eb);
+          var mvx = sb.x, mvy = sb.y;
           capMarcheUnite(u, mvx, mvy);
           deplace(u, mvx, mvy, vit * dt);
           u.phase += dt * (u.t === "commando" ? 6.2 : 8.6);
@@ -2478,7 +2592,8 @@ function majUnites(dt){
           /* même règle : on contourne tant qu'on est loin, on vise sa
              place dans le cercle une fois arrivé dessus */
           var chf = capChemin(u, balise.gx, balise.gy, dCentre);
-          var fvx = chf ? chf.x : dxf, fvy = chf ? chf.y : dyf;
+          var sf = serreLaColonne(u, chf ? chf.x : dxf, chf ? chf.y : dyf);
+          var fvx = sf.x, fvy = sf.y;
           deplace(u, fvx, fvy, vit * dt);
           u.phase += dt * 9;
           capUnite(u, fvx, fvy, 1);
@@ -2542,8 +2657,9 @@ function majUnites(dt){
          sous balise : le champ de distance porte la route, l'éventail
          porte l'arrivée */
       var chl = capChemin(u, but.gx, but.gy, d);
-      var lvx = chl ? chl.x : dx + u.ancX * etal;
-      var lvy = chl ? chl.y : dy + u.ancY * etal;
+      var sl = serreLaColonne(u, chl ? chl.x : dx + u.ancX * etal,
+                                 chl ? chl.y : dy + u.ancY * etal);
+      var lvx = sl.x, lvy = sl.y;
       capMarcheUnite(u, lvx, lvy);
       deplace(u, lvx, lvy, vit * dt);
       /* ================================================================
