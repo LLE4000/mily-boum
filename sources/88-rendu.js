@@ -2139,13 +2139,14 @@ function segmentCable(cb, d){
      sait exactement où on peut débarquer. Et dès qu'on les a
      débarquées, le trait disparaît. »
 
-   CE QU'ON CHOISIT VRAIMENT, ET RIEN D'AUTRE. Le clic ne désigne pas un
-   point du sable : poseBarge jette le gx et ne garde que le gy, puis
-   pose la navette sur RIVAGE_GX. La zone n'est donc pas une surface,
-   c'est une LIGNE — tout le rivage, d'un bout à l'autre de l'île. La
-   dessiner comme un grand rectangle sur le sable aurait promis un choix
-   qu'on n'a pas ; on trace la bande étroite qui longe l'eau, là où les
-   navettes accostent pour de bon.
+   ET C'EST BIEN UN RECTANGLE, depuis que le clic dit deux choses. Il ne
+   choisissait que le point du rivage — le gx était jeté — et la zone
+   n'était alors qu'une ligne ; la dessiner en surface aurait promis un
+   choix qu'on n'avait pas. Le clic désigne maintenant AUSSI le point de
+   ralliement de la barge, borné à la bande de sable : du pied de la
+   rampe à la frontière de la première défense. La surface qu'on peint
+   est exactement celle où l'on peut cliquer, ni plus ni moins — voir
+   DEBARQ_GX_MIN et DEBARQ_GX_MAX dans le noyau.
 
    ELLE S'EFFACE QUAND IL N'Y A PLUS RIEN À POSER. Tant qu'une navette
    attend, on peut débarquer — c'est exactement à ce moment-là que la
@@ -2168,9 +2169,9 @@ function dessineBandeDebarquement(c, tps){
   if(jeu.bargeSel !== bargeSelVue){ bargeSelVue = jeu.bargeSel; bargeSelT = tps; }
   var vif = Math.max(0, 1 - (tps - bargeSelT) / 1.0);
 
-  var y0 = 3, y1 = GH - 4;
-  var xE = RIVAGE_GX + 0.5;            // côté eau
-  var xS = RIVAGE_GX - 1.7;            // côté sable
+  var y0 = DEBARQ_GY_MIN, y1 = DEBARQ_GY_MAX;
+  var xE = DEBARQ_GX_MAX;              // le pied de la rampe, au bord de l'eau
+  var xS = DEBARQ_GX_MIN;              // la frontière de la première défense
   var a = iso(xS, y0), b = iso(xE, y0), d = iso(xE, y1), e = iso(xS, y1);
   c.save();
   /* LE SABLE SE FONCE UN PEU — « ou alors toute cette zone-là se remet
@@ -3088,6 +3089,8 @@ function rendu(tps, dt){
      la même raison : peinte dans la pile, la marque d'une troupe du
      fond serait passée par-dessus celle du premier plan. */
   dessineHalosBadge(ctx);
+  /* et les piquets de ralliement des barges, au sol eux aussi */
+  dessineBalisesBarge(ctx, tps);
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   /* LE GEL SE PEINT AVEC SON BÂTIMENT, PAS APRÈS TOUS. Peint après la
@@ -4491,6 +4494,61 @@ function dessineHalosBadge(c){
       if(p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
       c.drawImage(sp, p.x - l / 2, p.y - h / 2, l, h);
     }
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LES BALISES DE BARGE — UNE PAR DÉBARQUEMENT, ET RIEN DE PLUS
+
+   Elles ne ressemblent pas à la balise de la capacité, et c'est
+   voulu : celle-là est un ordre payé qui emmène toute l'armée, on lui
+   a donné des lampes qui battent et de la fumée. Celle-ci ne concerne
+   que douze soldats et ne coûte rien — un piquet planté dans le sable
+   suffit, et huit piquets ne doivent pas faire une fête foraine.
+
+   ELLE VIT AUSSI LONGTEMPS QUE SES SOLDATS EN ONT BESOIN. On ne tient
+   pas de liste : on dessine celles que les UNITÉS portent encore, en
+   les regroupant par point. Une balise dont les douze soldats sont
+   arrivés — ou morts — n'a plus personne pour la porter et disparaît
+   d'elle-même, sans qu'on ait rien à ranger.
+   ================================================================ */
+function dessineBalisesBarge(c, tps){
+  if(!jeu || !jeu.unites || !jeu.unites.length) return;
+  var vus = null, i, u, cle;
+  for(i = 0; i < jeu.unites.length; i++){
+    u = jeu.unites[i];
+    if(u.pv <= 0 || !u.ral) continue;
+    if(!vus) vus = {};
+    cle = u.ral.gx.toFixed(2) + "," + u.ral.gy.toFixed(2);
+    if(vus[cle]) { vus[cle].n++; continue; }
+    vus[cle] = { gx:u.ral.gx, gy:u.ral.gy, n:1 };
+  }
+  if(!vus) return;
+  var z = Math.max(1.0, Math.min(2.4, 1.2 / cam.z));
+  c.save();
+  for(cle in vus){
+    var r = vus[cle], p = iso(r.gx, r.gy);
+    var bat = 0.72 + 0.28 * Math.sin(tps * 3.1 + r.gx * 1.7);
+    /* l'empreinte au sol : c'est elle qui dit « ici », et elle est
+       couchée dans le plan du terrain comme tout ce qui y est posé */
+    c.fillStyle = "rgba(255,214,112," + (0.16 * bat).toFixed(3) + ")";
+    c.beginPath(); c.ellipse(p.x, p.y, 11 * z, 5.5 * z, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(255,226,150," + (0.50 * bat).toFixed(3) + ")";
+    c.lineWidth = Math.max(1.0 / cam.z, 1.3);
+    c.beginPath(); c.ellipse(p.x, p.y, 11 * z, 5.5 * z, 0, 0, 6.2832); c.stroke();
+    /* le piquet et son fanion : debout, donc lisible même quand douze
+       soldats piétinent dessus */
+    var h = 20 * z;
+    c.strokeStyle = "rgba(26,18,10,.78)";
+    c.lineWidth = Math.max(1.6 / cam.z, 1.8);
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - h); c.stroke();
+    c.fillStyle = "rgba(255,206,84," + (0.90 * bat).toFixed(3) + ")";
+    c.beginPath();
+    c.moveTo(p.x, p.y - h);
+    c.lineTo(p.x + 9 * z, p.y - h + 3.4 * z);
+    c.lineTo(p.x, p.y - h + 6.8 * z);
+    c.closePath(); c.fill();
   }
   c.restore();
 }

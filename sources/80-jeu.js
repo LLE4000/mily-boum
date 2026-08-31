@@ -1306,13 +1306,36 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
-     long de la plage. Elle s'arrête toujours au bord de l'eau, et les
-     troupes gagnent le sable à pied. */
-  gy = borne(gy, 3, GH - 4);
+  /* ════════════════════════════════════════════════════════════
+     LE CLIC DIT DEUX CHOSES, ET NON PLUS UNE
+
+     Il disait seulement OÙ LE LONG DU RIVAGE : le gx était jeté, la
+     navette se posait sur RIVAGE_GX et les troupes partaient à
+     l'assaut depuis le pied de la rampe. Toutes les barges arrivaient
+     donc au même endroit, et l'on ne pouvait pas étaler un
+     débarquement.
+
+     Il dit maintenant AUSSI JUSQU'OÙ ELLES AVANCENT avant de se battre.
+     La navette accoste toujours au bord de l'eau — elle flotte, c'est
+     la seule chose qu'elle sache faire — mais elle emporte un POINT DE
+     RALLIEMENT, et ses douze soldats y marchent avant de reprendre
+     l'assaut. Huit barges, huit points : une au tout début de la plage,
+     une devant la première défense, comme demandé.
+
+     ET LE POINT EST BORNÉ À LA BANDE DE SABLE. Voir DEBARQ_GX_MIN et
+     DEBARQ_GX_MAX dans le noyau : du pied de la rampe à la frontière de
+     la première défense. Un point posé plus loin ferait de chaque
+     débarquement une Balise gratuite, et la capacité Balise — qui, elle,
+     coûte de l'énergie et emmène TOUT LE MONDE en profondeur — n'aurait
+     plus de raison d'être. ════════════════════════════════════════ */
+  gy = borne(gy, DEBARQ_GY_MIN, DEBARQ_GY_MAX);
+  var ralGx = borne(gx, DEBARQ_GX_MIN, DEBARQ_GX_MAX);
   var gxA = RIVAGE_GX;
   jeu.navettes.push({
     type:b.type, reste:b.n, sortis:0,
+    /* le point de ralliement voyage avec la navette : c'est elle qui le
+       transmet à chaque soldat qui descend la rampe */
+    ral:{ gx:ralGx, gy:gy },
     gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
     etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
     n:jeu.nSuiv++,
@@ -1400,7 +1423,14 @@ function sortDeNavette(v){
     x = RAMPE_GX - av;
   }
   if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
-  creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  var u = creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  /* LE POINT DE RALLIEMENT DE SA BARGE. On ne le pose que s'il vaut la
+     peine d'être marché : cliquer au ras de l'eau, c'est débarquer
+     comme avant, et une unité qui naît déjà sur son point n'a rien à
+     faire de l'ordre. */
+  if(u && v.ral && Math.hypot(v.ral.gx - u.gx, v.ral.gy - u.gy) > EQ.BALISE_RAYON)
+    u.ral = v.ral;
+  return u;
 }
 function creeUnite(type, gx, gy){
   var f = UNI[type];
@@ -3123,6 +3153,55 @@ function majUnites(dt){
       u.prochainCiblage = 0;
     }
 
+    /* ════════════════════════════════════════════════════════════
+       LE POINT DE RALLIEMENT DE SA BARGE
+
+       « Chaque barge a sa balise : dès qu'on débarque, ça met une
+         balise et la troupe va jusque-là. » Et une fois arrivée : elle
+         reprend l'assaut normal.
+
+       CE N'EST PAS LA BALISE DE LA CAPACITÉ, et les deux ne se
+       ressemblent que de loin. Celle-ci est GRATUITE, elle ne concerne
+       QUE les douze soldats d'une barge, elle ne vise aucune cible, et
+       elle est bornée à la bande de sable. L'autre coûte de l'énergie,
+       emmène TOUT LE MONDE, peut désigner un bâtiment et va n'importe
+       où sur l'île. C'est pour cela qu'elles cohabitent au lieu de se
+       remplacer.
+
+       PLACÉE APRÈS LA BALISE PARTAGÉE, exprès : un ordre payé doit
+       primer sur un ralliement gratuit. La branche du dessus `continue`
+       tant qu'elle marche, donc on n'arrive ici que si aucun ordre de
+       balise ne tient — et poser une balise efface le ralliement, pour
+       qu'une troupe rappelée ne reparte pas ensuite vers son sable.
+
+       ELLE NE FAIT QUE MARCHER. Pas de cible, pas de tir choisi, pas de
+       formation en arc : les douze soldats vont à leur point et s'en
+       libèrent. C'est le sens de « elles reprennent l'assaut normal » —
+       le ralliement choisit leur point de départ, pas leur combat.
+       ════════════════════════════════════════════════════════════ */
+    if(u.ral){
+      var dxr = u.ral.gx - u.gx, dyr = u.ral.gy - u.gy;
+      var dr = Math.hypot(dxr, dyr);
+      /* LE MÊME FILET QUE LA BALISE, et pour la même raison : une unité
+         qui n'avance plus doit être libérée, sinon elle pousse contre
+         un obstacle jusqu'à la fin de la partie. On mesure qu'elle ne
+         BOUGE plus, jamais qu'elle ne se rapproche — une troupe qui
+         contourne s'éloigne un moment, et c'est son travail. */
+      if(dr <= EQ.BALISE_RAYON || u.figeT > (u.baliseSeuil || 7.0)){
+        u.ral = null;
+        u.prochainCiblage = 0;
+      }else{
+        var chr = capChemin(u, u.ral.gx, u.ral.gy, dr);
+        var sr = serreLaColonne(u, chr ? chr.x : dxr, chr ? chr.y : dyr);
+        deplace(u, sr.x, sr.y, vit * dt);
+        u.phase += dt * 9;
+        capUnite(u, sr.x, sr.y, 1);
+        u.cible = null;
+        tirBeteEnMarche(u, f, dt, cachee);
+        continue;
+      }
+    }
+
     /* --- SPEED : il ne cherche ni cible ni blessé, il suit la troupe ---
        Placé AVANT le Doc et APRÈS la balise : un héros sous balise
        marche avec le groupe comme tout le monde, et se remet à suivre
@@ -4387,6 +4466,9 @@ function utiliseCapacite(m, gx, gy){
        défense proche tant qu'elle n'a pas rejoint la balise. */
     for(var z2 = 0; z2 < jeu.unites.length; z2++){
       jeu.unites[z2].baliseOrdre = jeu.balise.id;
+      /* un ordre payé remplace le ralliement gratuit : sans cela, la
+         troupe rappelée repartirait vers son sable en arrivant */
+      jeu.unites[z2].ral = null;
       jeu.unites[z2].baliseMeilleure = 1e9;
       jeu.unites[z2].baliseStagne = 0;
       jeu.unites[z2].baliseSeuil = 7.0 + Math.random() * 4.0;

@@ -8689,11 +8689,16 @@ G("34. Les blindés autour du QG, et la vermine en marche libre");
      posée sur une cible, sous balise posée au sol, et en marche libre.
      La règle parle de MARCHE, pas de balise — un véhicule a deux caps,
      donc le tir ne lui coûte rien, et ce fait ne dépend pas de la
-     manière dont l'ordre lui est venu. Les trois branches l'appellent
-     donc, et c'est le nombre qui le dit : à deux, il manquerait
-     précisément celle que le joueur a vue manquer. */
-  ok("les trois branches de marche balaient la vermine",
-     (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length === 3);
+     manière dont l'ordre lui est venu. Les branches l'appellent donc
+     TOUTES, et c'est le nombre qui le dit : s'il en manquait une, il
+     manquerait précisément celle que le joueur a vue manquer.
+     QUATRE DEPUIS LE RALLIEMENT DE BARGE (v1.54) : les trois marches
+     d'origine, plus celle des douze soldats qui rejoignent le point de
+     leur navette. Eux aussi traversent le sable en marchant, donc eux
+     aussi balaient ce qui court dedans. */
+  ok("toutes les branches de marche balaient la vermine",
+     (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length === 4,
+     "" + (html.match(/tirBeteEnMarche\(u, f, dt, cachee\);/g) || []).length);
 
   /* ET LA BRANCHE D'ARRIVÉE NE L'APPELLE PAS — c'est l'autre moitié.
      Arrêté devant son bâtiment, le véhicule a sa tourelle POSÉE sur
@@ -9663,9 +9668,12 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        leur résultat, la définition non.
        QUATRE DEPUIS SPEED : les trois marches ordinaires, plus celle
        du héros qui rejoint son escorte. Lui aussi doit contourner —
-       un héros qui traverserait les murs se verrait tout de suite. */
+       un héros qui traverserait les murs se verrait tout de suite.
+       CINQ DEPUIS LE RALLIEMENT DE BARGE (v1.54). Il en avait le plus
+       besoin de toutes : son point est sur le sable, et entre la rampe
+       et lui il y a tout ce que le joueur a déjà fait débarquer. */
     var n = (html.match(/= capChemin\(u,/g) || []).length;
-    ok("les quatre marches passent par le champ de distance", n === 4, n + " appels");
+    ok("toutes les marches passent par le champ de distance", n === 5, n + " appels");
     /* et la ligne droite reste là, pour l'éventail d'arrivée */
     /* L'ANCRE A VIEILLI AVEC LA CORRECTION DU COUDE : la même ligne
        relâche aussi la tenue du contournement. La promesse, elle, n'a

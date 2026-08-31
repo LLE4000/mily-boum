@@ -2690,7 +2690,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.53";
+var VERSION = "v1.54";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -5088,6 +5088,24 @@ var GW = 152, GH = 136;          // 20 672 cases — une île volontairement imm
 var QG_GX = 9, QG_GY = 68;       // le Brasier, au fond ouest
 var QG_EMPRISE = 12;      // le Brasier écrase tout le reste de la carte
 var PLAGE_X0 = GW - 12;          // première colonne de sable praticable (140)
+/* ════════════════════════════════════════════════════════════════
+   LA BANDE OÙ L'ON DÉBARQUE, ET SES DEUX BORNES
+
+   « Point le plus bas : où les troupes débarquent. Point le plus haut :
+     la frontière où on peut avoir la première défense. »
+
+   Les deux bornes ne sont donc pas des chiffres choisis, ce sont les
+   deux réalités du terrain : le pied de la rampe, là où un soldat pose
+   le pied sur le sable, et la première colonne où une défense peut se
+   tenir. Entre les deux, il n'y a que du sable — c'est exactement la
+   marge de manœuvre qu'on donne, ni une case de plus.
+
+   ELLES SONT ICI, DANS LE NOYAU, et calculées et non écrites : le jour
+   où la plage s'élargira, la bande suivra sans qu'on ait à y penser, et
+   les tests le vérifient au lieu de recopier deux nombres. */
+var DEBARQ_GX_MIN = PLAGE_X0;    // la frontière de la première défense
+var DEBARQ_GX_MAX = GW - 0.6;    // le pied de la rampe, dernier sable
+var DEBARQ_GY_MIN = 3, DEBARQ_GY_MAX = GH - 4;
 var MARGE_SOL = 8;               // marge de tuiles autour de la grille
 var SOL_MPX_MAX = 7.0;           // budget mémoire du canevas de sol
 var SOL_ECH = 0.5;               // recalculé par tailleSolPrecalcule()
@@ -48614,13 +48632,36 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
-     long de la plage. Elle s'arrête toujours au bord de l'eau, et les
-     troupes gagnent le sable à pied. */
-  gy = borne(gy, 3, GH - 4);
+  /* ════════════════════════════════════════════════════════════
+     LE CLIC DIT DEUX CHOSES, ET NON PLUS UNE
+
+     Il disait seulement OÙ LE LONG DU RIVAGE : le gx était jeté, la
+     navette se posait sur RIVAGE_GX et les troupes partaient à
+     l'assaut depuis le pied de la rampe. Toutes les barges arrivaient
+     donc au même endroit, et l'on ne pouvait pas étaler un
+     débarquement.
+
+     Il dit maintenant AUSSI JUSQU'OÙ ELLES AVANCENT avant de se battre.
+     La navette accoste toujours au bord de l'eau — elle flotte, c'est
+     la seule chose qu'elle sache faire — mais elle emporte un POINT DE
+     RALLIEMENT, et ses douze soldats y marchent avant de reprendre
+     l'assaut. Huit barges, huit points : une au tout début de la plage,
+     une devant la première défense, comme demandé.
+
+     ET LE POINT EST BORNÉ À LA BANDE DE SABLE. Voir DEBARQ_GX_MIN et
+     DEBARQ_GX_MAX dans le noyau : du pied de la rampe à la frontière de
+     la première défense. Un point posé plus loin ferait de chaque
+     débarquement une Balise gratuite, et la capacité Balise — qui, elle,
+     coûte de l'énergie et emmène TOUT LE MONDE en profondeur — n'aurait
+     plus de raison d'être. ════════════════════════════════════════ */
+  gy = borne(gy, DEBARQ_GY_MIN, DEBARQ_GY_MAX);
+  var ralGx = borne(gx, DEBARQ_GX_MIN, DEBARQ_GX_MAX);
   var gxA = RIVAGE_GX;
   jeu.navettes.push({
     type:b.type, reste:b.n, sortis:0,
+    /* le point de ralliement voyage avec la navette : c'est elle qui le
+       transmet à chaque soldat qui descend la rampe */
+    ral:{ gx:ralGx, gy:gy },
     gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
     etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
     n:jeu.nSuiv++,
@@ -48708,7 +48749,14 @@ function sortDeNavette(v){
     x = RAMPE_GX - av;
   }
   if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
-  creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  var u = creeUnite(v.type, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  /* LE POINT DE RALLIEMENT DE SA BARGE. On ne le pose que s'il vaut la
+     peine d'être marché : cliquer au ras de l'eau, c'est débarquer
+     comme avant, et une unité qui naît déjà sur son point n'a rien à
+     faire de l'ordre. */
+  if(u && v.ral && Math.hypot(v.ral.gx - u.gx, v.ral.gy - u.gy) > EQ.BALISE_RAYON)
+    u.ral = v.ral;
+  return u;
 }
 function creeUnite(type, gx, gy){
   var f = UNI[type];
@@ -50431,6 +50479,55 @@ function majUnites(dt){
       u.prochainCiblage = 0;
     }
 
+    /* ════════════════════════════════════════════════════════════
+       LE POINT DE RALLIEMENT DE SA BARGE
+
+       « Chaque barge a sa balise : dès qu'on débarque, ça met une
+         balise et la troupe va jusque-là. » Et une fois arrivée : elle
+         reprend l'assaut normal.
+
+       CE N'EST PAS LA BALISE DE LA CAPACITÉ, et les deux ne se
+       ressemblent que de loin. Celle-ci est GRATUITE, elle ne concerne
+       QUE les douze soldats d'une barge, elle ne vise aucune cible, et
+       elle est bornée à la bande de sable. L'autre coûte de l'énergie,
+       emmène TOUT LE MONDE, peut désigner un bâtiment et va n'importe
+       où sur l'île. C'est pour cela qu'elles cohabitent au lieu de se
+       remplacer.
+
+       PLACÉE APRÈS LA BALISE PARTAGÉE, exprès : un ordre payé doit
+       primer sur un ralliement gratuit. La branche du dessus `continue`
+       tant qu'elle marche, donc on n'arrive ici que si aucun ordre de
+       balise ne tient — et poser une balise efface le ralliement, pour
+       qu'une troupe rappelée ne reparte pas ensuite vers son sable.
+
+       ELLE NE FAIT QUE MARCHER. Pas de cible, pas de tir choisi, pas de
+       formation en arc : les douze soldats vont à leur point et s'en
+       libèrent. C'est le sens de « elles reprennent l'assaut normal » —
+       le ralliement choisit leur point de départ, pas leur combat.
+       ════════════════════════════════════════════════════════════ */
+    if(u.ral){
+      var dxr = u.ral.gx - u.gx, dyr = u.ral.gy - u.gy;
+      var dr = Math.hypot(dxr, dyr);
+      /* LE MÊME FILET QUE LA BALISE, et pour la même raison : une unité
+         qui n'avance plus doit être libérée, sinon elle pousse contre
+         un obstacle jusqu'à la fin de la partie. On mesure qu'elle ne
+         BOUGE plus, jamais qu'elle ne se rapproche — une troupe qui
+         contourne s'éloigne un moment, et c'est son travail. */
+      if(dr <= EQ.BALISE_RAYON || u.figeT > (u.baliseSeuil || 7.0)){
+        u.ral = null;
+        u.prochainCiblage = 0;
+      }else{
+        var chr = capChemin(u, u.ral.gx, u.ral.gy, dr);
+        var sr = serreLaColonne(u, chr ? chr.x : dxr, chr ? chr.y : dyr);
+        deplace(u, sr.x, sr.y, vit * dt);
+        u.phase += dt * 9;
+        capUnite(u, sr.x, sr.y, 1);
+        u.cible = null;
+        tirBeteEnMarche(u, f, dt, cachee);
+        continue;
+      }
+    }
+
     /* --- SPEED : il ne cherche ni cible ni blessé, il suit la troupe ---
        Placé AVANT le Doc et APRÈS la balise : un héros sous balise
        marche avec le groupe comme tout le monde, et se remet à suivre
@@ -51695,6 +51792,9 @@ function utiliseCapacite(m, gx, gy){
        défense proche tant qu'elle n'a pas rejoint la balise. */
     for(var z2 = 0; z2 < jeu.unites.length; z2++){
       jeu.unites[z2].baliseOrdre = jeu.balise.id;
+      /* un ordre payé remplace le ralliement gratuit : sans cela, la
+         troupe rappelée repartirait vers son sable en arrivant */
+      jeu.unites[z2].ral = null;
       jeu.unites[z2].baliseMeilleure = 1e9;
       jeu.unites[z2].baliseStagne = 0;
       jeu.unites[z2].baliseSeuil = 7.0 + Math.random() * 4.0;
@@ -60119,13 +60219,14 @@ function segmentCable(cb, d){
      sait exactement où on peut débarquer. Et dès qu'on les a
      débarquées, le trait disparaît. »
 
-   CE QU'ON CHOISIT VRAIMENT, ET RIEN D'AUTRE. Le clic ne désigne pas un
-   point du sable : poseBarge jette le gx et ne garde que le gy, puis
-   pose la navette sur RIVAGE_GX. La zone n'est donc pas une surface,
-   c'est une LIGNE — tout le rivage, d'un bout à l'autre de l'île. La
-   dessiner comme un grand rectangle sur le sable aurait promis un choix
-   qu'on n'a pas ; on trace la bande étroite qui longe l'eau, là où les
-   navettes accostent pour de bon.
+   ET C'EST BIEN UN RECTANGLE, depuis que le clic dit deux choses. Il ne
+   choisissait que le point du rivage — le gx était jeté — et la zone
+   n'était alors qu'une ligne ; la dessiner en surface aurait promis un
+   choix qu'on n'avait pas. Le clic désigne maintenant AUSSI le point de
+   ralliement de la barge, borné à la bande de sable : du pied de la
+   rampe à la frontière de la première défense. La surface qu'on peint
+   est exactement celle où l'on peut cliquer, ni plus ni moins — voir
+   DEBARQ_GX_MIN et DEBARQ_GX_MAX dans le noyau.
 
    ELLE S'EFFACE QUAND IL N'Y A PLUS RIEN À POSER. Tant qu'une navette
    attend, on peut débarquer — c'est exactement à ce moment-là que la
@@ -60148,9 +60249,9 @@ function dessineBandeDebarquement(c, tps){
   if(jeu.bargeSel !== bargeSelVue){ bargeSelVue = jeu.bargeSel; bargeSelT = tps; }
   var vif = Math.max(0, 1 - (tps - bargeSelT) / 1.0);
 
-  var y0 = 3, y1 = GH - 4;
-  var xE = RIVAGE_GX + 0.5;            // côté eau
-  var xS = RIVAGE_GX - 1.7;            // côté sable
+  var y0 = DEBARQ_GY_MIN, y1 = DEBARQ_GY_MAX;
+  var xE = DEBARQ_GX_MAX;              // le pied de la rampe, au bord de l'eau
+  var xS = DEBARQ_GX_MIN;              // la frontière de la première défense
   var a = iso(xS, y0), b = iso(xE, y0), d = iso(xE, y1), e = iso(xS, y1);
   c.save();
   /* LE SABLE SE FONCE UN PEU — « ou alors toute cette zone-là se remet
@@ -61068,6 +61169,8 @@ function rendu(tps, dt){
      la même raison : peinte dans la pile, la marque d'une troupe du
      fond serait passée par-dessus celle du premier plan. */
   dessineHalosBadge(ctx);
+  /* et les piquets de ralliement des barges, au sol eux aussi */
+  dessineBalisesBarge(ctx, tps);
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   /* LE GEL SE PEINT AVEC SON BÂTIMENT, PAS APRÈS TOUS. Peint après la
@@ -62471,6 +62574,61 @@ function dessineHalosBadge(c){
       if(p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
       c.drawImage(sp, p.x - l / 2, p.y - h / 2, l, h);
     }
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LES BALISES DE BARGE — UNE PAR DÉBARQUEMENT, ET RIEN DE PLUS
+
+   Elles ne ressemblent pas à la balise de la capacité, et c'est
+   voulu : celle-là est un ordre payé qui emmène toute l'armée, on lui
+   a donné des lampes qui battent et de la fumée. Celle-ci ne concerne
+   que douze soldats et ne coûte rien — un piquet planté dans le sable
+   suffit, et huit piquets ne doivent pas faire une fête foraine.
+
+   ELLE VIT AUSSI LONGTEMPS QUE SES SOLDATS EN ONT BESOIN. On ne tient
+   pas de liste : on dessine celles que les UNITÉS portent encore, en
+   les regroupant par point. Une balise dont les douze soldats sont
+   arrivés — ou morts — n'a plus personne pour la porter et disparaît
+   d'elle-même, sans qu'on ait rien à ranger.
+   ================================================================ */
+function dessineBalisesBarge(c, tps){
+  if(!jeu || !jeu.unites || !jeu.unites.length) return;
+  var vus = null, i, u, cle;
+  for(i = 0; i < jeu.unites.length; i++){
+    u = jeu.unites[i];
+    if(u.pv <= 0 || !u.ral) continue;
+    if(!vus) vus = {};
+    cle = u.ral.gx.toFixed(2) + "," + u.ral.gy.toFixed(2);
+    if(vus[cle]) { vus[cle].n++; continue; }
+    vus[cle] = { gx:u.ral.gx, gy:u.ral.gy, n:1 };
+  }
+  if(!vus) return;
+  var z = Math.max(1.0, Math.min(2.4, 1.2 / cam.z));
+  c.save();
+  for(cle in vus){
+    var r = vus[cle], p = iso(r.gx, r.gy);
+    var bat = 0.72 + 0.28 * Math.sin(tps * 3.1 + r.gx * 1.7);
+    /* l'empreinte au sol : c'est elle qui dit « ici », et elle est
+       couchée dans le plan du terrain comme tout ce qui y est posé */
+    c.fillStyle = "rgba(255,214,112," + (0.16 * bat).toFixed(3) + ")";
+    c.beginPath(); c.ellipse(p.x, p.y, 11 * z, 5.5 * z, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(255,226,150," + (0.50 * bat).toFixed(3) + ")";
+    c.lineWidth = Math.max(1.0 / cam.z, 1.3);
+    c.beginPath(); c.ellipse(p.x, p.y, 11 * z, 5.5 * z, 0, 0, 6.2832); c.stroke();
+    /* le piquet et son fanion : debout, donc lisible même quand douze
+       soldats piétinent dessus */
+    var h = 20 * z;
+    c.strokeStyle = "rgba(26,18,10,.78)";
+    c.lineWidth = Math.max(1.6 / cam.z, 1.8);
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - h); c.stroke();
+    c.fillStyle = "rgba(255,206,84," + (0.90 * bat).toFixed(3) + ")";
+    c.beginPath();
+    c.moveTo(p.x, p.y - h);
+    c.lineTo(p.x + 9 * z, p.y - h + 3.4 * z);
+    c.lineTo(p.x, p.y - h + 6.8 * z);
+    c.closePath(); c.fill();
   }
   c.restore();
 }

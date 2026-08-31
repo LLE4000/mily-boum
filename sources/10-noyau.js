@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.53";
+var VERSION = "v1.54";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2407,6 +2407,24 @@ var GW = 152, GH = 136;          // 20 672 cases — une île volontairement imm
 var QG_GX = 9, QG_GY = 68;       // le Brasier, au fond ouest
 var QG_EMPRISE = 12;      // le Brasier écrase tout le reste de la carte
 var PLAGE_X0 = GW - 12;          // première colonne de sable praticable (140)
+/* ════════════════════════════════════════════════════════════════
+   LA BANDE OÙ L'ON DÉBARQUE, ET SES DEUX BORNES
+
+   « Point le plus bas : où les troupes débarquent. Point le plus haut :
+     la frontière où on peut avoir la première défense. »
+
+   Les deux bornes ne sont donc pas des chiffres choisis, ce sont les
+   deux réalités du terrain : le pied de la rampe, là où un soldat pose
+   le pied sur le sable, et la première colonne où une défense peut se
+   tenir. Entre les deux, il n'y a que du sable — c'est exactement la
+   marge de manœuvre qu'on donne, ni une case de plus.
+
+   ELLES SONT ICI, DANS LE NOYAU, et calculées et non écrites : le jour
+   où la plage s'élargira, la bande suivra sans qu'on ait à y penser, et
+   les tests le vérifient au lieu de recopier deux nombres. */
+var DEBARQ_GX_MIN = PLAGE_X0;    // la frontière de la première défense
+var DEBARQ_GX_MAX = GW - 0.6;    // le pied de la rampe, dernier sable
+var DEBARQ_GY_MIN = 3, DEBARQ_GY_MAX = GH - 4;
 var MARGE_SOL = 8;               // marge de tuiles autour de la grille
 var SOL_MPX_MAX = 7.0;           // budget mémoire du canevas de sol
 var SOL_ECH = 0.5;               // recalculé par tailleSolPrecalcule()
