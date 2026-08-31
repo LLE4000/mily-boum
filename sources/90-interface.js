@@ -1437,6 +1437,7 @@ function construitBriefing(){
   $("btReco").addEventListener("click", function(){
     if(!pseudoSaisi()) return signalePseudoManquant();
     monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
     connecteRelais($("relais").value);
   });
   $("relais").addEventListener("change", function(){
@@ -1446,6 +1447,7 @@ function construitBriefing(){
   $("pseudo").addEventListener("change", function(){
     if(pseudoSaisi()){
       monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
       this.value = monNom;
       sauvegarde();
     }
@@ -2218,6 +2220,7 @@ function installeBoutonJungle(){
     var e = etatEvt(i);
     if(e !== "prete" && e !== "encours") return;
     monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
     if(e === "prete") lanceExpedition(i);
     entreDansEvenement(i);
   });
@@ -2726,6 +2729,7 @@ var MSG_ENTREE = {
 function lancePartie(ou){
   if(!pseudoSaisi()) return signalePseudoManquant();
   monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
   $("pseudo").value = monNom;          // le champ montre ce qui sera diffusé
   sauvegarde();
   /* le journal des passages porte le DERNIER pseudo connu : c'est
@@ -2779,6 +2783,7 @@ function lancePartie(ou){
 function ouvreApercuAdmin(i){
   if(!pseudoSaisi()) $("pseudo").value = "Créateur";
   monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
   /* Le drapeau est levé AVANT lancePartie : nouvelleCarte publie et
      salue le salon en passant, et il ne faut pas qu'un seul de ces
      messages sorte. */
@@ -3175,6 +3180,7 @@ function recupereCumulAdmin(){
     return;
   }
   monNom = pseudoSaisi();
+    if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
   var n = (typeof porteMesDegats === "function") ? porteMesDegats() : 0;
   if(!n){
     alert("Aucun cumul en sommeil sur cet appareil.\n\n"

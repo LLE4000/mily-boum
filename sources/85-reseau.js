@@ -252,9 +252,60 @@ function monTotalCarte(carte){
   repliMesDegats();
   return mesDegats[carte | 0] || 0;
 }
+/* ════════════════════════════════════════════════════════════════
+   MON APPAREIL DIT SON PROPRE NOM, ET ON LE CROIT
+
+   « J'ai mis Ced pour tester ; maintenant mon score de la map est
+   passé sous Ced, et quand je me remets sur Lu ça ne s'efface pas. »
+
+   LE COMMENTAIRE DE scoresAJour, ci-dessous, décrivait déjà le
+   mécanisme sans en voir la conséquence : le nouveau pseudo « s'impose
+   au premier coup de hache ». Sur une carte EN COURS, cela se corrige
+   en quelques secondes de jeu — dix-huit points de dégâts suffisent,
+   mesuré. Sur une carte TOMBÉE, on ne rejoue plus jamais : le nom
+   d'emprunt y est gravé pour toujours.
+
+   D'OÙ LE REGISTRE, et un compteur qui monte à chaque renommage. Il
+   n'y a pas d'horloge commune dans un instantané qu'on fusionne dans
+   tous les sens ; le compteur en tient lieu, et la fusion garde le
+   plus haut. On le garde en mémoire locale : c'est l'appareil qui se
+   renomme, c'est à lui de compter ses renommages.
+   ════════════════════════════════════════════════════════════════ */
+var CLE_RANG_NOM = "mily.rangNom";
+var monRangNom = 0, monNomPose = null;
+function litMonRangNom(){
+  try{
+    var v = localStorage.getItem(CLE_RANG_NOM);
+    if(v){ var o = JSON.parse(v); monRangNom = o.g | 0; monNomPose = o.n || null; }
+  }catch(e){}
+}
+/* Appelée dès que le pseudo courant est connu : elle ne fait rien tant
+   qu'il ne CHANGE pas, et incrémente au premier changement réel. */
+function noteMonPseudo(nom){
+  nom = nettoieNomScore(nom);
+  if(!nom || nom === monNomPose) return;
+  if(monNomPose !== null) monRangNom++;      // un vrai renommage, pas le premier démarrage
+  monNomPose = nom;
+  try{
+    localStorage.setItem(CLE_RANG_NOM, JSON.stringify({ n:monNomPose, g:monRangNom }));
+  }catch(e){}
+}
+/* Le registre courant, tenu à jour pour le noyau : c'est lui qui
+   décide de l'étiquette d'un appareil dans tous les classements. */
+function majRenomsCourants(){
+  var mien = "";
+  if(monSeau && monNomPose){
+    var t = {}; t[monSeau] = { n:monNomPose, g:monRangNom };
+    mien = encodeRenoms(t);
+  }
+  RENOMS_COURANTS = fusionneRenoms(monde && monde.rn, mien);
+  return RENOMS_COURANTS;
+}
+
 /* Le tableau partagé, MES seaux remplacés par leur valeur locale —
    plus fraîche que celle qui a été publiée il y a deux secondes. */
 function scoresAJour(){
+  majRenomsCourants();
   var t = decodeScores(monde && monde.s), k;
   if(!monNom) return t;
   repliMesDegats();
@@ -476,7 +527,7 @@ function etatEvenements(){
   var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
                              bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
                              bo:m.bo || "", bon:m.bon | 0,
-                             hc:m.hc || "", rq:m.rq || "" };
+                             hc:m.hc || "", rq:m.rq || "", rn:m.rn || "" };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -688,6 +739,7 @@ function adopteMonde(m, source){
   if(!mondeValide(m)) return;
   var avant = monde;
   monde = fusionneMonde(monde, m);
+  majRenomsCourants();
   if(!memeMonde(avant, monde)) sauveMondeLocal();
   /* L'instantané reçu peut porter des podiums qu'on n'avait pas : on
      les compte tout de suite, sinon le badge ne monterait qu'à la
@@ -1534,7 +1586,13 @@ function porteMesDegats(){
 function republieMesScores(force){
   if(!monde || modeApercu) return false;
   var s = tableauScores();
-  if(!force && s === (monde.s || "")) return false;
+  /* MON NOM PART AVEC MES DÉGÂTS. Le registre est minuscule — un seau,
+     un pseudo, un numéro — et il voyage dans le même instantané : il
+     n'y a pas de raison de le publier à part, et une seule raison de
+     le publier ici, c'est que c'est le moment où l'on se déclare. */
+  var rn = fusionneRenoms(monde.rn, majRenomsCourants());
+  if(!force && s === (monde.s || "") && rn === (monde.rn || "")) return false;
+  monde.rn = rn;
   monde.s = s;
   monde.v = (monde.v | 0) + 1;
   sauveMondeLocal();
@@ -1814,6 +1872,7 @@ function publieMonde(force){
   if(!mondeValide(m)) return;
   if(!force && memeMonde(monde, m) && !mondeSale) return;
   monde = fusionneMonde(monde, m);
+  majRenomsCourants();
   monde.v = (monde.v || 0) + 1;
   mondeSale = false;
   mondeT = 0;

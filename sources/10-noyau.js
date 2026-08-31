@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.45";
+var VERSION = "v1.46";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -7445,7 +7445,7 @@ function statsJournaux(journaux, aujourdhui, exclus){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
-            qv:"", qn:0, hc:"", rq:"",
+            qv:"", qn:0, hc:"", rq:"", rn:"",
             ep:"", epn:0,
             /* les badges partent vides comme le reste : ils se
                remplissent tout seuls au premier podium lu */
@@ -7766,10 +7766,91 @@ function fusionneScores(a, b){
   }
   return encodeScores(x);
 }
-/* Le nom courant de chaque seau : celui de sa plus grosse
-   contribution. Un appareil qui a changé de pseudo garde donc une
-   étiquette stable, et non celle de sa dernière escarmouche. */
-function nomsDesSeaux(tab){
+/* ════════════════════════════════════════════════════════════════
+   LE REGISTRE DES PSEUDOS : UN APPAREIL DIT SON PROPRE NOM
+
+   « J'ai mis Ced pour tester, et maintenant mon score de la map est
+   passé sous Ced. Quand je me remets sur Lu, ça ne s'efface pas.
+   C'est chiant que ce ne soit plus mon nom mais un nom inventé. »
+
+   MESURÉ, EN REJOUANT SA SÉQUENCE. L'étiquette d'un appareil est celle
+   de sa PLUS GROSSE contribution, et republier le même total sous un
+   autre nom ne la change pas : à dégâts égaux, la fusion tranche par
+   ordre alphabétique, et « Ced » passe avant « Lu ». Il suffit de
+   rejouer dix-huit points de dégâts pour que le nom se corrige — mais
+   sur une carte TOMBÉE on ne rejoue plus jamais, et le nom d'emprunt
+   y reste gravé pour toujours.
+
+   D'OÙ CE REGISTRE, ET POURQUOI IL PORTE UN NUMÉRO. L'instantané est
+   partagé et fusionné dans tous les sens : une règle « le dernier
+   gagne » ne veut rien dire sans horloge commune. Chaque appareil
+   compte donc SES propres renommages, et la fusion garde le numéro le
+   plus haut. C'est monotone, commutatif, et ça donne au seul appareil
+   qui sait de qui il s'agit — le sien — le dernier mot sur son nom.
+
+   IL S'APPELLE `rn` ET NON `nm`, ET CE N'EST PAS UN CAPRICE. La carte
+   des nuits porte la voie « n » ; `voiePosee` écrit ses champs en
+   préfixant cette lettre, et son minimum de joueurs s'appelle donc
+   déjà `nm`. Nommé `nm`, le registre l'écrasait en silence — le
+   nombre de joueurs requis pour ouvrir les nuits devenait une chaîne
+   de pseudos. Trouvé parce qu'un monde neuf rendait `nm = 9` au lieu
+   de la chaîne vide attendue.
+
+   Format : « seau:nom:numéro|seau:nom:numéro ». Un registre absent ou
+   vide se relit comme vide : les instantanés d'avant ce jour passent
+   sans rien perdre, et l'ancienne règle reprend la main pour les
+   appareils qui n'y figurent pas encore.
+   ════════════════════════════════════════════════════════════════ */
+function encodeRenoms(tab){
+  var l = [], k;
+  for(k in tab){
+    var e = tab[k];
+    if(!e || !e.n) continue;
+    var seau = nettoieSeau(k);
+    if(!seau) continue;
+    l.push(seau + ":" + nettoieNomScore(e.n) + ":" + Math.max(0, e.g | 0));
+  }
+  l.sort();
+  return l.join("|");
+}
+function decodeRenoms(s){
+  var out = {};
+  if(typeof s !== "string" || !s) return out;
+  var l = s.split("|");
+  for(var i = 0; i < l.length; i++){
+    var p = l[i].split(":");
+    if(p.length < 3) continue;
+    var seau = nettoieSeau(p[0]), nom = nettoieNomScore(p[1]), g = p[2] | 0;
+    if(!seau || !nom) continue;
+    var v = out[seau];
+    if(!v || g > v.g || (g === v.g && nom < v.n)) out[seau] = { n:nom, g:g };
+  }
+  return out;
+}
+/* Le numéro le plus haut gagne ; à égalité, le nom le plus petit, pour
+   que deux clients tranchent pareil. */
+function fusionneRenoms(a, b){
+  var x = decodeRenoms(a), y = decodeRenoms(b), k;
+  for(k in y){
+    var e = y[k], v = x[k];
+    if(!v || e.g > v.g || (e.g === v.g && e.n < v.n)) x[k] = { n:e.n, g:e.g };
+  }
+  return encodeRenoms(x);
+}
+
+/* Le nom courant de chaque seau. Le REGISTRE tranche quand il connaît
+   l'appareil — c'est son propriétaire qui l'a écrit, il sait mieux que
+   nous. Sinon on retombe sur l'ancienne règle : le nom de sa plus
+   grosse contribution, qui reste une étiquette stable et non celle de
+   sa dernière escarmouche. */
+/* LE REGISTRE COURANT, tenu par la couche réseau à chaque fusion.
+   Le passer en argument à chaque appel aurait voulu dire le faire
+   traverser huit fonctions et deux fichiers pour une donnée qui est,
+   comme l'instantané lui-même, unique et globale. Il reste passable
+   explicitement — les tests s'en servent — et vaut vide par défaut,
+   de sorte que le noyau évalué seul se comporte comme avant. */
+var RENOMS_COURANTS = "";
+function nomsDesSeaux(tab, renoms){
   var meilleur = {}, k;
   for(k in tab){
     var seau = String(k).split(":")[0], e = tab[k];
@@ -7779,6 +7860,10 @@ function nomsDesSeaux(tab){
   }
   var out = {};
   for(k in meilleur) out[k] = meilleur[k].n;
+  var R = decodeRenoms(renoms === undefined ? RENOMS_COURANTS
+                     : (typeof renoms === "string" ? renoms : ""));
+  if(renoms && typeof renoms === "object") R = renoms;
+  if(R) for(k in R) if(R[k] && R[k].n) out[k] = R[k].n;
   return out;
 }
 /* Le total de chaque joueur : la somme de tous les seaux qui portent
@@ -7813,10 +7898,10 @@ function nomsDesSeaux(tab){
    être une règle de LECTURE — une fonction pure du tableau, que tous
    les clients appliquent pareil, et qui converge sans rien effacer.
    ================================================================ */
-function seauxHerites(tab){
+function seauxHerites(tab, renoms){
   /* Quels seaux hérités sont recouverts, et sur quelles cartes. Rendu
      sous forme d'ensemble de clés « seau:carte » à ignorer. */
-  var noms = nomsDesSeaux(tab), couvert = {}, mort = {}, k, p;
+  var noms = nomsDesSeaux(tab, renoms), couvert = {}, mort = {}, k, p;
   for(k in tab){
     p = String(k).split(":");
     var n = noms[p[0]];
@@ -7831,8 +7916,8 @@ function seauxHerites(tab){
   }
   return mort;
 }
-function totalParJoueur(tab){
-  var noms = nomsDesSeaux(tab), mort = seauxHerites(tab), out = {}, k;
+function totalParJoueur(tab, renoms){
+  var noms = nomsDesSeaux(tab, renoms), mort = seauxHerites(tab, renoms), out = {}, k;
   for(k in tab){
     if(mort[k]) continue;
     var seau = String(k).split(":")[0];
@@ -7845,8 +7930,8 @@ function totalParJoueur(tab){
 /* Les dégâts d'une BATAILLE. Les entrées du tout premier format
    (carte -1) n'y figurent pas : elles ne savent pas de quelle île
    elles viennent, et l'inventer serait mentir. */
-function totalParJoueurCarte(tab, carte){
-  var noms = nomsDesSeaux(tab), mort = seauxHerites(tab), out = {}, k;
+function totalParJoueurCarte(tab, carte, renoms){
+  var noms = nomsDesSeaux(tab, renoms), mort = seauxHerites(tab, renoms), out = {}, k;
   for(k in tab){
     if(mort[k]) continue;                     // même règle de repli qu'au total
     var p = String(k).split(":");
@@ -8806,6 +8891,7 @@ function fusionneEvenements(a, b){
                      compteur de millions franchis ne redescend jamais :
                      le maximum suffit. */
                   rq:fusionneReliques(a && a.rq, b && b.rq),
+                  rn:fusionneRenoms(a && a.rn, b && b.rn),
                   bo:rg.bo, bon:rg.bon };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
@@ -8824,6 +8910,7 @@ function poseEvenements(o, E){
   o.bo = E.bo || ""; o.bon = E.bon | 0;
   o.hc = E.hc || "";
   o.rq = E.rq || "";
+  o.rn = E.rn || "";
   return o;
 }
 /* Les deux noms d'origine, gardés : la jungle est UN événement, et
@@ -8947,7 +9034,8 @@ function memeEvenements(m, E){
         compteur monterait sur l'appareil qui l'a vu franchir le
         million, l'instantané ne serait pas « sale », et personne
         d'autre ne la verrait. */
-     (m.rq || "") !== (E.rq || "")) return false;
+     (m.rq || "") !== (E.rq || "") ||
+     (m.rn || "") !== (E.rn || "")) return false;
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;

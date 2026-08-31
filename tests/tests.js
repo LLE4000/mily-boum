@@ -59,6 +59,7 @@ try{
     "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
     "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
     "HEROS","estHeros","serreSelonEffectif","PORTEE_COURTE_MAX",
+    "encodeRenoms","decodeRenoms","fusionneRenoms",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -10985,7 +10986,7 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /rq:fusionneReliques\(a && a\.rq, b && b\.rq\)/.test(html)
      && /o\.rq = E\.rq \|\| "";/.test(html));
   ok("… et un compteur qui monte rend l'instantané « sale »",
-     /\(m\.rq \|\| ""\) !== \(E\.rq \|\| ""\)\) return false;/.test(html));
+     /\(m\.rq \|\| ""\) !== \(E\.rq \|\| ""\) \|\|/.test(html));
   ok("… et la publication les emporte",
      /hc:m\.hc \|\| "", rq:m\.rq \|\| ""/.test(html));
   /* LA GARDE DE LA CLÔTURE : plier deux fois DOUBLERAIT les reliques
@@ -11796,6 +11797,153 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /vise = jeu\.qg; surQG = 1;/.test(html));
   ok("… et une balise au sol reste un simple point de ralliement",
      /jeu\.balise = \{ gx:gx, gy:gy, reste:CAP\.balise\.duree/.test(html));
+})();
+
+/* ================================================================
+   57. JE ME RENOMME, ET MON SCORE ME SUIT
+
+   « J'ai mis Ced pour tester. Maintenant mon score de la map est passé
+   sous Ced, et quand je me remets sur Lu, ça ne s'efface pas : c'est
+   toujours Ced. C'est chiant que ce ne soit plus mon nom mais un nom
+   inventé. »
+
+   MESURÉ EN REJOUANT SA SÉQUENCE, avant de toucher à quoi que ce soit.
+   L'étiquette d'un appareil est celle de sa PLUS GROSSE contribution,
+   et republier le même total sous un autre nom ne la change pas : à
+   dégâts égaux la fusion tranche au nom le plus petit, et « Ced »
+   passe avant « Lu ». Dix-huit points de dégâts de plus suffisent à
+   corriger — mais sur une carte TOMBÉE on ne rejoue plus jamais, et
+   le nom d'emprunt y reste gravé pour toujours.
+
+   LE REGISTRE, ET POURQUOI IL PORTE UN NUMÉRO. L'instantané se fusionne
+   dans tous les sens, sans horloge commune : « le dernier gagne » n'y
+   veut rien dire. Chaque appareil compte donc SES renommages, et la
+   fusion garde le numéro le plus haut — monotone, commutatif, et le
+   dernier mot sur un nom revient au seul qui sache de qui il s'agit.
+
+   ON NE TOUCHE PAS UN SEUL CHIFFRE DE DÉGÂTS : le registre ne dit que
+   des étiquettes. Les scores, les carrières et les podiums gelés
+   traversent sans bouger.
+   ================================================================ */
+(function(){
+  G("57. Je me renomme, et mon score me suit");
+
+  /* ---- ① LE DÉFAUT, TEL QU'IL L'A VÉCU ---- */
+  var s = N.fusionneScores("", N.encodeScores({ "abcd:9":{ n:"Lu", g:700000 } }));
+  s = N.fusionneScores(s, N.encodeScores({ "abcd:9":{ n:"Ced", g:837182 } }));
+  ok("jouer sous un autre pseudo lui donne le score",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, "").Ced === 837182);
+  /* republier le MÊME total sous l'ancien nom ne suffit pas : à dégâts
+     égaux la fusion garde le nom le plus petit */
+  var s2 = N.fusionneScores(s, N.encodeScores({ "abcd:9":{ n:"Lu", g:837182 } }));
+  ok("… et revenir à son nom sans rejouer ne le reprend pas",
+     N.totalParJoueurCarte(N.decodeScores(s2), 9, "").Ced === 837182);
+  /* alors qu'un seul point de dégât de plus le corrigeait */
+  var s3 = N.fusionneScores(s, N.encodeScores({ "abcd:9":{ n:"Lu", g:837183 } }));
+  ok("… là où un seul dégât de plus l'aurait corrigé",
+     N.totalParJoueurCarte(N.decodeScores(s3), 9, "").Lu === 837183);
+
+  /* ---- ② LE REGISTRE LE REPREND, SANS REJOUER ---- */
+  var r = N.fusionneRenoms("", N.encodeRenoms({ abcd:{ n:"Lu", g:1 } }));
+  ok("le registre reprend l'étiquette sans un dégât de plus",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, r).Lu === 837182);
+  ok("… et « Ced » ne subsiste nulle part",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, r).Ced === undefined);
+  ok("… le total de carrière suit la même étiquette",
+     N.totalParJoueur(N.decodeScores(s), r).Lu === 837182);
+  /* ET LE CHIFFRE N'A PAS BOUGÉ D'UN POINT : c'est une étiquette qu'on
+     corrige, pas un score. */
+  ok("… sans qu'un seul dégât ait changé",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, r).Lu
+       === N.totalParJoueurCarte(N.decodeScores(s), 9, "").Ced);
+
+  /* ---- ③ LE NUMÉRO TRANCHE, ET DANS LES DEUX SENS ---- */
+  var r1 = N.encodeRenoms({ abcd:{ n:"Lu",  g:1 } });
+  var r2 = N.encodeRenoms({ abcd:{ n:"Ced", g:2 } });
+  ok("le numéro le plus haut gagne",
+     N.decodeRenoms(N.fusionneRenoms(r1, r2)).abcd.n === "Ced");
+  /* LA FUSION EST COMMUTATIVE, et il le faut : deux clients qui se
+     rencontrent dans l'ordre inverse doivent trancher pareil. */
+  ok("… quel que soit l'ordre de la rencontre",
+     N.fusionneRenoms(r1, r2) === N.fusionneRenoms(r2, r1));
+  ok("… et elle est idempotente",
+     N.fusionneRenoms(r2, r2) === r2);
+  /* À ÉGALITÉ DE NUMÉRO, le nom le plus petit — n'importe quelle règle
+     ferait l'affaire pourvu que les deux clients l'appliquent. */
+  ok("… à égalité, le nom le plus petit",
+     N.decodeRenoms(N.fusionneRenoms(
+       N.encodeRenoms({ abcd:{ n:"Zoe", g:3 } }),
+       N.encodeRenoms({ abcd:{ n:"Ana", g:3 } }))).abcd.n === "Ana");
+
+  /* ---- ④ IL NE CASSE RIEN DE CE QUI EXISTE ---- */
+  ok("un registre vide laisse l'ancienne règle décider",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, "").Ced === 837182);
+  ok("… un registre illisible aussi",
+     N.totalParJoueurCarte(N.decodeScores(s), 9, "n'importe quoi").Ced === 837182);
+  ok("… et il ne parle que des seaux qu'il connaît",
+     N.decodeRenoms("efgh:Max:4").abcd === undefined);
+  /* UN MONDE NEUF LE PORTE VIDE, et les instantanés d'avant ce jour se
+     relisent sans rien perdre. */
+  ok("un monde neuf porte un registre vide", N.mondeVide(0, 1, 0).rn === "");
+  /* ════════════════════════════════════════════════════════════
+     ET AUCUN CHAMP DE L'INSTANTANÉ N'EN ÉCRASE UN AUTRE
+
+     Le registre s'est d'abord appelé `nm` — et la carte des nuits
+     porte la voie « n », dont `voiePosee` écrit le minimum de joueurs
+     sous ce nom exact. Le registre l'écrasait en silence : le nombre
+     de joueurs requis pour ouvrir les nuits devenait une chaîne de
+     pseudos. Trouvé parce qu'un monde neuf rendait 9 au lieu de la
+     chaîne vide attendue.
+
+     On vérifie donc la règle plutôt que ce cas-là : les champs des
+     voies et ceux du tronc commun ne doivent JAMAIS se rencontrer.
+     Le prochain champ ajouté se heurtera à ce test, pas à une partie
+     en cours. */
+  (function(){
+    var vierge = N.mondeVide(0, 1, 0);
+    var suffixes = ["e","f","d","q","t","m","mn","b","bl"];
+    var vus = {}, choc = "";
+    for(var i = 0; i < N.CARTES.length; i++){
+      var V = N.CARTES[i] && N.CARTES[i].voie;
+      if(!V) continue;
+      for(var j = 0; j < suffixes.length; j++){
+        var cle = V + suffixes[j];
+        if(vus[cle]) choc = cle;
+        vus[cle] = 1;
+      }
+    }
+    ok("les voies d'événement ne se marchent pas dessus", !choc, choc);
+    /* et le champ du registre n'est celui d'aucune voie */
+    ok("… et le registre des pseudos n'est le champ d'aucune voie",
+       !vus.rn, "rn est déjà pris par une voie");
+    /* le minimum de joueurs des nuits est bien un NOMBRE, pas une
+       chaîne : c'est la trace directe du défaut qu'on a corrigé */
+    var nuits = "";
+    for(i = 0; i < N.CARTES.length; i++)
+      if(N.CARTES[i] && N.CARTES[i].voie === "n") nuits = "n";
+    if(nuits) ok("… et le minimum de joueurs des nuits est resté un nombre",
+                 typeof vierge.nm === "number" && vierge.nm > 0, vierge.nm);
+  })();
+  ok("… il voyage avec le reste de l'instantané",
+     /rn:fusionneRenoms\(a && a\.rn, b && b\.rn\)/.test(html)
+     && /o\.rn = E\.rn \|\| "";/.test(html)
+     && /rn:m\.rn \|\| ""/.test(html));
+  ok("… et un changement de registre rend l'instantané « sale »",
+     /\(m\.rn \|\| ""\) !== \(E\.rn \|\| ""\)\) return false;/.test(html));
+
+  /* ---- ⑤ CÔTÉ CLIENT : C'EST L'APPAREIL QUI COMPTE SES RENOMMAGES ---- */
+  /* Le premier démarrage n'est pas un renommage : sans cette garde,
+     tout le monde partirait à un et le registre n'aurait plus d'ordre. */
+  ok("le premier démarrage ne compte pas pour un renommage",
+     /if\(monNomPose !== null\) monRangNom\+\+;/.test(html));
+  ok("… et un même pseudo reposé ne compte pas non plus",
+     /if\(!nom \|\| nom === monNomPose\) return;/.test(html));
+  ok("… le compteur survit à la fermeture de l'onglet",
+     /localStorage\.setItem\(CLE_RANG_NOM/.test(html)
+     && /localStorage\.getItem\(CLE_RANG_NOM\)/.test(html));
+  ok("… et mon nom part avec mes dégâts",
+     /var rn = fusionneRenoms\(monde\.rn, majRenomsCourants\(\)\);/.test(html)
+     && /monde\.rn = rn;/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

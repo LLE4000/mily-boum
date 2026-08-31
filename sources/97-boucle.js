@@ -43,6 +43,10 @@ function demarre(){
   rafraichitPlan();
 
   monNom = pseudoSaisi();
+  /* le registre des pseudos doit connaître le nom de départ AVANT
+     la première publication, sans quoi le premier démarrage
+     compterait pour un renommage. */
+  if(typeof litMonRangNom === "function"){ litMonRangNom(); noteMonPseudo(monNom); }
   connecteRelais($("relais").value);
   majEtatReseau();
   /* Est-ce bien la dernière version ? Le navigateur garde volontiers
