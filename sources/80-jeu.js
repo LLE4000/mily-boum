@@ -601,7 +601,9 @@ function construitGrilles(){
     dqy = (jeu.qg.gy + j | 0) + 0.5 - jeu.qg.gy;
     if(dqx * dqx + dqy * dqy > rq2) continue;
     var x = (jeu.qg.gx + i) | 0, y = (jeu.qg.gy + j) | 0;
-    if(x >= 0 && x < GW && y >= 0 && y < GH) occ[y * GW + x] = 2;
+    /* le Brasier compte comme un corps de plus, il n'écrase plus la
+       case : une défense posée sous sa jupe garde la sienne */
+    if(x >= 0 && x < GW && y >= 0 && y < GH && occ[y * GW + x] < 250) occ[y * GW + x]++;
   }
   /* index spatial */
   GBW = Math.ceil(GW / GB); GBH = Math.ceil(GH / GB);
@@ -618,12 +620,81 @@ function construitGrilles(){
    qu'ils ne connaissent pas. On ne les recalcule pas tout de suite —
    ils se refont à la demande — mais on marque qu'ils ont vieilli. */
 var GEN_CHEMIN = 0;
+/* ════════════════════════════════════════════════════════════════
+   L'EMPRISE EST UN DISQUE, ET C'ÉTAIT UN CARRÉ TROP GRAND
+
+   « Une défense est visuellement implantée sur une case carrée, mais
+   il ne faut pas considérer toute cette case comme absolument
+   infranchissable. Une troupe doit pouvoir raser une défense et
+   passer presque en file indienne sur son côté. »
+
+   CE QUI SE PASSAIT, MESURÉ SUR LES TÉNÈBRES. La boucle balayait de
+   floor(gx − e/2) à ceil(gx + e/2) − 1. Sur un bâtiment dont le
+   centre tombe sur un entier — c'est le cas de presque tous — une
+   emprise de trois cases murait QUATRE cases de côté, soit SEIZE
+   cases pour un objet dont le rayon solide vaut 1,26. Il y a
+   six cent soixante-six bâtiments d'emprise trois sur cette île.
+
+   Résultat : 14 239 cases murées sur 20 672, SOIXANTE-NEUF POUR CENT
+   DE LA CARTE. Et le vide restant n'était pas d'un seul tenant — il
+   était brisé en poches sans communication : depuis une balise posée
+   au milieu de l'île, 545 cases seulement étaient atteignables sur
+   6 433 libres, et le point de débarquement n'en faisait pas partie.
+
+   IL N'Y AVAIT DONC PAS DE DÉTOUR : IL N'Y AVAIT PAS DE CHEMIN. Tout
+   ce que le joueur voit — les troupes qui s'écartent, qui piétinent,
+   qui repartent de travers — n'était que le comportement de repli
+   d'un pathfinding à qui l'on demandait l'impossible.
+
+   LE DISQUE, ET SON RAYON N'EST PAS INVENTÉ. `e × 0,42` est le rayon
+   solide que TOUT LE RESTE du jeu emploie déjà : c'est à cette
+   distance que les troupes s'arrêtent pour tirer (voir rayonCible),
+   c'est lui qui borne le cratère et le souffle. La grille de marche
+   disait autre chose que le reste du programme ; elle dit maintenant
+   la même chose. Les coins se libèrent — c'est-à-dire exactement les
+   diagonales par lesquelles on passe — et le côté d'une défense
+   redevient franchissable.
+
+   C'EST LA MÊME CORRECTION QUE CELLE DÉJÀ FAITE POUR LE BRASIER,
+   trente lignes plus haut, et pour la même raison écrite noir sur
+   blanc : « les coins du carré débordaient de deux cases et demie
+   au-delà de sa vraie emprise ». Elle n'avait jamais été appliquée
+   aux mille deux cents défenses.
+
+   ON COMPTE AU LIEU DE MARQUER. Deux disques peuvent se recouvrir ;
+   avec un drapeau, la chute de l'un rouvrait les cases de l'autre et
+   les troupes traversaient un bâtiment debout. La case porte donc le
+   NOMBRE de corps qui l'occupent, et zéro veut toujours dire libre.
+   ════════════════════════════════════════════════════════════════ */
+var EMPRISE_SOLIDE = 0.42;          // le même rayon que rayonCible
 function marqueEmprise(b, v){
   GEN_CHEMIN++;
-  var r = b.e / 2;
-  for(var i = Math.floor(b.gx - r); i <= Math.ceil(b.gx + r) - 1; i++){
-    for(var j = Math.floor(b.gy - r); j <= Math.ceil(b.gy + r) - 1; j++){
-      if(i >= 0 && i < GW && j >= 0 && j < GH) occ[j * GW + i] = v;
+  var r = b.e * EMPRISE_SOLIDE, r2 = r * r;
+  var i0 = Math.floor(b.gx - r), i1 = Math.ceil(b.gx + r);
+  var j0 = Math.floor(b.gy - r), j1 = Math.ceil(b.gy + r);
+  var pose = 0;
+  for(var i = i0; i <= i1; i++){
+    for(var j = j0; j <= j1; j++){
+      if(i < 0 || i >= GW || j < 0 || j >= GH) continue;
+      var dx = i + 0.5 - b.gx, dy = j + 0.5 - b.gy;
+      if(dx * dx + dy * dy > r2) continue;
+      var c = j * GW + i;
+      if(v > 0){ if(occ[c] < 250) occ[c]++; }
+      else if(occ[c] > 0) occ[c]--;
+      pose++;
+    }
+  }
+  /* UNE EMPRISE NE PEUT PAS ÊTRE VIDE. Une cellule énergétique
+     d'emprise un a un rayon de 0,42 : si son centre tombe pile sur un
+     coin de case, aucun centre de case n'est dans le disque et le
+     bâtiment ne bloquerait rien — on marcherait au travers. On mure
+     alors sa case, et une seule. */
+  if(!pose){
+    var ci = b.gx | 0, cj = b.gy | 0;
+    if(ci >= 0 && ci < GW && cj >= 0 && cj < GH){
+      var cc = cj * GW + ci;
+      if(v > 0){ if(occ[cc] < 250) occ[cc]++; }
+      else if(occ[cc] > 0) occ[cc]--;
     }
   }
 }
@@ -844,7 +915,13 @@ function separeUnites(dt){
   var rayonMax = 0;
   for(i = 0; i < n; i++){
     var u = lst[i];
-    sepX[i] = u.gx; sepY[i] = u.gy; sepR[i] = UNI[u.t].rayon;
+    /* ALLIÉE GÊNANTE, JAMAIS ALLIÉE-MUR. « Je préfère largement un
+       léger chevauchement visuel à un tank qui reste bloqué derrière
+       un autre tank. » Une unité qui n'avance plus depuis une seconde
+       rentre donc son rayon : ses voisines la traversent presque, le
+       bouchon se défait, et elle le retrouve dès qu'elle repart. */
+    sepX[i] = u.gx; sepY[i] = u.gy;
+    sepR[i] = UNI[u.t].rayon * ((u.figeT || 0) > FIGE_MOU ? FIGE_SEP : 1);
     if(sepR[i] > rayonMax) rayonMax = sepR[i];
     sepPx[i] = 0; sepPy[i] = 0;
     var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
@@ -899,12 +976,16 @@ function separeUnites(dt){
     }
   }
 
-  /* application, plafonnée pour rester stable quel que soit dt */
-  var vmax = EQ.SEPARATION_VITESSE * dt;
+  /* application, plafonnée pour rester stable quel que soit dt — et
+     JAMAIS au-dessus de la vitesse propre de l'unité : une troupe que
+     ses voisines déplacent plus vite qu'elle ne marche n'avance plus,
+     elle est ballottée. */
   for(i = 0; i < n; i++){
     var px = sepPx[i], py = sepPy[i];
     var l = Math.hypot(px, py);
     if(l < 1e-5) continue;
+    var vmax = Math.min(EQ.SEPARATION_VITESSE,
+                        UNI[lst[i].t].vitesse * EQ.SEPARATION_PART_VIT) * dt;
     var g = glisseAutourDeSaCible(lst[i], px, py);
     px = g.x; py = g.y;
     l = Math.hypot(px, py);
@@ -1203,6 +1284,15 @@ function creeUnite(type, gx, gy){
        bonne moitié du groupe abandonnait la Balise en chemin pour
        tirer sur ce qui passait. */
     baliseSeuil:7.0 + Math.random() * 4.0,
+    /* LE DÉTECTEUR D'ENLISEMENT, COMMUN À TOUTES LES BRANCHES.
+       `figeX/figeY` est le témoin de position, `figeT` le temps écoulé
+       depuis qu'elle s'en est éloignée d'un demi-pas. Il ne mesure PAS
+       « est-ce que je me rapproche du but » — une troupe qui contourne
+       un bâtiment ne s'en rapproche pas pendant tout le contournement,
+       et c'est exactement ce qui faisait renoncer tout le monde. Il
+       mesure « est-ce que je bouge », ce qui est la seule question à
+       laquelle un blocage réponde non. */
+    figeX:gx, figeY:gy, figeT:0,
     pousse:{ x:0, y:0 },
     /* LES CINQ CHAMPS DU CHAR. Ils ne coûtent rien aux autres troupes
        — cinq nombres par unité — et les avoir ici plutôt que créés à
@@ -1551,7 +1641,7 @@ function abimeBatiment(b, d){
   b.pv -= d;
   if(b.pv <= 0){
     b.vivant = 0;
-    marqueEmprise(b, 0);
+    marqueEmprise(b, -1);          // on RETIRE un corps, on ne vide pas la case
     /* une fusée posée sur ce bâtiment cesse d'agir dès qu'il tombe */
     if(jeu.balise && jeu.balise.cible === b){
       jeu.balise = null;
@@ -2084,6 +2174,32 @@ function chercheCompagnon(u){
    dégagement vers l'arrière pour sortir d'un cul-de-sac. */
 var CAPS_EVITEMENT = [0.55, 1.05, 1.57, 2.10, 2.60];
 
+/* ════════════════════════════════════════════════════════════════
+   L'ENLISEMENT : TROIS SEUILS, ET RIEN N'EST DÉFINITIF
+
+   « Une troupe ne doit jamais rester vingt secondes immobile
+   simplement parce que deux alliés se touchent. »
+
+   FIGE_PAS   ce qu'il faut parcourir pour dire qu'on avance. Un demi-
+              pas : en dessous, une troupe qui piétine contre un mur
+              passerait pour une troupe qui marche.
+   FIGE_MOU   au bout d'une seconde sans avancer, on RELÂCHE LA
+              SÉPARATION : l'unité accepte de chevaucher ses voisines.
+              C'est le premier recours, et c'est presque toujours le
+              seul qui serve — un bouchon entre alliés se défait tout
+              seul dès qu'ils s'autorisent à se traverser un peu.
+   FIGE_LATER au bout de deux secondes, on ajoute un pas DE CÔTÉ :
+              contre un angle, il n'existe parfois aucun cap avant qui
+              passe, et il faut reculer de biais pour se dégager.
+
+   Le renoncement, lui, n'arrive qu'après sept secondes au moins — et
+   il ne concerne que la balise. Voir le garde-fou de majUnites.
+   ════════════════════════════════════════════════════════════════ */
+var FIGE_PAS   = 0.5;
+var FIGE_MOU   = 1.0;
+var FIGE_LATER = 2.0;
+var FIGE_SEP   = 0.42;              // ce qui reste du rayon quand ça coince
+
 function deplace(u, dx, dy, pas){
   var l = Math.hypot(dx, dy);
   if(l < 1e-6) return;
@@ -2128,7 +2244,37 @@ function deplace(u, dx, dy, pas){
       }
     }
   }
-  /* murée de partout : elle ne bouge pas cette image-ci */
+  /* ════════════════════════════════════════════════════════════
+     MURÉE DEVANT : ON ESSAIE DE CÔTÉ
+
+     Le balayage ci-dessus ne teste que des caps ÉCARTÉS du cap voulu,
+     jamais un pas franchement latéral ni un pas en arrière. Contre un
+     angle rentrant — deux bâtiments qui se rejoignent — il n'existe
+     aucun cap avant praticable, et la troupe restait immobile jusqu'à
+     ce que quelqu'un la pousse. C'était le blocage définitif.
+
+     On ne tente ce dégagement QUE si elle est vraiment enlisée : une
+     unité momentanément gênée doit continuer d'appuyer vers l'avant,
+     sans quoi tout le groupe se mettrait à louvoyer au moindre
+     contact. */
+  if((u.figeT || 0) < FIGE_LATER) return;
+  var px = -dy, py = dx;                          // la perpendiculaire
+  for(var c2 = 0; c2 < 2; c2++){
+    var sg = c2 ? -u.cote : u.cote;
+    var lx = u.gx + px * sg * pas, ly = u.gy + py * sg * pas;
+    if(!bloque(lx, ly)){
+      u.gx = borne(lx, 0.4, GW - 0.5);
+      u.gy = borne(ly, 0.4, GH - 0.5);
+      return;
+    }
+  }
+  /* et, tout à fait en dernier, un demi-pas en arrière : mieux vaut
+     perdre une demi-case que rester plantée là */
+  var rx = u.gx - dx * pas * 0.5, ry = u.gy - dy * pas * 0.5;
+  if(!bloque(rx, ry)){
+    u.gx = borne(rx, 0.4, GW - 0.5);
+    u.gy = borne(ry, 0.4, GH - 0.5);
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -2158,6 +2304,14 @@ function majUnites(dt){
       toucheUnite(u, brl);
       if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
     }
+    /* L'ENLISEMENT SE MESURE ICI, une fois, avant tout le reste : le
+       déplacement de l'image précédente est déjà inscrit dans gx/gy,
+       quelle que soit la branche qui l'a produit. */
+    var fdx = u.gx - u.figeX, fdy = u.gy - u.figeY;
+    if(fdx * fdx + fdy * fdy > FIGE_PAS * FIGE_PAS){
+      u.figeX = u.gx; u.figeY = u.gy; u.figeT = 0;
+    }else u.figeT += dt;
+
     var vit = UNI[u.t].vitesse;
     if(u.ralenti > 0){
       u.ralenti -= dt;
@@ -2261,9 +2415,30 @@ function majUnites(dt){
         continue;
       }
       if(!bc){
-        /* balise au sol : chacune marche vers SA place, sans tirer */
+        /* ════════════════════════════════════════════════════════
+           UN CAP COMMUN D'ABORD, SA PLACE SEULEMENT À L'ARRIVÉE
+
+           « Lorsqu'il y a cent Furies allant vers la même balise, je
+           ne veux pas que chacune choisisse une trajectoire totalement
+           différente. Elles doivent avoir une direction générale
+           commune ; ensuite les unités se répartissent légèrement
+           autour de cette trajectoire. »
+
+           Chacune visait SA place dans le cercle d'arrivée dès le
+           premier pas — donc cent buts distincts, écartés jusqu'à un
+           rayon de formation les uns des autres, et cet écart-là se
+           payait sur TOUTE la longueur du trajet. Le groupe partait
+           déjà éclaté.
+
+           On vise donc le CENTRE tant qu'on est loin, et sa place
+           seulement dans les dernières longueurs — le fondu se fait
+           sur deux rayons de formation, assez pour que l'éventail
+           s'ouvre sans qu'on voie personne braquer. */
         var rf = rayonFormation();
-        var pvx = balise.gx + u.ancX * rf, pvy = balise.gy + u.ancY * rf;
+        var dCentreAv = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
+        var ouvre = Math.max(0, Math.min(1, (2 * rf - dCentreAv) / rf));
+        var pvx = balise.gx + u.ancX * rf * ouvre;
+        var pvy = balise.gy + u.ancY * rf * ouvre;
         var dxf = pvx - u.gx, dyf = pvy - u.gy;
         var df = Math.hypot(dxf, dyf);
         var dCentre = Math.hypot(balise.gx - u.gx, balise.gy - u.gy);
@@ -2273,22 +2448,32 @@ function majUnites(dt){
            assignée tombe dans l'eau ou dans un mur. */
         var arrivee = (df <= EQ.BALISE_RAYON) ||
                       (dCentre <= rf && (dCentre <= EQ.BALISE_RAYON || bloque(pvx, pvy)));
-        /* Garde-fou contre l'enlisement. deplace() ne sait que longer un
-           obstacle, pas le contourner : une troupe lancée à travers un
-           champ de défenses peut se coller à un mur et ne plus avancer
-           d'un pouce. Sans ce garde-fou elle resterait plantée là les
-           trente secondes de la balise, ce qui est PIRE que le défaut
-           d'origine. On mesure donc son meilleur rapprochement : si elle
-           ne gagne plus rien pendant trois secondes, on considère
-           qu'elle a fait ce qu'elle pouvait et on la libère — elle
-           seule. */
-        if(dCentre < u.baliseMeilleure - 0.05){
-          u.baliseMeilleure = dCentre;
-          u.baliseStagne = 0;
-        }else{
-          u.baliseStagne += dt;
-          if(u.baliseStagne > (u.baliseSeuil || 3.0)) arrivee = true;
-        }
+        /* ════════════════════════════════════════════════════════
+           LE GARDE-FOU NE MESURE PLUS LE BON SIGNAL
+
+           Il lisait « est-ce que je me RAPPROCHE de la balise ? » et
+           libérait l'unité après sept à onze secondes sans gain. Or
+           une troupe qui contourne un pâté de défenses ne se rapproche
+           pas de son but pendant tout le contournement : elle marche
+           en travers, parfois même en s'éloignant, et c'est justement
+           ce qu'on lui demande de faire.
+
+           MESURÉ, SUR LA SCÈNE DE SA PHOTO : cent Furies, une balise à
+           soixante-dix-neuf cases. ZÉRO sur cent arrivaient. Les cent
+           renonçaient, toutes, en une dizaine de secondes — puis
+           partaient chacune sur le bâtiment le plus proche. C'est
+           exactement ce qu'il décrit : « elles s'écartent bizarrement,
+           elles partent à gauche et à droite ». Elles n'allaient pas
+           à la balise : elles avaient abandonné.
+
+           ON MESURE DONC LE MOUVEMENT, pas le rapprochement. Une
+           troupe qui avance fait son travail, où qu'elle aille ; une
+           troupe qui n'avance plus est vraiment coincée. Et l'on ne
+           renonce qu'après avoir ESSAYÉ (voir figeT plus haut et
+           l'assouplissement de la séparation) — le renoncement est le
+           dernier recours, plus le premier réflexe.
+           ════════════════════════════════════════════════════════ */
+        if(u.figeT > (u.baliseSeuil || 7.0)) arrivee = true;
         if(!arrivee){
           /* même règle : on contourne tant qu'on est loin, on vise sa
              place dans le cercle une fois arrivé dessus */

@@ -56,7 +56,8 @@ try{
     "BLINDAGE_MAX","encodeReglagesCarte","decodeReglagesCarte","blindageDans","degatsDans",
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
-    "voieLibre",
+    "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT",
+    "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
     "nomsHorsCarriere","sansHorsCarriere","estHorsCarriere",
@@ -3882,9 +3883,20 @@ G("4. Déterminisme de la génération de carte");
            "préavis ×" + (PN.descente / PF.descente).toFixed(2)
            + " pour un couloir ×" + (PN.rayon / PF.rayon).toFixed(2));
       })();
+      /* ON COMPARE ENFIN DEUX LARGEURS. La promesse est écrite dans le
+         titre — « plus étroit qu'un débarquement » —, et un
+         débarquement est large de son DIAMÈTRE. La ligne mettait en
+         face le diamètre du couloir et le RAYON du groupe : deux fois
+         plus sévère que ce qu'elle annonçait, et elle passait de
+         justesse parce que les deux nombres se trouvaient égaux.
+         Le groupe s'étant resserré à 70 % du brouillard (voir
+         FORMATION_PART_SURFACE), l'égalité est rompue et le défaut de
+         formulation apparaît. Le couloir mesure 3,75 cases, le groupe
+         5,88 : la promesse tient largement, et elle se mesure
+         maintenant sur ce qu'elle dit. */
       ok("le couloir mortel reste plus étroit qu'un débarquement",
-         PN.rayon * 2 <= N.rayonFormation(),
-         (PN.rayon * 2) + " contre " + N.rayonFormation().toFixed(2));
+         PN.rayon * 2 <= N.rayonFormation() * 2,
+         (PN.rayon * 2).toFixed(2) + " contre " + (N.rayonFormation() * 2).toFixed(2));
       ok("elle est plus lente que celle de feu — une masse plus grande",
          PN.vitesse < PF.vitesse, PN.vitesse + " contre " + PF.vitesse);
       ok("et plus rare", PN.periode > PF.periode, PN.periode + " s contre " + PF.periode);
@@ -5076,10 +5088,17 @@ G("8. Cohérence des règles de jeu");
   ok("Brouillard et Cryo ont des diamètres comparables (écart < 15 %)",
      Math.abs(N.CAP.brouillard.rayon - N.CAP.cryo.rayon) / N.CAP.cryo.rayon < 0.15);
 
-  /* formation : le groupe doit couvrir ≈ 80 % du cercle de Brouillard */
+  /* LA FORMATION SE MESURE EN DIAMÈTRE, ET C'EST CE QU'IL A DEMANDÉ.
+     « Si le diamètre du brouillard représente cent pour cent, un gros
+     groupe devrait en occuper soixante-dix au maximum. » La constante
+     porte une part de SURFACE, donc 0,70² = 0,49 — et c'est bien le
+     rapport des DIAMÈTRES qu'on vérifie ici, parce que c'est celui
+     qu'on lui a promis. */
   var rf = N.rayonFormation();
-  ok("rayon de formation = " + rf.toFixed(2) + " cases (80 % de la surface du Brouillard)",
-     Math.abs(Math.PI * rf * rf / (Math.PI * N.CAP.brouillard.rayon * N.CAP.brouillard.rayon) - 0.80) < 0.001);
+  ok("le groupe occupe 70 % du diamètre du Brouillard, comme demandé",
+     Math.abs(rf / N.CAP.brouillard.rayon - 0.70) < 0.005,
+     (100 * rf / N.CAP.brouillard.rayon).toFixed(1) + " %");
+  ok("… soit 49 % de sa surface", Math.abs(N.EQ.FORMATION_PART_SURFACE - 0.49) < 1e-9);
   (function(){
     /* La spirale doit couvrir le disque sans trou ni empilement. */
     var pts = [], i, j;
@@ -9464,8 +9483,11 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
     ok("… le bâtiment est à distance nulle, des deux côtés",
        c2[3 * g2.larg + 3] === 0 && c2[5 * g2.larg + 6] === 0);
     var loin = c2[7 * g2.larg + 9];          // le coin opposé
+    /* LE CHAMP SE LIT EN DIXIÈMES DE CASE depuis que la diagonale
+       coûte 14 et le pas droit 10 : le seuil suit l'échelle, la
+       promesse ne bouge pas. */
     ok("… donc le coin d'en face est proche, pas contourné",
-       loin > 0 && loin < 8, "d = " + loin);
+       loin > 0 && loin < 8 * N.CHEMIN_DROIT, "d = " + (loin / 10).toFixed(1) + " cases");
   }
 
   /* ---- 3. deux défenses qui se touchent par le coin ne laissent
@@ -11033,6 +11055,142 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      && /R\.assaut \+ " %/.test(cpr) && /R\.chance \+ " %/.test(cpr));
   ok("… et elle annonce le vrai nombre de tirages",
      /RELIQUE_TIRAGES_MAX \+ "\./.test(cpr));
+})();
+
+/* ================================================================
+   53. LA MARCHE DES TROUPES — LE CHEMIN EXISTE ENFIN
+
+   « Elles font de grands détours, elles se bloquent, elles occupent
+   beaucoup trop de surface. Un passage ainsi doit être possible ! »
+
+   CE QUI A ÉTÉ TROUVÉ EN MESURANT, ET QUI N'ÉTAIT PAS UN DÉTOUR.
+   Sur les ténèbres, l'emprise carrée murait SOIXANTE-NEUF POUR CENT
+   de la carte — une défense d'emprise trois bloquait quatre cases de
+   côté, soit seize, pour un rayon solide de 1,26. Le vide restant
+   était brisé en poches sans communication : depuis une balise au
+   milieu de l'île, 545 cases atteignables sur 6 433 libres, et le
+   point de débarquement n'en faisait pas partie. Cent Furies lancées
+   vers une balise à soixante-dix-neuf cases : ZÉRO arrivée.
+
+   Tout ce que le joueur voyait — l'écartement, le piétinement, les
+   demi-tours — était le comportement de repli d'un pathfinding à qui
+   l'on demandait l'impossible.
+   ================================================================ */
+(function(){
+  G("53. La marche des troupes");
+
+  /* ---- ① LE CHAMP DIT LA VRAIE DISTANCE ---- */
+  /* La vague comptait un par pas, diagonale comprise : elle rangeait
+     max(|dx|,|dy|) et non la vraie distance. Tous les escaliers se
+     valaient donc, et pasVersLeBut, qui prend la première voisine
+     minimale, trouvait les orthogonales avant les diagonales. */
+  ok("la diagonale coûte plus cher qu'un pas droit",
+     N.CHEMIN_DIAG > N.CHEMIN_DROIT);
+  ok("… dans le rapport de √2 à un pour cent près",
+     Math.abs(N.CHEMIN_DIAG / N.CHEMIN_DROIT - Math.SQRT2) / Math.SQRT2 < 0.011,
+     (N.CHEMIN_DIAG / N.CHEMIN_DROIT).toFixed(3) + " contre " + Math.SQRT2.toFixed(3));
+  /* LES SEAUX DOIVENT POUVOIR RANGER TOUTE LA FENÊTRE VIVANTE : avec
+     une arête maximale de 14, les distances actives à un instant
+     donné couvrent quinze valeurs. Un seau de moins et deux distances
+     différentes se retrouveraient dans le même sac. */
+  ok("… et les seaux de Dial en portent exactement la fenêtre",
+     N.CHEMIN_SEAUX > N.CHEMIN_DIAG, N.CHEMIN_SEAUX + " > " + N.CHEMIN_DIAG);
+
+  (function(){
+    var W = 41, H = 41, occ = new Uint8Array(W * H);
+    var ch = N.champDepuis(occ, W, H, 20, 20);
+    function lu(x, y){ return ch[y * W + x] / N.CHEMIN_DROIT; }
+    var pire = 0, i, j;
+    for(i = 0; i < W; i++) for(j = 0; j < H; j++){
+      var vrai = Math.hypot(i - 20, j - 20);
+      if(vrai < 3) continue;
+      pire = Math.max(pire, Math.abs(lu(i, j) / vrai - 1));
+    }
+    /* 7,6 % est l'erreur maximale connue du chanfrein 10/14, à 22,5° */
+    ok("sur terrain vide, le champ est la distance euclidienne à 8 % près",
+       pire < 0.08, "écart max " + (100 * pire).toFixed(1) + " %");
+    ok("… exactement sur les axes et la diagonale",
+       Math.abs(lu(30, 20) - 10) < 1e-9 && Math.abs(lu(30, 30) - 14) < 1e-9);
+    /* LE PREMIER PAS PART EN BIAIS, et c'est tout le défaut corrigé :
+       il partait plein axe. */
+    var v = N.pasVersLeBut(ch, occ, W, H, 35.5, 25.5);
+    ok("le premier pas d'une pente 3:1 part en DIAGONALE, plus plein axe",
+       (v % W) === 34 && ((v / W) | 0) === 24,
+       "(" + (v % W) + "," + ((v / W) | 0) + ")");
+  })();
+
+  /* ---- ② L'EMPRISE EST UN DISQUE, ET ELLE SE COMPTE ---- */
+  function corps(nom){
+    var d = html.indexOf("function " + nom + "(");
+    return d < 0 ? "" : html.slice(d, html.indexOf("\n}", d) + 2);
+  }
+  var me = corps("marqueEmprise");
+  ok("le corps de marqueEmprise se lit", me.length > 200);
+  ok("l'emprise est un disque, plus un carré plein",
+     /var r = b\.e \* EMPRISE_SOLIDE, r2 = r \* r;/.test(me)
+     && /if\(dx \* dx \+ dy \* dy > r2\) continue;/.test(me));
+  /* LE RAYON N'EST PAS INVENTÉ : c'est celui que tout le reste du jeu
+     emploie déjà pour dire où s'arrête une troupe qui vient tirer. */
+  ok("… et son rayon est celui du reste du jeu",
+     /var EMPRISE_SOLIDE = 0\.42;/.test(html)
+     && /rayonCible = c\.k === "bat" \? c\.o\.e \* 0\.42/.test(html));
+  /* ON COMPTE AU LIEU DE MARQUER : deux disques peuvent se recouvrir,
+     et la chute de l'un rouvrait les cases de l'autre. */
+  ok("la case porte le NOMBRE de corps qui l'occupent",
+     /if\(v > 0\)\{ if\(occ\[c\] < 250\) occ\[c\]\+\+; \}\s*\n?\s*else if\(occ\[c\] > 0\) occ\[c\]--;/.test(me));
+  ok("… et une chute RETIRE un corps au lieu de vider la case",
+     html.indexOf("marqueEmprise(b, 0)") < 0
+     && /marqueEmprise\(b, -1\)/.test(html));
+  /* UNE EMPRISE NE PEUT PAS ÊTRE VIDE : une cellule d'emprise un dont
+     le centre tombe sur un coin de case ne bloquerait rien. */
+  ok("une emprise ne peut jamais être vide", /if\(!pose\)\{/.test(me));
+
+  /* ---- ③ LE GARDE-FOU MESURE LE MOUVEMENT, PLUS LE RAPPROCHEMENT ---- */
+  /* C'est la cause directe du zéro sur cent : une troupe qui contourne
+     un pâté ne se rapproche pas de son but pendant tout le
+     contournement, et se faisait libérer au bout de dix secondes. */
+  var mu = corps("majUnites");
+  ok("l'enlisement se mesure sur le mouvement",
+     /if\(fdx \* fdx \+ fdy \* fdy > FIGE_PAS \* FIGE_PAS\)\{/.test(mu));
+  ok("… et le renoncement à la balise en dépend, plus du rapprochement",
+     /if\(u\.figeT > \(u\.baliseSeuil \|\| 7\.0\)\) arrivee = true;/.test(mu)
+     && mu.indexOf("dCentre < u.baliseMeilleure") < 0);
+
+  /* ---- ④ ALLIÉE GÊNANTE, JAMAIS ALLIÉE-MUR ---- */
+  ok("une unité enlisée rentre son rayon pour se laisser traverser",
+     /sepR\[i\] = UNI\[u\.t\]\.rayon \* \(\(u\.figeT \|\| 0\) > FIGE_MOU \? FIGE_SEP : 1\);/.test(html));
+  ok("… et l'écartement ne court jamais plus vite que la marche",
+     /Math\.min\(EQ\.SEPARATION_VITESSE,\s*\n?\s*UNI\[lst\[i\]\.t\]\.vitesse \* EQ\.SEPARATION_PART_VIT\)/.test(html));
+  ok("… la part retenue laisse la marche gagner",
+     N.EQ.SEPARATION_PART_VIT < 1, "×" + N.EQ.SEPARATION_PART_VIT);
+  /* ET ELLE FINIT TOUJOURS PAR SE DÉGAGER : le balayage de caps ne
+     testait que des directions AVANT ; contre un angle rentrant il
+     n'en existe aucune, et l'unité restait plantée. */
+  var dp = corps("deplace");
+  ok("murée devant, elle tente un pas de côté",
+     /var px = -dy, py = dx;/.test(dp) && /if\(\(u\.figeT \|\| 0\) < FIGE_LATER\) return;/.test(dp));
+  ok("… puis un demi-pas en arrière, en tout dernier",
+     /var rx = u\.gx - dx \* pas \* 0\.5/.test(dp));
+
+  /* ---- ⑤ UN CAP COMMUN D'ABORD, SA PLACE À L'ARRIVÉE ---- */
+  /* Chacune visait SA place dans le cercle dès le premier pas : cent
+     buts distincts, et l'écart se payait sur toute la longueur. */
+  ok("sous balise, on vise le centre tant qu'on est loin",
+     /var ouvre = Math\.max\(0, Math\.min\(1, \(2 \* rf - dCentreAv\) \/ rf\)\);/.test(mu));
+  ok("… et l'éventail ne s'ouvre que dans les deux derniers rayons",
+     /var pvx = balise\.gx \+ u\.ancX \* rf \* ouvre;/.test(mu));
+
+  /* ---- ⑥ CE QUI N'A PAS BOUGÉ ---- */
+  /* La grille de marche ne sert qu'à marcher : elle ne touche ni aux
+     dégâts, ni aux PV, ni aux cartes, ni aux scores. */
+  ok("les dégâts d'une troupe n'ont pas changé de règle",
+     /d \*= jeu\.puissance \* jeu\.multAssaut;/.test(html));
+  ok("les défenses gardent leurs emprises déclarées",
+     N.DEF.crible.emprise === 2 && N.DEF.frelon.emprise === 3
+     && N.DEF.cellule.emprise === 1);
+  ok("… et le rayon de tir sur un bâtiment reste le même",
+     /rayonCible = qgVise \? RAYON_QG : bc\.e \* 0\.42;/.test(html)
+     || /var rc = qgVise \? RAYON_QG : bc\.e \* 0\.42;/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

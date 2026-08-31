@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.34";
+var VERSION = "v1.35";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -418,19 +418,38 @@ var EQ = {
   /* Balise */
   BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
 
-  /* Formation et dispersion des troupes
-     Le groupe doit occuper environ 80 % de la surface d'un Brouillard :
-     un disque de 80 % de surface a un rayon de sqrt(0,8) ≈ 0,894 fois
-     celui du Brouillard. Le reste du calibrage (l'entraxe entre deux
-     soldats) tombe tout seul, cf. ancreFormation() et separeUnites(). */
-  FORMATION_PART_SURFACE: 0.80, // part du cercle de Brouillard occupée
+  /* ════════════════════════════════════════════════════════════
+     LA FORMATION SE MESURE EN DIAMÈTRE, PAS EN SURFACE
+
+     « Les Furies occupent énormément trop de surface : sous un
+     brouillard, le groupe est presque aussi large que le cercle
+     entier. Si le diamètre du brouillard représente cent pour cent,
+     un gros groupe devrait en occuper soixante-dix au maximum. »
+
+     Il demande une part de DIAMÈTRE ; la constante disait une part de
+     SURFACE, et les deux ne se ressemblent pas : 80 % de surface font
+     √0,80 = 89 % du diamètre. Le groupe remplissait donc presque tout
+     le cercle, ce qu'il décrit exactement.
+     Soixante-dix pour cent du diamètre, c'est 0,70² = 49 % de la
+     surface. Le nom de la constante ne change pas — c'est bien une
+     part de surface qu'elle porte — mais son commentaire dit
+     désormais d'où elle vient, pour qu'on ne refasse pas la
+     conversion à l'envers. */
+  FORMATION_PART_SURFACE: 0.49, // 0,70 de DIAMÈTRE, soit 0,70² de surface
   /* Jusqu'où un Doc va chercher un blessé. Au-delà il renonce et se
      recolle à la troupe : un soigneur qui traverse la carte pour un
      éclopé isolé abandonne les vingt autres. */
   DOC_RECHERCHE        : 11.0,
   FORMATION_EFFECTIF    : 128,  // effectif de référence de la spirale
   SEPARATION_MAILLE     : 0.9,  // maille de la grille de répulsion, en cases
-  SEPARATION_VITESSE    : 2.2,  // cases/s : plafond de l'écartement
+  /* L'ÉCARTEMENT NE DOIT JAMAIS COURIR PLUS VITE QUE LA MARCHE. À 2,2
+     il dépassait la Furie elle-même (1,62) : dans un groupe serré, la
+     poussée des voisines l'emportait sur l'avance, et le groupe
+     passait son temps à se réarranger au lieu d'aller quelque part.
+     Le plafond est désormais pris pour chaque unité au plus petit des
+     deux — voir separeUnites. */
+  SEPARATION_VITESSE    : 2.2,  // cases/s : plafond absolu de l'écartement
+  SEPARATION_PART_VIT   : 0.75, // … et jamais plus des trois quarts de SA vitesse
 
   /* Divers */
   PERIODE_CIBLAGE      : 400,   // ms entre deux recherches de cible
@@ -9160,6 +9179,41 @@ function ajouteTitreCarriere(bg, nom){
 var CHEMIN_LOIN = 65535;            // inatteignable
 var CHEMIN_DX = [1, -1, 0, 0,  1,  1, -1, -1];
 var CHEMIN_DY = [0, 0, 1, -1,  1, -1,  1, -1];
+/* ════════════════════════════════════════════════════════════════
+   LA DIAGONALE COÛTE PLUS CHER QU'UN PAS DROIT, ET C'EST TOUT LE
+   DÉFAUT QUI EST CORRIGÉ ICI
+
+   « Elles font de grands détours autour des défenses… la trajectoire
+   doit rester globalement dans le corridor direct. »
+
+   LA VAGUE COMPTAIT UN PAR PAS, DIAGONALE COMPRISE. La distance
+   rangée dans chaque case valait donc max(|dx|, |dy|) — la distance
+   de l'échiquier — et non la vraie. Entre deux points distants de
+   soixante cases à l'est et cinquante au nord, TOUS les chemins de
+   soixante pas se valent exactement : plein est puis plein nord, la
+   diagonale, ou n'importe quel escalier. Le champ n'avait aucune
+   raison de préférer la diagonale, et `pasVersLeBut`, qui prend la
+   première voisine minimale, trouve les orthogonales avant les
+   diagonales dans sa table. La troupe partait donc plein axe.
+
+   ON DONNE DONC SON VRAI PRIX À LA DIAGONALE : dix pour un pas droit,
+   quatorze pour un pas de biais — le rapport 1,4 vaut √2 à un pour
+   cent près, et deux entiers suffisent à ne jamais avoir à trier des
+   flottants. Sur le champ entier, l'écart à la vraie distance
+   euclidienne culmine à 7,6 %, à vingt-deux degrés et demi : c'est
+   l'erreur connue du chanfrein 10/14, et elle est mesurée.
+
+   ET LE TRI NE COÛTE PAS UN TAS. Les arêtes ne valent que deux
+   nombres, donc les distances vivantes à un instant donné tiennent
+   dans une fenêtre de quatorze : quinze seaux circulaires les rangent
+   exactement (l'algorithme de Dial). On garde la complexité linéaire
+   de la vague d'origine, et l'on gagne la vraie distance.
+   ════════════════════════════════════════════════════════════════ */
+var CHEMIN_DROIT = 10;
+var CHEMIN_DIAG  = 14;
+var CHEMIN_SEAUX = 15;              // > le plus gros coût d'arête
+var CHEMIN_COUT = [CHEMIN_DROIT, CHEMIN_DROIT, CHEMIN_DROIT, CHEMIN_DROIT,
+                   CHEMIN_DIAG,  CHEMIN_DIAG,  CHEMIN_DIAG,  CHEMIN_DIAG];
 
 var CHEMIN_EMPRISE = 9;             // cases : la borne de l'inondation du but
 function champDepuis(occ, larg, haut, sx, sy){
@@ -9197,17 +9251,44 @@ function champDepuis(occ, larg, haut, sx, sy){
     }
   }
 
-  while(tete < queue){
-    var c = file[tete++], cd = d[c] + 1;
+  /* LES SEAUX DE DIAL. Le pourtour semé ci-dessus est à distance zéro :
+     il entre donc dans le seau zéro, et la vague part de là. On ne
+     reprend pas la file plate — elle supposait des arêtes égales. */
+  var seau = [], b;
+  for(b = 0; b < CHEMIN_SEAUX; b++) seau.push([]);
+  var reste = 0;
+  for(b = 0; b < queue; b++){ seau[0].push(file[b]); reste++; }
+
+  var cour = 0, garde = 0;
+  while(reste > 0){
+    var sac = seau[cour % CHEMIN_SEAUX];
+    if(!sac.length){
+      cour++;
+      /* garde-fou : une carte de vingt mille cases ne dépasse jamais
+         quelques milliers de coût ; au-delà, c'est qu'on tourne. */
+      if(++garde > 200000) break;
+      continue;
+    }
+    var c = sac.pop(); reste--;
+    /* ENTRÉE PÉRIMÉE. Une case peut être poussée plusieurs fois, avec
+       des coûts décroissants : seule la dernière vaut, les autres
+       sont à jeter. C'est le prix — modeste — de se passer d'un tas. */
+    if(d[c] !== cour) continue;
     var i = c % larg, j = (c / larg) | 0;
     for(var k = 0; k < 8; k++){
       var ni = i + CHEMIN_DX[k], nj = j + CHEMIN_DY[k];
       if(ni < 0 || ni >= larg || nj < 0 || nj >= haut) continue;
       var v = nj * larg + ni;
-      if(occ[v] !== 0 || d[v] !== CHEMIN_LOIN) continue;
+      if(occ[v] !== 0) continue;
+      /* pas de passage en biais entre deux angles : une diagonale
+         n'est ouverte que si les deux orthogonales qui la bordent
+         le sont */
       if(k >= 4 && (occ[j * larg + ni] !== 0 || occ[nj * larg + i] !== 0)) continue;
-      d[v] = cd;
-      file[queue++] = v;
+      var nd = cour + CHEMIN_COUT[k];
+      if(nd >= CHEMIN_LOIN || nd >= d[v]) continue;
+      d[v] = nd;
+      seau[nd % CHEMIN_SEAUX].push(v);
+      reste++;
     }
   }
   return d;

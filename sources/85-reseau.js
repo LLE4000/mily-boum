@@ -850,7 +850,7 @@ function appliqueMondeAuJeu(m){
     b = jeu.batiments[i];
     if(bits[i] && b.vivant){
       b.vivant = 0; b.pv = 0;
-      marqueEmprise(b, 0);
+      marqueEmprise(b, -1);
       change++;
     }
   }
@@ -912,7 +912,7 @@ function appliqueEvenementAuJeu(m, idx){
     b = jeu.batiments[i];
     if(bits[i] && b.vivant){
       b.vivant = 0; b.pv = 0;
-      marqueEmprise(b, 0);
+      marqueEmprise(b, -1);
       change++;
     }
   }
@@ -1932,7 +1932,7 @@ function recoit(txt){
       var b = jeu.batiments[m.n];
       if(b && b.vivant && b.n === m.n){
         b.vivant = 0; b.pv = 0;
-        marqueEmprise(b, 0);
+        marqueEmprise(b, -1);
         jeu.effets.push({ t:"boum", gx:b.gx, gy:b.gy, age:0, duree:0.6, r:b.e * 0.6, force:0.8 });
         if(jeu.balise && jeu.balise.cible === b) jeu.balise = null;
         signaleMonde();
