@@ -12267,6 +12267,73 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        .test(html));
 })();
 
+/* ================================================================
+   61. LA JAUGE DE VIE DES TROUPES DES AUTRES
+
+   « Je vois toutes les troupes des gens et ce n'est pas mal. Est-ce
+     qu'on pourrait en plus voir leur santé, la petite jauge au-dessus
+     de leur tête ? »
+
+   ELLE NE POUVAIT PAS ENTRER DANS LE TROISIÈME CHAMP. Celui-ci porte
+   le type et l'orientation, et le destinataire y lit `code >> 1` borné
+   à la table des troupes : y glisser des bits hauts aurait fait lire à
+   toute version antérieure un indice énorme, donc ramené au dernier —
+   toutes les troupes du salon changées de silhouette d'un coup. C'est
+   le piège exact que ce groupe garde fermé.
+
+   ET ELLE N'EST ÉCRITE QUE SI LA TROUPE EST BLESSÉE. Une unité intacte
+   n'envoie rien, comme le faisait un client d'avant : le message ne
+   grossit pas tant que personne n'a été touché, et « absent » veut dire
+   « intacte » pour les deux cas à la fois — il n'y a rien à distinguer
+   à la lecture. Mesuré : zéro octet de plus au repos, +10 % quand les
+   vingt troupes diffusées sont blessées.
+   ================================================================ */
+(function(){
+  G("61. La jauge de vie des troupes des autres");
+
+  function corps3(nom){
+    var d = html.indexOf("function " + nom + "(");
+    if(d < 0) return "";
+    var f = html.indexOf("\n}", d);
+    return f < 0 ? "" : html.slice(d, f + 2);
+  }
+  /* ---- ① CE QUI PART ---- */
+  ok("la santé est un champ de PLUS, jamais des bits volés au type",
+     /var ligne = \[Math\.round\(u\.gx \* 10\) \/ 10, Math\.round\(u\.gy \* 10\) \/ 10,\s*\n\s*\(it << 1\) \+ \(u\.droite \? 1 : 0\)\];/
+       .test(html)
+     && /if\(e15 < 15\) ligne\.push\(e15\);/.test(html));
+  ok("… le code du type n'a pas bougé d'un bit",
+     /u\.type = TYPES_TROUPE\[borne\(code >> 1, 0, TYPES_TROUPE\.length - 1\)\] \|\| "furie";/.test(html)
+     && /u\.droite = !!\(code & 1\);/.test(html));
+  ok("une troupe intacte n'envoie rien du tout",
+     /if\(e15 < 15\) ligne\.push\(e15\);/.test(html));
+  /* Le dénominateur est pvMax, pas la fiche : une troupe partie avec le
+     bonus de garde d'une relique serait sinon restée à cent pour cent
+     longtemps après avoir été touchée. */
+  ok("la santé se mesure sur pvMax, pas sur la fiche",
+     /var e15 = Math\.round\(\(u\.pv \/ \(u\.pvMax \|\| u\.pv \|\| 1\)\) \* 15\);/.test(html));
+  ok("… et elle est bornée aux quinze crans",
+     /e15 = Math\.max\(0, Math\.min\(15, e15\)\);/.test(html));
+
+  /* ---- ② CE QUI ARRIVE ---- */
+  ok("un quatrième élément absent vaut « intacte »",
+     /u\.fr = \(e\.length > 3\) \? borne\(\(e\[3\] \| 0\) \/ 15, 0, 1\) : 1;/.test(html));
+  ok("… y compris pour une unité qu'on vient de créer",
+     /phase:Math\.random\(\) \* 6, fr:1 \}/.test(html));
+
+  /* ---- ③ CE QUI SE DESSINE ---- */
+  var ug = corps3("dessineUniteGrise");
+  ok("la jauge n'apparaît que sur une troupe blessée, et d'assez près",
+     /if\(o\.fr !== undefined && o\.fr < 0\.999 && z > 0\.2\)/.test(ug));
+  /* Mêmes cotes que les miennes : deux jauges côte à côte doivent se
+     comparer sans réfléchir. */
+  ok("… aux mêmes cotes que la mienne, char compris",
+     /barreVie\(c, p\.x, p\.y - \(o\.type === "tank" \? 60 : 36\) \* z,\s*\n\s*\(o\.type === "tank" \? 28 : 20\) \* z, o\.fr\);/.test(ug)
+     && /barreVie\(c, p\.x, p\.y - \(u\.t === "tank" \? 60 : 36\) \* z, \(u\.t === "tank" \? 28 : 20\) \* z, fr\);/.test(html));
+  ok("… et elle garde ses couleurs, c'est elle l'information",
+     !/barreVie\(c, p\.x, p\.y - \(o\.type === "tank"[\s\S]{0,120}, "#/.test(ug));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");

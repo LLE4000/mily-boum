@@ -1160,6 +1160,16 @@ function dessineUniteGrise(c, o){
   var v = vignette(o.type, o.droite, o.phase);
   if(!v) return;
   c.drawImage(v, p.x - VIG_OX * z, p.y - VIG_OY * z, VIG_W * z, VIG_H * z);
+  /* LA JAUGE DE VIE, AUX MÊMES CONDITIONS QUE LA MIENNE : seulement si
+     la troupe est blessée, et seulement d'assez près. La silhouette est
+     grise parce qu'elle appartient à quelqu'un d'autre ; la jauge, elle,
+     garde ses couleurs — c'est ELLE l'information, et un vert qu'on
+     aurait éteint pour faire joli ne se distinguerait plus du rouge.
+     Même hauteur et même largeur que chez moi, char compris : deux
+     jauges côte à côte doivent se comparer d'un coup d'œil. */
+  if(o.fr !== undefined && o.fr < 0.999 && z > 0.2)
+    barreVie(c, p.x, p.y - (o.type === "tank" ? 60 : 36) * z,
+             (o.type === "tank" ? 28 : 20) * z, o.fr);
 }
 
 /* ---------------------------------------------------------------

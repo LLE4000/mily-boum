@@ -2690,7 +2690,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.50";
+var VERSION = "v1.51";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -40623,6 +40623,16 @@ function dessineUniteGrise(c, o){
   var v = vignette(o.type, o.droite, o.phase);
   if(!v) return;
   c.drawImage(v, p.x - VIG_OX * z, p.y - VIG_OY * z, VIG_W * z, VIG_H * z);
+  /* LA JAUGE DE VIE, AUX MÊMES CONDITIONS QUE LA MIENNE : seulement si
+     la troupe est blessée, et seulement d'assez près. La silhouette est
+     grise parce qu'elle appartient à quelqu'un d'autre ; la jauge, elle,
+     garde ses couleurs — c'est ELLE l'information, et un vert qu'on
+     aurait éteint pour faire joli ne se distinguerait plus du rouge.
+     Même hauteur et même largeur que chez moi, char compris : deux
+     jauges côte à côte doivent se comparer d'un coup d'œil. */
+  if(o.fr !== undefined && o.fr < 0.999 && z > 0.2)
+    barreVie(c, p.x, p.y - (o.type === "tank" ? 60 : 36) * z,
+             (o.type === "tank" ? 28 : 20) * z, o.fr);
 }
 
 /* ---------------------------------------------------------------
@@ -54750,13 +54760,19 @@ function majUnitesDistantes(j, p){
   for(i = 0; i < p.length; i++){
     var e = p[i];
     if(!j.unites[i]){
-      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"furie", droite:true, phase:Math.random() * 6 };
+      j.unites[i] = { gx:e[0], gy:e[1], cx:e[0], cy:e[1], type:"furie", droite:true,
+                      phase:Math.random() * 6, fr:1 };
     }
     var u = j.unites[i];
     u.cx = e[0]; u.cy = e[1];
     var code = e[2] | 0;
     u.type = TYPES_TROUPE[borne(code >> 1, 0, TYPES_TROUPE.length - 1)] || "furie";
     u.droite = !!(code & 1);
+    /* LA SANTÉ, QUAND ELLE EST DITE. Un quatrième élément absent veut
+       dire « intacte » — c'est le cas d'une troupe en pleine forme
+       comme celui d'un client d'une version antérieure, et les deux
+       méritent exactement la même réponse : pas de jauge. */
+    u.fr = (e.length > 3) ? borne((e[3] | 0) / 15, 0, 1) : 1;
   }
   j.unites.length = p.length;
 }
@@ -54857,8 +54873,42 @@ function majReseau(dt){
            enfin. */
         var it = TYPES_TROUPE.indexOf(u.t);
         if(it < 0) it = 0;
-        p.push([Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
-                (it << 1) + (u.droite ? 1 : 0)]);
+        /* ════════════════════════════════════════════════════════════
+           LA SANTÉ, EN QUATRIÈME ÉLÉMENT
+
+           « Est-ce qu'on pourrait voir la santé des troupes des autres,
+             la petite jauge au-dessus de leur tête ? »
+
+           ELLE NE POUVAIT PAS ENTRER DANS LE TROISIÈME. Le code y porte
+           le type et l'orientation, et le destinataire y lit `code >> 1`
+           borné à la table des troupes : y ajouter des bits hauts aurait
+           fait lire à toute version antérieure un indice de type énorme,
+           donc ramené au dernier — toutes les troupes du salon changées
+           de silhouette d'un coup. Un CHAMP DE PLUS, à la fin, est au
+           contraire ignoré sans dommage : c'est le même patron que `sq`,
+           `pu` et `c` avant lui.
+
+           ET IL N'EST ÉCRIT QUE SI LA TROUPE EST BLESSÉE. Une unité
+           intacte n'envoie rien du tout, exactement comme le faisait un
+           client d'avant — d'où deux propriétés d'un coup : le message
+           ne grossit pas tant que personne n'a été touché, et « absent »
+           veut dire « intacte » aussi bien pour une vieille version que
+           pour une troupe en pleine forme. Il n'y a donc rien à
+           distinguer à la lecture.
+           Quinze crans : la jauge fait vingt pixels de large, on n'y
+           verrait pas le seizième.
+           LE DÉNOMINATEUR EST `pvMax`, PAS LA FICHE. Une troupe partie
+           avec le bonus de garde d'une relique a plus de vie que sa
+           fiche n'en annonce : mesurée sur la fiche, elle serait
+           partie à cent pour cent et le serait restée longtemps après
+           avoir été touchée. C'est le même `pvMax` que lit la jauge de
+           mes propres troupes. ═══════════════════════════════════════ */
+        var e15 = Math.round((u.pv / (u.pvMax || u.pv || 1)) * 15);
+        e15 = Math.max(0, Math.min(15, e15));
+        var ligne = [Math.round(u.gx * 10) / 10, Math.round(u.gy * 10) / 10,
+                     (it << 1) + (u.droite ? 1 : 0)];
+        if(e15 < 15) ligne.push(e15);
+        p.push(ligne);
       }
       /* `g` est le TOTAL de l'expéditeur, pas ses dégâts de la partie
          en cours : c'est un total qui ne fait que monter, donc le
