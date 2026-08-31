@@ -2217,10 +2217,11 @@ function dessineZonesSol(c, tps){
     c.restore();
   }
   /* Emprise au sol du Brouillard. Elle dit une chose et une seule :
-     « tout ce qui est dans ce cercle est masqué ». Elle est donc plus
-     franche que le nuage — liseré plein, liseré animé, et des
-     épaisseurs plafonnées en pixels écran pour rester lisible au
-     dézoom, là où la fumée seule devenait invisible.
+     « tout ce qui est dans ce cercle est masqué ». C'est la teinte du
+     sol qui la porte ; les liserés ne sont là que pour en marquer la
+     fin, et ils sont deux fois plus discrets qu'avant — celui-ci
+     s'ajoutait à celui que dessineBrouillard repasse par-dessus la
+     fumée, et les deux ensemble cernaient la zone comme un stade.
      Repère MONDE : ce bloc est peint entre repereMonde et repereEcran,
      les longueurs sont en unités monde et les traits divisés par cam.z. */
   for(i = 0; i < jeu.brouillards.length; i++){
@@ -2235,15 +2236,15 @@ function dessineZonesSol(c, tps){
     gb.addColorStop(1.00, "rgba(142,136,154,0)");
     c.fillStyle = gb;
     c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.fill();
-    c.strokeStyle = "rgba(228,224,238," + (0.66 * ab) + ")";
-    c.lineWidth = Math.max(1.6 / cam.z, 2.6);
+    c.strokeStyle = "rgba(228,224,238," + (0.26 * ab) + ")";
+    c.lineWidth = Math.max(1.1 / cam.z, 1.7);
     c.beginPath(); c.ellipse(pb.x, pb.y, bx, by, 0, 0, 6.2832); c.stroke();
     if(c.setLineDash){
       var pas = Math.max(7 / cam.z, 12);
       c.setLineDash([pas, pas * 0.8]);
       c.lineDashOffset = -tps * pas * 0.9;
-      c.strokeStyle = "rgba(255,255,255," + (0.36 * ab) + ")";
-      c.lineWidth = Math.max(1 / cam.z, 1.6);
+      c.strokeStyle = "rgba(255,255,255," + (0.15 * ab) + ")";
+      c.lineWidth = Math.max(0.8 / cam.z, 1.2);
       c.beginPath(); c.ellipse(pb.x, pb.y, bx * 0.93, by * 0.93, 0, 0, 6.2832); c.stroke();
       c.setLineDash([]);
     }
@@ -2318,48 +2319,68 @@ function dessineZonesSol(c, tps){
   if(jeu.balise){
     var pf = iso(jeu.balise.gx, jeu.balise.gy);
     var rb = rayonFormation() * 0.55;
-    /* LA TAILLE DES POINTS NE SUIT PAS LE ZOOM SANS FREIN. À trois
-       fois et demie, des points calibrés en `cam.z` devenaient trois
-       taches blanches larges comme la balise entière — l'inverse de
-       « petits points lumineux ». On plafonne donc leur échelle : de
-       près ils restent des points, de loin ils restent visibles. */
-    var zz = Math.min(cam.z, 1.6);
+    /* POURQUOI ON NE VOYAIT PLUS RIEN. Ce bloc est peint dans le repère
+       MONDE : une longueur y est multipliée par cam.z avant d'atteindre
+       l'écran. Des points calibrés « fois cam.z » rétrécissaient donc
+       au CARRÉ du dézoom — à 0,4 le point tombait sous le pixel et la
+       balise disparaissait de la carte.
+       On calibre maintenant en pixels d'ÉCRAN (d'où le 1/cam.z), avec
+       deux butées : au dézoom le point garde sa taille lisible, au zoom
+       il ne redevient jamais la tache large comme la balise entière
+       qu'il avait été. */
+    var ech = Math.max(0.7, Math.min(2.2, 1 / cam.z));
     c.save();
     c.globalCompositeOperation = "lighter";
-    /* la nappe : à peine une lueur, pour que les points aient un fond */
-    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, rb * RX * 1.25);
-    gf.addColorStop(0, "rgba(255,226,130,.07)");
-    gf.addColorStop(1, "rgba(255,190,70,0)");
+    /* la nappe : la lueur de fond sur laquelle les points se détachent.
+       Elle reste basse — montée trop haut, elle noie les lampes dans
+       une flaque de lait et on ne distingue plus les points. */
+    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, rb * RX * 1.22);
+    gf.addColorStop(0.00, "rgba(255,232,150,.13)");
+    gf.addColorStop(0.55, "rgba(255,214,105,.07)");
+    gf.addColorStop(1.00, "rgba(255,190,70,0)");
     c.fillStyle = gf;
     c.beginPath();
-    c.ellipse(pf.x, pf.y, rb * RX * 1.25, rb * RY * 1.25, 0, 0, 6.2832); c.fill();
+    c.ellipse(pf.x, pf.y, rb * RX * 1.22, rb * RY * 1.22, 0, 0, 6.2832); c.fill();
     /* LES POINTS. Ils respirent chacun à son rythme — un cercle de
-       lampes qui clignoteraient ensemble ferait balise d'aéroport. */
-    for(var kb = 0; kb < 8; kb++){
+       lampes qui clignoteraient ensemble ferait balise d'aéroport.
+       Le neuvième est au centre : c'est LUI le point visé, les huit
+       autres ne font que dire jusqu'où la troupe va se ranger. */
+    for(var kb = 0; kb < 9; kb++){
+      var centre = (kb === 8);
       var ab = kb / 8 * 6.2832;
-      var bat = 0.55 + 0.45 * Math.sin(tps * 2.2 + kb * 1.7);
-      var bx = pf.x + Math.cos(ab) * rb * RX;
-      var by = pf.y + Math.sin(ab) * rb * RY;
-      var rp = (0.8 + bat * 0.6) * zz;
-      var gp = c.createRadialGradient(bx, by, 0, bx, by, rp * 3.0);
-      gp.addColorStop(0, "rgba(255,246,205," + (0.62 * bat).toFixed(3) + ")");
-      gp.addColorStop(0.35, "rgba(255,214,110," + (0.22 * bat).toFixed(3) + ")");
-      gp.addColorStop(1, "rgba(255,180,50,0)");
+      /* le battement ne descend plus jusqu'à l'extinction : une lampe
+         éteinte sur un cercle de huit fait un trou dans la balise */
+      var bat = 0.72 + 0.28 * Math.sin(tps * (centre ? 1.5 : 2.2) + kb * 1.7);
+      var bx = centre ? pf.x : pf.x + Math.cos(ab) * rb * RX;
+      var by = centre ? pf.y : pf.y + Math.sin(ab) * rb * RY;
+      var rp = (2.5 + bat * 1.5) * ech * (centre ? 1.25 : 1);
+      var gp = c.createRadialGradient(bx, by, 0, bx, by, rp * 2.6);
+      gp.addColorStop(0, "rgba(255,246,205," + (0.80 * bat).toFixed(3) + ")");
+      gp.addColorStop(0.32, "rgba(255,206,96," + (0.34 * bat).toFixed(3) + ")");
+      gp.addColorStop(1, "rgba(255,172,40,0)");
       c.fillStyle = gp;
-      c.beginPath(); c.arc(bx, by, rp * 3.0, 0, 6.2832); c.fill();
-      /* le point lui-même, net au centre du halo : sans lui on ne voit
-         qu'une tache, et c'est un POINT qu'il a demandé */
-      c.fillStyle = "rgba(255,252,232," + (0.80 * bat).toFixed(3) + ")";
-      c.beginPath(); c.arc(bx, by, rp * 0.62, 0, 6.2832); c.fill();
+      c.beginPath(); c.arc(bx, by, rp * 2.6, 0, 6.2832); c.fill();
+      /* LE POINT LUI-MÊME, hors du mode « lighter ». En additif, un
+         cœur blanc posé sur du sable clair s'ajoute à du presque-blanc
+         et disparaît : c'est ce qui ne laissait qu'une tache floue. En
+         mode normal, la lentille d'ambre garde son bord sur le sable
+         comme sur la lave, et c'est un POINT qu'il a demandé. */
+      c.save();
+      c.globalCompositeOperation = "source-over";
+      c.fillStyle = "rgba(255,186,42," + (0.92 * bat).toFixed(3) + ")";
+      c.beginPath(); c.arc(bx, by, rp * 0.74, 0, 6.2832); c.fill();
+      c.fillStyle = "rgba(255,253,238," + (0.95 * bat).toFixed(3) + ")";
+      c.beginPath(); c.arc(bx, by, rp * 0.40, 0, 6.2832); c.fill();
+      c.restore();
     }
     /* LA FUMÉE : trois volutes jaunes très pâles, qui montent et
        s'effacent. Très léger — c'est le mot qu'il a employé. */
     for(var kf = 0; kf < 3; kf++){
       var ph = ((tps * 0.28 + kf / 3) % 1);
-      var haut = ph * 30 * zz;
-      var af = Math.sin(ph * 3.1416) * 0.10;
-      var lf = (4 + ph * 9) * zz;
-      var dx = Math.sin(tps * 0.7 + kf * 2.1) * 4 * zz * ph;
+      var haut = ph * 30 * ech;
+      var af = Math.sin(ph * 3.1416) * 0.16;
+      var lf = (5 + ph * 10) * ech;
+      var dx = Math.sin(tps * 0.7 + kf * 2.1) * 4 * ech * ph;
       var gs = c.createRadialGradient(pf.x + dx, pf.y - haut, 0, pf.x + dx, pf.y - haut, lf);
       gs.addColorStop(0, "rgba(255,232,150," + af.toFixed(3) + ")");
       gs.addColorStop(1, "rgba(255,208,90,0)");
@@ -2393,11 +2414,32 @@ function dessineZonesSol(c, tps){
             grains de poussière au lieu de la remplir
    opa    : opacité de base
    tour   : vitesse de rotation (signe = sens)
-   rgb    : teinte, en triplet nu pour bouffeeFloue */
+   rgb    : teinte, en triplet nu pour bouffeeFloue
+
+   POURQUOI CES CHIFFRES ONT ÉTÉ RABAISSÉS. Le nuage montait à
+   cinquante-six pixels — soit toute la demi-hauteur de son propre
+   cercle au sol. Comme l'isométrie traduit la hauteur en décalage
+   VERS LE HAUT de l'écran, la coiffe se retrouvait entièrement hors
+   du cercle, au nord : on voyait un cercle d'un côté et un nuage de
+   l'autre. Vingt-quatre pixels au sommet, et le volume retombe dans
+   son emprise.
+   Même raison pour les rayons : une bouffée est visible bien au-delà
+   du « taille » nominal (bouffeeFloue déporte ses lobes jusqu'à 1,14
+   fois son rayon), donc une nappe posée à 0,99 du bord débordait d'un
+   tiers de rayon. Rayon maximal et taille sont désormais choisis pour
+   que leur somme s'éteigne SUR le liseré, pas au-delà.
+   Et l'écrasement suit la même logique : au ras du sol une volute se
+   lit comme une flaque — elle prend l'aplatissement du sol isométrique
+   — et se rearrondit à mesure qu'elle monte.
+   Les trois pieds ne partent pas de zéro : bouffeeFloue accroche ses
+   deux lobes secondaires SOUS le lobe principal, si bien qu'une nappe
+   posée pile sur le sol pendait sous son propre cercle et laissait
+   l'arc du fond à découvert. Ces quelques pixels de hauteur remettent
+   le nuage au centre de son emprise. */
 var NAPPES_BROUILLARD = [
-  { n:22, rayon:[0.56, 0.99], haut:[1, 12],  taille:[0.22, 0.34], opa:0.36, tour:-0.21, ecrase:0.56 },
-  { n:19, rayon:[0.10, 0.80], haut:[12, 30], taille:[0.24, 0.38], opa:0.34, tour:0.33,  ecrase:0.72 },
-  { n:13, rayon:[0.00, 0.54], haut:[28, 56], taille:[0.20, 0.33], opa:0.28, tour:-0.48, ecrase:0.90 }
+  { n:28, rayon:[0.30, 0.80], haut:[3, 9],   taille:[0.18, 0.27], opa:0.38, tour:-0.21, ecrase:0.58 },
+  { n:20, rayon:[0.12, 0.62], haut:[8, 19],  taille:[0.20, 0.30], opa:0.34, tour:0.33,  ecrase:0.66 },
+  { n:13, rayon:[0.00, 0.42], haut:[18, 36], taille:[0.19, 0.29], opa:0.26, tour:-0.48, ecrase:0.78 }
 ];
 /* Teinte d'une bouffée. Une fumée d'un gris uniforme reste plate quelle
    que soit son opacité : ce qui donne le volume, c'est l'écart de
@@ -2405,7 +2447,13 @@ var NAPPES_BROUILLARD = [
    les basses restent dans l'ombre du nuage, et un peu de bruit évite
    que la transition ne soit un dégradé trop propre. */
 function tonBrouillard(hauteur, bruit){
-  var lum = 0.72 + 0.30 * Math.min(1, hauteur / 52) + (bruit - 0.5) * 0.30;
+  /* Le 36 est le sommet du nuage : le dégradé de valeur doit s'étaler
+     sur la hauteur RÉELLE, sinon toutes les volutes tombent dans le
+     même gris et le volume s'aplatit.
+     Et le plancher est remonté : maintenant que le gros du nuage est
+     au ras du sol, l'ancienne valeur basse peignait la zone entière du
+     gris d'une flaque de boue au lieu d'une fumée. */
+  var lum = 0.88 + 0.22 * Math.min(1, hauteur / 36) + (bruit - 0.5) * 0.30;
   var r = Math.min(255, (176 * lum) | 0);
   var v = Math.min(255, (170 * lum) | 0);
   var b = Math.min(255, (190 * lum) | 0);
@@ -2470,33 +2518,39 @@ function dessineBrouillard(c, f, tps){
      faut la ramener à l'écran, sans quoi le cœur enflerait au dézoom
      jusqu'à couvrir la moitié de la carte. */
   var resp = 1 + Math.sin(tps * 0.6 + gr) * 0.06;
-  bouffeeFloue(c, p.x, p.y - 15 * z, RZ * 0.62 * resp * z, 0.24 * a, "190,184,200", 0.60);
+  bouffeeFloue(c, p.x, p.y - 13 * z, RZ * 0.60 * resp * z, 0.26 * a, "204,199,214", 0.58);
 
   /* LE CERCLE AU SOL, REPEINT PAR-DESSUS LA FUMÉE.
      Il est déjà tracé plus tôt, avec le décor, pour teinter l'herbe —
      mais le nuage se dessine après et l'enterrait. Or c'est lui, et lui
      seul, qui dit exactement où s'arrête la protection : il doit rester
      lisible quoi qu'il arrive. On le repasse donc ici, en dernier.
-     Épaisseurs plafonnées en pixels écran pour tenir au dézoom. */
+     Épaisseurs plafonnées en pixels écran pour tenir au dézoom.
+     ATTÉNUÉ : il était tracé comme une frontière de stade, et c'est le
+     nuage qu'on doit regarder, pas son cerne. Il ne lui reste que ce
+     qu'il faut pour qu'on sache où finit la protection. */
   var ex = f.r * RX * z, ey = f.r * RY * z;
   c.save();
-  c.strokeStyle = "rgba(236,232,246," + (0.72 * a) + ")";
-  c.lineWidth = Math.max(1.7, 2.4 * z);
+  c.strokeStyle = "rgba(236,232,246," + (0.30 * a) + ")";
+  c.lineWidth = Math.max(1.2, 1.6 * z);
   c.beginPath(); c.ellipse(p.x, p.y, ex, ey, 0, 0, 6.2832); c.stroke();
   if(c.setLineDash){
     var pasR = Math.max(9, 13 * z);
     c.setLineDash([pasR, pasR * 0.8]);
     c.lineDashOffset = -tps * pasR * 0.9;
-    c.strokeStyle = "rgba(255,255,255," + (0.5 * a) + ")";
-    c.lineWidth = Math.max(1.1, 1.6 * z);
+    c.strokeStyle = "rgba(255,255,255," + (0.20 * a) + ")";
+    c.lineWidth = Math.max(0.9, 1.2 * z);
     c.beginPath(); c.ellipse(p.x, p.y, ex * 0.93, ey * 0.93, 0, 0, 6.2832); c.stroke();
     c.setLineDash([]);
   }
   c.restore();
 
-  /* décompte : combien de temps la zone tient encore */
+  /* Décompte : combien de temps la zone tient encore. Il était calé
+     sur l'ancien sommet du nuage ; celui-ci ayant été rabaissé, le
+     chiffre flottait tout seul en l'air au-dessus des troupes. Il se
+     pose maintenant juste sur la fumée. */
   if(z > 0.30){
-    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(30, 52 * z),
+    texteCerne(c, Math.ceil(f.duree - f.age) + " s", p.x, p.y - Math.max(22, 34 * z),
                Math.max(10, 13 * z), "#e6e2f0");
   }
 }
