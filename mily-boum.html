@@ -2690,7 +2690,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.52";
+var VERSION = "v1.53";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -4034,12 +4034,16 @@ var PALIERS_PUISSANCE = [
    d'indice du tout. Les seuils demandés pour la Nova, eux, montent à
    cinq millions :
 
-     à 1 M     la SUPER Nova se débloque
-     à 1,5 M   10 000
-     à 2 M     20 000
-     à 2,5 M   30 000
-     à 3 M     40 000
-     à 5 M     50 000
+     à 2 M     la SUPER Nova se débloque
+     à 2,5 M   10 000
+     à 3 M     20 000
+     à 3,5 M   30 000
+     à 4 M     40 000
+     à 6 M     50 000
+
+   (La série a été donnée un million plus bas, et toute la table a
+   glissé d'un million depuis — voir l'en-tête de CALIBRES_NOVA. Les
+   ÉCARTS et les dégâts, eux, sont ceux qu'il avait donnés.)
 
    Les deux barèmes ne peuvent donc plus partager la même échelle. La
    Nova prend ses PROPRES SEUILS, en dégâts absolus, et `calibreNova`
@@ -4048,9 +4052,9 @@ var PALIERS_PUISSANCE = [
    simple à lire qu'avant.
 
    LE PALIER D'OUVERTURE VAUT 5 000, et c'est une lecture de sa série :
-   il a donné cinq chiffres espacés de dix mille, de 1,5 M à 3 M, sans
-   dire ce que vaut la Super Nova à sa sortie. La demi-marche est le
-   seul chiffre qui prolonge sa suite vers le bas sans la contredire.
+   il a donné cinq chiffres espacés de dix mille sans dire ce que vaut
+   la Super Nova à sa sortie. La demi-marche est le seul chiffre qui
+   prolonge sa suite vers le bas sans la contredire.
 
    LE SOUFFLE SUIT LE CŒUR À TRENTE-CINQ POUR CENT, la proportion qu'il
    avait déjà (16 000 pour 50 000, puis 50 000 pour 100 000 — entre un
@@ -4093,14 +4097,39 @@ var NOVA_SOUFFLE_PART = 0.35;         // le souffle, en part du cœur
    portée ne doit pas se mettre à mourir parce que le joueur a
    progressé.
    ================================================================ */
+/* ════════════════════════════════════════════════════════════════
+   LE BARÈME MONTE D'UN MILLION, ET VOICI POURQUOI
+
+   « Roro avait un million cinq, il restait un quart d'une map. Je suis
+     parti deux minutes, la map était vide — à mon avis il a tout
+     explosé à la Supernova. Il faut augmenter le palier à partir de
+     quand elle commence à grimper. »
+
+   MESURÉ SUR SON CAS : à 1,5 M il était au DEUXIÈME cran, pas au
+   premier — dix mille de cœur, trois mille cinq de souffle, rayon fois
+   trois. La Supernova se débloquait à un million, et le cran suivant
+   cinq cent mille plus loin : la marche était franche et elle arrivait
+   tôt.
+
+   TOUTE LA TABLE GLISSE D'UN MILLION, et rien d'autre ne bouge : mêmes
+   dégâts, mêmes écarts, même plein calibre. Le déblocage tombe à deux
+   millions, comme demandé, et la courbe garde exactement la forme
+   qu'elle avait — elle commence simplement un million plus tard.
+
+   CE QUE ÇA CHANGE POUR CEUX QUI SONT DÉJÀ HAUT, et il faut le dire :
+   un joueur entre un et deux millions REPASSE à la Nova ordinaire
+   jusqu'à ce qu'il atteigne deux millions. Rien n'est effacé — ni ses
+   dégâts, ni son cumul, ni son badge : c'est le barème qui a changé,
+   pas son compteur.
+   ════════════════════════════════════════════════════════════════ */
 var CALIBRES_NOVA = [
   { seuil:       0, degats:null,  ech:1 },   // la Nova ordinaire : 130 + 45
-  { seuil: 1000000, degats:5000,  ech:3 },   // la SUPER Nova se débloque
-  { seuil: 1500000, degats:10000, ech:3 },
-  { seuil: 2000000, degats:20000, ech:3 },
-  { seuil: 2500000, degats:30000, ech:3 },
-  { seuil: 3000000, degats:40000, ech:3 },
-  { seuil: 5000000, degats:50000, ech:3 }    // plein calibre
+  { seuil: 2000000, degats:5000,  ech:3 },   // la SUPER Nova se débloque
+  { seuil: 2500000, degats:10000, ech:3 },
+  { seuil: 3000000, degats:20000, ech:3 },
+  { seuil: 3500000, degats:30000, ech:3 },
+  { seuil: 4000000, degats:40000, ech:3 },
+  { seuil: 6000000, degats:50000, ech:3 }    // plein calibre
 ];
 /* Rend les trois chiffres du tir : le cœur, le souffle, et le facteur
    d'agrandissement du rayon côté ennemi. `rang` sert au dessin et aux
@@ -60082,8 +60111,76 @@ function segmentCable(cb, d){
 /* ---------------------------------------------------------------
    Zones au sol (dessinées en repère monde)
    --------------------------------------------------------------- */
+/* ================================================================
+   OÙ L'ON PEUT DÉBARQUER — LA BANDE DE PLAGE, TRACÉE
+
+   « Lorsqu'on débarque, est-ce que la zone où on peut débarquer les
+     troupes pourrait avoir un trait noir bien visible ? Comme ça on
+     sait exactement où on peut débarquer. Et dès qu'on les a
+     débarquées, le trait disparaît. »
+
+   CE QU'ON CHOISIT VRAIMENT, ET RIEN D'AUTRE. Le clic ne désigne pas un
+   point du sable : poseBarge jette le gx et ne garde que le gy, puis
+   pose la navette sur RIVAGE_GX. La zone n'est donc pas une surface,
+   c'est une LIGNE — tout le rivage, d'un bout à l'autre de l'île. La
+   dessiner comme un grand rectangle sur le sable aurait promis un choix
+   qu'on n'a pas ; on trace la bande étroite qui longe l'eau, là où les
+   navettes accostent pour de bon.
+
+   ELLE S'EFFACE QUAND IL N'Y A PLUS RIEN À POSER. Tant qu'une navette
+   attend, on peut débarquer — c'est exactement à ce moment-là que la
+   bande sert, et jamais après. Elle ne dépend donc pas d'un état
+   d'interface de plus : elle lit le seul fait qui compte, `jeu.barges`.
+
+   ET ELLE RESPIRE À L'INSTANT DU CHOIX. Changer de navette rallume la
+   bande une seconde — c'est la réponse au geste, celle qui dit « oui,
+   celle-ci, et voilà où elle ira ». Passé la seconde, elle redescend au
+   trait discret : une bande qui clignoterait sans fin sur toute la
+   longueur de l'île finirait par se regarder au lieu de se lire.
+   ================================================================ */
+var bargeSelVue = -1, bargeSelT = 0;
+function dessineBandeDebarquement(c, tps){
+  if(!jeu || jeu.fin || !jeu.barges || !jeu.barges.length) return;
+  if(typeof modeApercu !== "undefined" && modeApercu
+     && !(typeof modeEssai !== "undefined" && modeEssai)) return;
+  /* le battement du choix : il se déclenche au CHANGEMENT, pas à
+     chaque image, sinon il ne dirait rien */
+  if(jeu.bargeSel !== bargeSelVue){ bargeSelVue = jeu.bargeSel; bargeSelT = tps; }
+  var vif = Math.max(0, 1 - (tps - bargeSelT) / 1.0);
+
+  var y0 = 3, y1 = GH - 4;
+  var xE = RIVAGE_GX + 0.5;            // côté eau
+  var xS = RIVAGE_GX - 1.7;            // côté sable
+  var a = iso(xS, y0), b = iso(xE, y0), d = iso(xE, y1), e = iso(xS, y1);
+  c.save();
+  /* LE SABLE SE FONCE UN PEU — « ou alors toute cette zone-là se remet
+     un petit peu plus foncé ». Assez pour détacher la bande du reste de
+     la plage, pas assez pour la salir. */
+  c.beginPath();
+  c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(d.x, d.y); c.lineTo(e.x, e.y);
+  c.closePath();
+  c.fillStyle = "rgba(18,12,26," + (0.13 + 0.10 * vif).toFixed(3) + ")";
+  c.fill();
+  /* LE TRAIT NOIR, et il est plafonné en pixels d'écran : ce bloc est
+     peint dans le repère MONDE, où une épaisseur fixe s'évanouit au
+     dézoom — or c'est de loin qu'on vise la plage. */
+  c.lineJoin = "round";
+  c.strokeStyle = "rgba(12,8,18," + (0.62 + 0.28 * vif).toFixed(3) + ")";
+  c.lineWidth = Math.max(2.0 / cam.z, 2.6);
+  c.stroke();
+  /* et un liseré clair par-dessus, pour qu'il tienne sur la lave comme
+     sur le sable clair */
+  c.strokeStyle = "rgba(255,236,196," + (0.30 + 0.34 * vif).toFixed(3) + ")";
+  c.lineWidth = Math.max(0.8 / cam.z, 1.1);
+  c.stroke();
+  c.restore();
+}
+
 function dessineZonesSol(c, tps){
   var i;
+  /* La bande de débarquement passe SOUS tout le reste des zones : c'est
+     un repère de terrain, pas un effet. */
+  dessineBandeDebarquement(c, tps);
   /* les câbles du bouclier passent SOUS tout le reste : ce sont eux
      qui sont posés au sol, les cratères et les flaques leur passent
      dessus comme au terrain */

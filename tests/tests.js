@@ -1360,18 +1360,31 @@ G("4. Déterminisme de la génération de carte");
        pour la Nova montent à cinq : les deux ne peuvent plus partager
        la même échelle. `calibreNova` reçoit donc les DÉGÂTS.
 
-         1 M    la SUPER Nova se débloque, 5 000
-         1,5 M  10 000      2,5 M  30 000      5 M  50 000
-         2 M    20 000      3 M    40 000
+         2 M    la SUPER Nova se débloque, 5 000
+         2,5 M  10 000      3,5 M  30 000      6 M  50 000
+         3 M    20 000      4 M    40 000
+
+       (Toute la table a glissé d'un million en v1.53 : « Roro avait un
+       million cinq, la map était vide en deux minutes ». Les écarts et
+       les dégâts n'ont pas bougé, seul le départ.)
        ════════════════════════════════════════════════════════ */
     ok("une seule Nova par vie, à tous les paliers", N.EQ.NOVA_PAR_VIE === 1);
-    ok("la super Nova se débloque à un million de dégâts",
-       N.CALIBRES_NOVA[N.RANG_SUPERNOVA].seuil === 1000000);
-    ok("… et le plein calibre à cinq millions",
-       N.CALIBRES_NOVA[N.RANG_NOVA_MAX].seuil === 5000000);
+    ok("la super Nova se débloque à DEUX millions de dégâts",
+       N.CALIBRES_NOVA[N.RANG_SUPERNOVA].seuil === 2000000,
+       "" + N.CALIBRES_NOVA[N.RANG_SUPERNOVA].seuil);
+    ok("… et le plein calibre à six millions",
+       N.CALIBRES_NOVA[N.RANG_NOVA_MAX].seuil === 6000000,
+       "" + N.CALIBRES_NOVA[N.RANG_NOVA_MAX].seuil);
+    /* CE QUI COMPTE AUTANT QUE LES CHIFFRES : les ÉCARTS n'ont pas
+       bougé. C'est ce qui distingue « la courbe part plus tard » de
+       « la courbe a été refaite ». */
+    ok("… et les écarts entre marches sont inchangés",
+       N.CALIBRES_NOVA.slice(1).map(function(c, i, t){
+         return i ? c.seuil - t[i - 1].seuil : 0;
+       }).join(",") === "0,500000,500000,500000,500000,2000000");
     (function(){
-      var attendu = [[0, 130], [1000000, 5000], [1500000, 10000], [2000000, 20000],
-                     [2500000, 30000], [3000000, 40000], [5000000, 50000]];
+      var attendu = [[0, 130], [2000000, 5000], [2500000, 10000], [3000000, 20000],
+                     [3500000, 30000], [4000000, 40000], [6000000, 50000]];
       ok("les sept marches sont exactement celles demandées", (function(){
         if(N.CALIBRES_NOVA.length !== attendu.length) return false;
         for(var i = 0; i < attendu.length; i++){
@@ -1381,9 +1394,9 @@ G("4. Déterminisme de la génération de carte");
         return true;
       })(), attendu.map(function(a){ return a[1]; }).join(" · "));
 
-      var ord = N.calibreNova(0), sup = N.calibreNova(1000000),
-          max = N.calibreNova(5000000);
-      ok("avant un million : la Nova ordinaire, 130 + 45, rayon ×1",
+      var ord = N.calibreNova(0), sup = N.calibreNova(2000000),
+          max = N.calibreNova(6000000);
+      ok("avant deux millions : la Nova ordinaire, 130 + 45, rayon ×1",
          ord.rang === 0 && ord.degats === 130 && ord.souffle === 45 && ord.ech === 1,
          JSON.stringify(ord));
       ok("le souffle suit le cœur à trente-cinq pour cent",
@@ -1394,15 +1407,22 @@ G("4. Déterminisme de la génération de carte");
          sup.ech === 3 && max.ech === 3 && ord.ech === 1);
       /* Le dernier dégât avant chaque marche doit rendre le calibre
          d'AVANT : c'est là que se logent les erreurs de borne. */
-      ok("juste sous un million, la Nova reste ordinaire",
-         N.calibreNova(999999).rang === 0);
-      ok("juste sous cinq millions, on n'a pas encore le plein calibre",
-         N.calibreNova(4999999).degats === 40000,
-         "" + N.calibreNova(4999999).degats);
+      ok("juste sous deux millions, la Nova reste ordinaire",
+         N.calibreNova(1999999).rang === 0);
+      /* LE CAS DE RORO, ET C'EST LUI QUI A DÉCLENCHÉ LE LOT : à un
+         million et demi il était au DEUXIÈME cran, dix mille de cœur.
+         Il repasse à la Nova ordinaire — rien de son compteur n'a été
+         touché, c'est le barème qui a monté. */
+      ok("à un million et demi, on repasse à la Nova ordinaire",
+         N.calibreNova(1500000).rang === 0 && N.calibreNova(1500000).degats === 130,
+         "" + N.calibreNova(1500000).degats);
+      ok("juste sous six millions, on n'a pas encore le plein calibre",
+         N.calibreNova(5999999).degats === 40000,
+         "" + N.calibreNova(5999999).degats);
       ok("le calibre ne redescend jamais quand les dégâts montent",
          (function(){
            var prec = N.calibreNova(0);
-           for(var d = 0; d <= 6000000; d += 50000){
+           for(var d = 0; d <= 7000000; d += 50000){
              var c = N.calibreNova(d);
              if(c.rang < prec.rang || c.degats < prec.degats
                 || c.souffle < prec.souffle) return false;
@@ -12056,8 +12076,13 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\(/.test(html));
   ok("… et celui d'allumer le héros",
      /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\("Visite : tu peux tout regarder, mais pas jouer/.test(html));
+  /* DEUX REFUS, ET DEUX SEULEMENT. On compte les sites où la garde est
+     suivie d'un REFUS, et non ses emplois en général : depuis la bande
+     de débarquement (v1.53), la même garde sert aussi à ne pas peindre
+     un repère de terrain là où l'on ne peut pas débarquer. Ce n'est pas
+     un refus de plus, c'est un dessin en moins. */
   ok("… et la visite, elle, refuse toujours les deux",
-     (html.match(/&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)/g) || []).length === 2);
+     (html.match(/&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\(/g) || []).length === 2);
   ok("… l'observation refuse de débarquer elle aussi, en le disant",
      /\? "Observation : tu regardes la bataille, tu n'y débarques pas\."/.test(html));
 
