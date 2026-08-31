@@ -2419,6 +2419,72 @@ function finDeSpeed(u){
      disent la même chose sans couvrir le terrain */
 }
 
+/* ════════════════════════════════════════════════════════════════
+   IL NE VA JAMAIS PLUS VITE QUE LA PLUS RAPIDE DES TROUPES
+
+   « Speed est beaucoup plus rapide que mes Furies. Est-ce qu'il ne
+   s'adapterait pas à la vitesse de la troupe la plus rapide qu'on a
+   sur la plage ? Là, il va beaucoup trop vite par rapport à ma
+   Furie. »
+
+   IL A RAISON, ET LE CHIFFRE LE DIT : sa fiche porte 3,30 quand une
+   Furie marche à 1,62 et un Commando à 1,008. Le plus rapide de tout
+   ce qui débarque est le Doc, à 2,10. Lancé au rattrapage, le héros
+   filait donc à plus du double de ce qu'il escortait — on ne voyait
+   plus un compagnon de route mais quelque chose qui traverse l'écran.
+
+   SON PLAFOND EST DONC CELUI DU TERRAIN, et non plus le sien. On
+   prend la plus rapide des troupes vivantes, dopage compris — dopée,
+   une Furie court à 3,24 et il doit pouvoir la suivre. Sa fiche garde
+   ses 3,30 comme borne absolue : elle ne sert plus qu'à empêcher
+   qu'un jour une troupe très rapide ne l'emporte au-delà de ce que
+   son dessin sait montrer.
+
+   S'IL N'Y A PLUS PERSONNE, la question ne se pose pas : il s'arrête
+   de toute façon, faute d'escorte. */
+function vitesseTroupeMax(){
+  var m = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0 || u.leurre) continue;
+    var f = UNI[u.t];
+    if(!f || f.heros) continue;
+    var v = f.vitesse * (u.dope ? EQ.SPEED_MULT : 1);
+    if(v > m) m = v;
+  }
+  return m;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ET IL SUIT PLUTÔT LA PLUS RAPIDE
+
+   « Imaginons que j'ai un PYR qui va vite et des Commandos qui vont
+   doucement : il va plutôt suivre le PYR. »
+
+   Escorter le plus PROCHE le collait au premier venu — souvent un
+   Commando à 1,008, la plus lente du jeu —, et le groupe rapide
+   partait devant sans son aura. On choisit donc la plus rapide de
+   celles qui sont DANS SA ZONE : celles-là, il les dope déjà, et les
+   suivre ne l'éloigne de personne. Hors zone, on retombe sur la plus
+   proche — il faut bien rejoindre quelqu'un.
+   ════════════════════════════════════════════════════════════════ */
+function chercheEscorte(u){
+  unitesAutour(u.gx, u.gy, EQ.SPEED_ATTRACTION, docAutour);
+  var zone = EQ.SPEED_ATTRACTION * EQ.SPEED_ATTRACTION;
+  var vive = null, mv = -1, pres = null, dPres = 1e9;
+  for(var i = 0; i < docAutour.length; i++){
+    var a = docAutour[i];
+    if(a === u || a.leurre || a.pv <= 0) continue;
+    var f = UNI[a.t];
+    if(!f || f.heros) continue;
+    var dx = a.gx - u.gx, dy = a.gy - u.gy, d2 = dx * dx + dy * dy;
+    if(d2 > zone) continue;
+    if(f.vitesse > mv){ mv = f.vitesse; vive = a; }
+    if(d2 < dPres){ dPres = d2; pres = a; }
+  }
+  return vive || pres || chercheCompagnon(u);
+}
+
 /* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
    escorte. Entre Docs on se suivrait en ronde sans jamais rejoindre
    l'assaut. */
@@ -2483,7 +2549,18 @@ function majSpeed(u, f, dt){
   /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
   if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
      Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > EQ.SPEED_ATTRACTION * 2.4){
-    u.escorte = chercheCompagnon(u);
+    u.escorte = chercheEscorte(u);
+  }else{
+    /* ET IL CHANGE POUR PLUS RAPIDE, mais pas pour un cheveu. Le
+       choix se faisait une fois pour toutes : parti de loin, il
+       accrochait le premier venu — souvent un Commando à 1,008 —
+       et gardait ce pas-là même quand un PYR à 2,00 courait à côté
+       de lui. Il ne change donc que pour un type FRANCHEMENT plus
+       rapide, quinze pour cent au moins : les vitesses de fiche ne
+       bougeant pas, ce seuil ne peut pas produire d'hésitation. */
+    var mieux = chercheEscorte(u);
+    if(mieux && UNI[mieux.t].vitesse > UNI[u.escorte.t].vitesse * 1.15)
+      u.escorte = mieux;
   }
   var e = u.escorte;
   if(!e){
@@ -2522,7 +2599,12 @@ function majSpeed(u, f, dt){
   var pd = Math.hypot(px, py);
   /* SA VITESSE EST CELLE DE L'ESCORTE, sauf s'il a du retard : au-delà
      de sa laisse il reprend la sienne, qui est plus haute. */
-  var vit = (d > EQ.SPEED_LAISSE * 2) ? f.vitesse : Math.min(f.vitesse, vitE);
+  /* SON PLAFOND EST CELUI DU TERRAIN : jamais plus vite que la plus
+     rapide des troupes vivantes. Sa fiche ne sert plus que de borne
+     absolue, pour qu'aucune troupe future ne l'emporte au-delà de ce
+     que son dessin sait montrer. */
+  var plafond = Math.min(f.vitesse, vitesseTroupeMax() || f.vitesse);
+  var vit = (d > EQ.SPEED_LAISSE * 2) ? plafond : Math.min(plafond, vitE);
   if(pd > 0.4){
     var ch = capChemin(u, ex, ey, pd);
     var mx = ch ? ch.x : px, my = ch ? ch.y : py;
@@ -2775,6 +2857,24 @@ function majUnites(dt){
     var cachee = masquee(u);
     u.cachee = cachee;
 
+    /* ════════════════════════════════════════════════════════════
+       LE HÉROS PASSE AVANT TOUT LE RESTE, ET NE PREND PAS D'ORDRE
+
+       Trouvé en mesurant sa vitesse : sous une Balise, il ne
+       traversait JAMAIS majSpeed. La branche de balise vient avant
+       et se termine par un `continue` — il partait donc au but comme
+       une troupe, seul, à ses 3,30 de fiche, sans escorte et sans
+       plafond. Tout ce qu'on venait d'écrire sur son allure ne
+       s'appliquait qu'aux images où le joueur n'avait pas posé de
+       balise.
+
+       IL N'A DE TOUTE FAÇON RIEN À FAIRE D'UN ORDRE : il n'a pas
+       d'arme, et il suit une escorte qui, elle, obéit à la balise —
+       il y va donc, mais à l'allure de la troupe et à côté d'elle,
+       ce qui est exactement ce qu'on lui demande.
+       ════════════════════════════════════════════════════════════ */
+    if(f.heros){ u.baliseOrdre = 0; majSpeed(u, f, dt); continue; }
+
     /* --- BALISE : un ordre individuel, prioritaire sur tout ------------
        Tant que u.baliseOrdre vaut l'identifiant de la balise en cours,
        cette unité — et elle seule — est sous les ordres. Rien ne l'en
@@ -2943,7 +3043,6 @@ function majUnites(dt){
        Placé AVANT le Doc et APRÈS la balise : un héros sous balise
        marche avec le groupe comme tout le monde, et se remet à suivre
        en arrivant. */
-    if(f.heros){ majSpeed(u, f, dt); continue; }
 
     /* --- LE DOC : il ne cherche pas de cible, il cherche un blessé ---
        Placé APRÈS la balise, donc un Doc sous fusée marche avec le

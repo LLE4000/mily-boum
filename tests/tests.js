@@ -11578,7 +11578,67 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("le compte à rebours de l'aura tourne dans la fonction du héros",
      /u\.auraReste -= dt;/.test(ms));
   ok("… avant tout déplacement",
-     ms.indexOf("u.auraReste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
+     ms.indexOf("u.auraReste -= dt;") < ms.indexOf("chercheEscorte(u)"));
+
+  /* ════════════════════════════════════════════════════════════
+     IL NE VA JAMAIS PLUS VITE QUE LA PLUS RAPIDE DES TROUPES
+
+     « Speed est beaucoup plus rapide que mes Furies. Est-ce qu'il ne
+     s'adapterait pas à la vitesse de la troupe la plus rapide qu'on a
+     sur la plage ? »
+
+     LE CHIFFRE LUI DONNE RAISON : sa fiche porte 3,30 quand une Furie
+     marche à 1,62 et un Commando à 1,008 ; le plus rapide de tout ce
+     qui débarque est le Doc, à 2,10. Lancé au rattrapage, il filait à
+     plus du double de ce qu'il escortait.
+     ════════════════════════════════════════════════════════════ */
+  ok("sa fiche est bien plus rapide que toute troupe — d'où le défaut",
+     N.UNI.speed.vitesse > N.UNI.doc.vitesse * 1.5
+     && N.UNI.speed.vitesse > N.UNI.furie.vitesse * 2);
+  ok("son plafond est celui du terrain, plus le sien",
+     /var plafond = Math\.min\(f\.vitesse, vitesseTroupeMax\(\) \|\| f\.vitesse\);/.test(html)
+     && /var vit = \(d > EQ\.SPEED_LAISSE \* 2\) \? plafond : Math\.min\(plafond, vitE\);/.test(html));
+  /* LE DOPAGE COMPTE DANS CE PLAFOND : dopée, une Furie court à 3,24
+     et il doit pouvoir la suivre. */
+  ok("… dopage compris",
+     /var v = f\.vitesse \* \(u\.dope \? EQ\.SPEED_MULT : 1\);/.test(html));
+  ok("… et les héros ne comptent pas dans leur propre plafond",
+     /if\(!f \|\| f\.heros\) continue;\s*\n\s*var v = f\.vitesse/.test(html));
+  /* « IMAGINONS QUE J'AI UN PYR QUI VA VITE ET DES COMMANDOS QUI VONT
+     DOUCEMENT : IL VA PLUTÔT SUIVRE LE PYR. » On choisit la plus
+     rapide de celles qui sont DANS SA ZONE — celles-là il les dope
+     déjà, les suivre ne l'éloigne de personne — et l'on retombe sur
+     la plus proche hors zone, parce qu'il faut bien rejoindre. */
+  var ce = String(html.match(/function chercheEscorte\(u\)\{[\s\S]*?\n\}/) || "");
+  ok("il escorte la plus rapide de sa zone", ce.length > 200
+     && /if\(f\.vitesse > mv\)\{ mv = f\.vitesse; vive = a; \}/.test(ce));
+  ok("… et la plus proche s'il n'y a personne dans la zone",
+     /return vive \|\| pres \|\| chercheCompagnon\(u\);/.test(ce));
+  /* IL CHANGE POUR PLUS RAPIDE, MAIS PAS POUR UN CHEVEU. Le choix se
+     faisait une fois pour toutes : parti de loin il accrochait le
+     premier venu et gardait ce pas-là. Quinze pour cent d'écart de
+     FICHE — les vitesses ne bougeant pas, le seuil ne peut pas
+     produire d'hésitation. */
+  ok("il change d'escorte pour une franchement plus rapide",
+     /if\(mieux && UNI\[mieux\.t\]\.vitesse > UNI\[u\.escorte\.t\]\.vitesse \* 1\.15\)/.test(html));
+
+  /* ════════════════════════════════════════════════════════════
+     ET IL NE PREND PAS D'ORDRE DE BALISE
+
+     Trouvé en mesurant sa vitesse : sous une Balise, il ne traversait
+     JAMAIS majSpeed. La branche de balise vient avant et se termine
+     par un `continue` — il partait au but comme une troupe, seul, à
+     ses 3,30 de fiche, sans escorte et sans plafond. Tout ce qu'on
+     avait écrit sur son allure ne valait que pour les images où le
+     joueur n'avait pas posé de balise.
+
+     Il n'a de toute façon rien à faire d'un ordre : il suit une
+     escorte qui, elle, obéit — il y va donc, à l'allure de la troupe
+     et à côté d'elle. */
+  ok("le héros est traité avant la balise, et rend son ordre",
+     /if\(f\.heros\)\{ u\.baliseOrdre = 0; majSpeed\(u, f, dt\); continue; \}/.test(html)
+     && html.indexOf("if(f.heros){ u.baliseOrdre = 0;")
+        < html.indexOf("if(balise && u.baliseOrdre === balise.id){"));
   ok("… à zéro, l'aura s'arrête", /if\(u\.auraReste <= 0\)\{ u\.auraReste = 0; finDeSpeed\(u\); \}/.test(ms));
   var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
   ok("… et le héros, lui, ne s'efface pas",
