@@ -470,9 +470,17 @@ var signatureHeros = null;
 function majHeros(){
   var z = $("herosRangee");
   if(!z || !jeu) return;
-  var vivant = jeu.heros && jeu.heros.pv > 0 ? jeu.heros : null;
-  var resteH = vivant ? Math.ceil(vivant.reste) : 0;
-  var sig = (vivant ? vivant.t : "") + "|" + resteH;
+  /* TROIS ÉTATS, ET NON DEUX : il n'a pas encore débarqué, il court
+     avec la troupe, ou il est tombé. C'est ce qui change depuis qu'il
+     est une troupe et non une capacité — une capacité est toujours
+     disponible, un héros peut manquer. */
+  var vivant = null;
+  for(var v0 = 0; v0 < jeu.unites.length; v0++){
+    var u0 = jeu.unites[v0];
+    if(u0.pv > 0 && UNI[u0.t] && UNI[u0.t].heros){ vivant = u0; break; }
+  }
+  var resteH = vivant ? Math.ceil(vivant.auraReste || 0) : 0;
+  var sig = (vivant ? vivant.t : (jeu.herosNe ? "mort" : "attendu")) + "|" + resteH;
   for(var i = 0; i < HEROS.length; i++)
     sig += "|" + coutActuel(HEROS[i].cle, jeu.usages)
          + "|" + (jeu.energie >= coutActuel(HEROS[i].cle, jeu.usages) ? 1 : 0);
@@ -486,18 +494,24 @@ function majHeros(){
     /* IL COURT : c'est LUI qui court, pas un autre. Avec plusieurs
        héros, seule sa propre tuile doit compter les secondes. */
     var sien = !!(vivant && vivant.t === H.unite);
-    var fin = sien && resteH <= Math.round(UNI[H.unite].adieu || 0);
-    el.classList.toggle("actif", sien);
+    var dope = sien && resteH > 0;
+    var fin = dope && resteH <= Math.round(UNI[H.unite].adieu || 0);
+    var absent = !sien;
+    el.classList.toggle("actif", dope);
     el.classList.toggle("finit", fin);
-    el.classList.toggle("pauvre", !vivant && jeu.energie < cout);
+    /* ÉTEINTE POUR DEUX RAISONS TRÈS DIFFÉRENTES — il n'est pas là,
+       ou l'Énergie manque — et l'infobulle dit laquelle : une tuile
+       grise qui ne se justifie pas ne renseigne sur rien. */
+    el.classList.toggle("pauvre", absent || (!dope && jeu.energie < cout));
     var cx = $("hx_" + H.cle);
-    if(cx) cx.textContent = sien ? resteH + "s" : cout;
-    el.title = sien ? H.nom + " court — encore " + resteH + " s"
-             : vivant ? UNI[vivant.t].nom + " est déjà sur l'île"
+    if(cx) cx.textContent = dope ? resteH + "s" : cout;
+    el.title = dope ? H.nom + " accélère la troupe — encore " + resteH + " s"
+             : absent ? (jeu.herosNe ? H.nom + " est tombé — il revient au renfort"
+                                     : H.nom + " débarque avec ta première navette")
              : jeu.energie < cout ? "Il faut " + cout + " d'Énergie pour lancer " + H.nom
-             : "Appuie : " + H.nom + " arrive au milieu de ta troupe, "
-               + Math.round(UNI[H.unite].duree) + " s à deux fois la vitesse ("
-               + cout + " d'Énergie)";
+             : "Appuie : " + Math.round(UNI[H.unite].duree)
+               + " s à deux fois la vitesse autour de " + H.nom
+               + " (" + cout + " d'Énergie)";
   }
 }
 

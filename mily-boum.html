@@ -1776,14 +1776,17 @@ select.champ{cursor:pointer}
    L'OR LES DISTINGUE, comme il distingue tout ce qui est rare dans
    ce jeu. Les capacités sont violettes et leur pastille orange ;
    celles-ci sont ambrées, et leur pastille dorée. */
-/* ELLE NE PREND QUE SA PLACE. `#bd` étire ses enfants sur toute la
-   largeur du panneau des capacités : une rangée d'un seul héros
-   laissait alors une grande boîte vide à sa gauche, qui se lisait
-   comme un cadre oublié. Elle se cale donc à droite, à la largeur de
-   ce qu'elle contient — et s'allongera d'elle-même quand ils seront
-   deux, puis trois. */
-#herosBoite{padding:6px;align-self:flex-end;width:fit-content}
-#herosRangee{display:flex;gap:6px;justify-content:flex-end}
+/* À GAUCHE DES CAPACITÉS, ALIGNÉE SUR LEUR PREMIÈRE LIGNE, ET À PART.
+   C'est l'endroit qu'il a dessiné. Au-dessus, la rangée coupait le
+   panneau en deux et poussait les capacités vers le bas de l'écran ;
+   à côté, elle occupe la place vide qui traînait à leur gauche et le
+   bloc se lit d'un seul tenant — héros, puis capacités. Le `gap` de
+   la ligne est plus large que celui de la grille : c'est lui qui dit
+   « à part ». Elles s'alignent par le HAUT, de sorte qu'un deuxième
+   héros s'ajoute à côté du premier sans rien déplacer. */
+#basDroite{display:flex;gap:10px;align-items:flex-start;justify-content:flex-end}
+#herosBoite{padding:6px;width:fit-content}
+#herosRangee{display:flex;gap:6px}
 .hero{
   position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
   border:1px solid rgba(255,206,84,.55);
@@ -2579,8 +2582,10 @@ select.champ{cursor:pointer}
         <span class="ecl" aria-hidden="true">⚡</span><span id="energieV">220</span>
       </div>
     </div>
-    <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
-    <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+    <div id="basDroite">
+      <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
+      <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+    </div>
   </div>
 
   <div class="bloc p" id="bc">
@@ -2613,7 +2618,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.42";
+var VERSION = "v1.43";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3082,12 +3087,49 @@ var EQ = {
      SURFACE, et les deux ne se ressemblent pas : 80 % de surface font
      √0,80 = 89 % du diamètre. Le groupe remplissait donc presque tout
      le cercle, ce qu'il décrit exactement.
-     Soixante-dix pour cent du diamètre, c'est 0,70² = 49 % de la
-     surface. Le nom de la constante ne change pas — c'est bien une
-     part de surface qu'elle porte — mais son commentaire dit
-     désormais d'où elle vient, pour qu'on ne refasse pas la
+     PUIS SOIXANTE, ET LE CHEVAUCHEMENT ASSUMÉ. « Ce n'est pas trop
+     grave si elles se chevauchent. Pour l'instant elles sont trop,
+     ça ne va pas. Moi je mettrai soixante pour cent : si elles
+     doivent se chevaucher, elles se chevauchent. »
+
+     C'est ce dernier mot qui débloque tout. Le disque de formation
+     visait déjà soixante-dix pour cent, mais il n'était jamais
+     atteint : cent Furies de 0,34 case de rayon, serrées épaule
+     contre épaule, occupent 7,1 cases — plus que les 5,9 visées. La
+     séparation gagnait donc contre la formation, et le groupe
+     s'étalait à quatorze cases. Aucun réglage du disque n'y pouvait
+     rien tant que les corps devaient rester côte à côte.
+
+     Le chevauchement autorisé, c'est la SÉPARATION qui cède (voir
+     serreSelonEffectif dans 80-jeu.js), et le disque redevient ce
+     qu'il prétend être. Soixante pour cent du diamètre, c'est
+     0,60² = 36 % de la surface. Le nom de la constante ne change pas
+     — c'est bien une part de surface qu'elle porte — mais son
+     commentaire dit d'où elle vient, pour qu'on ne refasse pas la
      conversion à l'envers. */
-  FORMATION_PART_SURFACE: 0.49, // 0,70 de DIAMÈTRE, soit 0,70² de surface
+  FORMATION_PART_SURFACE: 0.36, // 0,60 de DIAMÈTRE, soit 0,60² de surface
+  /* ════════════════════════════════════════════════════════════
+     JUSQU'OÙ LES CORPS ACCEPTENT DE SE TRAVERSER
+
+     La séparation ne se relâche QUE si le groupe ne tient pas dans
+     son disque, et jamais en dessous de cette part de son rayon : à
+     zéro elles se superposeraient toutes sur un point et l'on ne
+     verrait plus qu'une Furie. 0,45 laisse un empilement dense mais
+     encore lisible — on distingue les corps, ils se touchent. */
+  SEPARATION_SERRE_MIN : 0.45,
+  /* ════════════════════════════════════════════════════════════
+     LE GROUPE EST PLUS LARGE QUE SON DISQUE D'ANCRES
+
+     Mesuré : disque visé 5,0 cases, groupe mesuré 6,5 — un tiers de
+     plus. L'écart n'est pas un défaut, c'est la vie du groupe : les
+     traînardes qui rattrapent, l'éventail qui s'ouvre à l'arrivée,
+     les corps qui se contournent. Viser le disque nominal laissait
+     donc le résultat au-dessus de ce qu'il demande.
+
+     On vise donc PLUS SERRÉ QUE LA CIBLE, de ce facteur-là et pas
+     d'un autre : 0,78 ≈ 5,0 / 6,5. Le chiffre vient de la mesure,
+     et c'est la mesure qu'il faudra refaire si la marche change. */
+  SEPARATION_VISEE     : 0.78,
   /* Jusqu'où un Doc va chercher un blessé. Au-delà il renonce et se
      recolle à la troupe : un soigneur qui traverse la carte pour un
      éclopé isolé abandonne les vingt autres. */
@@ -3122,6 +3164,46 @@ function flotteMaximum(){
 
 /* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
    Brouillard : c'est lui qui sert de référence visuelle au joueur. */
+/* ════════════════════════════════════════════════════════════════
+   LA SÉPARATION CÈDE QUAND LE GROUPE NE TIENT PAS
+
+   « Ce n'est pas trop grave si elles se chevauchent. Pour l'instant
+   elles sont trop, ça ne va pas. Moi je mettrai soixante pour cent :
+   si elles doivent se chevaucher, elles se chevauchent. »
+
+   C'EST CE DERNIER MOT QUI DÉBLOQUE TOUT. Le disque de formation
+   visait déjà soixante-dix pour cent du brouillard, mais il n'était
+   jamais atteint : cent Furies de 0,34 case de rayon, serrées épaule
+   contre épaule, occupent 7,1 cases quand on leur en demande 5,9.
+   La séparation gagnait donc contre la formation — mesuré à
+   quatorze cases — et aucun réglage du disque n'y pouvait rien tant
+   que les corps devaient rester côte à côte.
+
+   ON CALCULE DONC CE QUI MANQUE, ET RIEN DE PLUS. Le rayon qu'il
+   faudrait pour tenir à n corps est `rayon × √(n / 0,9069)` — la
+   densité d'un empilement hexagonal. S'il dépasse le disque voulu,
+   on rentre les rayons de séparation dans ce rapport-là : juste
+   assez pour que le groupe tienne, jamais plus. Vingt Furies tiennent
+   sans rien céder et ne cèdent rien ; cent se traversent d'un tiers.
+
+   UN PLANCHER, PARCE QUE ZÉRO NE SE VOIT PLUS. Sans lui, un très
+   gros groupe se superposerait sur un point et l'on ne verrait plus
+   qu'une seule Furie. À 0,45 les corps se touchent et se
+   chevauchent, mais on les compte encore.
+   ════════════════════════════════════════════════════════════════ */
+function serreSelonEffectif(n){
+  if(n < 2) return 1;
+  var rf = rayonFormation();
+  /* le rayon qu'occuperaient n disques du gabarit le plus courant,
+     rangés au mieux — on prend la Furie, qui fait les gros groupes */
+  var besoin = UNI.furie.rayon * Math.sqrt(n / 0.9069);
+  /* on vise plus serré que le disque nominal : le groupe mesuré est
+     un tiers plus large que ses ancres (voir SEPARATION_VISEE) */
+  var vise = rf * EQ.SEPARATION_VISEE;
+  if(besoin <= vise) return 1;
+  return Math.max(EQ.SEPARATION_SERRE_MIN, vise / besoin);
+}
+
 function rayonFormation(){
   return CAP.brouillard.rayon * Math.sqrt(EQ.FORMATION_PART_SURFACE);
 }
@@ -46891,7 +46973,7 @@ function nouvelleCarte(index, pvConnu){
        balayer la liste : la zone d'attraction se teste sur CHAQUE
        unité à chaque image, et retrouver le héros à chaque test
        coûterait cent recherches par image pour un objet unique. */
-    heros:null,
+    heros:null, herosNe:0, herosEnRoute:0,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -47732,6 +47814,7 @@ function separeUnites(dt){
   }
   var nc = sepW * sepH, i, c;
   sepDebut.fill(0); sepTete.fill(0);
+  var serre = serreSelonEffectif(n);
 
   /* copie plate + comptage par case */
   var rayonMax = 0;
@@ -47743,7 +47826,7 @@ function separeUnites(dt){
        rentre donc son rayon : ses voisines la traversent presque, le
        bouchon se défait, et elle le retrouve dès qu'elle repart. */
     sepX[i] = u.gx; sepY[i] = u.gy;
-    sepR[i] = UNI[u.t].rayon * ((u.figeT || 0) > FIGE_MOU ? FIGE_SEP : 1);
+    sepR[i] = UNI[u.t].rayon * serre * ((u.figeT || 0) > FIGE_MOU ? FIGE_SEP : 1);
     if(sepR[i] > rayonMax) rayonMax = sepR[i];
     sepPx[i] = 0; sepPy[i] = 0;
     var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
@@ -47994,7 +48077,13 @@ function poseBarge(gx, gy){
     type:b.type, reste:b.n, sortis:0,
     gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
     etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
-    n:jeu.nSuiv++
+    n:jeu.nSuiv++,
+    /* IL EMBARQUE SUR LA PREMIÈRE NAVETTE DE LA VIE, et sur elle
+       seule. Le drapeau est posé ICI plutôt que lu à l'accostage :
+       deux navettes envoyées coup sur coup accosteraient toutes deux
+       avant que la première n'ait fait naître le héros, et il serait
+       descendu deux fois. */
+    avecHeros:(jeu.herosNe ? 0 : (jeu.herosEnRoute ? 0 : (jeu.herosEnRoute = 1)))
   });
   jeu.barges.splice(jeu.bargeSel, 1);
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
@@ -48042,6 +48131,10 @@ function majNavettes(dt){
         v.sortis++;
       }
       if(v.sortis >= v.reste && du > v.reste * NAV.CADENCE + NAV.PAUSE){
+        /* LE HÉROS DESCEND EN DERNIER, derrière ses passagers : la
+           rampe est libre, et on le voit arriver au lieu de le
+           découvrir noyé dans la file. */
+        if(v.avecHeros && !jeu.herosNe) faitDebarquerHeros(v);
         v.etat = "retrait";
         v.minuteur = 0;
       }
@@ -48129,14 +48222,14 @@ function creeUnite(type, gx, gy){
        la marche, la cadence de tir et le dessin ; la seconde ne sert
        qu'aux traits de vitesse de Speed lui-même.
 
-       `reste` EST LE COMPTE À REBOURS DE L'ACTIVATION, et il ne
-       signifie quelque chose que pour le héros. Il est posé ICI, à la
-       naissance, et non à l'appui sur la tuile : « dix secondes
-       ACTIVÉES » commencent quand il pose le pied sur le sable. Les
-       autres troupes le portent à zéro et ne le lisent jamais — un
-       champ de plus par unité coûte moins qu'une classe cachée qui
-       change en cours de partie. */
-    reste:(f.heros ? f.duree : 0),
+       `auraReste` EST LE COMPTE À REBOURS DE SON AURA, et non de sa
+       vie. « Speed ne doit pas apparaître et disparaître : il
+       débarque avec nous, il a une santé, c'est comme une troupe en
+       plus. » Il est donc là du débarquement à sa mort, comme
+       n'importe qui ; ce qui dure dix secondes, c'est le DOPAGE, et
+       c'est cela seul que ce compteur mesure. À zéro, il court
+       toujours — il n'accélère plus personne. */
+    auraReste:0,
     dope:0, vitVue:0, escorte:null,
     escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
@@ -49022,76 +49115,74 @@ function activeHeros(cle){
   if(typeof modeApercu !== "undefined" && modeApercu)
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
-  /* UN SEUL HÉROS À LA FOIS SUR L'ÎLE, quel qu'il soit. Deux auras qui
-     se recouvrent ne doublent rien de plus — le dopage est un
-     booléen — et l'on paierait deux fois le même effet. */
-  if(jeu.heros && jeu.heros.pv > 0)
-    return message(UNI[jeu.heros.t].nom + " court déjà — encore "
-                   + Math.ceil(jeu.heros.reste) + " s.");
-  /* le centre de la troupe vivante, le héros exclu */
-  var sx = 0, sy = 0, n = 0;
+  /* IL FAUT QU'IL SOIT LÀ. Il débarque avec la troupe et vit sa vie ;
+     tombé, il ne revient qu'avec la flotte suivante. */
+  var h = null;
   for(var i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
-    if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
-    sx += u.gx; sy += u.gy; n++;
+    if(u.pv > 0 && u.t === H.unite){ h = u; break; }
   }
-  if(!n) return message(H.nom + " n'a personne à emmener : débarque d'abord.");
+  if(!h) return message(jeu.herosNe ? H.nom + " est tombé — il revient au renfort."
+                                    : H.nom + " débarque avec ta première navette.");
+  if(h.auraReste > 0)
+    return message(H.nom + " court déjà — encore " + Math.ceil(h.auraReste) + " s.");
   var cout = coutActuel(H.cle, jeu.usages);
   if(jeu.energie < cout)
     return message("Il faut " + cout + " d'Énergie pour lancer " + H.nom + ".");
   jeu.energie -= cout;
   jeu.usages[H.cle] = (jeu.usages[H.cle] || 0) + 1;
-  /* on le pose au centre, et sur une case praticable : le centre d'un
-     groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
-  var cx = sx / n, cy = sy / n;
-  if(bloque(cx, cy)){
-    var pose = false;
-    for(var r = 1; r <= 6 && !pose; r++){
-      for(var a = 0; a < 8 && !pose; a++){
-        var an = a / 8 * 6.2832;
-        var tx = cx + Math.cos(an) * r, ty = cy + Math.sin(an) * r;
-        if(!bloque(tx, ty)){ cx = tx; cy = ty; pose = true; }
-      }
-    }
-  }
-  var h = creeUnite(H.unite, borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
-  jeu.heros = h;
+  h.auraReste = fh.duree;
   jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
   if(son && son.speedDebut) son.speedDebut();
   demandeMajBarres();
   majMenu();
-  /* PAS DE BANDEAU. « Tu n'es pas obligé d'afficher ça, retire ce
-     message-là. » Il a raison, et pour une raison de fond : le
-     bandeau se pose au MILIEU de l'écran, c'est-à-dire pile sur la
-     troupe qu'on vient de doper, au moment précis où l'on veut la
-     regarder courir. Tout ce qu'il disait est déjà dit ailleurs et
-     mieux — l'éclat doré à l'endroit exact, les anneaux sous les
-     pieds, la tuile qui s'allume et compte les secondes. Les refus,
-     eux, gardent leur message : ceux-là expliquent pourquoi rien ne
-     s'est passé, et rien d'autre ne le dirait. */
   if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IL DÉBARQUE AVEC LA TROUPE, UNE FOIS PAR VIE
+
+   « Speed ne doit pas apparaître dans nos troupes : il doit débarquer
+   avec nous, il a une santé. Ce n'est pas quelque chose qui apparaît
+   et qui disparaît. C'est comme si c'était une troupe en plus. »
+
+   Il descend donc la rampe de la PREMIÈRE navette de chaque vie,
+   derrière ses passagers. Il n'occupe aucune place — les douze Furies
+   restent douze — et il ne coûte rien à faire venir : ce qui se paie,
+   c'est son aura, pas sa présence.
+
+   TOMBÉ, IL NE REVIENT QU'AU RENFORT, comme la flotte. C'est ce qui
+   fait de lui une troupe et non une capacité : on peut le perdre.
+   ════════════════════════════════════════════════════════════════ */
+function faitDebarquerHeros(v){
+  var H = HEROS[0];
+  if(!H) return;
+  var x = RAMPE_GX - 0.9, y = v.gy;
+  for(var essai = 0; essai < 10 && bloque(x, y); essai++){
+    y = v.gy + (essai % 2 ? 1 : -1) * 0.5 * (essai + 1);
+    x = RAMPE_GX - 0.9;
+  }
+  if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
+  creeUnite(H.unite, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  jeu.herosNe = 1;
+  demandeMajBarres();
 }
 
 /* ════════════════════════════════════════════════════════════════
    LES DIX SECONDES SONT PASSÉES
 
-   Il repart, il n'est pas abattu, et la différence compte : on met
-   les points de vie à zéro pour que `majUnites` retire l'unité en
-   tête de son parcours, SANS passer par `toucheUnite`. C'est
-   `toucheUnite` qui pousse la mort, le sang, l'épave et la perte au
-   compteur du joueur ; rien de tout cela n'a lieu ici.
+   L'AURA S'ÉTEINT, ET LUI RESTE. Il ne s'efface plus : « ce n'est pas
+   quelque chose qui apparaît et qui disparaît ». Il continue de
+   courir avec la troupe, simplement il n'accélère plus personne —
+   jusqu'à ce qu'on le relance, ou qu'il tombe.
 
-   ON COUPE LE DOPAGE DANS LA MÊME IMAGE. `jeu.heros` est relu une
-   fois par image, en tête de `majUnites` : le laisser en place le
-   temps d'une image de plus aurait donné un dopage gratuit aux
-   unités traitées après lui dans la boucle.
+   L'ÉCLAT ET LES TROIS NOTES RESTENT : sans eux, la troupe cesserait
+   d'aller vite sans que rien ne le dise, et l'on croirait à un
+   ralentissement du jeu.
    ════════════════════════════════════════════════════════════════ */
 function finDeSpeed(u){
-  u.pv = 0;
-  jeu.heros = null;
-  /* l'éclat doré : c'est lui qui DIT que l'effet s'arrête, sans quoi
-     le héros disparaîtrait d'une image à l'autre et le joueur
-     croirait l'avoir perdu au combat */
+  u.auraReste = 0;
+  /* l'éclat doré : c'est lui qui DIT que l'effet s'arrête */
   jeu.effets.push({ t:"speedPart", gx:u.gx, gy:u.gy, age:0, duree:0.85 });
   if(son && son.speedFin) son.speedFin();
   demandeMajBarres();
@@ -49152,13 +49243,14 @@ function chercheCompagnon(u){
    ════════════════════════════════════════════════════════════════ */
 function majSpeed(u, f, dt){
   u.cible = null; u.tir = 0; u.arme = 0;
-  /* LE COMPTE À REBOURS D'ABORD, avant tout déplacement : une image
-     de course de plus après la fin serait une image de dopage volée. */
-  u.reste -= dt;
-  if(u.reste <= 0){
-    u.reste = 0;
-    finDeSpeed(u);
-    return;
+  /* L'AURA S'ÉTEINT, LE HÉROS RESTE. Il ne disparaît plus au bout de
+     dix secondes : c'est le dopage qui s'arrête, lui continue de
+     courir avec la troupe jusqu'à ce qu'on le relance — ou qu'il
+     tombe. Décompté AVANT tout déplacement : une image de course de
+     plus après la fin serait une image de dopage volée. */
+  if(u.auraReste > 0){
+    u.auraReste -= dt;
+    if(u.auraReste <= 0){ u.auraReste = 0; finDeSpeed(u); }
   }
   /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
   if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
@@ -49367,7 +49459,12 @@ function cadenceDe(u, f){
 function majUnites(dt){
   var i, u;
   var balise = jeu.balise;
+  /* LE HÉROS NE DOPE QUE SON AURA ALLUMÉE. Présent en permanence
+     depuis qu'il débarque avec la troupe, il ne vaut plus par sa
+     seule présence : sans ce filtre, l'activation ne servirait à
+     rien et le doublement serait redevenu gratuit. */
   var heros = chercheHeros();
+  if(heros && !(heros.auraReste > 0)) heros = null;
   var zone2 = EQ.SPEED_ATTRACTION * EQ.SPEED_ATTRACTION;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
@@ -51073,6 +51170,9 @@ function majMort(dt){
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
       jeu.bargeSel = 0;
+    /* UNE FLOTTE NEUVE, UN HÉROS NEUF. Il se perd comme une troupe :
+       il revient donc avec elles, et pas avant. */
+    jeu.herosNe = 0; jeu.herosEnRoute = 0; jeu.heros = null;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
@@ -62584,9 +62684,17 @@ var signatureHeros = null;
 function majHeros(){
   var z = $("herosRangee");
   if(!z || !jeu) return;
-  var vivant = jeu.heros && jeu.heros.pv > 0 ? jeu.heros : null;
-  var resteH = vivant ? Math.ceil(vivant.reste) : 0;
-  var sig = (vivant ? vivant.t : "") + "|" + resteH;
+  /* TROIS ÉTATS, ET NON DEUX : il n'a pas encore débarqué, il court
+     avec la troupe, ou il est tombé. C'est ce qui change depuis qu'il
+     est une troupe et non une capacité — une capacité est toujours
+     disponible, un héros peut manquer. */
+  var vivant = null;
+  for(var v0 = 0; v0 < jeu.unites.length; v0++){
+    var u0 = jeu.unites[v0];
+    if(u0.pv > 0 && UNI[u0.t] && UNI[u0.t].heros){ vivant = u0; break; }
+  }
+  var resteH = vivant ? Math.ceil(vivant.auraReste || 0) : 0;
+  var sig = (vivant ? vivant.t : (jeu.herosNe ? "mort" : "attendu")) + "|" + resteH;
   for(var i = 0; i < HEROS.length; i++)
     sig += "|" + coutActuel(HEROS[i].cle, jeu.usages)
          + "|" + (jeu.energie >= coutActuel(HEROS[i].cle, jeu.usages) ? 1 : 0);
@@ -62600,18 +62708,24 @@ function majHeros(){
     /* IL COURT : c'est LUI qui court, pas un autre. Avec plusieurs
        héros, seule sa propre tuile doit compter les secondes. */
     var sien = !!(vivant && vivant.t === H.unite);
-    var fin = sien && resteH <= Math.round(UNI[H.unite].adieu || 0);
-    el.classList.toggle("actif", sien);
+    var dope = sien && resteH > 0;
+    var fin = dope && resteH <= Math.round(UNI[H.unite].adieu || 0);
+    var absent = !sien;
+    el.classList.toggle("actif", dope);
     el.classList.toggle("finit", fin);
-    el.classList.toggle("pauvre", !vivant && jeu.energie < cout);
+    /* ÉTEINTE POUR DEUX RAISONS TRÈS DIFFÉRENTES — il n'est pas là,
+       ou l'Énergie manque — et l'infobulle dit laquelle : une tuile
+       grise qui ne se justifie pas ne renseigne sur rien. */
+    el.classList.toggle("pauvre", absent || (!dope && jeu.energie < cout));
     var cx = $("hx_" + H.cle);
-    if(cx) cx.textContent = sien ? resteH + "s" : cout;
-    el.title = sien ? H.nom + " court — encore " + resteH + " s"
-             : vivant ? UNI[vivant.t].nom + " est déjà sur l'île"
+    if(cx) cx.textContent = dope ? resteH + "s" : cout;
+    el.title = dope ? H.nom + " accélère la troupe — encore " + resteH + " s"
+             : absent ? (jeu.herosNe ? H.nom + " est tombé — il revient au renfort"
+                                     : H.nom + " débarque avec ta première navette")
              : jeu.energie < cout ? "Il faut " + cout + " d'Énergie pour lancer " + H.nom
-             : "Appuie : " + H.nom + " arrive au milieu de ta troupe, "
-               + Math.round(UNI[H.unite].duree) + " s à deux fois la vitesse ("
-               + cout + " d'Énergie)";
+             : "Appuie : " + Math.round(UNI[H.unite].duree)
+               + " s à deux fois la vitesse autour de " + H.nom
+               + " (" + cout + " d'Énergie)";
   }
 }
 

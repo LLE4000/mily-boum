@@ -1776,14 +1776,17 @@ select.champ{cursor:pointer}
    L'OR LES DISTINGUE, comme il distingue tout ce qui est rare dans
    ce jeu. Les capacités sont violettes et leur pastille orange ;
    celles-ci sont ambrées, et leur pastille dorée. */
-/* ELLE NE PREND QUE SA PLACE. `#bd` étire ses enfants sur toute la
-   largeur du panneau des capacités : une rangée d'un seul héros
-   laissait alors une grande boîte vide à sa gauche, qui se lisait
-   comme un cadre oublié. Elle se cale donc à droite, à la largeur de
-   ce qu'elle contient — et s'allongera d'elle-même quand ils seront
-   deux, puis trois. */
-#herosBoite{padding:6px;align-self:flex-end;width:fit-content}
-#herosRangee{display:flex;gap:6px;justify-content:flex-end}
+/* À GAUCHE DES CAPACITÉS, ALIGNÉE SUR LEUR PREMIÈRE LIGNE, ET À PART.
+   C'est l'endroit qu'il a dessiné. Au-dessus, la rangée coupait le
+   panneau en deux et poussait les capacités vers le bas de l'écran ;
+   à côté, elle occupe la place vide qui traînait à leur gauche et le
+   bloc se lit d'un seul tenant — héros, puis capacités. Le `gap` de
+   la ligne est plus large que celui de la grille : c'est lui qui dit
+   « à part ». Elles s'alignent par le HAUT, de sorte qu'un deuxième
+   héros s'ajoute à côté du premier sans rien déplacer. */
+#basDroite{display:flex;gap:10px;align-items:flex-start;justify-content:flex-end}
+#herosBoite{padding:6px;width:fit-content}
+#herosRangee{display:flex;gap:6px}
 .hero{
   position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
   border:1px solid rgba(255,206,84,.55);
@@ -2579,8 +2582,10 @@ select.champ{cursor:pointer}
         <span class="ecl" aria-hidden="true">⚡</span><span id="energieV">220</span>
       </div>
     </div>
-    <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
-    <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+    <div id="basDroite">
+      <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
+      <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
+    </div>
   </div>
 
   <div class="bloc p" id="bc">

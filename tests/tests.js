@@ -58,7 +58,7 @@ try{
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
     "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
-    "HEROS","estHeros",
+    "HEROS","estHeros","serreSelonEffectif",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -5113,16 +5113,35 @@ G("8. Cohérence des règles de jeu");
      Math.abs(N.CAP.brouillard.rayon - N.CAP.cryo.rayon) / N.CAP.cryo.rayon < 0.15);
 
   /* LA FORMATION SE MESURE EN DIAMÈTRE, ET C'EST CE QU'IL A DEMANDÉ.
-     « Si le diamètre du brouillard représente cent pour cent, un gros
-     groupe devrait en occuper soixante-dix au maximum. » La constante
-     porte une part de SURFACE, donc 0,70² = 0,49 — et c'est bien le
-     rapport des DIAMÈTRES qu'on vérifie ici, parce que c'est celui
-     qu'on lui a promis. */
+     « Soixante-dix au maximum », puis, le chevauchement autorisé :
+     « moi je mettrai soixante pour cent ». La constante porte une part
+     de SURFACE, donc 0,60² = 0,36 — et c'est bien le rapport des
+     DIAMÈTRES qu'on vérifie ici, parce que c'est celui qu'on lui a
+     promis. */
   var rf = N.rayonFormation();
-  ok("le groupe occupe 70 % du diamètre du Brouillard, comme demandé",
-     Math.abs(rf / N.CAP.brouillard.rayon - 0.70) < 0.005,
+  ok("le groupe occupe 60 % du diamètre du Brouillard, comme demandé",
+     Math.abs(rf / N.CAP.brouillard.rayon - 0.60) < 0.005,
      (100 * rf / N.CAP.brouillard.rayon).toFixed(1) + " %");
-  ok("… soit 49 % de sa surface", Math.abs(N.EQ.FORMATION_PART_SURFACE - 0.49) < 1e-9);
+  ok("… soit 36 % de sa surface", Math.abs(N.EQ.FORMATION_PART_SURFACE - 0.36) < 1e-9);
+  /* ════════════════════════════════════════════════════════════
+     ET LA SÉPARATION CÈDE POUR QUE CE DISQUE SOIT ATTEINT
+
+     « Ce n'est pas trop grave si elles se chevauchent. » Sans ce mot,
+     le disque restait une intention : cent Furies épaule contre
+     épaule occupent 7,1 cases quand on leur en demande 5,0, la
+     séparation gagnait, et le groupe s'étalait à quatorze. On rentre
+     donc les rayons juste assez pour que le groupe tienne — jamais
+     plus, et jamais sous un plancher qui le rendrait illisible. */
+  ok("la séparation se resserre selon l'effectif",
+     N.serreSelonEffectif(2) === 1 && N.serreSelonEffectif(100) < 1);
+  ok("… un petit groupe ne cède rien", N.serreSelonEffectif(10) === 1);
+  ok("… et jamais sous son plancher",
+     N.serreSelonEffectif(100000) === N.EQ.SEPARATION_SERRE_MIN
+     && N.EQ.SEPARATION_SERRE_MIN >= 0.4);
+  /* LE FACTEUR VIENT DE LA MESURE : disque visé 5,0, groupe mesuré
+     6,5 — les traînardes et l'éventail d'arrivée débordent. */
+  ok("… on vise plus serré que la cible, du rapport mesuré",
+     N.EQ.SEPARATION_VISEE > 0.6 && N.EQ.SEPARATION_VISEE < 0.95);
   (function(){
     /* La spirale doit couvrir le disque sans trou ni empilement. */
     var pts = [], i, j;
@@ -11201,7 +11220,7 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
 
   /* ---- ④ ALLIÉE GÊNANTE, JAMAIS ALLIÉE-MUR ---- */
   ok("une unité enlisée rentre son rayon pour se laisser traverser",
-     /sepR\[i\] = UNI\[u\.t\]\.rayon \* \(\(u\.figeT \|\| 0\) > FIGE_MOU \? FIGE_SEP : 1\);/.test(html));
+     /sepR\[i\] = UNI\[u\.t\]\.rayon \* serre \* \(\(u\.figeT \|\| 0\) > FIGE_MOU \? FIGE_SEP : 1\);/.test(html));
   ok("… et l'écartement ne court jamais plus vite que la marche",
      /Math\.min\(EQ\.SEPARATION_VITESSE,\s*\n?\s*UNI\[lst\[i\]\.t\]\.vitesse \* EQ\.SEPARATION_PART_VIT\)/.test(html));
   ok("… la part retenue laisse la marche gagner",
@@ -11463,7 +11482,7 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   /* LA DURÉE VIT SUR LA FICHE, pas dans une constante globale : rien
      ne dit que le deuxième héros tiendra dix secondes. */
   ok("la durée est portée par la fiche du héros",
-     N.UNI.speed.duree === 10.0 && /reste:\(f\.heros \? f\.duree : 0\),/.test(html));
+     N.UNI.speed.duree === 10.0 && /h\.auraReste = fh\.duree;/.test(html));
 
   /* ---- ② LE PRIX ---- */
   ok("dix, vingt, trente, quarante, cinquante", (function(){
@@ -11492,7 +11511,7 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   /* ---- ④ LA TUILE DIT LE PRIX, PUIS LES SECONDES ---- */
   var mh = String(html.match(/function majHeros\(\)\{[\s\S]*?\n\}/) || "");
   ok("la tuile affiche le prix, ou les secondes restantes",
-     /cx\.textContent = sien \? resteH \+ "s" : cout;/.test(mh));
+     /cx\.textContent = dope \? resteH \+ "s" : cout;/.test(mh));
   /* AVEC PLUSIEURS HÉROS, SEULE LA SIENNE COMPTE : `sien` compare le
      type de l'unité en course à celui de la tuile. Sans cela les deux
      tuiles auraient compté les mêmes secondes. */
@@ -11503,44 +11522,73 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… et le battement s'efface pour qui demande moins d'animations",
      /@media \(prefers-reduced-motion:reduce\)\{ \.hero\.finit\{animation:none\} \}/.test(html));
 
-  /* ---- ⑤ L'ACTIVATION ---- */
+  /* ════════════════════════════════════════════════════════════
+     ⑤ IL DÉBARQUE AVEC LA TROUPE, ET IL A UNE SANTÉ
+
+     « Speed ne doit pas apparaître dans nos troupes : il doit
+     débarquer avec nous, il a une santé. Ce n'est pas quelque chose
+     qui apparaît et qui disparaît. C'est comme si c'était une troupe
+     en plus. »
+
+     CE QUI CHANGE DE NATURE. Il naissait à l'appui et s'effaçait dix
+     secondes plus tard : une capacité déguisée en personnage. Il
+     descend maintenant la rampe de la PREMIÈRE navette de chaque vie,
+     court avec le groupe, et peut TOMBER — auquel cas il ne revient
+     qu'au renfort, comme la flotte. Ce qui dure dix secondes n'est
+     plus sa présence mais son AURA, et c'est elle seule que l'appui
+     allume et que le prix paie.
+     ════════════════════════════════════════════════════════════ */
   var av = String(html.match(/function activeHeros\(cle\)\{[\s\S]*?\n\}/) || "");
   ok("l'activation prend une CLÉ, et non un nom en dur", av.length > 400
      && /var H = estHeros\(cle\);/.test(av) && av.indexOf('"speed"') < 0);
-  ok("… il naît au centre de la troupe, pas au rivage",
-     /sx \/ n, cy = sy \/ n/.test(av) && av.indexOf("RIVAGE_GX") < 0);
-  ok("… et jamais dans un mur", /if\(bloque\(cx, cy\)\)\{/.test(av));
-  ok("… les héros ne comptent pas dans ce centre",
-     /UNI\[u\.t\] && UNI\[u\.t\]\.heros\)\) continue;/.test(av));
-  ok("… sans troupe à emmener, le refus est gratuit",
-     av.indexOf("if(!n) return message") >= 0
-     && av.indexOf("if(!n) return message") < av.indexOf("jeu.energie -= cout"));
-  ok("… un seul héros à la fois sur l'île, quel qu'il soit",
-     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\(UNI\[jeu\.heros\.t\]\.nom/.test(av));
-  ok("… on le relance autant de fois qu'on a d'Énergie",
+  /* ELLE NE FAIT PLUS NAÎTRE PERSONNE : elle allume une aura sur un
+     héros qui est déjà là. */
+  ok("… elle n'engendre plus le héros, elle allume son aura",
+     av.indexOf("creeUnite") < 0 && /h\.auraReste = fh\.duree;/.test(av));
+  ok("… et sans héros sur l'île, elle ne prélève rien",
+     /if\(!h\) return message\(jeu\.herosNe/.test(av)
+     && av.indexOf("if(!h) return message") < av.indexOf("jeu.energie -= cout"));
+  ok("… le refus dit lequel des deux : tombé, ou pas encore débarqué",
+     /est tombé — il revient au renfort\./.test(av)
+     && /débarque avec ta première navette\./.test(av));
+  ok("… on ne relance pas une aura déjà allumée",
+     /if\(h\.auraReste > 0\)/.test(av));
+  ok("… on la rallume autant de fois qu'on a d'Énergie",
      av.indexOf("novaDispo") < 0 && /jeu\.usages\[H\.cle\] = \(jeu\.usages\[H\.cle\] \|\| 0\) \+ 1;/.test(av));
   ok("… l'éclat d'arrivée est le départ à l'envers",
      /arrivee:1/.test(av) && /var e = arrivee \? 1 - t : t;/.test(html));
 
-  /* ---- ⑥ LES DIX SECONDES, ET LE DÉPART ---- */
+  /* IL DESCEND LA RAMPE, EN DERNIER ET UNE SEULE FOIS */
+  var fdh = String(html.match(/function faitDebarquerHeros\(v\)\{[\s\S]*?\n\}/) || "");
+  ok("il débarque de la première navette de la vie", fdh.length > 150
+     && /creeUnite\(H\.unite,/.test(fdh) && /jeu\.herosNe = 1;/.test(fdh));
+  ok("… derrière ses passagers, la rampe libre",
+     /if\(v\.avecHeros && !jeu\.herosNe\) faitDebarquerHeros\(v\);/.test(html));
+  /* LE DRAPEAU EST POSÉ À L'ENVOI, ET NON LU À L'ACCOSTAGE : deux
+     navettes parties coup sur coup accosteraient toutes deux avant
+     la naissance, et il serait descendu deux fois. */
+  ok("… et une seule navette l'emporte, même si deux partent ensemble",
+     /avecHeros:\(jeu\.herosNe \? 0 : \(jeu\.herosEnRoute \? 0 : \(jeu\.herosEnRoute = 1\)\)\)/.test(html));
+  ok("… le renfort lui rend une vie neuve",
+     /jeu\.herosNe = 0; jeu\.herosEnRoute = 0; jeu\.heros = null;/.test(html));
+  ok("il a une santé, comme une troupe", N.UNI.speed.pv === 900);
+
+  /* ---- ⑥ L'AURA S'ÉTEINT, LE HÉROS RESTE ---- */
   var ms = String(html.match(/function majSpeed\(u, f, dt\)\{[\s\S]*?\n\}/) || "");
-  ok("le compte à rebours tourne dans la fonction du héros", /u\.reste -= dt;/.test(ms));
-  ok("… avant tout déplacement", ms.indexOf("u.reste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
-  ok("… à zéro, il s'en va", /if\(u\.reste <= 0\)\{[\s\S]{0,120}finDeSpeed\(u\);/.test(ms));
+  ok("le compte à rebours de l'aura tourne dans la fonction du héros",
+     /u\.auraReste -= dt;/.test(ms));
+  ok("… avant tout déplacement",
+     ms.indexOf("u.auraReste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
+  ok("… à zéro, l'aura s'arrête", /if\(u\.auraReste <= 0\)\{ u\.auraReste = 0; finDeSpeed\(u\); \}/.test(ms));
   var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
-  ok("il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
-  ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
-  /* AUCUN BANDEAU, NI À L'ARRIVÉE NI AU DÉPART. Il se pose au milieu
-     de l'écran — pile sur la troupe qu'on vient de doper, au moment
-     où l'on veut la regarder courir — et il ne dit rien que l'éclat,
-     les anneaux et la tuile ne disent déjà mieux. Les REFUS, eux,
-     gardent le leur : ceux-là expliquent pourquoi rien ne s'est
-     passé. */
-  ok("il n'affiche aucun bandeau, ni en arrivant ni en repartant",
-     fd.indexOf("message(") < 0 && av.indexOf('message(H.nom + " est là') < 0);
-  ok("… mais les refus gardent le leur",
-     /return message\(H\.nom \+ " n'a personne à emmener/.test(av)
-     && /return message\("Il faut " \+ cout \+ " d'Énergie pour lancer "/.test(av));
+  ok("… et le héros, lui, ne s'efface pas",
+     /u\.auraReste = 0;/.test(fd) && fd.indexOf("u.pv = 0") < 0
+     && fd.indexOf("jeu.heros = null") < 0);
+  /* SANS AURA, IL NE DOPE PLUS PERSONNE. Présent en permanence, il ne
+     vaut plus par sa seule présence — sans ce filtre, l'activation ne
+     servirait à rien et le doublement serait redevenu gratuit. */
+  ok("… et sans aura, il ne dope plus personne",
+     /if\(heros && !\(heros\.auraReste > 0\)\) heros = null;/.test(html));
 
   /* ---- ⑦ CE QUE L'ACTIVATION N'A PAS TOUCHÉ ---- */
   ok("la zone et le facteur n'ont pas bougé",

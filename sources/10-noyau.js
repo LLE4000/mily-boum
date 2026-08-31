@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.42";
+var VERSION = "v1.43";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -478,12 +478,49 @@ var EQ = {
      SURFACE, et les deux ne se ressemblent pas : 80 % de surface font
      √0,80 = 89 % du diamètre. Le groupe remplissait donc presque tout
      le cercle, ce qu'il décrit exactement.
-     Soixante-dix pour cent du diamètre, c'est 0,70² = 49 % de la
-     surface. Le nom de la constante ne change pas — c'est bien une
-     part de surface qu'elle porte — mais son commentaire dit
-     désormais d'où elle vient, pour qu'on ne refasse pas la
+     PUIS SOIXANTE, ET LE CHEVAUCHEMENT ASSUMÉ. « Ce n'est pas trop
+     grave si elles se chevauchent. Pour l'instant elles sont trop,
+     ça ne va pas. Moi je mettrai soixante pour cent : si elles
+     doivent se chevaucher, elles se chevauchent. »
+
+     C'est ce dernier mot qui débloque tout. Le disque de formation
+     visait déjà soixante-dix pour cent, mais il n'était jamais
+     atteint : cent Furies de 0,34 case de rayon, serrées épaule
+     contre épaule, occupent 7,1 cases — plus que les 5,9 visées. La
+     séparation gagnait donc contre la formation, et le groupe
+     s'étalait à quatorze cases. Aucun réglage du disque n'y pouvait
+     rien tant que les corps devaient rester côte à côte.
+
+     Le chevauchement autorisé, c'est la SÉPARATION qui cède (voir
+     serreSelonEffectif dans 80-jeu.js), et le disque redevient ce
+     qu'il prétend être. Soixante pour cent du diamètre, c'est
+     0,60² = 36 % de la surface. Le nom de la constante ne change pas
+     — c'est bien une part de surface qu'elle porte — mais son
+     commentaire dit d'où elle vient, pour qu'on ne refasse pas la
      conversion à l'envers. */
-  FORMATION_PART_SURFACE: 0.49, // 0,70 de DIAMÈTRE, soit 0,70² de surface
+  FORMATION_PART_SURFACE: 0.36, // 0,60 de DIAMÈTRE, soit 0,60² de surface
+  /* ════════════════════════════════════════════════════════════
+     JUSQU'OÙ LES CORPS ACCEPTENT DE SE TRAVERSER
+
+     La séparation ne se relâche QUE si le groupe ne tient pas dans
+     son disque, et jamais en dessous de cette part de son rayon : à
+     zéro elles se superposeraient toutes sur un point et l'on ne
+     verrait plus qu'une Furie. 0,45 laisse un empilement dense mais
+     encore lisible — on distingue les corps, ils se touchent. */
+  SEPARATION_SERRE_MIN : 0.45,
+  /* ════════════════════════════════════════════════════════════
+     LE GROUPE EST PLUS LARGE QUE SON DISQUE D'ANCRES
+
+     Mesuré : disque visé 5,0 cases, groupe mesuré 6,5 — un tiers de
+     plus. L'écart n'est pas un défaut, c'est la vie du groupe : les
+     traînardes qui rattrapent, l'éventail qui s'ouvre à l'arrivée,
+     les corps qui se contournent. Viser le disque nominal laissait
+     donc le résultat au-dessus de ce qu'il demande.
+
+     On vise donc PLUS SERRÉ QUE LA CIBLE, de ce facteur-là et pas
+     d'un autre : 0,78 ≈ 5,0 / 6,5. Le chiffre vient de la mesure,
+     et c'est la mesure qu'il faudra refaire si la marche change. */
+  SEPARATION_VISEE     : 0.78,
   /* Jusqu'où un Doc va chercher un blessé. Au-delà il renonce et se
      recolle à la troupe : un soigneur qui traverse la carte pour un
      éclopé isolé abandonne les vingt autres. */
@@ -518,6 +555,46 @@ function flotteMaximum(){
 
 /* Rayon dans lequel un groupe complet doit s'étaler. Calé sur le
    Brouillard : c'est lui qui sert de référence visuelle au joueur. */
+/* ════════════════════════════════════════════════════════════════
+   LA SÉPARATION CÈDE QUAND LE GROUPE NE TIENT PAS
+
+   « Ce n'est pas trop grave si elles se chevauchent. Pour l'instant
+   elles sont trop, ça ne va pas. Moi je mettrai soixante pour cent :
+   si elles doivent se chevaucher, elles se chevauchent. »
+
+   C'EST CE DERNIER MOT QUI DÉBLOQUE TOUT. Le disque de formation
+   visait déjà soixante-dix pour cent du brouillard, mais il n'était
+   jamais atteint : cent Furies de 0,34 case de rayon, serrées épaule
+   contre épaule, occupent 7,1 cases quand on leur en demande 5,9.
+   La séparation gagnait donc contre la formation — mesuré à
+   quatorze cases — et aucun réglage du disque n'y pouvait rien tant
+   que les corps devaient rester côte à côte.
+
+   ON CALCULE DONC CE QUI MANQUE, ET RIEN DE PLUS. Le rayon qu'il
+   faudrait pour tenir à n corps est `rayon × √(n / 0,9069)` — la
+   densité d'un empilement hexagonal. S'il dépasse le disque voulu,
+   on rentre les rayons de séparation dans ce rapport-là : juste
+   assez pour que le groupe tienne, jamais plus. Vingt Furies tiennent
+   sans rien céder et ne cèdent rien ; cent se traversent d'un tiers.
+
+   UN PLANCHER, PARCE QUE ZÉRO NE SE VOIT PLUS. Sans lui, un très
+   gros groupe se superposerait sur un point et l'on ne verrait plus
+   qu'une seule Furie. À 0,45 les corps se touchent et se
+   chevauchent, mais on les compte encore.
+   ════════════════════════════════════════════════════════════════ */
+function serreSelonEffectif(n){
+  if(n < 2) return 1;
+  var rf = rayonFormation();
+  /* le rayon qu'occuperaient n disques du gabarit le plus courant,
+     rangés au mieux — on prend la Furie, qui fait les gros groupes */
+  var besoin = UNI.furie.rayon * Math.sqrt(n / 0.9069);
+  /* on vise plus serré que le disque nominal : le groupe mesuré est
+     un tiers plus large que ses ancres (voir SEPARATION_VISEE) */
+  var vise = rf * EQ.SEPARATION_VISEE;
+  if(besoin <= vise) return 1;
+  return Math.max(EQ.SEPARATION_SERRE_MIN, vise / besoin);
+}
+
 function rayonFormation(){
   return CAP.brouillard.rayon * Math.sqrt(EQ.FORMATION_PART_SURFACE);
 }

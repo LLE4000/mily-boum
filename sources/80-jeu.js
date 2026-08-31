@@ -201,7 +201,7 @@ function nouvelleCarte(index, pvConnu){
        balayer la liste : la zone d'attraction se teste sur CHAQUE
        unité à chaque image, et retrouver le héros à chaque test
        coûterait cent recherches par image pour un objet unique. */
-    heros:null,
+    heros:null, herosNe:0, herosEnRoute:0,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -1042,6 +1042,7 @@ function separeUnites(dt){
   }
   var nc = sepW * sepH, i, c;
   sepDebut.fill(0); sepTete.fill(0);
+  var serre = serreSelonEffectif(n);
 
   /* copie plate + comptage par case */
   var rayonMax = 0;
@@ -1053,7 +1054,7 @@ function separeUnites(dt){
        rentre donc son rayon : ses voisines la traversent presque, le
        bouchon se défait, et elle le retrouve dès qu'elle repart. */
     sepX[i] = u.gx; sepY[i] = u.gy;
-    sepR[i] = UNI[u.t].rayon * ((u.figeT || 0) > FIGE_MOU ? FIGE_SEP : 1);
+    sepR[i] = UNI[u.t].rayon * serre * ((u.figeT || 0) > FIGE_MOU ? FIGE_SEP : 1);
     if(sepR[i] > rayonMax) rayonMax = sepR[i];
     sepPx[i] = 0; sepPy[i] = 0;
     var cx = (u.gx / maille) | 0, cy = (u.gy / maille) | 0;
@@ -1304,7 +1305,13 @@ function poseBarge(gx, gy){
     type:b.type, reste:b.n, sortis:0,
     gx:gxA + NAV.DEPART, gy:gy, gxA:gxA, gx0:gxA + NAV.DEPART,
     etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
-    n:jeu.nSuiv++
+    n:jeu.nSuiv++,
+    /* IL EMBARQUE SUR LA PREMIÈRE NAVETTE DE LA VIE, et sur elle
+       seule. Le drapeau est posé ICI plutôt que lu à l'accostage :
+       deux navettes envoyées coup sur coup accosteraient toutes deux
+       avant que la première n'ait fait naître le héros, et il serait
+       descendu deux fois. */
+    avecHeros:(jeu.herosNe ? 0 : (jeu.herosEnRoute ? 0 : (jeu.herosEnRoute = 1)))
   });
   jeu.barges.splice(jeu.bargeSel, 1);
   if(jeu.bargeSel >= jeu.barges.length) jeu.bargeSel = Math.max(0, jeu.barges.length - 1);
@@ -1352,6 +1359,10 @@ function majNavettes(dt){
         v.sortis++;
       }
       if(v.sortis >= v.reste && du > v.reste * NAV.CADENCE + NAV.PAUSE){
+        /* LE HÉROS DESCEND EN DERNIER, derrière ses passagers : la
+           rampe est libre, et on le voit arriver au lieu de le
+           découvrir noyé dans la file. */
+        if(v.avecHeros && !jeu.herosNe) faitDebarquerHeros(v);
         v.etat = "retrait";
         v.minuteur = 0;
       }
@@ -1439,14 +1450,14 @@ function creeUnite(type, gx, gy){
        la marche, la cadence de tir et le dessin ; la seconde ne sert
        qu'aux traits de vitesse de Speed lui-même.
 
-       `reste` EST LE COMPTE À REBOURS DE L'ACTIVATION, et il ne
-       signifie quelque chose que pour le héros. Il est posé ICI, à la
-       naissance, et non à l'appui sur la tuile : « dix secondes
-       ACTIVÉES » commencent quand il pose le pied sur le sable. Les
-       autres troupes le portent à zéro et ne le lisent jamais — un
-       champ de plus par unité coûte moins qu'une classe cachée qui
-       change en cours de partie. */
-    reste:(f.heros ? f.duree : 0),
+       `auraReste` EST LE COMPTE À REBOURS DE SON AURA, et non de sa
+       vie. « Speed ne doit pas apparaître et disparaître : il
+       débarque avec nous, il a une santé, c'est comme une troupe en
+       plus. » Il est donc là du débarquement à sa mort, comme
+       n'importe qui ; ce qui dure dix secondes, c'est le DOPAGE, et
+       c'est cela seul que ce compteur mesure. À zéro, il court
+       toujours — il n'accélère plus personne. */
+    auraReste:0,
     dope:0, vitVue:0, escorte:null,
     escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
@@ -2332,76 +2343,74 @@ function activeHeros(cle){
   if(typeof modeApercu !== "undefined" && modeApercu)
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
-  /* UN SEUL HÉROS À LA FOIS SUR L'ÎLE, quel qu'il soit. Deux auras qui
-     se recouvrent ne doublent rien de plus — le dopage est un
-     booléen — et l'on paierait deux fois le même effet. */
-  if(jeu.heros && jeu.heros.pv > 0)
-    return message(UNI[jeu.heros.t].nom + " court déjà — encore "
-                   + Math.ceil(jeu.heros.reste) + " s.");
-  /* le centre de la troupe vivante, le héros exclu */
-  var sx = 0, sy = 0, n = 0;
+  /* IL FAUT QU'IL SOIT LÀ. Il débarque avec la troupe et vit sa vie ;
+     tombé, il ne revient qu'avec la flotte suivante. */
+  var h = null;
   for(var i = 0; i < jeu.unites.length; i++){
     var u = jeu.unites[i];
-    if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
-    sx += u.gx; sy += u.gy; n++;
+    if(u.pv > 0 && u.t === H.unite){ h = u; break; }
   }
-  if(!n) return message(H.nom + " n'a personne à emmener : débarque d'abord.");
+  if(!h) return message(jeu.herosNe ? H.nom + " est tombé — il revient au renfort."
+                                    : H.nom + " débarque avec ta première navette.");
+  if(h.auraReste > 0)
+    return message(H.nom + " court déjà — encore " + Math.ceil(h.auraReste) + " s.");
   var cout = coutActuel(H.cle, jeu.usages);
   if(jeu.energie < cout)
     return message("Il faut " + cout + " d'Énergie pour lancer " + H.nom + ".");
   jeu.energie -= cout;
   jeu.usages[H.cle] = (jeu.usages[H.cle] || 0) + 1;
-  /* on le pose au centre, et sur une case praticable : le centre d'un
-     groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
-  var cx = sx / n, cy = sy / n;
-  if(bloque(cx, cy)){
-    var pose = false;
-    for(var r = 1; r <= 6 && !pose; r++){
-      for(var a = 0; a < 8 && !pose; a++){
-        var an = a / 8 * 6.2832;
-        var tx = cx + Math.cos(an) * r, ty = cy + Math.sin(an) * r;
-        if(!bloque(tx, ty)){ cx = tx; cy = ty; pose = true; }
-      }
-    }
-  }
-  var h = creeUnite(H.unite, borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
-  jeu.heros = h;
+  h.auraReste = fh.duree;
   jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
   if(son && son.speedDebut) son.speedDebut();
   demandeMajBarres();
   majMenu();
-  /* PAS DE BANDEAU. « Tu n'es pas obligé d'afficher ça, retire ce
-     message-là. » Il a raison, et pour une raison de fond : le
-     bandeau se pose au MILIEU de l'écran, c'est-à-dire pile sur la
-     troupe qu'on vient de doper, au moment précis où l'on veut la
-     regarder courir. Tout ce qu'il disait est déjà dit ailleurs et
-     mieux — l'éclat doré à l'endroit exact, les anneaux sous les
-     pieds, la tuile qui s'allume et compte les secondes. Les refus,
-     eux, gardent leur message : ceux-là expliquent pourquoi rien ne
-     s'est passé, et rien d'autre ne le dirait. */
   if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IL DÉBARQUE AVEC LA TROUPE, UNE FOIS PAR VIE
+
+   « Speed ne doit pas apparaître dans nos troupes : il doit débarquer
+   avec nous, il a une santé. Ce n'est pas quelque chose qui apparaît
+   et qui disparaît. C'est comme si c'était une troupe en plus. »
+
+   Il descend donc la rampe de la PREMIÈRE navette de chaque vie,
+   derrière ses passagers. Il n'occupe aucune place — les douze Furies
+   restent douze — et il ne coûte rien à faire venir : ce qui se paie,
+   c'est son aura, pas sa présence.
+
+   TOMBÉ, IL NE REVIENT QU'AU RENFORT, comme la flotte. C'est ce qui
+   fait de lui une troupe et non une capacité : on peut le perdre.
+   ════════════════════════════════════════════════════════════════ */
+function faitDebarquerHeros(v){
+  var H = HEROS[0];
+  if(!H) return;
+  var x = RAMPE_GX - 0.9, y = v.gy;
+  for(var essai = 0; essai < 10 && bloque(x, y); essai++){
+    y = v.gy + (essai % 2 ? 1 : -1) * 0.5 * (essai + 1);
+    x = RAMPE_GX - 0.9;
+  }
+  if(bloque(x, y)){ x = RAMPE_GX; y = v.gy; }
+  creeUnite(H.unite, borne(x, 0.6, GW - 0.6), borne(y, 0.6, GH - 0.6));
+  jeu.herosNe = 1;
+  demandeMajBarres();
 }
 
 /* ════════════════════════════════════════════════════════════════
    LES DIX SECONDES SONT PASSÉES
 
-   Il repart, il n'est pas abattu, et la différence compte : on met
-   les points de vie à zéro pour que `majUnites` retire l'unité en
-   tête de son parcours, SANS passer par `toucheUnite`. C'est
-   `toucheUnite` qui pousse la mort, le sang, l'épave et la perte au
-   compteur du joueur ; rien de tout cela n'a lieu ici.
+   L'AURA S'ÉTEINT, ET LUI RESTE. Il ne s'efface plus : « ce n'est pas
+   quelque chose qui apparaît et qui disparaît ». Il continue de
+   courir avec la troupe, simplement il n'accélère plus personne —
+   jusqu'à ce qu'on le relance, ou qu'il tombe.
 
-   ON COUPE LE DOPAGE DANS LA MÊME IMAGE. `jeu.heros` est relu une
-   fois par image, en tête de `majUnites` : le laisser en place le
-   temps d'une image de plus aurait donné un dopage gratuit aux
-   unités traitées après lui dans la boucle.
+   L'ÉCLAT ET LES TROIS NOTES RESTENT : sans eux, la troupe cesserait
+   d'aller vite sans que rien ne le dise, et l'on croirait à un
+   ralentissement du jeu.
    ════════════════════════════════════════════════════════════════ */
 function finDeSpeed(u){
-  u.pv = 0;
-  jeu.heros = null;
-  /* l'éclat doré : c'est lui qui DIT que l'effet s'arrête, sans quoi
-     le héros disparaîtrait d'une image à l'autre et le joueur
-     croirait l'avoir perdu au combat */
+  u.auraReste = 0;
+  /* l'éclat doré : c'est lui qui DIT que l'effet s'arrête */
   jeu.effets.push({ t:"speedPart", gx:u.gx, gy:u.gy, age:0, duree:0.85 });
   if(son && son.speedFin) son.speedFin();
   demandeMajBarres();
@@ -2462,13 +2471,14 @@ function chercheCompagnon(u){
    ════════════════════════════════════════════════════════════════ */
 function majSpeed(u, f, dt){
   u.cible = null; u.tir = 0; u.arme = 0;
-  /* LE COMPTE À REBOURS D'ABORD, avant tout déplacement : une image
-     de course de plus après la fin serait une image de dopage volée. */
-  u.reste -= dt;
-  if(u.reste <= 0){
-    u.reste = 0;
-    finDeSpeed(u);
-    return;
+  /* L'AURA S'ÉTEINT, LE HÉROS RESTE. Il ne disparaît plus au bout de
+     dix secondes : c'est le dopage qui s'arrête, lui continue de
+     courir avec la troupe jusqu'à ce qu'on le relance — ou qu'il
+     tombe. Décompté AVANT tout déplacement : une image de course de
+     plus après la fin serait une image de dopage volée. */
+  if(u.auraReste > 0){
+    u.auraReste -= dt;
+    if(u.auraReste <= 0){ u.auraReste = 0; finDeSpeed(u); }
   }
   /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
   if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
@@ -2677,7 +2687,12 @@ function cadenceDe(u, f){
 function majUnites(dt){
   var i, u;
   var balise = jeu.balise;
+  /* LE HÉROS NE DOPE QUE SON AURA ALLUMÉE. Présent en permanence
+     depuis qu'il débarque avec la troupe, il ne vaut plus par sa
+     seule présence : sans ce filtre, l'activation ne servirait à
+     rien et le doublement serait redevenu gratuit. */
   var heros = chercheHeros();
+  if(heros && !(heros.auraReste > 0)) heros = null;
   var zone2 = EQ.SPEED_ATTRACTION * EQ.SPEED_ATTRACTION;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
@@ -4383,6 +4398,9 @@ function majMort(dt){
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
       jeu.bargeSel = 0;
+    /* UNE FLOTTE NEUVE, UN HÉROS NEUF. Il se perd comme une troupe :
+       il revient donc avec elles, et pas avant. */
+    jeu.herosNe = 0; jeu.herosEnRoute = 0; jeu.heros = null;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
