@@ -2540,7 +2540,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.36";
+var VERSION = "v1.37";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -48601,10 +48601,30 @@ function majUnites(dt){
     if(u.t === "doc"){ majDoc(u, f, dt, cachee); continue; }
 
     /* --- recherche de cible, espacée --- */
+    /* ════════════════════════════════════════════════════════════
+       SOUS LA FUMÉE, ON NE CHANGE PAS D'AVIS
+
+       « Mes Furies sont sous le brouillard, une défense est juste
+       devant elles, elles sont déjà à leur bonne distance de tir et
+       elles sont protégées. Je veux qu'elles restent intelligemment
+       sous le brouillard au lieu d'en sortir inutilement. »
+
+       Le ciblage repasse toutes les quatre dixièmes de seconde et
+       reprend LA PLUS PROCHE. Une défense un demi-pas plus près, mais
+       hors de la fumée, faisait donc lever la troupe et sortir du
+       nuage pour aller se poster ailleurs — sans avoir tiré un coup,
+       puisqu'elle était couverte. Elle perdait sa couverture pour un
+       demi-pas.
+
+       Tant qu'elle est cachée ET qu'elle tient déjà quelqu'un à sa
+       portée, elle garde sa cible. Elle ne cherche à nouveau que si
+       sa cible tombe, ou si la fumée se dissipe. Rien d'autre ne
+       change : elle vise, elle ne tire pas, elle ne bouge plus.
+       ════════════════════════════════════════════════════════════ */
     u.prochainCiblage -= dt * 1000;
     if(u.prochainCiblage <= 0){
       u.prochainCiblage = EQ.PERIODE_CIBLAGE + Math.random() * 260;
-      u.cible = chercheCibleUnite(u);
+      if(!(cachee && cibleTenue(u, f))) u.cible = chercheCibleUnite(u);
     }
     var c = u.cible;
     if(c && ((c.k === "bat" && !c.o.vivant) || (c.k === "cre" && c.o.pv <= 0))) { c = u.cible = null; }
@@ -48717,8 +48737,21 @@ function armeSansTirer(u){
   u.tir = 0;
   u.arme = 0;
 }
+/* Sa cible actuelle est-elle encore debout ET à sa portée ? C'est la
+   seule question qui compte pour décider de ne pas en chercher une
+   autre. La marge d'un dixième évite qu'un frisson de séparation ne
+   lui fasse relâcher sa prise à la limite exacte. */
+function cibleTenue(u, f){
+  var c = u.cible;
+  if(!c) return false;
+  if(c.k === "bat" && !c.o.vivant) return false;
+  if(c.k === "cre" && c.o.pv <= 0) return false;
+  if(c.k === "qg" && jeu.qg.pv <= 0) return false;
+  var rc = c.k === "bat" ? c.o.e * 0.42 : (c.k === "qg" ? RAYON_QG : 0.3);
+  return Math.hypot(c.o.gx - u.gx, c.o.gy - u.gy) - rc <= f.arret + 0.1;
+}
 function chercheCibleUnite(u){
-  var meilleur = null, md = 1e9;
+  var meilleur = null, md = 1e9, f = UNI[u.t];
   /* CRÉATURES PROCHES D'ABORD — parce qu'elles nous agressent. MAIS
      PAS POUR CELUI QU'ELLES NE PEUVENT PAS BLESSER.
      Le TX-90 est immunisé aux bestioles ; il s'arrêtait pourtant
@@ -48730,12 +48763,36 @@ function chercheCibleUnite(u){
      d'avancer lentement mais sans s'arrêter, c'est le pire des
      défauts. La table de vulnérabilité dit déjà tout : si elle
      annonce zéro, on passe son chemin. */
+  /* ════════════════════════════════════════════════════════════
+     UN ANIMAL N'EST PAS UNE DESTINATION
+
+     « Les unités ne doivent pas considérer les animaux comme des
+     cibles de navigation automatiques. Les animaux peuvent garder
+     leurs mécaniques propres, mais une troupe laissée libre ne doit
+     pas décider : je vais marcher jusqu'au chat. »
+
+     Toute créature à moins de six cases devenait la cible, donc la
+     DESTINATION : la troupe quittait sa route pour aller rejoindre un
+     chat qui, lui, ne l'attaquera jamais. Mesuré sur une scène montée
+     exprès — un Crible à neuf cases, un chat à cinq : vingt Furies sur
+     vingt partaient vers le chat.
+
+     LA RÈGLE TIENT EN UN MOT : celles qui FUIENT ne se poursuivent
+     pas. On garde les agressives — répondre à qui vous mord est une
+     autre affaire, et leur portée de six cases ne change pas. Une
+     bestiole pacifique reste une cible si elle est DÉJÀ sous le nez,
+     à portée de tir : on ne renonce pas à l'abattre, on renonce à
+     traverser la carte pour elle. C'est ce qui garde intacts les
+     tableaux de chasse de Gégé, de Tweety et des trois chats.
+     ════════════════════════════════════════════════════════════ */
   if(multVuln(u, "bete") > 0){
     for(var k = 0; k < jeu.creatures.length; k++){
       var cr = jeu.creatures[k];
       if(cr.pv <= 0) continue;
       var dc = Math.hypot(cr.gx - u.gx, cr.gy - u.gy);
-      if(dc < 6 && dc < md){ md = dc; meilleur = { k:"cre", o:cr }; }
+      var fuit = CRE[cr.t] && CRE[cr.t].fuit;
+      var limite = fuit ? f.arret : 6;
+      if(dc < limite && dc < md){ md = dc; meilleur = { k:"cre", o:cr }; }
     }
   }
   if(meilleur) return meilleur;

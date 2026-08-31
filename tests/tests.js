@@ -57,7 +57,7 @@ try{
     "meilleurBlindage","degatsDeCarte","facteurDegats",
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
-    "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP",
+    "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -11232,6 +11232,40 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
        N.degagementRequis(N.UNI.furie.rayon) <= N.CHEMIN_DROIT,
        N.degagementRequis(N.UNI.furie.rayon) + " ≤ " + N.CHEMIN_DROIT);
   })();
+
+  /* ---- ⑨ SOUS LA FUMÉE, ON NE CHANGE PAS D'AVIS ---- */
+  /* « Elles sont déjà à leur bonne distance de tir et protégées : je
+     veux qu'elles restent sous le brouillard au lieu d'en sortir. »
+     Le ciblage reprenait la plus proche toutes les quatre dixièmes de
+     seconde : une défense un demi-pas plus près, mais hors du nuage,
+     faisait lever la troupe et lui coûtait sa couverture. */
+  ok("sous la fumée, une cible déjà tenue ne se relâche pas",
+     /if\(!\(cachee && cibleTenue\(u, f\)\)\) u\.cible = chercheCibleUnite\(u\);/.test(html));
+  var ct = corps("cibleTenue");
+  ok("… « tenue » veut dire debout ET à portée",
+     /return Math\.hypot\(c\.o\.gx - u\.gx, c\.o\.gy - u\.gy\) - rc <= f\.arret \+ 0\.1;/.test(ct)
+     && /if\(c\.k === "bat" && !c\.o\.vivant\) return false;/.test(ct));
+
+  /* ---- ⑩ UN ANIMAL N'EST PAS UNE DESTINATION ---- */
+  /* « Une troupe laissée libre ne doit pas décider : je vais marcher
+     jusqu'au chat. » Mesuré sur une scène montée exprès — un Crible à
+     neuf cases, un chat à cinq : vingt Furies sur vingt partaient vers
+     le chat. Celles qui FUIENT ne se poursuivent donc plus ; elles
+     restent des cibles à portée de tir, ce qui garde intacts les
+     tableaux de chasse de Gégé, de Tweety et des trois chats. */
+  var cc = corps("chercheCibleUnite");
+  ok("une bête qui fuit ne se poursuit pas",
+     /var fuit = CRE\[cr\.t\] && CRE\[cr\.t\]\.fuit;/.test(cc)
+     && /var limite = fuit \? f\.arret : 6;/.test(cc));
+  ok("… mais elle reste abattable si elle est déjà sous le nez",
+     N.UNI.furie.arret > 0 && N.UNI.commando.arret > 0);
+  /* LES AGRESSIVES GARDENT LEURS SIX CASES : répondre à qui vous mord
+     est une autre affaire. */
+  ok("… et les bestioles agressives gardent leur portée d'appel",
+     !N.CRE.braisard.fuit && !N.CRE.piqueur.fuit && !N.CRE.sanglier.fuit);
+  ok("… tandis que Gégé, Tweety et les chats fuient tous",
+     N.CRE.belette.fuit && N.CRE.tweety.fuit && N.CRE.chat.fuit
+     && N.CRE.chaton.fuit && N.CRE.chatte.fuit);
 
   /* ---- ⑧ LA COLONNE SE SERRE, SANS RALENTIR PERSONNE ---- */
   var sc = corps("serreLaColonne");
