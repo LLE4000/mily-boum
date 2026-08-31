@@ -11530,8 +11530,17 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
   ok("il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
   ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
-  ok("… et il repart sous son propre nom, pas sous celui de Speed",
-     /message\(UNI\[u\.t\]\.nom \+ " est reparti\."\);/.test(fd));
+  /* AUCUN BANDEAU, NI À L'ARRIVÉE NI AU DÉPART. Il se pose au milieu
+     de l'écran — pile sur la troupe qu'on vient de doper, au moment
+     où l'on veut la regarder courir — et il ne dit rien que l'éclat,
+     les anneaux et la tuile ne disent déjà mieux. Les REFUS, eux,
+     gardent le leur : ceux-là expliquent pourquoi rien ne s'est
+     passé. */
+  ok("il n'affiche aucun bandeau, ni en arrivant ni en repartant",
+     fd.indexOf("message(") < 0 && av.indexOf('message(H.nom + " est là') < 0);
+  ok("… mais les refus gardent le leur",
+     /return message\(H\.nom \+ " n'a personne à emmener/.test(av)
+     && /return message\("Il faut " \+ cout \+ " d'Énergie pour lancer "/.test(av));
 
   /* ---- ⑦ CE QUE L'ACTIVATION N'A PAS TOUCHÉ ---- */
   ok("la zone et le facteur n'ont pas bougé",

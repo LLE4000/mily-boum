@@ -2370,8 +2370,15 @@ function activeHeros(cle){
   if(son && son.speedDebut) son.speedDebut();
   demandeMajBarres();
   majMenu();
-  message(H.nom + " est là — " + Math.round(fh.duree)
-          + " secondes à deux fois la vitesse !");
+  /* PAS DE BANDEAU. « Tu n'es pas obligé d'afficher ça, retire ce
+     message-là. » Il a raison, et pour une raison de fond : le
+     bandeau se pose au MILIEU de l'écran, c'est-à-dire pile sur la
+     troupe qu'on vient de doper, au moment précis où l'on veut la
+     regarder courir. Tout ce qu'il disait est déjà dit ailleurs et
+     mieux — l'éclat doré à l'endroit exact, les anneaux sous les
+     pieds, la tuile qui s'allume et compte les secondes. Les refus,
+     eux, gardent leur message : ceux-là expliquent pourquoi rien ne
+     s'est passé, et rien d'autre ne le dirait. */
   if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
@@ -2399,7 +2406,8 @@ function finDeSpeed(u){
   if(son && son.speedFin) son.speedFin();
   demandeMajBarres();
   majMenu();
-  message(UNI[u.t].nom + " est reparti.");
+  /* ni au départ : l'éclat doré et les trois notes qui descendent
+     disent la même chose sans couvrir le terrain */
 }
 
 /* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
