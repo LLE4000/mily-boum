@@ -2690,7 +2690,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.51";
+var VERSION = "v1.52";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -40505,6 +40505,83 @@ function vignette(type, droite, phase){
   return vignettes[ti * 12 + dr * 6 + ph];
 }
 
+/* ================================================================
+   LA SILHOUETTE AUX COULEURS DU BADGE
+
+   « Au lieu d'avoir les troupes en gris, on ne pourrait pas les voir
+     par couleur ? Bronze, argent, or, et rouge pour la ligue — et avec
+     des intensités, pour qu'on voie directement qui est bon. »
+
+   POURQUOI TEINDRE LES PLANCHES, ET NON L'IMAGE AU MOMENT DU DESSIN.
+   Le canevas ne sait pas colorer une image à la volée : il faudrait
+   passer par une surface intermédiaire, l'effacer, y dessiner, la
+   teinter, la recopier — quatre balayages de soixante-dix mille pixels
+   POUR CHAQUE UNITÉ ET CHAQUE IMAGE. À quatre-vingts troupes à
+   l'écran, c'est le rendu qui s'écroule.
+
+   ON TEINT DONC LA PLANCHE, UNE FOIS. Et pas toutes : seulement le
+   couple (teinte, type de troupe) dont on a besoin, au moment où on en
+   a besoin. Un joueur aligne une ou deux sortes de troupes, pas six ;
+   fabriquer les six planches d'or parce qu'un joueur doré a des Furies
+   serait payer cinq planches pour rien.
+
+   ET LE CACHE EST PLAFONNÉ. Chaque couple pèse douze canevas, soit
+   trois méga-octets et demi : sans plafond, un salon bigarré finirait
+   par en garder trente. Au-delà de DIX couples on vide tout et l'on
+   repart — c'est brutal, c'est rare, et cela vaut mieux qu'un onglet
+   qui enfle sans qu'on sache pourquoi sur la tablette.
+
+   LA TEINTE GARDE L'OMBRAGE. On ne remplace pas le gris par une
+   couleur plate — le personnage perdrait son relief et deviendrait une
+   découpe. On MULTIPLIE la valeur du gris par la couleur : les creux
+   restent des creux, les reflets des reflets, et la troupe reste
+   lisible. `force` mélange ensuite le résultat avec le gris d'origine :
+   c'est là que vivent les intensités — un premier bronze reste presque
+   gris, un or cinq fois gagné éclate.
+   ================================================================ */
+var VIG_TEINTES = {};
+var VIG_TEINTES_N = 0;
+var VIG_TEINTES_MAX = 10;
+function planchesTeintes(rgb, force, ti){
+  var cle = rgb + "|" + force.toFixed(2) + "|" + ti;
+  if(VIG_TEINTES[cle]) return VIG_TEINTES[cle];
+  if(VIG_TEINTES_N >= VIG_TEINTES_MAX){ VIG_TEINTES = {}; VIG_TEINTES_N = 0; }
+  var C = rgb.split(","), Cr = +C[0], Cv = +C[1], Cb = +C[2];
+  var out = [];
+  for(var k = 0; k < 12; k++){
+    var src = vignettes[ti * 12 + k];
+    var cv = nouveauCanvas(src.width, src.height);
+    var c = cv.getContext("2d");
+    c.drawImage(src, 0, 0);
+    var img = c.getImageData(0, 0, cv.width, cv.height), d = img.data;
+    for(var i = 0; i < d.length; i += 4){
+      if(d[i + 3] === 0) continue;
+      var v = d[i];                     // la planche est grise : un seul canal suffit
+      /* 140 : la valeur autour de laquelle le gris pivote. Plus bas,
+         les couleurs claires saturent à blanc et l'or perd ses creux ;
+         plus haut, tout s'assombrit et le bronze vire au brun. */
+      d[i]     = Math.min(255, v * (1 - force) + v * Cr / 140 * force);
+      d[i + 1] = Math.min(255, v * (1 - force) + v * Cv / 140 * force);
+      d[i + 2] = Math.min(255, v * (1 - force) + v * Cb / 140 * force);
+    }
+    c.putImageData(img, 0, 0);
+    out.push(cv);
+  }
+  VIG_TEINTES_N++;
+  return (VIG_TEINTES[cle] = out);
+}
+/* La planche d'une troupe, teintée si son joueur a un titre. Sans
+   titre — personne n'est jamais monté sur un podium — on rend la
+   planche grise d'origine, sans rien fabriquer. */
+function vignetteBadge(type, droite, phase, col){
+  var ti = VIG_TYPES.indexOf(type);
+  if(ti < 0) ti = 0;
+  var dr = droite ? 1 : 0;
+  var ph = Math.floor(((phase % 6.2832) + 6.2832) % 6.2832 / 6.2832 * 6) % 6;
+  if(!col || !(col.force > 0)) return vignettes[ti * 12 + dr * 6 + ph];
+  return planchesTeintes(col.rgb, col.force, ti)[dr * 6 + ph];
+}
+
 /* ---------------------------------------------------------------
    Dessin d'une unité du joueur, avec ses états
    --------------------------------------------------------------- */
@@ -40620,7 +40697,10 @@ function dessineUniteMonde(c, u, tps){
 function dessineUniteGrise(c, o){
   var p = versEcran(cam, o.gx, o.gy);
   var z = cam.z;
-  var v = vignette(o.type, o.droite, o.phase);
+  /* La teinte du badge de SON joueur, pas du mien : elle est portée par
+     l'unité, posée à la réception. Voir couleurBadge dans 89-badges.js
+     et majUnitesDistantes dans 85-reseau.js. */
+  var v = vignetteBadge(o.type, o.droite, o.phase, o.coul);
   if(!v) return;
   c.drawImage(v, p.x - VIG_OX * z, p.y - VIG_OY * z, VIG_W * z, VIG_H * z);
   /* LA JAUGE DE VIE, AUX MÊMES CONDITIONS QUE LA MIENNE : seulement si
@@ -47484,8 +47564,11 @@ function nouvelleCarte(index, pvConnu){
      de la voie, exactement comme ils viennent de `d`, `bl` et `pv`
      pour la campagne.
      ================================================================ */
+  /* même règle qu'appliqueMondeAuJeu : la visite montre la carte
+     intacte, l'observation montre l'expédition telle qu'elle est */
   if(typeof monde !== "undefined" && monde && carteSpeciale(index) &&
-     !(typeof modeApercu !== "undefined" && modeApercu) &&
+     !((typeof modeApercu !== "undefined" && modeApercu) &&
+       !(typeof modeObserve !== "undefined" && modeObserve)) &&
      typeof voieDeCarte === "function" && voieDeCarte(index) &&
      evenementEnCours(monde, voieDeCarte(index))){
     var ve = voieLue(monde, voieDeCarte(index), index);
@@ -48496,7 +48579,9 @@ function poseBarge(gx, gy){
      `modeApercu`, qui reste levé. Voir modeEssai dans 85-reseau.js. */
   if(typeof modeApercu !== "undefined" && modeApercu
      && !(typeof modeEssai !== "undefined" && modeEssai))
-    return message("Visite : tu peux tout regarder, mais pas débarquer ici.");
+    return message((typeof modeObserve !== "undefined" && modeObserve)
+      ? "Observation : tu regardes la bataille, tu n'y débarques pas."
+      : "Visite : tu peux tout regarder, mais pas débarquer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
@@ -53154,6 +53239,42 @@ var modeApercu = false;
    ================================================================ */
 var modeEssai = false;
 
+/* ================================================================
+   L'OBSERVATION — REGARDER LES AUTRES SE BATTRE
+
+   « Si je veux voir une attaque, si je veux voir les gens jouer, je
+     suis obligé de rentrer dans la carte en mettant Attaquer.
+     J'aimerais juste un bouton qui veut dire qu'on observe le
+     combat. »
+
+   LA VISITE NE POUVAIT PAS SERVIR À ÇA, et pour deux raisons exactement
+   opposées à ce qu'on veut ici :
+
+     • montreLesAutres() rend `!modeApercu` : en visite, les troupes des
+       autres ne sont PAS dessinées. On regardait donc une île déserte —
+       le contraire d'observer un combat.
+     • appliqueMondeAuJeu sort en tête sur `modeApercu` : la carte est
+       montrée INTACTE, telle que le générateur la fait. Pour une île
+       verrouillée qu'on découvre, c'est ce qu'on veut ; pour la
+       bataille en cours, c'est faux — les défenses déjà tombées
+       seraient toujours debout.
+
+   L'OBSERVATION OUVRE CES DEUX PORTES-LÀ, ET RIEN D'AUTRE. Elle garde
+   `modeApercu` levé, donc tous les robinets de sortie restent fermés :
+   rien n'est publié, rien n'est écrit, aucun point, aucune progression.
+   La règle de modeEssai vaut mot pour mot ici — voir sa doctrine juste
+   au-dessus.
+
+   ET LES DEUX PORTES QU'ELLE OUVRE SONT DES LECTURES. Lire l'instantané
+   et dessiner ce qu'on reçoit n'écrit rien nulle part : ce qui ENTRE n'a
+   jamais été le problème.
+
+   ELLE EST OUVERTE À TOUT LE MONDE. Regarder les autres jouer n'est pas
+   un pouvoir d'administrateur, c'est ce qu'on fait sur le bord du
+   terrain — et la visite, qui promet autant, l'est déjà.
+   ================================================================ */
+var modeObserve = false;
+
 /* L'ADMINISTRATEUR EST RECONNU POUR CETTE PAGE, ET POUR ELLE SEULE.
    Rien n'est rangé sur le disque : recharger redemande le mot de
    passe. C'est volontaire — ce drapeau ne garde rien de précieux, il
@@ -53569,8 +53690,12 @@ function appliqueMondeAuJeu(m){
   if(!jeu || !mondeValide(m)) return;
   /* En prévisualisation, on ne LIT pas non plus : la carte doit être
      montrée intacte, telle qu'elle sortira du générateur, et non
-     amputée des défenses que le salon a déjà détruites ailleurs. */
-  if(modeApercu) return;
+     amputée des défenses que le salon a déjà détruites ailleurs.
+     EN OBSERVATION, SI, et c'est tout l'inverse : on regarde la
+     bataille EN COURS. Une île montrée intacte pendant qu'on la
+     détruit sous nos yeux serait un mensonge — et lire n'écrit
+     rien, le sceau tient toujours. */
+  if(modeApercu && !modeObserve) return;
   /* EN EXPÉDITION, c'est la voie de la jungle qui commande, pas la
      campagne : les destructions viennent de jd et les PV de jq. Le
      reste de l'instantané décrit une île à laquelle on ne touche pas
@@ -54807,13 +54932,22 @@ function majUnitesDistantes(j, p){
    campagne — mais il suppose que l'expéditeur envoie son index, donc
    qu'il a cette version-ci. D'où le premier, qui ne suppose rien.
    ================================================================ */
-function montreLesAutres(){ return !modeApercu; }
+/* L'OBSERVATION EST LA SEULE PRÉVISUALISATION QUI LES MONTRE : c'est
+   exactement ce qu'on est venu voir. La visite, elle, garde son île
+   déserte — on y regarde un DÉCOR, pas une bataille. */
+function montreLesAutres(){ return !modeApercu || modeObserve; }
 function interpoleDistants(dt){
   for(var id in autresJoueurs){
     var j = autresJoueurs[id];
     if(tempsGlobal - j.vu > 15){ delete autresJoueurs[id]; majPodium(); continue; }
+    /* LA COULEUR DU BADGE SE POSE ICI, une fois par joueur et par image,
+       et non dans le dessin — où elle aurait été cherchée une fois par
+       UNITÉ. couleurBadge garde son propre cache, mais la boucle de
+       rendu n'a même pas à l'appeler : elle lit un champ déjà posé. */
+    var col = (typeof couleurBadge === "function") ? couleurBadge(j.nom) : null;
     for(var i = 0; i < j.unites.length; i++){
       var u = j.unites[i];
+      u.coul = col;
       var dx = u.cx - u.gx, dy = u.cy - u.gy;
       var d = Math.hypot(dx, dy);
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }
@@ -60833,6 +60967,10 @@ function rendu(tps, dt){
   /* L'AURA DE PUISSANCE, AVANT LA PILE — donc au SOL, sous tout le
      monde, comme une ombre. Voir dessineAuras. */
   dessineAuras(ctx, tps);
+  /* Et la marque de badge des autres joueurs, au sol elle aussi et pour
+     la même raison : peinte dans la pile, la marque d'une troupe du
+     fond serait passée par-dessus celle du premier plan. */
+  dessineHalosBadge(ctx);
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   /* LE GEL SE PEINT AVEC SON BÂTIMENT, PAS APRÈS TOUS. Peint après la
@@ -62161,6 +62299,85 @@ function dessineAuras(c, tps){
   c.restore();
 }
 
+/* ================================================================
+   LA MARQUE DE BADGE SOUS LES TROUPES DES AUTRES
+
+   « Au lieu d'avoir les troupes en gris, on ne pourrait pas les voir
+     par couleur ? Comme ça on voit les troupes de tout le monde, et on
+     voit directement qui est bon. »
+
+   POURQUOI UNE MARQUE AU SOL PLUTÔT QUE LA SILHOUETTE TEINTE. La
+   silhouette grise n'est pas dessinée trait par trait : c'est une
+   planche pré-calculée, soixante-douze canevas de deux cent quarante
+   sur deux cent quatre-vingt-dix-huit — vingt méga-octets. Une planche
+   par palier de badge en aurait coûté autant CHAQUE FOIS, et il y a six
+   paliers : cent vingt méga-octets sur une tablette, pour une teinte.
+   Teinter au moment du dessin ne s'y substitue pas : le canevas ne sait
+   colorer une image qu'en passant par une surface intermédiaire, qu'il
+   faudrait effacer, redessiner, teinter et recopier POUR CHAQUE UNITÉ
+   ET CHAQUE IMAGE.
+
+   La marque au sol, elle, est une seule petite tuile par teinte —
+   quelques kilo-octets — posée d'un blit sous chaque troupe. Elle dit
+   la même chose et se lit de plus loin : à demi-zoom une silhouette
+   fait huit pixels de large, un halo au sol en fait trente.
+
+   L'INTENSITÉ SE VOIT, LA TEINTE SE RECONNAÎT. Voir couleurBadge dans
+   89-badges.js : le rouge de la ligue passe devant le métal, et le
+   nombre de titres joue sur la FORCE, jamais sur la couleur — deux ors
+   voisins ne se distinguent pas sur du sable.
+
+   ET UN DÉBUTANT N'A PAS DE MARQUE DU TOUT. Sa force vaut zéro : cent
+   ronds gris sous cent unités seraient une décoration, pas une
+   information.
+   ================================================================ */
+var halosBadge = {};
+function spriteHaloBadge(rgb){
+  if(halosBadge[rgb]) return halosBadge[rgb];
+  /* La tuile est au rapport 2:1 de la projection, comme celle des
+     auras : le disque y est déjà couché, rien à écraser en peignant. */
+  var T = 96, Hh = 48;
+  var cv = nouveauCanvas(T, Hh), g = cv.getContext("2d");
+  g.save();
+  g.translate(T / 2, Hh / 2);
+  g.scale(1, Hh / T);
+  var gr = g.createRadialGradient(0, 0, 1, 0, 0, T * 0.46);
+  gr.addColorStop(0.00, "rgba(" + rgb + ",0.85)");
+  gr.addColorStop(0.42, "rgba(" + rgb + ",0.42)");
+  gr.addColorStop(0.78, "rgba(" + rgb + ",0.13)");
+  gr.addColorStop(1.00, "rgba(" + rgb + ",0)");
+  g.fillStyle = gr;
+  g.beginPath(); g.arc(0, 0, T * 0.46, 0, 6.2832); g.fill();
+  g.restore();
+  return (halosBadge[rgb] = cv);
+}
+function dessineHalosBadge(c){
+  if(typeof couleurBadge !== "function") return;
+  if(!montreLesAutres()) return;
+  var z = cam.z;
+  if(z < 0.18) return;                 // de si loin, le halo n'est plus qu'un point
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(!j.unites.length) continue;
+    var col = couleurBadge(j.nom);
+    if(!(col.force > 0)) continue;     // sans titre, pas de marque
+    var sp = spriteHaloBadge(col.rgb);
+    /* La largeur suit le zoom mais garde un plancher : sous une dizaine
+       de pixels, un dégradé ne se distingue plus du sable. */
+    var l = Math.max(16, 34 * z), h = l * 0.5;
+    c.globalAlpha = col.force;
+    for(var k = 0; k < j.unites.length; k++){
+      var u = j.unites[k];
+      var p = versEcran(cam, u.gx, u.gy);
+      if(p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
+      c.drawImage(sp, p.x - l / 2, p.y - h / 2, l, h);
+    }
+  }
+  c.restore();
+}
+
 /* ===== 89-badges.js ===== */
 /* ================================================================
    LE BADGE DE MILY BOUM
@@ -63153,6 +63370,79 @@ function nomsMasques(){
   for(k in T.r) if(T.r[k].masque){ out[String(k).trim().toLowerCase()] = 1; n++; }
   out.__n = n;
   return out;
+}
+
+/* ================================================================
+   LA COULEUR D'UN JOUEUR — SON BADGE, PORTÉ PAR SES TROUPES
+
+   « Ceux qui ont gagné, ils ont le bronze, donc ils seraient couleur
+     bronze. Certains argent, certains or, et ceux qui gagnent la ligue
+     seraient rouges. Et pour avoir des intensités : si on a gagné cinq
+     fois or, on a un or bien visible. Comme ça, quand on voit les
+     joueurs, on voit directement qui est bon. »
+
+   RIEN À TRANSMETTRE, ET C'EST LA BONNE NOUVELLE. Le badge se calcule
+   à partir des podiums gelés et des campagnes gagnées, qui vivent tous
+   les deux dans l'instantané partagé. Chaque appareil sait donc déjà
+   déduire le badge de n'importe quel pseudo : la couleur d'un joueur
+   est une LECTURE LOCALE, pas un champ de plus sur le fil. Un compte
+   d'essai posé sur le salon n'a rien à envoyer pour être gris.
+
+   DEUX ÉCHELLES, ET LA ROUGE PASSE DEVANT. Le métal dit les podiums —
+   pierre, bronze, argent, or, or royal —, le rouge dit les campagnes
+   gagnées. Un joueur qui a la ligue est rouge quel que soit son métal :
+   c'est le titre le plus rare, il ne doit pas se faire recouvrir par
+   celui qu'on obtient en montant une fois sur un podium.
+
+   L'INTENSITÉ EST DANS LA FORCE, PAS DANS LA TEINTE. Cinq ors ne font
+   pas un or différent, ils font le MÊME or, plus franc : deux teintes
+   d'or voisines ne se distinguent pas sur du sable, alors qu'une
+   différence de présence se lit d'un coup d'œil et à n'importe quel
+   zoom.
+   ================================================================ */
+var TEINTES_BADGE = {
+  pierre:  "150,160,178",
+  bronze:  "198,123,60",
+  argent:  "201,209,221",
+  or:      "240,188,78",
+  orroyal: "255,212,107",
+  rouge:   "228,52,76"
+};
+var METAL_PALIER = ["pierre", "bronze", "argent", "or", "orroyal"];
+/* Le cache : la couleur d'un pseudo ne change qu'avec l'instantané, et
+   celui-ci ne bouge que de loin en loin. La recalculer par unité et par
+   image serait décoder deux registres soixante fois par seconde pour un
+   résultat identique. La clé du cache est celle des tables. */
+var COUL_BADGE = { bg:null, bo:null, t:{} };
+function couleurBadge(nom){
+  var T = tablesBadge();
+  if(COUL_BADGE.bg !== T.bg || COUL_BADGE.bo !== T.bo){
+    COUL_BADGE.bg = T.bg; COUL_BADGE.bo = T.bo; COUL_BADGE.t = {};
+  }
+  var cle = nettoieNomScore(nom || "");
+  if(COUL_BADGE.t[cle]) return COUL_BADGE.t[cle];
+  var rgb = TEINTES_BADGE.pierre, force = 0;
+  if(typeof MilyBadges !== "undefined" && MilyBadges.compute){
+    var n = MilyBadges.compute(joueurBadge(cle));
+    if(n.ir > 0){
+      /* LA LIGUE. Cinq crans de rubis jusqu'à la couronne, et la force
+         monte avec eux — un champion de cinq campagnes doit se voir de
+         l'autre bout de l'île. */
+      rgb = TEINTES_BADGE.rouge;
+      force = 0.58 + Math.min(5, n.ir) * 0.084;
+    }else{
+      rgb = TEINTES_BADGE[METAL_PALIER[Math.min(4, Math.max(0, n.id | 0))]];
+      /* Le palier zéro — personne n'est jamais monté sur un podium —
+         reste à zéro : pas de halo du tout. Une couleur pour « rien »
+         serait une décoration, pas une information, et elle mettrait
+         un rond sous chacune des cent unités d'un débutant. */
+      /* Le bas de l'échelle a été remonté après lecture à l'écran :
+         un bronze à moins de la moitié se perdait dans le sable
+         clair, et un palier qu'on ne voit pas ne dit rien. */
+      force = (n.id > 0) ? 0.42 + n.id * 0.145 : 0;
+    }
+  }
+  return (COUL_BADGE.t[cle] = { rgb:rgb, force:force });
 }
 
 /* ===== 90-interface.js ===== */
@@ -65097,7 +65387,7 @@ function majMondes(){
 
           Seule la carte EN COURS n'a pas d'œil, et pour une raison qui
           n'a pas changé : on y débarque, c'est mieux qu'une visite. */
-       + (i !== carteSalon ? boutonVisite(i) : "")
+       + (i !== carteSalon ? boutonVisite(i) : boutonObserve(i))
        /* L'ESSAI, LUI, EST SUR TOUTES LES ÎLES, Y COMPRIS CELLE EN
           COURS. Sur une île fermée, c'est la demande même : la jouer
           sans rien inscrire. Sur l'île en cours, c'est la seule façon
@@ -65159,6 +65449,17 @@ function boutonVisite(i){
    dessine donc pas du tout pour un joueur ordinaire : rien à cacher
    en CSS, rien à désarmer — ce qui n'est pas écrit n'est pas
    cliquable. Voir adminOuvert dans 85-reseau.js. */
+/* LE BOUTON D'OBSERVATION VA LÀ OÙ L'ŒIL DE LA VISITE N'ALLAIT PAS :
+   sur l'île EN COURS. La visite s'en abstenait pour une bonne raison
+   — « on y débarque, c'est mieux qu'une visite » — mais cela laissait
+   sans réponse la seule chose qu'on veuille parfois y faire :
+   REGARDER quelqu'un d'autre l'attaquer, sans entrer soi-même dans la
+   bataille. Il est ouvert à tout le monde, comme la visite. */
+function boutonObserve(i){
+  return '<button class="observe" data-observe="' + i + '" '
+       + 'title="Regarder la bataille en cours sans y débarquer">'
+       + '\u{1F441} Observer</button>';
+}
 function boutonEssai(i){
   if(typeof adminOuvert === "undefined" || !adminOuvert) return "";
   return '<button class="essai" data-essai="' + i + '" '
@@ -65185,6 +65486,16 @@ function demandeVisite(i){
    visite — lancePartie rebâtit la carte —, et on prévient de la même
    façon. On annonce en plus ce que l'essai NE fera pas : c'est la
    question qu'on se pose avant de cliquer. */
+/* Observer coûte la bataille en cours pour la même raison qu'une
+   visite — lancePartie rebâtit la carte — et l'on prévient pareil. */
+function demandeObservation(i){
+  if(visitePerdraitLaPartie()
+     && !confirm("Observer « " + CARTES[i].nom + " » ?\n\n"
+               + "Ta bataille en cours sera abandonnée : les troupes déjà\n"
+               + "débarquées seront perdues.\n\n"
+               + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
+  ouvreObservation(i);
+}
 function demandeEssai(i){
   if(typeof adminOuvert === "undefined" || !adminOuvert) return;
   if(visitePerdraitLaPartie()
@@ -65204,6 +65515,13 @@ function installeAppuisCartes(){
   m._visiteArmee = 1;
   m.addEventListener("click", function(ev){
     if(!ev.target.closest) return;
+    var o = ev.target.closest("[data-observe]");
+    if(o){
+      ev.preventDefault();
+      ev.stopPropagation();
+      demandeObservation(+o.getAttribute("data-observe"));
+      return;
+    }
     var e = ev.target.closest("[data-essai]");
     if(e){
       ev.preventDefault();
@@ -65346,7 +65664,7 @@ function vignetteEvenement(i){
           reste désarmé — `actif` ne s'arme que sur « prete » ou
           « encours » — donc on ne lance ni ne rejoint rien sur une
           carte en travaux. On la REGARDE, c'est tout. */
-       + boutonVisite(i)
+       + (e === "encours" ? boutonObserve(i) : boutonVisite(i))
        /* Et l'essai, qui vaut surtout ici : une carte événement est
           fermée la plupart du temps, et son bouton d'entrée reste
           désarmé tant que le salon n'a pas le compte de joueurs. C'est
@@ -66003,6 +66321,7 @@ function ouvreApercuAdmin(i){
      messages sorte. */
   modeApercu = true;
   modeEssai = false;
+  modeObserve = false;
   var b = $("bandeauApercu");
   if(b){ b.textContent = "👁 Visite — on regarde, on ne joue pas"; b.classList.remove("essai"); }
   lancePartie(i);
@@ -66039,6 +66358,7 @@ function ouvreEssaiAdmin(i){
      salue le salon en passant. */
   modeApercu = true;
   modeEssai = true;
+  modeObserve = false;
   lancePartie(i);
   /* `apercu` allume le bandeau, et c'est tout ce qu'on lui emprunte :
      la classe `visite`, celle qui range les commandes de combat, n'est
@@ -66053,10 +66373,38 @@ function ouvreEssaiAdmin(i){
   message("Essai de « " + CARTES[i].nom + " » — débarque, essaie tout. "
         + "Rien n'est publié, rien n'est compté, la saison ne bouge pas.");
 }
+/* ================================================================
+   L'OBSERVATION — ON REGARDE LA BATAILLE DES AUTRES
+
+   Comme la visite : on ne débarque pas, rien n'est enregistré. À la
+   différence de la visite : les troupes des autres sont là, et l'île
+   est montrée TELLE QU'ELLE EST — c'est une bataille en cours qu'on
+   regarde, pas un décor. Les deux portes que cela ouvre sont des
+   lectures ; le sceau, lui, ne bouge pas. Voir modeObserve dans
+   85-reseau.js.
+   ================================================================ */
+function ouvreObservation(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Spectateur";
+  monNom = pseudoSaisi();
+  if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
+  modeApercu = true;
+  modeEssai = false;
+  modeObserve = true;
+  lancePartie(i);
+  /* `visite` range les commandes de combat : en observation elles ne
+     mèneraient nulle part, exactement comme là-bas. */
+  $("hud").classList.add("apercu", "visite");
+  var b = $("bandeauApercu");
+  if(b){ b.textContent = "\u{1F441} OBSERVATION — on regarde, on ne joue pas";
+         b.classList.remove("essai"); }
+  message("Observation de « " + CARTES[i].nom + " » — les troupes de tout "
+        + "le monde sont là. Rien n'est enregistré.");
+}
 function quitteApercuAdmin(){
   var etaitEssai = modeEssai;
   modeApercu = false;
   modeEssai = false;
+  modeObserve = false;
   $("hud").classList.remove("apercu");
   $("hud").classList.remove("visite");
   var bb = $("bandeauApercu");

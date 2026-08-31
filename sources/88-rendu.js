@@ -3016,6 +3016,10 @@ function rendu(tps, dt){
   /* L'AURA DE PUISSANCE, AVANT LA PILE — donc au SOL, sous tout le
      monde, comme une ombre. Voir dessineAuras. */
   dessineAuras(ctx, tps);
+  /* Et la marque de badge des autres joueurs, au sol elle aussi et pour
+     la même raison : peinte dans la pile, la marque d'une troupe du
+     fond serait passée par-dessus celle du premier plan. */
+  dessineHalosBadge(ctx);
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
   /* LE GEL SE PEINT AVEC SON BÂTIMENT, PAS APRÈS TOUS. Peint après la
@@ -4339,6 +4343,85 @@ function dessineAuras(c, tps){
       var h2 = Math.round(w2 * 0.5);
       c.drawImage(img, Math.round(auraX[e][i] - w2 / 2),
                        Math.round(auraY[e][i] - h2 / 2), w2, h2);
+    }
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LA MARQUE DE BADGE SOUS LES TROUPES DES AUTRES
+
+   « Au lieu d'avoir les troupes en gris, on ne pourrait pas les voir
+     par couleur ? Comme ça on voit les troupes de tout le monde, et on
+     voit directement qui est bon. »
+
+   POURQUOI UNE MARQUE AU SOL PLUTÔT QUE LA SILHOUETTE TEINTE. La
+   silhouette grise n'est pas dessinée trait par trait : c'est une
+   planche pré-calculée, soixante-douze canevas de deux cent quarante
+   sur deux cent quatre-vingt-dix-huit — vingt méga-octets. Une planche
+   par palier de badge en aurait coûté autant CHAQUE FOIS, et il y a six
+   paliers : cent vingt méga-octets sur une tablette, pour une teinte.
+   Teinter au moment du dessin ne s'y substitue pas : le canevas ne sait
+   colorer une image qu'en passant par une surface intermédiaire, qu'il
+   faudrait effacer, redessiner, teinter et recopier POUR CHAQUE UNITÉ
+   ET CHAQUE IMAGE.
+
+   La marque au sol, elle, est une seule petite tuile par teinte —
+   quelques kilo-octets — posée d'un blit sous chaque troupe. Elle dit
+   la même chose et se lit de plus loin : à demi-zoom une silhouette
+   fait huit pixels de large, un halo au sol en fait trente.
+
+   L'INTENSITÉ SE VOIT, LA TEINTE SE RECONNAÎT. Voir couleurBadge dans
+   89-badges.js : le rouge de la ligue passe devant le métal, et le
+   nombre de titres joue sur la FORCE, jamais sur la couleur — deux ors
+   voisins ne se distinguent pas sur du sable.
+
+   ET UN DÉBUTANT N'A PAS DE MARQUE DU TOUT. Sa force vaut zéro : cent
+   ronds gris sous cent unités seraient une décoration, pas une
+   information.
+   ================================================================ */
+var halosBadge = {};
+function spriteHaloBadge(rgb){
+  if(halosBadge[rgb]) return halosBadge[rgb];
+  /* La tuile est au rapport 2:1 de la projection, comme celle des
+     auras : le disque y est déjà couché, rien à écraser en peignant. */
+  var T = 96, Hh = 48;
+  var cv = nouveauCanvas(T, Hh), g = cv.getContext("2d");
+  g.save();
+  g.translate(T / 2, Hh / 2);
+  g.scale(1, Hh / T);
+  var gr = g.createRadialGradient(0, 0, 1, 0, 0, T * 0.46);
+  gr.addColorStop(0.00, "rgba(" + rgb + ",0.85)");
+  gr.addColorStop(0.42, "rgba(" + rgb + ",0.42)");
+  gr.addColorStop(0.78, "rgba(" + rgb + ",0.13)");
+  gr.addColorStop(1.00, "rgba(" + rgb + ",0)");
+  g.fillStyle = gr;
+  g.beginPath(); g.arc(0, 0, T * 0.46, 0, 6.2832); g.fill();
+  g.restore();
+  return (halosBadge[rgb] = cv);
+}
+function dessineHalosBadge(c){
+  if(typeof couleurBadge !== "function") return;
+  if(!montreLesAutres()) return;
+  var z = cam.z;
+  if(z < 0.18) return;                 // de si loin, le halo n'est plus qu'un point
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for(var id in autresJoueurs){
+    var j = autresJoueurs[id];
+    if(!j.unites.length) continue;
+    var col = couleurBadge(j.nom);
+    if(!(col.force > 0)) continue;     // sans titre, pas de marque
+    var sp = spriteHaloBadge(col.rgb);
+    /* La largeur suit le zoom mais garde un plancher : sous une dizaine
+       de pixels, un dégradé ne se distingue plus du sable. */
+    var l = Math.max(16, 34 * z), h = l * 0.5;
+    c.globalAlpha = col.force;
+    for(var k = 0; k < j.unites.length; k++){
+      var u = j.unites[k];
+      var p = versEcran(cam, u.gx, u.gy);
+      if(p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
+      c.drawImage(sp, p.x - l / 2, p.y - h / 2, l, h);
     }
   }
   c.restore();

@@ -3789,9 +3789,17 @@ G("4. Déterminisme de la génération de carte");
          l'occurrence. On vérifie donc l'INTENTION : le bouton est
          dans la vignette, et aucun ternaire ne le conditionne. */
       var vEvt = (html.match(/function vignetteEvenement\(i\)\{[\s\S]*?\n\}/) || [""])[0];
-      ok("toute carte événement porte le bouton Visiter, chantier compris",
-         /\+ boutonVisite\(i\)/.test(vEvt) && !/\?[^\n]*boutonVisite/.test(vEvt),
+      /* DEPUIS L'OBSERVATION (v1.52), LA PORTE N'EST PLUS TOUJOURS LA
+         MÊME : expédition en cours, on OBSERVE — c'est alors qu'il y a
+         des troupes à voir ; le reste du temps, on VISITE. Ce qu'il ne
+         faut jamais, et c'est ce que cette ligne garde, c'est une
+         branche VIDE qui refermerait la porte sur une carte en
+         chantier. */
+      ok("toute carte événement porte une porte pour aller regarder",
+         /\+ \(e === "encours" \? boutonObserve\(i\) : boutonVisite\(i\)\)/.test(vEvt),
          vEvt ? "" : "vignetteEvenement introuvable");
+      ok("… et jamais de branche vide qui la refermerait",
+         !/boutonVisite\(i\)\s*:\s*""/.test(vEvt) && !/""\s*:\s*boutonVisite\(i\)/.test(vEvt));
       ok("… et il mène à la PRÉVISUALISATION, jamais à une partie réelle",
          /function demandeVisite\([\s\S]{0,700}ouvreApercuAdmin\(i\)/.test(html) &&
          !/function demandeVisite\([\s\S]{0,700}lanceExpedition/.test(html));
@@ -12040,12 +12048,18 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /function noteQueJeJoue\(index\)\{[\s\S]{0,900}modeApercu\) return;/.test(html));
 
   /* ---- ③ LA PORTE QUE L'ESSAI OUVRE, ET ELLE SEULE ---- */
+  /* LE REFUS EST GARDÉ SUR SA CONDITION, plus sur le texte du message :
+     depuis l'observation (v1.52), celui de poseBarge choisit entre deux
+     phrases selon le mode. C'est la condition qui porte la règle — le
+     libellé, lui, a le droit de changer. */
   ok("l'essai lève le refus de débarquer",
-     /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\("Visite : tu peux tout regarder, mais pas débarquer/.test(html));
+     /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\(/.test(html));
   ok("… et celui d'allumer le héros",
      /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\("Visite : tu peux tout regarder, mais pas jouer/.test(html));
   ok("… et la visite, elle, refuse toujours les deux",
-     (html.match(/return message\("Visite : tu peux tout regarder/g) || []).length === 2);
+     (html.match(/&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)/g) || []).length === 2);
+  ok("… l'observation refuse de débarquer elle aussi, en le disant",
+     /\? "Observation : tu regardes la bataille, tu n'y débarques pas\."/.test(html));
 
   /* ---- ④ LES DEUX DRAPEAUX, LEVÉS ET BAISSÉS ENSEMBLE ---- */
   var oe = corps("ouvreEssaiAdmin");

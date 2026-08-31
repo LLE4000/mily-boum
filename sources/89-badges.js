@@ -990,3 +990,76 @@ function nomsMasques(){
   out.__n = n;
   return out;
 }
+
+/* ================================================================
+   LA COULEUR D'UN JOUEUR — SON BADGE, PORTÉ PAR SES TROUPES
+
+   « Ceux qui ont gagné, ils ont le bronze, donc ils seraient couleur
+     bronze. Certains argent, certains or, et ceux qui gagnent la ligue
+     seraient rouges. Et pour avoir des intensités : si on a gagné cinq
+     fois or, on a un or bien visible. Comme ça, quand on voit les
+     joueurs, on voit directement qui est bon. »
+
+   RIEN À TRANSMETTRE, ET C'EST LA BONNE NOUVELLE. Le badge se calcule
+   à partir des podiums gelés et des campagnes gagnées, qui vivent tous
+   les deux dans l'instantané partagé. Chaque appareil sait donc déjà
+   déduire le badge de n'importe quel pseudo : la couleur d'un joueur
+   est une LECTURE LOCALE, pas un champ de plus sur le fil. Un compte
+   d'essai posé sur le salon n'a rien à envoyer pour être gris.
+
+   DEUX ÉCHELLES, ET LA ROUGE PASSE DEVANT. Le métal dit les podiums —
+   pierre, bronze, argent, or, or royal —, le rouge dit les campagnes
+   gagnées. Un joueur qui a la ligue est rouge quel que soit son métal :
+   c'est le titre le plus rare, il ne doit pas se faire recouvrir par
+   celui qu'on obtient en montant une fois sur un podium.
+
+   L'INTENSITÉ EST DANS LA FORCE, PAS DANS LA TEINTE. Cinq ors ne font
+   pas un or différent, ils font le MÊME or, plus franc : deux teintes
+   d'or voisines ne se distinguent pas sur du sable, alors qu'une
+   différence de présence se lit d'un coup d'œil et à n'importe quel
+   zoom.
+   ================================================================ */
+var TEINTES_BADGE = {
+  pierre:  "150,160,178",
+  bronze:  "198,123,60",
+  argent:  "201,209,221",
+  or:      "240,188,78",
+  orroyal: "255,212,107",
+  rouge:   "228,52,76"
+};
+var METAL_PALIER = ["pierre", "bronze", "argent", "or", "orroyal"];
+/* Le cache : la couleur d'un pseudo ne change qu'avec l'instantané, et
+   celui-ci ne bouge que de loin en loin. La recalculer par unité et par
+   image serait décoder deux registres soixante fois par seconde pour un
+   résultat identique. La clé du cache est celle des tables. */
+var COUL_BADGE = { bg:null, bo:null, t:{} };
+function couleurBadge(nom){
+  var T = tablesBadge();
+  if(COUL_BADGE.bg !== T.bg || COUL_BADGE.bo !== T.bo){
+    COUL_BADGE.bg = T.bg; COUL_BADGE.bo = T.bo; COUL_BADGE.t = {};
+  }
+  var cle = nettoieNomScore(nom || "");
+  if(COUL_BADGE.t[cle]) return COUL_BADGE.t[cle];
+  var rgb = TEINTES_BADGE.pierre, force = 0;
+  if(typeof MilyBadges !== "undefined" && MilyBadges.compute){
+    var n = MilyBadges.compute(joueurBadge(cle));
+    if(n.ir > 0){
+      /* LA LIGUE. Cinq crans de rubis jusqu'à la couronne, et la force
+         monte avec eux — un champion de cinq campagnes doit se voir de
+         l'autre bout de l'île. */
+      rgb = TEINTES_BADGE.rouge;
+      force = 0.58 + Math.min(5, n.ir) * 0.084;
+    }else{
+      rgb = TEINTES_BADGE[METAL_PALIER[Math.min(4, Math.max(0, n.id | 0))]];
+      /* Le palier zéro — personne n'est jamais monté sur un podium —
+         reste à zéro : pas de halo du tout. Une couleur pour « rien »
+         serait une décoration, pas une information, et elle mettrait
+         un rond sous chacune des cent unités d'un débutant. */
+      /* Le bas de l'échelle a été remonté après lecture à l'écran :
+         un bronze à moins de la moitié se perdait dans le sable
+         clair, et un palier qu'on ne voit pas ne dit rien. */
+      force = (n.id > 0) ? 0.42 + n.id * 0.145 : 0;
+    }
+  }
+  return (COUL_BADGE.t[cle] = { rgb:rgb, force:force });
+}

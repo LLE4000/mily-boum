@@ -285,8 +285,11 @@ function nouvelleCarte(index, pvConnu){
      de la voie, exactement comme ils viennent de `d`, `bl` et `pv`
      pour la campagne.
      ================================================================ */
+  /* même règle qu'appliqueMondeAuJeu : la visite montre la carte
+     intacte, l'observation montre l'expédition telle qu'elle est */
   if(typeof monde !== "undefined" && monde && carteSpeciale(index) &&
-     !(typeof modeApercu !== "undefined" && modeApercu) &&
+     !((typeof modeApercu !== "undefined" && modeApercu) &&
+       !(typeof modeObserve !== "undefined" && modeObserve)) &&
      typeof voieDeCarte === "function" && voieDeCarte(index) &&
      evenementEnCours(monde, voieDeCarte(index))){
     var ve = voieLue(monde, voieDeCarte(index), index);
@@ -1297,7 +1300,9 @@ function poseBarge(gx, gy){
      `modeApercu`, qui reste levé. Voir modeEssai dans 85-reseau.js. */
   if(typeof modeApercu !== "undefined" && modeApercu
      && !(typeof modeEssai !== "undefined" && modeEssai))
-    return message("Visite : tu peux tout regarder, mais pas débarquer ici.");
+    return message((typeof modeObserve !== "undefined" && modeObserve)
+      ? "Observation : tu regardes la bataille, tu n'y débarques pas."
+      : "Visite : tu peux tout regarder, mais pas débarquer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");

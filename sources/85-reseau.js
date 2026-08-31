@@ -531,6 +531,42 @@ var modeApercu = false;
    ================================================================ */
 var modeEssai = false;
 
+/* ================================================================
+   L'OBSERVATION — REGARDER LES AUTRES SE BATTRE
+
+   « Si je veux voir une attaque, si je veux voir les gens jouer, je
+     suis obligé de rentrer dans la carte en mettant Attaquer.
+     J'aimerais juste un bouton qui veut dire qu'on observe le
+     combat. »
+
+   LA VISITE NE POUVAIT PAS SERVIR À ÇA, et pour deux raisons exactement
+   opposées à ce qu'on veut ici :
+
+     • montreLesAutres() rend `!modeApercu` : en visite, les troupes des
+       autres ne sont PAS dessinées. On regardait donc une île déserte —
+       le contraire d'observer un combat.
+     • appliqueMondeAuJeu sort en tête sur `modeApercu` : la carte est
+       montrée INTACTE, telle que le générateur la fait. Pour une île
+       verrouillée qu'on découvre, c'est ce qu'on veut ; pour la
+       bataille en cours, c'est faux — les défenses déjà tombées
+       seraient toujours debout.
+
+   L'OBSERVATION OUVRE CES DEUX PORTES-LÀ, ET RIEN D'AUTRE. Elle garde
+   `modeApercu` levé, donc tous les robinets de sortie restent fermés :
+   rien n'est publié, rien n'est écrit, aucun point, aucune progression.
+   La règle de modeEssai vaut mot pour mot ici — voir sa doctrine juste
+   au-dessus.
+
+   ET LES DEUX PORTES QU'ELLE OUVRE SONT DES LECTURES. Lire l'instantané
+   et dessiner ce qu'on reçoit n'écrit rien nulle part : ce qui ENTRE n'a
+   jamais été le problème.
+
+   ELLE EST OUVERTE À TOUT LE MONDE. Regarder les autres jouer n'est pas
+   un pouvoir d'administrateur, c'est ce qu'on fait sur le bord du
+   terrain — et la visite, qui promet autant, l'est déjà.
+   ================================================================ */
+var modeObserve = false;
+
 /* L'ADMINISTRATEUR EST RECONNU POUR CETTE PAGE, ET POUR ELLE SEULE.
    Rien n'est rangé sur le disque : recharger redemande le mot de
    passe. C'est volontaire — ce drapeau ne garde rien de précieux, il
@@ -946,8 +982,12 @@ function appliqueMondeAuJeu(m){
   if(!jeu || !mondeValide(m)) return;
   /* En prévisualisation, on ne LIT pas non plus : la carte doit être
      montrée intacte, telle qu'elle sortira du générateur, et non
-     amputée des défenses que le salon a déjà détruites ailleurs. */
-  if(modeApercu) return;
+     amputée des défenses que le salon a déjà détruites ailleurs.
+     EN OBSERVATION, SI, et c'est tout l'inverse : on regarde la
+     bataille EN COURS. Une île montrée intacte pendant qu'on la
+     détruit sous nos yeux serait un mensonge — et lire n'écrit
+     rien, le sceau tient toujours. */
+  if(modeApercu && !modeObserve) return;
   /* EN EXPÉDITION, c'est la voie de la jungle qui commande, pas la
      campagne : les destructions viennent de jd et les PV de jq. Le
      reste de l'instantané décrit une île à laquelle on ne touche pas
@@ -2184,13 +2224,22 @@ function majUnitesDistantes(j, p){
    campagne — mais il suppose que l'expéditeur envoie son index, donc
    qu'il a cette version-ci. D'où le premier, qui ne suppose rien.
    ================================================================ */
-function montreLesAutres(){ return !modeApercu; }
+/* L'OBSERVATION EST LA SEULE PRÉVISUALISATION QUI LES MONTRE : c'est
+   exactement ce qu'on est venu voir. La visite, elle, garde son île
+   déserte — on y regarde un DÉCOR, pas une bataille. */
+function montreLesAutres(){ return !modeApercu || modeObserve; }
 function interpoleDistants(dt){
   for(var id in autresJoueurs){
     var j = autresJoueurs[id];
     if(tempsGlobal - j.vu > 15){ delete autresJoueurs[id]; majPodium(); continue; }
+    /* LA COULEUR DU BADGE SE POSE ICI, une fois par joueur et par image,
+       et non dans le dessin — où elle aurait été cherchée une fois par
+       UNITÉ. couleurBadge garde son propre cache, mais la boucle de
+       rendu n'a même pas à l'appeler : elle lit un champ déjà posé. */
+    var col = (typeof couleurBadge === "function") ? couleurBadge(j.nom) : null;
     for(var i = 0; i < j.unites.length; i++){
       var u = j.unites[i];
+      u.coul = col;
       var dx = u.cx - u.gx, dy = u.cy - u.gy;
       var d = Math.hypot(dx, dy);
       if(d > 12){ u.gx = u.cx; u.gy = u.cy; continue; }

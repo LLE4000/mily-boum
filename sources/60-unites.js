@@ -1042,6 +1042,83 @@ function vignette(type, droite, phase){
   return vignettes[ti * 12 + dr * 6 + ph];
 }
 
+/* ================================================================
+   LA SILHOUETTE AUX COULEURS DU BADGE
+
+   « Au lieu d'avoir les troupes en gris, on ne pourrait pas les voir
+     par couleur ? Bronze, argent, or, et rouge pour la ligue — et avec
+     des intensités, pour qu'on voie directement qui est bon. »
+
+   POURQUOI TEINDRE LES PLANCHES, ET NON L'IMAGE AU MOMENT DU DESSIN.
+   Le canevas ne sait pas colorer une image à la volée : il faudrait
+   passer par une surface intermédiaire, l'effacer, y dessiner, la
+   teinter, la recopier — quatre balayages de soixante-dix mille pixels
+   POUR CHAQUE UNITÉ ET CHAQUE IMAGE. À quatre-vingts troupes à
+   l'écran, c'est le rendu qui s'écroule.
+
+   ON TEINT DONC LA PLANCHE, UNE FOIS. Et pas toutes : seulement le
+   couple (teinte, type de troupe) dont on a besoin, au moment où on en
+   a besoin. Un joueur aligne une ou deux sortes de troupes, pas six ;
+   fabriquer les six planches d'or parce qu'un joueur doré a des Furies
+   serait payer cinq planches pour rien.
+
+   ET LE CACHE EST PLAFONNÉ. Chaque couple pèse douze canevas, soit
+   trois méga-octets et demi : sans plafond, un salon bigarré finirait
+   par en garder trente. Au-delà de DIX couples on vide tout et l'on
+   repart — c'est brutal, c'est rare, et cela vaut mieux qu'un onglet
+   qui enfle sans qu'on sache pourquoi sur la tablette.
+
+   LA TEINTE GARDE L'OMBRAGE. On ne remplace pas le gris par une
+   couleur plate — le personnage perdrait son relief et deviendrait une
+   découpe. On MULTIPLIE la valeur du gris par la couleur : les creux
+   restent des creux, les reflets des reflets, et la troupe reste
+   lisible. `force` mélange ensuite le résultat avec le gris d'origine :
+   c'est là que vivent les intensités — un premier bronze reste presque
+   gris, un or cinq fois gagné éclate.
+   ================================================================ */
+var VIG_TEINTES = {};
+var VIG_TEINTES_N = 0;
+var VIG_TEINTES_MAX = 10;
+function planchesTeintes(rgb, force, ti){
+  var cle = rgb + "|" + force.toFixed(2) + "|" + ti;
+  if(VIG_TEINTES[cle]) return VIG_TEINTES[cle];
+  if(VIG_TEINTES_N >= VIG_TEINTES_MAX){ VIG_TEINTES = {}; VIG_TEINTES_N = 0; }
+  var C = rgb.split(","), Cr = +C[0], Cv = +C[1], Cb = +C[2];
+  var out = [];
+  for(var k = 0; k < 12; k++){
+    var src = vignettes[ti * 12 + k];
+    var cv = nouveauCanvas(src.width, src.height);
+    var c = cv.getContext("2d");
+    c.drawImage(src, 0, 0);
+    var img = c.getImageData(0, 0, cv.width, cv.height), d = img.data;
+    for(var i = 0; i < d.length; i += 4){
+      if(d[i + 3] === 0) continue;
+      var v = d[i];                     // la planche est grise : un seul canal suffit
+      /* 140 : la valeur autour de laquelle le gris pivote. Plus bas,
+         les couleurs claires saturent à blanc et l'or perd ses creux ;
+         plus haut, tout s'assombrit et le bronze vire au brun. */
+      d[i]     = Math.min(255, v * (1 - force) + v * Cr / 140 * force);
+      d[i + 1] = Math.min(255, v * (1 - force) + v * Cv / 140 * force);
+      d[i + 2] = Math.min(255, v * (1 - force) + v * Cb / 140 * force);
+    }
+    c.putImageData(img, 0, 0);
+    out.push(cv);
+  }
+  VIG_TEINTES_N++;
+  return (VIG_TEINTES[cle] = out);
+}
+/* La planche d'une troupe, teintée si son joueur a un titre. Sans
+   titre — personne n'est jamais monté sur un podium — on rend la
+   planche grise d'origine, sans rien fabriquer. */
+function vignetteBadge(type, droite, phase, col){
+  var ti = VIG_TYPES.indexOf(type);
+  if(ti < 0) ti = 0;
+  var dr = droite ? 1 : 0;
+  var ph = Math.floor(((phase % 6.2832) + 6.2832) % 6.2832 / 6.2832 * 6) % 6;
+  if(!col || !(col.force > 0)) return vignettes[ti * 12 + dr * 6 + ph];
+  return planchesTeintes(col.rgb, col.force, ti)[dr * 6 + ph];
+}
+
 /* ---------------------------------------------------------------
    Dessin d'une unité du joueur, avec ses états
    --------------------------------------------------------------- */
@@ -1157,7 +1234,10 @@ function dessineUniteMonde(c, u, tps){
 function dessineUniteGrise(c, o){
   var p = versEcran(cam, o.gx, o.gy);
   var z = cam.z;
-  var v = vignette(o.type, o.droite, o.phase);
+  /* La teinte du badge de SON joueur, pas du mien : elle est portée par
+     l'unité, posée à la réception. Voir couleurBadge dans 89-badges.js
+     et majUnitesDistantes dans 85-reseau.js. */
+  var v = vignetteBadge(o.type, o.droite, o.phase, o.coul);
   if(!v) return;
   c.drawImage(v, p.x - VIG_OX * z, p.y - VIG_OY * z, VIG_W * z, VIG_H * z);
   /* LA JAUGE DE VIE, AUX MÊMES CONDITIONS QUE LA MIENNE : seulement si

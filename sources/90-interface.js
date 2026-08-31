@@ -1939,7 +1939,7 @@ function majMondes(){
 
           Seule la carte EN COURS n'a pas d'œil, et pour une raison qui
           n'a pas changé : on y débarque, c'est mieux qu'une visite. */
-       + (i !== carteSalon ? boutonVisite(i) : "")
+       + (i !== carteSalon ? boutonVisite(i) : boutonObserve(i))
        /* L'ESSAI, LUI, EST SUR TOUTES LES ÎLES, Y COMPRIS CELLE EN
           COURS. Sur une île fermée, c'est la demande même : la jouer
           sans rien inscrire. Sur l'île en cours, c'est la seule façon
@@ -2001,6 +2001,17 @@ function boutonVisite(i){
    dessine donc pas du tout pour un joueur ordinaire : rien à cacher
    en CSS, rien à désarmer — ce qui n'est pas écrit n'est pas
    cliquable. Voir adminOuvert dans 85-reseau.js. */
+/* LE BOUTON D'OBSERVATION VA LÀ OÙ L'ŒIL DE LA VISITE N'ALLAIT PAS :
+   sur l'île EN COURS. La visite s'en abstenait pour une bonne raison
+   — « on y débarque, c'est mieux qu'une visite » — mais cela laissait
+   sans réponse la seule chose qu'on veuille parfois y faire :
+   REGARDER quelqu'un d'autre l'attaquer, sans entrer soi-même dans la
+   bataille. Il est ouvert à tout le monde, comme la visite. */
+function boutonObserve(i){
+  return '<button class="observe" data-observe="' + i + '" '
+       + 'title="Regarder la bataille en cours sans y débarquer">'
+       + '\u{1F441} Observer</button>';
+}
 function boutonEssai(i){
   if(typeof adminOuvert === "undefined" || !adminOuvert) return "";
   return '<button class="essai" data-essai="' + i + '" '
@@ -2027,6 +2038,16 @@ function demandeVisite(i){
    visite — lancePartie rebâtit la carte —, et on prévient de la même
    façon. On annonce en plus ce que l'essai NE fera pas : c'est la
    question qu'on se pose avant de cliquer. */
+/* Observer coûte la bataille en cours pour la même raison qu'une
+   visite — lancePartie rebâtit la carte — et l'on prévient pareil. */
+function demandeObservation(i){
+  if(visitePerdraitLaPartie()
+     && !confirm("Observer « " + CARTES[i].nom + " » ?\n\n"
+               + "Ta bataille en cours sera abandonnée : les troupes déjà\n"
+               + "débarquées seront perdues.\n\n"
+               + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
+  ouvreObservation(i);
+}
 function demandeEssai(i){
   if(typeof adminOuvert === "undefined" || !adminOuvert) return;
   if(visitePerdraitLaPartie()
@@ -2046,6 +2067,13 @@ function installeAppuisCartes(){
   m._visiteArmee = 1;
   m.addEventListener("click", function(ev){
     if(!ev.target.closest) return;
+    var o = ev.target.closest("[data-observe]");
+    if(o){
+      ev.preventDefault();
+      ev.stopPropagation();
+      demandeObservation(+o.getAttribute("data-observe"));
+      return;
+    }
     var e = ev.target.closest("[data-essai]");
     if(e){
       ev.preventDefault();
@@ -2188,7 +2216,7 @@ function vignetteEvenement(i){
           reste désarmé — `actif` ne s'arme que sur « prete » ou
           « encours » — donc on ne lance ni ne rejoint rien sur une
           carte en travaux. On la REGARDE, c'est tout. */
-       + boutonVisite(i)
+       + (e === "encours" ? boutonObserve(i) : boutonVisite(i))
        /* Et l'essai, qui vaut surtout ici : une carte événement est
           fermée la plupart du temps, et son bouton d'entrée reste
           désarmé tant que le salon n'a pas le compte de joueurs. C'est
@@ -2845,6 +2873,7 @@ function ouvreApercuAdmin(i){
      messages sorte. */
   modeApercu = true;
   modeEssai = false;
+  modeObserve = false;
   var b = $("bandeauApercu");
   if(b){ b.textContent = "👁 Visite — on regarde, on ne joue pas"; b.classList.remove("essai"); }
   lancePartie(i);
@@ -2881,6 +2910,7 @@ function ouvreEssaiAdmin(i){
      salue le salon en passant. */
   modeApercu = true;
   modeEssai = true;
+  modeObserve = false;
   lancePartie(i);
   /* `apercu` allume le bandeau, et c'est tout ce qu'on lui emprunte :
      la classe `visite`, celle qui range les commandes de combat, n'est
@@ -2895,10 +2925,38 @@ function ouvreEssaiAdmin(i){
   message("Essai de « " + CARTES[i].nom + " » — débarque, essaie tout. "
         + "Rien n'est publié, rien n'est compté, la saison ne bouge pas.");
 }
+/* ================================================================
+   L'OBSERVATION — ON REGARDE LA BATAILLE DES AUTRES
+
+   Comme la visite : on ne débarque pas, rien n'est enregistré. À la
+   différence de la visite : les troupes des autres sont là, et l'île
+   est montrée TELLE QU'ELLE EST — c'est une bataille en cours qu'on
+   regarde, pas un décor. Les deux portes que cela ouvre sont des
+   lectures ; le sceau, lui, ne bouge pas. Voir modeObserve dans
+   85-reseau.js.
+   ================================================================ */
+function ouvreObservation(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Spectateur";
+  monNom = pseudoSaisi();
+  if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
+  modeApercu = true;
+  modeEssai = false;
+  modeObserve = true;
+  lancePartie(i);
+  /* `visite` range les commandes de combat : en observation elles ne
+     mèneraient nulle part, exactement comme là-bas. */
+  $("hud").classList.add("apercu", "visite");
+  var b = $("bandeauApercu");
+  if(b){ b.textContent = "\u{1F441} OBSERVATION — on regarde, on ne joue pas";
+         b.classList.remove("essai"); }
+  message("Observation de « " + CARTES[i].nom + " » — les troupes de tout "
+        + "le monde sont là. Rien n'est enregistré.");
+}
 function quitteApercuAdmin(){
   var etaitEssai = modeEssai;
   modeApercu = false;
   modeEssai = false;
+  modeObserve = false;
   $("hud").classList.remove("apercu");
   $("hud").classList.remove("visite");
   var bb = $("bandeauApercu");
