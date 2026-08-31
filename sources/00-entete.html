@@ -1026,6 +1026,14 @@ select.champ{cursor:pointer}
 #carriereListe:empty::after{
   content:"Personne n'a encore marqué.";font-size:12px;color:var(--gris);
 }
+/* LA NOTE DU PORTEUR DU BADGE D'HONNEUR. Elle prend la place que sa
+   ligne occupait, et se lit comme une note et non comme un rang : pas
+   de cadre, pas de chiffre en or, un trait pour dire qu'elle est à
+   part. Elle ne s'affiche que pour lui — voir noteHorsCarriere. */
+.clHors{
+  margin-top:8px;padding:7px 9px;border-left:2px solid rgba(255,168,72,.38);
+  font-size:11.5px;line-height:1.45;color:var(--gris);
+}
 /* ══ LA PAGE DES PASSAGES ══
    Elle emprunte toute son ossature au classement — même boîte, même
    en-tête, même corps défilant — et n'ajoute que ce qui lui est
@@ -2088,6 +2096,16 @@ select.champ{cursor:pointer}
 
       <h4 class="edH">Hors échelle</h4>
       <div class="edLn"><label>Badge d'honneur</label><select id="edSpecial"></select></div>
+      <!-- LA CONSÉQUENCE S'ÉCRIT OÙ LA DÉCISION SE PREND. Le retrait du
+           Top carrière n'est expliqué nulle part ailleurs : la page
+           « Les badges » ne parle que de ce qui se gagne, et un effet
+           de bord qu'on ne lit qu'en le constatant est un piège. -->
+      <div class="edDetail" style="margin:-4px 0 12px">Il remplace le badge
+        calculé — et il retire son porteur du <b>Top carrière</b> : l'aperçu de
+        l'accueil, la page « Voir tout », le palmarès des campagnes et le titre
+        décerné à la clôture. Ses dégâts continuent d'être comptés, et il reste
+        au classement de chaque île. Rien n'est effacé : rendre le badge rend
+        la place, avec le total exact.</div>
 
       <!-- CES DEUX-LÀ NE SONT EXPLIQUÉS NULLE PART AILLEURS.
            La page « Les badges » ne les mentionne pas, et c'est

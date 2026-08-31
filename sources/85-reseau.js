@@ -1360,7 +1360,15 @@ function nouvelleCampagneSalon(){
      garantit qu'aucun tour du monde n'est crédité deux fois, quel que
      soit le nombre de clients qui le voient se refermer. */
   if(typeof crediteTitreCarriere === "function"){
-    var podium = (typeof classementSalon === "function") ? classementSalon() : [];
+    /* LE PORTEUR DU BADGE D'HONNEUR N'EST PAS DU PODIUM, et c'est ici
+       que ça compte vraiment : le reste n'est qu'un affichage, celui-ci
+       GRAVE. Le laisser passer lui décernerait le titre de la campagne,
+       un rubis de plus sur son badge, et l'or du palmarès pour toujours
+       — exactement la triche qu'on retire. Filtré ici, c'est le premier
+       des joueurs classés qui gagne le tour du monde qu'il a gagné.
+       Voir sansHorsCarriere dans le noyau. */
+    var podium = (typeof classementSalon === "function")
+                 ? sansHorsCarriere(classementSalon(), monde && monde.bo) : [];
     /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
        il peut : trois lignes plus bas l'instantané publie s:"", et le
        classement de cette campagne n'existe plus nulle part. On grave

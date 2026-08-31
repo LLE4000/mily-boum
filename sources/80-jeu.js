@@ -3697,6 +3697,12 @@ function championDeLaPartie(){
     return { nom:l[0].nom, g:l[0].g, moi:(l[0].nom === monNom) ? 1 : 0 };
   }
   /* Personne sur cette île : on retombe sur le salon, puis sur soi. */
+  /* ET ON NE FILTRE PAS LE BADGE D'HONNEUR ICI, contrairement au Top
+     carrière. Ce champion-là est celui d'une ÎLE — « il peut rester
+     dans le top des maps » —, et ce repli ne sert qu'au cas où personne
+     n'a de contribution enregistrée sur celle-ci : retirer le seul nom
+     qu'on ait sous la main nous ferait sacrer « Anonyme » la fois où
+     c'est justement lui qui vient de tout détruire. */
   var s = (typeof classementSalon === "function") ? classementSalon() : null;
   if(s && s.length) return { nom:s[0].nom, g:s[0].g, moi:s[0].moi };
   return { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };

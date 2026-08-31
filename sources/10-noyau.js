@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.32";
+var VERSION = "v1.33";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -8717,6 +8717,61 @@ function meilleursReglagesBadge(a, b){
   if(nb > na) return { bo:vb, bon:nb };
   if(na > nb) return { bo:va, bon:na };
   return vb < va ? { bo:vb, bon:nb } : { bo:va, bon:na };
+}
+
+/* ================================================================
+   LE BADGE D'HONNEUR MET SON PORTEUR HORS DU TOP CARRIÈRE
+
+   « Pour l'instant je suis premier puisqu'on a fait des
+   réinitialisations, et Roro, qui a fait beaucoup plus que moi, est
+   deuxième. Dans le top carrière il faudrait que je ne sois pas
+   affiché, ou alors ce serait de la triche — sans tout réinitialiser.
+   Roro et les autres doivent conserver leurs points. »
+
+   POURQUOI LE BADGE, ET PAS UN RÉGLAGE DE PLUS. Le badge hors échelle
+   ne se gagne pas : il s'attribue à la main depuis l'administration, et
+   il est le seul insigne du jeu qui dise « cette personne tient la
+   boutique ». Y accrocher le retrait, c'est une décision au lieu de
+   deux, et surtout une seule à défaire : rendre le badge rend la place.
+   Un second drapeau dans `bo` aurait fatalement fini désaccordé du
+   premier, un jour où l'on aurait pensé à l'un sans penser à l'autre.
+
+   CE QUI PART, ET CE QUI RESTE. Part : le Top carrière — l'aperçu de
+   l'accueil, la page « Voir tout », le palmarès des campagnes, et le
+   podium qui décerne le titre à la clôture. Restent : les dégâts, qui
+   continuent d'être comptés et publiés comme avant ; les classements
+   D'ÎLE, où le porteur figure normalement ; les podiums gelés ; les
+   badges de tous, le sien compris. AUCUN SCORE N'EST TOUCHÉ, et c'est
+   la condition qu'on s'était donnée : on retire une ligne d'un
+   affichage, on n'efface pas une carrière.
+
+   ET C'EST RÉVERSIBLE À LA SECONDE. Le filtre lit `bo` à chaque
+   affichage ; il ne réécrit rien nulle part. Le jour où le badge tombe,
+   la ligne revient à sa place avec son total exact — y compris dans les
+   campagnes déjà inscrites au palmarès, qui gardent, elles, ce qui a
+   vraiment été enregistré.
+   ================================================================ */
+function nomsHorsCarriere(bo){
+  var t = decodeReglagesBadge(bo || ""), out = {}, k;
+  for(k in t) if(t[k] && t[k].special) out[k] = 1;
+  return out;
+}
+/* Le filtre lui-même. Il rend une NOUVELLE liste : la liste d'origine
+   sert encore — c'est en elle qu'on va rechercher le total du porteur
+   pour le lui montrer, puisqu'on ne le lui prend pas. */
+function sansHorsCarriere(liste, bo){
+  var h = nomsHorsCarriere(bo), out = [], i;
+  for(i = 0; liste && i < liste.length; i++){
+    var e = liste[i];
+    if(e && h[nettoieNomScore(e.nom)]) continue;
+    out.push(e);
+  }
+  return out;
+}
+/* « Suis-je celui qu'on retire ? » — la question que pose l'accueil
+   avant d'écrire la note qui explique l'absence. */
+function estHorsCarriere(nom, bo){
+  return !!nomsHorsCarriere(bo)[nettoieNomScore(nom)];
 }
 
 

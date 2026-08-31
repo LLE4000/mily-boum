@@ -1026,6 +1026,14 @@ select.champ{cursor:pointer}
 #carriereListe:empty::after{
   content:"Personne n'a encore marqué.";font-size:12px;color:var(--gris);
 }
+/* LA NOTE DU PORTEUR DU BADGE D'HONNEUR. Elle prend la place que sa
+   ligne occupait, et se lit comme une note et non comme un rang : pas
+   de cadre, pas de chiffre en or, un trait pour dire qu'elle est à
+   part. Elle ne s'affiche que pour lui — voir noteHorsCarriere. */
+.clHors{
+  margin-top:8px;padding:7px 9px;border-left:2px solid rgba(255,168,72,.38);
+  font-size:11.5px;line-height:1.45;color:var(--gris);
+}
 /* ══ LA PAGE DES PASSAGES ══
    Elle emprunte toute son ossature au classement — même boîte, même
    en-tête, même corps défilant — et n'ajoute que ce qui lui est
@@ -2088,6 +2096,16 @@ select.champ{cursor:pointer}
 
       <h4 class="edH">Hors échelle</h4>
       <div class="edLn"><label>Badge d'honneur</label><select id="edSpecial"></select></div>
+      <!-- LA CONSÉQUENCE S'ÉCRIT OÙ LA DÉCISION SE PREND. Le retrait du
+           Top carrière n'est expliqué nulle part ailleurs : la page
+           « Les badges » ne parle que de ce qui se gagne, et un effet
+           de bord qu'on ne lit qu'en le constatant est un piège. -->
+      <div class="edDetail" style="margin:-4px 0 12px">Il remplace le badge
+        calculé — et il retire son porteur du <b>Top carrière</b> : l'aperçu de
+        l'accueil, la page « Voir tout », le palmarès des campagnes et le titre
+        décerné à la clôture. Ses dégâts continuent d'être comptés, et il reste
+        au classement de chaque île. Rien n'est effacé : rendre le badge rend
+        la place, avec le total exact.</div>
 
       <!-- CES DEUX-LÀ NE SONT EXPLIQUÉS NULLE PART AILLEURS.
            La page « Les badges » ne les mentionne pas, et c'est
@@ -2339,7 +2357,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.32";
+var VERSION = "v1.33";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -11047,6 +11065,61 @@ function meilleursReglagesBadge(a, b){
   if(nb > na) return { bo:vb, bon:nb };
   if(na > nb) return { bo:va, bon:na };
   return vb < va ? { bo:vb, bon:nb } : { bo:va, bon:na };
+}
+
+/* ================================================================
+   LE BADGE D'HONNEUR MET SON PORTEUR HORS DU TOP CARRIÈRE
+
+   « Pour l'instant je suis premier puisqu'on a fait des
+   réinitialisations, et Roro, qui a fait beaucoup plus que moi, est
+   deuxième. Dans le top carrière il faudrait que je ne sois pas
+   affiché, ou alors ce serait de la triche — sans tout réinitialiser.
+   Roro et les autres doivent conserver leurs points. »
+
+   POURQUOI LE BADGE, ET PAS UN RÉGLAGE DE PLUS. Le badge hors échelle
+   ne se gagne pas : il s'attribue à la main depuis l'administration, et
+   il est le seul insigne du jeu qui dise « cette personne tient la
+   boutique ». Y accrocher le retrait, c'est une décision au lieu de
+   deux, et surtout une seule à défaire : rendre le badge rend la place.
+   Un second drapeau dans `bo` aurait fatalement fini désaccordé du
+   premier, un jour où l'on aurait pensé à l'un sans penser à l'autre.
+
+   CE QUI PART, ET CE QUI RESTE. Part : le Top carrière — l'aperçu de
+   l'accueil, la page « Voir tout », le palmarès des campagnes, et le
+   podium qui décerne le titre à la clôture. Restent : les dégâts, qui
+   continuent d'être comptés et publiés comme avant ; les classements
+   D'ÎLE, où le porteur figure normalement ; les podiums gelés ; les
+   badges de tous, le sien compris. AUCUN SCORE N'EST TOUCHÉ, et c'est
+   la condition qu'on s'était donnée : on retire une ligne d'un
+   affichage, on n'efface pas une carrière.
+
+   ET C'EST RÉVERSIBLE À LA SECONDE. Le filtre lit `bo` à chaque
+   affichage ; il ne réécrit rien nulle part. Le jour où le badge tombe,
+   la ligne revient à sa place avec son total exact — y compris dans les
+   campagnes déjà inscrites au palmarès, qui gardent, elles, ce qui a
+   vraiment été enregistré.
+   ================================================================ */
+function nomsHorsCarriere(bo){
+  var t = decodeReglagesBadge(bo || ""), out = {}, k;
+  for(k in t) if(t[k] && t[k].special) out[k] = 1;
+  return out;
+}
+/* Le filtre lui-même. Il rend une NOUVELLE liste : la liste d'origine
+   sert encore — c'est en elle qu'on va rechercher le total du porteur
+   pour le lui montrer, puisqu'on ne le lui prend pas. */
+function sansHorsCarriere(liste, bo){
+  var h = nomsHorsCarriere(bo), out = [], i;
+  for(i = 0; liste && i < liste.length; i++){
+    var e = liste[i];
+    if(e && h[nettoieNomScore(e.nom)]) continue;
+    out.push(e);
+  }
+  return out;
+}
+/* « Suis-je celui qu'on retire ? » — la question que pose l'accueil
+   avant d'écrire la note qui explique l'absence. */
+function estHorsCarriere(nom, bo){
+  return !!nomsHorsCarriere(bo)[nettoieNomScore(nom)];
 }
 
 
@@ -48945,6 +49018,12 @@ function championDeLaPartie(){
     return { nom:l[0].nom, g:l[0].g, moi:(l[0].nom === monNom) ? 1 : 0 };
   }
   /* Personne sur cette île : on retombe sur le salon, puis sur soi. */
+  /* ET ON NE FILTRE PAS LE BADGE D'HONNEUR ICI, contrairement au Top
+     carrière. Ce champion-là est celui d'une ÎLE — « il peut rester
+     dans le top des maps » —, et ce repli ne sert qu'au cas où personne
+     n'a de contribution enregistrée sur celle-ci : retirer le seul nom
+     qu'on ait sous la main nous ferait sacrer « Anonyme » la fois où
+     c'est justement lui qui vient de tout détruire. */
   var s = (typeof classementSalon === "function") ? classementSalon() : null;
   if(s && s.length) return { nom:s[0].nom, g:s[0].g, moi:s[0].moi };
   return { nom:monNom || "Anonyme", g:jeu.degatsMoi, moi:1 };
@@ -50986,7 +51065,15 @@ function nouvelleCampagneSalon(){
      garantit qu'aucun tour du monde n'est crédité deux fois, quel que
      soit le nombre de clients qui le voient se refermer. */
   if(typeof crediteTitreCarriere === "function"){
-    var podium = (typeof classementSalon === "function") ? classementSalon() : [];
+    /* LE PORTEUR DU BADGE D'HONNEUR N'EST PAS DU PODIUM, et c'est ici
+       que ça compte vraiment : le reste n'est qu'un affichage, celui-ci
+       GRAVE. Le laisser passer lui décernerait le titre de la campagne,
+       un rubis de plus sur son badge, et l'or du palmarès pour toujours
+       — exactement la triche qu'on retire. Filtré ici, c'est le premier
+       des joueurs classés qui gagne le tour du monde qu'il a gagné.
+       Voir sansHorsCarriere dans le noyau. */
+    var podium = (typeof classementSalon === "function")
+                 ? sansHorsCarriere(classementSalon(), monde && monde.bo) : [];
     /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
        il peut : trois lignes plus bas l'instantané publie s:"", et le
        classement de cette campagne n'existe plus nulle part. On grave
@@ -62029,12 +62116,31 @@ function ligneClassement(o, rang){
        + '<span class="nm">' + balliseBadge(o.nom) + nomOrne(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
+/* LA NOTE QUI EXPLIQUE UNE ABSENCE, ET QUI NE S'ADRESSE QU'À L'ABSENT.
+   Voir sansHorsCarriere dans le noyau : le porteur du badge d'honneur
+   ne figure plus au Top carrière. Sans un mot, il verrait sa ligne
+   disparaître et croirait ses dégâts perdus — c'est précisément ce qui
+   n'arrive pas. On lui rend donc son total, à l'endroit exact où sa
+   ligne se tenait, et personne d'autre ne lit cette phrase. */
+function noteHorsCarriere(brut){
+  if(!estHorsCarriere(monNom, monde && monde.bo)) return "";
+  var moi = 0, i;
+  for(i = 0; brut && i < brut.length; i++)
+    if(nettoieNomScore(brut[i].nom) === nettoieNomScore(monNom)){ moi = brut[i].g; break; }
+  return '<div class="clHors">Hors Top carrière — badge d\'honneur.'
+       + (moi ? " Tes " + nombre(moi) + " de dégâts sont comptés" : " Tes dégâts sont comptés")
+       + ", et tu restes dans le classement de chaque île.</div>";
+}
 function majCarriere(){
   var e = $("carriereListe");
   if(!e) return;
-  var l = classementSalon();
+  /* `brut` garde tout le monde : c'est lui qui sait encore ce que le
+     porteur du badge a marqué, et la note le lui redit. */
+  var brut = classementSalon();
+  var l = sansHorsCarriere(brut, monde && monde.bo);
   var h = "", i;
   for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
+  h += noteHorsCarriere(brut);
   e.innerHTML = h;
   poseBadges(e);
   var c = $("carriereCompte");
@@ -62079,19 +62185,37 @@ function majPalmares(){
   var h = "", i, k;
   for(i = 0; i < l.length && i < PALMARES_APERCU; i++){
     var e = l[i];
+    /* LE MÊME FILTRE QU'AU-DESSUS, ET IL LE FAUT : le palmarès est
+       l'HISTOIRE du Top carrière, affichée juste sous lui. Le porteur
+       du badge d'honneur retiré du classement vivant mais laissé en or
+       trois centimètres plus bas, ce serait la contradiction en face
+       du lecteur.
+       ON FILTRE À L'AFFICHAGE, PAS DANS LA CHAÎNE. Les campagnes déjà
+       inscrites gardent ce qui a réellement été enregistré : rendre le
+       badge fait revenir les lignes telles quelles. Les campagnes à
+       venir, elles, sont déjà filtrées à la source — le podium remis à
+       crediteTitreCarriere l'est —, si bien que les deux bouts disent
+       la même chose.
+       LES MÉDAILLES SUIVENT LE RANG AFFICHÉ. Une campagne dont il ne
+       resterait qu'un argent et un bronze, sans or, se lirait comme
+       une erreur de saisie ; ce qu'on montre est le classement des
+       joueurs classés, et son premier porte l'or. */
+    var pl = sansHorsCarriere(e.l, monde && monde.bo);
     h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
-    if(!e.l.length){
+    if(!pl.length){
       /* Une campagne bouclée sans classement lisible est quand même
-         inscrite — elle a eu lieu. On le dit plutôt que de la cacher. */
+         inscrite — elle a eu lieu. On le dit plutôt que de la cacher.
+         Et la phrase reste vraie d'une campagne vidée par le filtre :
+         c'est bien du Top carrière qu'elle parle, et personne n'y est. */
       h += '<div class="palL"><span class="r">·</span>'
          + '<span class="n" style="color:#8f86a0">personne au classement</span>'
          + '<span class="v"></span></div>';
     }
-    for(k = 0; k < e.l.length; k++){
+    for(k = 0; k < pl.length; k++){
       h += '<div class="palL ' + RANGS[k] + '">'
          + '<span class="r">' + MED[k] + '</span>'
-         + '<span class="n">' + nomOrne(e.l[k].nom) + '</span>'
-         + '<span class="v">' + nombre(e.l[k].g) + '</span></div>';
+         + '<span class="n">' + nomOrne(pl[k].nom) + '</span>'
+         + '<span class="v">' + nombre(pl[k].g) + '</span></div>';
     }
     h += '</div>';
   }
@@ -62263,10 +62387,13 @@ function installeVus(){
 function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
-  var l = classementSalon(), h = "", i;
+  var brut = classementSalon();
+  var l = sansHorsCarriere(brut, monde && monde.bo), h = "", i;
   for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
-  e.innerHTML = h || '<div class="clSous" style="padding:0">'
-                   + "Personne n'a encore marqué le moindre dégât.</div>";
+  h = (h || '<div class="clSous" style="padding:0">'
+           + "Personne n'a encore marqué le moindre dégât.</div>")
+    + noteHorsCarriere(brut);
+  e.innerHTML = h;
   poseBadges(e);
   $("classP").classList.add("on");
 }

@@ -59,6 +59,7 @@ try{
     "voieLibre",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
+    "nomsHorsCarriere","sansHorsCarriere","estHorsCarriere",
     "QG_PV_MIN","QG_PV_MAX","encodeSanteQG","decodeSanteQG","santeQGDans",
     "meilleureSanteQG","poseSanteQGSalon","pvQGDeCarte","santeQGReglee",
     "versEchelleIle","versEchelleFiche",
@@ -10491,6 +10492,181 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      d'autre ne devait bouger. */
   ok("le TX-90 garde son canon inchangé",
      K.degats === 480 && K.cadence === 4000 && K.portee === 5.5);
+})();
+
+/* ================================================================
+   50. LE BADGE D'HONNEUR HORS DU TOP CARRIÈRE
+
+   « Il faudrait retirer celui qui a le badge administrateur du top
+   carrière. Il peut rester dans le top des maps, mais dans le top
+   carrière il ne doit pas apparaître, parce que pour l'instant je suis
+   premier puisqu'on a fait des réinitialisations, et Roro, qui a fait
+   beaucoup plus que moi, est deuxième. Ou alors ce serait de la triche
+   — sans tout réinitialiser. Roro et les autres doivent conserver
+   leurs points. »
+
+   DEUX CHOSES SE VÉRIFIENT ICI, ET LA SECONDE EST LA PLUS IMPORTANTE.
+   Que le porteur sorte du classement, d'abord. Mais surtout QUE RIEN
+   D'AUTRE NE BOUGE : pas un score, pas un podium d'île, pas une
+   chaîne de l'instantané. Le filtre est un tamis posé sur l'affichage,
+   pas une réécriture — et c'est à cette condition que la promesse
+   « sans tout réinitialiser » tient.
+   ================================================================ */
+(function(){
+  G("50. Le badge d'honneur hors du Top carrière");
+
+  /* La table d'administration telle que l'éditeur l'écrit : sept bonus,
+     puis les deux drapeaux de queue. On passe par l'encodeur plutôt que
+     d'écrire la chaîne à la main — c'est le format réel qu'on teste. */
+  function bo(tab){ return N.encodeReglagesBadge(tab); }
+  function ligne(o){
+    var r = N.reglageVide(), k;
+    for(k in o) r[k] = o[k];
+    return r;
+  }
+  var TABLE = {
+    Chef: ligne({ special:"dev" }),           // le porteur du badge d'honneur
+    Roro: ligne({ io:2 }),                    // un bonus, pas un badge d'honneur
+    Lu:   ligne({ eclat:1 }),                 // le nom en rose
+    Dan:  ligne({ masque:1 }),                // retiré des passages
+    Mega: ligne({ rouge:"rubis3" })           // un niveau forcé
+  };
+  var BO = bo(TABLE);
+
+  /* --- QUI EST RETIRÉ, ET QUI NE L'EST PAS --- */
+  var h = N.nomsHorsCarriere(BO);
+  ok("le porteur du badge d'honneur est retiré", h.Chef === 1);
+  /* LES TROIS AUTRES DÉCISIONS D'ADMINISTRATION NE RETIRENT PERSONNE,
+     et il fallait l'écrire : elles vivent dans la MÊME table, et un
+     filtre trop large aurait vidé le classement sans qu'on le voie. */
+  ok("… le nom en rose ne retire pas", !h.Lu);
+  ok("… le retrait des passages ne retire pas", !h.Dan);
+  ok("… un bonus ne retire pas", !h.Roro);
+  ok("… un niveau forcé ne retire pas", !h.Mega);
+  ok("une table vide ne retire personne",
+     Object.keys(N.nomsHorsCarriere("")).length === 0
+     && Object.keys(N.nomsHorsCarriere(null)).length === 0);
+
+  /* LE PIÈGE DE LA CLÉ TÉMOIN. nomsMasques range son compte sous
+     `__n` ; un pseudo littéralement nommé « __n » y serait pris pour
+     un total. Ici il n'y a pas de clé témoin, et ce test est là pour
+     qu'on n'en ajoute pas une un jour sans y penser. */
+  ok("un pseudo nommé « __n » n'est pas retiré par accident",
+     N.sansHorsCarriere([{ nom:"__n", g:5 }], BO).length === 1);
+
+  /* --- LE CLASSEMENT DE SA DEMANDE, AU CHIFFRE PRÈS --- */
+  /* Lui premier par les réinitialisations, Roro deuxième avec beaucoup
+     plus de travail derrière. C'est exactement la situation décrite. */
+  var brut = N.classementDepuis({ Chef:50000000, Roro:33000000, Lu:12000000 });
+  ok("avant le filtre, le porteur du badge est premier",
+     brut[0].nom === "Chef" && brut[1].nom === "Roro");
+  var vu = N.sansHorsCarriere(brut, BO);
+  ok("après le filtre, Roro prend la première place",
+     vu.length === 2 && vu[0].nom === "Roro" && vu[1].nom === "Lu",
+     vu.map(function(e){ return e.nom; }).join(" "));
+  /* LE POINT DE LA DEMANDE : « Roro et les autres doivent conserver
+     leurs points. » Pas un chiffre ne bouge. */
+  ok("… et personne ne perd un seul point",
+     vu[0].g === 33000000 && vu[1].g === 12000000,
+     vu[0].g + " / " + vu[1].g);
+  /* LA LISTE D'ORIGINE SERT ENCORE : c'est en elle que l'accueil va
+     rechercher le total du porteur pour le lui remontrer. Le filtre ne
+     doit donc pas la modifier au passage. */
+  ok("… et la liste d'origine n'est pas touchée",
+     brut.length === 3 && brut[0].nom === "Chef" && brut[0].g === 50000000);
+
+  /* --- RÉVERSIBLE, ET SANS RIEN RÉÉCRIRE --- */
+  var rendu = {}, k;
+  for(k in TABLE) rendu[k] = ligne(TABLE[k]);
+  rendu.Chef.special = "";
+  var apres = N.sansHorsCarriere(brut, bo(rendu));
+  ok("rendre le badge rend la place, avec le total exact",
+     apres.length === 3 && apres[0].nom === "Chef" && apres[0].g === 50000000);
+  /* AUCUNE ÉCRITURE : le filtre lit `bo`, il ne le touche pas. Deux
+     appels de suite doivent rendre la même chaîne, sans quoi les
+     clients se republieraient l'instantané sans fin. */
+  ok("… et le filtre n'écrit rien dans la table",
+     bo(N.decodeReglagesBadge(BO)) === BO);
+
+  ok("estHorsCarriere répond pour un nom",
+     N.estHorsCarriere("Chef", BO) === true
+     && N.estHorsCarriere("Roro", BO) === false
+     && N.estHorsCarriere("", BO) === false);
+  /* LE PSEUDO EST LAVÉ DES DEUX CÔTÉS — la table le range par
+     nettoieNomScore, le classement le porte tel quel. */
+  ok("… et le pseudo est lavé avant comparaison",
+     N.estHorsCarriere("Chef:", BO) === true);
+
+  /* --- LE CÂBLAGE : LES QUATRE ENDROITS QUI FILTRENT --- */
+  function corps(nom){
+    var d = html.indexOf("function " + nom + "(");
+    return d < 0 ? "" : html.slice(d, html.indexOf("\n}", d) + 2);
+  }
+  ok("l'aperçu du Top carrière filtre",
+     /sansHorsCarriere\(brut, monde && monde\.bo\)/.test(corps("majCarriere")));
+  ok("la page « Voir tout » filtre",
+     /sansHorsCarriere\(brut, monde && monde\.bo\)/.test(corps("ouvreClassement")));
+  ok("le palmarès des campagnes filtre",
+     /sansHorsCarriere\(e\.l, monde && monde\.bo\)/.test(corps("majPalmares")));
+  /* CELUI-CI GRAVE, et c'est le seul : sans lui, le porteur gagnerait
+     le titre de la campagne, un rubis, et l'or du palmarès pour
+     toujours. */
+  ok("le podium de clôture filtre AVANT de décerner le titre",
+     /sansHorsCarriere\(classementSalon\(\), monde && monde\.bo\)/
+       .test(corps("nouvelleCampagneSalon")));
+
+  /* UN CORPS INTROUVABLE RENDRAIT "" ET FERAIT PASSER À VIDE tous les
+     « ne filtre pas » qui suivent. On vérifie donc d'abord qu'on lit
+     bien quelque chose : le jour où l'une de ces fonctions est
+     renommée, c'est ici que ça doit tomber, pas dans le silence. */
+  ["majCarriere", "ouvreClassement", "majPalmares", "nouvelleCampagneSalon",
+   "classementCarte", "majPodium", "championDeLaPartie", "ouvreEditeurBadges",
+   "noteHorsCarriere"].forEach(function(n){
+    ok("le corps de " + n + " se lit", corps(n).length > 100, corps(n).length + " car.");
+  });
+
+  /* --- ET LES TROIS ENDROITS QUI NE DOIVENT PAS FILTRER --- */
+  /* « Il peut rester dans le top dans les maps. » */
+  ok("le classement d'une ÎLE ne filtre pas",
+     corps("classementCarte").indexOf("sansHorsCarriere") < 0);
+  ok("… ni le podium affiché en jeu",
+     corps("majPodium").indexOf("sansHorsCarriere") < 0);
+  /* Le repli du champion d'île : retirer le seul nom qu'on ait sous la
+     main ferait sacrer « Anonyme » celui qui vient de tout détruire. */
+  ok("… ni le champion de la partie",
+     corps("championDeLaPartie").indexOf("sansHorsCarriere") < 0);
+  /* L'ADMIN DOIT POUVOIR SE RETROUVER pour défaire son propre réglage :
+     la liste des pseudos de l'éditeur garde tout le monde. */
+  ok("… ni la liste des pseudos de l'éditeur de badge",
+     corps("ouvreEditeurBadges").indexOf("sansHorsCarriere") < 0);
+
+  /* --- LA NOTE NE S'ADRESSE QU'À L'ABSENT --- */
+  var nh = corps("noteHorsCarriere");
+  ok("la note ne s'affiche que pour le porteur",
+     /if\(!estHorsCarriere\(monNom, monde && monde\.bo\)\) return "";/.test(nh));
+  ok("… et elle lui rend son total, qu'il n'a pas perdu",
+     /nombre\(moi\)/.test(nh) && /dégâts sont comptés/.test(nh));
+  ok("… en rappelant qu'il reste au classement de chaque île",
+     /classement de chaque île/.test(nh));
+  ok("la note a son style, et il ne ressemble pas à un rang",
+     /\.clHors\{/.test(html) && !/\.clHors[^{]*\{[^}]*var\(--or\)/.test(html));
+
+  /* --- LA CONSÉQUENCE EST ÉCRITE LÀ OÙ LA DÉCISION SE PREND --- */
+  var ed = html.indexOf('<select id="edSpecial">');
+  var fen = html.slice(ed, ed + 900);
+  ok("l'éditeur de badge annonce le retrait du Top carrière",
+     /Top carrière/.test(fen), fen.slice(0, 120));
+  ok("… et dit ce qui est conservé", /reste\s*\n?\s*au classement de chaque île/
+     .test(fen.replace(/\s+/g, " ")) || /classement de chaque île/.test(fen));
+
+  /* --- RIEN N'A ÉTÉ AJOUTÉ À L'INSTANTANÉ --- */
+  /* Le retrait voyage dans `bo`, qui existait déjà et qui sait
+     rétrécir grâce à son numéro. Un champ de plus aurait été une
+     seconde mécanique à tenir, et une migration pour les clients
+     restés en arrière. */
+  var vide = N.mondeVide();
+  ok("le retrait n'ajoute aucun champ à l'instantané",
+     !("hc2" in vide) && !("hx" in vide) && ("bo" in vide) && ("bon" in vide));
 })();
 
 /* ---------------- bilan ---------------- */

@@ -2245,12 +2245,31 @@ function ligneClassement(o, rang){
        + '<span class="nm">' + balliseBadge(o.nom) + nomOrne(o.nom) + '</span>'
        + '<span class="vl">' + nombre(o.g) + '</span></div>';
 }
+/* LA NOTE QUI EXPLIQUE UNE ABSENCE, ET QUI NE S'ADRESSE QU'À L'ABSENT.
+   Voir sansHorsCarriere dans le noyau : le porteur du badge d'honneur
+   ne figure plus au Top carrière. Sans un mot, il verrait sa ligne
+   disparaître et croirait ses dégâts perdus — c'est précisément ce qui
+   n'arrive pas. On lui rend donc son total, à l'endroit exact où sa
+   ligne se tenait, et personne d'autre ne lit cette phrase. */
+function noteHorsCarriere(brut){
+  if(!estHorsCarriere(monNom, monde && monde.bo)) return "";
+  var moi = 0, i;
+  for(i = 0; brut && i < brut.length; i++)
+    if(nettoieNomScore(brut[i].nom) === nettoieNomScore(monNom)){ moi = brut[i].g; break; }
+  return '<div class="clHors">Hors Top carrière — badge d\'honneur.'
+       + (moi ? " Tes " + nombre(moi) + " de dégâts sont comptés" : " Tes dégâts sont comptés")
+       + ", et tu restes dans le classement de chaque île.</div>";
+}
 function majCarriere(){
   var e = $("carriereListe");
   if(!e) return;
-  var l = classementSalon();
+  /* `brut` garde tout le monde : c'est lui qui sait encore ce que le
+     porteur du badge a marqué, et la note le lui redit. */
+  var brut = classementSalon();
+  var l = sansHorsCarriere(brut, monde && monde.bo);
   var h = "", i;
   for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
+  h += noteHorsCarriere(brut);
   e.innerHTML = h;
   poseBadges(e);
   var c = $("carriereCompte");
@@ -2295,19 +2314,37 @@ function majPalmares(){
   var h = "", i, k;
   for(i = 0; i < l.length && i < PALMARES_APERCU; i++){
     var e = l[i];
+    /* LE MÊME FILTRE QU'AU-DESSUS, ET IL LE FAUT : le palmarès est
+       l'HISTOIRE du Top carrière, affichée juste sous lui. Le porteur
+       du badge d'honneur retiré du classement vivant mais laissé en or
+       trois centimètres plus bas, ce serait la contradiction en face
+       du lecteur.
+       ON FILTRE À L'AFFICHAGE, PAS DANS LA CHAÎNE. Les campagnes déjà
+       inscrites gardent ce qui a réellement été enregistré : rendre le
+       badge fait revenir les lignes telles quelles. Les campagnes à
+       venir, elles, sont déjà filtrées à la source — le podium remis à
+       crediteTitreCarriere l'est —, si bien que les deux bouts disent
+       la même chose.
+       LES MÉDAILLES SUIVENT LE RANG AFFICHÉ. Une campagne dont il ne
+       resterait qu'un argent et un bronze, sans or, se lirait comme
+       une erreur de saisie ; ce qu'on montre est le classement des
+       joueurs classés, et son premier porte l'or. */
+    var pl = sansHorsCarriere(e.l, monde && monde.bo);
     h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
-    if(!e.l.length){
+    if(!pl.length){
       /* Une campagne bouclée sans classement lisible est quand même
-         inscrite — elle a eu lieu. On le dit plutôt que de la cacher. */
+         inscrite — elle a eu lieu. On le dit plutôt que de la cacher.
+         Et la phrase reste vraie d'une campagne vidée par le filtre :
+         c'est bien du Top carrière qu'elle parle, et personne n'y est. */
       h += '<div class="palL"><span class="r">·</span>'
          + '<span class="n" style="color:#8f86a0">personne au classement</span>'
          + '<span class="v"></span></div>';
     }
-    for(k = 0; k < e.l.length; k++){
+    for(k = 0; k < pl.length; k++){
       h += '<div class="palL ' + RANGS[k] + '">'
          + '<span class="r">' + MED[k] + '</span>'
-         + '<span class="n">' + nomOrne(e.l[k].nom) + '</span>'
-         + '<span class="v">' + nombre(e.l[k].g) + '</span></div>';
+         + '<span class="n">' + nomOrne(pl[k].nom) + '</span>'
+         + '<span class="v">' + nombre(pl[k].g) + '</span></div>';
     }
     h += '</div>';
   }
@@ -2479,10 +2516,13 @@ function installeVus(){
 function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
-  var l = classementSalon(), h = "", i;
+  var brut = classementSalon();
+  var l = sansHorsCarriere(brut, monde && monde.bo), h = "", i;
   for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
-  e.innerHTML = h || '<div class="clSous" style="padding:0">'
-                   + "Personne n'a encore marqué le moindre dégât.</div>";
+  h = (h || '<div class="clSous" style="padding:0">'
+           + "Personne n'a encore marqué le moindre dégât.</div>")
+    + noteHorsCarriere(brut);
+  e.innerHTML = h;
   poseBadges(e);
   $("classP").classList.add("on");
 }
