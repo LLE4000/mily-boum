@@ -2250,28 +2250,64 @@ function dessineZonesSol(c, tps){
     }
     c.restore();
   }
-  /* zones cryogéniques : les tourelles prises dedans sont muettes */
+  /* ════════════════════════════════════════════════════════════
+     LE CRYO AU SOL — UN CONTOUR, ET DES ARCS
+
+     « Il faudrait voir un peu moins le cercle de délimitation, et voir
+       plutôt des éclairs. »
+
+     CE QU'IL Y AVAIT : un disque bleu opaque, un liseré franc de deux
+     pixels et demi, et dix-huit cristaux de givre plantés au hasard.
+     Trois façons de dire « voici le bord », zéro façon de dire ce qui
+     se passe dedans. Le cercle est donc ramené au tiers de sa force et
+     les cristaux cèdent la place à des arcs qui traversent la zone.
+
+     LES ARCS SAUTENT AU MÊME RYTHME QUE CEUX DES DÉFENSES — même GEL_HZ,
+     même façon de tirer une graine par pas de temps. C'est ce qui fait
+     que le sol et les tourelles crépitent ENSEMBLE, comme un seul
+     phénomène, au lieu de deux animations qui se croisent.
+     Repère MONDE : longueurs en unités monde, épaisseurs divisées par
+     cam.z pour tenir au dézoom. ════════════════════════════════════ */
   for(i = 0; i < jeu.cryos.length; i++){
     var zc = jeu.cryos[i], pz = iso(zc.gx, zc.gy);
     var az = Math.min(1, zc.age * 3) * Math.min(1, (zc.duree - zc.age) / 1.5);
+    var rzx = zc.r * RX, rzy = zc.r * RY;
     c.save();
-    var gz = c.createRadialGradient(pz.x, pz.y, 4, pz.x, pz.y, zc.r * RX);
-    gz.addColorStop(0, "rgba(190,240,255," + (0.42 * az) + ")");
-    gz.addColorStop(0.7, "rgba(120,200,255," + (0.26 * az) + ")");
+    var gz = c.createRadialGradient(pz.x, pz.y, 4, pz.x, pz.y, rzx);
+    gz.addColorStop(0, "rgba(190,240,255," + (0.20 * az) + ")");
+    gz.addColorStop(0.7, "rgba(120,200,255," + (0.11 * az) + ")");
     gz.addColorStop(1, "rgba(90,170,255,0)");
     c.fillStyle = gz;
-    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.fill();
-    c.strokeStyle = "rgba(220,250,255," + (0.6 * az) + ")"; c.lineWidth = 2.4;
-    c.beginPath(); c.ellipse(pz.x, pz.y, zc.r * RX, zc.r * RY, 0, 0, 6.2832); c.stroke();
-    /* cristaux de givre */
-    var alz = prng((zc.gx * 313 + zc.gy * 977) | 0);
-    c.fillStyle = "rgba(230,250,255," + (0.5 * az) + ")";
-    for(var q = 0; q < 18; q++){
-      var aq = alz() * 6.2832, rq = Math.sqrt(alz()) * zc.r;
-      var px2 = pz.x + Math.cos(aq) * rq * RX, py2 = pz.y + Math.sin(aq) * rq * RY;
-      c.beginPath();
-      c.moveTo(px2, py2 - 6); c.lineTo(px2 + 3, py2); c.lineTo(px2, py2 + 6); c.lineTo(px2 - 3, py2);
-      c.closePath(); c.fill();
+    c.beginPath(); c.ellipse(pz.x, pz.y, rzx, rzy, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = "rgba(220,250,255," + (0.22 * az) + ")";
+    c.lineWidth = Math.max(1.1 / cam.z, 1.6);
+    c.beginPath(); c.ellipse(pz.x, pz.y, rzx, rzy, 0, 0, 6.2832); c.stroke();
+    /* LES ARCS. Jetés en corde plutôt qu'en rayons partant du centre :
+       des rayons auraient redessiné le disque qu'on vient d'effacer.
+       ET DES CORDES COURTES. Le premier jet les tirait d'un bord à
+       l'autre, jusqu'à un diamètre entier : sur cette longueur le
+       zigzag s'étale et l'arc redevient une droite — on ne voyait plus
+       des éclairs mais de longs cheveux blancs posés sur le sable. Un
+       éclair se reconnaît à sa BRISURE, donc à beaucoup d'angle sur
+       peu de distance. */
+    var pasZ = Math.floor(tps * (typeof GEL_HZ === "number" ? GEL_HZ : 13));
+    c.globalCompositeOperation = "lighter";
+    for(var q = 0; q < 3; q++){
+      var ag = prng((((zc.gx * 313 + zc.gy * 977) | 0) + pasZ * 6151 + q * 97) | 0);
+      if(ag() > 0.72) continue;          // toutes les cordes ne partent pas
+      var a0 = ag() * 6.2832, a1 = a0 + 0.85 + ag() * 1.0;
+      var r0 = 0.40 + ag() * 0.58, r1 = 0.40 + ag() * 0.58;
+      var ax0 = pz.x + Math.cos(a0) * rzx * r0, ay0 = pz.y + Math.sin(a0) * rzy * r0;
+      var ax1 = pz.x + Math.cos(a1) * rzx * r1, ay1 = pz.y + Math.sin(a1) * rzy * r1;
+      /* L'ÉCART SE MESURE SUR LA CORDE, PAS EN PIXELS FIXES. Vingt-deux
+         pixels de zigzag valent une brisure franche sur une corde de
+         deux cents, et un gribouillis qui se recroise sur une corde de
+         soixante — c'est ce qu'on obtenait, un fil emmêlé posé sur le
+         sable. Un dixième de la longueur casse toujours pareil. */
+      var lon = Math.hypot(ax1 - ax0, ay1 - ay0);
+      arcDouble(c, ax0, ay0, ax1, ay1,
+        9, lon * 0.11, ((pasZ * 7919 + q * 131) | 0),
+        az * (0.40 + ag() * 0.45), Math.max(1.0, Math.min(2.4, 1.3 / cam.z)));
     }
     c.restore();
   }
@@ -2982,10 +3018,20 @@ function rendu(tps, dt){
   dessineAuras(ctx, tps);
 
   pile.sort(function(a, b2){ return a.d - b2.d; });
+  /* LE GEL SE PEINT AVEC SON BÂTIMENT, PAS APRÈS TOUS. Peint après la
+     pile, l'éclair d'une tourelle du fond serait passé par-dessus la
+     tourelle du premier plan qui la cache. On paie donc un test par
+     bâtiment — mais seulement s'il y a un Cryo posé, et seulement
+     d'assez près pour qu'un arc de un pixel veuille dire quelque
+     chose. */
+  var gelPose = jeu.cryos.length > 0 && cam.z > 0.34
+             && typeof dessineGeleeElectrique === "function";
   for(i = 0; i < pile.length; i++){
     var it = pile[i];
     switch(it.k){
-      case 0: dessineBatiment(ctx, it.o, tps, cam.z); break;
+      case 0: dessineBatiment(ctx, it.o, tps, cam.z);
+              if(gelPose && it.o.vivant) dessineGeleeElectrique(ctx, it.o, tps, cam.z);
+              break;
       case 1: dessineUniteMonde(ctx, it.o, tps); break;
       case 2: dessineCreature(ctx, it.o, tps); break;
       case 3: dessineUniteGrise(ctx, it.o); break;

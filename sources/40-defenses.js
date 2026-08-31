@@ -3574,3 +3574,141 @@ function dessineBatiment(c, b, tps, z){
     barreVie(c, p.x, p.y - 46 * z, 34 * z, fr);
   }
 }
+
+/* ================================================================
+   UNE DÉFENSE PRISE DANS LE CRYO — QU'ON VOIE QU'ELLE EST MUETTE
+
+   « Quand on freeze quelque chose, on voit le cercle de délimitation.
+     Il faudrait le voir un peu moins, et voir plutôt des éclairs, et
+     les défenses qui sont prises, qu'on voie qu'elles sont
+     électrifiées : un clignotement avec des petits éclairs dessus. »
+
+   CE QUI N'ALLAIT PAS. Toute l'information était dans le CERCLE — un
+   grand disque bleu, un liseré franc, dix-huit cristaux posés au
+   hasard. On voyait donc parfaitement OÙ, et pas du tout QUOI : les
+   tourelles se taisaient sans que rien ne le dise, et il fallait
+   regarder si elles tiraient encore pour savoir si le Cryo avait pris.
+   L'information descend donc sur les défenses elles-mêmes, là où elle
+   se lit sans réfléchir, et le cercle n'est plus qu'un contour.
+
+   POURQUOI ÇA SAUTE AU LIEU DE RESPIRER. Une sinusoïde donne une lueur
+   qui monte et redescend : c'est une lampe, ce n'est pas un arc. Le
+   temps est donc découpé en pas d'un treizième de seconde, et chaque
+   pas tire sa propre forme et sa propre intensité. C'est la
+   DISCONTINUITÉ qui fait l'électricité — un éclair qui se déforme
+   doucement n'est plus un éclair, c'est un ruban.
+
+   ET CHAQUE DÉFENSE CRÉPITE POUR SON COMPTE. La graine mêle son
+   numéro au pas de temps : deux tourelles voisines ne clignotent
+   jamais ensemble, sinon toute la zone bat comme un seul cœur et l'on
+   retrouve la lampe qu'on voulait éviter.
+   ================================================================ */
+var GEL_HZ = 13;                       // pas de temps de la foudre, par seconde
+var C_GEL_VIF   = "rgba(226,248,255,";  // le cœur de l'arc, presque blanc
+var C_GEL_HALO  = "rgba(120,205,255,";  // son halo, franchement bleu
+var C_GEL_FROID = "rgba(150,220,255,";  // la nappe posée sur le socle
+
+/* Un arc entre deux points. Le zigzag est perpendiculaire au trait :
+   tiré dans le sens de la marche, il ne ferait qu'onduler et l'œil y
+   verrait une corde. Le sinus aux extrémités raccroche l'arc à ses
+   deux bouts, sans quoi il partirait de côté. */
+function arcElectrique(c, x0, y0, x1, y1, seg, amp, al){
+  var nx = -(y1 - y0), ny = (x1 - x0), nl = Math.hypot(nx, ny) || 1;
+  nx /= nl; ny /= nl;
+  c.beginPath();
+  c.moveTo(x0, y0);
+  for(var i = 1; i < seg; i++){
+    var t = i / seg;
+    var d = (al() - 0.5) * 2 * amp * Math.sin(t * 3.1416);
+    c.lineTo(x0 + (x1 - x0) * t + nx * d, y0 + (y1 - y0) * t + ny * d);
+  }
+  c.lineTo(x1, y1);
+  c.stroke();
+}
+
+/* Le même tracé, en TROIS passes de plus en plus fines et de plus en
+   plus vives. Deux ne suffisaient pas : sur le sable clair, un cœur
+   blanc bordé d'un seul halo donnait un trait net à bords nets —
+   c'est-à-dire une rayure, ou un cheveu posé sur l'écran. Ce qui fait
+   qu'un arc RAYONNE plutôt qu'il ne raye, c'est la troisième passe,
+   large et presque transparente, qui met de la lumière autour du
+   trait au lieu de le border.
+   Les trois passes rejouent EXACTEMENT le même zigzag — d'où le prng
+   remis à sa graine avant chacune. Trois tirages différents auraient
+   donné trois éclairs superposés, donc une touffe. */
+function arcDouble(c, x0, y0, x1, y1, seg, amp, graine, a, ech){
+  var PASSES = [[6.5, 0.16, C_GEL_HALO], [3.2, 0.40, C_GEL_HALO], [1.1, 0.80, C_GEL_VIF]];
+  c.lineCap = "round"; c.lineJoin = "round";
+  for(var i = 0; i < 3; i++){
+    c.strokeStyle = PASSES[i][2] + (PASSES[i][1] * a).toFixed(3) + ")";
+    c.lineWidth = PASSES[i][0] * ech;
+    arcElectrique(c, x0, y0, x1, y1, seg, amp, prng(graine));
+  }
+}
+
+function dessineGeleeElectrique(c, b, tps, z){
+  /* SEULES LES CHOSES QUI TIRENT SONT « PRISES ». Le premier jet
+     électrifiait tout ce que le disque touchait — les caisses de
+     munitions, les cuves, les cellules. Outre que dix-neuf bâtiments
+     crépitant ensemble font un mur de blanc et non un orage, c'était
+     une information FAUSSE : le Cryo fait taire ce qui tire, et une
+     caisse n'a jamais tiré. On ne l'annonce donc que là où il agit,
+     ce qui divise le bruit par deux et dit enfin quelque chose. */
+  var D = DEF[b.t];
+  if(!D || !D.tourelle) return;
+  if(!geleeParCryo(b)) return;
+  var p = versEcran(cam, b.gx, b.gy);
+  /* Le pas de temps, et la graine qui en découle : c'est lui qui fait
+     sauter la forme d'un treizième de seconde à l'autre. */
+  var pas = Math.floor(tps * GEL_HZ);
+  var al = prng((b.n * 9277 + pas * 7919) | 0);
+  /* L'INTENSITÉ N'EST JAMAIS NULLE. Un clignotement qui s'éteint
+     complètement laisse croire, une image sur trois, que la défense
+     s'est réveillée — exactement le contraire de ce qu'on veut dire.
+     Elle descend à un tiers, jamais à zéro. */
+  var vif = 0.34 + al() * 0.66;
+  /* La taille suit l'emprise : un arc calibré sur un Pilon débordait
+     de partout sur un Crible, et la même longueur ne veut pas dire la
+     même chose sur un socle d'une case et sur un socle de trois. */
+  var ech = 0.72 + (D.emprise || 2) * 0.14;
+
+  c.save();
+  c.translate(p.x, p.y);
+  c.scale(z, z);
+  c.globalCompositeOperation = "lighter";
+
+  /* ① LA NAPPE AU PIED. Elle dit « prise » même quand aucun arc ne
+     passe devant, et elle tient au dézoom là où un trait d'un pixel
+     disparaît. C'est elle, l'information ; les arcs sont le
+     spectacle. */
+  var gn = c.createRadialGradient(0, -6, 1, 0, -6, 30 * ech);
+  gn.addColorStop(0.00, C_GEL_FROID + (0.40 * vif).toFixed(3) + ")");
+  gn.addColorStop(0.55, C_GEL_FROID + (0.16 * vif).toFixed(3) + ")");
+  gn.addColorStop(1.00, "rgba(120,205,255,0)");
+  c.fillStyle = gn;
+  c.beginPath(); c.ellipse(0, -6, 30 * ech, 22 * ech, 0, 0, 6.2832); c.fill();
+
+  /* ② LES ARCS, ET ILS NE SONT PAS TOUJOURS LÀ. Toutes les tourelles
+     éclairant à chaque pas, la zone devenait une nappe blanche
+     continue — c'est-à-dire l'inverse d'un crépitement. Un pas sur
+     trois environ reste sans arc, par tourelle et indépendamment des
+     voisines : c'est ce silence-là qui fait le grésillement. */
+  if(al() < 0.62){
+    var arcs = 1 + (al() < 0.45 ? 1 : 0);
+    for(var k = 0; k < arcs; k++){
+      var x0 = (al() - 0.5) * 22 * ech, y0 = (4 - al() * 4) * ech;
+      var x1 = (al() - 0.5) * 18 * ech, y1 = (-16 - al() * 14) * ech;
+      arcDouble(c, x0, y0, x1, y1, 6, 3.8 * ech,
+                ((b.n * 31 + pas * 17 + k) | 0), vif * 0.82, ech);
+    }
+    /* ③ LES ÉTINCELLES AUX POINTES, avec les arcs et jamais sans :
+       des points qui crépitent sur une tourelle éteinte n'auraient
+       rien allumé. */
+    c.fillStyle = C_GEL_VIF + (0.70 * vif).toFixed(3) + ")";
+    for(var e = 0; e < 2; e++){
+      var ex = (al() - 0.5) * 26 * ech, ey = (-al() * 30 + 4) * ech;
+      c.beginPath(); c.arc(ex, ey, (0.6 + al() * 0.9) * ech, 0, 6.2832); c.fill();
+    }
+  }
+  c.restore();
+}

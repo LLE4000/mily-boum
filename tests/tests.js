@@ -12074,6 +12074,86 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      (html.match(/adminOuvert = true;/g) || []).length === 1);
 })();
 
+/* ================================================================
+   59. LE CRYO — DES ÉCLAIRS PLUTÔT QU'UN CERCLE
+
+   « Quand on freeze quelque chose, on voit le cercle de délimitation.
+     Il faudrait le voir un peu moins, et voir plutôt des éclairs, et
+     les défenses qui sont prises, qu'on voie qu'elles sont
+     électrifiées : un clignotement avec des petits éclairs dessus. »
+
+   LA RÈGLE QUI COMPTE ICI N'EST PAS JOLIE, ELLE EST JUSTE. Le Cryo
+   fait taire ce qui TIRE. Le premier jet électrifiait tout ce que le
+   disque touchait ; mesuré sur une vraie carte, cela faisait dix-neuf
+   bâtiments dont trois tourelles — seize annonces fausses, et un mur
+   de blanc à la place d'un orage. C'est cette règle-là que le groupe
+   garde, avec le banc du Cryo qui la vérifie en jouant.
+   ================================================================ */
+(function(){
+  G("59. Le Cryo — des éclairs plutôt qu'un cercle");
+
+  function corps(nom){
+    var d = html.indexOf("function " + nom + "(");
+    if(d < 0) return "";
+    var f = html.indexOf("\n}", d);
+    return f < 0 ? "" : html.slice(d, f + 2);
+  }
+  var ge = corps("dessineGeleeElectrique");
+  ok("l'effet n'est peint que sur ce qui tire",
+     /var D = DEF\[b\.t\];\s*\n\s*if\(!D \|\| !D\.tourelle\) return;/.test(ge));
+  ok("… et seulement sur ce que le Cryo tient",
+     /if\(!geleeParCryo\(b\)\) return;/.test(ge));
+  /* Le clignotement doit SAUTER : c'est la discontinuité qui fait
+     l'électricité, une sinusoïde ne ferait qu'une lampe. */
+  ok("le temps est découpé en pas, et chaque pas tire sa forme",
+     /var pas = Math\.floor\(tps \* GEL_HZ\);/.test(ge)
+     && /prng\(\(b\.n \* 9277 \+ pas \* 7919\) \| 0\)/.test(ge));
+  ok("… et deux tourelles voisines ne clignotent jamais ensemble",
+     /b\.n \* 9277/.test(ge));
+  /* Une intensité qui tombe à zéro laisserait croire, une image sur
+     trois, que la tourelle s'est réveillée. */
+  ok("l'intensité ne descend jamais jusqu'à l'extinction",
+     /var vif = 0\.34 \+ al\(\) \* 0\.66;/.test(ge));
+  ok("la nappe au pied est peinte à chaque image, les arcs non",
+     ge.indexOf("c.ellipse(0, -6, 30 * ech") > 0
+     && ge.indexOf("c.ellipse(0, -6, 30 * ech") < ge.indexOf("if(al() < 0.62)"));
+
+  /* LES TROIS PASSES rejouent le MÊME zigzag : trois tirages auraient
+     donné trois éclairs superposés, donc une touffe. */
+  var ad = corps("arcDouble");
+  ok("un arc se peint en trois épaisseurs",
+     /var PASSES = \[\[6\.5, 0\.16/.test(ad)
+     && /for\(var i = 0; i < 3; i\+\+\)/.test(ad));
+  ok("… et les trois rejouent le même tracé",
+     (ad.match(/prng\(graine\)/g) || []).length === 1
+     && /arcElectrique\(c, x0, y0, x1, y1, seg, amp, prng\(graine\)\)/.test(ad));
+  ok("le zigzag est perpendiculaire au trait, jamais dans son sens",
+     /var nx = -\(y1 - y0\), ny = \(x1 - x0\)/.test(corps("arcElectrique")));
+
+  /* LE CERCLE EST RAMENÉ À UN CONTOUR. C'est la demande même : « il
+     faudrait le voir un peu moins ». */
+  ok("le disque du Cryo est atténué",
+     /rgba\(190,240,255," \+ \(0\.20 \* az\)/.test(html)
+     && /rgba\(120,200,255," \+ \(0\.11 \* az\)/.test(html));
+  ok("… son liseré aussi",
+     /rgba\(220,250,255," \+ \(0\.22 \* az\)/.test(html));
+  ok("… et les dix-huit cristaux de givre ont disparu avec lui",
+     !/moveTo\(px2, py2 - 6\); c\.lineTo\(px2 \+ 3, py2\);/.test(html));
+  /* L'écart d'un arc au sol se mesure sur SA corde : en pixels fixes,
+     une corde courte se recroisait en gribouillis. */
+  ok("l'écart des arcs au sol suit la longueur de la corde",
+     /var lon = Math\.hypot\(ax1 - ax0, ay1 - ay0\);/.test(html)
+     && /9, lon \* 0\.11,/.test(html));
+
+  /* LE GEL SE PEINT AVEC SON BÂTIMENT : peint après toute la pile,
+     l'éclair d'une tourelle du fond serait passé devant celle qui la
+     cache. Et le test par bâtiment ne se paie que s'il y a un Cryo. */
+  ok("l'éclair reste derrière ce qui est devant lui",
+     /case 0: dessineBatiment\(ctx, it\.o, tps, cam\.z\);\s*\n\s*if\(gelPose && it\.o\.vivant\) dessineGeleeElectrique/.test(html));
+  ok("… et rien n'est testé quand aucun Cryo n'est posé",
+     /var gelPose = jeu\.cryos\.length > 0 && cam\.z > 0\.34/.test(html));
+})();
+
 /* ---------------- bilan ---------------- */
 console.log("\n" + "═".repeat(52));
 if(echecs === 0) console.log("  " + total + " vérifications, tout passe.");
