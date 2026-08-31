@@ -1750,6 +1750,34 @@ select.champ{cursor:pointer}
 }
 .bg1.speedTuile.sel .n{color:#1b1206;border-color:#fff2cc}
 .bg1.speedTuile.eteinte{opacity:.42;border-color:rgba(255,206,84,.28)}
+/* ─────────────────────────────────────────────────────────────
+   PENDANT LES DIX SECONDES, LA TUILE EST VIVANTE
+
+   Elle reste inappuyable — un seul Speed à la fois — mais elle ne
+   doit surtout pas être grise : c'est le seul endroit où le joueur
+   lise le temps qu'il lui reste, et une pastille à 42 % d'opacité
+   ne se lit pas d'un coup d'œil au milieu d'un assaut. La règle
+   vient donc APRÈS `.eteinte`, à spécificité égale, et lui reprend
+   son opacité.
+
+   LES TROIS DERNIÈRES SECONDES CLIGNOTENT. Un arrêt sec au bout de
+   dix secondes se subit ; prévenu, on pousse l'assaut ou l'on
+   prépare la réactivation. Le clignotement est en `steps` — un
+   battement franc, pas un fondu qu'on ne remarque pas — et il
+   s'efface entièrement pour qui a demandé moins d'animations. */
+.bg1.speedTuile.actif{
+  opacity:1;border-color:#ffd257;
+  box-shadow:0 0 0 2px rgba(255,210,87,.38),0 0 14px rgba(255,196,64,.45);
+}
+.bg1.speedTuile.actif .n{
+  min-width:17px;
+  background:linear-gradient(180deg,#fff0c2,#f5b62e);border-color:#fff6dd;
+}
+.bg1.speedTuile.finit{animation:speedFinit .52s steps(1,end) infinite}
+@keyframes speedFinit{
+  50%{border-color:rgba(255,120,60,.85);box-shadow:0 0 0 2px rgba(255,120,60,.45),0 0 16px rgba(255,120,60,.5)}
+}
+@media (prefers-reduced-motion:reduce){ .bg1.speedTuile.finit{animation:none} }
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}

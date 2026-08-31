@@ -457,6 +457,15 @@ var son = {
   soin:function(){ this.bip("sine", 520, 880, 0.28, 0.07); this.bip("sine", 660, 1040, 0.28, 0.05, 0.1); },
 
   debarque:function(){ this.bip("sine", 180, 300, 0.28, 0.10); this.souffle(500, 180, 0.5, 0.07); },
+  /* SPEED S'EN VA : trois notes qui DESCENDENT. Toutes les réussites
+     du jeu montent — le renfort, le soin, les confettis ; une capacité
+     qui s'arrête doit donc descendre, sinon l'oreille comprend qu'on
+     vient de gagner quelque chose au moment où on le perd. */
+  speedFin:function(){
+    this.bip("triangle", 880, 560, 0.20, 0.06);
+    this.bip("triangle", 660, 400, 0.24, 0.05, 0.10);
+    this.bip("sine",     440, 260, 0.30, 0.04, 0.20);
+  },
   renfort:function(){ this.bip("triangle", 440, 880, 0.35, 0.09); this.bip("triangle", 660, 1320, 0.3, 0.07, 0.14); },
   grogne:function(){ this.bip("sawtooth", 110, 62, 0.3, 0.08); },
   telegraphe:function(){ this.bip("square", 320, 320, 0.12, 0.07); this.bip("square", 320, 320, 0.12, 0.07, 0.2); },

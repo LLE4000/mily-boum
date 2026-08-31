@@ -5073,8 +5073,12 @@ G("8. Cohérence des règles de jeu");
     balise:[1,5,10,20], brouillard:[1,5,10,20], poulets:[4,12,22,42],
     soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
     salve:[10,22,37,67], nova:[0,0,0,0],     // la Nova ne se paie pas en Énergie
-    /* LE HÉROS : « cinq pour l'envoyer, six si on la réactive ». */
-    speed:[5,9,14,24]
+    /* LE HÉROS : « dix, puis quinze, puis vingt, puis vingt-cinq ».
+       Le prix a doublé quand l'effet est devenu une ACTIVATION de dix
+       secondes : à cinq pour toute la partie, il n'y avait pas de
+       décision à prendre. Cinq de plus par emploi est la marche la
+       plus raide du tableau, et c'est voulu. */
+    speed:[10,30,55,105]
   };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
@@ -11397,10 +11401,20 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /\.bg1\.speedTuile\{/.test(html) && /\.bg1\.speedTuile\.eteinte\{/.test(html));
   ok("… et l'or ne sert qu'à elle dans la rangée",
      html.indexOf(".bg1.ogre.speedTuile") < 0);
-  ok("elle affiche son prix, ou l'éclair quand il est déjà là",
-     /\(la \? "⚡" : cout\)/.test(html));
+  /* ELLE AFFICHAIT L'ÉCLAIR, ELLE AFFICHE MAINTENANT LES SECONDES.
+     L'éclair disait « il est là » ; depuis que l'activation dure dix
+     secondes, ce qu'il faut lire est COMBIEN DE TEMPS il reste là. */
+  ok("elle affiche son prix, ou les secondes restantes",
+     /\(la \? resteH \+ "s" : cout\)/.test(html));
+  /* LE « s » DISTINGUE DEUX ÉTATS OPPOSÉS SOUS LE MÊME NOMBRE : prête
+     à dix d'Énergie, ou dix secondes avant la fin. */
+  ok("… et les secondes ne se confondent pas avec le prix",
+     /resteH \+ "s"/.test(html));
   ok("… et sa signature porte l'état du héros, sans quoi elle se fige",
      /\(\(jeu\.heros && jeu\.heros\.pv > 0\) \? 1 : 0\)/.test(html));
+  ok("… et le compte à rebours, arrondi à la seconde",
+     /var resteH = \(jeu\.heros && jeu\.heros\.pv > 0\) \? Math\.ceil\(jeu\.heros\.reste \|\| 0\) : 0;/
+       .test(html) && /\+ "\|" \+ resteH;/.test(html));
 
   /* ---- ③ LE FRONTON ---- */
   var pr = String(html.match(/function portraitSpeed\(c\)\{[\s\S]*?\n\}/) || "");
@@ -11428,6 +11442,107 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      N.UNI.speed.places === 1 && N.UNI.speed.heros === 1);
   ok("les huit navettes gardent leurs troupes",
      N.UNI.furie.places === 12 && N.UNI.commando.places === 15 && N.UNI.ogre.places === 1);
+})();
+
+/* ================================================================
+   55. SPEED S'ACTIVE — DIX SECONDES, ET IL REPART
+
+   « Il fonctionne en continu, ce n'est pas ça le principe : on doit
+   l'activer et ça doit coûter un certain nombre d'énergie. Dix, puis
+   quinze, puis vingt, puis vingt-cinq. Et quand on l'active, il dure
+   dix secondes activées. »
+
+   CE QUI CHANGE DE NATURE, ET PAS SEULEMENT DE CHIFFRE. Posé une fois
+   pour toute la partie, le doublement n'était pas une décision : on
+   l'envoyait au premier débarquement et on n'y pensait plus. Le prix
+   pouvait bien être de cinq, il n'achetait rien qu'on ait à choisir.
+   Une activation de dix secondes s'achète au contraire pour un
+   MOMENT — la traversée d'un champ de tir, la dernière ligne droite
+   vers le Brasier — et c'est ce moment qui vaut dix d'Énergie.
+
+   LE COMPTE À REBOURS PART AU DÉBARQUEMENT, ET NON À L'APPUI. « Dix
+   secondes ACTIVÉES » : la traversée de sa navette n'est pas du temps
+   actif. La lui facturer aurait rendu le prix menteur — il n'en
+   serait resté que six ou sept d'utiles.
+
+   ET LE VERROU COMPTE MAINTENANT LA NAVETTE EN MER. Il ne regardait
+   que le héros né ; pendant la traversée il n'existait pas encore, et
+   une deuxième pression facturait une deuxième activation. Une
+   seconde et demie de fenêtre, sans conséquence tant qu'on l'envoyait
+   une fois par partie — mais on l'active maintenant toutes les dix
+   secondes.
+   ================================================================ */
+(function(){
+  G("55. Speed s'active — dix secondes, et il repart");
+
+  /* ---- ① LE PRIX ---- */
+  ok("dix, puis quinze, puis vingt, puis vingt-cinq", (function(){
+    var u = {}, s = [];
+    for(var i = 0; i < 4; i++){ s.push(N.coutActuel("speed", u)); u.speed = i + 1; }
+    return s.join(" ") === "10 15 20 25";
+  })());
+  ok("… c'est la marche la plus raide du tableau",
+     Object.keys(N.COUT).every(function(m){ return N.COUT[m].pas <= N.COUT.speed.pas; })
+     && N.COUT.speed.pas === 5);
+
+  /* ---- ② LA DURÉE ---- */
+  ok("l'activation dure dix secondes", N.EQ.SPEED_DUREE === 10.0);
+  ok("… et le dernier tiers prévient", N.EQ.SPEED_ADIEU > 0
+     && N.EQ.SPEED_ADIEU < N.EQ.SPEED_DUREE / 2);
+  /* LE COMPTEUR EST POSÉ À LA NAISSANCE, dans creeUnite, et pour le
+     seul héros : c'est ce qui fait partir les dix secondes du sable
+     et non de l'appui. */
+  ok("le compte à rebours est posé au débarquement, et pour lui seul",
+     /reste:\(f\.heros \? EQ\.SPEED_DUREE : 0\),/.test(html));
+  /* IL TOURNE DANS majSpeed, AVANT TOUT DÉPLACEMENT : une image de
+     course de plus après la fin serait une image de dopage volée. */
+  var ms = String(html.match(/function majSpeed\(u, f, dt\)\{[\s\S]*?\n\}/) || "");
+  ok("… il tourne dans la fonction du héros", /u\.reste -= dt;/.test(ms));
+  ok("… et il est décompté AVANT que le héros ne bouge",
+     ms.indexOf("u.reste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
+  ok("… à zéro, il s'en va", /if\(u\.reste <= 0\)\{[\s\S]{0,120}finDeSpeed\(u\);/.test(ms));
+
+  /* ---- ③ IL REPART, IL N'EST PAS ABATTU ---- */
+  var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
+  ok("la fin de Speed existe", fd.length > 100);
+  /* LES POINTS DE VIE À ZÉRO, ET NON toucheUnite : c'est toucheUnite
+     qui pousse la mort, le sang, l'épave et la perte au compteur du
+     joueur. Rien de tout cela n'a lieu ici — il repart. */
+  ok("… il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
+  ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
+  ok("… et un éclat doré dit que la capacité s'arrête",
+     /t:"speedPart"/.test(fd) && /function eclatSpeed\(c, x, y, z, t\)/.test(html)
+     && /e\.t === "speedPart"/.test(html));
+  ok("… avec trois notes qui descendent, là où les réussites montent",
+     /speedFin:function\(\)\{[\s\S]{0,240}880, 560[\s\S]{0,240}440, 260/.test(html));
+
+  /* ---- ④ LE VERROU ---- */
+  ok("un deuxième appui pendant la traversée est refusé",
+     /for\(var nv = 0; nv < jeu\.navettes\.length; nv\+\+\)\s*\n?\s*if\(jeu\.navettes\[nv\]\.heros\) return message/
+       .test(html));
+  ok("… et il l'est aussi tant qu'il court sur l'île",
+     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\("Speed est déjà sur l'île\."\);/
+       .test(html));
+
+  /* ---- ⑤ LA TUILE MONTRE LE TEMPS ---- */
+  ok("la tuile reste lisible pendant l'activation",
+     /\.bg1\.speedTuile\.actif\{/.test(html)
+     && html.indexOf(".bg1.speedTuile.eteinte{") < html.indexOf(".bg1.speedTuile.actif{"));
+  ok("… elle bat sous les trois dernières secondes",
+     /\.bg1\.speedTuile\.finit\{animation:speedFinit/.test(html)
+     && /@keyframes speedFinit\{/.test(html));
+  ok("… et le battement s'efface pour qui demande moins d'animations",
+     /@media \(prefers-reduced-motion:reduce\)\{ \.bg1\.speedTuile\.finit\{animation:none\} \}/
+       .test(html));
+
+  /* ---- ⑥ CE QUE L'ACTIVATION N'A PAS TOUCHÉ ---- */
+  ok("la zone et le facteur n'ont pas bougé",
+     N.EQ.SPEED_ATTRACTION === 11.0 && N.EQ.SPEED_MULT === 2.0);
+  ok("les autres coûts n'ont pas bougé",
+     N.COUT.brouillard.base === 1 && N.COUT.salve.base === 10
+     && N.COUT.viper.base === 6 && N.COUT.balise.base === 1);
+  ok("il n'a toujours pas d'arme",
+     N.UNI.speed.degats === 0 && N.UNI.speed.portee === 0);
 })();
 
 /* ---------------- bilan ---------------- */

@@ -275,6 +275,55 @@ function auraSpeed(c, x, y, z, tps, n){
   c.beginPath(); c.ellipse(x, y - 2 * z, 15 * z, 8 * z, 0, 0, 6.2832); c.fill();
   c.restore();
 }
+/* ================================================================
+   L'ÉCLAT DE DÉPART — « il dure dix secondes activées »
+
+   Au bout des dix secondes il repart, et il faut que le joueur le
+   LISE comme une fin de capacité et non comme une perte : d'où le
+   doré, la couleur de Speed, là où toutes les morts du jeu sont
+   orange et rouges. Trois choses, et rien d'autre :
+     — un halo qui monte et s'éteint, à l'endroit où il était ;
+     — un anneau au sol qui s'ouvre, comme la marque de son aura qui
+       se relâche d'un coup ;
+     — quatre traits qui filent vers l'ouest, le sens dans lequel il
+       repart.
+   `t` va de zéro à un sur les huit dixièmes de seconde de l'effet.
+   ================================================================ */
+function eclatSpeed(c, x, y, z, t){
+  var C = C_SPEED;
+  var a = (1 - t) * (1 - t);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  /* le halo, qui monte en s'effaçant */
+  var yh = y - (14 + t * 26) * z;
+  var r = (10 + t * 30) * z;
+  var g = c.createRadialGradient(x, yh, 1, x, yh, r);
+  g.addColorStop(0, "rgba(255,240,196," + (0.85 * a).toFixed(3) + ")");
+  g.addColorStop(0.35, "rgba(255,206,110," + (0.50 * a).toFixed(3) + ")");
+  g.addColorStop(1, "rgba(240,160,40,0)");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(x, yh, r, r * 0.86, 0, 0, 6.2832); c.fill();
+  /* l'anneau au sol : l'aura qui se relâche */
+  c.strokeStyle = "rgba(255,222,150," + (0.62 * a).toFixed(3) + ")";
+  c.lineWidth = Math.max(1.2, 5 * a * z);
+  c.beginPath();
+  c.ellipse(x, y - 2 * z, (12 + t * 46) * z, (6 + t * 23) * z, 0, 0, 6.2832);
+  c.stroke();
+  /* les traits de fuite, vers l'ouest */
+  c.strokeStyle = C.orC; c.lineCap = "round";
+  for(var k = 0; k < 4; k++){
+    var d = t * (34 + k * 12);
+    c.globalAlpha = 0.55 * a;
+    c.lineWidth = (1.8 - k * 0.3) * z;
+    var yy = y - (8 + k * 7) * z;
+    c.beginPath();
+    c.moveTo(x - (6 + d) * z, yy);
+    c.lineTo(x - (6 + d + 13 + k * 4) * z, yy);
+    c.stroke();
+  }
+  c.restore();
+}
+
 /* Les traits de vitesse : trois filets derrière lui, décalés, qui se
    raccourcissent. Ils ne sortent QUE lorsqu'il avance vraiment — un
    héros à l'arrêt qui laisse des traînées ferait décor. */

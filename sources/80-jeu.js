@@ -1297,21 +1297,35 @@ function poseBarge(gx, gy){
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
   /* ════════════════════════════════════════════════════════════
-     LA NAVETTE DU HÉROS SE PAIE, ET NE SE CONSOMME PAS
+     LA TUILE DU HÉROS EST UNE ACTIVATION, PAS UN DÉBARQUEMENT
 
-     Trois différences avec les huit autres, et elles sont toutes
-     dites par la demande :
-       — elle coûte de l'Énergie, cinq puis six puis sept ;
+     « Il fonctionne en continu, ce n'est pas ça le principe : on doit
+     l'activer, et ça doit coûter de l'énergie. »
+
+     Quatre différences avec les huit autres :
+       — elle coûte de l'Énergie, dix puis quinze puis vingt ;
+       — l'activation dure dix secondes, et pas la partie ;
        — un seul Speed à la fois sur l'île ;
-       — la tuile RESTE en place après l'envoi : c'est elle qu'on
-         retouchera pour le renvoyer quand il sera tombé.
+       — la tuile RESTE en place : c'est elle qu'on retouchera pour le
+         rappeler quand les dix secondes seront passées.
+
+     LA NAVETTE EN MER COMPTE COMME UNE PRÉSENCE. Le verrou ne
+     regardait que le héros né ; pendant la traversée il n'existait
+     pas encore, et une deuxième pression facturait une deuxième
+     activation pour un deuxième Speed. Une seconde et demie de
+     fenêtre, invisible tant qu'on l'envoyait une fois par partie —
+     mais on l'active maintenant toutes les dix secondes, et deux
+     héros sur l'île ne veulent rien dire : `chercheHeros` n'en
+     retient qu'un, le second aurait couru sans rien doper.
      ════════════════════════════════════════════════════════════ */
   if(b.heros){
     if(jeu.heros && jeu.heros.pv > 0)
       return message("Speed est déjà sur l'île.");
+    for(var nv = 0; nv < jeu.navettes.length; nv++)
+      if(jeu.navettes[nv].heros) return message("Speed arrive, sa navette est en mer.");
     var cout = coutActuel("speed", jeu.usages);
     if(jeu.energie < cout)
-      return message("Il faut " + cout + " d'Énergie pour envoyer Speed.");
+      return message("Il faut " + cout + " d'Énergie pour activer Speed.");
     jeu.energie -= cout;
     jeu.usages.speed = (jeu.usages.speed || 0) + 1;
     gy = borne(gy, 3, GH - 4);
@@ -1323,7 +1337,8 @@ function poseBarge(gx, gy){
     });
     demandeMajBarres();
     son.debarque();
-    message("Speed arrive — tout ce qui court avec lui va deux fois plus vite.");
+    message("Speed arrive — " + Math.round(EQ.SPEED_DUREE)
+            + " secondes à deux fois la vitesse, dès qu'il touche le sable.");
     if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
     return;
   }
@@ -1469,7 +1484,16 @@ function creeUnite(type, gx, gy){
     chenille:0, recul:0, flash:0, roule:0, gxP:gx, gyP:gy,
     /* SOUS L'AILE DU HÉROS, et sa vitesse vue. Le premier est relu par
        la marche, la cadence de tir et le dessin ; la seconde ne sert
-       qu'aux traits de vitesse de Speed lui-même. */
+       qu'aux traits de vitesse de Speed lui-même.
+
+       `reste` EST LE COMPTE À REBOURS DE L'ACTIVATION, et il ne
+       signifie quelque chose que pour le héros. Il est posé ICI, à la
+       naissance, et non à l'appui sur la tuile : « dix secondes
+       ACTIVÉES » commencent quand il pose le pied sur le sable. Les
+       autres troupes le portent à zéro et ne le lisent jamais — un
+       champ de plus par unité coûte moins qu'une classe cachée qui
+       change en cours de partie. */
+    reste:(f.heros ? EQ.SPEED_DUREE : 0),
     dope:0, vitVue:0, escorte:null,
     escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
@@ -2322,6 +2346,32 @@ function chercheBlesseAutour(u, r){
   return pire;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   LES DIX SECONDES SONT PASSÉES
+
+   Il repart, il n'est pas abattu, et la différence compte : on met
+   les points de vie à zéro pour que `majUnites` retire l'unité en
+   tête de son parcours, SANS passer par `toucheUnite`. C'est
+   `toucheUnite` qui pousse la mort, le sang, l'épave et la perte au
+   compteur du joueur ; rien de tout cela n'a lieu ici.
+
+   ON COUPE LE DOPAGE DANS LA MÊME IMAGE. `jeu.heros` est relu une
+   fois par image, en tête de `majUnites` : le laisser en place le
+   temps d'une image de plus aurait donné un dopage gratuit aux
+   unités traitées après lui dans la boucle.
+   ════════════════════════════════════════════════════════════════ */
+function finDeSpeed(u){
+  u.pv = 0;
+  jeu.heros = null;
+  /* l'éclat doré : c'est lui qui DIT que l'effet s'arrête, sans quoi
+     le héros disparaîtrait d'une image à l'autre et le joueur
+     croirait l'avoir perdu au combat */
+  jeu.effets.push({ t:"speedPart", gx:u.gx, gy:u.gy, age:0, duree:0.85 });
+  if(son && son.speedFin) son.speedFin();
+  demandeMajBarres();
+  message("Speed est reparti.");
+}
+
 /* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
    escorte. Entre Docs on se suivrait en ronde sans jamais rejoindre
    l'assaut. */
@@ -2362,9 +2412,26 @@ function chercheCompagnon(u){
    IL NE COMBAT PAS. Ni cible, ni tir, ni armement : les trois champs
    sont remis à zéro à chaque image, sans quoi un reste d'un ordre de
    balise le ferait viser dans le vide.
+
+   ET IL S'EN VA AU BOUT DE DIX SECONDES. Le compte à rebours tourne
+   ICI plutôt que dans la boucle générale : c'est la seule fonction
+   que le héros traverse, et la boucle générale n'a pas à connaître
+   une règle qui ne concerne qu'une unité sur mille. Quand il tombe à
+   zéro, on met les points de vie à zéro : `majUnites` retire alors
+   l'unité en tête de son parcours, sans passer par `toucheUnite`,
+   donc sans mort, sans sang, sans épave — il n'est pas abattu, il
+   repart. L'éclat doré, lui, est posé à la main.
    ════════════════════════════════════════════════════════════════ */
 function majSpeed(u, f, dt){
   u.cible = null; u.tir = 0; u.arme = 0;
+  /* LE COMPTE À REBOURS D'ABORD, avant tout déplacement : une image
+     de course de plus après la fin serait une image de dopage volée. */
+  u.reste -= dt;
+  if(u.reste <= 0){
+    u.reste = 0;
+    finDeSpeed(u);
+    return;
+  }
   /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
   if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
      Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > EQ.SPEED_ATTRACTION * 2.4){

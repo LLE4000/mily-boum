@@ -352,10 +352,18 @@ function majListeBarges(){
      change de visage sans qu'aucune navette ne bouge — quand il tombe,
      quand l'Énergie passe le seuil — et sans ces deux-là elle serait
      restée figée sur son dernier état. */
+  /* LE COMPTE À REBOURS ENTRE DANS LA SIGNATURE, ARRONDI À LA SECONDE.
+     C'est ce qui fait battre la tuile pendant l'activation : à la
+     seconde près, la rangée se reconstruit onze fois en dix secondes
+     et pas soixante fois par seconde. Sans lui, les dix secondes ne se
+     verraient nulle part — une capacité qui s'arrête sans prévenir ne
+     se joue pas, elle se subit. */
+  var resteH = (jeu.heros && jeu.heros.pv > 0) ? Math.ceil(jeu.heros.reste || 0) : 0;
   var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",")
           + "|" + ((jeu.heros && jeu.heros.pv > 0) ? 1 : 0)
           + "|" + (jeu.energie >= coutActuel("speed", jeu.usages) ? 1 : 0)
-          + "|" + coutActuel("speed", jeu.usages);
+          + "|" + coutActuel("speed", jeu.usages)
+          + "|" + resteH;
   if(sig === signatureBarges) return;
   signatureBarges = sig;
   var html = "";
@@ -373,19 +381,35 @@ function majListeBarges(){
        est déjà là ou que l'Énergie manque — et l'on dit lequel des
        deux dans l'infobulle, sans quoi une tuile grise ne renseigne
        sur rien.
+
+       PENDANT L'ACTIVATION, ELLE COMPTE LES SECONDES. C'est la seule
+       horloge de la capacité : dix secondes qui passent sans qu'on
+       les voie ne sont pas jouables, on ne saurait ni quand pousser
+       l'assaut ni quand rappeler le héros. La pastille passe donc du
+       prix aux secondes restantes, et la tuile se met à battre sous
+       les trois dernières — l'avertissement vaut mieux qu'un arrêt
+       sec.
        ════════════════════════════════════════════════════════ */
     if(b.heros){
       var cout = coutActuel("speed", jeu.usages);
       var la = !!(jeu.heros && jeu.heros.pv > 0);
       var pauvre = jeu.energie < cout;
+      var fin = la && resteH <= Math.round(EQ.SPEED_ADIEU);
       html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
-            + (la || pauvre ? " eteinte" : "") + '" data-i="' + i + '"'
-            + ' title="' + (la ? "Speed est déjà sur l\'île"
-                               : pauvre ? "Il faut " + cout + " d\'Énergie pour envoyer Speed"
-                               : "Speed — il emmène la troupe deux fois plus vite ("
-                                 + cout + " d\'Énergie)") + '">'
+            + (la || pauvre ? " eteinte" : "") + (la ? " actif" : "")
+            + (fin ? " finit" : "") + '" data-i="' + i + '"'
+            + ' title="' + (la ? "Speed est sur l\'île — encore " + resteH + " s"
+                               : pauvre ? "Il faut " + cout + " d\'Énergie pour activer Speed"
+                               : "Speed — " + Math.round(EQ.SPEED_DUREE)
+                                 + " s à deux fois la vitesse (" + cout + " d\'Énergie)") + '">'
             + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
-            + '<div class="n">' + (la ? "⚡" : cout) + '</div></div>';
+            /* LES SECONDES PORTENT LEUR « s », LE PRIX NON. Sans quoi
+               la tuile prête à dix d'Énergie et la tuile à dix
+               secondes de la fin affichent le même « 10 » : deux
+               états opposés — appuie / n'appuie pas — sous le même
+               signe. Le prix reste un nombre nu, comme sur les huit
+               tuiles de capacité, où il en est déjà un. */
+            + '<div class="n">' + (la ? resteH + "s" : cout) + '</div></div>';
       continue;
     }
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")

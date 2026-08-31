@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.38";
+var VERSION = "v1.39";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -440,6 +440,26 @@ var EQ = {
   SPEED_ATTRACTION     : 11.0,  // cases : le rayon de la zone
   SPEED_MULT           : 2.0,   // ×2 en marche comme au tir
   SPEED_LAISSE         : 2.6,   // il se tient à cette distance de son escorte
+  /* ════════════════════════════════════════════════════════════
+     DIX SECONDES, ET PAS UNE DE PLUS
+
+     « Il fonctionne en continu, ce n'est pas ça le principe : on doit
+     l'activer, et quand on l'active, il dure dix secondes activées. »
+
+     C'EST CE QUI FAIT DE LUI UNE CAPACITÉ ET NON UNE TROUPE. Posé
+     une fois pour toute la partie, le doublement cessait d'être une
+     décision : on l'envoyait au début et on n'y pensait plus. À dix
+     secondes, il faut choisir SON moment — la traversée d'un champ
+     de tir, la dernière ligne droite vers le Brasier — et c'est ce
+     choix qui a de la valeur, pas le bonus.
+
+     LE COMPTE À REBOURS PART QUAND IL POSE LE PIED SUR L'ÎLE, pas
+     quand on appuie. « Dix secondes ACTIVÉES » : la traversée de sa
+     navette n'est pas du temps actif, et la lui facturer aurait rendu
+     le prix menteur — il ne serait resté que six secondes utiles.
+     ════════════════════════════════════════════════════════════ */
+  SPEED_DUREE          : 10.0,  // secondes d'activation, à partir du débarquement
+  SPEED_ADIEU          : 2.5,   // secondes : le dernier tiers clignote pour prévenir
 
   /* ════════════════════════════════════════════════════════════
      LA FORMATION SE MESURE EN DIAMÈTRE, PAS EN SURFACE
@@ -1088,10 +1108,14 @@ var COUT = {
   soin      :{ base:5,  pas:2, nom:"Soin" },
   balise    :{ base:1,  pas:1, nom:"Balise" },
   viper     :{ base:6,  pas:2, nom:"Viper" },
-  /* SPEED. « L'énergie pour l'envoyer, ça coûte peut-être cinq. Si on
-     la réactive, ça coûte six. » Cinq, puis six, puis sept : le héros
-     se renvoie souvent, et chaque renvoi coûte un cran de plus. */
-  speed     :{ base:5,  pas:1, nom:"Speed" }
+  /* SPEED. « Ça doit coûter dix, puis quinze, puis vingt, puis
+     vingt-cinq. » Le prix a doublé le jour où l'effet est devenu une
+     ACTIVATION de dix secondes : tant qu'il tenait toute la partie
+     pour cinq, il n'y avait pas de décision à prendre — on l'envoyait
+     au premier débarquement. Cinq de plus à chaque emploi, c'est la
+     marche la plus raide du tableau, et c'est voulu : le doublement
+     de toute une troupe ne se répète pas à bon compte. */
+  speed     :{ base:10, pas:5, nom:"Speed" }
 };
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 
