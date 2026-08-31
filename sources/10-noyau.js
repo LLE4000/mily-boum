@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.44";
+var VERSION = "v1.45";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -808,6 +808,35 @@ var DEF = {
   reacteur:  { nom:"Cellule électrique", desc:"réacteur du bouclier du Brasier",
                pv:200000, portee:0, degats:0, cadence:0, emprise:3, tourelle:1, bouclier:1 }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   LA PLUS LONGUE DES PORTÉES COURTES
+
+   Le héros doit rester « à distance de la portée du lance-flammes ».
+   Le Chalumeau porte à 5,6 — mais la Bobine porte à 6,2, et s'arrêter
+   à 5,6 l'aurait laissé sous son arc. On prend donc le maximum des
+   défenses de CONTACT, celles qu'on peut éviter en reculant : le
+   Frelon (30,9) et le Pilon (24,6) bombardent toute la carte, se
+   tenir à leur portée n'aurait aucun sens et reviendrait à ne jamais
+   avancer.
+
+   Calculé, et non écrit à la main : une défense ajoutée demain entre
+   d'elle-même dans ce plancher, sans qu'on ait à y penser.
+
+   ET IL EST POSÉ APRÈS LA TABLE DES DÉFENSES, ce qui n'est pas un
+   détail : écrit plus haut, il tournait sur un DEF encore indéfini —
+   `for(var k in undefined)` ne lève rien, il n'itère simplement pas —
+   et rendait ZÉRO en silence. Le héros n'avait alors aucun plancher,
+   et rien ne l'aurait dit sans la mesure.
+   ════════════════════════════════════════════════════════════════ */
+var PORTEE_COURTE_MAX = (function(){
+  var m = 0;
+  for(var k in DEF){
+    var p = DEF[k].portee || 0;
+    if(p > 0 && p <= 10 && p > m) m = p;
+  }
+  return m;
+})();
 
 /* Combien de cellules électriques protègent le Brasier. */
 var NB_REACTEURS = 5;

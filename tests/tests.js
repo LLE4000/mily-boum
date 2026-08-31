@@ -58,7 +58,7 @@ try{
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
     "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
-    "HEROS","estHeros","serreSelonEffectif",
+    "HEROS","estHeros","serreSelonEffectif","PORTEE_COURTE_MAX",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -11495,9 +11495,15 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      && N.COUT.speed.pas === 10);
 
   /* ---- ③ SA RANGÉE ---- */
-  ok("les héros ont leur propre rangée, au-dessus des capacités",
+  ok("les héros ont leur propre rangée, à gauche des capacités",
      /<div class="bloc p" id="herosBoite"><div id="herosRangee"><\/div><\/div>/.test(html)
      && html.indexOf('id="herosBoite"') < html.indexOf('id="capsBoite"'));
+  /* « DESCENDS-LE JUSTE D'UN CRAN » : alignée sur la SECONDE ligne des
+     capacités, donc calée par le bas. C'est l'alignement, et non le
+     nombre de tuiles, qui tiendra la mise en page quand ils seront
+     deux. */
+  ok("… et alignée sur leur seconde ligne",
+     /#basDroite\{display:flex;gap:10px;align-items:flex-end;justify-content:flex-end\}/.test(html));
   ok("… elle se construit sur HEROS, et sur rien d'autre",
      /for\(var i = 0; i < HEROS\.length; i\+\+\)\{[\s\S]{0,400}data-h="' \+ H\.cle/.test(html));
   ok("… un appui l'active, sans viseur ni second geste",
@@ -11619,6 +11625,51 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      premier venu et gardait ce pas-là. Quinze pour cent d'écart de
      FICHE — les vitesses ne bougeant pas, le seuil ne peut pas
      produire d'hésitation. */
+  /* ════════════════════════════════════════════════════════════
+     IL SE TIENT DEVANT EN MARCHE, À CÔTÉ QUAND ON TIRE
+
+     « Quand je m'arrête sous fumi avec les filles et qu'on vise une
+     défense, le héros vient se mettre vraiment très proche. Il faut
+     qu'il reste à distance, un peu comme les filles — à distance de
+     la portée du lance-flammes par exemple. »
+
+     Les deux cases et demie d'avance servaient à ce qu'on le voie en
+     tête plutôt que noyé dans le groupe ; l'escorte arrêtée à SA
+     portée du bâtiment, elles ne faisaient plus que le pousser deux
+     cases et demie plus près — au contact d'une défense qui tire.
+     ════════════════════════════════════════════════════════════ */
+  ok("son avance s'efface quand l'escorte s'arrête",
+     /var part = Math\.min\(1, vl \/ \(UNI\[e\.t\]\.vitesse \* dt \* 0\.6\)\);/.test(ms)
+     && /ex \+= u\.capEX \/ vl \* EQ\.SPEED_LAISSE \* part;/.test(ms));
+  /* ET UN PLANCHER DUR, parce qu'un cap d'escorte dirigé vers un
+     bâtiment l'y menait quand même. La portée du lance-flammes est la
+     plus longue des portées courtes : s'y tenir le met hors
+     d'atteinte de tout ce qui brûle de près. */
+  var ed = String(html.match(/function ecarteDesDefenses\(u, e, x, y\)\{[\s\S]*?\n\}/) || "");
+  /* LE PLANCHER EST CELUI DE SON ESCORTE, plafonné au confort. Tenu à
+     la portée de contact de TOUTE défense debout, il était chassé à
+     dix-sept cases de l'objectif sur les ténèbres — hors de sa propre
+     aura de onze, donc à ne plus doper personne. */
+  ok("… et il ne passe pas devant son escorte", ed.length > 200
+     && /var mini = Math\.min\(Math\.hypot\(e\.gx - b\.gx, e\.gy - b\.gy\),/.test(ed)
+     && /PORTEE_COURTE_MAX \+ b\.e \* 0\.42\);/.test(ed));
+  /* IL A NOMMÉ LE LANCE-FLAMMES, mais la Bobine porte plus loin que
+     lui : s'arrêter à 5,6 l'aurait laissé sous son arc à 6,2. On prend
+     donc la plus longue des portées de CONTACT — calculée, pour
+     qu'une défense ajoutée demain y entre d'elle-même. */
+  ok("… le plancher couvre TOUTES les portées courtes",
+     N.PORTEE_COURTE_MAX >= N.DEF.chalumeau.portee
+     && N.PORTEE_COURTE_MAX >= N.DEF.bobine.portee
+     && N.PORTEE_COURTE_MAX >= N.DEF.crible.portee,
+     N.PORTEE_COURTE_MAX);
+  /* … mais pas les bombardiers : se tenir à trente cases d'un Frelon
+     reviendrait à ne jamais avancer. */
+  ok("… et laisse les bombardiers dehors",
+     N.PORTEE_COURTE_MAX < N.DEF.frelon.portee
+     && N.PORTEE_COURTE_MAX < N.DEF.pilon.portee);
+  ok("… et il ne repousse que ce qui est encore debout",
+     /if\(!b\.vivant\) continue;/.test(ed));
+
   ok("il change d'escorte pour une franchement plus rapide",
      /if\(mieux && UNI\[mieux\.t\]\.vitesse > UNI\[u\.escorte\.t\]\.vitesse \* 1\.15\)/.test(html));
 
@@ -11694,16 +11745,27 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   G("56. La balise sur une défense ne meurt pas à l'heure");
 
   /* ---- LA MINUTERIE NE COURT QUE SANS CIBLE ---- */
-  ok("la balise ne s'use que si elle ne vise rien",
+  /* ET LE CHRONO A DISPARU TOUT À FAIT. « Coupe le chrono : on peut
+     envoyer une seule balise qui fait toute la carte, les troupes ne
+     s'arrêteront jamais tant qu'elles ne passent pas la balise. » Les
+     trente secondes étaient une durée de VIE ; une balise est un
+     ORDRE, et un ordre se termine quand il est exécuté. */
+  ok("la balise ne s'use plus du tout",
      /var viseDebout = bcv && \(jeu\.balise\.surQG \? bcv\.pv > 0 : bcv\.vivant\);/.test(html)
-     && /if\(!viseDebout\)\{\s*\n\s*jeu\.balise\.reste -= dt;/.test(html));
+     && html.indexOf("jeu.balise.reste -= dt") < 0);
+  ok("… elle s'éteint quand plus personne ne la porte",
+     /if\(ub\.pv > 0 && ub\.baliseOrdre === jeu\.balise\.id\)\{ porteeEncore = 1; break; \}/.test(html)
+     && /if\(!porteeEncore\)\{ jeu\.balise = null; libereBalise\(\); \}/.test(html));
   /* ET ELLE MEURT AVEC SA CIBLE, au même endroit que toutes les
      autres morts de bâtiment : les troupes reprennent alors leur
      ciblage normal — c'est-à-dire les défenses aux alentours. */
   ok("… et elle tombe avec la défense qu'elle visait",
      /if\(jeu\.balise && jeu\.balise\.cible === b\)\{/.test(html));
-  ok("… le ralliement au sol garde ses trente secondes",
-     N.CAP.balise.duree === 30.0);
+  /* LE CHRONO N'EST PLUS AFFICHÉ NON PLUS : la fusée, son parachute
+     et les chiffres sont partis avec la minuterie. */
+  ok("… et son chrono n'est plus affiché",
+     html.indexOf("dessineFusee") < 0
+     && html.indexOf('Math.ceil(f.reste) + " s"') < 0);
 
   /* ---- LE FILET ---- */
   /* Tant que la balise expirait, une troupe murée devant l'objectif

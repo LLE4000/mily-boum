@@ -2420,6 +2420,49 @@ function finDeSpeed(u){
 }
 
 /* ════════════════════════════════════════════════════════════════
+   LE PLANCHER DE SÉCURITÉ DU HÉROS
+
+   Il n'a pas d'arme et ne sert à rien au contact. On repousse donc le
+   point qu'il vise à la distance où SON ESCORTE se tient — « un petit
+   peu comme les filles ».
+
+   LA RÈGLE EST RELATIVE, ET LA MESURE A DIT POURQUOI. Tenu à la plus
+   longue portée de contact — 6,2 cases — de TOUTE défense debout, il
+   était chassé à DIX-SEPT cases de l'objectif sur les ténèbres, où
+   trente défenses tiennent dans neuf cases : les répulsions
+   s'additionnaient et le sortaient de sa propre aura de onze. Il
+   n'accélérait plus personne. Le plancher est donc celui que son
+   escorte tient déjà — toujours réalisable, puisqu'elle s'y tient —
+   plafonné à la portée de contact pour qu'une escorte très éloignée
+   ne le fasse pas reculer sans raison.
+
+   On rend x par la valeur et y par ECARTE_Y : deux retours pour une
+   fonction appelée à chaque image d'un héros — un objet par image
+   serait de l'ordure à ramasser pour rien.
+   ════════════════════════════════════════════════════════════════ */
+var ECARTE_Y = 0;
+function ecarteDesDefenses(u, e, x, y){
+  ECARTE_Y = y;
+  if(!e || e.pv <= 0) return x;
+  batimentsAutour(x, y, PORTEE_COURTE_MAX + 5, tmpBat);
+  for(var i = 0; i < tmpBat.length; i++){
+    var b = tmpBat[i];
+    if(!b.vivant) continue;
+    var dx = x - b.gx, dy = y - b.gy;
+    var d = Math.hypot(dx, dy);
+    var mini = Math.min(Math.hypot(e.gx - b.gx, e.gy - b.gy),
+                        PORTEE_COURTE_MAX + b.e * 0.42);
+    if(d >= mini || d < 1e-4) continue;
+    /* on le repousse dans l'axe bâtiment → point visé : la sortie la
+       plus courte, et elle garde le sens de sa marche */
+    x = b.gx + dx / d * mini;
+    y = b.gy + dy / d * mini;
+    ECARTE_Y = y;
+  }
+  return x;
+}
+
+/* ════════════════════════════════════════════════════════════════
    IL NE VA JAMAIS PLUS VITE QUE LA PLUS RAPIDE DES TROUPES
 
    « Speed est beaucoup plus rapide que mes Furies. Est-ce qu'il ne
@@ -2591,10 +2634,39 @@ function majSpeed(u, f, dt){
   var k = Math.min(1, dt * 4);
   u.capEX += (vx - u.capEX) * k;
   u.capEY += (vy - u.capEY) * k;
-  /* le point visé : deux cases et demie DEVANT elle, dans son cap */
+  /* ════════════════════════════════════════════════════════════
+     IL SE TIENT DEVANT QUAND ON MARCHE, À CÔTÉ QUAND ON TIRE
+
+     « Quand je m'arrête sous fumi avec les filles et qu'on vise une
+     défense, le héros vient se mettre vraiment très proche. Il faut
+     qu'il reste à distance, un peu comme les filles — à distance de
+     la portée du lance-flammes par exemple. »
+
+     LES DEUX CASES ET DEMIE D'AVANCE N'ONT DE SENS QU'EN MARCHE.
+     Elles servaient à ce qu'on le voie en tête plutôt que noyé dans
+     le groupe ; l'escorte arrêtée à SA portée du bâtiment, elles ne
+     faisaient plus que le pousser deux cases et demie plus près — au
+     contact d'une défense qui, elle, tire.
+
+     ON MESURE DONC L'ESCORTE, PAS UNE INTENTION : `capEX/capEY` est
+     déjà sa trace lissée d'une image à l'autre. Immobile, elle tend
+     vers zéro, et l'avance s'efface avec elle. Aucun état de plus à
+     tenir, et l'on suit tout ce qui l'arrête — la fumée, un tir, un
+     ordre —, pas seulement les cas qu'on aurait pensé à écrire. */
   var ex = e.gx, ey = e.gy;
   var vl = Math.hypot(u.capEX, u.capEY);
-  if(vl > 1e-4){ ex += u.capEX / vl * EQ.SPEED_LAISSE; ey += u.capEY / vl * EQ.SPEED_LAISSE; }
+  if(vl > 1e-4){
+    /* l'avance est proportionnelle à ce que l'escorte parcourt
+       vraiment : pleine à sa vitesse de croisière, nulle à l'arrêt */
+    var part = Math.min(1, vl / (UNI[e.t].vitesse * dt * 0.6));
+    ex += u.capEX / vl * EQ.SPEED_LAISSE * part;
+    ey += u.capEY / vl * EQ.SPEED_LAISSE * part;
+  }
+  /* ET LE POINT VISÉ NE VA PAS PLUS PRÈS QUE L'ESCORTE : sans cela,
+     un cap dirigé vers le bâtiment qu'elle attaque l'y menait quand
+     même, et il fallait ensuite l'en tirer image après image. */
+  ex = ecarteDesDefenses(u, e, ex, ey);
+  ey = ECARTE_Y;
   var px = ex - u.gx, py = ey - u.gy;
   var pd = Math.hypot(px, py);
   /* SA VITESSE EST CELLE DE L'ESCORTE, sauf s'il a du retard : au-delà
@@ -4149,12 +4221,35 @@ function majZones(dt){
      autres morts de bâtiment — les troupes reprennent alors leur
      ciblage normal, c'est-à-dire les défenses aux alentours.
      ════════════════════════════════════════════════════════════ */
+  /* ════════════════════════════════════════════════════════════
+     PLUS DE CHRONO : ELLE TIENT JUSQU'À CE QU'ON Y SOIT
+
+     « Coupe le chrono. Les troupes vont jusque-là, on n'est pas
+     obligé de recharger : on peut envoyer une seule balise qui fait
+     toute la carte, les troupes ne s'arrêteront jamais tant qu'elles
+     ne passent pas la balise. »
+
+     LES TRENTE SECONDES ÉTAIENT UNE DURÉE DE VIE, ET C'EST CE QUI
+     CLOCHAIT. Une balise n'est pas un effet qui s'use, c'est un
+     ORDRE : il se termine quand il est exécuté, pas quand une
+     horloge le décide. Posée à l'autre bout de l'île, elle expirait
+     en chemin et la troupe s'arrêtait là où elle en était.
+
+     ELLE MEURT DONC DE DEUX FAÇONS, ET DE DEUX SEULEMENT : sa cible
+     tombe (traité avec les autres morts de bâtiment), ou plus
+     personne ne la porte — c'est-à-dire que tout le monde est arrivé.
+     Chaque unité rend son ordre en franchissant la zone, comme avant ;
+     quand la dernière l'a rendu, la balise s'éteint d'elle-même. */
   if(jeu.balise){
     var bcv = jeu.balise.cible;
     var viseDebout = bcv && (jeu.balise.surQG ? bcv.pv > 0 : bcv.vivant);
     if(!viseDebout){
-      jeu.balise.reste -= dt;
-      if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+      var porteeEncore = 0;
+      for(var ib = 0; ib < jeu.unites.length; ib++){
+        var ub = jeu.unites[ib];
+        if(ub.pv > 0 && ub.baliseOrdre === jeu.balise.id){ porteeEncore = 1; break; }
+      }
+      if(!porteeEncore){ jeu.balise = null; libereBalise(); }
     }
   }
 }
@@ -4270,8 +4365,11 @@ function utiliseCapacite(m, gx, gy){
       }
     }
     jeu.idBalise = (jeu.idBalise || 0) + 1;
+    /* `reste` et `duree` ne servent plus à l'expiration — ils restent
+       pour les repères d'écran, qui savent depuis quand elle est
+       posée. */
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
-                   id:jeu.idBalise, cible:vise, surQG:surQG };
+                   id:jeu.idBalise, cible:vise, surQG:surQG, tps:jeu.tps };
     /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
        le ciblage en cours : aucune ne doit continuer à taper une
        défense proche tant qu'elle n'a pas rejoint la balise. */

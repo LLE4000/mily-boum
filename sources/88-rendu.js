@@ -2298,20 +2298,75 @@ function dessineZonesSol(c, tps){
     c.beginPath(); c.ellipse(q3.x, q3.y, rr * RX, rr * RY, 0, 0, 6.2832); c.stroke();
     c.restore();
   }
-  /* point de ralliement */
+  /* ════════════════════════════════════════════════════════════
+     LE POINT DE RALLIEMENT — DES POINTS AU SOL, ET RIEN DE PLUS
+
+     « Pour l'instant il y a trop d'informations. J'aimerais que ce
+     soit allumé au sol : de petits points lumineux, avec une petite
+     fumée jaune qui se dégage, mais très léger, et qui brille un
+     peu. »
+
+     CE QU'IL Y AVAIT : un halo de quatre-vingt-dix pixels, un anneau
+     qui battait, une fusée suspendue à un parachute, et un chrono en
+     chiffres. Cinq objets pour dire une chose — « c'est ici » — et
+     qui couvraient le terrain qu'on regarde.
+
+     CE QU'IL RESTE : huit points posés au sol en cercle, qui
+     respirent à contretemps les uns des autres, et trois volutes
+     jaunes très pâles qui montent. Le chrono est parti avec la
+     minuterie ; le parachute, avec l'idée d'un objet qui tombe. */
   if(jeu.balise){
     var pf = iso(jeu.balise.gx, jeu.balise.gy);
+    var rb = rayonFormation() * 0.55;
+    /* LA TAILLE DES POINTS NE SUIT PAS LE ZOOM SANS FREIN. À trois
+       fois et demie, des points calibrés en `cam.z` devenaient trois
+       taches blanches larges comme la balise entière — l'inverse de
+       « petits points lumineux ». On plafonne donc leur échelle : de
+       près ils restent des points, de loin ils restent visibles. */
+    var zz = Math.min(cam.z, 1.6);
     c.save();
     c.globalCompositeOperation = "lighter";
-    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, 90);
-    gf.addColorStop(0, "rgba(255,230,140,.5)");
-    gf.addColorStop(1, "rgba(255,180,60,0)");
+    /* la nappe : à peine une lueur, pour que les points aient un fond */
+    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, rb * RX * 1.25);
+    gf.addColorStop(0, "rgba(255,226,130,.07)");
+    gf.addColorStop(1, "rgba(255,190,70,0)");
     c.fillStyle = gf;
-    c.beginPath(); c.ellipse(pf.x, pf.y, 90, 45, 0, 0, 6.2832); c.fill();
+    c.beginPath();
+    c.ellipse(pf.x, pf.y, rb * RX * 1.25, rb * RY * 1.25, 0, 0, 6.2832); c.fill();
+    /* LES POINTS. Ils respirent chacun à son rythme — un cercle de
+       lampes qui clignoteraient ensemble ferait balise d'aéroport. */
+    for(var kb = 0; kb < 8; kb++){
+      var ab = kb / 8 * 6.2832;
+      var bat = 0.55 + 0.45 * Math.sin(tps * 2.2 + kb * 1.7);
+      var bx = pf.x + Math.cos(ab) * rb * RX;
+      var by = pf.y + Math.sin(ab) * rb * RY;
+      var rp = (0.8 + bat * 0.6) * zz;
+      var gp = c.createRadialGradient(bx, by, 0, bx, by, rp * 3.0);
+      gp.addColorStop(0, "rgba(255,246,205," + (0.62 * bat).toFixed(3) + ")");
+      gp.addColorStop(0.35, "rgba(255,214,110," + (0.22 * bat).toFixed(3) + ")");
+      gp.addColorStop(1, "rgba(255,180,50,0)");
+      c.fillStyle = gp;
+      c.beginPath(); c.arc(bx, by, rp * 3.0, 0, 6.2832); c.fill();
+      /* le point lui-même, net au centre du halo : sans lui on ne voit
+         qu'une tache, et c'est un POINT qu'il a demandé */
+      c.fillStyle = "rgba(255,252,232," + (0.80 * bat).toFixed(3) + ")";
+      c.beginPath(); c.arc(bx, by, rp * 0.62, 0, 6.2832); c.fill();
+    }
+    /* LA FUMÉE : trois volutes jaunes très pâles, qui montent et
+       s'effacent. Très léger — c'est le mot qu'il a employé. */
+    for(var kf = 0; kf < 3; kf++){
+      var ph = ((tps * 0.28 + kf / 3) % 1);
+      var haut = ph * 30 * zz;
+      var af = Math.sin(ph * 3.1416) * 0.10;
+      var lf = (4 + ph * 9) * zz;
+      var dx = Math.sin(tps * 0.7 + kf * 2.1) * 4 * zz * ph;
+      var gs = c.createRadialGradient(pf.x + dx, pf.y - haut, 0, pf.x + dx, pf.y - haut, lf);
+      gs.addColorStop(0, "rgba(255,232,150," + af.toFixed(3) + ")");
+      gs.addColorStop(1, "rgba(255,208,90,0)");
+      c.fillStyle = gs;
+      c.beginPath(); c.arc(pf.x + dx, pf.y - haut, lf, 0, 6.2832); c.fill();
+    }
     c.restore();
-    c.strokeStyle = "rgba(255,210,110,.75)"; c.lineWidth = 2.4;
-    var rp = 26 + Math.sin(tps * 3) * 6;
-    c.beginPath(); c.ellipse(pf.x, pf.y, rp, rp / 2, 0, 0, 6.2832); c.stroke();
   }
 }
 
@@ -2543,29 +2598,6 @@ function dessineNavette(c, v, tps){
 }
 
 /* La fusée éclairante elle-même, avec son décompte */
-function dessineFusee(c, tps){
-  var f = jeu.balise;
-  var p = versEcran(cam, f.gx, f.gy);
-  var z = cam.z;
-  c.save();
-  c.globalCompositeOperation = "lighter";
-  var osc = Math.sin(tps * 4) * 3;
-  var y = p.y - 46 * z + osc * z;
-  var g = c.createRadialGradient(p.x, y, 0, p.x, y, 26 * z);
-  g.addColorStop(0, "rgba(255,255,230,.95)");
-  g.addColorStop(0.35, "rgba(255,200,90,.7)");
-  g.addColorStop(1, "rgba(255,140,30,0)");
-  c.fillStyle = g;
-  c.beginPath(); c.arc(p.x, y, 26 * z, 0, 6.2832); c.fill();
-  c.restore();
-  /* petit parachute */
-  c.strokeStyle = "rgba(240,230,210,.8)"; c.lineWidth = 1.2 * z;
-  c.beginPath(); c.arc(p.x, p.y - 60 * z, 9 * z, Math.PI, 0); c.stroke();
-  c.beginPath(); c.moveTo(p.x - 9 * z, p.y - 60 * z); c.lineTo(p.x, p.y - 48 * z);
-  c.lineTo(p.x + 9 * z, p.y - 60 * z); c.stroke();
-  texteCerne(c, Math.ceil(f.reste) + " s", p.x, p.y - 76 * z, Math.max(10, 13 * z), "#ffe9a0");
-}
-
 /* ---------------------------------------------------------------
    Visée d'une capacité
    --------------------------------------------------------------- */
@@ -3002,7 +3034,6 @@ function rendu(tps, dt){
     dessineNuagesEnchantes(ctx, tps, vue);
     dessineChutesEtoiles(ctx, tps, vue);
   }
-  if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs — c'est ce nom-là qu'on voyait
      flotter au-dessus d'une île qu'ils n'occupaient pas */

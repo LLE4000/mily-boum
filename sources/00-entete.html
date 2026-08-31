@@ -1782,9 +1782,14 @@ select.champ{cursor:pointer}
    à côté, elle occupe la place vide qui traînait à leur gauche et le
    bloc se lit d'un seul tenant — héros, puis capacités. Le `gap` de
    la ligne est plus large que celui de la grille : c'est lui qui dit
-   « à part ». Elles s'alignent par le HAUT, de sorte qu'un deuxième
-   héros s'ajoute à côté du premier sans rien déplacer. */
-#basDroite{display:flex;gap:10px;align-items:flex-start;justify-content:flex-end}
+   « à part ».
+
+   ALIGNÉE SUR LA SECONDE LIGNE, ET NON LA PREMIÈRE : « descends-le
+   juste d'un cran ». Elles se calent donc par le BAS. Un deuxième
+   héros s'ajoutera à côté du premier, sur la même ligne, sans rien
+   déplacer — c'est l'alignement, et non le nombre de tuiles, qui
+   tient la mise en page. */
+#basDroite{display:flex;gap:10px;align-items:flex-end;justify-content:flex-end}
 #herosBoite{padding:6px;width:fit-content}
 #herosRangee{display:flex;gap:6px}
 .hero{

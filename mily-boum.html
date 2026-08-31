@@ -1782,9 +1782,14 @@ select.champ{cursor:pointer}
    à côté, elle occupe la place vide qui traînait à leur gauche et le
    bloc se lit d'un seul tenant — héros, puis capacités. Le `gap` de
    la ligne est plus large que celui de la grille : c'est lui qui dit
-   « à part ». Elles s'alignent par le HAUT, de sorte qu'un deuxième
-   héros s'ajoute à côté du premier sans rien déplacer. */
-#basDroite{display:flex;gap:10px;align-items:flex-start;justify-content:flex-end}
+   « à part ».
+
+   ALIGNÉE SUR LA SECONDE LIGNE, ET NON LA PREMIÈRE : « descends-le
+   juste d'un cran ». Elles se calent donc par le BAS. Un deuxième
+   héros s'ajoutera à côté du premier, sur la même ligne, sans rien
+   déplacer — c'est l'alignement, et non le nombre de tuiles, qui
+   tient la mise en page. */
+#basDroite{display:flex;gap:10px;align-items:flex-end;justify-content:flex-end}
 #herosBoite{padding:6px;width:fit-content}
 #herosRangee{display:flex;gap:6px}
 .hero{
@@ -2618,7 +2623,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.44";
+var VERSION = "v1.45";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3417,6 +3422,35 @@ var DEF = {
   reacteur:  { nom:"Cellule électrique", desc:"réacteur du bouclier du Brasier",
                pv:200000, portee:0, degats:0, cadence:0, emprise:3, tourelle:1, bouclier:1 }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   LA PLUS LONGUE DES PORTÉES COURTES
+
+   Le héros doit rester « à distance de la portée du lance-flammes ».
+   Le Chalumeau porte à 5,6 — mais la Bobine porte à 6,2, et s'arrêter
+   à 5,6 l'aurait laissé sous son arc. On prend donc le maximum des
+   défenses de CONTACT, celles qu'on peut éviter en reculant : le
+   Frelon (30,9) et le Pilon (24,6) bombardent toute la carte, se
+   tenir à leur portée n'aurait aucun sens et reviendrait à ne jamais
+   avancer.
+
+   Calculé, et non écrit à la main : une défense ajoutée demain entre
+   d'elle-même dans ce plancher, sans qu'on ait à y penser.
+
+   ET IL EST POSÉ APRÈS LA TABLE DES DÉFENSES, ce qui n'est pas un
+   détail : écrit plus haut, il tournait sur un DEF encore indéfini —
+   `for(var k in undefined)` ne lève rien, il n'itère simplement pas —
+   et rendait ZÉRO en silence. Le héros n'avait alors aucun plancher,
+   et rien ne l'aurait dit sans la mesure.
+   ════════════════════════════════════════════════════════════════ */
+var PORTEE_COURTE_MAX = (function(){
+  var m = 0;
+  for(var k in DEF){
+    var p = DEF[k].portee || 0;
+    if(p > 0 && p <= 10 && p > m) m = p;
+  }
+  return m;
+})();
 
 /* Combien de cellules électriques protègent le Brasier. */
 var NB_REACTEURS = 5;
@@ -49192,6 +49226,49 @@ function finDeSpeed(u){
 }
 
 /* ════════════════════════════════════════════════════════════════
+   LE PLANCHER DE SÉCURITÉ DU HÉROS
+
+   Il n'a pas d'arme et ne sert à rien au contact. On repousse donc le
+   point qu'il vise à la distance où SON ESCORTE se tient — « un petit
+   peu comme les filles ».
+
+   LA RÈGLE EST RELATIVE, ET LA MESURE A DIT POURQUOI. Tenu à la plus
+   longue portée de contact — 6,2 cases — de TOUTE défense debout, il
+   était chassé à DIX-SEPT cases de l'objectif sur les ténèbres, où
+   trente défenses tiennent dans neuf cases : les répulsions
+   s'additionnaient et le sortaient de sa propre aura de onze. Il
+   n'accélérait plus personne. Le plancher est donc celui que son
+   escorte tient déjà — toujours réalisable, puisqu'elle s'y tient —
+   plafonné à la portée de contact pour qu'une escorte très éloignée
+   ne le fasse pas reculer sans raison.
+
+   On rend x par la valeur et y par ECARTE_Y : deux retours pour une
+   fonction appelée à chaque image d'un héros — un objet par image
+   serait de l'ordure à ramasser pour rien.
+   ════════════════════════════════════════════════════════════════ */
+var ECARTE_Y = 0;
+function ecarteDesDefenses(u, e, x, y){
+  ECARTE_Y = y;
+  if(!e || e.pv <= 0) return x;
+  batimentsAutour(x, y, PORTEE_COURTE_MAX + 5, tmpBat);
+  for(var i = 0; i < tmpBat.length; i++){
+    var b = tmpBat[i];
+    if(!b.vivant) continue;
+    var dx = x - b.gx, dy = y - b.gy;
+    var d = Math.hypot(dx, dy);
+    var mini = Math.min(Math.hypot(e.gx - b.gx, e.gy - b.gy),
+                        PORTEE_COURTE_MAX + b.e * 0.42);
+    if(d >= mini || d < 1e-4) continue;
+    /* on le repousse dans l'axe bâtiment → point visé : la sortie la
+       plus courte, et elle garde le sens de sa marche */
+    x = b.gx + dx / d * mini;
+    y = b.gy + dy / d * mini;
+    ECARTE_Y = y;
+  }
+  return x;
+}
+
+/* ════════════════════════════════════════════════════════════════
    IL NE VA JAMAIS PLUS VITE QUE LA PLUS RAPIDE DES TROUPES
 
    « Speed est beaucoup plus rapide que mes Furies. Est-ce qu'il ne
@@ -49363,10 +49440,39 @@ function majSpeed(u, f, dt){
   var k = Math.min(1, dt * 4);
   u.capEX += (vx - u.capEX) * k;
   u.capEY += (vy - u.capEY) * k;
-  /* le point visé : deux cases et demie DEVANT elle, dans son cap */
+  /* ════════════════════════════════════════════════════════════
+     IL SE TIENT DEVANT QUAND ON MARCHE, À CÔTÉ QUAND ON TIRE
+
+     « Quand je m'arrête sous fumi avec les filles et qu'on vise une
+     défense, le héros vient se mettre vraiment très proche. Il faut
+     qu'il reste à distance, un peu comme les filles — à distance de
+     la portée du lance-flammes par exemple. »
+
+     LES DEUX CASES ET DEMIE D'AVANCE N'ONT DE SENS QU'EN MARCHE.
+     Elles servaient à ce qu'on le voie en tête plutôt que noyé dans
+     le groupe ; l'escorte arrêtée à SA portée du bâtiment, elles ne
+     faisaient plus que le pousser deux cases et demie plus près — au
+     contact d'une défense qui, elle, tire.
+
+     ON MESURE DONC L'ESCORTE, PAS UNE INTENTION : `capEX/capEY` est
+     déjà sa trace lissée d'une image à l'autre. Immobile, elle tend
+     vers zéro, et l'avance s'efface avec elle. Aucun état de plus à
+     tenir, et l'on suit tout ce qui l'arrête — la fumée, un tir, un
+     ordre —, pas seulement les cas qu'on aurait pensé à écrire. */
   var ex = e.gx, ey = e.gy;
   var vl = Math.hypot(u.capEX, u.capEY);
-  if(vl > 1e-4){ ex += u.capEX / vl * EQ.SPEED_LAISSE; ey += u.capEY / vl * EQ.SPEED_LAISSE; }
+  if(vl > 1e-4){
+    /* l'avance est proportionnelle à ce que l'escorte parcourt
+       vraiment : pleine à sa vitesse de croisière, nulle à l'arrêt */
+    var part = Math.min(1, vl / (UNI[e.t].vitesse * dt * 0.6));
+    ex += u.capEX / vl * EQ.SPEED_LAISSE * part;
+    ey += u.capEY / vl * EQ.SPEED_LAISSE * part;
+  }
+  /* ET LE POINT VISÉ NE VA PAS PLUS PRÈS QUE L'ESCORTE : sans cela,
+     un cap dirigé vers le bâtiment qu'elle attaque l'y menait quand
+     même, et il fallait ensuite l'en tirer image après image. */
+  ex = ecarteDesDefenses(u, e, ex, ey);
+  ey = ECARTE_Y;
   var px = ex - u.gx, py = ey - u.gy;
   var pd = Math.hypot(px, py);
   /* SA VITESSE EST CELLE DE L'ESCORTE, sauf s'il a du retard : au-delà
@@ -50921,12 +51027,35 @@ function majZones(dt){
      autres morts de bâtiment — les troupes reprennent alors leur
      ciblage normal, c'est-à-dire les défenses aux alentours.
      ════════════════════════════════════════════════════════════ */
+  /* ════════════════════════════════════════════════════════════
+     PLUS DE CHRONO : ELLE TIENT JUSQU'À CE QU'ON Y SOIT
+
+     « Coupe le chrono. Les troupes vont jusque-là, on n'est pas
+     obligé de recharger : on peut envoyer une seule balise qui fait
+     toute la carte, les troupes ne s'arrêteront jamais tant qu'elles
+     ne passent pas la balise. »
+
+     LES TRENTE SECONDES ÉTAIENT UNE DURÉE DE VIE, ET C'EST CE QUI
+     CLOCHAIT. Une balise n'est pas un effet qui s'use, c'est un
+     ORDRE : il se termine quand il est exécuté, pas quand une
+     horloge le décide. Posée à l'autre bout de l'île, elle expirait
+     en chemin et la troupe s'arrêtait là où elle en était.
+
+     ELLE MEURT DONC DE DEUX FAÇONS, ET DE DEUX SEULEMENT : sa cible
+     tombe (traité avec les autres morts de bâtiment), ou plus
+     personne ne la porte — c'est-à-dire que tout le monde est arrivé.
+     Chaque unité rend son ordre en franchissant la zone, comme avant ;
+     quand la dernière l'a rendu, la balise s'éteint d'elle-même. */
   if(jeu.balise){
     var bcv = jeu.balise.cible;
     var viseDebout = bcv && (jeu.balise.surQG ? bcv.pv > 0 : bcv.vivant);
     if(!viseDebout){
-      jeu.balise.reste -= dt;
-      if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+      var porteeEncore = 0;
+      for(var ib = 0; ib < jeu.unites.length; ib++){
+        var ub = jeu.unites[ib];
+        if(ub.pv > 0 && ub.baliseOrdre === jeu.balise.id){ porteeEncore = 1; break; }
+      }
+      if(!porteeEncore){ jeu.balise = null; libereBalise(); }
     }
   }
 }
@@ -51042,8 +51171,11 @@ function utiliseCapacite(m, gx, gy){
       }
     }
     jeu.idBalise = (jeu.idBalise || 0) + 1;
+    /* `reste` et `duree` ne servent plus à l'expiration — ils restent
+       pour les repères d'écran, qui savent depuis quand elle est
+       posée. */
     jeu.balise = { gx:gx, gy:gy, reste:CAP.balise.duree, duree:CAP.balise.duree,
-                   id:jeu.idBalise, cible:vise, surQG:surQG };
+                   id:jeu.idBalise, cible:vise, surQG:surQG, tps:jeu.tps };
     /* L'ordre est donné à CHAQUE unité vivante, une par une. Il écrase
        le ciblage en cours : aucune ne doit continuer à taper une
        défense proche tant qu'elle n'a pas rejoint la balise. */
@@ -59403,20 +59535,75 @@ function dessineZonesSol(c, tps){
     c.beginPath(); c.ellipse(q3.x, q3.y, rr * RX, rr * RY, 0, 0, 6.2832); c.stroke();
     c.restore();
   }
-  /* point de ralliement */
+  /* ════════════════════════════════════════════════════════════
+     LE POINT DE RALLIEMENT — DES POINTS AU SOL, ET RIEN DE PLUS
+
+     « Pour l'instant il y a trop d'informations. J'aimerais que ce
+     soit allumé au sol : de petits points lumineux, avec une petite
+     fumée jaune qui se dégage, mais très léger, et qui brille un
+     peu. »
+
+     CE QU'IL Y AVAIT : un halo de quatre-vingt-dix pixels, un anneau
+     qui battait, une fusée suspendue à un parachute, et un chrono en
+     chiffres. Cinq objets pour dire une chose — « c'est ici » — et
+     qui couvraient le terrain qu'on regarde.
+
+     CE QU'IL RESTE : huit points posés au sol en cercle, qui
+     respirent à contretemps les uns des autres, et trois volutes
+     jaunes très pâles qui montent. Le chrono est parti avec la
+     minuterie ; le parachute, avec l'idée d'un objet qui tombe. */
   if(jeu.balise){
     var pf = iso(jeu.balise.gx, jeu.balise.gy);
+    var rb = rayonFormation() * 0.55;
+    /* LA TAILLE DES POINTS NE SUIT PAS LE ZOOM SANS FREIN. À trois
+       fois et demie, des points calibrés en `cam.z` devenaient trois
+       taches blanches larges comme la balise entière — l'inverse de
+       « petits points lumineux ». On plafonne donc leur échelle : de
+       près ils restent des points, de loin ils restent visibles. */
+    var zz = Math.min(cam.z, 1.6);
     c.save();
     c.globalCompositeOperation = "lighter";
-    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, 90);
-    gf.addColorStop(0, "rgba(255,230,140,.5)");
-    gf.addColorStop(1, "rgba(255,180,60,0)");
+    /* la nappe : à peine une lueur, pour que les points aient un fond */
+    var gf = c.createRadialGradient(pf.x, pf.y, 2, pf.x, pf.y, rb * RX * 1.25);
+    gf.addColorStop(0, "rgba(255,226,130,.07)");
+    gf.addColorStop(1, "rgba(255,190,70,0)");
     c.fillStyle = gf;
-    c.beginPath(); c.ellipse(pf.x, pf.y, 90, 45, 0, 0, 6.2832); c.fill();
+    c.beginPath();
+    c.ellipse(pf.x, pf.y, rb * RX * 1.25, rb * RY * 1.25, 0, 0, 6.2832); c.fill();
+    /* LES POINTS. Ils respirent chacun à son rythme — un cercle de
+       lampes qui clignoteraient ensemble ferait balise d'aéroport. */
+    for(var kb = 0; kb < 8; kb++){
+      var ab = kb / 8 * 6.2832;
+      var bat = 0.55 + 0.45 * Math.sin(tps * 2.2 + kb * 1.7);
+      var bx = pf.x + Math.cos(ab) * rb * RX;
+      var by = pf.y + Math.sin(ab) * rb * RY;
+      var rp = (0.8 + bat * 0.6) * zz;
+      var gp = c.createRadialGradient(bx, by, 0, bx, by, rp * 3.0);
+      gp.addColorStop(0, "rgba(255,246,205," + (0.62 * bat).toFixed(3) + ")");
+      gp.addColorStop(0.35, "rgba(255,214,110," + (0.22 * bat).toFixed(3) + ")");
+      gp.addColorStop(1, "rgba(255,180,50,0)");
+      c.fillStyle = gp;
+      c.beginPath(); c.arc(bx, by, rp * 3.0, 0, 6.2832); c.fill();
+      /* le point lui-même, net au centre du halo : sans lui on ne voit
+         qu'une tache, et c'est un POINT qu'il a demandé */
+      c.fillStyle = "rgba(255,252,232," + (0.80 * bat).toFixed(3) + ")";
+      c.beginPath(); c.arc(bx, by, rp * 0.62, 0, 6.2832); c.fill();
+    }
+    /* LA FUMÉE : trois volutes jaunes très pâles, qui montent et
+       s'effacent. Très léger — c'est le mot qu'il a employé. */
+    for(var kf = 0; kf < 3; kf++){
+      var ph = ((tps * 0.28 + kf / 3) % 1);
+      var haut = ph * 30 * zz;
+      var af = Math.sin(ph * 3.1416) * 0.10;
+      var lf = (4 + ph * 9) * zz;
+      var dx = Math.sin(tps * 0.7 + kf * 2.1) * 4 * zz * ph;
+      var gs = c.createRadialGradient(pf.x + dx, pf.y - haut, 0, pf.x + dx, pf.y - haut, lf);
+      gs.addColorStop(0, "rgba(255,232,150," + af.toFixed(3) + ")");
+      gs.addColorStop(1, "rgba(255,208,90,0)");
+      c.fillStyle = gs;
+      c.beginPath(); c.arc(pf.x + dx, pf.y - haut, lf, 0, 6.2832); c.fill();
+    }
     c.restore();
-    c.strokeStyle = "rgba(255,210,110,.75)"; c.lineWidth = 2.4;
-    var rp = 26 + Math.sin(tps * 3) * 6;
-    c.beginPath(); c.ellipse(pf.x, pf.y, rp, rp / 2, 0, 0, 6.2832); c.stroke();
   }
 }
 
@@ -59648,29 +59835,6 @@ function dessineNavette(c, v, tps){
 }
 
 /* La fusée éclairante elle-même, avec son décompte */
-function dessineFusee(c, tps){
-  var f = jeu.balise;
-  var p = versEcran(cam, f.gx, f.gy);
-  var z = cam.z;
-  c.save();
-  c.globalCompositeOperation = "lighter";
-  var osc = Math.sin(tps * 4) * 3;
-  var y = p.y - 46 * z + osc * z;
-  var g = c.createRadialGradient(p.x, y, 0, p.x, y, 26 * z);
-  g.addColorStop(0, "rgba(255,255,230,.95)");
-  g.addColorStop(0.35, "rgba(255,200,90,.7)");
-  g.addColorStop(1, "rgba(255,140,30,0)");
-  c.fillStyle = g;
-  c.beginPath(); c.arc(p.x, y, 26 * z, 0, 6.2832); c.fill();
-  c.restore();
-  /* petit parachute */
-  c.strokeStyle = "rgba(240,230,210,.8)"; c.lineWidth = 1.2 * z;
-  c.beginPath(); c.arc(p.x, p.y - 60 * z, 9 * z, Math.PI, 0); c.stroke();
-  c.beginPath(); c.moveTo(p.x - 9 * z, p.y - 60 * z); c.lineTo(p.x, p.y - 48 * z);
-  c.lineTo(p.x + 9 * z, p.y - 60 * z); c.stroke();
-  texteCerne(c, Math.ceil(f.reste) + " s", p.x, p.y - 76 * z, Math.max(10, 13 * z), "#ffe9a0");
-}
-
 /* ---------------------------------------------------------------
    Visée d'une capacité
    --------------------------------------------------------------- */
@@ -60107,7 +60271,6 @@ function rendu(tps, dt){
     dessineNuagesEnchantes(ctx, tps, vue);
     dessineChutesEtoiles(ctx, tps, vue);
   }
-  if(jeu.balise) dessineFusee(ctx, tps);
 
   /* étiquettes des autres joueurs — c'est ce nom-là qu'on voyait
      flotter au-dessus d'une île qu'ils n'occupaient pas */
