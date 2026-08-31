@@ -175,7 +175,8 @@ function nouvelleCarte(index, pvConnu){
        n'existent nulle part. Voir 46-nuits-pluie.js. */
     voeux:[], voeuxVus:{}, pluieCreneau:-1,
     vengeance:null,
-    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
+    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0,
+             speed:0 },
     barges:[],
     bargeSel:0,
     capArmee:null,
@@ -196,6 +197,11 @@ function nouvelleCarte(index, pvConnu){
        `reliquesVues` est la VÉRITÉ — le compte partagé — et c'est
        elle qui décide combien de roues doivent tourner. */
     multAssaut:1, multGarde:1, millionsVus:0, reliquesVues:0, roue:null,
+    /* SPEED, ET LUI SEUL. On garde une référence directe plutôt que de
+       balayer la liste : la zone d'attraction se teste sur CHAQUE
+       unité à chaque image, et retrouver le héros à chaque test
+       coûterait cent recherches par image pour un objet unique. */
+    heros:null,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -208,6 +214,20 @@ function nouvelleCarte(index, pvConnu){
   for(var i = 0; i < EQ.NB_BARGES; i++){
     jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
   }
+  /* ════════════════════════════════════════════════════════════
+     LA NEUVIÈME NAVETTE — CELLE QUI N'EN EST PAS UNE
+
+     « Le héros a une petite barge à lui, il ne prend pas une des huit
+     barges. »
+
+     Elle est posée APRÈS les huit, et elle ne leur ressemble en rien :
+     on ne la compose pas au briefing, elle ne se consomme pas quand on
+     l'emploie, et elle ne coûte pas des places de navette mais de
+     l'ÉNERGIE. Elle reste donc en bout de ligne toute la partie —
+     grisée tant que le héros est sur le terrain ou que l'Énergie
+     manque, dorée dès qu'on peut l'envoyer.
+     ════════════════════════════════════════════════════════════ */
+  jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
   /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
      l'instantané du salon déclare détruits, et on abaisse les PV du
      Brasier — AVANT construitGrilles(), qui fige les emprises. */
@@ -1276,6 +1296,37 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
+  /* ════════════════════════════════════════════════════════════
+     LA NAVETTE DU HÉROS SE PAIE, ET NE SE CONSOMME PAS
+
+     Trois différences avec les huit autres, et elles sont toutes
+     dites par la demande :
+       — elle coûte de l'Énergie, cinq puis six puis sept ;
+       — un seul Speed à la fois sur l'île ;
+       — la tuile RESTE en place après l'envoi : c'est elle qu'on
+         retouchera pour le renvoyer quand il sera tombé.
+     ════════════════════════════════════════════════════════════ */
+  if(b.heros){
+    if(jeu.heros && jeu.heros.pv > 0)
+      return message("Speed est déjà sur l'île.");
+    var cout = coutActuel("speed", jeu.usages);
+    if(jeu.energie < cout)
+      return message("Il faut " + cout + " d'Énergie pour envoyer Speed.");
+    jeu.energie -= cout;
+    jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+    gy = borne(gy, 3, GH - 4);
+    jeu.navettes.push({
+      type:"speed", reste:1, sortis:0,
+      gx:RIVAGE_GX + NAV.DEPART, gy:gy, gxA:RIVAGE_GX, gx0:RIVAGE_GX + NAV.DEPART,
+      etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
+      n:jeu.nSuiv++, heros:1
+    });
+    demandeMajBarres();
+    son.debarque();
+    message("Speed arrive — tout ce qui court avec lui va deux fois plus vite.");
+    if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
+    return;
+  }
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -1416,6 +1467,11 @@ function creeUnite(type, gx, gy){
          recul / flash      le départ du coup, qui retombe vers zéro */
     angBase:0, angTour:0, capBase:0, capTour:0,
     chenille:0, recul:0, flash:0, roule:0, gxP:gx, gyP:gy,
+    /* SOUS L'AILE DU HÉROS, et sa vitesse vue. Le premier est relu par
+       la marche, la cadence de tir et le dessin ; la seconde ne sert
+       qu'aux traits de vitesse de Speed lui-même. */
+    dope:0, vitVue:0, escorte:null,
+    escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
        qui décide. Une roquette de Frelon sur deux — le compteur, pas
        un tirage au sort : voir UNI.tank dans 10-noyau.js. */
@@ -2282,6 +2338,92 @@ function chercheCompagnon(u){
   return pres;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   SPEED, IMAGE PAR IMAGE
+
+   « Il irait de la même vitesse que les troupes qu'on a, elle
+   s'adapte. En fait elle suit notre troupe la plus proche. »
+
+   IL SUIT LA PLUS PROCHE, ET IL LA GARDE. Rechercher à chaque image
+   le voisin le plus proche ferait sauter le héros d'une troupe à
+   l'autre au moindre croisement — on garde donc son escorte tant
+   qu'elle vit et qu'elle ne l'a pas semé. C'est la règle du Doc, et
+   elle vaut pour les mêmes raisons.
+
+   SA VITESSE EST CELLE DE SON ESCORTE, et c'est tout le sens de
+   « elle s'adapte » : il ne double jamais le groupe qu'il emmène. Sa
+   vitesse propre — trois cases et demie — ne sert qu'au rattrapage,
+   quand il s'est laissé distancer au-delà de sa laisse.
+
+   IL SE TIENT DEVANT, PAS DESSUS. Deux cases et demie d'avance sur le
+   cap de son escorte : de là, la zone d'attraction couvre le groupe
+   entier, et le héros est visible en tête plutôt que noyé dedans.
+
+   IL NE COMBAT PAS. Ni cible, ni tir, ni armement : les trois champs
+   sont remis à zéro à chaque image, sans quoi un reste d'un ordre de
+   balise le ferait viser dans le vide.
+   ════════════════════════════════════════════════════════════════ */
+function majSpeed(u, f, dt){
+  u.cible = null; u.tir = 0; u.arme = 0;
+  /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
+  if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
+     Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > EQ.SPEED_ATTRACTION * 2.4){
+    u.escorte = chercheCompagnon(u);
+  }
+  var e = u.escorte;
+  if(!e){
+    /* PERSONNE À SUIVRE : il s'arrête et attend. Le faire marcher vers
+       le Brasier tout seul serait l'envoyer mourir pour rien — il n'a
+       pas d'arme. */
+    u.phase += dt * 2.0;
+    u.vitVue = 0;
+    return;
+  }
+  /* la vitesse de l'escorte, dopage compris : il doit pouvoir la
+     suivre quand elle-même court deux fois plus vite */
+  var vitE = UNI[e.t].vitesse * (e.dope ? EQ.SPEED_MULT : 1);
+  var dx = e.gx - u.gx, dy = e.gy - u.gy;
+  var d = Math.hypot(dx, dy);
+  /* LE CAP DE L'ESCORTE, MÉMORISÉ PAR LE HÉROS LUI-MÊME.
+     `gxP` n'est tenu à jour que par les véhicules — un fantassin garde
+     celui de sa naissance, et s'en servir aurait fait viser un point
+     figé depuis le débarquement. Le héros garde donc sa propre trace
+     de l'image précédente, lissée : brute, elle sautille d'un pas à
+     l'autre et le point visé danserait devant l'escorte. */
+  if(u.escX === undefined || u.escorteVue !== e){
+    u.escX = e.gx; u.escY = e.gy; u.escorteVue = e;
+    u.capEX = 0; u.capEY = 0;
+  }
+  var vx = e.gx - u.escX, vy = e.gy - u.escY;
+  u.escX = e.gx; u.escY = e.gy;
+  var k = Math.min(1, dt * 4);
+  u.capEX += (vx - u.capEX) * k;
+  u.capEY += (vy - u.capEY) * k;
+  /* le point visé : deux cases et demie DEVANT elle, dans son cap */
+  var ex = e.gx, ey = e.gy;
+  var vl = Math.hypot(u.capEX, u.capEY);
+  if(vl > 1e-4){ ex += u.capEX / vl * EQ.SPEED_LAISSE; ey += u.capEY / vl * EQ.SPEED_LAISSE; }
+  var px = ex - u.gx, py = ey - u.gy;
+  var pd = Math.hypot(px, py);
+  /* SA VITESSE EST CELLE DE L'ESCORTE, sauf s'il a du retard : au-delà
+     de sa laisse il reprend la sienne, qui est plus haute. */
+  var vit = (d > EQ.SPEED_LAISSE * 2) ? f.vitesse : Math.min(f.vitesse, vitE);
+  if(pd > 0.4){
+    var ch = capChemin(u, ex, ey, pd);
+    var mx = ch ? ch.x : px, my = ch ? ch.y : py;
+    deplace(u, mx, my, vit * dt);
+    capUnite(u, mx, my, 1);
+    /* LA CADENCE DE SA FOULÉE SUIT SA VITESSE, et c'est ce qui rend la
+       course crédible : à deux fois l'allure, deux fois plus de pas. */
+    u.phase += dt * (5.2 + vit * 2.2);
+    u.vitVue = vit;
+  }else{
+    /* arrivé à sa place : il piétine sur place, il ne se fige pas */
+    u.phase += dt * 3.0;
+    u.vitVue = 0;
+  }
+}
+
 /* Caps de contournement, de plus en plus écartés du cap voulu : un
    frôlement, un évitement franc, la parallèle au mur, puis des caps de
    dégagement vers l'arrière pour sortir d'un cul-de-sac. */
@@ -2394,9 +2536,44 @@ function deplace(u, dx, dy, pas){
    Mise à jour des unités
    --------------------------------------------------------------- */
 var tmpBat = [], tmpUni = [];
+/* ════════════════════════════════════════════════════════════════
+   LA ZONE D'ATTRACTION DE SPEED
+
+   « Il a une grosse zone d'attraction. Les troupes rouleraient deux
+   fois plus vite, et elles tirent deux fois plus vite. Si une troupe
+   sort de la zone, elle ralentit. »
+
+   ON RETIENT LE HÉROS UNE FOIS PAR IMAGE, et l'on ne teste ensuite
+   qu'une distance par unité — c'est le prix le plus bas possible pour
+   un effet qui touche tout le monde. `u.dope` vaut un ou zéro, il est
+   relu par la marche, par la cadence de tir et par le dessin : un
+   seul drapeau pour un seul effet.
+
+   LE HÉROS NE SE DOPE PAS LUI-MÊME. Il court déjà à l'allure de son
+   escorte ; le doubler le ferait tourner autour d'elle.
+   ════════════════════════════════════════════════════════════════ */
+function chercheHeros(){
+  var h = jeu.heros;
+  if(h && h.pv > 0) return h;
+  jeu.heros = null;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv > 0 && UNI[u.t] && UNI[u.t].heros){ jeu.heros = u; break; }
+  }
+  return jeu.heros;
+}
+/* La cadence d'une troupe, doublée sous l'aile du héros. Un seul
+   endroit qui sache faire ce calcul : il est employé par les trois
+   branches de tir, et trois copies auraient divergé. */
+function cadenceDe(u, f){
+  return (u.dope ? f.cadence / EQ.SPEED_MULT : f.cadence);
+}
+
 function majUnites(dt){
   var i, u;
   var balise = jeu.balise;
+  var heros = chercheHeros();
+  var zone2 = EQ.SPEED_ATTRACTION * EQ.SPEED_ATTRACTION;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
     if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
@@ -2425,7 +2602,19 @@ function majUnites(dt){
       u.figeX = u.gx; u.figeY = u.gy; u.figeT = 0;
     }else u.figeT += dt;
 
+    /* SOUS L'AILE DU HÉROS ? Une soustraction et un carré : c'est le
+       test le moins cher qui réponde, et il tombe à zéro dès que le
+       héros n'est plus là. */
+    if(heros && heros !== u){
+      var hx = u.gx - heros.gx, hy = u.gy - heros.gy;
+      u.dope = (hx * hx + hy * hy <= zone2) ? 1 : 0;
+    }else u.dope = 0;
+
     var vit = UNI[u.t].vitesse;
+    /* ET LE DOPAGE SE MULTIPLIE AVANT LES MALUS, pas après : une
+       troupe englacée sous l'aile du héros récupère la moitié de ce
+       qu'elle a perdu, elle ne devient pas immunisée. */
+    if(u.dope) vit *= EQ.SPEED_MULT;
     if(u.ralenti > 0){
       u.ralenti -= dt;
       vit *= (u.ralentiType === "glu") ? 0.4 : 0.45;
@@ -2520,7 +2709,7 @@ function majUnites(dt){
             /* le char attend que sa tourelle soit en ligne */
             if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
             else{
-              u.prochainTir = f.cadence;
+              u.prochainTir = cadenceDe(u, f);
               u.tir = 1;
               tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
             }
@@ -2613,6 +2802,12 @@ function majUnites(dt){
       u.cible = null;
       u.prochainCiblage = 0;
     }
+
+    /* --- SPEED : il ne cherche ni cible ni blessé, il suit la troupe ---
+       Placé AVANT le Doc et APRÈS la balise : un héros sous balise
+       marche avec le groupe comme tout le monde, et se remet à suivre
+       en arrivant. */
+    if(f.heros){ majSpeed(u, f, dt); continue; }
 
     /* --- LE DOC : il ne cherche pas de cible, il cherche un blessé ---
        Placé APRÈS la balise, donc un Doc sous fusée marche avec le
@@ -2736,7 +2931,7 @@ function majUnites(dt){
            tir : on voit le canon venir se poser avant qu'il tonne. */
         if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
         else{
-          u.prochainTir = f.cadence;
+          u.prochainTir = cadenceDe(u, f);
           u.arme = 0;
           u.tir = 1;
           tireUnite(u, but, c);
@@ -4035,6 +4230,8 @@ function majMort(dt){
     jeu.barges = [];
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
+    /* et le héros retrouve sa navette : le renfort remonte TOUT */
+    jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve

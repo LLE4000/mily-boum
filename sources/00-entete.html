@@ -1662,10 +1662,18 @@ select.champ{cursor:pointer}
    8 × 46 + 7 × 5 = 403 px, la boîte en offrait 400 une fois ses marges
    retirées, et la huitième tombait seule à la ligne. Trois pixels.
    Une grille ne peut pas produire ce résultat-là : elle a un nombre de
-   colonnes, et c'est ce nombre qui décide — huit tant qu'il y a la
-   place, quatre sur un téléphone. La largeur de la boîte se déduit
-   alors du compte de colonnes au lieu de le contrarier. */
-#bg{--bgw:46px;--bgn:8;
+   colonnes, et c'est ce nombre qui décide — neuf tant qu'il y a la
+   place, cinq sur un téléphone. La largeur de la boîte se déduit
+   alors du compte de colonnes au lieu de le contrarier.
+
+   NEUF COLONNES DEPUIS SPEED, ET NON HUIT. Sa navette est une
+   neuvième tuile ; laissée dans une grille de huit, elle tombait
+   seule au rang du dessous, sept colonnes vides à côté d'elle — très
+   exactement le « sept et une » que ce bloc existe pour empêcher. La
+   tuile perd six pixels de large, la boîte n'en prend aucun : neuf
+   fois 40 plus huit gouttières valent les 403 px d'avant à trois
+   près. */
+#bg{--bgw:40px;--bgn:9;
     position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));
     max-width:min(56vw, calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
@@ -1684,7 +1692,11 @@ select.champ{cursor:pointer}
   /* la LARGEUR vient de la colonne, désormais : c'est la grille qui
      décide, et une tuile qui redéclarerait 46 px la contredirait le
      jour où la boîte se rétrécit sous un téléphone étroit */
-  width:auto;height:52px;padding:0;border-radius:10px;overflow:hidden;
+  /* 46 px de haut pour 40 de large : le canevas du portrait fait
+     92 × 104, et une tuile qui s'écarte de ce rapport écrase le
+     visage. Les colonnes ayant rétréci pour faire place à Speed, la
+     hauteur les suit. */
+  width:auto;height:46px;padding:0;border-radius:10px;overflow:hidden;
   border:1px solid rgba(255,255,255,.14);position:relative;
   background:#1d1229;cursor:pointer;line-height:0;
   transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
@@ -1709,6 +1721,35 @@ select.champ{cursor:pointer}
 /* Une navette vidée de ses passagers : le portrait s'éteint. */
 .bg1.vide{opacity:.38}
 .bg1.vide .n{color:#9a8fa6}
+/* ─────────────────────────────────────────────────────────────
+   LA TUILE DU HÉROS — « un fronton un petit peu doré »
+
+   Elle doit se distinguer des huit AU PREMIER COUP D'ŒIL, sinon
+   la neuvième navette se confond avec les autres et l'on cherche
+   Speed dans la rangée. D'où l'or partout où les autres sont
+   violettes : la bordure, le halo, le fond du portrait, la
+   pastille du prix.
+
+   ÉTEINTE veut dire deux choses très différentes — il est déjà
+   là, ou l'Énergie manque — et l'infobulle dit laquelle. Le gris
+   ne fait qu'annoncer « pas maintenant » ; c'est déjà beaucoup,
+   à condition qu'on garde une lueur d'or, sans quoi la tuile
+   disparaît de la rangée. */
+.bg1.speedTuile{
+  border-color:rgba(255,206,84,.60);
+  background:linear-gradient(160deg,#3a2a10,#1d1229 62%);
+  box-shadow:0 0 10px rgba(255,196,64,.20) inset;
+}
+.bg1.speedTuile .n{
+  color:#1b1206;background:linear-gradient(180deg,#ffdd8a,#f0ad2a);
+  border-color:rgba(255,236,180,.75);text-shadow:none;
+}
+.bg1.speedTuile.sel{
+  border-color:#ffd257;
+  box-shadow:0 0 0 2px rgba(255,210,87,.55),0 0 16px rgba(255,196,64,.50);
+}
+.bg1.speedTuile.sel .n{color:#1b1206;border-color:#fff2cc}
+.bg1.speedTuile.eteinte{opacity:.42;border-color:rgba(255,206,84,.28)}
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
@@ -1810,8 +1851,8 @@ select.champ{cursor:pointer}
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
   /* le portrait garde son rapport : on rétrécit les deux côtés */
-  #bg{--bgw:40px}
-  .bg1{height:46px}
+  #bg{--bgw:36px}
+  .bg1{height:41px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -1838,11 +1879,14 @@ select.champ{cursor:pointer}
   .cap canvas{width:25px;height:25px}
   .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
-  /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
+  /* CINQ PUIS QUATRE À PARTIR D'ICI. Une ligne de neuf tiendrait
      encore la largeur, mais elle mangerait la moitié d'un écran de
-     téléphone : quatre colonnes et deux rangs prennent la même place
-     debout que couché, et laissent les capacités tranquilles. */
-  #bg{--bgn:4}
+     téléphone : deux rangs prennent la même place debout que couché,
+     et laissent les capacités tranquilles. Cinq colonnes et non
+     trois — trois donneraient trois rangs, et en bas d'un écran de
+     téléphone la hauteur coûte plus cher que la largeur. Une seule
+     case reste vide au second rang, et c'est le pire cas. */
+  #bg{--bgn:5}
 }
 @media (max-width:430px){
   #hd{display:none}
@@ -1864,8 +1908,16 @@ select.champ{cursor:pointer}
      capacités : deux panneaux ancrés chacun à son bord finissent par
      se rejoindre. On borne la largeur des navettes à ce qui reste —
      et comme les colonnes sont en `minmax`, elles se serrent au lieu
-     de déborder si cette borne mord. */
-  #bg{--bgw:36px;max-width:min(calc(100vw - 232px),
+     de déborder si cette borne mord.
+
+     TROIS COLONNES ICI, ET NON CINQ. C'est cette borne qui décide, et
+     elle est dure : à 360 px d'écran il ne reste que 128 px pour les
+     navettes, que cinq colonnes réduisaient à dix-sept pixels de
+     large — un portrait de dix-sept pixels ne se lit pas, et une
+     tuile qu'on ne lit pas ne sert à rien. Trois colonnes en rendent
+     trente à chacune, et le troisième rang est le prix à payer. Neuf
+     tuiles font trois rangs pleins : pas une case vide. */
+  #bg{--bgn:3;--bgw:36px;max-width:min(calc(100vw - 232px),
       calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 }
 </style>

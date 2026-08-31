@@ -1865,9 +1865,14 @@ G("4. Déterminisme de la génération de carte");
        majDoc() la ramène à celle de l'escorte. Elle doit donc dépasser
        celle de TOUTES les troupes — sinon il ne rattrape jamais un
        Ogre lancé — sans excès, puisqu'elle ne sert qu'au rattrapage. */
+    /* LES HÉROS NE SONT PAS DE LA FLOTTE. Speed court plus vite que
+       tout le monde, mais il SUIT la troupe — il n'est jamais devant
+       elle, et le Doc n'a donc pas à le rattraper. Le rattrapage dont
+       parle cette ligne est celui d'un Ogre lancé, pas d'un coureur
+       qui va là où vont les autres. */
     var plusVite = 0, nomVite = "";
     Object.keys(N.UNI).forEach(function(t){
-      if(t === "doc") return;
+      if(t === "doc" || N.UNI[t].heros) return;
       if(N.UNI[t].vitesse > plusVite){ plusVite = N.UNI[t].vitesse; nomVite = N.UNI[t].nom; }
     });
     ok("il va plus vite que la troupe la plus rapide (" + nomVite + "), sinon il la perd",
@@ -5065,9 +5070,11 @@ G("8. Cohérence des règles de jeu");
   /* coûts croissants */
   var u = { nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 };
   var attendu = {
-    balise:[1,5,10,20], brouillard:[3,7,12,22], poulets:[4,12,22,42],
+    balise:[1,5,10,20], brouillard:[1,5,10,20], poulets:[4,12,22,42],
     soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
-    salve:[10,22,37,67], nova:[0,0,0,0]      // la Nova ne se paie pas en Énergie
+    salve:[10,22,37,67], nova:[0,0,0,0],     // la Nova ne se paie pas en Énergie
+    /* LE HÉROS : « cinq pour l'envoyer, six si on la réactive ». */
+    speed:[5,9,14,24]
   };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
@@ -5078,8 +5085,19 @@ G("8. Cohérence des règles de jeu");
     });
     u[m] = 0;
   });
-  ok("barème des huit capacités (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
-  ok("huit capacités exactement", Object.keys(N.COUT).length === 8);
+  ok("barème des coûts (1ᵉʳ / 5ᵉ / 10ᵉ / 20ᵉ emploi)", bon, det);
+  /* HUIT TUILES, NEUF LIGNES DE COÛT. Speed se paie comme une
+     capacité — même compteur d'emplois, même escalade — mais il ne
+     s'arme pas depuis la barre : il a sa propre navette. Le panneau se
+     construit sur TUILES, pas sur COUT, et il en reste donc huit. */
+  ok("huit tuiles de capacité, et Speed n'en est pas une",
+     Object.keys(N.COUT).length === 9 && !!N.COUT.speed
+     && (html.match(/data-m="/g) || []).length >= 1
+     && html.indexOf('data-m="speed"') < 0);
+  /* LE BROUILLARD BEAUCOUP MOINS CHER, comme demandé : un, deux,
+     trois, quatre pour les quatre premiers emplois. */
+  ok("le Brouillard commence à un et monte d'un par emploi",
+     N.COUT.brouillard.base === 1 && N.COUT.brouillard.pas === 1);
   ok("la Nova est gratuite en Énergie : c'est la charge par vie qui la limite",
      N.COUT.nova.base === 0 && N.COUT.nova.pas === 0 && N.EQ.NOVA_PAR_VIE === 1);
 
@@ -5161,6 +5179,10 @@ G("8. Cohérence des règles de jeu");
       cibles.push({ nom:N.DEF[t].nom, rc:N.DEF[t].emprise * 0.42 });
     });
     Object.keys(N.UNI).forEach(function(u){
+      /* UN HÉROS N'A PAS D'ÉVENTAIL D'ARRIVÉE : il n'a ni portée ni
+         cible. Sa marche est celle de son escorte, pas celle d'une
+         troupe qui vient se poster autour d'un objectif. */
+      if(N.UNI[u].heros) return;
       var arret = N.UNI[u].arret;
       cibles.forEach(function(c){
         var marge = arret + c.rc;
@@ -8754,23 +8776,33 @@ G("35. L'interface de jeu allégée");
   ok("… et le paragraphe d'explication a disparu",
      !/Personne n\\'a encore rien dit/.test(html));
 
-  /* LES NAVETTES : HUIT, OU DEUX FOIS QUATRE. JAMAIS SEPT ET UNE.
-     C'est ce que donnait flex-wrap — 403 px réclamés, 400 offerts. Une
-     grille ne peut pas produire ce résultat : elle a un NOMBRE de
-     colonnes, et la largeur de la boîte se déduit de ce nombre au lieu
-     de le contrarier. */
+  /* LES NAVETTES : UNE LIGNE PLEINE, OU DES RANGS PLEINS. JAMAIS
+     SEPT ET UNE. C'est ce que donnait flex-wrap — 403 px réclamés,
+     400 offerts. Une grille ne peut pas produire ce résultat : elle a
+     un NOMBRE de colonnes, et la largeur de la boîte se déduit de ce
+     nombre au lieu de le contrarier.
+
+     LES TROIS CHIFFRES ONT CHANGÉ AVEC SPEED : la rangée compte neuf
+     tuiles depuis que le héros a sa navette, et huit colonnes lui
+     rendaient très exactement le défaut que ce bloc surveille. Les
+     colonnes passent donc à neuf, la tuile de 46 à 40 px pour que la
+     boîte n'y gagne pas un pixel, et sa hauteur de 52 à 46 px pour
+     que le portrait garde son rapport. Le groupe 54 vérifie
+     désormais la RÈGLE — autant de colonnes que de tuiles — plutôt
+     que ces valeurs-ci ; on garde ici de quoi voir qu'elles n'ont pas
+     dérivé toutes seules. */
   ok("les navettes sont posées sur une grille, plus sur un flux",
      /#listeBarges\{display:grid;grid-template-columns:repeat\(var\(--bgn\),minmax\(0,var\(--bgw\)\)\)/
        .test(html));
-  ok("… huit colonnes par défaut",
-     /#bg\{--bgw:46px;--bgn:8;/.test(html));
-  ok("… et quatre dès qu'on passe sous 600 px",
-     /@media \(max-width:600px\)\{[\s\S]{0,700}#bg\{--bgn:4\}/.test(html));
+  ok("… neuf colonnes par défaut, une par tuile",
+     /#bg\{--bgw:40px;--bgn:9;/.test(html));
+  ok("… et cinq dès qu'on passe sous 600 px",
+     /@media \(max-width:600px\)\{[\s\S]{0,900}#bg\{--bgn:5\}/.test(html));
   ok("… la largeur de la boîte se déduit du compte de colonnes",
      /max-width:min\(56vw, calc\(var\(--bgn\) \* var\(--bgw\) \+ \(var\(--bgn\) - 1\) \* 5px \+ 22px\)\)/
        .test(html));
   ok("… et la tuile ne redéclare plus sa largeur",
-     /\.bg1\{[\s\S]{0,260}width:auto;height:52px/.test(html));
+     /\.bg1\{[\s\S]{0,460}width:auto;height:46px/.test(html));
   ok("« aucune » traverse la grille au lieu d'entrer dans une colonne",
      /#listeBarges \.bg1\.aucune\{grid-column:1\/-1/.test(html) &&
      /html = '<div class="bg1 aucune">aucune<\/div>';/.test(html));
@@ -9567,10 +9599,13 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      troupes contourner dans un cas et buter dans l'autre. */
   {
     /* `capChemin(u,` attrape aussi la DÉFINITION de la fonction : on
-       comptait quatre là où il y a trois appels. Les trois sites
-       affectent leur résultat, la définition non. */
+       comptait quatre là où il y a trois appels. Les sites affectent
+       leur résultat, la définition non.
+       QUATRE DEPUIS SPEED : les trois marches ordinaires, plus celle
+       du héros qui rejoint son escorte. Lui aussi doit contourner —
+       un héros qui traverserait les murs se verrait tout de suite. */
     var n = (html.match(/= capChemin\(u,/g) || []).length;
-    ok("les trois marches passent par le champ de distance", n === 3, n + " appels");
+    ok("les quatre marches passent par le champ de distance", n === 4, n + " appels");
     /* et la ligne droite reste là, pour l'éventail d'arrivée */
     /* L'ANCRE A VIEILLI AVEC LA CORRECTION DU COUDE : la même ligne
        relâche aussi la tenue du contournement. La promesse, elle, n'a
@@ -10497,7 +10532,10 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   /* --- LE PYR-120 EST DÉSORMAIS LA TROUPE LA PLUS RAPIDE --- */
   var plusVite = 0, nomVite = "";
   Object.keys(N.UNI).forEach(function(t){
-    if(t === "doc") return;
+    /* Speed est un HÉROS, pas une troupe : il court plus vite que tout
+       le monde par définition, et le comparer au PYR-120 reviendrait à
+       comparer un coureur à un blindé. */
+    if(t === "doc" || N.UNI[t].heros) return;
     if(N.UNI[t].vitesse > plusVite){ plusVite = N.UNI[t].vitesse; nomVite = N.UNI[t].nom; }
   });
   ok("il devient la troupe la plus rapide du jeu", nomVite === "PYR-120",
@@ -11291,6 +11329,105 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… et le rayon de tir sur un bâtiment reste le même",
      /rayonCible = qgVise \? RAYON_QG : bc\.e \* 0\.42;/.test(html)
      || /var rc = qgVise \? RAYON_QG : bc\.e \* 0\.42;/.test(html));
+})();
+
+/* ================================================================
+   54. SPEED — SA NAVETTE, SA RANGÉE, SON FRONTON
+
+   « Le héros a une petite barge à lui, il ne prend pas une des huit
+   barges. »
+
+   DEUX DÉFAUTS TROUVÉS EN REGARDANT LES PHOTOS, ET NON EN LISANT LE
+   CODE — les deux tenaient à la présentation, que rien ne vérifiait :
+
+     ① LA NEUVIÈME TUILE TOMBAIT SEULE AU RANG DU DESSOUS. La grille
+       comptait huit colonnes et la rangée en recevait neuf : sept
+       colonnes vides sous les navettes. Le bloc de style porte
+       pourtant, depuis sa création, la consigne « jamais sept et
+       une » ; personne ne l'avait traduite en vérification, et la
+       consigne n'a pas empêché la récidive.
+     ② LE FRONTON N'AVAIT PAS DE BUSTE. Une tête seule au milieu d'un
+       carré doré paraît deux fois plus petite qu'elle n'est : à côté
+       des cinq autres portraits, tous fermés par des épaules, le
+       héros semblait minuscule.
+
+   ON VÉRIFIE DONC LA RANGÉE, PAS LA TUILE : ce qui compte n'est pas
+   qu'il y ait neuf colonnes, c'est qu'il y en ait AUTANT QUE DE
+   TUILES. Le jour où une dixième navette arrivera, c'est ce test-là
+   qui le dira.
+   ================================================================ */
+(function(){
+  G("54. Speed — sa navette, sa rangée, son fronton");
+
+  /* ---- ① LA RANGÉE ---- */
+  var nbTuiles = N.EQ.NB_BARGES + 1;          // les huit, plus le héros
+  ok("neuf tuiles à placer : les huit navettes et le héros", nbTuiles === 9);
+  var base = /#bg\{--bgw:(\d+)px;--bgn:(\d+);/.exec(html);
+  ok("la grille des navettes déclare ses colonnes", !!base, "règle #bg introuvable");
+  if(base){
+    ok("… autant de colonnes que de tuiles : aucune ne tombe seule",
+       +base[2] === nbTuiles, "colonnes=" + base[2] + " tuiles=" + nbTuiles);
+    /* la boîte ne doit pas grandir pour autant : c'est la tuile qui
+       rétrécit, pas le panneau qui déborde sur le terrain */
+    var larg = nbTuiles * +base[1] + (nbTuiles - 1) * 5;
+    ok("… et la rangée tient dans les 403 px d'avant (" + larg + " px)", larg <= 403);
+    /* le portrait fait 92 × 104 : une tuile qui s'écarte de ce rapport
+       écrase le visage */
+    var haut = /\.bg1\{[\s\S]*?height:(\d+)px;/.exec(html);
+    ok("la tuile garde le rapport du portrait", !!haut && Math.abs(+base[1] / +haut[1] - 92 / 104) < 0.06,
+       haut ? (+base[1] / +haut[1]).toFixed(2) : "hauteur introuvable");
+  }
+  /* SUR TÉLÉPHONE, LE PIRE CAS EST UNE SEULE CASE VIDE. Neuf tuiles en
+     cinq colonnes donnent 5 + 4 ; en trois colonnes, trois rangs
+     pleins. Quatre colonnes — la valeur d'avant Speed — laisserait de
+     nouveau une tuile seule, et c'est cela qu'on interdit. */
+  var etroits = html.match(/#bg\{--bgn:(\d+)/g) || [];
+  var pireVide = 0, detVide = "";
+  etroits.forEach(function(m){
+    var col = +/(\d+)/.exec(m)[1];
+    var reste = nbTuiles % col;
+    var vide = reste ? col - reste : 0;
+    if(vide > pireVide){ pireVide = vide; detVide = col + " colonnes"; }
+  });
+  ok("les rangées étroites laissent au plus une case vide",
+     etroits.length > 0 && pireVide <= 1, detVide + " → " + pireVide + " vides");
+
+  /* ---- ② LA TUILE DORÉE ---- */
+  ok("la tuile du héros a son propre habillage",
+     /\.bg1\.speedTuile\{/.test(html) && /\.bg1\.speedTuile\.eteinte\{/.test(html));
+  ok("… et l'or ne sert qu'à elle dans la rangée",
+     html.indexOf(".bg1.ogre.speedTuile") < 0);
+  ok("elle affiche son prix, ou l'éclair quand il est déjà là",
+     /\(la \? "⚡" : cout\)/.test(html));
+  ok("… et sa signature porte l'état du héros, sans quoi elle se fige",
+     /\(\(jeu\.heros && jeu\.heros\.pv > 0\) \? 1 : 0\)/.test(html));
+
+  /* ---- ③ LE FRONTON ---- */
+  var pr = String(html.match(/function portraitSpeed\(c\)\{[\s\S]*?\n\}/) || "");
+  ok("le fronton du héros existe", pr.length > 200);
+  ok("… il est doré, et c'est le seul", /#6A4A12/.test(pr));
+  ok("… il a des épaules qui ferment le bas du cadre, comme les cinq autres",
+     /c\.bezierCurveTo\(-29, 57, -16, 47, 0, 46\);/.test(pr)
+     && /c\.moveTo\(-30, 80\);/.test(pr));
+  ok("… le visage est cadré à la taille des autres portraits",
+     /teteSpeed\(c, 25\.5, false\);/.test(pr));
+  ok("… et le foulard sort du cadre en pans, pas en cape",
+     /pan\[i\]/.test(pr) && /c\.stroke\(\);/.test(pr));
+
+  /* ---- ④ LA TÊTE ---- */
+  var te = String(html.match(/function teteSpeed\(c, r, deProfil\)\{[\s\S]*?\n\}/) || "");
+  ok("la coiffure est dessinée DEVANT le visage, sinon il paraît chauve",
+     te.indexOf("c.fillStyle = C.peau;") < te.lastIndexOf("c.fillStyle = C.cheveux;"));
+  ok("… et la mèche dorée passe par-dessus la coiffure",
+     te.lastIndexOf("c.fillStyle = C.cheveux;") < te.indexOf("c.fillStyle = C.or;"));
+
+  /* ---- ⑤ CE QUE SPEED N'A PAS TOUCHÉ ---- */
+  ok("il n'a pas d'arme : ni portée, ni dégâts, ni cadence",
+     N.UNI.speed.portee === 0 && N.UNI.speed.degats === 0 && N.UNI.speed.cadence === 0);
+  ok("il ne prend qu'une place, et il est marqué héros",
+     N.UNI.speed.places === 1 && N.UNI.speed.heros === 1);
+  ok("les huit navettes gardent leurs troupes",
+     N.UNI.furie.places === 12 && N.UNI.commando.places === 15 && N.UNI.ogre.places === 1);
 })();
 
 /* ---------------- bilan ---------------- */

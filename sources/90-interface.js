@@ -348,7 +348,14 @@ function majListeBarges(){
   var l = $("listeBarges");
   /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
      coûte cher, et rien ne change entre deux débarquements */
-  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
+  /* LA SIGNATURE PORTE AUSSI L'ÉTAT DU HÉROS ET LE PRIX : sa tuile
+     change de visage sans qu'aucune navette ne bouge — quand il tombe,
+     quand l'Énergie passe le seuil — et sans ces deux-là elle serait
+     restée figée sur son dernier état. */
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",")
+          + "|" + ((jeu.heros && jeu.heros.pv > 0) ? 1 : 0)
+          + "|" + (jeu.energie >= coutActuel("speed", jeu.usages) ? 1 : 0)
+          + "|" + coutActuel("speed", jeu.usages);
   if(sig === signatureBarges) return;
   signatureBarges = sig;
   var html = "";
@@ -357,6 +364,30 @@ function majListeBarges(){
     /* La navette d'Ogre se repère AVANT d'appuyer : un seul passager,
        mais c'est celui qui vaut les douze autres. */
     var seul = placesNavette(b.type) === 1;
+    /* ════════════════════════════════════════════════════════
+       LA TUILE DU HÉROS — DORÉE, ET ELLE NE COMPTE PAS DES PLACES
+
+       Les huit autres affichent le NOMBRE de passagers ; celle-ci
+       affiche son PRIX en Énergie, parce que c'est la seule chose
+       qu'on ait à savoir avant d'appuyer. Elle s'éteint quand Speed
+       est déjà là ou que l'Énergie manque — et l'on dit lequel des
+       deux dans l'infobulle, sans quoi une tuile grise ne renseigne
+       sur rien.
+       ════════════════════════════════════════════════════════ */
+    if(b.heros){
+      var cout = coutActuel("speed", jeu.usages);
+      var la = !!(jeu.heros && jeu.heros.pv > 0);
+      var pauvre = jeu.energie < cout;
+      html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
+            + (la || pauvre ? " eteinte" : "") + '" data-i="' + i + '"'
+            + ' title="' + (la ? "Speed est déjà sur l\'île"
+                               : pauvre ? "Il faut " + cout + " d\'Énergie pour envoyer Speed"
+                               : "Speed — il emmène la troupe deux fois plus vite ("
+                                 + cout + " d\'Énergie)") + '">'
+            + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
+            + '<div class="n">' + (la ? "⚡" : cout) + '</div></div>';
+      continue;
+    }
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
           + (b.n ? "" : " vide") + '" data-i="' + i + '"'
           + ' title="' + echappe(nommeTroupes(b.type, b.n)) + '">'
@@ -377,8 +408,12 @@ function majListeBarges(){
     var el = $("bgp_" + q);
     if(!el) continue;
     var c = el.getContext("2d");
+    /* LE FOND DU HÉROS EST DORÉ, celui des huit autres reste violet :
+       c'est la seule tuile de la ligne qui ne soit pas une navette, et
+       elle doit se voir comme telle avant même qu'on lise son chiffre. */
     var g = c.createLinearGradient(0, 0, 0, 104);
-    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+    if(jeu.barges[q].heros){ g.addColorStop(0, "#6A4A12"); g.addColorStop(1, "#241706"); }
+    else { g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21"); }
     c.fillStyle = g; c.fillRect(0, 0, 92, 104);
     /* Le portrait est peint PLUS LARGE que la tuile et déborde par les
        côtés : à 46 px de large, un visage cadré au propre devient un

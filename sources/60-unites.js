@@ -956,6 +956,9 @@ function dessineUnite(c, type, phase, variante, tir){
      fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
   if(type === "doc" && typeof dessineDoc === "function"){ dessineDoc(c, phase, variante, tir); return; }
+  /* Speed vit dans son propre fichier, comme l'Ogre et le Doc : il ne
+     partage aucune ligne avec les autres — il court, eux marchent. */
+  if(type === "speed" && typeof dessineSpeed === "function"){ dessineSpeed(c, phase, variante, tir); return; }
   /* Le Tank : une POSE FIXE, de trois quarts. Ce chemin-ci ne sert
      qu'aux dessins figés — les silhouettes grises des autres joueurs
      et le portrait du briefing. Le char vivant, lui, ne passe jamais
@@ -987,7 +990,10 @@ function dessineUnite(c, type, phase, variante, tir){
 var VIG_W = 150, VIG_H = 186, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank"];
+/* Speed en fait partie : les héros des AUTRES joueurs se dessinent en
+   silhouette grise comme le reste de leur troupe, et un type absent de
+   cette table n'aurait pas d'indice de vignette. */
+var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank", "speed"];
 
 function construitVignettesGrises(){
   vignettes = [];
@@ -1042,6 +1048,16 @@ function vignette(type, droite, phase){
 function dessineUniteMonde(c, u, tps){
   var p = versEcran(cam, u.gx, u.gy);
   var z = cam.z;
+  /* ════════════════════════════════════════════════════════════
+     LE HÉROS : SON HALO SOUS LUI, SES TRAITS DERRIÈRE
+
+     Le halo est peint AVANT le personnage — posé par-dessus, il le
+     rendrait laiteux alors qu'il doit en sortir. Les traits de
+     vitesse, eux, viennent après toute la pile : ce sont eux qui
+     passent devant les troupes qu'il double.
+     ════════════════════════════════════════════════════════════ */
+  if(UNI[u.t] && UNI[u.t].heros && typeof auraSpeed === "function")
+    auraSpeed(c, p.x, p.y, z, tps, u.n);
   /* LE TANK NE SE RETOURNE PAS. Toutes les autres troupes sont des
      silhouettes de profil que le c.scale(-1, 1) ci-dessous renvoie
      vers la gauche ; un char, lui, a une caisse et une tourelle qui
@@ -1068,6 +1084,44 @@ function dessineUniteMonde(c, u, tps){
   dessineUnite(c, u.t, u.phase, u.var, u.tir > 0);
   c.restore();
   }
+
+  /* ════════════════════════════════════════════════════════════
+     SOUS L'AILE DU HÉROS — L'ÉNERGIE SE VOIT
+
+     « Qu'on voie qu'il y a une énergie qui les accélère de fois deux.
+     Un peu jaune, peut-être pas jaune fluo. »
+
+     DEUX MARQUES, ET AUCUNE NE TOUCHE AU PERSONNAGE LUI-MÊME : un
+     anneau d'or au sol, et deux étincelles qui montent. Repeindre la
+     troupe en jaune aurait effacé ce qui la distingue — sa tenue, son
+     arme, sa coiffure —, et cent Furies dorées n'auraient plus été
+     cent Furies. L'énergie est AUTOUR d'elles, pas SUR elles.
+     L'anneau bat, parce qu'une accélération n'est pas un état posé.
+     ════════════════════════════════════════════════════════════ */
+  if(u.dope && z > 0.18){
+    var bat = 0.55 + 0.45 * Math.sin(tps * 6.2 + u.n * 0.7);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.globalAlpha = 0.30 + 0.22 * bat;
+    c.strokeStyle = "#FFD27A";
+    c.lineWidth = 1.5 * z;
+    c.beginPath();
+    c.ellipse(p.x, p.y, (7.5 + bat * 1.6) * z, (3.6 + bat * 0.8) * z, 0, 0, 6.2832);
+    c.stroke();
+    /* deux étincelles qui montent le long du corps */
+    for(var se = 0; se < 2; se++){
+      var ph = ((tps * 1.5 + se * 0.5 + u.n * 0.13) % 1);
+      c.globalAlpha = 0.5 * (1 - ph);
+      c.fillStyle = "#FFE9B0";
+      c.beginPath();
+      c.arc(p.x + Math.sin(tps * 4 + se * 2.1 + u.n) * 4 * z,
+            p.y - (4 + ph * 22) * z, 1.1 * z, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }
+  if(UNI[u.t] && UNI[u.t].heros && typeof traitsSpeed === "function")
+    traitsSpeed(c, u, p.x, p.y, z, tps);
 
   /* brûlure : halo orange + fumée */
   if(u.brulure > 0){

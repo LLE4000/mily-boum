@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.37";
+var VERSION = "v1.38";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -419,6 +419,29 @@ var EQ = {
   BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
 
   /* ════════════════════════════════════════════════════════════
+     SPEED — LE HÉROS QUI ACCÉLÈRE LA TROUPE
+
+     « Il suit notre troupe la plus proche. Il a une grosse zone
+     d'attraction. Les troupes rouleraient deux fois plus vite, et
+     elles tirent deux fois plus vite. Si une troupe sort de la zone
+     d'attraction, elle ralentit. »
+
+     LA ZONE EST GROSSE, ET C'EST LE MOT QU'IL A EMPLOYÉ. Onze cases
+     de rayon : plus large que le Brouillard (4,2), assez pour couvrir
+     un débarquement entier sans qu'on ait à surveiller ses bords, et
+     assez petite pour qu'une troupe partie de son côté en sorte
+     vraiment. C'est une zone qu'on suit, pas une zone qu'on gère.
+
+     LE FACTEUR EST DEUX, exactement : deux fois plus vite en marchant,
+     deux fois plus vite en tirant. Un seul nombre pour les deux, parce
+     que c'est un seul effet — « il les accélère », pas « il améliore
+     leurs statistiques ».
+     ════════════════════════════════════════════════════════════ */
+  SPEED_ATTRACTION     : 11.0,  // cases : le rayon de la zone
+  SPEED_MULT           : 2.0,   // ×2 en marche comme au tir
+  SPEED_LAISSE         : 2.6,   // il se tient à cette distance de son escorte
+
+  /* ════════════════════════════════════════════════════════════
      LA FORMATION SE MESURE EN DIAMÈTRE, PAS EN SURFACE
 
      « Les Furies occupent énormément trop de surface : sous un
@@ -748,6 +771,31 @@ var UNI = {
   doc     :{ nom:"Doc",      role:"soigne les blessés",  pv:300, portee:3.4, arret:2.6,
              degats:0,   cadence:0,    vitesse:2.10,  rayon:0.36, places:5, soin:12 },
 
+  /* ════════════════════════════════════════════════════════════════
+     SPEED — LE HÉROS
+
+     « Ce serait un personnage vraiment très sympa qui irait de la même
+     vitesse que les troupes qu'on a, elle s'adapte. En fait elle suit
+     notre troupe la plus proche. »
+
+     IL NE TIRE PAS, ET C'EST TOUT SON PERSONNAGE. Zéro dégât, zéro
+     portée : il n'a qu'une chose à faire, courir devant les autres et
+     les emmener. Le Doc a ouvert cette voie — une unité qui traverse
+     la bataille sans y prendre part — et Speed la suit.
+
+     SA VITESSE EST UN PLAFOND, PAS UNE ALLURE. Comme le Doc, il prend
+     celle de la troupe qu'il escorte : « elle s'adapte ». La valeur
+     inscrite ici ne sert qu'au rattrapage, quand il s'est laissé
+     distancer. Elle est haute — c'est un coureur.
+
+     UN PAR ÎLE. Il occupe la neuvième navette, celle qui n'est pas une
+     navette : on ne la compose pas, on l'envoie. Voir poseBarge.
+     ════════════════════════════════════════════════════════════════ */
+  speed   :{ nom:"Speed",    role:"héros — il emmène la troupe",
+             pv:900, portee:0, arret:0,
+             degats:0,   cadence:0,    vitesse:3.30,  rayon:0.38, places:1,
+             heros:1, ech:1.12 },
+
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, ech:3,
@@ -1031,12 +1079,19 @@ CRE.papillongeant = { nom:"Papillon géant", pv:35,  detection:7.0,  portee:0, d
 var COUT = {
   nova      :{ base:0,  pas:0, nom:"Nova" },
   poulets   :{ base:4,  pas:2, nom:"Poulets ×10" },
-  brouillard:{ base:3,  pas:1, nom:"Brouillard" },
+  /* LE BROUILLARD BEAUCOUP MOINS CHER : « un, puis deux, puis trois,
+     puis quatre ». C'est la capacité qui sauve une troupe, et à trois
+     d'entrée on ne la sortait qu'une fois par vie. */
+  brouillard:{ base:1,  pas:1, nom:"Brouillard" },
   salve     :{ base:10, pas:3, nom:"Salve" },
   cryo      :{ base:8,  pas:3, nom:"Cryo" },
   soin      :{ base:5,  pas:2, nom:"Soin" },
   balise    :{ base:1,  pas:1, nom:"Balise" },
-  viper     :{ base:6,  pas:2, nom:"Viper" }
+  viper     :{ base:6,  pas:2, nom:"Viper" },
+  /* SPEED. « L'énergie pour l'envoyer, ça coûte peut-être cinq. Si on
+     la réactive, ça coûte six. » Cinq, puis six, puis sept : le héros
+     se renvoie souvent, et chaque renvoi coûte un cran de plus. */
+  speed     :{ base:5,  pas:1, nom:"Speed" }
 };
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 

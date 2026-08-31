@@ -1662,10 +1662,18 @@ select.champ{cursor:pointer}
    8 × 46 + 7 × 5 = 403 px, la boîte en offrait 400 une fois ses marges
    retirées, et la huitième tombait seule à la ligne. Trois pixels.
    Une grille ne peut pas produire ce résultat-là : elle a un nombre de
-   colonnes, et c'est ce nombre qui décide — huit tant qu'il y a la
-   place, quatre sur un téléphone. La largeur de la boîte se déduit
-   alors du compte de colonnes au lieu de le contrarier. */
-#bg{--bgw:46px;--bgn:8;
+   colonnes, et c'est ce nombre qui décide — neuf tant qu'il y a la
+   place, cinq sur un téléphone. La largeur de la boîte se déduit
+   alors du compte de colonnes au lieu de le contrarier.
+
+   NEUF COLONNES DEPUIS SPEED, ET NON HUIT. Sa navette est une
+   neuvième tuile ; laissée dans une grille de huit, elle tombait
+   seule au rang du dessous, sept colonnes vides à côté d'elle — très
+   exactement le « sept et une » que ce bloc existe pour empêcher. La
+   tuile perd six pixels de large, la boîte n'en prend aucun : neuf
+   fois 40 plus huit gouttières valent les 403 px d'avant à trois
+   près. */
+#bg{--bgw:40px;--bgn:9;
     position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));
     max-width:min(56vw, calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
@@ -1684,7 +1692,11 @@ select.champ{cursor:pointer}
   /* la LARGEUR vient de la colonne, désormais : c'est la grille qui
      décide, et une tuile qui redéclarerait 46 px la contredirait le
      jour où la boîte se rétrécit sous un téléphone étroit */
-  width:auto;height:52px;padding:0;border-radius:10px;overflow:hidden;
+  /* 46 px de haut pour 40 de large : le canevas du portrait fait
+     92 × 104, et une tuile qui s'écarte de ce rapport écrase le
+     visage. Les colonnes ayant rétréci pour faire place à Speed, la
+     hauteur les suit. */
+  width:auto;height:46px;padding:0;border-radius:10px;overflow:hidden;
   border:1px solid rgba(255,255,255,.14);position:relative;
   background:#1d1229;cursor:pointer;line-height:0;
   transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
@@ -1709,6 +1721,35 @@ select.champ{cursor:pointer}
 /* Une navette vidée de ses passagers : le portrait s'éteint. */
 .bg1.vide{opacity:.38}
 .bg1.vide .n{color:#9a8fa6}
+/* ─────────────────────────────────────────────────────────────
+   LA TUILE DU HÉROS — « un fronton un petit peu doré »
+
+   Elle doit se distinguer des huit AU PREMIER COUP D'ŒIL, sinon
+   la neuvième navette se confond avec les autres et l'on cherche
+   Speed dans la rangée. D'où l'or partout où les autres sont
+   violettes : la bordure, le halo, le fond du portrait, la
+   pastille du prix.
+
+   ÉTEINTE veut dire deux choses très différentes — il est déjà
+   là, ou l'Énergie manque — et l'infobulle dit laquelle. Le gris
+   ne fait qu'annoncer « pas maintenant » ; c'est déjà beaucoup,
+   à condition qu'on garde une lueur d'or, sans quoi la tuile
+   disparaît de la rangée. */
+.bg1.speedTuile{
+  border-color:rgba(255,206,84,.60);
+  background:linear-gradient(160deg,#3a2a10,#1d1229 62%);
+  box-shadow:0 0 10px rgba(255,196,64,.20) inset;
+}
+.bg1.speedTuile .n{
+  color:#1b1206;background:linear-gradient(180deg,#ffdd8a,#f0ad2a);
+  border-color:rgba(255,236,180,.75);text-shadow:none;
+}
+.bg1.speedTuile.sel{
+  border-color:#ffd257;
+  box-shadow:0 0 0 2px rgba(255,210,87,.55),0 0 16px rgba(255,196,64,.50);
+}
+.bg1.speedTuile.sel .n{color:#1b1206;border-color:#fff2cc}
+.bg1.speedTuile.eteinte{opacity:.42;border-color:rgba(255,206,84,.28)}
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
@@ -1810,8 +1851,8 @@ select.champ{cursor:pointer}
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
   /* le portrait garde son rapport : on rétrécit les deux côtés */
-  #bg{--bgw:40px}
-  .bg1{height:46px}
+  #bg{--bgw:36px}
+  .bg1{height:41px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -1838,11 +1879,14 @@ select.champ{cursor:pointer}
   .cap canvas{width:25px;height:25px}
   .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
-  /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
+  /* CINQ PUIS QUATRE À PARTIR D'ICI. Une ligne de neuf tiendrait
      encore la largeur, mais elle mangerait la moitié d'un écran de
-     téléphone : quatre colonnes et deux rangs prennent la même place
-     debout que couché, et laissent les capacités tranquilles. */
-  #bg{--bgn:4}
+     téléphone : deux rangs prennent la même place debout que couché,
+     et laissent les capacités tranquilles. Cinq colonnes et non
+     trois — trois donneraient trois rangs, et en bas d'un écran de
+     téléphone la hauteur coûte plus cher que la largeur. Une seule
+     case reste vide au second rang, et c'est le pire cas. */
+  #bg{--bgn:5}
 }
 @media (max-width:430px){
   #hd{display:none}
@@ -1864,8 +1908,16 @@ select.champ{cursor:pointer}
      capacités : deux panneaux ancrés chacun à son bord finissent par
      se rejoindre. On borne la largeur des navettes à ce qui reste —
      et comme les colonnes sont en `minmax`, elles se serrent au lieu
-     de déborder si cette borne mord. */
-  #bg{--bgw:36px;max-width:min(calc(100vw - 232px),
+     de déborder si cette borne mord.
+
+     TROIS COLONNES ICI, ET NON CINQ. C'est cette borne qui décide, et
+     elle est dure : à 360 px d'écran il ne reste que 128 px pour les
+     navettes, que cinq colonnes réduisaient à dix-sept pixels de
+     large — un portrait de dix-sept pixels ne se lit pas, et une
+     tuile qu'on ne lit pas ne sert à rien. Trois colonnes en rendent
+     trente à chacune, et le troisième rang est le prix à payer. Neuf
+     tuiles font trois rangs pleins : pas une case vide. */
+  #bg{--bgn:3;--bgw:36px;max-width:min(calc(100vw - 232px),
       calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 }
 </style>
@@ -2540,7 +2592,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.37";
+var VERSION = "v1.38";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -2950,6 +3002,29 @@ var EQ = {
   BALISE_RAYON         : 1.1,   // tolérance d'arrivée sur le point de ralliement
 
   /* ════════════════════════════════════════════════════════════
+     SPEED — LE HÉROS QUI ACCÉLÈRE LA TROUPE
+
+     « Il suit notre troupe la plus proche. Il a une grosse zone
+     d'attraction. Les troupes rouleraient deux fois plus vite, et
+     elles tirent deux fois plus vite. Si une troupe sort de la zone
+     d'attraction, elle ralentit. »
+
+     LA ZONE EST GROSSE, ET C'EST LE MOT QU'IL A EMPLOYÉ. Onze cases
+     de rayon : plus large que le Brouillard (4,2), assez pour couvrir
+     un débarquement entier sans qu'on ait à surveiller ses bords, et
+     assez petite pour qu'une troupe partie de son côté en sorte
+     vraiment. C'est une zone qu'on suit, pas une zone qu'on gère.
+
+     LE FACTEUR EST DEUX, exactement : deux fois plus vite en marchant,
+     deux fois plus vite en tirant. Un seul nombre pour les deux, parce
+     que c'est un seul effet — « il les accélère », pas « il améliore
+     leurs statistiques ».
+     ════════════════════════════════════════════════════════════ */
+  SPEED_ATTRACTION     : 11.0,  // cases : le rayon de la zone
+  SPEED_MULT           : 2.0,   // ×2 en marche comme au tir
+  SPEED_LAISSE         : 2.6,   // il se tient à cette distance de son escorte
+
+  /* ════════════════════════════════════════════════════════════
      LA FORMATION SE MESURE EN DIAMÈTRE, PAS EN SURFACE
 
      « Les Furies occupent énormément trop de surface : sous un
@@ -3279,6 +3354,31 @@ var UNI = {
   doc     :{ nom:"Doc",      role:"soigne les blessés",  pv:300, portee:3.4, arret:2.6,
              degats:0,   cadence:0,    vitesse:2.10,  rayon:0.36, places:5, soin:12 },
 
+  /* ════════════════════════════════════════════════════════════════
+     SPEED — LE HÉROS
+
+     « Ce serait un personnage vraiment très sympa qui irait de la même
+     vitesse que les troupes qu'on a, elle s'adapte. En fait elle suit
+     notre troupe la plus proche. »
+
+     IL NE TIRE PAS, ET C'EST TOUT SON PERSONNAGE. Zéro dégât, zéro
+     portée : il n'a qu'une chose à faire, courir devant les autres et
+     les emmener. Le Doc a ouvert cette voie — une unité qui traverse
+     la bataille sans y prendre part — et Speed la suit.
+
+     SA VITESSE EST UN PLAFOND, PAS UNE ALLURE. Comme le Doc, il prend
+     celle de la troupe qu'il escorte : « elle s'adapte ». La valeur
+     inscrite ici ne sert qu'au rattrapage, quand il s'est laissé
+     distancer. Elle est haute — c'est un coureur.
+
+     UN PAR ÎLE. Il occupe la neuvième navette, celle qui n'est pas une
+     navette : on ne la compose pas, on l'envoie. Voir poseBarge.
+     ════════════════════════════════════════════════════════════════ */
+  speed   :{ nom:"Speed",    role:"héros — il emmène la troupe",
+             pv:900, portee:0, arret:0,
+             degats:0,   cadence:0,    vitesse:3.30,  rayon:0.38, places:1,
+             heros:1, ech:1.12 },
+
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
          vitesseHache:9.5, armement:0.28, ech:3,
@@ -3562,12 +3662,19 @@ CRE.papillongeant = { nom:"Papillon géant", pv:35,  detection:7.0,  portee:0, d
 var COUT = {
   nova      :{ base:0,  pas:0, nom:"Nova" },
   poulets   :{ base:4,  pas:2, nom:"Poulets ×10" },
-  brouillard:{ base:3,  pas:1, nom:"Brouillard" },
+  /* LE BROUILLARD BEAUCOUP MOINS CHER : « un, puis deux, puis trois,
+     puis quatre ». C'est la capacité qui sauve une troupe, et à trois
+     d'entrée on ne la sortait qu'une fois par vie. */
+  brouillard:{ base:1,  pas:1, nom:"Brouillard" },
   salve     :{ base:10, pas:3, nom:"Salve" },
   cryo      :{ base:8,  pas:3, nom:"Cryo" },
   soin      :{ base:5,  pas:2, nom:"Soin" },
   balise    :{ base:1,  pas:1, nom:"Balise" },
-  viper     :{ base:6,  pas:2, nom:"Viper" }
+  viper     :{ base:6,  pas:2, nom:"Viper" },
+  /* SPEED. « L'énergie pour l'envoyer, ça coûte peut-être cinq. Si on
+     la réactive, ça coûte six. » Cinq, puis six, puis sept : le héros
+     se renvoie souvent, et chaque renvoi coûte un cran de plus. */
+  speed     :{ base:5,  pas:1, nom:"Speed" }
 };
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 
@@ -39727,6 +39834,9 @@ function dessineUnite(c, type, phase, variante, tir){
      fichier, le jeu tombe sur la Furie au lieu de planter. */
   if(type === "ogre" && typeof dessineOgre === "function"){ dessineOgre(c, phase, variante, tir); return; }
   if(type === "doc" && typeof dessineDoc === "function"){ dessineDoc(c, phase, variante, tir); return; }
+  /* Speed vit dans son propre fichier, comme l'Ogre et le Doc : il ne
+     partage aucune ligne avec les autres — il court, eux marchent. */
+  if(type === "speed" && typeof dessineSpeed === "function"){ dessineSpeed(c, phase, variante, tir); return; }
   /* Le Tank : une POSE FIXE, de trois quarts. Ce chemin-ci ne sert
      qu'aux dessins figés — les silhouettes grises des autres joueurs
      et le portrait du briefing. Le char vivant, lui, ne passe jamais
@@ -39758,7 +39868,10 @@ function dessineUnite(c, type, phase, variante, tir){
 var VIG_W = 150, VIG_H = 186, VIG_OX = 75, VIG_OY = 152, VIG_ECH = 1.6;
 var vignettes = null;
 /* L'ordre fait foi : vignette() calcule son indice dessus. */
-var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank"];
+/* Speed en fait partie : les héros des AUTRES joueurs se dessinent en
+   silhouette grise comme le reste de leur troupe, et un type absent de
+   cette table n'aurait pas d'indice de vignette. */
+var VIG_TYPES = ["furie", "commando", "ogre", "doc", "tank", "speed"];
 
 function construitVignettesGrises(){
   vignettes = [];
@@ -39813,6 +39926,16 @@ function vignette(type, droite, phase){
 function dessineUniteMonde(c, u, tps){
   var p = versEcran(cam, u.gx, u.gy);
   var z = cam.z;
+  /* ════════════════════════════════════════════════════════════
+     LE HÉROS : SON HALO SOUS LUI, SES TRAITS DERRIÈRE
+
+     Le halo est peint AVANT le personnage — posé par-dessus, il le
+     rendrait laiteux alors qu'il doit en sortir. Les traits de
+     vitesse, eux, viennent après toute la pile : ce sont eux qui
+     passent devant les troupes qu'il double.
+     ════════════════════════════════════════════════════════════ */
+  if(UNI[u.t] && UNI[u.t].heros && typeof auraSpeed === "function")
+    auraSpeed(c, p.x, p.y, z, tps, u.n);
   /* LE TANK NE SE RETOURNE PAS. Toutes les autres troupes sont des
      silhouettes de profil que le c.scale(-1, 1) ci-dessous renvoie
      vers la gauche ; un char, lui, a une caisse et une tourelle qui
@@ -39839,6 +39962,44 @@ function dessineUniteMonde(c, u, tps){
   dessineUnite(c, u.t, u.phase, u.var, u.tir > 0);
   c.restore();
   }
+
+  /* ════════════════════════════════════════════════════════════
+     SOUS L'AILE DU HÉROS — L'ÉNERGIE SE VOIT
+
+     « Qu'on voie qu'il y a une énergie qui les accélère de fois deux.
+     Un peu jaune, peut-être pas jaune fluo. »
+
+     DEUX MARQUES, ET AUCUNE NE TOUCHE AU PERSONNAGE LUI-MÊME : un
+     anneau d'or au sol, et deux étincelles qui montent. Repeindre la
+     troupe en jaune aurait effacé ce qui la distingue — sa tenue, son
+     arme, sa coiffure —, et cent Furies dorées n'auraient plus été
+     cent Furies. L'énergie est AUTOUR d'elles, pas SUR elles.
+     L'anneau bat, parce qu'une accélération n'est pas un état posé.
+     ════════════════════════════════════════════════════════════ */
+  if(u.dope && z > 0.18){
+    var bat = 0.55 + 0.45 * Math.sin(tps * 6.2 + u.n * 0.7);
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    c.globalAlpha = 0.30 + 0.22 * bat;
+    c.strokeStyle = "#FFD27A";
+    c.lineWidth = 1.5 * z;
+    c.beginPath();
+    c.ellipse(p.x, p.y, (7.5 + bat * 1.6) * z, (3.6 + bat * 0.8) * z, 0, 0, 6.2832);
+    c.stroke();
+    /* deux étincelles qui montent le long du corps */
+    for(var se = 0; se < 2; se++){
+      var ph = ((tps * 1.5 + se * 0.5 + u.n * 0.13) % 1);
+      c.globalAlpha = 0.5 * (1 - ph);
+      c.fillStyle = "#FFE9B0";
+      c.beginPath();
+      c.arc(p.x + Math.sin(tps * 4 + se * 2.1 + u.n) * 4 * z,
+            p.y - (4 + ph * 22) * z, 1.1 * z, 0, 6.2832);
+      c.fill();
+    }
+    c.restore();
+  }
+  if(UNI[u.t] && UNI[u.t].heros && typeof traitsSpeed === "function")
+    traitsSpeed(c, u, p.x, p.y, z, tps);
 
   /* brûlure : halo orange + fumée */
   if(u.brulure > 0){
@@ -44233,6 +44394,414 @@ function portraitPyr(c){
   c.restore();
 }
 
+/* ===== 64-speed.js ===== */
+/* ================================================================
+   SPEED — LE HÉROS
+
+   « Ce serait un personnage vraiment très sympa. Un peu doré. Et tu
+   fais la tête du héros sur sa barge. »
+
+   CE QU'IL FALLAIT QU'ON VOIE EN UN COUP D'ŒIL, à la taille où il
+   paraît — vingt pixels de haut au zoom de jeu :
+
+     ① QU'IL COURT. Aucune autre troupe ne court : la Furie marche, le
+       Commando avance, l'Ogre pèse. Speed a la foulée penchée, les
+       genoux hauts et les bras pliés d'un sprinteur. C'est sa
+       silhouette, et elle se lit avant sa couleur.
+     ② QU'IL EST DORÉ. Un seul doré, franc, sur un corps sombre : les
+       plastrons, les brassards, les bandes de cheville. L'or est rare
+       dans ce jeu — il est réservé aux badges et aux titres —, donc il
+       DIT quelque chose ici.
+     ③ QU'IL EST SYMPA. Le foulard. Il flotte derrière lui à
+       contretemps de la foulée, et c'est lui qui fait le personnage :
+       sans le foulard on a un soldat rapide, avec on a quelqu'un.
+
+   IL N'A PAS D'ARME, et c'est volontaire jusque dans le dessin : les
+   deux mains sont libres, ouvertes, à hauteur de poitrine. On ne lui
+   cherche pas de canon parce qu'il n'y en a pas.
+   ================================================================ */
+var C_SPEED = {
+  or:      "#F0B84E", orC:"#FFDF9E", orO:"#9A6A12",
+  combi:   "#2C2333", combiC:"#40354B", combiO:"#1A1420",
+  foulard: "#FF9B3D", foulardC:"#FFC37A", foulardO:"#C4631A",
+  peau:    "#E8C9A6", peauO:"#BD9A75",
+  cheveux: "#2A1E17",
+  lunette: "#1A1620", verre:"#8FE8FF", verreC:"#DFFBFF",
+  eclair:  "#FFE9A8"
+};
+var SPEED_ECH = 1.06;              // à peine plus grand qu'une Furie
+
+/* La tête, dessinée à part : elle sert au personnage ET au fronton de
+   sa navette, et deux dessins d'un même visage divergeraient. */
+function teteSpeed(c, r, deProfil){
+  var C = C_SPEED;
+  /* la nuque, qui dépasse à peine derrière les joues */
+  c.fillStyle = C.cheveux;
+  c.beginPath(); c.ellipse(0, 0, r * 1.06, r * 1.02, 0, 0, 6.2832); c.fill();
+  /* le visage */
+  c.fillStyle = C.peau;
+  c.beginPath();
+  c.ellipse(deProfil ? r * 0.16 : 0, r * 0.08, r * 0.88, r * 0.92, 0, 0, 6.2832);
+  c.fill();
+  /* ── LA COIFFURE, EN CALOTTE PAR-DESSUS LE FRONT ────────────────
+     Le simple disque sombre derrière le visage ne débordait que d'un
+     dixième de rayon : à côté de la chevelure de la Furie, du casque
+     du Commando et du chapeau du Doc, le héros paraissait chauve —
+     six frontons côte à côte, et lui seul sans rien sur la tête. La
+     calotte est donc dessinée DEVANT le visage, et elle porte la
+     mèche dorée qui file vers l'arrière. */
+  c.fillStyle = C.cheveux;
+  c.beginPath();
+  c.moveTo(-r * 0.99, -r * 0.30);
+  c.bezierCurveTo(-r * 1.02, -r * 1.02, r * 0.34, -r * 1.28, r * 0.96, -r * 0.52);
+  c.bezierCurveTo(r * 0.62, -r * 0.68, -r * 0.44, -r * 0.74, -r * 0.99, -r * 0.30);
+  c.closePath(); c.fill();
+  /* LES LUNETTES RELEVÉES SUR LE FRONT, pas sur les yeux : on doit
+     voir son regard. Ce sont elles qui disent « coureur » sans qu'on
+     ait à le lire. */
+  c.strokeStyle = C.lunette; c.lineWidth = r * 0.30; c.lineCap = "round";
+  c.beginPath();
+  c.moveTo(-r * 0.96, -r * 0.46); c.quadraticCurveTo(0, -r * 0.86, r * 0.96, -r * 0.46);
+  c.stroke();
+  c.fillStyle = C.verre;
+  c.beginPath();
+  c.ellipse(-r * 0.38, -r * 0.56, r * 0.30, r * 0.20, -0.22, 0, 6.2832); c.fill();
+  c.beginPath();
+  c.ellipse(r * 0.38, -r * 0.56, r * 0.30, r * 0.20, 0.22, 0, 6.2832); c.fill();
+  c.fillStyle = C.verreC;
+  c.beginPath(); c.ellipse(-r * 0.44, -r * 0.60, r * 0.10, r * 0.07, -0.22, 0, 6.2832); c.fill();
+  /* les yeux, et le sourire — c'est là qu'il devient sympa */
+  c.fillStyle = "#1B1520";
+  c.beginPath(); c.ellipse(-r * 0.30, r * 0.06, r * 0.13, r * 0.17, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(r * 0.34, r * 0.06, r * 0.13, r * 0.17, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#FFFFFF";
+  c.beginPath(); c.ellipse(-r * 0.26, r * 0.01, r * 0.05, r * 0.06, 0, 0, 6.2832); c.fill();
+  c.beginPath(); c.ellipse(r * 0.38, r * 0.01, r * 0.05, r * 0.06, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = "#8A5A3A"; c.lineWidth = r * 0.12;
+  c.beginPath();
+  c.moveTo(-r * 0.26, r * 0.46); c.quadraticCurveTo(r * 0.06, r * 0.66, r * 0.34, r * 0.42);
+  c.stroke();
+  /* LA MÈCHE DORÉE, COUCHÉE VERS L'ARRIÈRE par la course : c'est la
+     seule chose qui le rattache visuellement à son plastron et à ses
+     brassards, et sans elle l'or ne monte jamais jusqu'au visage. */
+  c.fillStyle = C.or;
+  c.beginPath();
+  c.moveTo(r * 0.92, -r * 0.56);
+  c.bezierCurveTo(r * 0.52, -r * 1.18, -r * 0.18, -r * 1.16, -r * 0.46, -r * 0.86);
+  c.bezierCurveTo(-r * 0.16, -r * 0.94, r * 0.34, -r * 0.86, r * 0.92, -r * 0.56);
+  c.closePath(); c.fill();
+  c.fillStyle = C.orC;
+  c.beginPath();
+  c.moveTo(r * 0.74, -r * 0.62);
+  c.bezierCurveTo(r * 0.42, -r * 1.04, -r * 0.06, -r * 1.02, -r * 0.30, -r * 0.86);
+  c.bezierCurveTo(-r * 0.04, -r * 0.88, r * 0.32, -r * 0.80, r * 0.74, -r * 0.62);
+  c.closePath(); c.fill();
+}
+
+/* Le héros en pied, dans le repère des troupes : origine aux pieds,
+   la tête vers les y négatifs. */
+function dessineSpeed(c, phase, variante, tir){
+  var C = C_SPEED;
+  /* UNE FOULÉE PLUS AMPLE QUE TOUTES LES AUTRES. La Furie marche à
+     4,0 d'amplitude, l'Ogre à 5,5 ; lui court à 6,2, et son cycle
+     tourne plus vite (voir la cadence de phase dans majUnites). */
+  var p = pose(phase, 6.2);
+  var yb = -p.rebond;
+  /* le foulard bat à contretemps — un tiers de cycle de retard */
+  var fl = Math.sin(phase - 2.1);
+
+  c.fillStyle = "rgba(0,0,0,.26)";
+  c.beginPath(); c.ellipse(0, 0, 7.4, 3.1, 0, 0, 6.2832); c.fill();
+
+  c.save();
+  c.scale(SPEED_ECH, SPEED_ECH);
+  c.translate(0, yb);
+  c.lineCap = "round"; c.lineJoin = "round";
+
+  /* ── LE FOULARD, DERRIÈRE TOUT LE RESTE ────────────────────────
+     Il part de la nuque et file vers l'arrière — c'est-à-dire vers
+     les x négatifs, puisque le personnage regarde à droite et que le
+     miroir de dessineUniteMonde s'occupe de l'autre sens. */
+  (function(){
+    var y0 = -21.5;
+    for(var k = 0; k < 2; k++){
+      var d = k * 0.9, a = k ? 0.62 : 1;
+      c.strokeStyle = k ? C.foulardO : C.foulard;
+      c.lineWidth = k ? 1.9 : 2.6;
+      c.globalAlpha = a;
+      c.beginPath();
+      c.moveTo(-1.2, y0 + d);
+      c.quadraticCurveTo(-6.5 - d, y0 + fl * 2.2 - 1.4,
+                         -12.4 - d * 1.6, y0 + fl * 4.4 + 1.2);
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+  })();
+
+  /* ── JAMBES : genoux hauts, appui franc ────────────────────── */
+  function jambe(dx, devant){
+    var col = devant ? C.combi : C.combiO;
+    var orC = devant ? C.or : C.orO;
+    /* la cuisse monte haut quand elle part en avant */
+    var haut = dx > 0 ? 1 : 0.55;
+    c.strokeStyle = col; c.lineWidth = 4.0;
+    c.beginPath();
+    c.moveTo(dx * 0.08, -13.2);
+    c.quadraticCurveTo(dx * 0.42, -9.6 - haut * 1.6, dx * 0.72, -7.2 - haut * 2.2);
+    c.stroke();
+    c.lineWidth = 3.3;
+    c.beginPath();
+    c.moveTo(dx * 0.72, -7.2 - haut * 2.2);
+    c.quadraticCurveTo(dx * 0.95, -4.2, dx, -1.6 + haut * 1.4);
+    c.stroke();
+    /* LA BANDE DE CHEVILLE DORÉE, avec sa petite aile. C'est le seul
+       ornement qu'on distingue encore à la taille du jeu, et il dit à
+       lui seul de quoi ce personnage est capable. */
+    c.strokeStyle = orC; c.lineWidth = 1.5;
+    c.beginPath();
+    c.moveTo(dx * 0.92, -3.6 + haut * 1.1); c.lineTo(dx * 1.02, -2.8 + haut * 1.2);
+    c.stroke();
+    c.fillStyle = orC;
+    c.beginPath();
+    c.moveTo(dx * 0.86, -3.4 + haut * 1.1);
+    c.lineTo(dx * 0.86 - 3.0, -2.2 + haut * 1.1);
+    c.lineTo(dx * 0.86 - 0.6, -1.9 + haut * 1.1);
+    c.closePath(); c.fill();
+    /* la chaussure */
+    c.fillStyle = devant ? "#1E1826" : "#15111C";
+    c.beginPath();
+    c.ellipse(dx + (dx > 0 ? 1.1 : -1.1), -1.0 + haut * 1.4, 3.0, 1.5, 0, 0, 6.2832);
+    c.fill();
+  }
+  jambe(p.jambeB, false);
+  jambe(p.jambeA, true);
+
+  c.save();
+  /* LA PENCHE. Un coureur est incliné vers l'avant en permanence —
+     c'est ce qui distingue une course d'une marche rapide. */
+  c.rotate(p.incl - 0.14);
+
+  /* ── BRAS ARRIÈRE ─────────────────────────────────────────── */
+  (function(){
+    var a = p.brasB;
+    c.strokeStyle = C.combiO; c.lineWidth = 3.0;
+    c.beginPath();
+    c.moveTo(-0.6, -20.0);
+    c.quadraticCurveTo(-3.4 + a * 0.6, -17.2, -5.2 + a * 1.5, -14.4);
+    c.stroke();
+    c.fillStyle = C.peauO;
+    c.beginPath(); c.ellipse(-5.4 + a * 1.6, -13.8, 1.5, 1.5, 0, 0, 6.2832); c.fill();
+  })();
+
+  /* ── TORSE : combinaison sombre, plastron doré ────────────── */
+  c.fillStyle = C.combi;
+  c.beginPath();
+  c.moveTo(-3.5, -13.0);
+  c.quadraticCurveTo(-4.4, -19.0, -2.8, -21.4);
+  c.lineTo(2.9, -21.4);
+  c.quadraticCurveTo(4.5, -18.6, 3.6, -13.0);
+  c.closePath(); c.fill();
+  /* le plastron : deux plaques et l'éclair entre les deux */
+  c.fillStyle = C.or;
+  c.beginPath();
+  c.moveTo(-3.0, -20.4); c.lineTo(3.1, -20.4);
+  c.quadraticCurveTo(3.6, -17.6, 2.6, -16.2);
+  c.lineTo(-2.2, -16.2);
+  c.quadraticCurveTo(-3.4, -17.8, -3.0, -20.4);
+  c.closePath(); c.fill();
+  c.fillStyle = C.orC;
+  c.fillRect(-2.7, -20.2, 5.5, 0.7);
+  /* L'ÉCLAIR. Deux triangles, six pixels de haut : c'est tout ce qui
+     tient à cette taille, et c'est suffisant — la forme est connue. */
+  c.fillStyle = C.combiO;
+  c.beginPath();
+  c.moveTo(0.9, -20.0); c.lineTo(-1.3, -18.1); c.lineTo(0.1, -18.0);
+  c.lineTo(-0.8, -16.4); c.lineTo(1.5, -18.5); c.lineTo(0.1, -18.6);
+  c.closePath(); c.fill();
+  /* la ceinture */
+  c.fillStyle = C.orO;
+  c.fillRect(-3.4, -13.9, 7.0, 1.2);
+  c.fillStyle = C.orC;
+  c.fillRect(-0.8, -13.9, 1.6, 1.2);
+
+  /* ── BRAS AVANT, PLIÉ, MAIN OUVERTE ───────────────────────── */
+  (function(){
+    var a = p.brasA;
+    c.strokeStyle = C.combiC; c.lineWidth = 3.1;
+    c.beginPath();
+    c.moveTo(1.2, -20.0);
+    c.quadraticCurveTo(4.2 + a * 0.5, -18.4, 5.4 + a * 1.2, -15.8);
+    c.stroke();
+    /* le brassard */
+    c.strokeStyle = C.or; c.lineWidth = 1.4;
+    c.beginPath();
+    c.moveTo(3.4 + a * 0.3, -19.2); c.lineTo(4.2 + a * 0.4, -18.4);
+    c.stroke();
+    c.fillStyle = C.peau;
+    c.beginPath(); c.ellipse(5.6 + a * 1.3, -15.2, 1.7, 1.6, 0, 0, 6.2832); c.fill();
+  })();
+
+  /* ── TÊTE ─────────────────────────────────────────────────── */
+  c.save();
+  c.translate(0.7, -24.6);
+  c.rotate(0.08);
+  teteSpeed(c, 3.3, true);
+  c.restore();
+
+  c.restore();                        // la penche
+  c.restore();                        // l'échelle
+}
+
+/* ================================================================
+   LE HÉROS SUR LA CARTE — son halo et ses traits de vitesse
+
+   Dessiné AVANT le personnage, donc sous lui : un halo posé par-dessus
+   l'aurait laiteux alors qu'il doit en sortir. Voir dessineUniteMonde.
+   ================================================================ */
+function auraSpeed(c, x, y, z, tps, n){
+  /* LE DISQUE AU SOL, à peine marqué. Il ne dessine PAS la zone
+     d'attraction — onze cases feraient une flaque immense qui
+     mangerait la carte. Il dit seulement « c'est lui ». */
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  var bat = 0.62 + 0.38 * Math.sin(tps * 3.4 + n);
+  var g = c.createRadialGradient(x, y - 2 * z, 1, x, y - 2 * z, 15 * z);
+  g.addColorStop(0, "rgba(255,214,120," + (0.30 * bat).toFixed(3) + ")");
+  g.addColorStop(1, "rgba(255,190,70,0)");
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(x, y - 2 * z, 15 * z, 8 * z, 0, 0, 6.2832); c.fill();
+  c.restore();
+}
+/* Les traits de vitesse : trois filets derrière lui, décalés, qui se
+   raccourcissent. Ils ne sortent QUE lorsqu'il avance vraiment — un
+   héros à l'arrêt qui laisse des traînées ferait décor. */
+function traitsSpeed(c, u, x, y, z, tps){
+  if(!(u.vitVue > 0.4)) return;
+  var s = u.droite ? 1 : -1;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.strokeStyle = "#FFD27A"; c.lineCap = "round";
+  for(var k = 0; k < 3; k++){
+    var ph = (tps * 2.6 + k * 0.37 + u.n * 0.11) % 1;
+    var lg = (7 + k * 3) * (1 - ph * 0.55);
+    var yy = y - (7 + k * 6) * z;
+    c.globalAlpha = 0.42 * (1 - ph);
+    c.lineWidth = (1.5 - k * 0.28) * z;
+    c.beginPath();
+    c.moveTo(x - s * (5 + ph * 9) * z, yy);
+    c.lineTo(x - s * (5 + ph * 9 + lg) * z, yy);
+    c.stroke();
+  }
+  c.restore();
+}
+
+/* ================================================================
+   LE FRONTON DE SA NAVETTE
+
+   « Tu fais dans le jeu le fronton qui est un peu doré, et tu fais la
+   tête du héros. »
+
+   Le portrait est résolu à la demande par dessinePortrait, qui cherche
+   « portrait » + le nom du type : il suffit donc que la fonction
+   existe, et elle peut vivre ici plutôt que dans la planche commune.
+   C'est le chemin qu'a déjà pris l'Ogre.
+
+   LE FOND EST DORÉ, ET C'EST LE SEUL DU JEU. Les huit autres tuiles
+   sont violettes ; celle-ci ne peut pas être confondue, même du coin
+   de l'œil, même sur une tablette tenue à bout de bras.
+
+   IL LUI FAUT UN BUSTE, comme aux cinq autres. Une tête seule au
+   milieu d'un carré doré paraît deux fois plus petite qu'elle n'est :
+   la rangée met les six frontons côte à côte, et ce qui manquait
+   n'était pas de la taille, c'étaient les épaules sous le menton. Le
+   visage monte donc dans le haut du cadre et le buste ferme le bas,
+   au même endroit que chez la Furie et le Commando.
+   ================================================================ */
+function portraitSpeed(c){
+  var C = C_SPEED, H = 84;
+  /* le fond : un dégradé d'ambre, et des traits de vitesse */
+  var g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#6A4A12"); g.addColorStop(0.55, "#3E2A0C"); g.addColorStop(1, "#241706");
+  c.fillStyle = g; c.fillRect(0, 0, 100, H);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  c.strokeStyle = C.or; c.lineCap = "round";
+  for(var k = 0; k < 4; k++){
+    c.globalAlpha = 0.17 - k * 0.035;
+    c.lineWidth = 3.2 - k * 0.7;
+    c.beginPath();
+    c.moveTo(2, 10 + k * 17); c.lineTo(34 + k * 15, 10 + k * 17);
+    c.stroke();
+  }
+  c.restore();
+
+  c.save();
+  c.translate(50, 4);
+  c.lineJoin = "round"; c.lineCap = "round";
+
+  /* ── LE FOULARD, DERRIÈRE LES ÉPAULES ─────────────────────────
+     Deux pans étroits qui sortent du cadre, pas une cape : une masse
+     pleine posée sur l'épaule se lisait comme une épaulette, et ce
+     qu'on veut voir ici c'est du tissu emporté par la course. */
+  (function(){
+    var pan = [ { y:41, l:1.00, e:5.4, t:C.foulard },
+                { y:47, l:0.78, e:3.6, t:C.foulardO } ];
+    for(var i = 0; i < pan.length; i++){
+      var p = pan[i];
+      c.strokeStyle = p.t; c.lineWidth = p.e;
+      c.beginPath();
+      c.moveTo(-10, p.y);
+      c.bezierCurveTo(-28 * p.l, p.y + 2, -42 * p.l, p.y + 14, -56 * p.l, p.y + 9);
+      c.stroke();
+    }
+  })();
+
+  /* ── ÉPAULES ET BUSTE, jusqu'au bas du cadre ─────────────────── */
+  var gt = c.createLinearGradient(-26, 46, 26, 80);
+  gt.addColorStop(0, C.combiC); gt.addColorStop(0.55, C.combi); gt.addColorStop(1, C.combiO);
+  c.fillStyle = gt;
+  c.beginPath();
+  c.moveTo(-30, 80);
+  c.bezierCurveTo(-29, 57, -16, 47, 0, 46);
+  c.bezierCurveTo(16, 47, 29, 57, 30, 80);
+  c.closePath(); c.fill();
+
+  /* le plastron doré, et l'éclair qu'il porte : les deux marques du
+     personnage, reprises telles quelles de son dessin en pied */
+  var gp = c.createLinearGradient(-14, 52, 14, 80);
+  gp.addColorStop(0, C.orC); gp.addColorStop(0.5, C.or); gp.addColorStop(1, C.orO);
+  c.fillStyle = gp;
+  c.beginPath();
+  c.moveTo(-15, 80);
+  c.bezierCurveTo(-14, 62, -8, 54, 0, 53);
+  c.bezierCurveTo(8, 54, 14, 62, 15, 80);
+  c.closePath(); c.fill();
+  c.fillStyle = "#3A2606";
+  c.beginPath();
+  c.moveTo(2.6, 59); c.lineTo(-4.4, 69); c.lineTo(0.2, 69);
+  c.lineTo(-2.4, 78); c.lineTo(5.2, 66.6); c.lineTo(0.4, 66.6);
+  c.closePath(); c.fill();
+
+  /* le col du foulard, par-dessus les épaules */
+  c.strokeStyle = C.foulard; c.lineWidth = 5.4;
+  c.beginPath();
+  c.moveTo(-13, 48.5); c.quadraticCurveTo(0, 55, 13, 48.5);
+  c.stroke();
+  c.strokeStyle = C.foulardC; c.lineWidth = 1.7;
+  c.beginPath();
+  c.moveTo(-11, 47.4); c.quadraticCurveTo(0, 53, 11, 47.4);
+  c.stroke();
+
+  /* ── LE VISAGE, cadré comme celui des autres ─────────────────── */
+  c.translate(0, 26);
+  teteSpeed(c, 25.5, false);
+  c.restore();
+
+  /* le liseré doré du fronton */
+  c.strokeStyle = "rgba(255,214,120,.55)"; c.lineWidth = 2;
+  c.strokeRect(1, 1, 98, H - 2);
+}
+
 /* ===== 70-creatures.js ===== */
 /* ================================================================
    LES CRÉATURES DE L'ÎLE — quatre espèces
@@ -46154,7 +46723,8 @@ function nouvelleCarte(index, pvConnu){
        n'existent nulle part. Voir 46-nuits-pluie.js. */
     voeux:[], voeuxVus:{}, pluieCreneau:-1,
     vengeance:null,
-    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0 },
+    usages:{ nova:0, poulets:0, brouillard:0, salve:0, cryo:0, soin:0, balise:0, viper:0,
+             speed:0 },
     barges:[],
     bargeSel:0,
     capArmee:null,
@@ -46175,6 +46745,11 @@ function nouvelleCarte(index, pvConnu){
        `reliquesVues` est la VÉRITÉ — le compte partagé — et c'est
        elle qui décide combien de roues doivent tourner. */
     multAssaut:1, multGarde:1, millionsVus:0, reliquesVues:0, roue:null,
+    /* SPEED, ET LUI SEUL. On garde une référence directe plutôt que de
+       balayer la liste : la zone d'attraction se teste sur CHAQUE
+       unité à chaque image, et retrouver le héros à chaque test
+       coûterait cent recherches par image pour un objet unique. */
+    heros:null,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -46187,6 +46762,20 @@ function nouvelleCarte(index, pvConnu){
   for(var i = 0; i < EQ.NB_BARGES; i++){
     jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
   }
+  /* ════════════════════════════════════════════════════════════
+     LA NEUVIÈME NAVETTE — CELLE QUI N'EN EST PAS UNE
+
+     « Le héros a une petite barge à lui, il ne prend pas une des huit
+     barges. »
+
+     Elle est posée APRÈS les huit, et elle ne leur ressemble en rien :
+     on ne la compose pas au briefing, elle ne se consomme pas quand on
+     l'emploie, et elle ne coûte pas des places de navette mais de
+     l'ÉNERGIE. Elle reste donc en bout de ligne toute la partie —
+     grisée tant que le héros est sur le terrain ou que l'Énergie
+     manque, dorée dès qu'on peut l'envoyer.
+     ════════════════════════════════════════════════════════════ */
+  jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
   /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
      l'instantané du salon déclare détruits, et on abaisse les PV du
      Brasier — AVANT construitGrilles(), qui fige les emprises. */
@@ -47255,6 +47844,37 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
+  /* ════════════════════════════════════════════════════════════
+     LA NAVETTE DU HÉROS SE PAIE, ET NE SE CONSOMME PAS
+
+     Trois différences avec les huit autres, et elles sont toutes
+     dites par la demande :
+       — elle coûte de l'Énergie, cinq puis six puis sept ;
+       — un seul Speed à la fois sur l'île ;
+       — la tuile RESTE en place après l'envoi : c'est elle qu'on
+         retouchera pour le renvoyer quand il sera tombé.
+     ════════════════════════════════════════════════════════════ */
+  if(b.heros){
+    if(jeu.heros && jeu.heros.pv > 0)
+      return message("Speed est déjà sur l'île.");
+    var cout = coutActuel("speed", jeu.usages);
+    if(jeu.energie < cout)
+      return message("Il faut " + cout + " d'Énergie pour envoyer Speed.");
+    jeu.energie -= cout;
+    jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+    gy = borne(gy, 3, GH - 4);
+    jeu.navettes.push({
+      type:"speed", reste:1, sortis:0,
+      gx:RIVAGE_GX + NAV.DEPART, gy:gy, gxA:RIVAGE_GX, gx0:RIVAGE_GX + NAV.DEPART,
+      etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
+      n:jeu.nSuiv++, heros:1
+    });
+    demandeMajBarres();
+    son.debarque();
+    message("Speed arrive — tout ce qui court avec lui va deux fois plus vite.");
+    if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
+    return;
+  }
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -47395,6 +48015,11 @@ function creeUnite(type, gx, gy){
          recul / flash      le départ du coup, qui retombe vers zéro */
     angBase:0, angTour:0, capBase:0, capTour:0,
     chenille:0, recul:0, flash:0, roule:0, gxP:gx, gyP:gy,
+    /* SOUS L'AILE DU HÉROS, et sa vitesse vue. Le premier est relu par
+       la marche, la cadence de tir et le dessin ; la seconde ne sert
+       qu'aux traits de vitesse de Speed lui-même. */
+    dope:0, vitVue:0, escorte:null,
+    escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
        qui décide. Une roquette de Frelon sur deux — le compteur, pas
        un tirage au sort : voir UNI.tank dans 10-noyau.js. */
@@ -48261,6 +48886,92 @@ function chercheCompagnon(u){
   return pres;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   SPEED, IMAGE PAR IMAGE
+
+   « Il irait de la même vitesse que les troupes qu'on a, elle
+   s'adapte. En fait elle suit notre troupe la plus proche. »
+
+   IL SUIT LA PLUS PROCHE, ET IL LA GARDE. Rechercher à chaque image
+   le voisin le plus proche ferait sauter le héros d'une troupe à
+   l'autre au moindre croisement — on garde donc son escorte tant
+   qu'elle vit et qu'elle ne l'a pas semé. C'est la règle du Doc, et
+   elle vaut pour les mêmes raisons.
+
+   SA VITESSE EST CELLE DE SON ESCORTE, et c'est tout le sens de
+   « elle s'adapte » : il ne double jamais le groupe qu'il emmène. Sa
+   vitesse propre — trois cases et demie — ne sert qu'au rattrapage,
+   quand il s'est laissé distancer au-delà de sa laisse.
+
+   IL SE TIENT DEVANT, PAS DESSUS. Deux cases et demie d'avance sur le
+   cap de son escorte : de là, la zone d'attraction couvre le groupe
+   entier, et le héros est visible en tête plutôt que noyé dedans.
+
+   IL NE COMBAT PAS. Ni cible, ni tir, ni armement : les trois champs
+   sont remis à zéro à chaque image, sans quoi un reste d'un ordre de
+   balise le ferait viser dans le vide.
+   ════════════════════════════════════════════════════════════════ */
+function majSpeed(u, f, dt){
+  u.cible = null; u.tir = 0; u.arme = 0;
+  /* ON GARDE SON ESCORTE tant qu'elle vit et reste à portée de vue. */
+  if(!u.escorte || u.escorte.pv <= 0 || u.escorte === u ||
+     Math.hypot(u.escorte.gx - u.gx, u.escorte.gy - u.gy) > EQ.SPEED_ATTRACTION * 2.4){
+    u.escorte = chercheCompagnon(u);
+  }
+  var e = u.escorte;
+  if(!e){
+    /* PERSONNE À SUIVRE : il s'arrête et attend. Le faire marcher vers
+       le Brasier tout seul serait l'envoyer mourir pour rien — il n'a
+       pas d'arme. */
+    u.phase += dt * 2.0;
+    u.vitVue = 0;
+    return;
+  }
+  /* la vitesse de l'escorte, dopage compris : il doit pouvoir la
+     suivre quand elle-même court deux fois plus vite */
+  var vitE = UNI[e.t].vitesse * (e.dope ? EQ.SPEED_MULT : 1);
+  var dx = e.gx - u.gx, dy = e.gy - u.gy;
+  var d = Math.hypot(dx, dy);
+  /* LE CAP DE L'ESCORTE, MÉMORISÉ PAR LE HÉROS LUI-MÊME.
+     `gxP` n'est tenu à jour que par les véhicules — un fantassin garde
+     celui de sa naissance, et s'en servir aurait fait viser un point
+     figé depuis le débarquement. Le héros garde donc sa propre trace
+     de l'image précédente, lissée : brute, elle sautille d'un pas à
+     l'autre et le point visé danserait devant l'escorte. */
+  if(u.escX === undefined || u.escorteVue !== e){
+    u.escX = e.gx; u.escY = e.gy; u.escorteVue = e;
+    u.capEX = 0; u.capEY = 0;
+  }
+  var vx = e.gx - u.escX, vy = e.gy - u.escY;
+  u.escX = e.gx; u.escY = e.gy;
+  var k = Math.min(1, dt * 4);
+  u.capEX += (vx - u.capEX) * k;
+  u.capEY += (vy - u.capEY) * k;
+  /* le point visé : deux cases et demie DEVANT elle, dans son cap */
+  var ex = e.gx, ey = e.gy;
+  var vl = Math.hypot(u.capEX, u.capEY);
+  if(vl > 1e-4){ ex += u.capEX / vl * EQ.SPEED_LAISSE; ey += u.capEY / vl * EQ.SPEED_LAISSE; }
+  var px = ex - u.gx, py = ey - u.gy;
+  var pd = Math.hypot(px, py);
+  /* SA VITESSE EST CELLE DE L'ESCORTE, sauf s'il a du retard : au-delà
+     de sa laisse il reprend la sienne, qui est plus haute. */
+  var vit = (d > EQ.SPEED_LAISSE * 2) ? f.vitesse : Math.min(f.vitesse, vitE);
+  if(pd > 0.4){
+    var ch = capChemin(u, ex, ey, pd);
+    var mx = ch ? ch.x : px, my = ch ? ch.y : py;
+    deplace(u, mx, my, vit * dt);
+    capUnite(u, mx, my, 1);
+    /* LA CADENCE DE SA FOULÉE SUIT SA VITESSE, et c'est ce qui rend la
+       course crédible : à deux fois l'allure, deux fois plus de pas. */
+    u.phase += dt * (5.2 + vit * 2.2);
+    u.vitVue = vit;
+  }else{
+    /* arrivé à sa place : il piétine sur place, il ne se fige pas */
+    u.phase += dt * 3.0;
+    u.vitVue = 0;
+  }
+}
+
 /* Caps de contournement, de plus en plus écartés du cap voulu : un
    frôlement, un évitement franc, la parallèle au mur, puis des caps de
    dégagement vers l'arrière pour sortir d'un cul-de-sac. */
@@ -48373,9 +49084,44 @@ function deplace(u, dx, dy, pas){
    Mise à jour des unités
    --------------------------------------------------------------- */
 var tmpBat = [], tmpUni = [];
+/* ════════════════════════════════════════════════════════════════
+   LA ZONE D'ATTRACTION DE SPEED
+
+   « Il a une grosse zone d'attraction. Les troupes rouleraient deux
+   fois plus vite, et elles tirent deux fois plus vite. Si une troupe
+   sort de la zone, elle ralentit. »
+
+   ON RETIENT LE HÉROS UNE FOIS PAR IMAGE, et l'on ne teste ensuite
+   qu'une distance par unité — c'est le prix le plus bas possible pour
+   un effet qui touche tout le monde. `u.dope` vaut un ou zéro, il est
+   relu par la marche, par la cadence de tir et par le dessin : un
+   seul drapeau pour un seul effet.
+
+   LE HÉROS NE SE DOPE PAS LUI-MÊME. Il court déjà à l'allure de son
+   escorte ; le doubler le ferait tourner autour d'elle.
+   ════════════════════════════════════════════════════════════════ */
+function chercheHeros(){
+  var h = jeu.heros;
+  if(h && h.pv > 0) return h;
+  jeu.heros = null;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv > 0 && UNI[u.t] && UNI[u.t].heros){ jeu.heros = u; break; }
+  }
+  return jeu.heros;
+}
+/* La cadence d'une troupe, doublée sous l'aile du héros. Un seul
+   endroit qui sache faire ce calcul : il est employé par les trois
+   branches de tir, et trois copies auraient divergé. */
+function cadenceDe(u, f){
+  return (u.dope ? f.cadence / EQ.SPEED_MULT : f.cadence);
+}
+
 function majUnites(dt){
   var i, u;
   var balise = jeu.balise;
+  var heros = chercheHeros();
+  var zone2 = EQ.SPEED_ATTRACTION * EQ.SPEED_ATTRACTION;
   for(i = jeu.unites.length - 1; i >= 0; i--){
     u = jeu.unites[i];
     if(u.pv <= 0){ jeu.unites.splice(i, 1); continue; }
@@ -48404,7 +49150,19 @@ function majUnites(dt){
       u.figeX = u.gx; u.figeY = u.gy; u.figeT = 0;
     }else u.figeT += dt;
 
+    /* SOUS L'AILE DU HÉROS ? Une soustraction et un carré : c'est le
+       test le moins cher qui réponde, et il tombe à zéro dès que le
+       héros n'est plus là. */
+    if(heros && heros !== u){
+      var hx = u.gx - heros.gx, hy = u.gy - heros.gy;
+      u.dope = (hx * hx + hy * hy <= zone2) ? 1 : 0;
+    }else u.dope = 0;
+
     var vit = UNI[u.t].vitesse;
+    /* ET LE DOPAGE SE MULTIPLIE AVANT LES MALUS, pas après : une
+       troupe englacée sous l'aile du héros récupère la moitié de ce
+       qu'elle a perdu, elle ne devient pas immunisée. */
+    if(u.dope) vit *= EQ.SPEED_MULT;
     if(u.ralenti > 0){
       u.ralenti -= dt;
       vit *= (u.ralentiType === "glu") ? 0.4 : 0.45;
@@ -48499,7 +49257,7 @@ function majUnites(dt){
             /* le char attend que sa tourelle soit en ligne */
             if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
             else{
-              u.prochainTir = f.cadence;
+              u.prochainTir = cadenceDe(u, f);
               u.tir = 1;
               tireUnite(u, { gx:bc.gx, gy:bc.gy }, u.cible);
             }
@@ -48592,6 +49350,12 @@ function majUnites(dt){
       u.cible = null;
       u.prochainCiblage = 0;
     }
+
+    /* --- SPEED : il ne cherche ni cible ni blessé, il suit la troupe ---
+       Placé AVANT le Doc et APRÈS la balise : un héros sous balise
+       marche avec le groupe comme tout le monde, et se remet à suivre
+       en arrivant. */
+    if(f.heros){ majSpeed(u, f, dt); continue; }
 
     /* --- LE DOC : il ne cherche pas de cible, il cherche un blessé ---
        Placé APRÈS la balise, donc un Doc sous fusée marche avec le
@@ -48715,7 +49479,7 @@ function majUnites(dt){
            tir : on voit le canon venir se poser avant qu'il tonne. */
         if(f.tourelle && !tankAligne(u)){ u.prochainTir = 0; }
         else{
-          u.prochainTir = f.cadence;
+          u.prochainTir = cadenceDe(u, f);
           u.arme = 0;
           u.tir = 1;
           tireUnite(u, but, c);
@@ -50014,6 +50778,8 @@ function majMort(dt){
     jeu.barges = [];
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
+    /* et le héros retrouve sa navette : le renfort remonte TOUT */
+    jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
     jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
@@ -61394,7 +62160,14 @@ function majListeBarges(){
   var l = $("listeBarges");
   /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
      coûte cher, et rien ne change entre deux débarquements */
-  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
+  /* LA SIGNATURE PORTE AUSSI L'ÉTAT DU HÉROS ET LE PRIX : sa tuile
+     change de visage sans qu'aucune navette ne bouge — quand il tombe,
+     quand l'Énergie passe le seuil — et sans ces deux-là elle serait
+     restée figée sur son dernier état. */
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",")
+          + "|" + ((jeu.heros && jeu.heros.pv > 0) ? 1 : 0)
+          + "|" + (jeu.energie >= coutActuel("speed", jeu.usages) ? 1 : 0)
+          + "|" + coutActuel("speed", jeu.usages);
   if(sig === signatureBarges) return;
   signatureBarges = sig;
   var html = "";
@@ -61403,6 +62176,30 @@ function majListeBarges(){
     /* La navette d'Ogre se repère AVANT d'appuyer : un seul passager,
        mais c'est celui qui vaut les douze autres. */
     var seul = placesNavette(b.type) === 1;
+    /* ════════════════════════════════════════════════════════
+       LA TUILE DU HÉROS — DORÉE, ET ELLE NE COMPTE PAS DES PLACES
+
+       Les huit autres affichent le NOMBRE de passagers ; celle-ci
+       affiche son PRIX en Énergie, parce que c'est la seule chose
+       qu'on ait à savoir avant d'appuyer. Elle s'éteint quand Speed
+       est déjà là ou que l'Énergie manque — et l'on dit lequel des
+       deux dans l'infobulle, sans quoi une tuile grise ne renseigne
+       sur rien.
+       ════════════════════════════════════════════════════════ */
+    if(b.heros){
+      var cout = coutActuel("speed", jeu.usages);
+      var la = !!(jeu.heros && jeu.heros.pv > 0);
+      var pauvre = jeu.energie < cout;
+      html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
+            + (la || pauvre ? " eteinte" : "") + '" data-i="' + i + '"'
+            + ' title="' + (la ? "Speed est déjà sur l\'île"
+                               : pauvre ? "Il faut " + cout + " d\'Énergie pour envoyer Speed"
+                               : "Speed — il emmène la troupe deux fois plus vite ("
+                                 + cout + " d\'Énergie)") + '">'
+            + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
+            + '<div class="n">' + (la ? "⚡" : cout) + '</div></div>';
+      continue;
+    }
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
           + (b.n ? "" : " vide") + '" data-i="' + i + '"'
           + ' title="' + echappe(nommeTroupes(b.type, b.n)) + '">'
@@ -61423,8 +62220,12 @@ function majListeBarges(){
     var el = $("bgp_" + q);
     if(!el) continue;
     var c = el.getContext("2d");
+    /* LE FOND DU HÉROS EST DORÉ, celui des huit autres reste violet :
+       c'est la seule tuile de la ligne qui ne soit pas une navette, et
+       elle doit se voir comme telle avant même qu'on lise son chiffre. */
     var g = c.createLinearGradient(0, 0, 0, 104);
-    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
+    if(jeu.barges[q].heros){ g.addColorStop(0, "#6A4A12"); g.addColorStop(1, "#241706"); }
+    else { g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21"); }
     c.fillStyle = g; c.fillRect(0, 0, 92, 104);
     /* Le portrait est peint PLUS LARGE que la tuile et déborde par les
        côtés : à 46 px de large, un visage cadré au propre devient un
