@@ -1927,7 +1927,14 @@ function majMondes(){
 
           Seule la carte EN COURS n'a pas d'œil, et pour une raison qui
           n'a pas changé : on y débarque, c'est mieux qu'une visite. */
-       + (i !== carteSalon ? boutonVisite(i) : "") + '</div>';
+       + (i !== carteSalon ? boutonVisite(i) : "")
+       /* L'ESSAI, LUI, EST SUR TOUTES LES ÎLES, Y COMPRIS CELLE EN
+          COURS. Sur une île fermée, c'est la demande même : la jouer
+          sans rien inscrire. Sur l'île en cours, c'est la seule façon
+          d'éprouver un réglage — un blindage, une santé de Brasier —
+          sans que ses dégâts partent au classement. Le bouton n'existe
+          que pour l'administrateur : voir boutonEssai. */
+       + boutonEssai(i) + '</div>';
   }
   /* les cartes événement, après la grille et non dedans */
   for(i = 0; i < CARTES.length; i++)
@@ -1977,6 +1984,17 @@ function majMondes(){
 function boutonVisite(i){
   return '<button class="visite" data-visite="' + i + '">👁 Visiter</button>';
 }
+/* LE BOUTON D'ESSAI N'EXISTE QUE POUR L'ADMINISTRATEUR, et seulement
+   après qu'il a donné le mot de passe DANS CETTE PAGE. Il ne se
+   dessine donc pas du tout pour un joueur ordinaire : rien à cacher
+   en CSS, rien à désarmer — ce qui n'est pas écrit n'est pas
+   cliquable. Voir adminOuvert dans 85-reseau.js. */
+function boutonEssai(i){
+  if(typeof adminOuvert === "undefined" || !adminOuvert) return "";
+  return '<button class="essai" data-essai="' + i + '" '
+       + 'title="Jouer cette île pour de faux : rien n\'est publié, '
+       + 'rien n\'est compté">🧪 Essayer</button>';
+}
 /* Une visite REMPLACE la partie en mémoire : lancePartie rebâtit la
    carte, et la bataille en cours ne survit pas. Tant qu'elle n'a rien
    coûté — pas une troupe débarquée, pas un dégât — on n'embête
@@ -1993,6 +2011,19 @@ function demandeVisite(i){
                + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
   ouvreApercuAdmin(i);
 }
+/* Un essai coûte la bataille en cours pour la même raison qu'une
+   visite — lancePartie rebâtit la carte —, et on prévient de la même
+   façon. On annonce en plus ce que l'essai NE fera pas : c'est la
+   question qu'on se pose avant de cliquer. */
+function demandeEssai(i){
+  if(typeof adminOuvert === "undefined" || !adminOuvert) return;
+  if(visitePerdraitLaPartie()
+     && !confirm("Essayer « " + CARTES[i].nom + " » ?\n\n"
+               + "Ta bataille en cours sur « " + CARTES[jeu.index].nom + " » sera\n"
+               + "abandonnée : les troupes déjà débarquées seront perdues.\n\n"
+               + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
+  ouvreEssaiAdmin(i);
+}
 
 /* Un seul écouteur sur le conteneur, jamais un par vignette : le menu
    se reconstruit toutes les deux secondes dès que quelqu'un joue, et
@@ -2002,7 +2033,15 @@ function installeAppuisCartes(){
   if(!m || m._visiteArmee) return;
   m._visiteArmee = 1;
   m.addEventListener("click", function(ev){
-    var b = ev.target.closest ? ev.target.closest("[data-visite]") : null;
+    if(!ev.target.closest) return;
+    var e = ev.target.closest("[data-essai]");
+    if(e){
+      ev.preventDefault();
+      ev.stopPropagation();
+      demandeEssai(+e.getAttribute("data-essai"));
+      return;
+    }
+    var b = ev.target.closest("[data-visite]");
     if(!b) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -2138,6 +2177,11 @@ function vignetteEvenement(i){
           « encours » — donc on ne lance ni ne rejoint rien sur une
           carte en travaux. On la REGARDE, c'est tout. */
        + boutonVisite(i)
+       /* Et l'essai, qui vaut surtout ici : une carte événement est
+          fermée la plupart du temps, et son bouton d'entrée reste
+          désarmé tant que le salon n'a pas le compte de joueurs. C'est
+          la seule façon d'éprouver la jungle ou la nuit tout seul. */
+       + boutonEssai(i)
        + blocTop3(i) + '</div>';
 }
 
@@ -2788,6 +2832,9 @@ function ouvreApercuAdmin(i){
      salue le salon en passant, et il ne faut pas qu'un seul de ces
      messages sorte. */
   modeApercu = true;
+  modeEssai = false;
+  var b = $("bandeauApercu");
+  if(b){ b.textContent = "👁 Visite — on regarde, on ne joue pas"; b.classList.remove("essai"); }
   lancePartie(i);
   /* LA VISITE MONTRE L'ÎLE, ELLE NE LA FAIT PAS JOUER. On range donc
      tout ce qui sert à combattre — les navettes, l'énergie, les
@@ -2799,10 +2846,51 @@ function ouvreApercuAdmin(i){
   message("Visite de « " + CARTES[i].nom + " » — regarde l'île, "
         + "déplace la caméra. Rien n'est enregistré, et on n'y débarque pas.");
 }
+/* ================================================================
+   L'ESSAI — ON JOUE L'ÎLE FERMÉE, ET RIEN N'EN SORT
+
+   Il n'y a ici presque rien à écrire, et c'est le signe que le
+   montage est le bon : un essai est une VISITE dont on lève le seul
+   refus qui empêchait de jouer. Tout le scellement — pas un octet
+   publié, pas un octet écrit, pas un point de carrière, pas une île
+   gagnée — vient de `modeApercu`, qui reste levé du début à la fin.
+   Voir la doctrine complète au-dessus de modeEssai, dans 85-reseau.js.
+
+   Ce qu'on ne range donc PAS, à la différence de la visite : les
+   navettes, l'énergie, les capacités et le héros. Ce sont eux qu'on
+   est venu essayer.
+   ================================================================ */
+function ouvreEssaiAdmin(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Créateur";
+  monNom = pseudoSaisi();
+  if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
+  /* LES DEUX DRAPEAUX ENSEMBLE, ET DANS CET ORDRE : le scellement
+     d'abord, la permission ensuite. Levés AVANT lancePartie, qui
+     salue le salon en passant. */
+  modeApercu = true;
+  modeEssai = true;
+  lancePartie(i);
+  /* `apercu` allume le bandeau, et c'est tout ce qu'on lui emprunte :
+     la classe `visite`, celle qui range les commandes de combat, n'est
+     pas posée. */
+  $("hud").classList.add("apercu");
+  $("hud").classList.remove("visite");
+  var b = $("bandeauApercu");
+  if(b){
+    b.textContent = "🧪 ESSAI — rien n'est enregistré";
+    b.classList.add("essai");
+  }
+  message("Essai de « " + CARTES[i].nom + " » — débarque, essaie tout. "
+        + "Rien n'est publié, rien n'est compté, la saison ne bouge pas.");
+}
 function quitteApercuAdmin(){
+  var etaitEssai = modeEssai;
   modeApercu = false;
+  modeEssai = false;
   $("hud").classList.remove("apercu");
   $("hud").classList.remove("visite");
+  var bb = $("bandeauApercu");
+  if(bb) bb.classList.remove("essai");
   /* Les dégâts du test ne doivent pas hanter le classement local :
      on efface la mémoire de la partie d'essai. Le marqueur du cumul
      part avec elle — la prochaine vraie partie repart d'un compteur
@@ -2813,7 +2901,13 @@ function quitteApercuAdmin(){
   jeu = null;
   signatureBarges = null;
   quitteVersBriefing();
-  message("");
+  /* On le DIT en sortant d'un essai. Une bataille entière qui ne
+     compte pas, c'est le genre de chose qu'on veut s'entendre
+     confirmer — surtout au retour d'une victoire, où l'on vient de
+     voir tomber un Brasier sans que rien ne se passe. */
+  message(etaitEssai
+    ? "Essai terminé — rien n'a été enregistré, la saison n'a pas bougé."
+    : "");
 }
 
 /* ---------------------------------------------------------------
@@ -2984,6 +3078,10 @@ function quitteVersBriefing(){
 function ouvreAdminP(){
   var e = $("adminP");
   if(!e) return;
+  /* On n'arrive ici qu'avec le bon mot de passe : c'est le moment, et
+     le seul, où l'on sait à qui on parle. Les boutons d'essai
+     apparaissent sur les vignettes dans la foulée. */
+  if(typeof ouvreLesDroitsAdmin === "function") ouvreLesDroitsAdmin();
   rafraichitPlan();                 // le résumé peut avoir changé ailleurs
   e.classList.add("on");
 }
@@ -3021,6 +3119,51 @@ function installeAdmin(){
   if(cu) cu.addEventListener("click", recupereCumulAdmin);
   var rk = $("btAdminCarrieres");
   if(rk) rk.addEventListener("click", reconstruitCarrieresAdmin);
+  var es = $("btAdminEssai");
+  if(es) es.addEventListener("click", choisitCarteEssai);
+}
+
+/* ================================================================
+   CHOISIR UNE CARTE À ESSAYER
+
+   Deux portes mènent au même essai, et c'est voulu : le bouton
+   🧪 sur la vignette, pour qui regarde déjà les îles, et cette
+   liste-ci, pour qui vient d'ouvrir l'administration et ne sait pas
+   encore que les vignettes ont changé.
+
+   La liste est celle du noyau — listeEssai() —, et pas une boucle
+   écrite ici : le numéro qu'on tape doit désigner la même île demain,
+   et c'est un test qui doit le garantir, pas la mémoire de celui qui
+   ajoutera la prochaine carte.
+   ================================================================ */
+function choisitCarteEssai(){
+  var l = listeEssai(), i;
+  var t = "ESSAYER UNE CARTE\n\n"
+        + "Tu joues l'île pour de faux : tu débarques, tu utilises tout,\n"
+        + "et RIEN n'en sort.\n\n"
+        + "  • aucun dégât publié, aucun point de carrière\n"
+        + "  • aucun champion, aucun podium\n"
+        + "  • la campagne n'avance pas, la saison ne bouge pas\n"
+        + "  • l'île est montrée INTACTE, et le reste : ce que le salon\n"
+        + "    y a déjà détruit n'est ni lu, ni touché\n\n"
+        + "Les autres joueurs ne voient rien du tout.\n\n";
+  for(i = 0; i < l.length; i++){
+    var c = l[i], marque = "";
+    if(carteSpeciale(c))          marque = "   (événement)";
+    else if(c === carteSalon)     marque = "   ← île en cours";
+    else if(rangCampagne(c) < rangCampagne(carteSalon)) marque = "   (tombée)";
+    else                          marque = "   (verrouillée)";
+    t += "  " + (i + 1) + " — " + CARTES[c].nom + marque + "\n";
+  }
+  var rep = prompt(t + "\nNuméro (rien pour annuler) :");
+  if(rep === null) return;
+  var n = parseInt(rep, 10);
+  if(!(n >= 1 && n <= l.length)){
+    if(rep.trim() !== "") alert("Numéro inconnu. Rien n'a été touché.");
+    return;
+  }
+  fermeAdminP();
+  demandeEssai(l[n - 1]);
 }
 
 /* ================================================================

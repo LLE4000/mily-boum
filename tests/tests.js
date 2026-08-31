@@ -32,7 +32,7 @@ try{
     "largeurFaisceau","largeurFaisceau2","FAISC_N","FAISC2_R0","ecartAuRayon","NB_REACTEURS","FAISC_R0","FAISC_R1","FAISC_LARG0","FAISC_EVASE","IBIZA_PART",
     "IBIZA_PAS_F","IBIZA_RUE","IBIZA_PAS_RUE","ruelleIbiza","IBIZA_RESERVE","IBIZA_SERRE","IBIZA_NEON","IBIZA_NEON_L","largeurPeinte","FAISC_PEINT","compteFrelons","compteDefenses","ORDRE_CAMPAGNE","JOURNAL_MAX","JOURNAL_JOURS","jourDe","heureDe","jourEnDate",
     "ecartJours","journalVide","ajouteVisite","marqueJoue","elagueJournal",
-    "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","planJungle","planDeCarte",
+    "encodeJournal","decodeJournal","statsJournaux","rangCampagne","carteSuivante","premiereCarte","listeEssai","planJungle","planDeCarte",
     "jungleEnCours","msMonde","meilleurMinJoueurs","fusionneJungle","memeJungle",
     "VOIES_EVT","voieDeCarte","carteDeVoie","reglagesEvt","voieLue","voiePosee",
     "evenementEnCours","carteEvenementEnCours","fusionneEvenements","poseEvenements",
@@ -3780,8 +3780,16 @@ G("4. Déterminisme de la génération de carte");
          une carte en travaux est justement celle qu'on aimerait
          regarder. Le bouton est posé SANS condition — un ternaire
          reviendrait à refermer la porte. */
+      /* CE QUE CETTE LIGNE GARDE, ET QUI N'A PAS CHANGÉ : le bouton
+         est posé SANS condition. Elle vérifiait l'adjacence exacte de
+         `boutonVisite(i)` et `blocTop3(i)`, ce qui la rendait fausse
+         dès qu'on posait un frère à côté — le bouton d'essai, en
+         l'occurrence. On vérifie donc l'INTENTION : le bouton est
+         dans la vignette, et aucun ternaire ne le conditionne. */
+      var vEvt = (html.match(/function vignetteEvenement\(i\)\{[\s\S]*?\n\}/) || [""])[0];
       ok("toute carte événement porte le bouton Visiter, chantier compris",
-         /\+ boutonVisite\(i\)\s*\n\s*\+ blocTop3\(i\)/.test(html));
+         /\+ boutonVisite\(i\)/.test(vEvt) && !/\?[^\n]*boutonVisite/.test(vEvt),
+         vEvt ? "" : "vignetteEvenement introuvable");
       ok("… et il mène à la PRÉVISUALISATION, jamais à une partie réelle",
          /function demandeVisite\([\s\S]{0,700}ouvreApercuAdmin\(i\)/.test(html) &&
          !/function demandeVisite\([\s\S]{0,700}lanceExpedition/.test(html));
@@ -11944,6 +11952,126 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… et mon nom part avec mes dégâts",
      /var rn = fusionneRenoms\(monde\.rn, majRenomsCourants\(\)\);/.test(html)
      && /monde\.rn = rn;/.test(html));
+})();
+
+/* ================================================================
+   58. L'ESSAI — L'ADMINISTRATEUR JOUE LES ÎLES FERMÉES
+
+   « Est-ce que tu pourrais faire quelque chose pour que
+     l'administrateur puisse facilement tester les autres maps ? Les
+     maps qui sont fermées, qu'il puisse les tester. Et important,
+     c'est un test, donc je ne dois pas gagner de points, et ça ne doit
+     pas s'afficher sans réinitialiser toute la saison. »
+
+   CE QUI EXISTAIT DÉJÀ, ET QU'IL FALLAIT VOIR AVANT D'ÉCRIRE : la
+   VISITE. Tout le monde peut ouvrir n'importe quelle île, y compris
+   fermée, et rien de ce qui s'y passe ne quitte l'appareil. Ce qu'elle
+   refusait, c'était de JOUER — poseBarge et activeHeros sortaient en
+   tête sur `modeApercu`.
+
+   L'ESSAI EST DONC UNE VISITE DONT ON LÈVE CE SEUL REFUS. `modeApercu`
+   reste levé du début à la fin ; `modeEssai` n'ouvre que des portes
+   vers l'intérieur. C'est cette règle-là que ce groupe garde, parce
+   que c'est elle qui rend la promesse démontrable — et non une liste
+   de choses qu'on aurait pensé à défaire.
+
+   CE GROUPE VÉRIFIE DONC SURTOUT UNE ABSENCE : que `modeEssai`
+   n'apparaisse dans AUCUNE des fonctions qui font sortir ou écrire
+   quelque chose. Un test d'absence vieillit mal quand il est vague ;
+   celui-ci nomme les six robinets, un par un.
+   ================================================================ */
+(function(){
+  G("58. L'essai — l'administrateur joue les îles fermées");
+
+  /* ---- ① LA LISTE DU CHOIX, ET SES NUMÉROS ---- */
+  var L = N.listeEssai();
+  ok("l'essai propose toutes les cartes, une fois chacune",
+     L.length === N.CARTES.length
+     && L.slice().sort(function(a, b){ return a - b; })
+          .every(function(v, q){ return v === q; }), L.length);
+  ok("… la campagne d'abord, dans son ordre",
+     L.slice(0, N.ORDRE_CAMPAGNE.length).join(",") === N.ORDRE_CAMPAGNE.join(","));
+  ok("… les cartes événement ensuite",
+     L.slice(N.ORDRE_CAMPAGNE.length).every(function(i){ return N.carteSpeciale(i); }));
+  ok("… et le numéro 1 est bien la première île de la campagne",
+     L[0] === N.premiereCarte());
+
+  /* ---- ② LES SIX ROBINETS RESTENT COMMANDÉS PAR LA VISITE ----
+     C'est LE test du groupe. Si l'un d'eux se mettait à demander
+     « sauf en essai », la promesse tomberait sans qu'aucun autre test
+     ne s'en aperçoive : la partie marcherait très bien, elle
+     publierait simplement. */
+  function corps(nom){
+    var d = html.indexOf("function " + nom + "(");
+    if(d < 0) return "";
+    var f = html.indexOf("\n}", d);
+    return f < 0 ? "" : html.slice(d, f + 2);
+  }
+  var ROBINETS = ["envoie", "publieMonde", "repliMesDegats", "noteQueJeJoue",
+                  "republieMesScores", "appliqueMondeAuJeu"];
+  (function(){
+    var manque = "", fuite = "";
+    for(var q = 0; q < ROBINETS.length; q++){
+      var c = corps(ROBINETS[q]);
+      if(!c){ manque += ROBINETS[q] + " "; continue; }
+      if(!/modeApercu/.test(c)) manque += ROBINETS[q] + " ";
+      if(/modeEssai/.test(c))   fuite  += ROBINETS[q] + " ";
+    }
+    ok("les six robinets sortent tous en tête sur la VISITE", !manque, manque);
+    ok("… et pas un seul ne connaît l'essai", !fuite, fuite);
+  })();
+
+  /* Le journal des passages est celui qui a failli fuir : il ne passe
+     pas par envoie(), il écrit sur le disque et publie lui-même. Tant
+     qu'on ne pouvait pas débarquer en visite, il ne se déclenchait
+     jamais ; l'essai lève ce refus. */
+  ok("essayer une île ne s'inscrit pas dans les passages",
+     /function noteQueJeJoue\(index\)\{[\s\S]{0,900}modeApercu\) return;/.test(html));
+
+  /* ---- ③ LA PORTE QUE L'ESSAI OUVRE, ET ELLE SEULE ---- */
+  ok("l'essai lève le refus de débarquer",
+     /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\("Visite : tu peux tout regarder, mais pas débarquer/.test(html));
+  ok("… et celui d'allumer le héros",
+     /modeApercu\s*\n?\s*&& !\(typeof modeEssai !== "undefined" && modeEssai\)\)\s*\n?\s*return message\("Visite : tu peux tout regarder, mais pas jouer/.test(html));
+  ok("… et la visite, elle, refuse toujours les deux",
+     (html.match(/return message\("Visite : tu peux tout regarder/g) || []).length === 2);
+
+  /* ---- ④ LES DEUX DRAPEAUX, LEVÉS ET BAISSÉS ENSEMBLE ---- */
+  var oe = corps("ouvreEssaiAdmin");
+  ok("ouvrir un essai lève le scellement AVANT la permission",
+     oe.indexOf("modeApercu = true;") > 0
+     && oe.indexOf("modeApercu = true;") < oe.indexOf("modeEssai = true;")
+     && oe.indexOf("modeEssai = true;") < oe.indexOf("lancePartie(i);"));
+  ok("… et il ne pose jamais la classe qui range les commandes",
+     /classList\.remove\("visite"\)/.test(oe) && !/classList\.add\([^)]*"visite"/.test(oe));
+  var qa = corps("quitteApercuAdmin");
+  ok("en sortir baisse les deux",
+     /modeApercu = false;/.test(qa) && /modeEssai = false;/.test(qa));
+  ok("… et efface les dégâts d'essai du classement local",
+     /scoresSalon = \{\};/.test(qa) && /degatsReplies = 0;/.test(qa));
+
+  /* ---- ⑤ LA VICTOIRE N'EST PAS UNE VICTOIRE ----
+     Elle sort de l'essai au lieu de sacrer un champion et d'avancer
+     d'une île. Cette ligne existait pour la visite ; comme on ne
+     pouvait pas y gagner, elle n'avait jamais servi. */
+  ok("gagner un essai ne sacre personne et n'avance pas la campagne",
+     html.indexOf("if(modeApercu){ quitteApercuAdmin(); return; }")
+       < html.indexOf("sacreChampion(jeu.index, championDeLaPartie().nom);"));
+
+  /* ---- ⑥ LE DROIT D'ESSAI, ET SA PORTÉE ---- */
+  ok("le bouton d'essai n'est pas même écrit sans le mot de passe",
+     /function boutonEssai\(i\)\{[\s\S]{0,300}if\(typeof adminOuvert === "undefined" \|\| !adminOuvert\) return "";/.test(html));
+  ok("… demandeEssai le revérifie de son côté",
+     /function demandeEssai\(i\)\{[\s\S]{0,200}if\(typeof adminOuvert === "undefined" \|\| !adminOuvert\) return;/.test(html));
+  /* Un droit qui survit à la fermeture de l'onglet est un droit qu'on
+     oublie d'avoir donné : celui-ci ne va jamais sur le disque. */
+  ok("… et ce droit ne survit pas au rechargement",
+     !/localStorage[^\n]*adminOuvert/.test(html)
+     && !/adminOuvert[^\n]*localStorage/.test(html));
+  ok("les deux portes du mot de passe l'ouvrent",
+     (html.match(/ouvreLesDroitsAdmin\(\);/g) || []).length >= 2);
+  ok("… et il n'existe aucune autre façon de se déclarer administrateur",
+     (html.match(/adminOuvert = true;/g) || []).length === 1);
 })();
 
 /* ---------------- bilan ---------------- */

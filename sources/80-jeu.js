@@ -1290,8 +1290,13 @@ function poseBarge(gx, gy){
      ouverte : y poser des troupes donnerait une bataille dont rien ne
      serait retenu, ni les dégâts, ni le champion, ni la progression.
      Mieux vaut le dire tout de suite que le laisser découvrir après
-     coup. */
-  if(typeof modeApercu !== "undefined" && modeApercu)
+     coup.
+     EN ESSAI, SI. C'est exactement la porte que l'essai ouvre, et la
+     seule : rien de ce qui suit ne sortira davantage de l'appareil
+     qu'en visite — tous les robinets restent commandés par
+     `modeApercu`, qui reste levé. Voir modeEssai dans 85-reseau.js. */
+  if(typeof modeApercu !== "undefined" && modeApercu
+     && !(typeof modeEssai !== "undefined" && modeEssai))
     return message("Visite : tu peux tout regarder, mais pas débarquer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
@@ -2340,7 +2345,9 @@ function activeHeros(cle){
   var H = estHeros(cle);
   if(!H) return;
   var fh = UNI[H.unite];
-  if(typeof modeApercu !== "undefined" && modeApercu)
+  /* même règle qu'à poseBarge : la visite refuse, l'essai autorise */
+  if(typeof modeApercu !== "undefined" && modeApercu
+     && !(typeof modeEssai !== "undefined" && modeEssai))
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   /* IL FAUT QU'IL SOIT LÀ. Il débarque avec la troupe et vit sa vie ;

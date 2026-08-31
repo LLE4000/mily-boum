@@ -564,6 +564,29 @@ select.champ{cursor:pointer}
 .monde .visite:active{transform:translateY(1px)}
 .monde.evt .visite{width:calc(100% - 28px);margin:8px 14px 14px}
 
+/* LE BOUTON « ESSAYER ». Même gabarit que « Visiter » — il vit juste
+   au-dessous — mais d'une autre couleur, et c'est le point : ces deux
+   boutons mènent à deux choses qui se ressemblent beaucoup, l'une où
+   l'on regarde et l'autre où l'on joue. Le vert d'éprouvette les
+   sépare au premier coup d'œil. Il n'est écrit que pour
+   l'administrateur : voir boutonEssai. */
+.monde .essai{
+  display:block;width:calc(100% - 20px);margin:0 10px 10px;
+  appearance:none;cursor:pointer;
+  border:1px solid rgba(120,230,180,.30);border-radius:10px;
+  background:rgba(70,200,150,.11);color:#a9ecca;
+  font-weight:700;font-size:12.5px;line-height:1;font-family:inherit;
+  padding:8px 10px;letter-spacing:.3px;
+  transition:background .12s, border-color .12s;
+}
+.monde .essai:hover{background:rgba(70,200,150,.20);border-color:rgba(120,230,180,.48)}
+.monde .essai:active{transform:translateY(1px)}
+.monde.evt .essai{width:calc(100% - 28px);margin:0 14px 14px}
+/* Quand les deux boutons se suivent, le second se colle au premier :
+   ils forment une paire, et huit pixels de vide entre eux les
+   feraient lire comme deux blocs sans rapport. */
+.monde .visite + .essai{margin-top:-4px}
+
 /* Le bandeau du mode prévisualisation : discret, en haut à gauche,
    là où il ne recouvre rien de jouable. */
 #bandeauApercu{
@@ -574,6 +597,14 @@ select.champ{cursor:pointer}
   background:rgba(46,20,6,.82);border:1px solid rgba(255,160,60,.45);
 }
 #hud.apercu #bandeauApercu{display:block}
+/* EN ESSAI, LE BANDEAU CHANGE DE CAMP. Il dit alors l'inverse de ce
+   qu'il dit en visite — « tu joues, mais rien n'est enregistré » — et
+   il doit se distinguer d'un coup d'œil : c'est le seul repère à
+   l'écran qui sépare une bataille pour de vrai d'une bataille pour de
+   faux. Vert d'éprouvette, comme le bouton qui y mène. */
+#bandeauApercu.essai{
+  color:#a9ecca;background:rgba(8,40,28,.84);border-color:rgba(90,220,165,.50);
+}
 /* EN VISITE, ON RANGE TOUT CE QUI SERT À COMBATTRE. L'île n'est pas
    ouverte : ces boutons ne mèneraient nulle part, et les laisser
    promettrait une bataille qu'on ne peut pas livrer. Restent la
@@ -591,9 +622,18 @@ select.champ{cursor:pointer}
    On masque donc ce qui sert à COMBATTRE, nommément, plutôt que le
    bloc qui les contient. Une liste de boutons se relit ; un bloc
    entier avale ce qu'on y range plus tard. */
+   LE HÉROS EST DE LA LISTE depuis qu'il a sa tuile. Elle échappait au
+   rangement — la tuile s'affichait en visite, et le clic répondait
+   « tu peux tout regarder, mais pas jouer ici ». Un bouton visible qui
+   ne fait rien promet quelque chose qu'il ne tient pas.
+
+   RIEN DE TOUT CELA NE S'APPLIQUE À L'ESSAI : la classe posée là-bas
+   est `apercu` seule, jamais `visite`. Ce sont précisément ces
+   commandes qu'on vient y essayer. */
 #hud.visite #bg,
 #hud.visite #bc{display:none}
 #hud.visite #capsBoite,
+#hud.visite #herosBoite,
 #hud.visite #btAbandon,
 #hud.visite #ovEnergie{display:none}
 
@@ -2177,6 +2217,20 @@ select.champ{cursor:pointer}
         <button id="btAdminCarrieres" class="bt">🧮 Reconstruire les carrières</button>
       </div>
 
+      <h3>Essayer une carte</h3>
+      <div class="admNote">Jouer une île <b>pour de faux</b>, y compris une
+        île verrouillée ou une carte événement fermée : on débarque, on
+        utilise tout, et rien n'en sort. Aucun dégât publié, aucun point de
+        carrière, aucun champion, aucun podium — et la campagne n'avance
+        pas d'un cran. L'île est montrée intacte, et le reste : ce que le
+        salon y a déjà détruit n'est ni lu ni touché. Les autres joueurs ne
+        voient rien.<br>
+        Le même essai s'ouvre depuis le bouton 🧪 des vignettes, qui
+        apparaît sur l'accueil dès que cette page a été ouverte.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminEssai" class="bt">🧪 Essayer une carte…</button>
+      </div>
+
       <h3>Badges</h3>
       <div class="admNote">Le badge se CALCULE à partir de ce que le jeu a
         compté : les podiums gelés de chaque île, et les campagnes gagnées.
@@ -2623,7 +2677,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.47";
+var VERSION = "v1.48";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -4390,6 +4444,28 @@ function carteSuivante(index){
 }
 /* La première île de la campagne — celle où l'on repart. */
 function premiereCarte(){ return ORDRE_CAMPAGNE.length ? ORDRE_CAMPAGNE[0] : 0; }
+
+/* ================================================================
+   L'ORDRE DES CARTES DANS LE CHOIX D'ESSAI
+
+   L'administrateur tape un NUMÉRO pour lancer un essai. Ce numéro est
+   une promesse : le trois de la liste doit être la troisième île de la
+   campagne, aujourd'hui comme dans six mois. On le calcule donc ici,
+   dans le noyau, où les tests peuvent le lire — et non dans la boucle
+   qui écrit le texte de l'invite, où personne n'aurait vu la liste
+   glisser le jour où une carte s'ajoute.
+
+   LA CAMPAGNE D'ABORD, DANS SON ORDRE, LES ÉVÉNEMENTS ENSUITE. C'est
+   l'ordre de l'accueil, et c'est celui dans lequel on les cherche.
+   Toutes les cartes y sont, une fois chacune : un essai sert justement
+   à voir celles qu'on ne peut pas jouer.
+   ================================================================ */
+function listeEssai(){
+  var l = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++) l.push(ORDRE_CAMPAGNE[i]);
+  for(i = 0; i < CARTES.length; i++) if(carteSpeciale(i)) l.push(i);
+  return l;
+}
 
 /* ================================================================
    UNE ÎLE EST-ELLE ORAGEUSE ?
@@ -48184,8 +48260,13 @@ function poseBarge(gx, gy){
      ouverte : y poser des troupes donnerait une bataille dont rien ne
      serait retenu, ni les dégâts, ni le champion, ni la progression.
      Mieux vaut le dire tout de suite que le laisser découvrir après
-     coup. */
-  if(typeof modeApercu !== "undefined" && modeApercu)
+     coup.
+     EN ESSAI, SI. C'est exactement la porte que l'essai ouvre, et la
+     seule : rien de ce qui suit ne sortira davantage de l'appareil
+     qu'en visite — tous les robinets restent commandés par
+     `modeApercu`, qui reste levé. Voir modeEssai dans 85-reseau.js. */
+  if(typeof modeApercu !== "undefined" && modeApercu
+     && !(typeof modeEssai !== "undefined" && modeEssai))
     return message("Visite : tu peux tout regarder, mais pas débarquer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
@@ -49234,7 +49315,9 @@ function activeHeros(cle){
   var H = estHeros(cle);
   if(!H) return;
   var fh = UNI[H.unite];
-  if(typeof modeApercu !== "undefined" && modeApercu)
+  /* même règle qu'à poseBarge : la visite refuse, l'essai autorise */
+  if(typeof modeApercu !== "undefined" && modeApercu
+     && !(typeof modeEssai !== "undefined" && modeEssai))
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   /* IL FAUT QU'IL SOIT LÀ. Il débarque avec la troupe et vit sa vie ;
@@ -52794,6 +52877,63 @@ function envoieTrame(u8){
    ================================================================ */
 var modeApercu = false;
 
+/* ================================================================
+   L'ESSAI — UNE PRÉVISUALISATION OÙ L'ON JOUE
+
+   « Que l'administrateur puisse tester les maps qui sont fermées.
+     C'est un test, donc je ne dois pas gagner de points, et ça ne
+     doit pas s'afficher sans réinitialiser toute la saison. »
+
+   LA VISITE tenait déjà la moitié de la promesse : elle ne laisse
+   rien derrière elle. Ce qu'elle refusait, c'était de JOUER — on
+   regardait l'île, on n'y débarquait pas. Un essai est donc une
+   visite dont on lève ce seul refus.
+
+   ET C'EST TOUT CE QUE `modeEssai` FAIT. La règle qui rend la chose
+   démontrable tient en une phrase, et il ne faut jamais l'enfreindre :
+
+     `modeApercu` RESTE LEVÉ PENDANT TOUT L'ESSAI, et `modeEssai`
+     n'apparaît JAMAIS dans une condition qui décide si quelque chose
+     SORT de l'appareil ou s'y ÉCRIT.
+
+   Autrement dit, ce drapeau n'ouvre que des portes vers l'intérieur —
+   poser une navette, allumer un héros — et jamais un robinet. Tous
+   les robinets restent commandés par `modeApercu`, qui ne bouge pas.
+   Le jour où l'on ajoutera un canal de sortie, il sera fermé pour
+   l'essai sans que personne ait à y penser : il suffira qu'il le soit
+   pour la visite.
+
+   CE QUI EST DONC GARANTI, ET VÉRIFIÉ PAR LE BANC :
+     • rien n'est publié — envoie() et publieMonde() sortent en tête
+     • rien n'est écrit sur le disque — sauveMondeLocal vit dans
+       publieMonde, repliMesDegats sort en tête, noteQueJeJoue aussi
+     • aucun point de carrière : les dégâts de l'essai ne sont jamais
+       rangés, donc jamais republiés
+     • aucune progression : la victoire quitte l'essai au lieu de
+       sacrer un champion et d'avancer d'une île
+     • aucune relique
+     • l'île se montre INTACTE — appliqueMondeAuJeu sort en tête —
+       donc tester ne consomme pas les défenses déjà détruites par le
+       salon, et n'y touche pas davantage
+     • le salon continue de vivre pendant ce temps : les instantanés
+       qui ARRIVENT sont toujours adoptés, ce qui entre n'a jamais
+       été le problème
+   ================================================================ */
+var modeEssai = false;
+
+/* L'ADMINISTRATEUR EST RECONNU POUR CETTE PAGE, ET POUR ELLE SEULE.
+   Rien n'est rangé sur le disque : recharger redemande le mot de
+   passe. C'est volontaire — ce drapeau ne garde rien de précieux, il
+   évite seulement de retaper le mot à chaque carte qu'on veut
+   essayer, et un droit qui survit à la fermeture de l'onglet est un
+   droit qu'on oublie d'avoir donné. */
+var adminOuvert = false;
+function ouvreLesDroitsAdmin(){
+  adminOuvert = true;
+  /* les vignettes portent un bouton de plus dès maintenant */
+  if(typeof majMondes === "function") majMondes();
+}
+
 function envoie(obj){
   obj.id = monId;
   /* PREMIER ROBINET. En prévisualisation, aucun message ne part —
@@ -53359,6 +53499,16 @@ function noteMonPassage(){
    change : les débarquements suivants de la même visite ne diraient
    rien de plus. */
 function noteQueJeJoue(index){
+  /* TROISIÈME ROBINET, ET IL A FAILLI RESTER OUVERT. Celui-ci ne
+     passe pas par envoie() : il écrit le journal sur le disque et le
+     publie lui-même, en message retenu. Tant qu'une visite interdisait
+     de débarquer, il ne pouvait pas se déclencher — ses deux appelants
+     sont poseBarge et activeHeros, qui refusaient tous deux en tête.
+     L'essai lève ce refus : sans cette ligne, essayer une île fermée
+     aurait inscrit « il y a joué » dans la page des passages de tout
+     le salon, et gonflé le compteur de parties jouées. Ce n'est pas
+     jouer, c'est essayer. */
+  if(typeof modeApercu !== "undefined" && modeApercu) return;
   chargeMonJournal();
   if(!monJournal.p.length){
     var d = new Date();
@@ -56861,6 +57011,10 @@ function installePlan(){
       alert("Mot de passe incorrect.");
       return;
     }
+    /* Cette porte-là vaut la même reconnaissance que le panneau : le
+       mot de passe est le même, et celui qui l'a tapé aura les mêmes
+       boutons d'essai sur les vignettes en ressortant. */
+    if(typeof ouvreLesDroitsAdmin === "function") ouvreLesDroitsAdmin();
     ouvrePlan(carteSalon);
   });
   $("btPlanFerme").addEventListener("click", fermePlan);
@@ -64604,7 +64758,14 @@ function majMondes(){
 
           Seule la carte EN COURS n'a pas d'œil, et pour une raison qui
           n'a pas changé : on y débarque, c'est mieux qu'une visite. */
-       + (i !== carteSalon ? boutonVisite(i) : "") + '</div>';
+       + (i !== carteSalon ? boutonVisite(i) : "")
+       /* L'ESSAI, LUI, EST SUR TOUTES LES ÎLES, Y COMPRIS CELLE EN
+          COURS. Sur une île fermée, c'est la demande même : la jouer
+          sans rien inscrire. Sur l'île en cours, c'est la seule façon
+          d'éprouver un réglage — un blindage, une santé de Brasier —
+          sans que ses dégâts partent au classement. Le bouton n'existe
+          que pour l'administrateur : voir boutonEssai. */
+       + boutonEssai(i) + '</div>';
   }
   /* les cartes événement, après la grille et non dedans */
   for(i = 0; i < CARTES.length; i++)
@@ -64654,6 +64815,17 @@ function majMondes(){
 function boutonVisite(i){
   return '<button class="visite" data-visite="' + i + '">👁 Visiter</button>';
 }
+/* LE BOUTON D'ESSAI N'EXISTE QUE POUR L'ADMINISTRATEUR, et seulement
+   après qu'il a donné le mot de passe DANS CETTE PAGE. Il ne se
+   dessine donc pas du tout pour un joueur ordinaire : rien à cacher
+   en CSS, rien à désarmer — ce qui n'est pas écrit n'est pas
+   cliquable. Voir adminOuvert dans 85-reseau.js. */
+function boutonEssai(i){
+  if(typeof adminOuvert === "undefined" || !adminOuvert) return "";
+  return '<button class="essai" data-essai="' + i + '" '
+       + 'title="Jouer cette île pour de faux : rien n\'est publié, '
+       + 'rien n\'est compté">🧪 Essayer</button>';
+}
 /* Une visite REMPLACE la partie en mémoire : lancePartie rebâtit la
    carte, et la bataille en cours ne survit pas. Tant qu'elle n'a rien
    coûté — pas une troupe débarquée, pas un dégât — on n'embête
@@ -64670,6 +64842,19 @@ function demandeVisite(i){
                + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
   ouvreApercuAdmin(i);
 }
+/* Un essai coûte la bataille en cours pour la même raison qu'une
+   visite — lancePartie rebâtit la carte —, et on prévient de la même
+   façon. On annonce en plus ce que l'essai NE fera pas : c'est la
+   question qu'on se pose avant de cliquer. */
+function demandeEssai(i){
+  if(typeof adminOuvert === "undefined" || !adminOuvert) return;
+  if(visitePerdraitLaPartie()
+     && !confirm("Essayer « " + CARTES[i].nom + " » ?\n\n"
+               + "Ta bataille en cours sur « " + CARTES[jeu.index].nom + " » sera\n"
+               + "abandonnée : les troupes déjà débarquées seront perdues.\n\n"
+               + "Les dégâts que tu as déjà infligés, eux, sont gardés.")) return;
+  ouvreEssaiAdmin(i);
+}
 
 /* Un seul écouteur sur le conteneur, jamais un par vignette : le menu
    se reconstruit toutes les deux secondes dès que quelqu'un joue, et
@@ -64679,7 +64864,15 @@ function installeAppuisCartes(){
   if(!m || m._visiteArmee) return;
   m._visiteArmee = 1;
   m.addEventListener("click", function(ev){
-    var b = ev.target.closest ? ev.target.closest("[data-visite]") : null;
+    if(!ev.target.closest) return;
+    var e = ev.target.closest("[data-essai]");
+    if(e){
+      ev.preventDefault();
+      ev.stopPropagation();
+      demandeEssai(+e.getAttribute("data-essai"));
+      return;
+    }
+    var b = ev.target.closest("[data-visite]");
     if(!b) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -64815,6 +65008,11 @@ function vignetteEvenement(i){
           « encours » — donc on ne lance ni ne rejoint rien sur une
           carte en travaux. On la REGARDE, c'est tout. */
        + boutonVisite(i)
+       /* Et l'essai, qui vaut surtout ici : une carte événement est
+          fermée la plupart du temps, et son bouton d'entrée reste
+          désarmé tant que le salon n'a pas le compte de joueurs. C'est
+          la seule façon d'éprouver la jungle ou la nuit tout seul. */
+       + boutonEssai(i)
        + blocTop3(i) + '</div>';
 }
 
@@ -65465,6 +65663,9 @@ function ouvreApercuAdmin(i){
      salue le salon en passant, et il ne faut pas qu'un seul de ces
      messages sorte. */
   modeApercu = true;
+  modeEssai = false;
+  var b = $("bandeauApercu");
+  if(b){ b.textContent = "👁 Visite — on regarde, on ne joue pas"; b.classList.remove("essai"); }
   lancePartie(i);
   /* LA VISITE MONTRE L'ÎLE, ELLE NE LA FAIT PAS JOUER. On range donc
      tout ce qui sert à combattre — les navettes, l'énergie, les
@@ -65476,10 +65677,51 @@ function ouvreApercuAdmin(i){
   message("Visite de « " + CARTES[i].nom + " » — regarde l'île, "
         + "déplace la caméra. Rien n'est enregistré, et on n'y débarque pas.");
 }
+/* ================================================================
+   L'ESSAI — ON JOUE L'ÎLE FERMÉE, ET RIEN N'EN SORT
+
+   Il n'y a ici presque rien à écrire, et c'est le signe que le
+   montage est le bon : un essai est une VISITE dont on lève le seul
+   refus qui empêchait de jouer. Tout le scellement — pas un octet
+   publié, pas un octet écrit, pas un point de carrière, pas une île
+   gagnée — vient de `modeApercu`, qui reste levé du début à la fin.
+   Voir la doctrine complète au-dessus de modeEssai, dans 85-reseau.js.
+
+   Ce qu'on ne range donc PAS, à la différence de la visite : les
+   navettes, l'énergie, les capacités et le héros. Ce sont eux qu'on
+   est venu essayer.
+   ================================================================ */
+function ouvreEssaiAdmin(i){
+  if(!pseudoSaisi()) $("pseudo").value = "Créateur";
+  monNom = pseudoSaisi();
+  if(typeof noteMonPseudo === "function") noteMonPseudo(monNom);
+  /* LES DEUX DRAPEAUX ENSEMBLE, ET DANS CET ORDRE : le scellement
+     d'abord, la permission ensuite. Levés AVANT lancePartie, qui
+     salue le salon en passant. */
+  modeApercu = true;
+  modeEssai = true;
+  lancePartie(i);
+  /* `apercu` allume le bandeau, et c'est tout ce qu'on lui emprunte :
+     la classe `visite`, celle qui range les commandes de combat, n'est
+     pas posée. */
+  $("hud").classList.add("apercu");
+  $("hud").classList.remove("visite");
+  var b = $("bandeauApercu");
+  if(b){
+    b.textContent = "🧪 ESSAI — rien n'est enregistré";
+    b.classList.add("essai");
+  }
+  message("Essai de « " + CARTES[i].nom + " » — débarque, essaie tout. "
+        + "Rien n'est publié, rien n'est compté, la saison ne bouge pas.");
+}
 function quitteApercuAdmin(){
+  var etaitEssai = modeEssai;
   modeApercu = false;
+  modeEssai = false;
   $("hud").classList.remove("apercu");
   $("hud").classList.remove("visite");
+  var bb = $("bandeauApercu");
+  if(bb) bb.classList.remove("essai");
   /* Les dégâts du test ne doivent pas hanter le classement local :
      on efface la mémoire de la partie d'essai. Le marqueur du cumul
      part avec elle — la prochaine vraie partie repart d'un compteur
@@ -65490,7 +65732,13 @@ function quitteApercuAdmin(){
   jeu = null;
   signatureBarges = null;
   quitteVersBriefing();
-  message("");
+  /* On le DIT en sortant d'un essai. Une bataille entière qui ne
+     compte pas, c'est le genre de chose qu'on veut s'entendre
+     confirmer — surtout au retour d'une victoire, où l'on vient de
+     voir tomber un Brasier sans que rien ne se passe. */
+  message(etaitEssai
+    ? "Essai terminé — rien n'a été enregistré, la saison n'a pas bougé."
+    : "");
 }
 
 /* ---------------------------------------------------------------
@@ -65661,6 +65909,10 @@ function quitteVersBriefing(){
 function ouvreAdminP(){
   var e = $("adminP");
   if(!e) return;
+  /* On n'arrive ici qu'avec le bon mot de passe : c'est le moment, et
+     le seul, où l'on sait à qui on parle. Les boutons d'essai
+     apparaissent sur les vignettes dans la foulée. */
+  if(typeof ouvreLesDroitsAdmin === "function") ouvreLesDroitsAdmin();
   rafraichitPlan();                 // le résumé peut avoir changé ailleurs
   e.classList.add("on");
 }
@@ -65698,6 +65950,51 @@ function installeAdmin(){
   if(cu) cu.addEventListener("click", recupereCumulAdmin);
   var rk = $("btAdminCarrieres");
   if(rk) rk.addEventListener("click", reconstruitCarrieresAdmin);
+  var es = $("btAdminEssai");
+  if(es) es.addEventListener("click", choisitCarteEssai);
+}
+
+/* ================================================================
+   CHOISIR UNE CARTE À ESSAYER
+
+   Deux portes mènent au même essai, et c'est voulu : le bouton
+   🧪 sur la vignette, pour qui regarde déjà les îles, et cette
+   liste-ci, pour qui vient d'ouvrir l'administration et ne sait pas
+   encore que les vignettes ont changé.
+
+   La liste est celle du noyau — listeEssai() —, et pas une boucle
+   écrite ici : le numéro qu'on tape doit désigner la même île demain,
+   et c'est un test qui doit le garantir, pas la mémoire de celui qui
+   ajoutera la prochaine carte.
+   ================================================================ */
+function choisitCarteEssai(){
+  var l = listeEssai(), i;
+  var t = "ESSAYER UNE CARTE\n\n"
+        + "Tu joues l'île pour de faux : tu débarques, tu utilises tout,\n"
+        + "et RIEN n'en sort.\n\n"
+        + "  • aucun dégât publié, aucun point de carrière\n"
+        + "  • aucun champion, aucun podium\n"
+        + "  • la campagne n'avance pas, la saison ne bouge pas\n"
+        + "  • l'île est montrée INTACTE, et le reste : ce que le salon\n"
+        + "    y a déjà détruit n'est ni lu, ni touché\n\n"
+        + "Les autres joueurs ne voient rien du tout.\n\n";
+  for(i = 0; i < l.length; i++){
+    var c = l[i], marque = "";
+    if(carteSpeciale(c))          marque = "   (événement)";
+    else if(c === carteSalon)     marque = "   ← île en cours";
+    else if(rangCampagne(c) < rangCampagne(carteSalon)) marque = "   (tombée)";
+    else                          marque = "   (verrouillée)";
+    t += "  " + (i + 1) + " — " + CARTES[c].nom + marque + "\n";
+  }
+  var rep = prompt(t + "\nNuméro (rien pour annuler) :");
+  if(rep === null) return;
+  var n = parseInt(rep, 10);
+  if(!(n >= 1 && n <= l.length)){
+    if(rep.trim() !== "") alert("Numéro inconnu. Rien n'a été touché.");
+    return;
+  }
+  fermeAdminP();
+  demandeEssai(l[n - 1]);
 }
 
 /* ================================================================

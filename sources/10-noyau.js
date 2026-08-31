@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.47";
+var VERSION = "v1.48";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1776,6 +1776,28 @@ function carteSuivante(index){
 }
 /* La première île de la campagne — celle où l'on repart. */
 function premiereCarte(){ return ORDRE_CAMPAGNE.length ? ORDRE_CAMPAGNE[0] : 0; }
+
+/* ================================================================
+   L'ORDRE DES CARTES DANS LE CHOIX D'ESSAI
+
+   L'administrateur tape un NUMÉRO pour lancer un essai. Ce numéro est
+   une promesse : le trois de la liste doit être la troisième île de la
+   campagne, aujourd'hui comme dans six mois. On le calcule donc ici,
+   dans le noyau, où les tests peuvent le lire — et non dans la boucle
+   qui écrit le texte de l'invite, où personne n'aurait vu la liste
+   glisser le jour où une carte s'ajoute.
+
+   LA CAMPAGNE D'ABORD, DANS SON ORDRE, LES ÉVÉNEMENTS ENSUITE. C'est
+   l'ordre de l'accueil, et c'est celui dans lequel on les cherche.
+   Toutes les cartes y sont, une fois chacune : un essai sert justement
+   à voir celles qu'on ne peut pas jouer.
+   ================================================================ */
+function listeEssai(){
+  var l = [], i;
+  for(i = 0; i < ORDRE_CAMPAGNE.length; i++) l.push(ORDRE_CAMPAGNE[i]);
+  for(i = 0; i < CARTES.length; i++) if(carteSpeciale(i)) l.push(i);
+  return l;
+}
 
 /* ================================================================
    UNE ÎLE EST-ELLE ORAGEUSE ?

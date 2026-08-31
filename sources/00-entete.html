@@ -564,6 +564,29 @@ select.champ{cursor:pointer}
 .monde .visite:active{transform:translateY(1px)}
 .monde.evt .visite{width:calc(100% - 28px);margin:8px 14px 14px}
 
+/* LE BOUTON « ESSAYER ». Même gabarit que « Visiter » — il vit juste
+   au-dessous — mais d'une autre couleur, et c'est le point : ces deux
+   boutons mènent à deux choses qui se ressemblent beaucoup, l'une où
+   l'on regarde et l'autre où l'on joue. Le vert d'éprouvette les
+   sépare au premier coup d'œil. Il n'est écrit que pour
+   l'administrateur : voir boutonEssai. */
+.monde .essai{
+  display:block;width:calc(100% - 20px);margin:0 10px 10px;
+  appearance:none;cursor:pointer;
+  border:1px solid rgba(120,230,180,.30);border-radius:10px;
+  background:rgba(70,200,150,.11);color:#a9ecca;
+  font-weight:700;font-size:12.5px;line-height:1;font-family:inherit;
+  padding:8px 10px;letter-spacing:.3px;
+  transition:background .12s, border-color .12s;
+}
+.monde .essai:hover{background:rgba(70,200,150,.20);border-color:rgba(120,230,180,.48)}
+.monde .essai:active{transform:translateY(1px)}
+.monde.evt .essai{width:calc(100% - 28px);margin:0 14px 14px}
+/* Quand les deux boutons se suivent, le second se colle au premier :
+   ils forment une paire, et huit pixels de vide entre eux les
+   feraient lire comme deux blocs sans rapport. */
+.monde .visite + .essai{margin-top:-4px}
+
 /* Le bandeau du mode prévisualisation : discret, en haut à gauche,
    là où il ne recouvre rien de jouable. */
 #bandeauApercu{
@@ -574,6 +597,14 @@ select.champ{cursor:pointer}
   background:rgba(46,20,6,.82);border:1px solid rgba(255,160,60,.45);
 }
 #hud.apercu #bandeauApercu{display:block}
+/* EN ESSAI, LE BANDEAU CHANGE DE CAMP. Il dit alors l'inverse de ce
+   qu'il dit en visite — « tu joues, mais rien n'est enregistré » — et
+   il doit se distinguer d'un coup d'œil : c'est le seul repère à
+   l'écran qui sépare une bataille pour de vrai d'une bataille pour de
+   faux. Vert d'éprouvette, comme le bouton qui y mène. */
+#bandeauApercu.essai{
+  color:#a9ecca;background:rgba(8,40,28,.84);border-color:rgba(90,220,165,.50);
+}
 /* EN VISITE, ON RANGE TOUT CE QUI SERT À COMBATTRE. L'île n'est pas
    ouverte : ces boutons ne mèneraient nulle part, et les laisser
    promettrait une bataille qu'on ne peut pas livrer. Restent la
@@ -591,9 +622,18 @@ select.champ{cursor:pointer}
    On masque donc ce qui sert à COMBATTRE, nommément, plutôt que le
    bloc qui les contient. Une liste de boutons se relit ; un bloc
    entier avale ce qu'on y range plus tard. */
+   LE HÉROS EST DE LA LISTE depuis qu'il a sa tuile. Elle échappait au
+   rangement — la tuile s'affichait en visite, et le clic répondait
+   « tu peux tout regarder, mais pas jouer ici ». Un bouton visible qui
+   ne fait rien promet quelque chose qu'il ne tient pas.
+
+   RIEN DE TOUT CELA NE S'APPLIQUE À L'ESSAI : la classe posée là-bas
+   est `apercu` seule, jamais `visite`. Ce sont précisément ces
+   commandes qu'on vient y essayer. */
 #hud.visite #bg,
 #hud.visite #bc{display:none}
 #hud.visite #capsBoite,
+#hud.visite #herosBoite,
 #hud.visite #btAbandon,
 #hud.visite #ovEnergie{display:none}
 
@@ -2175,6 +2215,20 @@ select.champ{cursor:pointer}
       </div>
       <div class="ligne" style="margin-top:6px">
         <button id="btAdminCarrieres" class="bt">🧮 Reconstruire les carrières</button>
+      </div>
+
+      <h3>Essayer une carte</h3>
+      <div class="admNote">Jouer une île <b>pour de faux</b>, y compris une
+        île verrouillée ou une carte événement fermée : on débarque, on
+        utilise tout, et rien n'en sort. Aucun dégât publié, aucun point de
+        carrière, aucun champion, aucun podium — et la campagne n'avance
+        pas d'un cran. L'île est montrée intacte, et le reste : ce que le
+        salon y a déjà détruit n'est ni lu ni touché. Les autres joueurs ne
+        voient rien.<br>
+        Le même essai s'ouvre depuis le bouton 🧪 des vignettes, qui
+        apparaît sur l'accueil dès que cette page a été ouverte.</div>
+      <div class="ligne" style="margin-top:10px">
+        <button id="btAdminEssai" class="bt">🧪 Essayer une carte…</button>
       </div>
 
       <h3>Badges</h3>

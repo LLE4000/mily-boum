@@ -487,6 +487,63 @@ function envoieTrame(u8){
    ================================================================ */
 var modeApercu = false;
 
+/* ================================================================
+   L'ESSAI — UNE PRÉVISUALISATION OÙ L'ON JOUE
+
+   « Que l'administrateur puisse tester les maps qui sont fermées.
+     C'est un test, donc je ne dois pas gagner de points, et ça ne
+     doit pas s'afficher sans réinitialiser toute la saison. »
+
+   LA VISITE tenait déjà la moitié de la promesse : elle ne laisse
+   rien derrière elle. Ce qu'elle refusait, c'était de JOUER — on
+   regardait l'île, on n'y débarquait pas. Un essai est donc une
+   visite dont on lève ce seul refus.
+
+   ET C'EST TOUT CE QUE `modeEssai` FAIT. La règle qui rend la chose
+   démontrable tient en une phrase, et il ne faut jamais l'enfreindre :
+
+     `modeApercu` RESTE LEVÉ PENDANT TOUT L'ESSAI, et `modeEssai`
+     n'apparaît JAMAIS dans une condition qui décide si quelque chose
+     SORT de l'appareil ou s'y ÉCRIT.
+
+   Autrement dit, ce drapeau n'ouvre que des portes vers l'intérieur —
+   poser une navette, allumer un héros — et jamais un robinet. Tous
+   les robinets restent commandés par `modeApercu`, qui ne bouge pas.
+   Le jour où l'on ajoutera un canal de sortie, il sera fermé pour
+   l'essai sans que personne ait à y penser : il suffira qu'il le soit
+   pour la visite.
+
+   CE QUI EST DONC GARANTI, ET VÉRIFIÉ PAR LE BANC :
+     • rien n'est publié — envoie() et publieMonde() sortent en tête
+     • rien n'est écrit sur le disque — sauveMondeLocal vit dans
+       publieMonde, repliMesDegats sort en tête, noteQueJeJoue aussi
+     • aucun point de carrière : les dégâts de l'essai ne sont jamais
+       rangés, donc jamais republiés
+     • aucune progression : la victoire quitte l'essai au lieu de
+       sacrer un champion et d'avancer d'une île
+     • aucune relique
+     • l'île se montre INTACTE — appliqueMondeAuJeu sort en tête —
+       donc tester ne consomme pas les défenses déjà détruites par le
+       salon, et n'y touche pas davantage
+     • le salon continue de vivre pendant ce temps : les instantanés
+       qui ARRIVENT sont toujours adoptés, ce qui entre n'a jamais
+       été le problème
+   ================================================================ */
+var modeEssai = false;
+
+/* L'ADMINISTRATEUR EST RECONNU POUR CETTE PAGE, ET POUR ELLE SEULE.
+   Rien n'est rangé sur le disque : recharger redemande le mot de
+   passe. C'est volontaire — ce drapeau ne garde rien de précieux, il
+   évite seulement de retaper le mot à chaque carte qu'on veut
+   essayer, et un droit qui survit à la fermeture de l'onglet est un
+   droit qu'on oublie d'avoir donné. */
+var adminOuvert = false;
+function ouvreLesDroitsAdmin(){
+  adminOuvert = true;
+  /* les vignettes portent un bouton de plus dès maintenant */
+  if(typeof majMondes === "function") majMondes();
+}
+
 function envoie(obj){
   obj.id = monId;
   /* PREMIER ROBINET. En prévisualisation, aucun message ne part —
@@ -1052,6 +1109,16 @@ function noteMonPassage(){
    change : les débarquements suivants de la même visite ne diraient
    rien de plus. */
 function noteQueJeJoue(index){
+  /* TROISIÈME ROBINET, ET IL A FAILLI RESTER OUVERT. Celui-ci ne
+     passe pas par envoie() : il écrit le journal sur le disque et le
+     publie lui-même, en message retenu. Tant qu'une visite interdisait
+     de débarquer, il ne pouvait pas se déclencher — ses deux appelants
+     sont poseBarge et activeHeros, qui refusaient tous deux en tête.
+     L'essai lève ce refus : sans cette ligne, essayer une île fermée
+     aurait inscrit « il y a joué » dans la page des passages de tout
+     le salon, et gonflé le compteur de parties jouées. Ce n'est pas
+     jouer, c'est essayer. */
+  if(typeof modeApercu !== "undefined" && modeApercu) return;
   chargeMonJournal();
   if(!monJournal.p.length){
     var d = new Date();

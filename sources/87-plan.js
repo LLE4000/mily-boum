@@ -1831,6 +1831,10 @@ function installePlan(){
       alert("Mot de passe incorrect.");
       return;
     }
+    /* Cette porte-là vaut la même reconnaissance que le panneau : le
+       mot de passe est le même, et celui qui l'a tapé aura les mêmes
+       boutons d'essai sur les vignettes en ressortant. */
+    if(typeof ouvreLesDroitsAdmin === "function") ouvreLesDroitsAdmin();
     ouvrePlan(carteSalon);
   });
   $("btPlanFerme").addEventListener("click", fermePlan);
