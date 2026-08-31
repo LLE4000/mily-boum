@@ -60,6 +60,12 @@ try{
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
     "nomsHorsCarriere","sansHorsCarriere","estHorsCarriere",
+    "RELIQUE_SEUIL","RELIQUES","RELIQUE_ASSAUT_MAX","RELIQUE_GARDE_MAX",
+    "RELIQUE_TIRAGES_MAX","RELIQUES_GARDES","RELIQUES_DETAIL",
+    "tiragesRelique","palierRelique","graineRelique","tireRelique",
+    "encodeReliques","decodeReliques","fusionneReliques","reliquesAcquises",
+    "comptesReliques","plieReliques","bonusReliques","listeReliques",
+    "multAssautRelique","multGardeRelique","carteSpeciale","prng","graineTexte",
     "QG_PV_MIN","QG_PV_MAX","encodeSanteQG","decodeSanteQG","santeQGDans",
     "meilleureSanteQG","poseSanteQGSalon","pvQGDeCarte","santeQGReglee",
     "versEchelleIle","versEchelleFiche",
@@ -8938,18 +8944,24 @@ G("36. Le badge : les compteurs, la fusion, le dessin");
   ok("les cinq voies du badge voyagent avec les champions et les podiums",
      /bg:fusionneBadges\(a && a\.bg, b && b\.bg\),\s*bgn:fusionneChutesBadge/.test(html) &&
      /o\.bg = E\.bg \|\| ""; o\.bgn = E\.bgn \|\| ""; o\.bgc = E\.bgc \| 0;/.test(html));
+  /* La fenêtre s'est élargie de 200 à 600 : les reliques ont ajouté
+     leur ligne — et son commentaire — dans la même garde. La promesse
+     ne change pas d'un mot ; c'est la garde qui s'est allongée. */
   ok("… et un compteur qui monte rend bien l'instantané « sale »",
-     /if\(\(m\.bg \|\| ""\) !== \(E\.bg \|\| ""\)[\s\S]{0,200}return false;/.test(html));
+     /if\(\(m\.bg \|\| ""\) !== \(E\.bg \|\| ""\)[\s\S]{0,600}return false;/.test(html));
   /* la fenêtre a dû s'élargir : le palmarès a ajouté son commentaire
      entre l'en-tête de la fonction et l'appel. La promesse, elle, est
      la même — et elle en porte une seconde depuis : le PODIUM ENTIER
      part avec le titre, puisque c'est le seul instant où il existe
      encore. */
   ok("le titre carrière se décerne à la fermeture d'une campagne",
-     /function nouvelleCampagneSalon\(\)\{[\s\S]{0,1600}crediteTitreCarriere\(cycleSalon \| 0/.test(html));
+     /function nouvelleCampagneSalon\(\)\{[\s\S]{0,2400}crediteTitreCarriere\(cycleSalon \| 0/.test(html));
   ok("… et le podium entier est gravé au même instant",
      /crediteTitreCarriere\(cycleSalon \| 0, podium\.length \? podium\[0\]\.nom : "", podium\)/
        .test(html));
+  /* La fenêtre est passée de 1600 à 2400 pour la même raison qu'au
+     dessus : le commentaire des reliques s'est glissé entre l'en-tête
+     et l'appel. */
 
   /* LE BADGE NE SE RANGE JAMAIS. C'est la promesse de fond : on garde
      des compteurs, on calcule le dessin. Un instantané neuf ne porte
@@ -10667,6 +10679,360 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   var vide = N.mondeVide();
   ok("le retrait n'ajoute aucun champ à l'instantané",
      !("hc2" in vide) && !("hx" in vide) && ("bo" in vide) && ("bon" in vide));
+})();
+
+/* ================================================================
+   51. LES RELIQUES — LE NOYAU
+
+   « Quand il dépasse un million de dégâts sur une map, il y a une
+   loterie, et ils ont une capacité, mais POUR TOUJOURS. Entre plus dix
+   et plus trente-trois pour cent de dégâts, et en défense entre plus
+   dix et plus cinquante-trois. Trois pour cent de chance d'avoir le
+   palier max. Ça ne peut être gagné que sur les deux cartes bonus. »
+
+   CE GROUPE VÉRIFIE TROIS PROMESSES, dans cet ordre d'importance :
+   ① la relique est CALCULÉE, pas tirée — deux appareils qui ne se
+     parlent pas doivent trouver la même, sans quoi tout l'édifice
+     tombe ; ② le compteur partagé ne fait que MONTER et se fusionne
+     par maximum, donc l'ordre des messages ne change rien ; ③ les
+     deux bornes qu'il a données sont tenues, toujours.
+   ================================================================ */
+(function(){
+  G("51. Les reliques — le noyau");
+
+  /* On retrouve les deux cartes bonus par le drapeau, jamais par leur
+     numéro : le jour où l'ordre change, ce test n'a rien à apprendre. */
+  var SPE = [], iOrd = -1;
+  for(var q = 0; q < N.CARTES.length; q++){
+    if(N.carteSpeciale(q)) SPE.push(q); else if(iOrd < 0) iOrd = q;
+  }
+  ok("il y a bien deux cartes bonus, et elles seules", SPE.length === 2, SPE.join(" "));
+
+  /* ---- LE BARÈME ---- */
+  ok("cinq paliers", N.RELIQUES.length === 5);
+  ok("l'assaut va de +10 à +33, comme demandé",
+     N.RELIQUES[0].assaut === 10 && N.RELIQUES[4].assaut === 33);
+  ok("la garde va de +10 à +53, comme demandé",
+     N.RELIQUES[0].garde === 10 && N.RELIQUES[4].garde === 53);
+  ok("le palier max a trois pour cent de chance", N.RELIQUES[4].chance === 3);
+  var somme = 0, monte = true, i;
+  for(i = 0; i < N.RELIQUES.length; i++){
+    somme += N.RELIQUES[i].chance;
+    if(i && (N.RELIQUES[i].assaut <= N.RELIQUES[i-1].assaut
+          || N.RELIQUES[i].garde  <= N.RELIQUES[i-1].garde
+          || N.RELIQUES[i].chance >= N.RELIQUES[i-1].chance)) monte = false;
+  }
+  ok("les chances font cent", somme === 100, String(somme));
+  ok("… et les paliers montent pendant que les chances descendent", monte);
+  /* LES BORNES SONT LUES DANS LA TABLE : deux nombres recopiés à la
+     main auraient menti le jour où l'on ajoute une marche. */
+  ok("les deux bornes sortent du dernier palier",
+     N.RELIQUE_ASSAUT_MAX === 33 && N.RELIQUE_GARDE_MAX === 53);
+
+  /* ---- LA FAVEUR : « à dix millions, plus de chances d'avoir le gros » ---- */
+  ok("le premier million ne donne qu'un tirage", N.tiragesRelique(1) === 1);
+  ok("… trois millions plus tard, deux", N.tiragesRelique(4) === 2);
+  ok("… et ça plafonne à cinq",
+     N.tiragesRelique(13) === 5 && N.tiragesRelique(999) === N.RELIQUE_TIRAGES_MAX);
+  ok("un rang absurde ne descend jamais sous un tirage",
+     N.tiragesRelique(0) === 1 && N.tiragesRelique(-7) === 1);
+
+  /* ---- LA LOI, MESURÉE ET NON CRUE ---- */
+  var TIR = 40000;
+  function loi(rang){
+    var c = [0,0,0,0,0], fa = 0, k;
+    for(k = 0; k < TIR; k++){
+      var r = N.tireRelique("J" + k, SPE[0], rang);
+      c[r.palier]++; if(r.famille === "a") fa++;
+    }
+    return { c:c, fa:fa };
+  }
+  var L1 = loi(1);
+  var ecart = 0;
+  for(i = 0; i < 5; i++)
+    ecart = Math.max(ecart, Math.abs(100 * L1.c[i] / TIR - N.RELIQUES[i].chance));
+  ok("au premier tirage, la loi mesurée est celle annoncée",
+     ecart < 1.0, "écart max " + ecart.toFixed(2) + " point");
+  ok("… dont trois pour cent de palier max",
+     Math.abs(100 * L1.c[4] / TIR - 3) < 0.6,
+     (100 * L1.c[4] / TIR).toFixed(2) + " %");
+  /* LES DEUX FAMILLES SONT À ÉGALITÉ : « ça peut être soit pour la
+     défense, soit pour l'attaque ». */
+  ok("assaut et garde tombent à égalité",
+     Math.abs(100 * L1.fa / TIR - 50) < 1.5, (100 * L1.fa / TIR).toFixed(1) + " %");
+  /* LA FAVEUR MONTE VRAIMENT, et c'est la seule façon de le savoir. */
+  var L13 = loi(13);
+  ok("plus on a frappé sur la carte, plus le palier max sort",
+     L13.c[4] > L1.c[4] * 3,
+     (100 * L1.c[4] / TIR).toFixed(1) + " % → " + (100 * L13.c[4] / TIR).toFixed(1) + " %");
+  ok("… et le palier de base se raréfie d'autant",
+     L13.c[0] < L1.c[0] / 4,
+     (100 * L1.c[0] / TIR).toFixed(1) + " % → " + (100 * L13.c[0] / TIR).toFixed(1) + " %");
+
+  /* ---- ① LA RELIQUE EST CALCULÉE, PAS TIRÉE ---- */
+  /* Sans ça, deux appareils ne verraient pas la même récompense et il
+     faudrait ranger chaque tirage dans l'instantané. C'est LA
+     promesse qui porte toute l'architecture. */
+  var stable = true, distinct = {};
+  for(i = 1; i <= 200; i++){
+    var a1 = N.tireRelique("Roro", SPE[0], i), a2 = N.tireRelique("Roro", SPE[0], i);
+    if(a1.cle !== a2.cle || a1.famille !== a2.famille || a1.pct !== a2.pct) stable = false;
+    distinct[a1.famille + a1.cle] = 1;
+  }
+  ok("le même (pseudo, carte, rang) rend toujours la même relique", stable);
+  ok("… et la suite n'est pas constante pour autant",
+     Object.keys(distinct).length >= 6, Object.keys(distinct).length + " reliques distinctes");
+  /* Le pseudo, la carte et le rang comptent tous les trois. */
+  var dif = 0;
+  for(i = 1; i <= 60; i++){
+    if(N.tireRelique("Roro", SPE[0], i).cle !== N.tireRelique("Lu", SPE[0], i).cle) dif++;
+    if(N.tireRelique("Roro", SPE[0], i).cle !== N.tireRelique("Roro", SPE[1], i).cle) dif++;
+  }
+  ok("le pseudo et la carte changent le tirage", dif > 40, dif + "/120 diffèrent");
+  ok("un rang nul ne donne pas de relique", N.tireRelique("Roro", SPE[0], 0) === null);
+
+  /* ---- ② LE COMPTEUR PARTAGÉ ---- */
+  var t = {}; t.Roro = {}; t.Roro[SPE[0]] = 4; t.Roro[SPE[1]] = 1; t.Lu = {}; t.Lu[SPE[0]] = 9;
+  var RQ = N.encodeReliques(t);
+  ok("le compteur s'encode trié, un couple par morceau",
+     RQ === N.encodeReliques(N.decodeReliques(RQ)), RQ);
+  ok("… et se relit au chiffre près",
+     N.reliquesAcquises(RQ, "Roro", SPE[0]) === 4
+     && N.reliquesAcquises(RQ, "Lu", SPE[0]) === 9
+     && N.reliquesAcquises(RQ, "Dan", SPE[0]) === 0);
+  /* LA FUSION EST UN MAXIMUM : c'est ce qui rend l'ordre des messages
+     sans importance, et deux publications simultanées inoffensives. */
+  var A = {}; A.Roro = {}; A.Roro[SPE[0]] = 7;
+  var B = {}; B.Roro = {}; B.Roro[SPE[0]] = 3; B.Dan = {}; B.Dan[SPE[1]] = 2;
+  var F = N.fusionneReliques(N.encodeReliques(A), N.encodeReliques(B));
+  ok("la fusion garde le plus grand compte",
+     N.reliquesAcquises(F, "Roro", SPE[0]) === 7 && N.reliquesAcquises(F, "Dan", SPE[1]) === 2);
+  ok("… et l'ordre d'arrivée ne change rien",
+     N.fusionneReliques(N.encodeReliques(B), N.encodeReliques(A)) === F);
+  ok("… la fusion est idempotente", N.fusionneReliques(F, F) === F);
+  ok("… et un compteur ne redescend jamais",
+     N.reliquesAcquises(N.fusionneReliques(F, N.encodeReliques(B)), "Roro", SPE[0]) === 7);
+  ok("une chaîne abîmée ne fait pas tomber le décodeur",
+     N.encodeReliques(N.decodeReliques("bruit|:|x:y:z|Roro:3|" + RQ)) === RQ);
+  /* LE BUDGET COUPE AU MÊME ENDROIT CHEZ TOUT LE MONDE, sinon deux
+     appareils se republient l'un l'autre sans fin. */
+  var gros = {}, nb = N.RELIQUES_GARDES + 40;
+  for(i = 0; i < nb; i++){ gros["P" + i] = {}; gros["P" + i][SPE[0]] = (i % 17) + 1; }
+  var C1 = N.encodeReliques(gros);
+  ok("la table est bornée", C1.split("|").length === N.RELIQUES_GARDES,
+     C1.split("|").length + " entrées");
+  ok("… et la coupe est la même des deux côtés",
+     N.encodeReliques(N.decodeReliques(C1)) === C1);
+
+  /* ---- LE COMPTE VIVANT : acquis + millions de la campagne ---- */
+  function scores(nom, carte, degats){
+    var s = {}; s[N.cleScore("aaaa", carte)] = { n:nom, g:degats }; return s;
+  }
+  ok("un million franchi vaut une relique",
+     N.comptesReliques("", scores("Roro", SPE[0], 1000000), "Roro", SPE[0]) === 1);
+  ok("… neuf cent mille n'en valent aucune",
+     N.comptesReliques("", scores("Roro", SPE[0], 900000), "Roro", SPE[0]) === 0);
+  ok("… et l'acquis s'ajoute au vivant",
+     N.comptesReliques(RQ, scores("Roro", SPE[0], 2400000), "Roro", SPE[0]) === 6, "4 + 2");
+  /* LE POINT DE SA SECONDE DEMANDE : « ça ne peut être gagné que sur
+     les deux cartes bonus, parce que si on joue tout le temps on aura
+     toujours le pourcentage max ». */
+  ok("une carte de campagne ne donne AUCUNE relique",
+     N.comptesReliques("", scores("Roro", iOrd, 90000000), "Roro", iOrd) === 0,
+     "carte " + iOrd + ", quatre-vingt-dix millions");
+
+  /* ---- LE PLIAGE DE CLÔTURE ---- */
+  var plie = N.plieReliques(RQ, scores("Roro", SPE[0], 3200000));
+  ok("la clôture plie les millions de la campagne dans l'acquis",
+     N.reliquesAcquises(plie, "Roro", SPE[0]) === 7, "4 + 3");
+  ok("… sans toucher aux autres lignes",
+     N.reliquesAcquises(plie, "Lu", SPE[0]) === 9
+     && N.reliquesAcquises(plie, "Roro", SPE[1]) === 1);
+  ok("… et une carte de campagne n'y entre pas",
+     N.plieReliques("", scores("Roro", iOrd, 50000000)) === "");
+
+  /* ---- ③ CE QU'UN PSEUDO PORTE : LA MEILLEURE, JAMAIS LA SOMME ---- */
+  var vierge = N.bonusReliques("", {}, "Personne");
+  ok("sans relique, aucun bonus",
+     vierge.assaut === 0 && vierge.garde === 0 && vierge.pa === -1 && vierge.pg === -1);
+  /* LA PREUVE QUE ÇA N'ADDITIONNE PAS : on mesure sur cent mille
+     pseudos à cinquante reliques chacun. En additionnant, tout le
+     monde serait au plafond ; en gardant la meilleure, le bonus est
+     TOUJOURS une valeur du barème, et jamais autre chose. */
+  var dansBareme = true, depasse = 0, K = 4000;
+  for(i = 0; i < K; i++){
+    var tt = {}; tt["J" + i] = {}; tt["J" + i][SPE[0]] = 50;
+    var b = N.bonusReliques(N.encodeReliques(tt), {}, "J" + i);
+    var okA = false, okG = false, z;
+    for(z = 0; z < N.RELIQUES.length; z++){
+      if(N.RELIQUES[z].assaut === b.assaut) okA = true;
+      if(N.RELIQUES[z].garde  === b.garde)  okG = true;
+    }
+    if(!okA || !okG) dansBareme = false;
+    if(b.assaut > N.RELIQUE_ASSAUT_MAX || b.garde > N.RELIQUE_GARDE_MAX) depasse++;
+  }
+  ok("le bonus est toujours UNE valeur du barème, pas une somme", dansBareme);
+  ok("… donc les deux bornes ne sont jamais dépassées", depasse === 0);
+  /* ET IL NE REDESCEND JAMAIS : une relique de plus ne peut
+     qu'améliorer. C'est ce qui fait la promesse « pour toujours ». */
+  var croit = true;
+  for(i = 0; i < 300; i++){
+    var av = -1, ag = -1, m;
+    for(m = 1; m <= 25; m++){
+      var t2 = {}; t2["K" + i] = {}; t2["K" + i][SPE[0]] = m;
+      var bb = N.bonusReliques(N.encodeReliques(t2), {}, "K" + i);
+      if(bb.assaut < av || bb.garde < ag) croit = false;
+      av = bb.assaut; ag = bb.garde;
+    }
+  }
+  ok("un tirage de plus ne peut qu'améliorer — jamais faire perdre", croit);
+  /* LES MULTIPLICATEURS, tels que la simulation les emploie. */
+  var b33 = { assaut:33, garde:53 };
+  ok("les multiplicateurs se lisent sans arrondi",
+     Math.abs(N.multAssautRelique(b33) - 1.33) < 1e-12
+     && Math.abs(N.multGardeRelique(b33) - 1.53) < 1e-12);
+  ok("… et sans relique ils valent un",
+     N.multAssautRelique(vierge) === 1 && N.multGardeRelique(vierge) === 1);
+
+  /* ---- LE CÂBLAGE DANS L'INSTANTANÉ ---- */
+  ok("un monde neuf porte une table de reliques vide",
+     N.mondeVide(0, 1, 0).rq === "");
+  ok("les reliques voyagent avec les badges et le palmarès",
+     /rq:fusionneReliques\(a && a\.rq, b && b\.rq\)/.test(html)
+     && /o\.rq = E\.rq \|\| "";/.test(html));
+  ok("… et un compteur qui monte rend l'instantané « sale »",
+     /\(m\.rq \|\| ""\) !== \(E\.rq \|\| ""\)\) return false;/.test(html));
+  ok("… et la publication les emporte",
+     /hc:m\.hc \|\| "", rq:m\.rq \|\| ""/.test(html));
+  /* LA GARDE DE LA CLÔTURE : plier deux fois DOUBLERAIT les reliques
+     de tout le salon. On s'accroche donc au retour de
+     crediteTitreCarriere, qui ne dit oui qu'au premier client. */
+  ok("le pliage de clôture est gardé par le crédit du titre",
+     /if\(crediteTitreCarriere\(cycleSalon \| 0[\s\S]{0,140}\)\s*\n?\s*&& typeof plieReliques === "function"\)\{\s*\n?\s*monde\.rq = plieReliques\(monde\.rq, scoresDesReliques\(\)\);/
+       .test(html));
+})();
+
+/* ================================================================
+   52. LES RELIQUES — LE JEU ET L'ÉCRAN
+
+   Le groupe 51 prouve le calcul ; celui-ci prouve les BRANCHEMENTS,
+   c'est-à-dire tout ce qu'une modification distraite pourrait défaire
+   sans que le calcul s'en aperçoive.
+
+   TROIS INVARIANTS, ET LE TROISIÈME A ÉTÉ PAYÉ CHER :
+   ① les deux effets se MULTIPLIENT à la chaîne existante, chacun en
+     un seul point du programme ;
+   ② rien n'est gagné hors des deux cartes bonus, ni en visite ;
+   ③ le compte des reliques ne lit QUE le tableau publié. Un banc a
+     montré qu'en le mêlant au cumul local — qui survit à la clôture
+     quand il est « provisoire » — le même million se comptait deux
+     fois, et le joueur gagnait une relique de plus à chaque campagne.
+   ================================================================ */
+(function(){
+  G("52. Les reliques — le jeu et l'écran");
+  function corps(nom){
+    var d = html.indexOf("function " + nom + "(");
+    return d < 0 ? "" : html.slice(d, html.indexOf("\n}", d) + 2);
+  }
+  ["appliqueDegatsCible", "creeUnite", "majReliques", "amorceReliques",
+   "relisReliques", "majBandeauReliques", "scoresDesReliques",
+   "ouvreRoueRelique", "majRoueRelique", "construitPageReliques"]
+    .forEach(function(n){
+      ok("le corps de " + n + " se lit", corps(n).length > 60, corps(n).length + " car.");
+    });
+
+  /* ---- ① LES DEUX EFFETS, CHACUN EN UN SEUL POINT ---- */
+  /* Le seul endroit où une troupe inflige ses dégâts. Le palier de
+     carte y était déjà ; la relique s'y multiplie, elle ne s'y
+     additionne pas — « la base, plus ces pourcentages, PLUS APRÈS les
+     dix trente cent pour cent ». */
+  ok("la relique d'assaut multiplie au point unique des dégâts",
+     /d \*= jeu\.puissance \* jeu\.multAssaut;/.test(corps("appliqueDegatsCible")));
+  ok("… et il n'y a qu'un seul endroit où elle s'applique",
+     (html.match(/jeu\.multAssaut/g) || []).length <= 6,
+     (html.match(/jeu\.multAssaut/g) || []).length + " mentions");
+  /* La vie est posée à la naissance : la barre de vie, les soins et la
+     mort lisent tous pvMax et n'ont donc rien à apprendre. */
+  ok("la relique de garde épaissit la troupe à sa création",
+     /var pv = Math\.round\(f\.pv \* jeu\.multGarde\);/.test(corps("creeUnite"))
+     && /t:type, gx:gx, gy:gy, pv:pv, pvMax:pv, n:n,/.test(corps("creeUnite")));
+  /* LES DEUX MULTIPLICATEURS PARTENT À UN, sans quoi une carte ouverte
+     avant la première lecture frapperait à NaN. */
+  ok("les deux multiplicateurs naissent à un",
+     /multAssaut:1, multGarde:1, millionsVus:0, reliquesVues:0/.test(html));
+
+  /* ---- ② OÙ ÇA SE GAGNE, ET OÙ ÇA NE SE GAGNE PAS ---- */
+  var mr = corps("majReliques");
+  ok("rien ne se gagne hors des deux cartes bonus",
+     /if\(!carteSpeciale\(jeu\.index\)\) return;/.test(mr));
+  ok("… ni pendant une visite",
+     /modeApercu\) return;/.test(mr));
+  /* LE GUICHET LOCAL NE SE CONSOMME QU'UNE FOIS LE PARTAGÉ D'ACCORD.
+     L'avancer avant la confirmation refermait la fenêtre pendant les
+     deux secondes de la publication : la relique était gagnée, et
+     personne ne voyait la roue. */
+  ok("le guichet local ne se referme qu'après confirmation du partagé",
+     mr.indexOf("jeu.millionsVus = m;") > mr.indexOf("if(n <= jeu.reliquesVues) return;"),
+     "l'affectation doit venir APRÈS le contrôle");
+  /* ET RIEN N'EST PUBLIÉ EN GAGNANT : le compte vaut « acquis +
+     millions du tableau », et ces millions y sont déjà. */
+  ok("gagner une relique n'écrit rien dans l'instantané",
+     mr.indexOf("monde.rq =") < 0 && mr.indexOf("publieMonde") < 0);
+
+  /* ---- ③ UNE SEULE SOURCE, ET C'EST LA PUBLIÉE ---- */
+  ok("la source des reliques est le tableau PUBLIÉ",
+     /function scoresDesReliques\(\)\{\s*\n?\s*return decodeScores\(monde && monde\.s\);/
+       .test(html));
+  /* AUCUN APPEL NE DOIT PASSER PAR scoresAJour : c'est lui qui mêlait
+     le cumul local, et c'est de là que venait le double compte. */
+  ["comptesReliques", "bonusReliques", "listeReliques", "plieReliques"].forEach(function(f){
+    var re = new RegExp(f + "\\([^)]*scoresAJour\\(\\)");
+    ok("… " + f + " ne lit jamais le cumul local", !re.test(html));
+  });
+  ok("le pliage de clôture lit la même source",
+     /plieReliques\(monde\.rq, scoresDesReliques\(\)\)/.test(html));
+
+  /* ---- L'ÉCRAN ---- */
+  /* LA ROUE NE TIRE RIEN : on lui donne la relique déjà calculée. Si
+     elle tirait, deux appareils ne montreraient pas la même chose. */
+  var orr = corps("ouvreRoueRelique");
+  ok("la roue ne tire rien : elle reçoit la relique",
+     orr.indexOf("tireRelique") < 0 && orr.indexOf("Math.random") < 0);
+  ok("… et va se poser au MILIEU du secteur gagnant",
+     /var mid = \(s\.a0 \+ s\.a1\) \/ 2;/.test(orr));
+  /* LES SECTEURS DISENT LES VRAIES CHANCES : dix parts égales auraient
+     menti, et c'est le seul endroit où le barème se voit. */
+  ok("les secteurs valent leur probabilité",
+     /part:RELIQUES\[i\]\.chance \/ 200/.test(html));
+  ok("… et ils sont écartés par une permutation fixe",
+     /out\[\(i \* 7\) % n\] = brut\[i\];/.test(html));
+  /* ELLE TOURNE HORS DE majJeu : une roue figée par l'ouverture du
+     bilan laisserait le joueur sans savoir ce qu'il a gagné. */
+  ok("la roue tourne même quand le bilan s'ouvre",
+     /majRoueRelique\(dt\);\s*\n\s*majReliquesLent\(dt\);/.test(html)
+     && corps("majJeu").indexOf("majRoueRelique") < 0);
+  /* LE BANDEAU EST À CÔTÉ DES TROUPES, ce qui était la demande. */
+  ok("le bandeau vit dans le bloc des navettes",
+     /<div class="t">Navettes<span id="unitesV">0<\/span><\/div>[\s\S]{0,600}<div id="relTuiles"><\/div>/
+       .test(html));
+  ok("… et il porte le palier de carte à côté des reliques",
+     /PALIERS_PUISSANCE\[p\]\.mult - 1\) \* 100/.test(corps("majBandeauReliques")));
+  ok("… et il disparaît quand il n'a rien à dire",
+     /#relTuiles:empty\{display:none\}/.test(html));
+  /* LA VIGNETTE DES DEUX CARTES BONUS L'ANNONCE, et sans recopier les
+     deux bornes : elles sortent de la table. */
+  ok("les vignettes bonus annoncent la relique à gagner",
+     /💠 Relique à gagner/.test(html)
+     && /RELIQUE_ASSAUT_MAX \+ ' % dégâts · \+'/.test(html));
+  ok("… et une carte en travaux ne promet rien",
+     /\.monde\.evt\.chantier \.bandeauR\{opacity:\.4\}/.test(html));
+  /* LA PAGE NE RECOPIE AUCUN CHIFFRE. */
+  var cpr = corps("construitPageReliques");
+  ok("la page lit le barème dans la table",
+     /for\(var i = RELIQUES\.length - 1; i >= 0; i--\)/.test(cpr)
+     && /R\.assaut \+ " %/.test(cpr) && /R\.chance \+ " %/.test(cpr));
+  ok("… et elle annonce le vrai nombre de tirages",
+     /RELIQUE_TIRAGES_MAX \+ "\./.test(cpr));
 })();
 
 /* ---------------- bilan ---------------- */

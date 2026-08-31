@@ -1977,6 +1977,17 @@ function vignetteEvenement(i){
   return '<div class="monde evt ev' + voieDeCarte(i) + ' ' + e + '" id="mondeEvt' + i + '" data-evt="' + i + '">'
        + '<canvas width="720" height="300" id="mn' + i + '"></canvas>'
        + '<div class="bandeau">' + M.ecusson + ' Carte spéciale</div>'
+       /* CE QU'ON NE PEUT GAGNER QUE LÀ, DIT SUR L'IMAGE.
+          « Il faudrait peut-être que sur la vignette des deux cartes
+          bonus on comprenne directement qu'on peut avoir un petit
+          bonus en plus. » C'est la seule chose qui distingue
+          VRAIMENT ces deux cartes des huit autres depuis qu'elles
+          existent — et jusqu'ici la vignette n'en disait rien. Le
+          chiffre est celui du barème, jamais recopié. */
+       + '<div class="bandeauR" title="Un tirage par million de dégâts. '
+       + 'Ce que tu gagnes est à toi pour toujours, sur toutes les îles.">💠 Relique à gagner'
+       + '<small>jusqu\'à +' + RELIQUE_ASSAUT_MAX + ' % dégâts · +'
+       + RELIQUE_GARDE_MAX + ' % défense</small></div>'
        + '<div class="etat">' + etiq + '</div>'
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
@@ -2644,6 +2655,12 @@ function lancePartie(ou){
   construitMenu();
   majBarres();
   majPodium();
+  /* LES RELIQUES SONT ADOPTÉES AVANT LE PREMIER DÉBARQUEMENT, sans
+     quoi la première navette sortirait avec la vie de base et le
+     bonus de garde ne s'appliquerait qu'à partir de la deuxième. Elle
+     ne fête rien au passage : les millions déjà faits ne sont pas des
+     nouvelles. */
+  if(typeof amorceReliques === "function") amorceReliques();
   message(carteSpeciale(idx)
     ? (MSG_ENTREE[voieDeCarte(idx)] || "Choisis une navette et débarque.")
     : "Choisis une barge en bas à gauche, puis appuie sur la plage.");

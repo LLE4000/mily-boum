@@ -476,7 +476,7 @@ function etatEvenements(){
   var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
                              bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
                              bo:m.bo || "", bon:m.bon | 0,
-                             hc:m.hc || "" };
+                             hc:m.hc || "", rq:m.rq || "" };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -601,6 +601,41 @@ function mondeCourant(){
              bd:blindageSalon, bn:numeroBlindage | 0,
              qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LA SEULE SOURCE QUI COMPTE POUR UNE RELIQUE
+
+   scoresAJour() mêle DEUX choses : le tableau publié, et nos propres
+   dégâts pas encore publiés. C'est exactement ce qu'il faut pour
+   animer un classement — et exactement ce qu'il ne faut pas pour
+   compter des reliques.
+
+   LE DÉFAUT, MESURÉ. À la clôture, `plieReliques` range les millions
+   de la campagne dans `rq` et l'instantané publie s:"". Le cumul
+   LOCAL, lui, peut survivre à la campagne : `chargeMesDegats` adopte
+   un cumul « provisoire » quelle que soit la campagne qu'il portait,
+   parce que ces dégâts-là ont bien été infligés et qu'on ne les jette
+   pas. Le même million se retrouvait alors des deux côtés — plié dans
+   `rq`, ET encore vivant dans mesDegats —, et le joueur gagnait une
+   relique de plus à chaque clôture, en silence, pour toujours. Un banc
+   l'a montré au premier essai : cinq millions pliés, six reliques
+   comptées.
+
+   UNE SEULE SOURCE FERME LA PORTE POUR DE BON. On lit le tableau
+   PUBLIÉ, celui-là même que le pliage vient de vider : ce qui a été
+   plié n'y est plus, donc ne peut plus être recompté. Ce n'est pas un
+   rustinage, c'est l'invariant qui manquait.
+
+   CE QUE ÇA COÛTE : jusqu'à deux secondes entre le coup de hache qui
+   franchit le million et le départ de la roue — le temps d'une
+   publication. La roue tourne trois secondes ; personne ne verra la
+   différence. Et c'est la bonne règle par ailleurs : une relique se
+   gagne sur le registre partagé, pas sur un compteur qu'on est seul
+   à voir.
+   ════════════════════════════════════════════════════════════════ */
+function scoresDesReliques(){
+  return decodeScores(monde && monde.s);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -1374,7 +1409,22 @@ function nouvelleCampagneSalon(){
        classement de cette campagne n'existe plus nulle part. On grave
        donc les trois premiers dans le palmarès en même temps qu'on
        couronne le premier. */
-    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium);
+    /* LES RELIQUES SE PLIENT AU MÊME INSTANT, ET SOUS LA MÊME GARDE.
+       Le compte vivant d'un joueur est « son acquis, plus les millions
+       de la campagne en cours lus dans le tableau des dégâts ». Trois
+       lignes plus bas ce tableau est effacé : si l'on ne pliait pas
+       maintenant, tout le monde perdrait les reliques de la campagne
+       qui vient de se terminer.
+       LA GARDE EST CELLE DU PALMARÈS, et c'est pour ça qu'on lit le
+       retour de crediteTitreCarriere plutôt que d'en écrire une
+       seconde : il ne rend `true` qu'au PREMIER client qui voit la
+       campagne se refermer. Deux clients qui la voient ensemble ne
+       plient donc pas deux fois — ce qui doublerait les reliques de
+       tout le salon. */
+    if(crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium)
+       && typeof plieReliques === "function"){
+      monde.rq = plieReliques(monde.rq, scoresDesReliques());
+    }
   }
   cycleSalon = (cycleSalon | 0) + 1;
   /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de

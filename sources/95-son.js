@@ -285,6 +285,57 @@ var son = {
     this.souffle(6200, 3400, 0.16, 0.008, 0.02);
   },
   /* ================================================================
+     LA ROUE DES RELIQUES — LES CLIQUETIS, PUIS LE VERDICT
+
+     DEUX SONS, ET LE SECOND DÉPEND DU PALIER. Le premier est le
+     crépitement de la roue : une trentaine de clics dont l'écart
+     s'allonge exactement comme la rotation ralentit — c'est LUI qui
+     fait la tension, bien plus que l'image, parce qu'on entend le
+     freinage avant de le voir.
+
+     TOUT EST PROGRAMMÉ EN UN SEUL APPEL, par les retards, comme
+     l'annonce de la pluie : la séquence est calée à l'échantillon
+     près dans le contexte audio et elle survit à une image sautée.
+     Un setTimeout par clic aurait dérivé au premier ralentissement.
+
+     LES RETARDS SUIVENT LA MÊME COURBE QUE LA ROUE — une puissance
+     cinquième —, et ce n'est pas une coïncidence : c'est la même
+     formule, écrite deux fois parce que l'une vit dans le son et
+     l'autre dans l'image. Si l'une change un jour, l'autre doit
+     changer avec, et ce commentaire est là pour le rappeler. Voir
+     ROUE_LANCE et le freinage de majRoueRelique.
+     ================================================================ */
+  reliqueRoue:function(){
+    if(!this.ok()) return;
+    var N = 34, lance = 3.1, i;
+    for(i = 0; i < N; i++){
+      /* on inverse la courbe de la roue : l'angle parcouru est
+         régulier en i, donc le TEMPS qu'il faut pour l'atteindre est
+         la réciproque du freinage */
+      var u = i / N;
+      var t = lance * (1 - Math.pow(1 - u, 1 / 5));
+      this.bip("square", 1750 - u * 420, 900 - u * 260, 0.022, 0.030, t);
+    }
+  },
+  /* LE VERDICT. Trois notes qui montent au palier de base, cinq et un
+     souffle au sommet : le joueur doit savoir CE QU'IL A GAGNÉ avant
+     d'avoir lu la phrase. Le palier max a droit à son éclat — trois
+     pour cent, ça s'entend. */
+  reliqueGagnee:function(palier){
+    if(!this.ok()) return;
+    var p = Math.max(0, Math.min(4, palier | 0));
+    var base = [523, 659, 784, 988, 1175];          // do mi sol si ré
+    var n = 3 + Math.min(2, p), i;
+    for(i = 0; i < n; i++)
+      this.bip("triangle", base[i], base[i] * 1.5, 0.19 + p * 0.02,
+               0.055 + p * 0.012, i * 0.085);
+    if(p >= 3) this.souffle(3200, 8600, 0.55, 0.014, n * 0.085);
+    if(p >= 4){
+      this.bip("triangle", 1568, 2093, 0.7, 0.075, n * 0.085 + 0.06);
+      this.souffle(900, 240, 0.9, 0.020, n * 0.085 + 0.06);
+    }
+  },
+  /* ================================================================
      L'ANNONCE DE LA PLUIE D'ÉTOILES — les trois temps de la demande
 
      « Une petite montée sonore ; quelques sons cristallins ; puis les

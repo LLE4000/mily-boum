@@ -775,6 +775,26 @@ select.champ{cursor:pointer}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;color:#0a2416;font-weight:700;
   background:linear-gradient(180deg,#8ff0b4,#39c47c)}
+/* LE BANDEAU DES RELIQUES, sous celui de la carte spéciale et dans
+   l'autre sens de lecture : celui du haut dit ce QU'EST cette carte,
+   celui-ci ce qu'on y GAGNE. Deux bandes de la même couleur se
+   seraient lues comme une seule phrase coupée en deux ; celle-ci
+   emprunte donc l'or et le violet du jeu, et porte sa gemme. */
+.monde.evt .bandeauR{
+  position:absolute;top:33px;left:8px;display:flex;flex-direction:column;
+  padding:3px 10px 4px;border-radius:12px;line-height:1.15;
+  background:linear-gradient(180deg,rgba(46,26,66,.94),rgba(24,13,38,.94));
+  border:1px solid rgba(255,210,122,.45);
+  font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+  font-weight:700;color:#ffd27a;
+}
+.monde.evt .bandeauR small{
+  font-size:9px;letter-spacing:.3px;text-transform:none;font-weight:600;
+  color:#c9bcd8;
+}
+/* Une carte en travaux ne promet rien : le bandeau s'éteint avec le
+   reste, sinon on annoncerait un gain sur une porte fermée. */
+.monde.evt.chantier .bandeauR{opacity:.4}
 /* Sur une carte spéciale l'image est plus haute : les deux bandes
    posées dessus suivent, et c'est la seule chose à redire. */
 .monde.evt .surImage{height:150px;padding:0 11px 9px}
@@ -1073,13 +1093,13 @@ select.champ{cursor:pointer}
 .vusL .vr{color:#7fb2ff}
 #vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
 
-#classP,#voixP,#badgesP,#edBadgeP{
+#classP,#voixP,#badgesP,#edBadgeP,#reliquesP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
   align-items:center;justify-content:center;padding:16px;
   overscroll-behavior:contain;
 }
-#classP.on,#voixP.on,#badgesP.on,#edBadgeP.on{display:flex}
+#classP.on,#voixP.on,#badgesP.on,#edBadgeP.on,#reliquesP.on{display:flex}
 /* Le sélecteur de voix emprunte l'ossature du classement — même boîte,
    même haut, même façon de s'ouvrir. Il n'ajoute que la ligne-bouton :
    deux étages de texte, le nom puis la langue, et une marque sur celle
@@ -1260,6 +1280,7 @@ select.champ{cursor:pointer}
    partout ailleurs, et c'est celle-là qu'il faut savoir reconnaître.
    Le bouton d'appel, lui, se range sous le classement. */
 #btBadges{margin-top:8px;width:100%;justify-content:center}
+#btReliques{margin-top:6px;width:100%;justify-content:center}
 #badgesCorps h4{
   margin:20px 0 4px;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;
   color:var(--or);font-weight:700;border-top:1px solid rgba(255,255,255,.10);padding-top:14px;
@@ -1509,6 +1530,122 @@ select.champ{cursor:pointer}
   animation:anVie 5s ease forwards;white-space:nowrap;
 }
 #annonces .an b{color:var(--or)}
+
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES
+
+   DEUX TEMPÉRATURES, ET ELLES NE SE MÉLANGENT JAMAIS. L'assaut est
+   une braise, la garde est un givre : c'est le seul code de couleur
+   du fichier, il répond à la seule question qui compte au premier
+   coup d'œil — frapper ou encaisser —, et il vaut de la roue jusqu'à
+   la page qui l'explique.
+   ════════════════════════════════════════════════════════════════ */
+:root{ --relA:#FF8A45; --relAf:#6E2409; --relG:#54D6EA; --relGf:#0C3D49; }
+.relSvg{display:block;flex:0 0 auto}
+
+/* ── LA ROUE ──────────────────────────────────────────────────────
+   Elle entre par la droite et repart par la droite : elle vient du
+   bord, elle n'apparaît pas au milieu de rien. `pointer-events:none`
+   est essentiel — c'est une nouvelle, pas un bouton, et elle ne doit
+   voler aucun appui à ce qu'il y a dessous. */
+#roueRel{
+  pointer-events:none;opacity:0;transform:translateX(22px) scale(.94);
+  transition:opacity .5s ease, transform .5s cubic-bezier(.2,.9,.3,1.2);
+  width:206px;padding:10px 8px 9px;border-radius:14px;
+  background:linear-gradient(180deg,rgba(28,16,40,.94),rgba(14,8,22,.96));
+  border:1px solid rgba(255,210,122,.30);
+  box-shadow:0 10px 30px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+#roueRel.on{opacity:1;transform:translateX(0) scale(1)}
+/* Le palier max mérite d'être vu depuis l'autre bout de la pièce, et
+   seulement lui : trois pour cent, ça se fête. */
+#roueRel.zen{border-color:rgba(255,225,150,.85);
+  box-shadow:0 0 34px rgba(255,200,110,.45),0 10px 30px rgba(0,0,0,.55)}
+#roueRelTi{
+  font-size:9.5px;letter-spacing:2.4px;color:var(--or);text-transform:uppercase;
+}
+#roueRelCv{display:block;width:186px;height:186px}
+#roueRelTx{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:0;text-align:center;
+}
+#roueRelTx:empty{display:none}
+#roueRelTx .rlE{margin-bottom:1px}
+#roueRelTx .rlP{font-size:9.5px;font-weight:700;letter-spacing:1.6px;line-height:1}
+#roueRelTx .rlG{font-size:26px;font-weight:800;line-height:1.05;
+                font-variant-numeric:tabular-nums;margin-top:-1px}
+#roueRelTx .rlP.as,#roueRelTx .rlG.as{color:var(--relA)}
+#roueRelTx .rlP.ga,#roueRelTx .rlG.ga{color:var(--relG)}
+#roueRelTx .rlN{font-size:10px;color:var(--gris)}
+
+/* ── LES PASTILLES, SUR LA LIGNE DES NAVETTES ─────────────────────
+   Petites, alignées, et muettes quand il n'y a rien : `:empty` retire
+   jusqu'à la marge, sinon un bloc vide pousserait les navettes de
+   quelques pixels selon qu'on a une relique ou non. */
+#relTuiles{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 5px}
+#relTuiles:empty{display:none}
+.relT{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 6px 2px 3px;
+  border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;
+  background:rgba(14,8,22,.72);border:1px solid rgba(255,255,255,.10);
+}
+.relT b{font-variant-numeric:tabular-nums}
+.relT.as{border-color:rgba(255,138,69,.45);color:#ffcda6}
+.relT.ga{border-color:rgba(84,214,234,.45);color:#c4f0f9}
+/* LE PALIER DE CARTE A UN AUTRE VISAGE, ET C'EST VOULU : carré,
+   vert, sans gemme. Une relique est un acquis, un palier est l'état
+   de CETTE bataille — les confondre serait promettre à tort. */
+.relT.pal{
+  border-radius:6px;padding:3px 6px;color:#bdf0c4;
+  border-color:rgba(120,225,150,.42);
+}
+.relT.pal i{font-style:normal;font-size:9px;opacity:.85}
+
+/* ── LA PAGE ──────────────────────────────────────────────────────
+   Elle emprunte l'ossature de la page des badges : deux pages
+   voisines qui se ressembleraient « presque » se liraient comme une
+   erreur. */
+.rlMien{
+  padding:12px;margin-bottom:14px;border-radius:12px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);
+}
+.rlDeux{display:flex;gap:10px;flex-wrap:wrap}
+.rlB{
+  flex:1 1 150px;min-width:140px;padding:12px 10px;border-radius:12px;text-align:center;
+  background:rgba(10,6,16,.55);border:1px solid rgba(255,255,255,.10);
+}
+.rlB .g{display:flex;justify-content:center;min-height:78px;align-items:center;font-size:38px}
+.rlB .p{font-size:26px;font-weight:800;line-height:1.1;margin-top:4px;
+        font-variant-numeric:tabular-nums}
+.rlB .t{font-size:11px;color:var(--gris);margin-top:2px}
+.rlB.as{border-color:rgba(255,138,69,.42)} .rlB.as .p{color:var(--relA)}
+.rlB.ga{border-color:rgba(84,214,234,.42)} .rlB.ga .p{color:var(--relG)}
+.rlB.vide{opacity:.45} .rlB.vide .p{color:var(--gris)}
+.rlRien{font-size:12.5px;line-height:1.5;color:var(--gris)}
+.rlCpt{margin-top:9px;font-size:11px;color:var(--gris);text-align:center}
+.rlN2{font-size:12px;line-height:1.55;color:var(--gris);margin:0 0 10px}
+.rlTab{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:12px}
+.rlTab th{
+  font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);
+  text-align:right;padding:0 0 6px;font-weight:600;
+}
+.rlTab th:nth-child(2){text-align:left}
+.rlTab td{padding:5px 0;border-top:1px solid rgba(255,255,255,.07);text-align:right;
+          font-variant-numeric:tabular-nums}
+.rlTab td:nth-child(2){text-align:left}
+.rlTab .rlIc{display:flex;gap:3px;padding-right:8px}
+.rlTab .rlAs{color:var(--relA);font-weight:700}
+.rlTab .rlGa{color:var(--relG);font-weight:700}
+.rlTab .rlMax td{background:rgba(255,210,122,.07)}
+.rlTab .rlMax b{color:var(--or)}
+.rlListe{display:flex;flex-direction:column;gap:5px}
+.rlL{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;
+  background:rgba(255,255,255,.035);
+}
+.rlL .n{flex:1;font-size:12px;font-weight:600;color:#eadff5}
+.rlL .c{font-size:10.5px;color:var(--gris);white-space:nowrap}
 @keyframes anVie{
   0%{opacity:0;transform:translateX(14px)}
   8%{opacity:1;transform:translateX(0)}
@@ -1774,6 +1911,11 @@ select.champ{cursor:pointer}
            doit être à portée de doigt. Petit, en retrait — on ne
            l'ouvre qu'une fois. -->
       <button id="btBadges" class="bt ptt" title="Ce que veut dire chaque badge">🎖 Les badges</button>
+      <!-- LES RELIQUES ONT LEUR PORTE ICI, sous les badges, et pour la
+           même raison : c'est là qu'on vient de voir un petit insigne
+           sans savoir ce qu'il vaut. Deux récompenses voisines, deux
+           boutons voisins. -->
+      <button id="btReliques" class="bt ptt" title="Ce que tu portes en permanence, et comment ça se gagne">💠 Tes reliques</button>
     </div>
     <!-- ---- LE PALMARÈS DES CAMPAGNES ----
          Sous le Top carrière, et pas ailleurs : l'un dit où l'on en est
@@ -2050,6 +2192,27 @@ select.champ{cursor:pointer}
   </div>
 </div>
 
+<!-- ==================== LES RELIQUES ====================
+     Sœur de #badgesP : même ossature, même façon de s'ouvrir.
+
+     ELLE NE RECOPIE AUCUN CHIFFRE. Les cinq paliers, leurs deux
+     pourcentages et leurs chances sortent de la table du noyau —
+     voir construitPageReliques. Une table recopiée à la main aurait
+     été juste une fois, le jour où on l'a écrite. -->
+<div id="reliquesP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">💠 Tes reliques</div>
+      <button id="btReliquesFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">Elles se gagnent uniquement sur les <b>deux cartes
+      bonus</b> : un tirage par million de dégâts. Ce que tu tires est à toi
+      pour toujours, ça suit ton pseudo, et ça s'ajoute à tes troupes sur
+      TOUTES les îles — en dégâts d'un côté, en résistance de l'autre.</div>
+    <div class="clCorps"><div id="reliquesCorps"></div></div>
+  </div>
+</div>
+
 <!-- ============ L'ÉDITEUR DE BADGE, CÔTÉ ADMINISTRATION ============
      Sœur des autres pages, et volontairement AUSTÈRE : sept champs de
      bonus, trois listes de niveau forcé, une liste hors échelle, une
@@ -2297,6 +2460,19 @@ select.champ{cursor:pointer}
   <div id="hd">
     <div class="bloc p" id="miniBoite"><canvas id="mini" width="264" height="236"></canvas></div>
     <div id="versionJeu">v0.01</div>
+    <!-- LA ROUE DES RELIQUES. « Une sorte de fenêtre en haut à droite,
+         un peu comme casino, une roue qui tourne, qui tourne, puis
+         après ils voient un truc avec défense plus dix pour cent. »
+         Elle est ici et pas ailleurs parce que c'est le seul coin de
+         l'écran où l'on ne joue pas : le podium tient à gauche, les
+         navettes en bas à gauche, les capacités en bas à droite. Une
+         roue qui recouvrirait un bouton pendant quatre secondes, en
+         pleine bataille, serait une punition déguisée en récompense. -->
+    <div id="roueRel">
+      <div id="roueRelTi">RELIQUE</div>
+      <canvas id="roueRelCv" width="196" height="196"></canvas>
+      <div id="roueRelTx"></div>
+    </div>
     <div id="annonces"></div>
   </div>
 
@@ -2306,6 +2482,13 @@ select.champ{cursor:pointer}
          débarquer — et jusqu'ici les deux nombres vivaient aux deux
          coins opposés de l'écran. -->
     <div class="t">Navettes<span id="unitesV">0</span></div>
+    <!-- CE QUE MES TROUPES PORTENT, À CÔTÉ DES TROUPES.
+         « Que la personne, à côté des troupes, ait le petit logo plus
+         dix pour cent, plus vingt-cinq pour cent — comme ça elle est
+         consciente qu'elle a toujours ça. » Deux pastilles de relique,
+         acquises pour toujours, et le palier de CETTE île à côté. La
+         ligne n'existe que si elle a quelque chose à dire. -->
+    <div id="relTuiles"></div>
     <div id="listeBarges"></div>
   </div>
 
@@ -2357,7 +2540,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.33";
+var VERSION = "v1.34";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -9548,7 +9731,7 @@ function statsJournaux(journaux, aujourdhui, exclus){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
-            qv:"", qn:0, hc:"",
+            qv:"", qn:0, hc:"", rq:"",
             ep:"", epn:0,
             /* les badges partent vides comme le reste : ils se
                remplissent tout seuls au premier podium lu */
@@ -10371,6 +10554,278 @@ function inscritPalmares(s, cycle, podium){
   t[c] = l;
   return encodePalmares(t);
 }
+
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES — CE QU'ON RAPPORTE DES DEUX CARTES BONUS
+
+   « Pour récompenser les joueurs qui jouent : quand il dépasse un
+   million de dégâts sur une map, il y a une sorte de loterie, et ils
+   ont une capacité, mais pour toujours. Entre plus dix et plus
+   trente-trois pour cent de dégâts sur leurs troupes, et en défense
+   entre plus dix et plus cinquante-trois. On a peu de chances d'avoir
+   le cinquante-trois : trois pour cent de chance d'avoir le palier
+   max, et des paliers progressifs. Ça se cumule. Et si Roro se
+   connecte avec le pseudo Roro, elle aurait toujours la base plus ces
+   pourcentages. Ça ne peut être gagné que sur les deux cartes bonus —
+   parce que si on joue tout le temps, au final on aura toujours le
+   pourcentage max. »
+
+   ─── POURQUOI « RELIQUE » ───────────────────────────────────────
+   Il fallait un nom, et ce n'était pas « statue ». Les deux seules
+   cartes qui en donnent sont un TEMPLE dans la jungle et un PALAIS des
+   mille et une nuits : une relique est exactement ce qu'on en
+   rapporte. Le mot dit aussi ce que la chose est — un objet qu'on
+   garde, pas un titre qu'on peut perdre — et il n'entre en collision
+   avec rien dans ce jeu : ni le badge, ni la médaille, ni le podium,
+   ni le titre de carrière.
+
+   ─── LE TIRAGE EST CALCULÉ, IL N'EST PAS TIRÉ ───────────────────
+   C'est la décision qui porte tout le reste. Une vraie loterie
+   demanderait de RANGER son résultat — donc de l'écrire dans
+   l'instantané, donc d'arbitrer entre deux clients qui tirent en même
+   temps sur un salon où personne n'a autorité. Ici la n-ième relique
+   d'un pseudo sur une carte est une FONCTION PURE de (pseudo, carte,
+   n) : tous les appareils calculent la même, dans le même ordre, sans
+   se parler. Il ne reste à partager qu'un COMPTEUR — combien de
+   millions ce pseudo a franchis sur cette carte —, c'est-à-dire un
+   entier qui ne fait que monter, ce que la fusion par maximum sait
+   traiter les yeux fermés.
+   La roue qui tourne à l'écran ne tire donc rien : elle MONTRE. Rater
+   l'animation ne fait perdre aucune relique.
+
+   CES DEUX TABLES SONT GELÉES. Changer un palier, une chance ou le
+   nombre de tirages changerait rétroactivement des reliques déjà
+   gagnées — une récompense « pour toujours » qui bouge n'en est pas
+   une. On ajoute, on ne modifie pas.
+
+   ─── ON GARDE LA MEILLEURE, ON N'ADDITIONNE PAS ─────────────────
+   C'est la seule lecture qui tienne debout sur toutes ses phrases, et
+   elle a été MESURÉE avant d'être choisie.
+
+   En additionnant, cent mille pseudos tirés au sort donnent ceci :
+   dès huit millions de dégâts sur une carte bonus, QUATRE-VINGTS POUR
+   CENT des joueurs sont aux deux plafonds. Le barème à cinq marches
+   et ses « trois pour cent de chance » n'auraient plus rien voulu
+   dire : tout le monde finirait au même endroit en une expédition, et
+   la récompense serait morte le jour de sa naissance.
+
+   En gardant la meilleure, tout se recolle :
+     • « ils gardent toujours ça ENTRE plus dix et plus trente-trois »
+       — dit deux fois — n'est vrai que d'une relique unique ;
+     • « trois pour cent de chance d'avoir le palier max » garde son
+       sens pour toujours, au lieu de s'éteindre au huitième million ;
+     • « ils auraient la base, plus ces pourcentages, PLUS APRÈS quand
+       ils détruisent la map les dix trente cent pour cent — comme ça
+       c'est cumulatif » : le cumul qu'il décrit est base + relique +
+       palier de carte, et non les reliques entre elles.
+
+   Le maximum est aussi la bonne opération pour ce salon : il ne
+   redescend jamais, il est commutatif, il est idempotent. Rien à
+   arbitrer entre deux appareils.
+
+   SI C'ÉTAIT L'AUTRE LECTURE, une seule fonction change — bonusReliques
+   — et les deux plafonds ci-dessous redeviennent de vrais plafonds.
+   ════════════════════════════════════════════════════════════════ */
+var RELIQUE_SEUIL = 1000000;            // un million de dégâts = un tirage
+/* LES CINQ PALIERS. Le nom est lumineux et non métallique : les métaux
+   sont pris par les badges, et deux échelles qui se ressembleraient se
+   confondraient. `assaut` et `garde` montent vers les deux bornes
+   demandées, en quatre marches presque égales — les extrémités sont
+   ses chiffres, exactement. */
+var RELIQUES = [
+  { cle:"lueur",  nom:"Lueur",  assaut:10, garde:10, chance:45 },
+  { cle:"prisme", nom:"Prisme", assaut:15, garde:20, chance:30 },
+  { cle:"halo",   nom:"Halo",   assaut:21, garde:31, chance:15 },
+  { cle:"aurore", nom:"Aurore", assaut:27, garde:42, chance:7  },
+  { cle:"zenith", nom:"Zénith", assaut:33, garde:53, chance:3  }
+];
+/* LES DEUX BORNES SONT LUES DANS LA TABLE, jamais réécrites à côté :
+   c'est le dernier palier, par construction. Un jour où l'on ajoutera
+   une marche, elles suivront toutes seules — deux nombres recopiés à
+   la main auraient menti sans prévenir. */
+var RELIQUE_ASSAUT_MAX = RELIQUES[RELIQUES.length - 1].assaut;   // 33
+var RELIQUE_GARDE_MAX  = RELIQUES[RELIQUES.length - 1].garde;    // 53
+/* LA FAVEUR : « s'il passe dix millions sur une map, le pourcentage
+   d'avoir le plus gros statut sera plus important ». On ne déforme pas
+   l'échelle des chances — elle resterait illisible —, on TIRE
+   PLUSIEURS FOIS ET ON GARDE LE MEILLEUR. C'est la même mécanique que
+   celle d'un dé qu'on relance, tout le monde la comprend sans qu'on
+   l'explique, et elle se calcule de tête : à cinq tirages, le Zénith
+   passe de 3 % à 1 − 0,97⁵ ≈ 14 %. */
+var RELIQUE_TIRAGES_MAX = 5;
+function tiragesRelique(n){
+  var k = 1 + Math.floor(((n | 0) - 1) / 3);       // 1-3 → 1, 4-6 → 2, 7-9 → 3…
+  return k < 1 ? 1 : (k > RELIQUE_TIRAGES_MAX ? RELIQUE_TIRAGES_MAX : k);
+}
+/* Le palier d'un tirage uniforme, lu dans l'échelle des chances. On
+   descend du plus rare au plus commun pour que la somme des chances
+   n'ait pas à valoir exactement cent : ce qui déborde retombe sur la
+   Lueur, qui est le palier de base. */
+function palierRelique(u){
+  var acc = 0;
+  for(var i = RELIQUES.length - 1; i > 0; i--){
+    acc += RELIQUES[i].chance;
+    if(u * 100 < acc) return i;
+  }
+  return 0;
+}
+/* LA GRAINE : le pseudo, la carte, le rang. Rien d'autre — surtout pas
+   l'heure ni le hasard de l'appareil, sans quoi deux clients ne
+   verraient pas la même relique. */
+function graineRelique(nom, carte, n){
+  return graineTexte("relique/" + nettoieNomScore(nom) + "/" + (carte | 0) + "/" + (n | 0));
+}
+/* LA n-IÈME RELIQUE D'UN PSEUDO SUR UNE CARTE. Pure, et c'est tout
+   l'édifice : personne n'a besoin de la ranger.
+   L'ORDRE DES TIRAGES EST FIGÉ — la famille d'abord, les paliers
+   ensuite. La famille se lit donc toujours au même endroit du flux,
+   quel que soit le nombre de tirages que la faveur accorde. */
+function tireRelique(nom, carte, n){
+  if(!((n | 0) > 0)) return null;
+  var al = prng(graineRelique(nom, carte, n));
+  var fam = al() < 0.5 ? "a" : "g";
+  var k = tiragesRelique(n), p = 0;
+  for(var i = 0; i < k; i++){
+    var q = palierRelique(al());
+    if(q > p) p = q;
+  }
+  var R = RELIQUES[p];
+  return { n:n | 0, carte:carte | 0, famille:fam, palier:p,
+           cle:R.cle, nom:R.nom, pct:(fam === "a" ? R.assaut : R.garde) };
+}
+
+/* ---- rq : le compteur partagé, et lui seul ----
+   « pseudo:carte:n », trié, fusionné par MAXIMUM. Un compteur de
+   millions franchis ne redescend jamais : le maximum suffit, il est
+   commutatif et idempotent, et deux appareils au même état écrivent la
+   même chaîne. C'est le patron des badges, pour les mêmes raisons. */
+var RELIQUES_GARDES = 300;              // cent cinquante joueurs × deux cartes
+function encodeReliques(tab){
+  var l = [], nom, c;
+  for(nom in tab){
+    var n2 = nettoieNomScore(nom);
+    if(!n2) continue;
+    for(c in tab[nom]){
+      var v = tab[nom][c] | 0;
+      if(!(v > 0)) continue;
+      l.push({ k:n2 + ":" + (c | 0), n:v });
+    }
+  }
+  /* LA COUPE EST DÉTERMINISTE, et elle garde les plus GARNIS : deux
+     appareils au même état doivent couper au même endroit, sinon ils
+     se republient l'un l'autre sans fin. */
+  if(l.length > RELIQUES_GARDES){
+    l.sort(function(a, b){ return b.n - a.n || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0); });
+    l = l.slice(0, RELIQUES_GARDES);
+  }
+  l.sort(function(a, b){ return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; });
+  var out = [];
+  for(var i = 0; i < l.length; i++) out.push(l[i].k + ":" + l[i].n);
+  return out.join("|");
+}
+function decodeReliques(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var m = p[i].split(":");
+    if(m.length !== 3) continue;
+    var nom = nettoieNomScore(m[0]), c = parseInt(m[1], 10), n = parseInt(m[2], 10);
+    if(!nom || !(c >= 0) || !(n > 0)) continue;
+    if(!out[nom]) out[nom] = {};
+    if(n > (out[nom][c] | 0)) out[nom][c] = n;
+  }
+  return out;
+}
+function fusionneReliques(a, b){
+  var x = decodeReliques(a), y = decodeReliques(b), nom, c;
+  for(nom in y){
+    if(!x[nom]){ x[nom] = y[nom]; continue; }
+    for(c in y[nom]) if(y[nom][c] > (x[nom][c] | 0)) x[nom][c] = y[nom][c];
+  }
+  return encodeReliques(x);
+}
+/* Ce qui est ACQUIS, campagnes précédentes comprises. */
+function reliquesAcquises(rq, nom, carte){
+  var t = decodeReliques(rq)[nettoieNomScore(nom)];
+  return t ? (t[carte | 0] | 0) : 0;
+}
+/* LE COMPTE VIVANT : l'acquis, plus les millions de la campagne EN
+   COURS lus dans le tableau des dégâts partagé.
+   POURQUOI LE TABLEAU PARTAGÉ ET NON UN COMPTEUR LOCAL. Un compteur
+   rangé dans le navigateur se vide en trois clics, et l'on
+   refarmerait les mêmes millions indéfiniment. Le tableau des dégâts,
+   lui, est publié, fusionné par maximum, et ne redescend jamais
+   pendant une campagne : il est la seule source qu'un joueur ne peut
+   pas remettre à zéro tout seul. */
+function comptesReliques(rq, scores, nom, carte){
+  var n = nettoieNomScore(nom);
+  if(!n || !carteSpeciale(carte | 0)) return 0;
+  var vif = (totalParJoueurCarte(scores || {}, carte | 0)[n] || 0);
+  return reliquesAcquises(rq, n, carte) + Math.floor(vif / RELIQUE_SEUIL);
+}
+/* LA CLÔTURE DE CAMPAGNE PLIE LE VIVANT DANS L'ACQUIS, et c'est le
+   seul moment où `rq` grossit. Trois lignes plus loin l'instantané
+   publie s:"" : après, les millions de cette campagne n'existent plus
+   nulle part. C'est exactement la place — et le geste — du palmarès,
+   qui grave le podium au même instant et sous la même garde. */
+function plieReliques(rq, scores){
+  var t = decodeReliques(rq), i, nom;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var par = totalParJoueurCarte(scores || {}, i);
+    for(nom in par){
+      var k = Math.floor((par[nom] || 0) / RELIQUE_SEUIL);
+      if(!(k > 0)) continue;
+      if(!t[nom]) t[nom] = {};
+      t[nom][i] = (t[nom][i] | 0) + k;
+    }
+  }
+  return encodeReliques(t);
+}
+/* CE QU'UN PSEUDO PORTE : sa MEILLEURE relique d'assaut, sa meilleure
+   relique de garde, et le nombre de tirages qu'il a eus.
+   `pa` et `pg` sont les paliers, −1 quand la famille n'est pas encore
+   sortie : « pas encore de relique de garde » et « une Lueur de
+   garde » ne sont pas la même chose, et l'écran doit pouvoir les
+   distinguer.
+   ON SORT DÈS QUE LES DEUX FAMILLES SONT AU SOMMET : un joueur à deux
+   cents millions ne doit pas coûter deux cents tirages par image. */
+function bonusReliques(rq, scores, nom){
+  var pa = -1, pg = -1, n = 0, i, j, haut = RELIQUES.length - 1;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var c = comptesReliques(rq, scores, nom, i);
+    for(j = 1; j <= c; j++){
+      n++;
+      var r = tireRelique(nom, i, j);
+      if(r.famille === "a"){ if(r.palier > pa) pa = r.palier; }
+      else                 { if(r.palier > pg) pg = r.palier; }
+      if(pa === haut && pg === haut){ n += c - j; break; }
+    }
+  }
+  return { assaut:(pa >= 0 ? RELIQUES[pa].assaut : 0),
+           garde: (pg >= 0 ? RELIQUES[pg].garde  : 0),
+           pa:pa, pg:pg, n:n };
+}
+/* Le détail, pour la page qui l'explique : une ligne par relique, la
+   plus récente en tête. Bornée, parce qu'une liste de deux cents
+   lignes ne se lit pas. */
+var RELIQUES_DETAIL = 24;
+function listeReliques(rq, scores, nom){
+  var out = [], i, j;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var c = comptesReliques(rq, scores, nom, i);
+    for(j = c; j >= 1 && out.length < RELIQUES_DETAIL; j--) out.push(tireRelique(nom, i, j));
+  }
+  return out;
+}
+/* Les deux multiplicateurs, prêts à l'emploi dans la simulation. */
+function multAssautRelique(b){ return 1 + ((b && b.assaut) | 0) / 100; }
+function multGardeRelique(b){  return 1 + ((b && b.garde)  | 0) / 100; }
+
 /* ================================================================
    RECONSTRUIRE LES CARRIÈRES À PARTIR DES PODIUMS GELÉS
 
@@ -10630,6 +11085,13 @@ function fusionneEvenements(a, b){
                      il traverse les remises à zéro, et aucun client n'a
                      autorité sur les autres pour l'écrire. */
                   hc:fusionnePalmares(a && a.hc, b && b.hc),
+                  /* LES RELIQUES AUSSI, et pour les mêmes trois raisons
+                     — elles décrivent ce que quelqu'un a fait, elles
+                     traversent les remises à zéro, et aucun client n'a
+                     autorité sur les autres pour les écrire. Un
+                     compteur de millions franchis ne redescend jamais :
+                     le maximum suffit. */
+                  rq:fusionneReliques(a && a.rq, b && b.rq),
                   bo:rg.bo, bon:rg.bon };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
@@ -10647,6 +11109,7 @@ function poseEvenements(o, E){
   o.bg = E.bg || ""; o.bgn = E.bgn || ""; o.bgc = E.bgc | 0;
   o.bo = E.bo || ""; o.bon = E.bon | 0;
   o.hc = E.hc || "";
+  o.rq = E.rq || "";
   return o;
 }
 /* Les deux noms d'origine, gardés : la jungle est UN événement, et
@@ -10765,7 +11228,12 @@ function memeEvenements(m, E){
   if((m.bg || "") !== (E.bg || "") || (m.bgn || "") !== (E.bgn || "") ||
      (m.bgc | 0) !== (E.bgc | 0) ||
      (m.bo || "") !== (E.bo || "") || (m.bon | 0) !== (E.bon | 0) ||
-     (m.hc || "") !== (E.hc || "")) return false;
+     (m.hc || "") !== (E.hc || "") ||
+     /* SANS CETTE LIGNE, UNE RELIQUE GAGNÉE NE PARTIRAIT JAMAIS : le
+        compteur monterait sur l'appareil qui l'a vu franchir le
+        million, l'instantané ne serait pas « sale », et personne
+        d'autre ne la verrait. */
+     (m.rq || "") !== (E.rq || "")) return false;
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;
@@ -45506,6 +45974,17 @@ function nouvelleCarte(index, pvConnu){
        table des paliers. `puissance` multiplie ce que les troupes
        infligent, `palier` sert au visuel et part sur le réseau. */
     puissance:1, palier:0, rangNova:0,
+    /* LES RELIQUES DU PSEUDO, relues seulement quand elles bougent.
+       `multAssaut` multiplie ce que les troupes infligent, `multGarde`
+       la vie qu'elles reçoivent à leur création — voir creeUnite. Ce
+       sont deux facteurs de plus dans une chaîne qui en portait déjà :
+       base × relique × palier de carte, exactement le cumul demandé.
+       `millionsVus` est le garde-fou GRATUIT du déclenchement : il se
+       lit dans un compteur local, et tant qu'il ne bouge pas on ne
+       touche pas au tableau partagé, qui coûte un décodage.
+       `reliquesVues` est la VÉRITÉ — le compte partagé — et c'est
+       elle qui décide combien de roues doivent tourner. */
+    multAssaut:1, multGarde:1, millionsVus:0, reliquesVues:0, roue:null,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -46482,8 +46961,15 @@ function creeUnite(type, gx, gy){
   var f = UNI[type];
   var n = jeu.nSuiv++;
   var an = ancreFormation(n);
+  /* LA RELIQUE DE GARDE ÉPAISSIT LA TROUPE À SA NAISSANCE, et c'est le
+     seul endroit où elle a besoin d'exister : la barre de vie, les
+     soins du Doc, les vulnérabilités et la mort lisent tous `pvMax`,
+     et n'ont donc rien à apprendre. Une troupe déjà au sol quand la
+     relique monte garde la vie qu'elle avait — on ne soigne pas
+     rétroactivement, on débarque plus solide. */
+  var pv = Math.round(f.pv * jeu.multGarde);
   jeu.unites.push({
-    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:n,
+    t:type, gx:gx, gy:gy, pv:pv, pvMax:pv, n:n,
     /* place stable dans le disque unité : c'est elle qui donne au
        groupe sa surface au lieu d'un empilement sur un point */
     ancX:an.x, ancY:an.y, sepC:0,
@@ -47878,7 +48364,14 @@ function impactHache(gx, gy){
    le joueur a explicitement voulu laisser hors du bonus. Mettre le
    multiplicateur dans abimeBatiment aurait multiplié l'orage. */
 function appliqueDegatsCible(c, d, but){
-  d *= jeu.puissance;
+  /* LES DEUX FACTEURS SE MULTIPLIENT, ILS NE S'ADDITIONNENT PAS.
+     « Ils auraient la base, plus ces pourcentages, PLUS APRÈS quand
+     ils détruisent la map les dix trente cent pour cent — comme ça
+     c'est cumulatif. » Une relique de Zénith et un palier plein font
+     donc 1,33 × 2,00, et non 1 + 0,33 + 1,00 : c'est la même règle
+     que partout ailleurs dans ce jeu, et la seule qui garde son sens
+     si l'un des deux barèmes bouge un jour. */
+  d *= jeu.puissance * jeu.multAssaut;
   if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
   if(c.k === "bat") abimeBatiment(c.o, d);
   else if(c.k === "cre") abimeCreature(c.o, d);
@@ -49479,9 +49972,93 @@ function majPuissance(){
   }
 }
 
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES, PENDANT LA BATAILLE
+
+   ─── CE QUI DÉCLENCHE, ET CE QUI EST VRAI ──────────────────────
+   Deux compteurs, et il faut absolument les distinguer.
+
+   `millionsVus` est LOCAL et il ne sert qu'à savoir s'il faut
+   regarder. Le lire coûte une soustraction ; le tableau des dégâts
+   partagé, lui, coûte le décodage d'une longue chaîne, et on ne fait
+   pas ça soixante fois par seconde pour un événement qui arrive une
+   fois par million.
+
+   `reliquesVues` est LA VÉRITÉ : le compte que tout le salon partage.
+   C'est lui qui décide combien de roues doivent tourner et QUELLE
+   relique chacune montre. Un joueur qui viderait son navigateur
+   remettrait `millionsVus` à zéro et reverrait des roues — mais
+   `reliquesVues` ne bougerait pas d'un cran, parce qu'il se lit dans
+   le tableau publié, fusionné par maximum, que personne ne peut faire
+   redescendre tout seul. On refarme l'animation, jamais la relique.
+
+   ─── RIEN N'EST ÉCRIT ICI, ET C'EST VOULU ──────────────────────
+   Gagner une relique ne demande AUCUNE publication : le compte vaut
+   « acquis + millions du tableau partagé », et ces millions y sont
+   déjà — ils partent avec le score, comme depuis toujours. Le seul
+   moment où `rq` grossit est la clôture de campagne, quand le tableau
+   va être effacé. Une loterie qui n'écrit rien ne peut pas se
+   désaccorder entre deux appareils.
+   ════════════════════════════════════════════════════════════════ */
+function relisReliques(){
+  var b = (typeof bonusReliques === "function" && typeof monde !== "undefined")
+          ? bonusReliques(monde && monde.rq, scoresDesReliques(), monNom)
+          : { assaut:0, garde:0, pa:-1, pg:-1, n:0 };
+  jeu.multAssaut = multAssautRelique(b);
+  jeu.multGarde  = multGardeRelique(b);
+  return b;
+}
+/* À l'entrée sur l'île : on adopte l'état SANS rien fêter. Les
+   millions déjà faits ne sont pas des nouvelles. */
+function amorceReliques(){
+  if(!jeu) return;
+  jeu.millionsVus = Math.floor(degatsMaCarte() / RELIQUE_SEUIL);
+  jeu.reliquesVues = carteSpeciale(jeu.index)
+    ? comptesReliques(monde && monde.rq, scoresDesReliques(), monNom, jeu.index) : 0;
+  relisReliques();
+}
+var RELIQUE_GUET = 0.25;                    // on ne guette que quatre fois par seconde
+var reliqueGuet = 0;
+function majReliques(dt){
+  /* LES DEUX CARTES BONUS, ET ELLES SEULES. « Si on joue tout le temps,
+     au final on aura toujours le pourcentage max ; mais si on dit que
+     sur les deux cartes bonus il y a ce truc-là à gagner, ça c'est
+     bien. » La visite ne compte pas non plus : rien n'en sort, donc
+     rien n'y est gagné. */
+  if(!carteSpeciale(jeu.index)) return;
+  if(typeof modeApercu !== "undefined" && modeApercu) return;
+  /* LE GUICHET LOCAL, GRATUIT : tant que mon propre compteur n'a pas
+     franchi un million de plus, il n'y a rien à regarder. */
+  var m = Math.floor(degatsMaCarte() / RELIQUE_SEUIL);
+  if(m <= jeu.millionsVus) return;
+  /* ET IL NE SE CONSOMME PAS TANT QUE LE PARTAGÉ N'A PAS SUIVI.
+     C'était le piège : avancer `millionsVus` ici, avant d'avoir la
+     confirmation, aurait refermé le guichet pendant les deux secondes
+     qui séparent le coup de hache de sa publication — et la relique
+     aurait été gagnée sans que personne ne voie la roue. On garde
+     donc le guichet ouvert et l'on repasse, quatre fois par seconde
+     le temps que la publication arrive. */
+  reliqueGuet += (typeof dt === "number" ? dt : 0.016);
+  if(reliqueGuet < RELIQUE_GUET) return;
+  reliqueGuet = 0;
+  var n = comptesReliques(monde && monde.rq, scoresDesReliques(), monNom, jeu.index);
+  if(n <= jeu.reliquesVues) return;
+  jeu.millionsVus = m;
+  /* PLUSIEURS D'UN COUP : une salve peut franchir deux millions dans
+     la même image, et un cumul local en avance sur le partagé peut en
+     libérer plusieurs à la fois. On ne montre que la DERNIÈRE — deux
+     roues qui se chevauchent ne se lisent pas — mais on les compte
+     toutes, et c'est le compte qui donne le bonus. */
+  var r = tireRelique(monNom, jeu.index, n);
+  jeu.reliquesVues = n;
+  relisReliques();
+  if(typeof ouvreRoueRelique === "function") ouvreRoueRelique(r, n);
+}
+
 function majJeu(dt){
   jeu.tps += dt;
   majPuissance();
+  majReliques(dt);
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);
@@ -50181,7 +50758,7 @@ function etatEvenements(){
   var m = monde || {}, E = { v:{}, ch:m.ch || "", t3:m.t3 || "",
                              bg:m.bg || "", bgn:m.bgn || "", bgc:m.bgc | 0,
                              bo:m.bo || "", bon:m.bon | 0,
-                             hc:m.hc || "" };
+                             hc:m.hc || "", rq:m.rq || "" };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
     /* Le bonus du SALON fait foi : genereCarte le lit au moment de
@@ -50306,6 +50883,41 @@ function mondeCourant(){
              bd:blindageSalon, bn:numeroBlindage | 0,
              qv:santeQGSalon, qn:numeroSanteQG | 0,
             ep:epinglesSalon, epn:numeroEpingles | 0 }, jg);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LA SEULE SOURCE QUI COMPTE POUR UNE RELIQUE
+
+   scoresAJour() mêle DEUX choses : le tableau publié, et nos propres
+   dégâts pas encore publiés. C'est exactement ce qu'il faut pour
+   animer un classement — et exactement ce qu'il ne faut pas pour
+   compter des reliques.
+
+   LE DÉFAUT, MESURÉ. À la clôture, `plieReliques` range les millions
+   de la campagne dans `rq` et l'instantané publie s:"". Le cumul
+   LOCAL, lui, peut survivre à la campagne : `chargeMesDegats` adopte
+   un cumul « provisoire » quelle que soit la campagne qu'il portait,
+   parce que ces dégâts-là ont bien été infligés et qu'on ne les jette
+   pas. Le même million se retrouvait alors des deux côtés — plié dans
+   `rq`, ET encore vivant dans mesDegats —, et le joueur gagnait une
+   relique de plus à chaque clôture, en silence, pour toujours. Un banc
+   l'a montré au premier essai : cinq millions pliés, six reliques
+   comptées.
+
+   UNE SEULE SOURCE FERME LA PORTE POUR DE BON. On lit le tableau
+   PUBLIÉ, celui-là même que le pliage vient de vider : ce qui a été
+   plié n'y est plus, donc ne peut plus être recompté. Ce n'est pas un
+   rustinage, c'est l'invariant qui manquait.
+
+   CE QUE ÇA COÛTE : jusqu'à deux secondes entre le coup de hache qui
+   franchit le million et le départ de la roue — le temps d'une
+   publication. La roue tourne trois secondes ; personne ne verra la
+   différence. Et c'est la bonne règle par ailleurs : une relique se
+   gagne sur le registre partagé, pas sur un compteur qu'on est seul
+   à voir.
+   ════════════════════════════════════════════════════════════════ */
+function scoresDesReliques(){
+  return decodeScores(monde && monde.s);
 }
 
 /* Le classement tel qu'on le connaît, prêt à être publié : nos propres
@@ -51079,7 +51691,22 @@ function nouvelleCampagneSalon(){
        classement de cette campagne n'existe plus nulle part. On grave
        donc les trois premiers dans le palmarès en même temps qu'on
        couronne le premier. */
-    crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium);
+    /* LES RELIQUES SE PLIENT AU MÊME INSTANT, ET SOUS LA MÊME GARDE.
+       Le compte vivant d'un joueur est « son acquis, plus les millions
+       de la campagne en cours lus dans le tableau des dégâts ». Trois
+       lignes plus bas ce tableau est effacé : si l'on ne pliait pas
+       maintenant, tout le monde perdrait les reliques de la campagne
+       qui vient de se terminer.
+       LA GARDE EST CELLE DU PALMARÈS, et c'est pour ça qu'on lit le
+       retour de crediteTitreCarriere plutôt que d'en écrire une
+       seconde : il ne rend `true` qu'au PREMIER client qui voit la
+       campagne se refermer. Deux clients qui la voient ensemble ne
+       plient donc pas deux fois — ce qui doublerait les reliques de
+       tout le salon. */
+    if(crediteTitreCarriere(cycleSalon | 0, podium.length ? podium[0].nom : "", podium)
+       && typeof plieReliques === "function"){
+      monde.rq = plieReliques(monde.rq, scoresDesReliques());
+    }
   }
   cycleSalon = (cycleSalon | 0) + 1;
   /* premiereCarte(), et non « 0 » écrit en dur : c'est l'ordre de
@@ -61848,6 +62475,17 @@ function vignetteEvenement(i){
   return '<div class="monde evt ev' + voieDeCarte(i) + ' ' + e + '" id="mondeEvt' + i + '" data-evt="' + i + '">'
        + '<canvas width="720" height="300" id="mn' + i + '"></canvas>'
        + '<div class="bandeau">' + M.ecusson + ' Carte spéciale</div>'
+       /* CE QU'ON NE PEUT GAGNER QUE LÀ, DIT SUR L'IMAGE.
+          « Il faudrait peut-être que sur la vignette des deux cartes
+          bonus on comprenne directement qu'on peut avoir un petit
+          bonus en plus. » C'est la seule chose qui distingue
+          VRAIMENT ces deux cartes des huit autres depuis qu'elles
+          existent — et jusqu'ici la vignette n'en disait rien. Le
+          chiffre est celui du barème, jamais recopié. */
+       + '<div class="bandeauR" title="Un tirage par million de dégâts. '
+       + 'Ce que tu gagnes est à toi pour toujours, sur toutes les îles.">💠 Relique à gagner'
+       + '<small>jusqu\'à +' + RELIQUE_ASSAUT_MAX + ' % dégâts · +'
+       + RELIQUE_GARDE_MAX + ' % défense</small></div>'
        + '<div class="etat">' + etiq + '</div>'
        + '<div class="nom">' + CARTES[i].nom
        + '<br><span style="font-size:11px;color:#a99cb4">QG '
@@ -62515,6 +63153,12 @@ function lancePartie(ou){
   construitMenu();
   majBarres();
   majPodium();
+  /* LES RELIQUES SONT ADOPTÉES AVANT LE PREMIER DÉBARQUEMENT, sans
+     quoi la première navette sortirait avec la vie de base et le
+     bonus de garde ne s'appliquerait qu'à partir de la deuxième. Elle
+     ne fête rien au passage : les millions déjà faits ne sont pas des
+     nouvelles. */
+  if(typeof amorceReliques === "function") amorceReliques();
   message(carteSpeciale(idx)
     ? (MSG_ENTREE[voieDeCarte(idx)] || "Choisis une navette et débarque.")
     : "Choisis une barge en bas à gauche, puis appuie sur la plage.");
@@ -63322,6 +63966,532 @@ function abandonneLaVague(){
   majBarres();
   message("Vague abandonnée. Le renfort se prépare.");
 }
+
+/* ===== 91-reliques.js ===== */
+/* ================================================================
+   LES RELIQUES — CE QU'ON EN VOIT
+
+   Le calcul est dans le noyau, et il n'a besoin de personne. Ce
+   fichier ne fait que trois choses, et elles sont toutes visuelles :
+
+     ① L'EMBLÈME. Un dessin, rendu en SVG comme les badges, décliné en
+       deux familles et cinq paliers. Il paraît partout où une relique
+       est nommée : sur la roue, sur le bandeau des navettes, sur la
+       page qui l'explique.
+     ② LA ROUE. « Une sorte de fenêtre en haut à droite, un peu comme
+       casino, une roue qui tourne, qui tourne, puis après ils voient
+       un truc avec défense plus dix pour cent. »
+     ③ LE BANDEAU DES NAVETTES. « Que la personne, à côté des troupes,
+       ait le petit logo plus dix pour cent, plus vingt-cinq pour cent
+       — comme ça elle est consciente qu'elle a toujours ça. » Et le
+       palier de carte à côté, « comme ça c'est très clair
+       visuellement, les dégâts qu'une personne a ».
+
+   RIEN ICI NE DÉCIDE DE QUOI QUE CE SOIT. La roue ne tire pas : elle
+   reçoit la relique déjà calculée et va se poser dessus. Rater
+   l'animation — recharger la page, fermer l'onglet — ne fait perdre
+   aucune relique. C'est la règle qui rend tout le reste possible.
+   ================================================================ */
+
+/* ────────────────────────────────────────────────────────────────
+   ① L'EMBLÈME
+
+   POURQUOI UNE GEMME, ET PAS UN DISQUE. Le badge est un disque, le
+   badge d'honneur est le seul hexagone du jeu, les médailles sont des
+   ronds. Une relique devait se distinguer d'un coup d'œil à seize
+   pixels, sans lire : un LOSANGE FACETTÉ ne ressemble à rien d'autre
+   ici, et sa silhouette tient jusqu'à la taille d'une icône.
+
+   LA FAMILLE EST UNE TEMPÉRATURE, LE PALIER UNE SILHOUETTE. Deux
+   codes séparés, parce qu'ils répondent à deux questions différentes
+   — « pour frapper ou pour encaisser ? » et « fort comment ? » — et
+   qu'un seul code pour deux questions se lit toujours de travers.
+   La chaleur d'abord : l'assaut est une braise, la garde est un
+   givre. Puis la silhouette monte par ajouts francs, jamais par
+   nuances : une facette, puis un anneau, puis des rais, puis une
+   couronne de lumière. À seize pixels on ne distingue pas deux ors ;
+   on distingue une chose qui a des rais d'une chose qui n'en a pas.
+   ──────────────────────────────────────────────────────────────── */
+var MilyReliques = (function(){
+  "use strict";
+  var FAM = {
+    a: { cle:"a", nom:"Assaut", mot:"de dégâts",  ic:"⚔",
+         corps:"#FF8A45", bord:"#6E2409", coeur:"#FFE0B8", vif:"#FFC27A" },
+    g: { cle:"g", nom:"Garde",  mot:"de défense", ic:"🛡",
+         corps:"#54D6EA", bord:"#0C3D49", coeur:"#E2F9FF", vif:"#A9ECF7" }
+  };
+  var CX = 16, CY = 16;
+
+  function losange(r, h){
+    return (CX) + "," + (CY - h) + " " + (CX + r) + "," + CY + " "
+         + (CX) + "," + (CY + h) + " " + (CX - r) + "," + CY;
+  }
+  /* Le dessin d'une relique, en repère 32×32 — la même boîte que les
+     badges, pour que les deux s'alignent quand ils se côtoient. */
+  function svg(fam, palier, opt){
+    var F = FAM[fam] || FAM.a, p = Math.max(0, Math.min(4, palier | 0));
+    var o = opt || {}, t = o.size || 32;
+    var id = "rl" + F.cle + p + (o.uid || "");
+    var s = '<svg viewBox="0 0 32 32" width="' + t + '" height="' + t
+          + '" class="relSvg" aria-hidden="true">';
+    s += '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">'
+       + '<stop offset="0" stop-color="' + F.vif + '"/>'
+       + '<stop offset="1" stop-color="' + F.corps + '"/></linearGradient>'
+       + '<radialGradient id="' + id + 'h"><stop offset="0" stop-color="'
+       + F.coeur + '" stop-opacity=".95"/><stop offset="1" stop-color="'
+       + F.corps + '" stop-opacity="0"/></radialGradient></defs>';
+    /* LA COURONNE DU DERNIER PALIER, dessinée SOUS la gemme : un halo
+       posé par-dessus l'aurait laiteuse, alors qu'il doit en sortir. */
+    if(p >= 4) s += '<circle cx="16" cy="16" r="15" fill="url(#' + id + 'h)"/>';
+    /* Les rais, à partir de l'avant-dernier. Quatre, en croix
+       oblique : en croix droite ils se seraient confondus avec les
+       pointes du losange. */
+    if(p >= 3){
+      for(var k = 0; k < 4; k++){
+        var a = Math.PI / 4 + k * Math.PI / 2;
+        s += '<line x1="' + (16 + Math.cos(a) * 8.5).toFixed(1)
+           + '" y1="' + (16 + Math.sin(a) * 8.5).toFixed(1)
+           + '" x2="' + (16 + Math.cos(a) * 14.2).toFixed(1)
+           + '" y2="' + (16 + Math.sin(a) * 14.2).toFixed(1)
+           + '" stroke="' + F.vif + '" stroke-width="1.7" stroke-linecap="round"'
+           + ' opacity="' + (p >= 4 ? ".95" : ".7") + '"/>';
+      }
+    }
+    /* L'anneau, à partir du troisième. */
+    if(p >= 2) s += '<circle cx="16" cy="16" r="12.4" fill="none" stroke="'
+                  + F.vif + '" stroke-width="1.5" opacity="' + (p >= 4 ? ".9" : ".62") + '"/>';
+    /* LE CORPS : toujours le même, à tous les paliers. C'est lui qui
+       fait qu'une Lueur et un Zénith sont visiblement la même chose. */
+    s += '<polygon points="' + losange(9.2, 12.6) + '" fill="url(#' + id
+       + ')" stroke="' + F.bord + '" stroke-width="1.6" stroke-linejoin="round"/>';
+    /* La table, dès le deuxième palier : c'est elle qui donne la
+       facette, et elle se voit encore à seize pixels. */
+    if(p >= 1) s += '<polygon points="' + losange(4.4, 6.2) + '" fill="' + F.coeur
+                  + '" opacity="' + (0.55 + p * 0.1).toFixed(2) + '"/>';
+    else       s += '<polygon points="' + losange(3.0, 4.2) + '" fill="' + F.coeur
+                  + '" opacity=".38"/>';
+    s += "</svg>";
+    return s;
+  }
+  return { FAM:FAM, svg:svg };
+})();
+
+/* Le dessin d'une relique telle que le noyau la rend. */
+function svgRelique(r, taille, uid){
+  if(!r) return "";
+  return MilyReliques.svg(r.famille, r.palier, { size:taille || 32, uid:uid || "" });
+}
+/* Sa phrase, toujours la même partout : la famille, le nom du palier,
+   le pourcentage et ce sur quoi il porte. */
+function texteRelique(r){
+  if(!r) return "";
+  var F = MilyReliques.FAM[r.famille];
+  return F.nom.toUpperCase() + " · " + r.nom + " — +" + r.pct + " % " + F.mot;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   ② LA ROUE
+
+   ELLE MONTRE LES VRAIES CHANCES. Chaque secteur occupe l'angle de sa
+   probabilité : le Zénith fait cinq degrés et demi, la Lueur en fait
+   quatre-vingt-un. C'était le choix à faire — dix parts égales
+   auraient été plus jolies et auraient MENTI, et voir l'aiguille
+   s'arrêter sur un éclat d'or large comme un cheveu vaut toutes les
+   explications qu'on aurait pu écrire à côté.
+
+   L'ORDRE DES SECTEURS EST UNE PERMUTATION FIXE, et non l'ordre du
+   barème : à la suite, les deux gros secteurs de Lueur auraient
+   occupé un quart de la roue d'un seul tenant, et le reste aurait
+   ressemblé à une miette. On les écarte donc régulièrement — le pas
+   de sept sur dix parcourt les dix places sans jamais retomber sur la
+   même, ce qui est exactement ce qu'on veut d'un mélange qui ne doit
+   rien au hasard.
+
+   ELLE NE TIRE RIEN. On lui donne la relique, elle va se poser
+   dessus. Le sens de la rotation, le nombre de tours et l'atterrissage
+   sont un décor par-dessus une décision déjà prise.
+   ──────────────────────────────────────────────────────────────── */
+var ROUE_TOURS = 4;             // tours pleins avant le freinage
+var ROUE_LANCE = 3.1;           // secondes de rotation
+var ROUE_POSE  = 0.9;           // le temps que le secteur gagnant palpite
+var ROUE_LIT   = 4.4;           // puis on lit la phrase, sans être pressé
+var ROUE_SORT  = 0.7;           // et elle s'efface
+var roueRel = null;
+
+/* Les dix secteurs, une fois pour toutes : famille, palier, part. */
+function secteursRoue(){
+  var brut = [], i;
+  for(i = 0; i < RELIQUES.length; i++){
+    brut.push({ f:"a", p:i, part:RELIQUES[i].chance / 200 });
+    brut.push({ f:"g", p:i, part:RELIQUES[i].chance / 200 });
+  }
+  /* la permutation : un pas de sept sur dix places */
+  var n = brut.length, out = new Array(n);
+  for(i = 0; i < n; i++) out[(i * 7) % n] = brut[i];
+  /* puis on pose les bornes angulaires, dans l'ordre du cercle */
+  var a = -Math.PI / 2;                       // on part en haut, sous l'aiguille
+  for(i = 0; i < n; i++){
+    out[i].a0 = a; a += out[i].part * 6.283185307; out[i].a1 = a;
+  }
+  return out;
+}
+var ROUE_SECTEURS = null;
+
+function ouvreRoueRelique(r, rang){
+  if(!r) return;
+  var boite = $("roueRel");
+  if(!boite) return;
+  if(!ROUE_SECTEURS) ROUE_SECTEURS = secteursRoue();
+  /* LE SECTEUR VISÉ : celui de la relique gagnée. On s'arrête en son
+     MILIEU, jamais sur son bord — un arrêt à un dixième de degré de la
+     frontière ferait douter de ce qu'on vient de gagner. */
+  var s = null, i;
+  for(i = 0; i < ROUE_SECTEURS.length; i++){
+    var e = ROUE_SECTEURS[i];
+    if(e.f === r.famille && e.p === r.palier){ s = e; break; }
+  }
+  if(!s) return;
+  var mid = (s.a0 + s.a1) / 2;
+  roueRel = {
+    r:r, rang:rang | 0, age:0,
+    /* l'aiguille est en haut : il faut amener `mid` sous elle */
+    fin:ROUE_TOURS * 6.283185307 - (mid + Math.PI / 2),
+    ang:0, phase:"tourne"
+  };
+  boite.classList.add("on");
+  boite.classList.toggle("zen", r.palier >= RELIQUES.length - 1);
+  var t = $("roueRelTx");
+  if(t) t.innerHTML = "";
+  if(son && son.reliqueRoue) son.reliqueRoue();
+}
+
+function majRoueRelique(dt){
+  if(!roueRel) return;
+  var R = roueRel, boite = $("roueRel");
+  if(!boite){ roueRel = null; return; }
+  R.age += dt;
+  if(R.phase === "tourne"){
+    /* LE FREINAGE EST UNE PUISSANCE CINQUIÈME. Une décélération
+       linéaire s'arrête net et donne l'impression d'un bug ; en
+       cinquième, la roue passe les trois derniers secteurs au ralenti,
+       et c'est là que se joue toute la tension. */
+    var u = Math.min(1, R.age / ROUE_LANCE);
+    var e = 1 - Math.pow(1 - u, 5);
+    R.ang = R.fin * e;
+    if(u >= 1){
+      R.phase = "pose"; R.age = 0;
+      var t = $("roueRelTx");
+      /* TROIS LIGNES, ET LA PLUS GROSSE EST LE POURCENTAGE : c'est le
+         seul chiffre qu'on retiendra. La phrase d'un seul tenant
+         cassait en plein milieu de « de défense », ce qui se lisait
+         comme une coupure de mot. */
+      var Fw = MilyReliques.FAM[R.r.famille];
+      if(t) t.innerHTML =
+        '<span class="rlE">' + svgRelique(R.r, 32, "w") + "</span>"
+      + '<span class="rlP ' + (R.r.famille === "a" ? "as" : "ga") + '">'
+      + Fw.nom.toUpperCase() + " · " + echappe(R.r.nom) + "</span>"
+      + '<span class="rlG ' + (R.r.famille === "a" ? "as" : "ga") + '">+'
+      + R.r.pct + " %</span>"
+      + '<span class="rlN">' + Fw.mot + " · " + R.rang + "<sup>e</sup> relique</span>";
+      if(typeof majBandeauReliques === "function") majBandeauReliques();
+      if(son && son.reliqueGagnee) son.reliqueGagnee(R.r.palier);
+      if(typeof message === "function")
+        message("Relique gagnée — " + texteRelique(R.r) + ".");
+    }
+  }else if(R.phase === "pose" && R.age > ROUE_POSE){
+    R.phase = "lit"; R.age = 0;
+  }else if(R.phase === "lit" && R.age > ROUE_LIT){
+    R.phase = "sort"; R.age = 0; boite.classList.remove("on");
+  }else if(R.phase === "sort" && R.age > ROUE_SORT){
+    roueRel = null; boite.classList.remove("zen"); return;
+  }
+  dessineRoueRelique();
+}
+
+/* La gemme, dessinée au canevas plutôt qu'en SVG : c'est le même
+   losange que l'emblème, et le moyeu de la roue est le seul endroit du
+   jeu où il faut le peindre au pinceau. Deux dessins d'une même forme
+   sont un risque de divergence, donc celui-ci se tient au strict
+   minimum — le corps et la table, pas les rais. */
+function gemmeRoue(c, x, y, r, fam, palier){
+  var F = MilyReliques.FAM[fam] || MilyReliques.FAM.a;
+  var h = r * 1.36;
+  function trace(rr, hh){
+    c.beginPath();
+    c.moveTo(x, y - hh); c.lineTo(x + rr, y); c.lineTo(x, y + hh); c.lineTo(x - rr, y);
+    c.closePath();
+  }
+  var g = c.createLinearGradient(x, y - h, x, y + h);
+  g.addColorStop(0, F.vif); g.addColorStop(1, F.corps);
+  trace(r, h);
+  c.fillStyle = g; c.fill();
+  c.strokeStyle = F.bord; c.lineWidth = Math.max(1, r * 0.18); c.lineJoin = "round"; c.stroke();
+  trace(r * 0.48, h * 0.48);
+  c.fillStyle = F.coeur; c.globalAlpha = 0.55 + palier * 0.1; c.fill(); c.globalAlpha = 1;
+}
+
+function dessineRoueRelique(){
+  var cv2 = $("roueRelCv");
+  if(!cv2 || !roueRel) return;
+  var c = cv2.getContext("2d"), R = roueRel;
+  var W = cv2.width, H = cv2.height, cx = W / 2, cy = H / 2;
+  var ray = Math.min(cx, cy) - 10, moy = ray * 0.33;
+  c.clearRect(0, 0, W, H);
+  if(!ROUE_SECTEURS) ROUE_SECTEURS = secteursRoue();
+  var gagne = (R.phase !== "tourne");
+
+  c.beginPath(); c.arc(cx, cy, ray + 5, 0, 6.2832);
+  c.fillStyle = "#0d0714"; c.fill();
+
+  var i, e, F;
+  for(i = 0; i < ROUE_SECTEURS.length; i++){
+    e = ROUE_SECTEURS[i];
+    F = MilyReliques.FAM[e.f];
+    var a0 = e.a0 + R.ang, a1 = e.a1 + R.ang, larg = e.a1 - e.a0;
+    var est = gagne && e.f === R.r.famille && e.p === R.r.palier;
+    c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, ray, a0, a1); c.closePath();
+    /* LE PALIER SE LIT DANS LA LUMIÈRE, PAS DANS LA TEINTE. Un secteur
+       commun est sourd, un secteur rare est franc : la roue dit donc
+       où sont les bonnes cases AVANT de tourner, et la teinte reste
+       libre de ne dire qu'une chose — assaut ou garde.
+       Le dégradé va du centre vers le bord, comme la lumière d'un
+       cadran : sans lui les dix parts font un aplat de papier. */
+    var g2 = c.createRadialGradient(cx, cy, moy * 0.8, cx, cy, ray);
+    var k = 0.34 + e.p * 0.165;                     // 0,34 → 1,00
+    g2.addColorStop(0, melangeSombre(F.bord, F.corps, k * 0.55));
+    g2.addColorStop(1, melangeSombre(F.bord, F.vif,  k));
+    c.fillStyle = g2; c.fill();
+    if(est){
+      /* Le battement reste SOUS le blanc : à pleine intensité le
+         secteur gagnant se délavait, et le chiffre qu'il porte —
+         celui qu'on vient de gagner — devenait le moins lisible de la
+         roue. Un tiers d'éclat suffit à le désigner. */
+      var bat = 0.5 + 0.5 * Math.sin(R.age * 9);
+      c.save(); c.globalCompositeOperation = "lighter";
+      c.globalAlpha = 0.10 + 0.22 * bat; c.fillStyle = F.vif; c.fill(); c.restore();
+    }
+    c.strokeStyle = est ? F.coeur : "rgba(6,3,10,.85)";
+    c.lineWidth = est ? 2.2 : 1.1;
+    c.stroke();
+    /* LE CHIFFRE, MAIS SEULEMENT LÀ OÙ IL TIENT. Sous quinze degrés il
+       se chevaucherait avec ses voisins ; les secteurs rares n'en ont
+       de toute façon pas besoin — c'est la légende sous la roue qui
+       les nomme, et leur finesse est déjà tout leur message. */
+    if(larg > 0.26){
+      var am = (a0 + a1) / 2;
+      c.save();
+      c.translate(cx + Math.cos(am) * ray * 0.70, cy + Math.sin(am) * ray * 0.70);
+      c.rotate(am + Math.PI / 2);
+      c.fillStyle = "rgba(255,255,255,.92)";
+      c.font = "700 " + (e.p >= 2 ? 12 : 11) + "px system-ui, sans-serif";
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText("+" + (e.f === "a" ? RELIQUES[e.p].assaut : RELIQUES[e.p].garde), 0, 0);
+      c.restore();
+    }
+  }
+  /* LE MOYEU. Il porte un point d'interrogation tant que ça tourne, et
+     la gemme gagnée dès que c'est posé : c'est là que l'œil est, et
+     c'est donc là que la réponse doit apparaître. */
+  c.beginPath(); c.arc(cx, cy, moy, 0, 6.2832);
+  c.fillStyle = "#130c1d"; c.fill();
+  c.strokeStyle = "rgba(255,210,122,.5)"; c.lineWidth = 1.6; c.stroke();
+  if(gagne){
+    gemmeRoue(c, cx, cy, moy * 0.52, R.r.famille, R.r.palier);
+  }else{
+    c.fillStyle = "rgba(255,210,122,.62)";
+    c.font = "800 " + (moy * 1.05).toFixed(0) + "px system-ui, sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText("?", cx, cy + 1);
+  }
+  /* la jante, puis l'aiguille — l'aiguille EN DERNIER, elle passe
+     par-dessus tout ce qui tourne */
+  c.beginPath(); c.arc(cx, cy, ray + 5, 0, 6.2832);
+  c.strokeStyle = "rgba(255,210,122,.45)"; c.lineWidth = 2.4; c.stroke();
+
+  c.beginPath();
+  c.moveTo(cx, cy - ray + 9); c.lineTo(cx - 8, cy - ray - 8); c.lineTo(cx + 8, cy - ray - 8);
+  c.closePath();
+  c.fillStyle = "#ffd27a"; c.fill();
+  c.strokeStyle = "#2c1a05"; c.lineWidth = 1.4; c.stroke();
+}
+/* Un mélange linéaire entre deux couleurs « #rrggbb ». `k` vaut zéro
+   pour la première, un pour la seconde. Cinquante appels par image sur
+   deux constantes : on retient les résultats, sinon on rejouerait
+   soixante fois par seconde le même découpage de chaîne. */
+var MEL_LU = {};
+function melangeSombre(a, b, k){
+  var cle = a + b + k.toFixed(3);
+  if(MEL_LU[cle]) return MEL_LU[cle];
+  function lit(s){
+    return [parseInt(s.substr(1, 2), 16), parseInt(s.substr(3, 2), 16),
+            parseInt(s.substr(5, 2), 16)];
+  }
+  var x = lit(a), y = lit(b), o = "rgb(";
+  for(var i = 0; i < 3; i++)
+    o += Math.round(x[i] + (y[i] - x[i]) * k) + (i < 2 ? "," : ")");
+  MEL_LU[cle] = o;
+  return o;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   ③ LE BANDEAU DES NAVETTES
+
+   Trois pastilles au plus, sur la ligne des navettes — donc À CÔTÉ
+   DES TROUPES, ce qui était la demande, et non dans un coin qu'on ne
+   regarde pas.
+
+   ON N'AFFICHE QUE CE QU'ON A. Une pastille grise « pas encore de
+   relique de garde » serait un reproche permanent affiché sous les
+   yeux du joueur ; une pastille absente est simplement une pastille
+   qui apparaîtra. Le palier de carte, lui, ne se montre qu'à partir du
+   premier : « ×1,0 » n'est pas une information.
+   ──────────────────────────────────────────────────────────────── */
+function pastilleRelique(fam, palier, pct){
+  if(palier < 0) return "";
+  var F = MilyReliques.FAM[fam];
+  return '<span class="relT ' + (fam === "a" ? "as" : "ga") + '" title="'
+       + F.nom + " · " + RELIQUES[palier].nom + " — +" + pct + " % " + F.mot
+       + ' (relique, acquise pour toujours)">'
+       + MilyReliques.svg(fam, palier, { size:15, uid:"b" + fam })
+       + '<b>+' + pct + ' %</b></span>';
+}
+function majBandeauReliques(){
+  var e = $("relTuiles");
+  if(!e) return;
+  if(!jeu || !enJeu){ e.innerHTML = ""; return; }
+  var b = (typeof bonusReliques === "function")
+          ? bonusReliques(monde && monde.rq, scoresDesReliques(), monNom)
+          : { pa:-1, pg:-1, assaut:0, garde:0 };
+  var h = pastilleRelique("a", b.pa, b.assaut) + pastilleRelique("g", b.pg, b.garde);
+  /* LE PALIER DE CARTE, DANS LA MÊME LIGNE ET AVEC UN AUTRE VISAGE.
+     « Rajouter le plus dix, plus vingt, plus trente, plus cent pour
+     cent des paliers qu'on a dans les maps, comme ça c'est très clair
+     visuellement. » Il est vert et carré là où les reliques sont
+     chaudes ou froides et facettées : c'est un bonus de la partie en
+     cours, pas un acquis, et les deux ne doivent jamais se confondre. */
+  var p = jeu.palier | 0;
+  if(p > 0){
+    var pc = Math.round((PALIERS_PUISSANCE[p].mult - 1) * 100);
+    h += '<span class="relT pal" title="Palier de puissance ' + p
+       + " — il vaut pour CETTE île, et il monte avec tes dégâts dessus"
+       + '"><i>▲</i><b>+' + pc + ' %</b></span>';
+  }
+  e.innerHTML = h;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   L'INSTALLATION, ET LE RAFRAÎCHISSEMENT LENT
+
+   Le bandeau ne bouge presque jamais : une relique par million, un
+   palier toutes les cent mille. Le relire quatre fois par seconde
+   suffit largement, et lui épargne un décodage du tableau des dégâts
+   soixante fois par image.
+   ──────────────────────────────────────────────────────────────── */
+var relLent = 0, relSignature = "";
+function majReliquesLent(dt){
+  if(!enJeu || !jeu) return;
+  relLent += dt;
+  if(relLent < 0.25) return;
+  relLent = 0;
+  /* On ne repeint que si quelque chose a changé : innerHTML sur une
+     ligne du HUD quatre fois par seconde pour rien, c'est du travail
+     que le navigateur refait à chaque fois. */
+  var sig = (jeu.multAssaut + "/" + jeu.multGarde + "/" + (jeu.palier | 0));
+  if(sig === relSignature) return;
+  relSignature = sig;
+  majBandeauReliques();
+}
+function installeReliques(){
+  var b = $("btReliques"), f = $("btReliquesFerme"), p = $("reliquesP");
+  if(b) b.addEventListener("click", ouvrePageReliques);
+  if(f) f.addEventListener("click", fermePageReliques);
+  if(p) p.addEventListener("click", function(ev){ if(ev.target === p) fermePageReliques(); });
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LA PAGE QUI L'EXPLIQUE
+
+   Elle ne recopie AUCUN chiffre : les cinq paliers, leurs deux
+   pourcentages et leurs chances sortent de la table du noyau. Une
+   table recopiée à la main aurait été juste une fois, le jour où on
+   l'a écrite — c'est la même règle que pour la page des badges.
+   ──────────────────────────────────────────────────────────────── */
+function construitPageReliques(){
+  var e = $("reliquesCorps");
+  if(!e) return;
+  var b = bonusReliques(monde && monde.rq, scoresDesReliques(), monNom);
+  var h = "";
+
+  /* CE QUE JE PORTE, EN TÊTE. C'est la question qu'on vient poser. */
+  h += '<div class="rlMien">';
+  if(b.pa < 0 && b.pg < 0){
+    h += '<div class="rlRien">Tu n\'as pas encore de relique. Elles se gagnent '
+       + 'sur les <b>deux cartes bonus</b>, un tirage par million de dégâts.</div>';
+  }else{
+    h += '<div class="rlDeux">'
+       + (b.pa >= 0 ? blocRelique("a", b.pa, b.assaut) : blocViderelique("a"))
+       + (b.pg >= 0 ? blocRelique("g", b.pg, b.garde)  : blocViderelique("g"))
+       + '</div>';
+  }
+  var n = b.n | 0;
+  h += '<div class="rlCpt">' + (n ? n + " tirage" + (n > 1 ? "s" : "") + " à ce jour"
+                                  : "Aucun tirage pour l'instant") + "</div></div>";
+
+  /* LE BARÈME, LU DANS LA TABLE. */
+  h += "<h4>Les cinq paliers</h4>"
+     + '<div class="rlN2">Un tirage par million de dégâts, sur les deux cartes '
+     + 'bonus uniquement. On garde <b>la meilleure</b> de chaque famille — '
+     + 'elle ne redescend jamais, et elle suit le pseudo.</div>'
+     + '<table class="rlTab"><tr><th></th><th>Palier</th><th>Assaut</th>'
+     + "<th>Garde</th><th>Chance</th></tr>";
+  for(var i = RELIQUES.length - 1; i >= 0; i--){
+    var R = RELIQUES[i];
+    h += "<tr" + (i === RELIQUES.length - 1 ? ' class="rlMax"' : "") + ">"
+       + '<td class="rlIc">' + MilyReliques.svg("a", i, { size:22, uid:"ta" + i })
+       + MilyReliques.svg("g", i, { size:22, uid:"tg" + i }) + "</td>"
+       + "<td><b>" + echappe(R.nom) + "</b></td>"
+       + '<td class="rlAs">+' + R.assaut + " %</td>"
+       + '<td class="rlGa">+' + R.garde + " %</td>"
+       + "<td>" + R.chance + " %</td></tr>";
+  }
+  h += "</table>";
+  h += '<div class="rlN2">Plus tu as frappé sur une carte, plus la roue tire de '
+     + "fois et garde le meilleur résultat : au premier million elle tire une fois, "
+     + "à partir du treizième elle en tire " + RELIQUE_TIRAGES_MAX + ". "
+     + "Le palier max passe alors de " + RELIQUES[RELIQUES.length - 1].chance
+     + " % à environ 14 %.</div>";
+
+  /* LE DÉTAIL, s'il y a quelque chose à détailler. */
+  var l = listeReliques(monde && monde.rq, scoresDesReliques(), monNom);
+  if(l.length){
+    h += "<h4>Tes derniers tirages</h4><div class=\"rlListe\">";
+    for(var k = 0; k < l.length; k++){
+      var r = l[k];
+      h += '<div class="rlL"><span class="e">' + svgRelique(r, 20, "d" + k) + "</span>"
+         + '<span class="n">' + echappe(texteRelique(r)) + "</span>"
+         + '<span class="c">' + echappe(CARTES[r.carte] ? CARTES[r.carte].nom : "")
+         + " · n<sup>o</sup>" + r.n + "</span></div>";
+    }
+    h += "</div>";
+  }
+  e.innerHTML = h;
+}
+function blocRelique(fam, palier, pct){
+  var F = MilyReliques.FAM[fam];
+  return '<div class="rlB ' + (fam === "a" ? "as" : "ga") + '">'
+       + '<div class="g">' + MilyReliques.svg(fam, palier, { size:76, uid:"m" + fam }) + "</div>"
+       + '<div class="p">+' + pct + " %</div>"
+       + '<div class="t">' + echappe(RELIQUES[palier].nom) + " — "
+       + (fam === "a" ? "dégâts des troupes" : "résistance des troupes") + "</div></div>";
+}
+function blocViderelique(fam){
+  var F = MilyReliques.FAM[fam];
+  return '<div class="rlB vide"><div class="g">' + F.ic + "</div>"
+       + '<div class="p">—</div><div class="t">pas encore de relique '
+       + F.nom.toLowerCase() + "</div></div>";
+}
+function ouvrePageReliques(){ construitPageReliques(); $("reliquesP").classList.add("on"); }
+function fermePageReliques(){ $("reliquesP").classList.remove("on"); }
 
 /* ===== 93-musique.js ===== */
 /*
@@ -65097,6 +66267,57 @@ var son = {
     this.souffle(6200, 3400, 0.16, 0.008, 0.02);
   },
   /* ================================================================
+     LA ROUE DES RELIQUES — LES CLIQUETIS, PUIS LE VERDICT
+
+     DEUX SONS, ET LE SECOND DÉPEND DU PALIER. Le premier est le
+     crépitement de la roue : une trentaine de clics dont l'écart
+     s'allonge exactement comme la rotation ralentit — c'est LUI qui
+     fait la tension, bien plus que l'image, parce qu'on entend le
+     freinage avant de le voir.
+
+     TOUT EST PROGRAMMÉ EN UN SEUL APPEL, par les retards, comme
+     l'annonce de la pluie : la séquence est calée à l'échantillon
+     près dans le contexte audio et elle survit à une image sautée.
+     Un setTimeout par clic aurait dérivé au premier ralentissement.
+
+     LES RETARDS SUIVENT LA MÊME COURBE QUE LA ROUE — une puissance
+     cinquième —, et ce n'est pas une coïncidence : c'est la même
+     formule, écrite deux fois parce que l'une vit dans le son et
+     l'autre dans l'image. Si l'une change un jour, l'autre doit
+     changer avec, et ce commentaire est là pour le rappeler. Voir
+     ROUE_LANCE et le freinage de majRoueRelique.
+     ================================================================ */
+  reliqueRoue:function(){
+    if(!this.ok()) return;
+    var N = 34, lance = 3.1, i;
+    for(i = 0; i < N; i++){
+      /* on inverse la courbe de la roue : l'angle parcouru est
+         régulier en i, donc le TEMPS qu'il faut pour l'atteindre est
+         la réciproque du freinage */
+      var u = i / N;
+      var t = lance * (1 - Math.pow(1 - u, 1 / 5));
+      this.bip("square", 1750 - u * 420, 900 - u * 260, 0.022, 0.030, t);
+    }
+  },
+  /* LE VERDICT. Trois notes qui montent au palier de base, cinq et un
+     souffle au sommet : le joueur doit savoir CE QU'IL A GAGNÉ avant
+     d'avoir lu la phrase. Le palier max a droit à son éclat — trois
+     pour cent, ça s'entend. */
+  reliqueGagnee:function(palier){
+    if(!this.ok()) return;
+    var p = Math.max(0, Math.min(4, palier | 0));
+    var base = [523, 659, 784, 988, 1175];          // do mi sol si ré
+    var n = 3 + Math.min(2, p), i;
+    for(i = 0; i < n; i++)
+      this.bip("triangle", base[i], base[i] * 1.5, 0.19 + p * 0.02,
+               0.055 + p * 0.012, i * 0.085);
+    if(p >= 3) this.souffle(3200, 8600, 0.55, 0.014, n * 0.085);
+    if(p >= 4){
+      this.bip("triangle", 1568, 2093, 0.7, 0.075, n * 0.085 + 0.06);
+      this.souffle(900, 240, 0.9, 0.020, n * 0.085 + 0.06);
+    }
+  },
+  /* ================================================================
      L'ANNONCE DE LA PLUIE D'ÉTOILES — les trois temps de la demande
 
      « Une petite montée sonore ; quelques sons cristallins ; puis les
@@ -65459,6 +66680,7 @@ function demarre(){
   installeQuiSalon();
   installeClassement();
   installePageBadges();
+  installeReliques();
   installeEditeurBadges();
   installeVus();
   installeVoixP();
@@ -65549,6 +66771,12 @@ function boucle(maintenant){
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);
   majBarresLent(dt);
+  /* LA ROUE TOURNE ICI, ET NON DANS majJeu : elle doit finir son tour
+     même si le bilan s'ouvre par-dessus. Une roue qui se figerait au
+     milieu de sa course parce qu'une île vient de tomber laisserait
+     le joueur sans savoir ce qu'il a gagné. */
+  majRoueRelique(dt);
+  majReliquesLent(dt);
 }
 
 /* ---------------------------------------------------------------

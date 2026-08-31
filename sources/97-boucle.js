@@ -36,6 +36,7 @@ function demarre(){
   installeQuiSalon();
   installeClassement();
   installePageBadges();
+  installeReliques();
   installeEditeurBadges();
   installeVus();
   installeVoixP();
@@ -126,6 +127,12 @@ function boucle(maintenant){
   if(!bilanActif || jeu.fin) majJeu(dt);
   rendu(tempsGlobal, dt);
   majBarresLent(dt);
+  /* LA ROUE TOURNE ICI, ET NON DANS majJeu : elle doit finir son tour
+     même si le bilan s'ouvre par-dessus. Une roue qui se figerait au
+     milieu de sa course parce qu'une île vient de tomber laisserait
+     le joueur sans savoir ce qu'il a gagné. */
+  majRoueRelique(dt);
+  majReliquesLent(dt);
 }
 
 /* ---------------------------------------------------------------

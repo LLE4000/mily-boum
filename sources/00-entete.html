@@ -775,6 +775,26 @@ select.champ{cursor:pointer}
 .monde.evt .bandeau{position:absolute;top:8px;left:8px;font-size:10px;letter-spacing:1.4px;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;color:#0a2416;font-weight:700;
   background:linear-gradient(180deg,#8ff0b4,#39c47c)}
+/* LE BANDEAU DES RELIQUES, sous celui de la carte spéciale et dans
+   l'autre sens de lecture : celui du haut dit ce QU'EST cette carte,
+   celui-ci ce qu'on y GAGNE. Deux bandes de la même couleur se
+   seraient lues comme une seule phrase coupée en deux ; celle-ci
+   emprunte donc l'or et le violet du jeu, et porte sa gemme. */
+.monde.evt .bandeauR{
+  position:absolute;top:33px;left:8px;display:flex;flex-direction:column;
+  padding:3px 10px 4px;border-radius:12px;line-height:1.15;
+  background:linear-gradient(180deg,rgba(46,26,66,.94),rgba(24,13,38,.94));
+  border:1px solid rgba(255,210,122,.45);
+  font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+  font-weight:700;color:#ffd27a;
+}
+.monde.evt .bandeauR small{
+  font-size:9px;letter-spacing:.3px;text-transform:none;font-weight:600;
+  color:#c9bcd8;
+}
+/* Une carte en travaux ne promet rien : le bandeau s'éteint avec le
+   reste, sinon on annoncerait un gain sur une porte fermée. */
+.monde.evt.chantier .bandeauR{opacity:.4}
 /* Sur une carte spéciale l'image est plus haute : les deux bandes
    posées dessus suivent, et c'est la seule chose à redire. */
 .monde.evt .surImage{height:150px;padding:0 11px 9px}
@@ -1073,13 +1093,13 @@ select.champ{cursor:pointer}
 .vusL .vr{color:#7fb2ff}
 #vusVide{padding:18px 14px;color:#8f86a0;font-size:13px;line-height:1.6}
 
-#classP,#voixP,#badgesP,#edBadgeP{
+#classP,#voixP,#badgesP,#edBadgeP,#reliquesP{
   position:fixed;inset:0;z-index:34;display:none;
   background:rgba(8,4,12,.72);backdrop-filter:blur(3px);
   align-items:center;justify-content:center;padding:16px;
   overscroll-behavior:contain;
 }
-#classP.on,#voixP.on,#badgesP.on,#edBadgeP.on{display:flex}
+#classP.on,#voixP.on,#badgesP.on,#edBadgeP.on,#reliquesP.on{display:flex}
 /* Le sélecteur de voix emprunte l'ossature du classement — même boîte,
    même haut, même façon de s'ouvrir. Il n'ajoute que la ligne-bouton :
    deux étages de texte, le nom puis la langue, et une marque sur celle
@@ -1260,6 +1280,7 @@ select.champ{cursor:pointer}
    partout ailleurs, et c'est celle-là qu'il faut savoir reconnaître.
    Le bouton d'appel, lui, se range sous le classement. */
 #btBadges{margin-top:8px;width:100%;justify-content:center}
+#btReliques{margin-top:6px;width:100%;justify-content:center}
 #badgesCorps h4{
   margin:20px 0 4px;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;
   color:var(--or);font-weight:700;border-top:1px solid rgba(255,255,255,.10);padding-top:14px;
@@ -1509,6 +1530,122 @@ select.champ{cursor:pointer}
   animation:anVie 5s ease forwards;white-space:nowrap;
 }
 #annonces .an b{color:var(--or)}
+
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES
+
+   DEUX TEMPÉRATURES, ET ELLES NE SE MÉLANGENT JAMAIS. L'assaut est
+   une braise, la garde est un givre : c'est le seul code de couleur
+   du fichier, il répond à la seule question qui compte au premier
+   coup d'œil — frapper ou encaisser —, et il vaut de la roue jusqu'à
+   la page qui l'explique.
+   ════════════════════════════════════════════════════════════════ */
+:root{ --relA:#FF8A45; --relAf:#6E2409; --relG:#54D6EA; --relGf:#0C3D49; }
+.relSvg{display:block;flex:0 0 auto}
+
+/* ── LA ROUE ──────────────────────────────────────────────────────
+   Elle entre par la droite et repart par la droite : elle vient du
+   bord, elle n'apparaît pas au milieu de rien. `pointer-events:none`
+   est essentiel — c'est une nouvelle, pas un bouton, et elle ne doit
+   voler aucun appui à ce qu'il y a dessous. */
+#roueRel{
+  pointer-events:none;opacity:0;transform:translateX(22px) scale(.94);
+  transition:opacity .5s ease, transform .5s cubic-bezier(.2,.9,.3,1.2);
+  width:206px;padding:10px 8px 9px;border-radius:14px;
+  background:linear-gradient(180deg,rgba(28,16,40,.94),rgba(14,8,22,.96));
+  border:1px solid rgba(255,210,122,.30);
+  box-shadow:0 10px 30px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+#roueRel.on{opacity:1;transform:translateX(0) scale(1)}
+/* Le palier max mérite d'être vu depuis l'autre bout de la pièce, et
+   seulement lui : trois pour cent, ça se fête. */
+#roueRel.zen{border-color:rgba(255,225,150,.85);
+  box-shadow:0 0 34px rgba(255,200,110,.45),0 10px 30px rgba(0,0,0,.55)}
+#roueRelTi{
+  font-size:9.5px;letter-spacing:2.4px;color:var(--or);text-transform:uppercase;
+}
+#roueRelCv{display:block;width:186px;height:186px}
+#roueRelTx{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:0;text-align:center;
+}
+#roueRelTx:empty{display:none}
+#roueRelTx .rlE{margin-bottom:1px}
+#roueRelTx .rlP{font-size:9.5px;font-weight:700;letter-spacing:1.6px;line-height:1}
+#roueRelTx .rlG{font-size:26px;font-weight:800;line-height:1.05;
+                font-variant-numeric:tabular-nums;margin-top:-1px}
+#roueRelTx .rlP.as,#roueRelTx .rlG.as{color:var(--relA)}
+#roueRelTx .rlP.ga,#roueRelTx .rlG.ga{color:var(--relG)}
+#roueRelTx .rlN{font-size:10px;color:var(--gris)}
+
+/* ── LES PASTILLES, SUR LA LIGNE DES NAVETTES ─────────────────────
+   Petites, alignées, et muettes quand il n'y a rien : `:empty` retire
+   jusqu'à la marge, sinon un bloc vide pousserait les navettes de
+   quelques pixels selon qu'on a une relique ou non. */
+#relTuiles{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 5px}
+#relTuiles:empty{display:none}
+.relT{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 6px 2px 3px;
+  border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;
+  background:rgba(14,8,22,.72);border:1px solid rgba(255,255,255,.10);
+}
+.relT b{font-variant-numeric:tabular-nums}
+.relT.as{border-color:rgba(255,138,69,.45);color:#ffcda6}
+.relT.ga{border-color:rgba(84,214,234,.45);color:#c4f0f9}
+/* LE PALIER DE CARTE A UN AUTRE VISAGE, ET C'EST VOULU : carré,
+   vert, sans gemme. Une relique est un acquis, un palier est l'état
+   de CETTE bataille — les confondre serait promettre à tort. */
+.relT.pal{
+  border-radius:6px;padding:3px 6px;color:#bdf0c4;
+  border-color:rgba(120,225,150,.42);
+}
+.relT.pal i{font-style:normal;font-size:9px;opacity:.85}
+
+/* ── LA PAGE ──────────────────────────────────────────────────────
+   Elle emprunte l'ossature de la page des badges : deux pages
+   voisines qui se ressembleraient « presque » se liraient comme une
+   erreur. */
+.rlMien{
+  padding:12px;margin-bottom:14px;border-radius:12px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);
+}
+.rlDeux{display:flex;gap:10px;flex-wrap:wrap}
+.rlB{
+  flex:1 1 150px;min-width:140px;padding:12px 10px;border-radius:12px;text-align:center;
+  background:rgba(10,6,16,.55);border:1px solid rgba(255,255,255,.10);
+}
+.rlB .g{display:flex;justify-content:center;min-height:78px;align-items:center;font-size:38px}
+.rlB .p{font-size:26px;font-weight:800;line-height:1.1;margin-top:4px;
+        font-variant-numeric:tabular-nums}
+.rlB .t{font-size:11px;color:var(--gris);margin-top:2px}
+.rlB.as{border-color:rgba(255,138,69,.42)} .rlB.as .p{color:var(--relA)}
+.rlB.ga{border-color:rgba(84,214,234,.42)} .rlB.ga .p{color:var(--relG)}
+.rlB.vide{opacity:.45} .rlB.vide .p{color:var(--gris)}
+.rlRien{font-size:12.5px;line-height:1.5;color:var(--gris)}
+.rlCpt{margin-top:9px;font-size:11px;color:var(--gris);text-align:center}
+.rlN2{font-size:12px;line-height:1.55;color:var(--gris);margin:0 0 10px}
+.rlTab{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:12px}
+.rlTab th{
+  font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gris);
+  text-align:right;padding:0 0 6px;font-weight:600;
+}
+.rlTab th:nth-child(2){text-align:left}
+.rlTab td{padding:5px 0;border-top:1px solid rgba(255,255,255,.07);text-align:right;
+          font-variant-numeric:tabular-nums}
+.rlTab td:nth-child(2){text-align:left}
+.rlTab .rlIc{display:flex;gap:3px;padding-right:8px}
+.rlTab .rlAs{color:var(--relA);font-weight:700}
+.rlTab .rlGa{color:var(--relG);font-weight:700}
+.rlTab .rlMax td{background:rgba(255,210,122,.07)}
+.rlTab .rlMax b{color:var(--or)}
+.rlListe{display:flex;flex-direction:column;gap:5px}
+.rlL{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;
+  background:rgba(255,255,255,.035);
+}
+.rlL .n{flex:1;font-size:12px;font-weight:600;color:#eadff5}
+.rlL .c{font-size:10.5px;color:var(--gris);white-space:nowrap}
 @keyframes anVie{
   0%{opacity:0;transform:translateX(14px)}
   8%{opacity:1;transform:translateX(0)}
@@ -1774,6 +1911,11 @@ select.champ{cursor:pointer}
            doit être à portée de doigt. Petit, en retrait — on ne
            l'ouvre qu'une fois. -->
       <button id="btBadges" class="bt ptt" title="Ce que veut dire chaque badge">🎖 Les badges</button>
+      <!-- LES RELIQUES ONT LEUR PORTE ICI, sous les badges, et pour la
+           même raison : c'est là qu'on vient de voir un petit insigne
+           sans savoir ce qu'il vaut. Deux récompenses voisines, deux
+           boutons voisins. -->
+      <button id="btReliques" class="bt ptt" title="Ce que tu portes en permanence, et comment ça se gagne">💠 Tes reliques</button>
     </div>
     <!-- ---- LE PALMARÈS DES CAMPAGNES ----
          Sous le Top carrière, et pas ailleurs : l'un dit où l'on en est
@@ -2050,6 +2192,27 @@ select.champ{cursor:pointer}
   </div>
 </div>
 
+<!-- ==================== LES RELIQUES ====================
+     Sœur de #badgesP : même ossature, même façon de s'ouvrir.
+
+     ELLE NE RECOPIE AUCUN CHIFFRE. Les cinq paliers, leurs deux
+     pourcentages et leurs chances sortent de la table du noyau —
+     voir construitPageReliques. Une table recopiée à la main aurait
+     été juste une fois, le jour où on l'a écrite. -->
+<div id="reliquesP">
+  <div class="clBoite">
+    <div class="clHaut">
+      <div class="clTitre">💠 Tes reliques</div>
+      <button id="btReliquesFerme" class="bt ptt">↩ Accueil</button>
+    </div>
+    <div class="clSous">Elles se gagnent uniquement sur les <b>deux cartes
+      bonus</b> : un tirage par million de dégâts. Ce que tu tires est à toi
+      pour toujours, ça suit ton pseudo, et ça s'ajoute à tes troupes sur
+      TOUTES les îles — en dégâts d'un côté, en résistance de l'autre.</div>
+    <div class="clCorps"><div id="reliquesCorps"></div></div>
+  </div>
+</div>
+
 <!-- ============ L'ÉDITEUR DE BADGE, CÔTÉ ADMINISTRATION ============
      Sœur des autres pages, et volontairement AUSTÈRE : sept champs de
      bonus, trois listes de niveau forcé, une liste hors échelle, une
@@ -2297,6 +2460,19 @@ select.champ{cursor:pointer}
   <div id="hd">
     <div class="bloc p" id="miniBoite"><canvas id="mini" width="264" height="236"></canvas></div>
     <div id="versionJeu">v0.01</div>
+    <!-- LA ROUE DES RELIQUES. « Une sorte de fenêtre en haut à droite,
+         un peu comme casino, une roue qui tourne, qui tourne, puis
+         après ils voient un truc avec défense plus dix pour cent. »
+         Elle est ici et pas ailleurs parce que c'est le seul coin de
+         l'écran où l'on ne joue pas : le podium tient à gauche, les
+         navettes en bas à gauche, les capacités en bas à droite. Une
+         roue qui recouvrirait un bouton pendant quatre secondes, en
+         pleine bataille, serait une punition déguisée en récompense. -->
+    <div id="roueRel">
+      <div id="roueRelTi">RELIQUE</div>
+      <canvas id="roueRelCv" width="196" height="196"></canvas>
+      <div id="roueRelTx"></div>
+    </div>
     <div id="annonces"></div>
   </div>
 
@@ -2306,6 +2482,13 @@ select.champ{cursor:pointer}
          débarquer — et jusqu'ici les deux nombres vivaient aux deux
          coins opposés de l'écran. -->
     <div class="t">Navettes<span id="unitesV">0</span></div>
+    <!-- CE QUE MES TROUPES PORTENT, À CÔTÉ DES TROUPES.
+         « Que la personne, à côté des troupes, ait le petit logo plus
+         dix pour cent, plus vingt-cinq pour cent — comme ça elle est
+         consciente qu'elle a toujours ça. » Deux pastilles de relique,
+         acquises pour toujours, et le palier de CETTE île à côté. La
+         ligne n'existe que si elle a quelque chose à dire. -->
+    <div id="relTuiles"></div>
     <div id="listeBarges"></div>
   </div>
 

@@ -185,6 +185,17 @@ function nouvelleCarte(index, pvConnu){
        table des paliers. `puissance` multiplie ce que les troupes
        infligent, `palier` sert au visuel et part sur le réseau. */
     puissance:1, palier:0, rangNova:0,
+    /* LES RELIQUES DU PSEUDO, relues seulement quand elles bougent.
+       `multAssaut` multiplie ce que les troupes infligent, `multGarde`
+       la vie qu'elles reçoivent à leur création — voir creeUnite. Ce
+       sont deux facteurs de plus dans une chaîne qui en portait déjà :
+       base × relique × palier de carte, exactement le cumul demandé.
+       `millionsVus` est le garde-fou GRATUIT du déclenchement : il se
+       lit dans un compteur local, et tant qu'il ne bouge pas on ne
+       touche pas au tableau partagé, qui coûte un décodage.
+       `reliquesVues` est la VÉRITÉ — le compte partagé — et c'est
+       elle qui décide combien de roues doivent tourner. */
+    multAssaut:1, multGarde:1, millionsVus:0, reliquesVues:0, roue:null,
     detruitsMoi:0,
     mort:false, tempsRenfort:0, fantome:null, messageGege:0,
     qgProchaine:6, qgTelegraphe:0, qgForme:0, qgPointsPluie:null,
@@ -1161,8 +1172,15 @@ function creeUnite(type, gx, gy){
   var f = UNI[type];
   var n = jeu.nSuiv++;
   var an = ancreFormation(n);
+  /* LA RELIQUE DE GARDE ÉPAISSIT LA TROUPE À SA NAISSANCE, et c'est le
+     seul endroit où elle a besoin d'exister : la barre de vie, les
+     soins du Doc, les vulnérabilités et la mort lisent tous `pvMax`,
+     et n'ont donc rien à apprendre. Une troupe déjà au sol quand la
+     relique monte garde la vie qu'elle avait — on ne soigne pas
+     rétroactivement, on débarque plus solide. */
+  var pv = Math.round(f.pv * jeu.multGarde);
   jeu.unites.push({
-    t:type, gx:gx, gy:gy, pv:f.pv, pvMax:f.pv, n:n,
+    t:type, gx:gx, gy:gy, pv:pv, pvMax:pv, n:n,
     /* place stable dans le disque unité : c'est elle qui donne au
        groupe sa surface au lieu d'un empilement sur un point */
     ancX:an.x, ancY:an.y, sepC:0,
@@ -2557,7 +2575,14 @@ function impactHache(gx, gy){
    le joueur a explicitement voulu laisser hors du bonus. Mettre le
    multiplicateur dans abimeBatiment aurait multiplié l'orage. */
 function appliqueDegatsCible(c, d, but){
-  d *= jeu.puissance;
+  /* LES DEUX FACTEURS SE MULTIPLIENT, ILS NE S'ADDITIONNENT PAS.
+     « Ils auraient la base, plus ces pourcentages, PLUS APRÈS quand
+     ils détruisent la map les dix trente cent pour cent — comme ça
+     c'est cumulatif. » Une relique de Zénith et un palier plein font
+     donc 1,33 × 2,00, et non 1 + 0,33 + 1,00 : c'est la même règle
+     que partout ailleurs dans ce jeu, et la seule qui garde son sens
+     si l'un des deux barèmes bouge un jour. */
+  d *= jeu.puissance * jeu.multAssaut;
   if(!c){ if(but && Math.hypot(but.gx - jeu.qg.gx, but.gy - jeu.qg.gy) < RAYON_QG + 1) abimeQG(d); return; }
   if(c.k === "bat") abimeBatiment(c.o, d);
   else if(c.k === "cre") abimeCreature(c.o, d);
@@ -4158,9 +4183,93 @@ function majPuissance(){
   }
 }
 
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES, PENDANT LA BATAILLE
+
+   ─── CE QUI DÉCLENCHE, ET CE QUI EST VRAI ──────────────────────
+   Deux compteurs, et il faut absolument les distinguer.
+
+   `millionsVus` est LOCAL et il ne sert qu'à savoir s'il faut
+   regarder. Le lire coûte une soustraction ; le tableau des dégâts
+   partagé, lui, coûte le décodage d'une longue chaîne, et on ne fait
+   pas ça soixante fois par seconde pour un événement qui arrive une
+   fois par million.
+
+   `reliquesVues` est LA VÉRITÉ : le compte que tout le salon partage.
+   C'est lui qui décide combien de roues doivent tourner et QUELLE
+   relique chacune montre. Un joueur qui viderait son navigateur
+   remettrait `millionsVus` à zéro et reverrait des roues — mais
+   `reliquesVues` ne bougerait pas d'un cran, parce qu'il se lit dans
+   le tableau publié, fusionné par maximum, que personne ne peut faire
+   redescendre tout seul. On refarme l'animation, jamais la relique.
+
+   ─── RIEN N'EST ÉCRIT ICI, ET C'EST VOULU ──────────────────────
+   Gagner une relique ne demande AUCUNE publication : le compte vaut
+   « acquis + millions du tableau partagé », et ces millions y sont
+   déjà — ils partent avec le score, comme depuis toujours. Le seul
+   moment où `rq` grossit est la clôture de campagne, quand le tableau
+   va être effacé. Une loterie qui n'écrit rien ne peut pas se
+   désaccorder entre deux appareils.
+   ════════════════════════════════════════════════════════════════ */
+function relisReliques(){
+  var b = (typeof bonusReliques === "function" && typeof monde !== "undefined")
+          ? bonusReliques(monde && monde.rq, scoresDesReliques(), monNom)
+          : { assaut:0, garde:0, pa:-1, pg:-1, n:0 };
+  jeu.multAssaut = multAssautRelique(b);
+  jeu.multGarde  = multGardeRelique(b);
+  return b;
+}
+/* À l'entrée sur l'île : on adopte l'état SANS rien fêter. Les
+   millions déjà faits ne sont pas des nouvelles. */
+function amorceReliques(){
+  if(!jeu) return;
+  jeu.millionsVus = Math.floor(degatsMaCarte() / RELIQUE_SEUIL);
+  jeu.reliquesVues = carteSpeciale(jeu.index)
+    ? comptesReliques(monde && monde.rq, scoresDesReliques(), monNom, jeu.index) : 0;
+  relisReliques();
+}
+var RELIQUE_GUET = 0.25;                    // on ne guette que quatre fois par seconde
+var reliqueGuet = 0;
+function majReliques(dt){
+  /* LES DEUX CARTES BONUS, ET ELLES SEULES. « Si on joue tout le temps,
+     au final on aura toujours le pourcentage max ; mais si on dit que
+     sur les deux cartes bonus il y a ce truc-là à gagner, ça c'est
+     bien. » La visite ne compte pas non plus : rien n'en sort, donc
+     rien n'y est gagné. */
+  if(!carteSpeciale(jeu.index)) return;
+  if(typeof modeApercu !== "undefined" && modeApercu) return;
+  /* LE GUICHET LOCAL, GRATUIT : tant que mon propre compteur n'a pas
+     franchi un million de plus, il n'y a rien à regarder. */
+  var m = Math.floor(degatsMaCarte() / RELIQUE_SEUIL);
+  if(m <= jeu.millionsVus) return;
+  /* ET IL NE SE CONSOMME PAS TANT QUE LE PARTAGÉ N'A PAS SUIVI.
+     C'était le piège : avancer `millionsVus` ici, avant d'avoir la
+     confirmation, aurait refermé le guichet pendant les deux secondes
+     qui séparent le coup de hache de sa publication — et la relique
+     aurait été gagnée sans que personne ne voie la roue. On garde
+     donc le guichet ouvert et l'on repasse, quatre fois par seconde
+     le temps que la publication arrive. */
+  reliqueGuet += (typeof dt === "number" ? dt : 0.016);
+  if(reliqueGuet < RELIQUE_GUET) return;
+  reliqueGuet = 0;
+  var n = comptesReliques(monde && monde.rq, scoresDesReliques(), monNom, jeu.index);
+  if(n <= jeu.reliquesVues) return;
+  jeu.millionsVus = m;
+  /* PLUSIEURS D'UN COUP : une salve peut franchir deux millions dans
+     la même image, et un cumul local en avance sur le partagé peut en
+     libérer plusieurs à la fois. On ne montre que la DERNIÈRE — deux
+     roues qui se chevauchent ne se lisent pas — mais on les compte
+     toutes, et c'est le compte qui donne le bonus. */
+  var r = tireRelique(monNom, jeu.index, n);
+  jeu.reliquesVues = n;
+  relisReliques();
+  if(typeof ouvreRoueRelique === "function") ouvreRoueRelique(r, n);
+}
+
 function majJeu(dt){
   jeu.tps += dt;
   majPuissance();
+  majReliques(dt);
   if(jeu.messageGege > 0) jeu.messageGege = Math.max(0, jeu.messageGege - dt);
   if(jeu.messageTweety > 0) jeu.messageTweety = Math.max(0, jeu.messageTweety - dt);
   if(jeu.secousse > 0) jeu.secousse = Math.max(0, jeu.secousse - dt * 22);

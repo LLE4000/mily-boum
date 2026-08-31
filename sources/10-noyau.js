@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.33";
+var VERSION = "v1.34";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -7200,7 +7200,7 @@ function statsJournaux(journaux, aujourdhui, exclus){
 function mondeVide(index, pvMax, cycle){
   var o = { v:0, cy:cycle | 0, c:index | 0, pv:pvMax, d:"", bl:"", g:"", w:"",
             p:"", pn:0, tg:0, s:"", k:"", ch:"", t3:"", bd:"", bn:0,
-            qv:"", qn:0, hc:"",
+            qv:"", qn:0, hc:"", rq:"",
             ep:"", epn:0,
             /* les badges partent vides comme le reste : ils se
                remplissent tout seuls au premier podium lu */
@@ -8023,6 +8023,278 @@ function inscritPalmares(s, cycle, podium){
   t[c] = l;
   return encodePalmares(t);
 }
+
+/* ════════════════════════════════════════════════════════════════
+   LES RELIQUES — CE QU'ON RAPPORTE DES DEUX CARTES BONUS
+
+   « Pour récompenser les joueurs qui jouent : quand il dépasse un
+   million de dégâts sur une map, il y a une sorte de loterie, et ils
+   ont une capacité, mais pour toujours. Entre plus dix et plus
+   trente-trois pour cent de dégâts sur leurs troupes, et en défense
+   entre plus dix et plus cinquante-trois. On a peu de chances d'avoir
+   le cinquante-trois : trois pour cent de chance d'avoir le palier
+   max, et des paliers progressifs. Ça se cumule. Et si Roro se
+   connecte avec le pseudo Roro, elle aurait toujours la base plus ces
+   pourcentages. Ça ne peut être gagné que sur les deux cartes bonus —
+   parce que si on joue tout le temps, au final on aura toujours le
+   pourcentage max. »
+
+   ─── POURQUOI « RELIQUE » ───────────────────────────────────────
+   Il fallait un nom, et ce n'était pas « statue ». Les deux seules
+   cartes qui en donnent sont un TEMPLE dans la jungle et un PALAIS des
+   mille et une nuits : une relique est exactement ce qu'on en
+   rapporte. Le mot dit aussi ce que la chose est — un objet qu'on
+   garde, pas un titre qu'on peut perdre — et il n'entre en collision
+   avec rien dans ce jeu : ni le badge, ni la médaille, ni le podium,
+   ni le titre de carrière.
+
+   ─── LE TIRAGE EST CALCULÉ, IL N'EST PAS TIRÉ ───────────────────
+   C'est la décision qui porte tout le reste. Une vraie loterie
+   demanderait de RANGER son résultat — donc de l'écrire dans
+   l'instantané, donc d'arbitrer entre deux clients qui tirent en même
+   temps sur un salon où personne n'a autorité. Ici la n-ième relique
+   d'un pseudo sur une carte est une FONCTION PURE de (pseudo, carte,
+   n) : tous les appareils calculent la même, dans le même ordre, sans
+   se parler. Il ne reste à partager qu'un COMPTEUR — combien de
+   millions ce pseudo a franchis sur cette carte —, c'est-à-dire un
+   entier qui ne fait que monter, ce que la fusion par maximum sait
+   traiter les yeux fermés.
+   La roue qui tourne à l'écran ne tire donc rien : elle MONTRE. Rater
+   l'animation ne fait perdre aucune relique.
+
+   CES DEUX TABLES SONT GELÉES. Changer un palier, une chance ou le
+   nombre de tirages changerait rétroactivement des reliques déjà
+   gagnées — une récompense « pour toujours » qui bouge n'en est pas
+   une. On ajoute, on ne modifie pas.
+
+   ─── ON GARDE LA MEILLEURE, ON N'ADDITIONNE PAS ─────────────────
+   C'est la seule lecture qui tienne debout sur toutes ses phrases, et
+   elle a été MESURÉE avant d'être choisie.
+
+   En additionnant, cent mille pseudos tirés au sort donnent ceci :
+   dès huit millions de dégâts sur une carte bonus, QUATRE-VINGTS POUR
+   CENT des joueurs sont aux deux plafonds. Le barème à cinq marches
+   et ses « trois pour cent de chance » n'auraient plus rien voulu
+   dire : tout le monde finirait au même endroit en une expédition, et
+   la récompense serait morte le jour de sa naissance.
+
+   En gardant la meilleure, tout se recolle :
+     • « ils gardent toujours ça ENTRE plus dix et plus trente-trois »
+       — dit deux fois — n'est vrai que d'une relique unique ;
+     • « trois pour cent de chance d'avoir le palier max » garde son
+       sens pour toujours, au lieu de s'éteindre au huitième million ;
+     • « ils auraient la base, plus ces pourcentages, PLUS APRÈS quand
+       ils détruisent la map les dix trente cent pour cent — comme ça
+       c'est cumulatif » : le cumul qu'il décrit est base + relique +
+       palier de carte, et non les reliques entre elles.
+
+   Le maximum est aussi la bonne opération pour ce salon : il ne
+   redescend jamais, il est commutatif, il est idempotent. Rien à
+   arbitrer entre deux appareils.
+
+   SI C'ÉTAIT L'AUTRE LECTURE, une seule fonction change — bonusReliques
+   — et les deux plafonds ci-dessous redeviennent de vrais plafonds.
+   ════════════════════════════════════════════════════════════════ */
+var RELIQUE_SEUIL = 1000000;            // un million de dégâts = un tirage
+/* LES CINQ PALIERS. Le nom est lumineux et non métallique : les métaux
+   sont pris par les badges, et deux échelles qui se ressembleraient se
+   confondraient. `assaut` et `garde` montent vers les deux bornes
+   demandées, en quatre marches presque égales — les extrémités sont
+   ses chiffres, exactement. */
+var RELIQUES = [
+  { cle:"lueur",  nom:"Lueur",  assaut:10, garde:10, chance:45 },
+  { cle:"prisme", nom:"Prisme", assaut:15, garde:20, chance:30 },
+  { cle:"halo",   nom:"Halo",   assaut:21, garde:31, chance:15 },
+  { cle:"aurore", nom:"Aurore", assaut:27, garde:42, chance:7  },
+  { cle:"zenith", nom:"Zénith", assaut:33, garde:53, chance:3  }
+];
+/* LES DEUX BORNES SONT LUES DANS LA TABLE, jamais réécrites à côté :
+   c'est le dernier palier, par construction. Un jour où l'on ajoutera
+   une marche, elles suivront toutes seules — deux nombres recopiés à
+   la main auraient menti sans prévenir. */
+var RELIQUE_ASSAUT_MAX = RELIQUES[RELIQUES.length - 1].assaut;   // 33
+var RELIQUE_GARDE_MAX  = RELIQUES[RELIQUES.length - 1].garde;    // 53
+/* LA FAVEUR : « s'il passe dix millions sur une map, le pourcentage
+   d'avoir le plus gros statut sera plus important ». On ne déforme pas
+   l'échelle des chances — elle resterait illisible —, on TIRE
+   PLUSIEURS FOIS ET ON GARDE LE MEILLEUR. C'est la même mécanique que
+   celle d'un dé qu'on relance, tout le monde la comprend sans qu'on
+   l'explique, et elle se calcule de tête : à cinq tirages, le Zénith
+   passe de 3 % à 1 − 0,97⁵ ≈ 14 %. */
+var RELIQUE_TIRAGES_MAX = 5;
+function tiragesRelique(n){
+  var k = 1 + Math.floor(((n | 0) - 1) / 3);       // 1-3 → 1, 4-6 → 2, 7-9 → 3…
+  return k < 1 ? 1 : (k > RELIQUE_TIRAGES_MAX ? RELIQUE_TIRAGES_MAX : k);
+}
+/* Le palier d'un tirage uniforme, lu dans l'échelle des chances. On
+   descend du plus rare au plus commun pour que la somme des chances
+   n'ait pas à valoir exactement cent : ce qui déborde retombe sur la
+   Lueur, qui est le palier de base. */
+function palierRelique(u){
+  var acc = 0;
+  for(var i = RELIQUES.length - 1; i > 0; i--){
+    acc += RELIQUES[i].chance;
+    if(u * 100 < acc) return i;
+  }
+  return 0;
+}
+/* LA GRAINE : le pseudo, la carte, le rang. Rien d'autre — surtout pas
+   l'heure ni le hasard de l'appareil, sans quoi deux clients ne
+   verraient pas la même relique. */
+function graineRelique(nom, carte, n){
+  return graineTexte("relique/" + nettoieNomScore(nom) + "/" + (carte | 0) + "/" + (n | 0));
+}
+/* LA n-IÈME RELIQUE D'UN PSEUDO SUR UNE CARTE. Pure, et c'est tout
+   l'édifice : personne n'a besoin de la ranger.
+   L'ORDRE DES TIRAGES EST FIGÉ — la famille d'abord, les paliers
+   ensuite. La famille se lit donc toujours au même endroit du flux,
+   quel que soit le nombre de tirages que la faveur accorde. */
+function tireRelique(nom, carte, n){
+  if(!((n | 0) > 0)) return null;
+  var al = prng(graineRelique(nom, carte, n));
+  var fam = al() < 0.5 ? "a" : "g";
+  var k = tiragesRelique(n), p = 0;
+  for(var i = 0; i < k; i++){
+    var q = palierRelique(al());
+    if(q > p) p = q;
+  }
+  var R = RELIQUES[p];
+  return { n:n | 0, carte:carte | 0, famille:fam, palier:p,
+           cle:R.cle, nom:R.nom, pct:(fam === "a" ? R.assaut : R.garde) };
+}
+
+/* ---- rq : le compteur partagé, et lui seul ----
+   « pseudo:carte:n », trié, fusionné par MAXIMUM. Un compteur de
+   millions franchis ne redescend jamais : le maximum suffit, il est
+   commutatif et idempotent, et deux appareils au même état écrivent la
+   même chaîne. C'est le patron des badges, pour les mêmes raisons. */
+var RELIQUES_GARDES = 300;              // cent cinquante joueurs × deux cartes
+function encodeReliques(tab){
+  var l = [], nom, c;
+  for(nom in tab){
+    var n2 = nettoieNomScore(nom);
+    if(!n2) continue;
+    for(c in tab[nom]){
+      var v = tab[nom][c] | 0;
+      if(!(v > 0)) continue;
+      l.push({ k:n2 + ":" + (c | 0), n:v });
+    }
+  }
+  /* LA COUPE EST DÉTERMINISTE, et elle garde les plus GARNIS : deux
+     appareils au même état doivent couper au même endroit, sinon ils
+     se republient l'un l'autre sans fin. */
+  if(l.length > RELIQUES_GARDES){
+    l.sort(function(a, b){ return b.n - a.n || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0); });
+    l = l.slice(0, RELIQUES_GARDES);
+  }
+  l.sort(function(a, b){ return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; });
+  var out = [];
+  for(var i = 0; i < l.length; i++) out.push(l[i].k + ":" + l[i].n);
+  return out.join("|");
+}
+function decodeReliques(s){
+  var out = {};
+  if(!s || typeof s !== "string") return out;
+  var p = s.split("|");
+  for(var i = 0; i < p.length; i++){
+    if(!p[i]) continue;
+    var m = p[i].split(":");
+    if(m.length !== 3) continue;
+    var nom = nettoieNomScore(m[0]), c = parseInt(m[1], 10), n = parseInt(m[2], 10);
+    if(!nom || !(c >= 0) || !(n > 0)) continue;
+    if(!out[nom]) out[nom] = {};
+    if(n > (out[nom][c] | 0)) out[nom][c] = n;
+  }
+  return out;
+}
+function fusionneReliques(a, b){
+  var x = decodeReliques(a), y = decodeReliques(b), nom, c;
+  for(nom in y){
+    if(!x[nom]){ x[nom] = y[nom]; continue; }
+    for(c in y[nom]) if(y[nom][c] > (x[nom][c] | 0)) x[nom][c] = y[nom][c];
+  }
+  return encodeReliques(x);
+}
+/* Ce qui est ACQUIS, campagnes précédentes comprises. */
+function reliquesAcquises(rq, nom, carte){
+  var t = decodeReliques(rq)[nettoieNomScore(nom)];
+  return t ? (t[carte | 0] | 0) : 0;
+}
+/* LE COMPTE VIVANT : l'acquis, plus les millions de la campagne EN
+   COURS lus dans le tableau des dégâts partagé.
+   POURQUOI LE TABLEAU PARTAGÉ ET NON UN COMPTEUR LOCAL. Un compteur
+   rangé dans le navigateur se vide en trois clics, et l'on
+   refarmerait les mêmes millions indéfiniment. Le tableau des dégâts,
+   lui, est publié, fusionné par maximum, et ne redescend jamais
+   pendant une campagne : il est la seule source qu'un joueur ne peut
+   pas remettre à zéro tout seul. */
+function comptesReliques(rq, scores, nom, carte){
+  var n = nettoieNomScore(nom);
+  if(!n || !carteSpeciale(carte | 0)) return 0;
+  var vif = (totalParJoueurCarte(scores || {}, carte | 0)[n] || 0);
+  return reliquesAcquises(rq, n, carte) + Math.floor(vif / RELIQUE_SEUIL);
+}
+/* LA CLÔTURE DE CAMPAGNE PLIE LE VIVANT DANS L'ACQUIS, et c'est le
+   seul moment où `rq` grossit. Trois lignes plus loin l'instantané
+   publie s:"" : après, les millions de cette campagne n'existent plus
+   nulle part. C'est exactement la place — et le geste — du palmarès,
+   qui grave le podium au même instant et sous la même garde. */
+function plieReliques(rq, scores){
+  var t = decodeReliques(rq), i, nom;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var par = totalParJoueurCarte(scores || {}, i);
+    for(nom in par){
+      var k = Math.floor((par[nom] || 0) / RELIQUE_SEUIL);
+      if(!(k > 0)) continue;
+      if(!t[nom]) t[nom] = {};
+      t[nom][i] = (t[nom][i] | 0) + k;
+    }
+  }
+  return encodeReliques(t);
+}
+/* CE QU'UN PSEUDO PORTE : sa MEILLEURE relique d'assaut, sa meilleure
+   relique de garde, et le nombre de tirages qu'il a eus.
+   `pa` et `pg` sont les paliers, −1 quand la famille n'est pas encore
+   sortie : « pas encore de relique de garde » et « une Lueur de
+   garde » ne sont pas la même chose, et l'écran doit pouvoir les
+   distinguer.
+   ON SORT DÈS QUE LES DEUX FAMILLES SONT AU SOMMET : un joueur à deux
+   cents millions ne doit pas coûter deux cents tirages par image. */
+function bonusReliques(rq, scores, nom){
+  var pa = -1, pg = -1, n = 0, i, j, haut = RELIQUES.length - 1;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var c = comptesReliques(rq, scores, nom, i);
+    for(j = 1; j <= c; j++){
+      n++;
+      var r = tireRelique(nom, i, j);
+      if(r.famille === "a"){ if(r.palier > pa) pa = r.palier; }
+      else                 { if(r.palier > pg) pg = r.palier; }
+      if(pa === haut && pg === haut){ n += c - j; break; }
+    }
+  }
+  return { assaut:(pa >= 0 ? RELIQUES[pa].assaut : 0),
+           garde: (pg >= 0 ? RELIQUES[pg].garde  : 0),
+           pa:pa, pg:pg, n:n };
+}
+/* Le détail, pour la page qui l'explique : une ligne par relique, la
+   plus récente en tête. Bornée, parce qu'une liste de deux cents
+   lignes ne se lit pas. */
+var RELIQUES_DETAIL = 24;
+function listeReliques(rq, scores, nom){
+  var out = [], i, j;
+  for(i = 0; i < CARTES.length; i++){
+    if(!carteSpeciale(i)) continue;
+    var c = comptesReliques(rq, scores, nom, i);
+    for(j = c; j >= 1 && out.length < RELIQUES_DETAIL; j--) out.push(tireRelique(nom, i, j));
+  }
+  return out;
+}
+/* Les deux multiplicateurs, prêts à l'emploi dans la simulation. */
+function multAssautRelique(b){ return 1 + ((b && b.assaut) | 0) / 100; }
+function multGardeRelique(b){  return 1 + ((b && b.garde)  | 0) / 100; }
+
 /* ================================================================
    RECONSTRUIRE LES CARRIÈRES À PARTIR DES PODIUMS GELÉS
 
@@ -8282,6 +8554,13 @@ function fusionneEvenements(a, b){
                      il traverse les remises à zéro, et aucun client n'a
                      autorité sur les autres pour l'écrire. */
                   hc:fusionnePalmares(a && a.hc, b && b.hc),
+                  /* LES RELIQUES AUSSI, et pour les mêmes trois raisons
+                     — elles décrivent ce que quelqu'un a fait, elles
+                     traversent les remises à zéro, et aucun client n'a
+                     autorité sur les autres pour les écrire. Un
+                     compteur de millions franchis ne redescend jamais :
+                     le maximum suffit. */
+                  rq:fusionneReliques(a && a.rq, b && b.rq),
                   bo:rg.bo, bon:rg.bon };
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k];
@@ -8299,6 +8578,7 @@ function poseEvenements(o, E){
   o.bg = E.bg || ""; o.bgn = E.bgn || ""; o.bgc = E.bgc | 0;
   o.bo = E.bo || ""; o.bon = E.bon | 0;
   o.hc = E.hc || "";
+  o.rq = E.rq || "";
   return o;
 }
 /* Les deux noms d'origine, gardés : la jungle est UN événement, et
@@ -8417,7 +8697,12 @@ function memeEvenements(m, E){
   if((m.bg || "") !== (E.bg || "") || (m.bgn || "") !== (E.bgn || "") ||
      (m.bgc | 0) !== (E.bgc | 0) ||
      (m.bo || "") !== (E.bo || "") || (m.bon | 0) !== (E.bon | 0) ||
-     (m.hc || "") !== (E.hc || "")) return false;
+     (m.hc || "") !== (E.hc || "") ||
+     /* SANS CETTE LIGNE, UNE RELIQUE GAGNÉE NE PARTIRAIT JAMAIS : le
+        compteur monterait sur l'appareil qui l'a vu franchir le
+        million, l'instantané ne serait pas « sale », et personne
+        d'autre ne la verrait. */
+     (m.rq || "") !== (E.rq || "")) return false;
   for(var k = 0; k < VOIES_EVT.length; k++){
     var V = VOIES_EVT[k], u = E.v[V.P];
     if(!u) continue;
