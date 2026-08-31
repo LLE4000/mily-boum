@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.40";
+var VERSION = "v1.41";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -458,7 +458,12 @@ var EQ = {
      navette n'est pas du temps actif, et la lui facturer aurait rendu
      le prix menteur — il ne serait resté que six secondes utiles.
      ════════════════════════════════════════════════════════════ */
-  SPEED_DUREE          : 10.0,  // secondes d'activation, à partir du débarquement
+  /* La durée n'est plus ici mais sur la FICHE de chaque héros
+     (UNI.speed.duree) : il y en aura plusieurs, et rien ne dit qu'ils
+     tiendront tous dix secondes. Ces deux-là restent pour les repères
+     d'écran, qui doivent bien afficher quelque chose avant qu'un
+     héros ne soit sur le terrain. */
+  SPEED_DUREE          : 10.0,  // secondes d'activation, à partir de l'appui
   SPEED_ADIEU          : 2.5,   // secondes : le dernier tiers clignote pour prévenir
 
   /* ════════════════════════════════════════════════════════════
@@ -811,10 +816,21 @@ var UNI = {
      UN PAR ÎLE. Il occupe la neuvième navette, celle qui n'est pas une
      navette : on ne la compose pas, on l'envoie. Voir poseBarge.
      ════════════════════════════════════════════════════════════════ */
+  /* ────────────────────────────────────────────────────────────
+     LES HÉROS. `heros:1` les sort de tout ce qui vaut pour une
+     troupe — ils ne débarquent pas, ne comptent pas de places, ne
+     combattent pas —, et `duree` est la seule chose qui les sépare
+     les uns des autres côté règles : ils s'activent, ils tiennent ce
+     temps-là, ils repartent.
+
+     « Attention, il y aura plusieurs héros. » Le suivant n'aura donc
+     rien à ajouter ici qu'une fiche comme celle-ci, une ligne dans
+     HEROS et une dans COUT ; le reste du jeu ne le connaîtra que par
+     `f.heros` et `f.duree`, jamais par son nom. */
   speed   :{ nom:"Speed",    role:"héros — il emmène la troupe",
              pv:900, portee:0, arret:0,
              degats:0,   cadence:0,    vitesse:3.30,  rayon:0.38, places:1,
-             heros:1, ech:1.12 },
+             heros:1, ech:1.12, duree:10.0, adieu:2.5 },
 
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
@@ -1108,15 +1124,40 @@ var COUT = {
   soin      :{ base:5,  pas:2, nom:"Soin" },
   balise    :{ base:1,  pas:1, nom:"Balise" },
   viper     :{ base:6,  pas:2, nom:"Viper" },
-  /* SPEED. « Ça doit coûter dix, puis quinze, puis vingt, puis
-     vingt-cinq. » Le prix a doublé le jour où l'effet est devenu une
-     ACTIVATION de dix secondes : tant qu'il tenait toute la partie
-     pour cinq, il n'y avait pas de décision à prendre — on l'envoyait
-     au premier débarquement. Cinq de plus à chaque emploi, c'est la
-     marche la plus raide du tableau, et c'est voulu : le doublement
-     de toute une troupe ne se répète pas à bon compte. */
-  speed     :{ base:10, pas:5, nom:"Speed" }
+  /* SPEED. « Le coût, je ferai dix, vingt, trente, quarante,
+     cinquante, etc. pour l'activer. » Dix de plus à chaque emploi :
+     de très loin la marche la plus raide du tableau, et c'est voulu.
+     Doubler toute une troupe pendant dix secondes se paie, et se
+     paie de plus en plus cher — sans quoi on l'enchaînerait du
+     début à la fin de la partie sans jamais avoir à choisir son
+     moment. */
+  speed     :{ base:10, pas:10, nom:"Speed" }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   LES HÉROS, DANS L'ORDRE DE LEUR RANGÉE
+
+   « Attention, il y aura plusieurs héros, donc voir comment
+   l'implanter. »
+
+   TOUT CE QUI EST PROPRE À UN HÉROS TIENT DANS TROIS ENDROITS, et
+   cette liste est le troisième : sa fiche dans UNI (points de vie,
+   vitesse, durée), sa ligne dans COUT (le prix et sa marche), et son
+   entrée ici, qui dit qu'il existe et à quel rang il paraît. Rien
+   d'autre dans le jeu ne nomme « speed » : la marche, le dessin, la
+   tuile et l'activation ne connaissent que `f.heros` et la clé qu'on
+   leur passe.
+
+   Ajouter un deuxième héros, c'est donc trois lignes et un fichier
+   de dessin — pas une seule condition à écrire ailleurs.
+   ════════════════════════════════════════════════════════════════ */
+var HEROS = [
+  { cle:"speed", unite:"speed", nom:"Speed" }
+];
+function estHeros(cle){
+  for(var i = 0; i < HEROS.length; i++) if(HEROS[i].cle === cle) return HEROS[i];
+  return null;
+}
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 
 /* Effets. La Nova est spectaculaire mais raisonnable : c'est le grand

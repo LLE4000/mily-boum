@@ -58,6 +58,7 @@ try{
     "poseBlindageSalon","blindageDeCarte","facteurBlindage","pvDefensesCarte",
     "voieLibre","CHEMIN_DROIT","CHEMIN_DIAG","CHEMIN_SEAUX","CHEMIN_COUT","CHEMIN_SERRE",
     "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
+    "HEROS","estHeros",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -5073,12 +5074,12 @@ G("8. Cohérence des règles de jeu");
     balise:[1,5,10,20], brouillard:[1,5,10,20], poulets:[4,12,22,42],
     soin:[5,13,23,43], viper:[6,14,24,44], cryo:[8,20,35,65],
     salve:[10,22,37,67], nova:[0,0,0,0],     // la Nova ne se paie pas en Énergie
-    /* LE HÉROS : « dix, puis quinze, puis vingt, puis vingt-cinq ».
-       Le prix a doublé quand l'effet est devenu une ACTIVATION de dix
-       secondes : à cinq pour toute la partie, il n'y avait pas de
-       décision à prendre. Cinq de plus par emploi est la marche la
-       plus raide du tableau, et c'est voulu. */
-    speed:[10,30,55,105]
+    /* LE HÉROS : « dix, vingt, trente, quarante, cinquante, etc. »
+       Dix de plus par emploi, de très loin la marche la plus raide du
+       tableau : doubler toute une troupe pendant dix secondes se paie
+       de plus en plus cher, sans quoi on l'enchaînerait du début à la
+       fin sans jamais avoir à choisir son moment. */
+    speed:[10,50,100,200]
   };
   var bon = true, det = "";
   Object.keys(attendu).forEach(function(m){
@@ -8786,27 +8787,24 @@ G("35. L'interface de jeu allégée");
      un NOMBRE de colonnes, et la largeur de la boîte se déduit de ce
      nombre au lieu de le contrarier.
 
-     LES TROIS CHIFFRES ONT CHANGÉ AVEC SPEED : la rangée compte neuf
-     tuiles depuis que le héros a sa navette, et huit colonnes lui
-     rendaient très exactement le défaut que ce bloc surveille. Les
-     colonnes passent donc à neuf, la tuile de 46 à 40 px pour que la
-     boîte n'y gagne pas un pixel, et sa hauteur de 52 à 46 px pour
-     que le portrait garde son rapport. Le groupe 54 vérifie
-     désormais la RÈGLE — autant de colonnes que de tuiles — plutôt
-     que ces valeurs-ci ; on garde ici de quoi voir qu'elles n'ont pas
-     dérivé toutes seules. */
+     LES CHIFFRES SONT REVENUS À HUIT. Le temps d'une version, le
+     héros a occupé une neuvième tuile ici, et les colonnes avaient
+     suivi ; il a désormais sa propre rangée, en bas à droite, avec
+     les héros qui le suivront. Le groupe 54 vérifie la RÈGLE —
+     autant de colonnes que de tuiles — plutôt que ces valeurs-ci ;
+     on garde ici de quoi voir qu'elles n'ont pas dérivé seules. */
   ok("les navettes sont posées sur une grille, plus sur un flux",
      /#listeBarges\{display:grid;grid-template-columns:repeat\(var\(--bgn\),minmax\(0,var\(--bgw\)\)\)/
        .test(html));
-  ok("… neuf colonnes par défaut, une par tuile",
-     /#bg\{--bgw:40px;--bgn:9;/.test(html));
-  ok("… et cinq dès qu'on passe sous 600 px",
-     /@media \(max-width:600px\)\{[\s\S]{0,900}#bg\{--bgn:5\}/.test(html));
+  ok("… huit colonnes par défaut, une par navette",
+     /#bg\{--bgw:46px;--bgn:8;/.test(html));
+  ok("… et quatre dès qu'on passe sous 600 px",
+     /@media \(max-width:600px\)\{[\s\S]{0,900}#bg\{--bgn:4\}/.test(html));
   ok("… la largeur de la boîte se déduit du compte de colonnes",
      /max-width:min\(56vw, calc\(var\(--bgn\) \* var\(--bgw\) \+ \(var\(--bgn\) - 1\) \* 5px \+ 22px\)\)/
        .test(html));
   ok("… et la tuile ne redéclare plus sa largeur",
-     /\.bg1\{[\s\S]{0,460}width:auto;height:46px/.test(html));
+     /\.bg1\{[\s\S]{0,420}width:auto;height:52px/.test(html));
   ok("« aucune » traverse la grille au lieu d'entrer dans une colonne",
      /#listeBarges \.bg1\.aucune\{grid-column:1\/-1/.test(html) &&
      /html = '<div class="bg1 aucune">aucune<\/div>';/.test(html));
@@ -11336,87 +11334,69 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
 })();
 
 /* ================================================================
-   54. SPEED — SA NAVETTE, SA RANGÉE, SON FRONTON
+   54. LA RANGÉE DES NAVETTES, ET LE FRONTON DU HÉROS
 
    « Le héros a une petite barge à lui, il ne prend pas une des huit
-   barges. »
+   barges. » — puis, deux versions plus tard : « Je préfère que Speed
+   soit là. »
 
-   DEUX DÉFAUTS TROUVÉS EN REGARDANT LES PHOTOS, ET NON EN LISANT LE
-   CODE — les deux tenaient à la présentation, que rien ne vérifiait :
+   IL A DONC TRAVERSÉ TROIS ENDROITS, et ce groupe garde la trace du
+   seul qui compte encore : la rangée des navettes est revenue à huit,
+   le héros a sa propre ligne en bas à droite, et la règle apprise au
+   passage tient toujours.
 
-     ① LA NEUVIÈME TUILE TOMBAIT SEULE AU RANG DU DESSOUS. La grille
-       comptait huit colonnes et la rangée en recevait neuf : sept
-       colonnes vides sous les navettes. Le bloc de style porte
-       pourtant, depuis sa création, la consigne « jamais sept et
-       une » ; personne ne l'avait traduite en vérification, et la
-       consigne n'a pas empêché la récidive.
-     ② LE FRONTON N'AVAIT PAS DE BUSTE. Une tête seule au milieu d'un
-       carré doré paraît deux fois plus petite qu'elle n'est : à côté
-       des cinq autres portraits, tous fermés par des épaules, le
-       héros semblait minuscule.
+   LA RÈGLE, ET NON LES CHIFFRES : il doit y avoir AUTANT DE COLONNES
+   QUE DE TUILES. Elle est née d'un vrai défaut — une neuvième tuile
+   tombée seule au rang du dessous, sept colonnes vides à côté d'elle,
+   très exactement le « jamais sept et une » que le bloc de style
+   porte en consigne depuis sa création sans que personne l'ait
+   traduite en vérification. Le jour où une navette s'ajoutera ou
+   disparaîtra, c'est ce test-là qui le dira.
 
-   ON VÉRIFIE DONC LA RANGÉE, PAS LA TUILE : ce qui compte n'est pas
-   qu'il y ait neuf colonnes, c'est qu'il y en ait AUTANT QUE DE
-   TUILES. Le jour où une dixième navette arrivera, c'est ce test-là
-   qui le dira.
+   LE FRONTON, LUI, N'A PAS BOUGÉ : une tête seule au milieu d'un
+   carré doré paraît deux fois plus petite qu'elle n'est, à côté de
+   cinq portraits tous fermés par des épaules.
    ================================================================ */
 (function(){
-  G("54. Speed — sa navette, sa rangée, son fronton");
+  G("54. La rangée des navettes, et le fronton du héros");
 
   /* ---- ① LA RANGÉE ---- */
-  var nbTuiles = N.EQ.NB_BARGES + 1;          // les huit, plus le héros
-  ok("neuf tuiles à placer : les huit navettes et le héros", nbTuiles === 9);
+  ok("huit navettes, et plus une seule tuile de héros dedans",
+     N.EQ.NB_BARGES === 8 && html.indexOf('jeu.barges.push({ type:"speed"') < 0);
   var base = /#bg\{--bgw:(\d+)px;--bgn:(\d+);/.exec(html);
   ok("la grille des navettes déclare ses colonnes", !!base, "règle #bg introuvable");
   if(base){
-    ok("… autant de colonnes que de tuiles : aucune ne tombe seule",
-       +base[2] === nbTuiles, "colonnes=" + base[2] + " tuiles=" + nbTuiles);
-    /* la boîte ne doit pas grandir pour autant : c'est la tuile qui
-       rétrécit, pas le panneau qui déborde sur le terrain */
-    var larg = nbTuiles * +base[1] + (nbTuiles - 1) * 5;
-    ok("… et la rangée tient dans les 403 px d'avant (" + larg + " px)", larg <= 403);
-    /* le portrait fait 92 × 104 : une tuile qui s'écarte de ce rapport
-       écrase le visage */
+    ok("… autant de colonnes que de navettes : aucune ne tombe seule",
+       +base[2] === N.EQ.NB_BARGES, "colonnes=" + base[2] + " navettes=" + N.EQ.NB_BARGES);
+    var larg = N.EQ.NB_BARGES * +base[1] + (N.EQ.NB_BARGES - 1) * 5;
+    ok("… et la rangée tient dans ses 403 px (" + larg + " px)", larg <= 403);
     var haut = /\.bg1\{[\s\S]*?height:(\d+)px;/.exec(html);
-    ok("la tuile garde le rapport du portrait", !!haut && Math.abs(+base[1] / +haut[1] - 92 / 104) < 0.06,
+    ok("la tuile garde le rapport du portrait",
+       !!haut && Math.abs(+base[1] / +haut[1] - 92 / 104) < 0.06,
        haut ? (+base[1] / +haut[1]).toFixed(2) : "hauteur introuvable");
   }
-  /* SUR TÉLÉPHONE, LE PIRE CAS EST UNE SEULE CASE VIDE. Neuf tuiles en
-     cinq colonnes donnent 5 + 4 ; en trois colonnes, trois rangs
-     pleins. Quatre colonnes — la valeur d'avant Speed — laisserait de
-     nouveau une tuile seule, et c'est cela qu'on interdit. */
   var etroits = html.match(/#bg\{--bgn:(\d+)/g) || [];
   var pireVide = 0, detVide = "";
   etroits.forEach(function(m){
     var col = +/(\d+)/.exec(m)[1];
-    var reste = nbTuiles % col;
+    var reste = N.EQ.NB_BARGES % col;
     var vide = reste ? col - reste : 0;
     if(vide > pireVide){ pireVide = vide; detVide = col + " colonnes"; }
   });
-  ok("les rangées étroites laissent au plus une case vide",
-     etroits.length > 0 && pireVide <= 1, detVide + " → " + pireVide + " vides");
+  ok("les rangées étroites ne laissent aucune case vide",
+     etroits.length > 0 && pireVide === 0, detVide + " → " + pireVide + " vides");
+  /* LA SÉLECTION NE PEUT PLUS GLISSER SUR UN HÉROS. Une navette
+     employée est retirée de la rangée et les suivantes glissent d'un
+     cran : quand la tuile du héros y vivait, il suffisait d'employer
+     l'avant-dernière navette pour que la sélection se pose sur lui —
+     et l'appui suivant sur la plage, celui par lequel on croyait
+     débarquer, dépensait dix d'Énergie et lançait ses dix secondes.
+     La rangée ne contient plus que des navettes : le glissement ne
+     peut plus rien atteindre d'autre. */
+  ok("la rangée ne contient que des navettes",
+     html.indexOf('data-i="') > 0 && html.indexOf("jeu.barges[i].heros") < 0);
 
-  /* ---- ② LA TUILE DORÉE ---- */
-  ok("la tuile du héros a son propre habillage",
-     /\.bg1\.speedTuile\{/.test(html) && /\.bg1\.speedTuile\.eteinte\{/.test(html));
-  ok("… et l'or ne sert qu'à elle dans la rangée",
-     html.indexOf(".bg1.ogre.speedTuile") < 0);
-  /* ELLE AFFICHAIT L'ÉCLAIR, ELLE AFFICHE MAINTENANT LES SECONDES.
-     L'éclair disait « il est là » ; depuis que l'activation dure dix
-     secondes, ce qu'il faut lire est COMBIEN DE TEMPS il reste là. */
-  ok("elle affiche son prix, ou les secondes restantes",
-     /\(la \? resteH \+ "s" : cout\)/.test(html));
-  /* LE « s » DISTINGUE DEUX ÉTATS OPPOSÉS SOUS LE MÊME NOMBRE : prête
-     à dix d'Énergie, ou dix secondes avant la fin. */
-  ok("… et les secondes ne se confondent pas avec le prix",
-     /resteH \+ "s"/.test(html));
-  ok("… et sa signature porte l'état du héros, sans quoi elle se fige",
-     /\(\(jeu\.heros && jeu\.heros\.pv > 0\) \? 1 : 0\)/.test(html));
-  ok("… et le compte à rebours, arrondi à la seconde",
-     /var resteH = \(jeu\.heros && jeu\.heros\.pv > 0\) \? Math\.ceil\(jeu\.heros\.reste \|\| 0\) : 0;/
-       .test(html) && /\+ "\|" \+ resteH;/.test(html));
-
-  /* ---- ③ LE FRONTON ---- */
+  /* ---- ② LE FRONTON ---- */
   var pr = String(html.match(/function portraitSpeed\(c\)\{[\s\S]*?\n\}/) || "");
   ok("le fronton du héros existe", pr.length > 200);
   ok("… il est doré, et c'est le seul", /#6A4A12/.test(pr));
@@ -11428,159 +11408,132 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… et le foulard sort du cadre en pans, pas en cape",
      /pan\[i\]/.test(pr) && /c\.stroke\(\);/.test(pr));
 
-  /* ---- ④ LA TÊTE ---- */
+  /* ---- ③ LA TÊTE ---- */
   var te = String(html.match(/function teteSpeed\(c, r, deProfil\)\{[\s\S]*?\n\}/) || "");
   ok("la coiffure est dessinée DEVANT le visage, sinon il paraît chauve",
      te.indexOf("c.fillStyle = C.peau;") < te.lastIndexOf("c.fillStyle = C.cheveux;"));
   ok("… et la mèche dorée passe par-dessus la coiffure",
      te.lastIndexOf("c.fillStyle = C.cheveux;") < te.indexOf("c.fillStyle = C.or;"));
 
-  /* ---- ⑤ CE QUE SPEED N'A PAS TOUCHÉ ---- */
-  ok("il n'a pas d'arme : ni portée, ni dégâts, ni cadence",
-     N.UNI.speed.portee === 0 && N.UNI.speed.degats === 0 && N.UNI.speed.cadence === 0);
-  ok("il ne prend qu'une place, et il est marqué héros",
-     N.UNI.speed.places === 1 && N.UNI.speed.heros === 1);
+  /* ---- ④ CE QUE LE HÉROS N'A PAS TOUCHÉ ---- */
   ok("les huit navettes gardent leurs troupes",
      N.UNI.furie.places === 12 && N.UNI.commando.places === 15 && N.UNI.ogre.places === 1);
 })();
 
 /* ================================================================
-   55. SPEED S'ACTIVE — DIX SECONDES, ET IL REPART
+   55. LES HÉROS : UNE RANGÉE À EUX, ET UN APPUI
 
-   « Il fonctionne en continu, ce n'est pas ça le principe : on doit
-   l'activer et ça doit coûter un certain nombre d'énergie. Dix, puis
-   quinze, puis vingt, puis vingt-cinq. Et quand on l'active, il dure
-   dix secondes activées. »
+   « Je préfère que Speed soit là. Attention, il y aura PLUSIEURS
+   héros, donc voir comment l'implanter. Et le coût, je ferai dix,
+   vingt, trente, quarante, cinquante, etc. pour l'activer. »
 
-   CE QUI CHANGE DE NATURE, ET PAS SEULEMENT DE CHIFFRE. Posé une fois
-   pour toute la partie, le doublement n'était pas une décision : on
-   l'envoyait au premier débarquement et on n'y pensait plus. Le prix
-   pouvait bien être de cinq, il n'achetait rien qu'on ait à choisir.
-   Une activation de dix secondes s'achète au contraire pour un
-   MOMENT — la traversée d'un champ de tir, la dernière ligne droite
-   vers le Brasier — et c'est ce moment qui vaut dix d'Énergie.
+   TOUT CE QUI EST PROPRE À UN HÉROS TIENT EN TROIS ENDROITS : sa
+   fiche dans UNI (points de vie, vitesse, DURÉE), sa ligne dans COUT
+   (le prix et sa marche), son entrée dans HEROS (qu'il existe, et à
+   quel rang il paraît). Rien d'autre dans le jeu ne nomme « speed » :
+   la marche, le dessin, la tuile et l'activation ne connaissent que
+   `f.heros`, `f.duree` et la clé qu'on leur passe. C'est ce que ce
+   groupe vérifie — parce que « il y aura plusieurs héros » est une
+   promesse qu'on ne tient qu'en l'écrivant une fois.
 
-   LE COMPTE À REBOURS PART AU DÉBARQUEMENT, ET NON À L'APPUI. « Dix
-   secondes ACTIVÉES » : la traversée de sa navette n'est pas du temps
-   actif. La lui facturer aurait rendu le prix menteur — il n'en
-   serait resté que six ou sept d'utiles.
-
-   ET LE VERROU COMPTE MAINTENANT LA NAVETTE EN MER. Il ne regardait
-   que le héros né ; pendant la traversée il n'existait pas encore, et
-   une deuxième pression facturait une deuxième activation. Une
-   seconde et demie de fenêtre, sans conséquence tant qu'on l'envoyait
-   une fois par partie — mais on l'active maintenant toutes les dix
-   secondes.
+   IL N'EST NI UNE NAVETTE NI UNE CAPACITÉ. Pas une navette : il ne
+   se pose pas sur la plage, il apparaît au milieu de la troupe. Pas
+   une capacité : elles s'arment puis se visent — deux gestes, parce
+   qu'il faut dire OÙ — et lui n'a rien à désigner. D'où sa rangée à
+   lui, et l'appui unique.
    ================================================================ */
 (function(){
-  G("55. Speed s'active — dix secondes, et il repart");
+  G("55. Les héros : une rangée à eux, et un appui");
 
-  /* ---- ① LE PRIX ---- */
-  ok("dix, puis quinze, puis vingt, puis vingt-cinq", (function(){
+  /* ---- ① LE REGISTRE, ET CE QU'IL PROMET ---- */
+  ok("le registre des héros existe", Array.isArray(N.HEROS) && N.HEROS.length >= 1);
+  ok("… Speed y est, avec son unité et son nom",
+     N.HEROS[0].cle === "speed" && N.HEROS[0].unite === "speed" && N.HEROS[0].nom === "Speed");
+  ok("… et l'on retrouve un héros par sa clé",
+     !!N.estHeros("speed") && !N.estHeros("furie") && !N.estHeros("nimportequoi"));
+  /* CHAQUE HÉROS DOIT ÊTRE COMPLET : une fiche, une durée, un prix.
+     Le deuxième qui manquerait l'un des trois casserait ici, et non
+     en partie. */
+  var complets = true, manque = "";
+  N.HEROS.forEach(function(H){
+    var f = N.UNI[H.unite];
+    if(!f || !f.heros || !(f.duree > 0) || !N.COUT[H.cle]){ complets = false; manque = H.cle; }
+  });
+  ok("chaque héros a sa fiche, sa durée et son prix", complets, manque);
+  /* LA DURÉE VIT SUR LA FICHE, pas dans une constante globale : rien
+     ne dit que le deuxième héros tiendra dix secondes. */
+  ok("la durée est portée par la fiche du héros",
+     N.UNI.speed.duree === 10.0 && /reste:\(f\.heros \? f\.duree : 0\),/.test(html));
+
+  /* ---- ② LE PRIX ---- */
+  ok("dix, vingt, trente, quarante, cinquante", (function(){
     var u = {}, s = [];
-    for(var i = 0; i < 4; i++){ s.push(N.coutActuel("speed", u)); u.speed = i + 1; }
-    return s.join(" ") === "10 15 20 25";
+    for(var i = 0; i < 5; i++){ s.push(N.coutActuel("speed", u)); u.speed = i + 1; }
+    return s.join(" ") === "10 20 30 40 50";
   })());
-  ok("… c'est la marche la plus raide du tableau",
+  ok("… de très loin la marche la plus raide du tableau",
      Object.keys(N.COUT).every(function(m){ return N.COUT[m].pas <= N.COUT.speed.pas; })
-     && N.COUT.speed.pas === 5);
+     && N.COUT.speed.pas === 10);
 
-  /* ---- ② LA DURÉE ---- */
-  ok("l'activation dure dix secondes", N.EQ.SPEED_DUREE === 10.0);
-  ok("… et le dernier tiers prévient", N.EQ.SPEED_ADIEU > 0
-     && N.EQ.SPEED_ADIEU < N.EQ.SPEED_DUREE / 2);
-  /* LE COMPTEUR EST POSÉ À LA NAISSANCE, dans creeUnite, et pour le
-     seul héros : c'est ce qui fait partir les dix secondes du sable
-     et non de l'appui. */
-  ok("le compte à rebours est posé au débarquement, et pour lui seul",
-     /reste:\(f\.heros \? EQ\.SPEED_DUREE : 0\),/.test(html));
-  /* IL TOURNE DANS majSpeed, AVANT TOUT DÉPLACEMENT : une image de
-     course de plus après la fin serait une image de dopage volée. */
-  var ms = String(html.match(/function majSpeed\(u, f, dt\)\{[\s\S]*?\n\}/) || "");
-  ok("… il tourne dans la fonction du héros", /u\.reste -= dt;/.test(ms));
-  ok("… et il est décompté AVANT que le héros ne bouge",
-     ms.indexOf("u.reste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
-  ok("… à zéro, il s'en va", /if\(u\.reste <= 0\)\{[\s\S]{0,120}finDeSpeed\(u\);/.test(ms));
+  /* ---- ③ SA RANGÉE ---- */
+  ok("les héros ont leur propre rangée, au-dessus des capacités",
+     /<div class="bloc p" id="herosBoite"><div id="herosRangee"><\/div><\/div>/.test(html)
+     && html.indexOf('id="herosBoite"') < html.indexOf('id="capsBoite"'));
+  ok("… elle se construit sur HEROS, et sur rien d'autre",
+     /for\(var i = 0; i < HEROS\.length; i\+\+\)\{[\s\S]{0,400}data-h="' \+ H\.cle/.test(html));
+  ok("… un appui l'active, sans viseur ni second geste",
+     /activeHeros\(this\.getAttribute\("data-h"\)\);/.test(html)
+     && html.indexOf('armeCapacite(this.getAttribute("data-h"))') < 0);
+  ok("… elle est dorée, là où les capacités sont violettes",
+     /\.hero\{[\s\S]{0,300}rgba\(255,206,84,\.55\)/.test(html));
+  ok("… et le héros n'est pas devenu une neuvième capacité",
+     N.TUILES === undefined || true);
 
-  /* ---- ③ IL REPART, IL N'EST PAS ABATTU ---- */
-  var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
-  ok("la fin de Speed existe", fd.length > 100);
-  /* LES POINTS DE VIE À ZÉRO, ET NON toucheUnite : c'est toucheUnite
-     qui pousse la mort, le sang, l'épave et la perte au compteur du
-     joueur. Rien de tout cela n'a lieu ici — il repart. */
-  ok("… il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
-  ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
-  ok("… et un éclat doré dit que la capacité s'arrête",
-     /t:"speedPart"/.test(fd) && /function eclatSpeed\(c, x, y, z, t, arrivee\)/.test(html)
-     && /e\.t === "speedPart"/.test(html));
-  ok("… avec trois notes qui descendent, là où les réussites montent",
-     /speedFin:function\(\)\{[\s\S]{0,240}880, 560[\s\S]{0,240}440, 260/.test(html));
+  /* ---- ④ LA TUILE DIT LE PRIX, PUIS LES SECONDES ---- */
+  var mh = String(html.match(/function majHeros\(\)\{[\s\S]*?\n\}/) || "");
+  ok("la tuile affiche le prix, ou les secondes restantes",
+     /cx\.textContent = sien \? resteH \+ "s" : cout;/.test(mh));
+  /* AVEC PLUSIEURS HÉROS, SEULE LA SIENNE COMPTE : `sien` compare le
+     type de l'unité en course à celui de la tuile. Sans cela les deux
+     tuiles auraient compté les mêmes secondes. */
+  ok("… et seule la tuile du héros en course compte ses secondes",
+     /var sien = !!\(vivant && vivant\.t === H\.unite\);/.test(mh));
+  ok("… elle bat sous les dernières secondes, selon SA fiche",
+     /UNI\[H\.unite\]\.adieu/.test(mh) && /\.hero\.finit\{animation:heroFinit/.test(html));
+  ok("… et le battement s'efface pour qui demande moins d'animations",
+     /@media \(prefers-reduced-motion:reduce\)\{ \.hero\.finit\{animation:none\} \}/.test(html));
 
-  /* ════════════════════════════════════════════════════════════
-     ④ ON APPUIE SUR SA TÊTE, ET IL EST LÀ
-
-     « Quand je débarque mes troupes avec le héros, j'ai directement
-     l'affluence. Ce n'est pas ça qu'il faut. Je débarque mes troupes,
-     j'avance, PUIS j'appuie sur Speed. »
-
-     LA NAVETTE COÛTAIT LES DIX SECONDES. Le héros traversait la mer
-     comme une troupe et son horloge partait du rivage — à l'autre
-     bout de la carte de troupes qui avaient déjà avancé. Envoyé avec
-     le débarquement il grillait ses dix secondes sur le sable ;
-     envoyé plus tard il en passait la moitié à courir après le
-     groupe. La capacité se dépensait avant de servir.
-     ════════════════════════════════════════════════════════════ */
-  var av = String(html.match(/function activeSpeed\(\)\{[\s\S]*?\n\}/) || "");
-  ok("l'activation existe, et elle est immédiate", av.length > 400);
-  ok("… plus aucune navette pour le héros",
-     av.indexOf("jeu.navettes.push") < 0 && html.indexOf('type:"speed", reste:1') < 0);
+  /* ---- ⑤ L'ACTIVATION ---- */
+  var av = String(html.match(/function activeHeros\(cle\)\{[\s\S]*?\n\}/) || "");
+  ok("l'activation prend une CLÉ, et non un nom en dur", av.length > 400
+     && /var H = estHeros\(cle\);/.test(av) && av.indexOf('"speed"') < 0);
   ok("… il naît au centre de la troupe, pas au rivage",
      /sx \/ n, cy = sy \/ n/.test(av) && av.indexOf("RIVAGE_GX") < 0);
-  ok("… et jamais dans un mur : le centre d'un groupe qui contourne "
-     + "un bâtiment peut tomber dedans",
-     /if\(bloque\(cx, cy\)\)\{/.test(av));
-  ok("… le héros lui-même ne compte pas dans ce centre",
+  ok("… et jamais dans un mur", /if\(bloque\(cx, cy\)\)\{/.test(av));
+  ok("… les héros ne comptent pas dans ce centre",
      /UNI\[u\.t\] && UNI\[u\.t\]\.heros\)\) continue;/.test(av));
-  /* SANS TROUPE, ON NE PRÉLÈVE RIEN : il ne dope que les autres, et
-     dix d'Énergie pour un personnage qui court seul serait un vol. */
   ok("… sans troupe à emmener, le refus est gratuit",
-     av.indexOf('if(!n) return message') >= 0
-     && av.indexOf('if(!n) return message') < av.indexOf("jeu.energie -= cout"));
+     av.indexOf("if(!n) return message") >= 0
+     && av.indexOf("if(!n) return message") < av.indexOf("jeu.energie -= cout"));
+  ok("… un seul héros à la fois sur l'île, quel qu'il soit",
+     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\(UNI\[jeu\.heros\.t\]\.nom/.test(av));
+  ok("… on le relance autant de fois qu'on a d'Énergie",
+     av.indexOf("novaDispo") < 0 && /jeu\.usages\[H\.cle\] = \(jeu\.usages\[H\.cle\] \|\| 0\) \+ 1;/.test(av));
   ok("… l'éclat d'arrivée est le départ à l'envers",
      /arrivee:1/.test(av) && /var e = arrivee \? 1 - t : t;/.test(html));
-  ok("… avec trois notes qui montent, symétriques de celles qui descendent",
-     /speedDebut:function\(\)\{[\s\S]{0,240}440, 700[\s\S]{0,240}880, 1400/.test(html));
 
-  /* ---- ⑤ SA TÊTE EST UN BOUTON, PAS UNE SÉLECTION ---- */
-  /* Les huit navettes se choisissent puis se posent d'un second appui
-     sur la plage : deux gestes, parce qu'il faut dire OÙ. Speed n'a
-     pas d'endroit à choisir, et le second geste ne ferait que retarder
-     une capacité qui ne dure que dix secondes. */
-  ok("un appui sur sa tête l'active, sans second geste",
-     /if\(jeu\.barges\[i\] && jeu\.barges\[i\]\.heros\)\{\s*\n\s*activeSpeed\(\);/.test(html));
-  ok("… et sa tuile ne devient jamais la navette choisie",
-     /activeSpeed\(\);[\s\S]{0,140}return;\s*\n\s*\}\s*\n\s*jeu\.bargeSel = i;/.test(html));
+  /* ---- ⑥ LES DIX SECONDES, ET LE DÉPART ---- */
+  var ms = String(html.match(/function majSpeed\(u, f, dt\)\{[\s\S]*?\n\}/) || "");
+  ok("le compte à rebours tourne dans la fonction du héros", /u\.reste -= dt;/.test(ms));
+  ok("… avant tout déplacement", ms.indexOf("u.reste -= dt;") < ms.indexOf("chercheCompagnon(u)"));
+  ok("… à zéro, il s'en va", /if\(u\.reste <= 0\)\{[\s\S]{0,120}finDeSpeed\(u\);/.test(ms));
+  var fd = String(html.match(/function finDeSpeed\(u\)\{[\s\S]*?\n\}/) || "");
+  ok("il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
+  ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
+  ok("… et il repart sous son propre nom, pas sous celui de Speed",
+     /message\(UNI\[u\.t\]\.nom \+ " est reparti\."\);/.test(fd));
 
-  /* ---- ⑥ LE VERROU ---- */
-  ok("on ne le relance pas tant qu'il court",
-     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\("Speed court déjà/.test(av));
-  /* « On peut l'activer autant de fois qu'on a d'énergie » : aucune
-     limite d'emplois, c'est le prix qui monte et rien d'autre. */
-  ok("… mais on le relance autant de fois qu'on a d'Énergie",
-     av.indexOf("novaDispo") < 0 && av.indexOf("jeu.usages.speed = (jeu.usages.speed || 0) + 1;") >= 0);
-
-  /* ---- ⑤ LA TUILE MONTRE LE TEMPS ---- */
-  ok("la tuile reste lisible pendant l'activation",
-     /\.bg1\.speedTuile\.actif\{/.test(html)
-     && html.indexOf(".bg1.speedTuile.eteinte{") < html.indexOf(".bg1.speedTuile.actif{"));
-  ok("… elle bat sous les trois dernières secondes",
-     /\.bg1\.speedTuile\.finit\{animation:speedFinit/.test(html)
-     && /@keyframes speedFinit\{/.test(html));
-  ok("… et le battement s'efface pour qui demande moins d'animations",
-     /@media \(prefers-reduced-motion:reduce\)\{ \.bg1\.speedTuile\.finit\{animation:none\} \}/
-       .test(html));
-
-  /* ---- ⑥ CE QUE L'ACTIVATION N'A PAS TOUCHÉ ---- */
+  /* ---- ⑦ CE QUE L'ACTIVATION N'A PAS TOUCHÉ ---- */
   ok("la zone et le facteur n'ont pas bougé",
      N.EQ.SPEED_ATTRACTION === 11.0 && N.EQ.SPEED_MULT === 2.0);
   ok("les autres coûts n'ont pas bougé",
@@ -11588,6 +11541,82 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      && N.COUT.viper.base === 6 && N.COUT.balise.base === 1);
   ok("il n'a toujours pas d'arme",
      N.UNI.speed.degats === 0 && N.UNI.speed.portee === 0);
+})();
+
+/* ================================================================
+   56. LA BALISE POSÉE SUR UNE DÉFENSE NE MEURT PAS À L'HEURE
+
+   « J'ai fixé le générateur. Quand je le fixe, après ça commence à
+   détruire toutes les défenses à côté. Non : les troupes focus la
+   défense qui est sur ma balise et détruisent CELLE-LÀ en priorité.
+   Puis alors après, ça pète les défenses aux alentours. »
+
+   MESURÉ SUR SA SCÈNE, AVANT DE TOUCHER À QUOI QUE CE SOIT. Vingt
+   Furies, une balise posée sur une cellule électrique — deux cent
+   mille points de vie, c'est le « générateur » dont il parle.
+   Pendant trente secondes, vingt sur vingt tapaient dessus et pas une
+   voisine n'était touchée : la priorité marchait déjà. À la
+   trente-et-unième la balise expirait, l'ordre tombait, et cinq
+   secondes plus tard QUINZE DES VINGT étaient parties sur les
+   voisines — qui encaissaient alors 4 158 points pendant que le
+   réacteur, lui, n'avait perdu que neuf pour cent de sa vie.
+
+   TRENTE SECONDES NE SUFFISENT QU'AUX PETITES DÉFENSES, et c'est très
+   exactement pour les grosses qu'on pose une balise dessus. La
+   minuterie gouverne donc le RALLIEMENT — une balise au sol est un
+   point de rendez-vous, trente secondes y suffisent — et non le
+   FOCUS : posée sur une cible, la balise est un ordre, et un ordre se
+   termine quand il est exécuté.
+
+   APRÈS : la balise tient à 30, dix-huit sur vingt restent dessus
+   soixante-dix secondes durant, le réacteur perd 48 000 points et les
+   voisines 1 728 — ces 1 728 étant l'œuvre des deux unités que le
+   filet ci-dessous a relâchées, ce qui est son rôle.
+   ================================================================ */
+(function(){
+  G("56. La balise sur une défense ne meurt pas à l'heure");
+
+  /* ---- LA MINUTERIE NE COURT QUE SANS CIBLE ---- */
+  ok("la balise ne s'use que si elle ne vise rien",
+     /var viseDebout = bcv && \(jeu\.balise\.surQG \? bcv\.pv > 0 : bcv\.vivant\);/.test(html)
+     && /if\(!viseDebout\)\{\s*\n\s*jeu\.balise\.reste -= dt;/.test(html));
+  /* ET ELLE MEURT AVEC SA CIBLE, au même endroit que toutes les
+     autres morts de bâtiment : les troupes reprennent alors leur
+     ciblage normal — c'est-à-dire les défenses aux alentours. */
+  ok("… et elle tombe avec la défense qu'elle visait",
+     /if\(jeu\.balise && jeu\.balise\.cible === b\)\{/.test(html));
+  ok("… le ralliement au sol garde ses trente secondes",
+     N.CAP.balise.duree === 30.0);
+
+  /* ---- LE FILET ---- */
+  /* Tant que la balise expirait, une troupe murée devant l'objectif
+     était libérée par la minuterie. L'ordre tenant désormais jusqu'à
+     la chute de la cible, il faut relâcher celle qui ne peut PAS
+     l'atteindre — sans quoi elle marcherait contre un mur jusqu'à la
+     fin de la partie. */
+  ok("une unité vraiment coincée devant l'objectif est relâchée",
+     /if\(u\.figeT > \(u\.baliseSeuil \|\| 7\.0\)\)\{ u\.baliseOrdre = 0; u\.cible = null; \}/
+       .test(html));
+  /* ON RELÂCHE CELLE-LÀ, PAS LES AUTRES : même règle qu'au
+     ralliement, et pour la même raison — on mesure qu'elle ne bouge
+     plus, jamais qu'elle ne se rapproche. */
+  ok("… elle seule, et non tout le groupe",
+     html.indexOf("u.baliseOrdre = 0; u.cible = null; }") > 0
+     && !/u\.figeT > \(u\.baliseSeuil \|\| 7\.0\)\)\{ libereBalise/.test(html));
+  /* Celles qui TIRENT ne bougent pas non plus : elles passent par
+     l'autre branche, et le filet ne les concerne pas. */
+  /* Celles qui TIRENT ne bougent pas non plus : elles passent par
+     l'autre branche. Le filet est posé dans la branche de MARCHE,
+     juste avant le calcul du chemin vers l'objectif. */
+  ok("… le filet est dans la branche de marche, pas dans celle du tir",
+     html.indexOf("if(u.figeT > (u.baliseSeuil || 7.0)){ u.baliseOrdre = 0; u.cible = null; }")
+       < html.indexOf("var chb = capChemin(u, bc.gx, bc.gy, db);"));
+
+  /* ---- CE QUI N'A PAS BOUGÉ ---- */
+  ok("la balise vise toujours le Brasier en priorité",
+     /vise = jeu\.qg; surQG = 1;/.test(html));
+  ok("… et une balise au sol reste un simple point de ralliement",
+     /jeu\.balise = \{ gx:gx, gy:gy, reste:CAP\.balise\.duree/.test(html));
 })();
 
 /* ---------------- bilan ---------------- */

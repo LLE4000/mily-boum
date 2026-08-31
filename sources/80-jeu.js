@@ -227,7 +227,6 @@ function nouvelleCarte(index, pvConnu){
      grisée tant que le héros est sur le terrain ou que l'Énergie
      manque, dorée dès qu'on peut l'envoyer.
      ════════════════════════════════════════════════════════════ */
-  jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
   /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
      l'instantané du salon déclare détruits, et on abaisse les PV du
      Brasier — AVANT construitGrilles(), qui fige les emprises. */
@@ -1296,11 +1295,6 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* La tuile du héros n'est plus une navette : un appui dessus
-     l'active sur-le-champ, où que soient les troupes. On y renvoie
-     quand même — la sélection ne peut plus l'atteindre, mais rien ne
-     doit se casser si elle y arrivait. */
-  if(b.heros) return activeSpeed();
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -1452,7 +1446,7 @@ function creeUnite(type, gx, gy){
        autres troupes le portent à zéro et ne le lisent jamais — un
        champ de plus par unité coûte moins qu'une classe cachée qui
        change en cours de partie. */
-    reste:(f.heros ? EQ.SPEED_DUREE : 0),
+    reste:(f.heros ? f.duree : 0),
     dope:0, vitVue:0, escorte:null,
     escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
@@ -2331,12 +2325,19 @@ function chercheBlesseAutour(u, r){
    les autres : activé sur une île vide, il ferait payer dix d'Énergie
    pour un personnage qui court tout seul. Le refus est gratuit.
    ════════════════════════════════════════════════════════════════ */
-function activeSpeed(){
+function activeHeros(cle){
+  var H = estHeros(cle);
+  if(!H) return;
+  var fh = UNI[H.unite];
   if(typeof modeApercu !== "undefined" && modeApercu)
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
+  /* UN SEUL HÉROS À LA FOIS SUR L'ÎLE, quel qu'il soit. Deux auras qui
+     se recouvrent ne doublent rien de plus — le dopage est un
+     booléen — et l'on paierait deux fois le même effet. */
   if(jeu.heros && jeu.heros.pv > 0)
-    return message("Speed court déjà — encore " + Math.ceil(jeu.heros.reste) + " s.");
+    return message(UNI[jeu.heros.t].nom + " court déjà — encore "
+                   + Math.ceil(jeu.heros.reste) + " s.");
   /* le centre de la troupe vivante, le héros exclu */
   var sx = 0, sy = 0, n = 0;
   for(var i = 0; i < jeu.unites.length; i++){
@@ -2344,12 +2345,12 @@ function activeSpeed(){
     if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
     sx += u.gx; sy += u.gy; n++;
   }
-  if(!n) return message("Speed n'a personne à emmener : débarque d'abord.");
-  var cout = coutActuel("speed", jeu.usages);
+  if(!n) return message(H.nom + " n'a personne à emmener : débarque d'abord.");
+  var cout = coutActuel(H.cle, jeu.usages);
   if(jeu.energie < cout)
-    return message("Il faut " + cout + " d'Énergie pour lancer Speed.");
+    return message("Il faut " + cout + " d'Énergie pour lancer " + H.nom + ".");
   jeu.energie -= cout;
-  jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+  jeu.usages[H.cle] = (jeu.usages[H.cle] || 0) + 1;
   /* on le pose au centre, et sur une case praticable : le centre d'un
      groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
   var cx = sx / n, cy = sy / n;
@@ -2363,12 +2364,14 @@ function activeSpeed(){
       }
     }
   }
-  var h = creeUnite("speed", borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
+  var h = creeUnite(H.unite, borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
   jeu.heros = h;
   jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
   if(son && son.speedDebut) son.speedDebut();
   demandeMajBarres();
-  message("Speed est là — " + Math.round(EQ.SPEED_DUREE) + " secondes à deux fois la vitesse !");
+  majMenu();
+  message(H.nom + " est là — " + Math.round(fh.duree)
+          + " secondes à deux fois la vitesse !");
   if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
@@ -2395,7 +2398,8 @@ function finDeSpeed(u){
   jeu.effets.push({ t:"speedPart", gx:u.gx, gy:u.gy, age:0, duree:0.85 });
   if(son && son.speedFin) son.speedFin();
   demandeMajBarres();
-  message("Speed est reparti.");
+  majMenu();
+  message(UNI[u.t].nom + " est reparti.");
 }
 
 /* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
@@ -2773,6 +2777,22 @@ function majUnites(dt){
         capUnite(u, dxb, dyb, db > f.arret);
         u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
+          /* ════════════════════════════════════════════════════
+             LE FILET, MAINTENANT QUE L'ORDRE NE S'ÉTEINT PLUS
+
+             Tant que la balise expirait au bout de trente secondes,
+             une troupe murée devant l'objectif était libérée par la
+             minuterie. L'ordre tient désormais jusqu'à ce que la
+             cible tombe : sans ce garde-fou, celle qui ne peut PAS
+             l'atteindre marcherait contre un mur jusqu'à la fin de
+             la partie.
+
+             On relâche CETTE unité-là, pas les autres : c'est la
+             même règle qu'au ralliement, et pour la même raison —
+             on mesure qu'elle ne bouge plus, jamais qu'elle ne se
+             rapproche. Celles qui tirent, elles, ne bougent pas non
+             plus, mais elles passent par l'autre branche. */
+          if(u.figeT > (u.baliseSeuil || 7.0)){ u.baliseOrdre = 0; u.cible = null; }
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           /* LE CHEMIN D'ABORD, L'ÉVENTAIL ENSUITE. Loin de l'objectif
              on suit le champ de distance — il contourne ce qui est
@@ -3980,9 +4000,40 @@ function majZones(dt){
     jeu.cryos[i].age += dt;
     if(jeu.cryos[i].age > jeu.cryos[i].duree) jeu.cryos.splice(i, 1);
   }
+  /* ════════════════════════════════════════════════════════════
+     UNE BALISE POSÉE SUR UN OBJECTIF NE MEURT PAS À L'HEURE
+
+     « Quand je fixe le générateur, après ça commence à détruire
+     toutes les défenses à côté. Non : les troupes focus la défense
+     qui est sur ma balise et détruisent CELLE-LÀ en priorité. Puis
+     alors après, ça pète les défenses aux alentours. »
+
+     MESURÉ, SUR SA SCÈNE. Vingt Furies, une balise posée sur une
+     cellule électrique — deux cent mille points de vie. Pendant
+     trente secondes, vingt sur vingt tapaient dessus et pas une
+     seule voisine n'était touchée : la priorité marchait. À la
+     trente-et-unième la balise expirait, l'ordre tombait, et cinq
+     secondes plus tard quinze des vingt étaient parties sur les
+     voisines. Le réacteur avait perdu neuf pour cent de sa vie.
+     Trente secondes ne suffisent à abattre que les petites défenses,
+     et c'est très exactement pour les grosses qu'on pose une balise
+     dessus.
+
+     LA MINUTERIE GOUVERNE LE RALLIEMENT, PAS LE FOCUS. Posée au sol,
+     la balise est un point de rendez-vous et trente secondes sont
+     largement assez. Posée sur une cible, elle est un ORDRE, et un
+     ordre se termine quand il est exécuté : la cible tombe, et
+     `jeu.balise` est mise à null au même endroit que toutes les
+     autres morts de bâtiment — les troupes reprennent alors leur
+     ciblage normal, c'est-à-dire les défenses aux alentours.
+     ════════════════════════════════════════════════════════════ */
   if(jeu.balise){
-    jeu.balise.reste -= dt;
-    if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+    var bcv = jeu.balise.cible;
+    var viseDebout = bcv && (jeu.balise.surQG ? bcv.pv > 0 : bcv.vivant);
+    if(!viseDebout){
+      jeu.balise.reste -= dt;
+      if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+    }
   }
 }
 
@@ -4323,9 +4374,7 @@ function majMort(dt){
     jeu.barges = [];
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
-    /* et le héros retrouve sa navette : le renfort remonte TOUT */
-    jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
-    jeu.bargeSel = 0;
+      jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en

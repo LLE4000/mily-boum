@@ -1662,18 +1662,17 @@ select.champ{cursor:pointer}
    8 × 46 + 7 × 5 = 403 px, la boîte en offrait 400 une fois ses marges
    retirées, et la huitième tombait seule à la ligne. Trois pixels.
    Une grille ne peut pas produire ce résultat-là : elle a un nombre de
-   colonnes, et c'est ce nombre qui décide — neuf tant qu'il y a la
-   place, cinq sur un téléphone. La largeur de la boîte se déduit
+   colonnes, et c'est ce nombre qui décide — huit tant qu'il y a la
+   place, quatre sur un téléphone. La largeur de la boîte se déduit
    alors du compte de colonnes au lieu de le contrarier.
 
-   NEUF COLONNES DEPUIS SPEED, ET NON HUIT. Sa navette est une
-   neuvième tuile ; laissée dans une grille de huit, elle tombait
-   seule au rang du dessous, sept colonnes vides à côté d'elle — très
-   exactement le « sept et une » que ce bloc existe pour empêcher. La
-   tuile perd six pixels de large, la boîte n'en prend aucun : neuf
-   fois 40 plus huit gouttières valent les 403 px d'avant à trois
-   près. */
-#bg{--bgw:40px;--bgn:9;
+   ELLE EST REVENUE À HUIT AVEC LE DÉPART DE SPEED. Le temps d'une
+   version, le héros a occupé une neuvième tuile ici ; il a désormais
+   sa propre rangée, en bas à droite, avec les héros qui le
+   suivront — et la règle du groupe 54 tient toujours : autant de
+   colonnes que de tuiles, jamais une tuile seule au rang du
+   dessous. */
+#bg{--bgw:46px;--bgn:8;
     position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));
     max-width:min(56vw, calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
@@ -1692,11 +1691,10 @@ select.champ{cursor:pointer}
   /* la LARGEUR vient de la colonne, désormais : c'est la grille qui
      décide, et une tuile qui redéclarerait 46 px la contredirait le
      jour où la boîte se rétrécit sous un téléphone étroit */
-  /* 46 px de haut pour 40 de large : le canevas du portrait fait
+  /* 52 px de haut pour 46 de large : le canevas du portrait fait
      92 × 104, et une tuile qui s'écarte de ce rapport écrase le
-     visage. Les colonnes ayant rétréci pour faire place à Speed, la
-     hauteur les suit. */
-  width:auto;height:46px;padding:0;border-radius:10px;overflow:hidden;
+     visage. */
+  width:auto;height:52px;padding:0;border-radius:10px;overflow:hidden;
   border:1px solid rgba(255,255,255,.14);position:relative;
   background:#1d1229;cursor:pointer;line-height:0;
   transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
@@ -1721,63 +1719,6 @@ select.champ{cursor:pointer}
 /* Une navette vidée de ses passagers : le portrait s'éteint. */
 .bg1.vide{opacity:.38}
 .bg1.vide .n{color:#9a8fa6}
-/* ─────────────────────────────────────────────────────────────
-   LA TUILE DU HÉROS — « un fronton un petit peu doré »
-
-   Elle doit se distinguer des huit AU PREMIER COUP D'ŒIL, sinon
-   la neuvième navette se confond avec les autres et l'on cherche
-   Speed dans la rangée. D'où l'or partout où les autres sont
-   violettes : la bordure, le halo, le fond du portrait, la
-   pastille du prix.
-
-   ÉTEINTE veut dire deux choses très différentes — il est déjà
-   là, ou l'Énergie manque — et l'infobulle dit laquelle. Le gris
-   ne fait qu'annoncer « pas maintenant » ; c'est déjà beaucoup,
-   à condition qu'on garde une lueur d'or, sans quoi la tuile
-   disparaît de la rangée. */
-.bg1.speedTuile{
-  border-color:rgba(255,206,84,.60);
-  background:linear-gradient(160deg,#3a2a10,#1d1229 62%);
-  box-shadow:0 0 10px rgba(255,196,64,.20) inset;
-}
-.bg1.speedTuile .n{
-  color:#1b1206;background:linear-gradient(180deg,#ffdd8a,#f0ad2a);
-  border-color:rgba(255,236,180,.75);text-shadow:none;
-}
-.bg1.speedTuile.sel{
-  border-color:#ffd257;
-  box-shadow:0 0 0 2px rgba(255,210,87,.55),0 0 16px rgba(255,196,64,.50);
-}
-.bg1.speedTuile.sel .n{color:#1b1206;border-color:#fff2cc}
-.bg1.speedTuile.eteinte{opacity:.42;border-color:rgba(255,206,84,.28)}
-/* ─────────────────────────────────────────────────────────────
-   PENDANT LES DIX SECONDES, LA TUILE EST VIVANTE
-
-   Elle reste inappuyable — un seul Speed à la fois — mais elle ne
-   doit surtout pas être grise : c'est le seul endroit où le joueur
-   lise le temps qu'il lui reste, et une pastille à 42 % d'opacité
-   ne se lit pas d'un coup d'œil au milieu d'un assaut. La règle
-   vient donc APRÈS `.eteinte`, à spécificité égale, et lui reprend
-   son opacité.
-
-   LES TROIS DERNIÈRES SECONDES CLIGNOTENT. Un arrêt sec au bout de
-   dix secondes se subit ; prévenu, on pousse l'assaut ou l'on
-   prépare la réactivation. Le clignotement est en `steps` — un
-   battement franc, pas un fondu qu'on ne remarque pas — et il
-   s'efface entièrement pour qui a demandé moins d'animations. */
-.bg1.speedTuile.actif{
-  opacity:1;border-color:#ffd257;
-  box-shadow:0 0 0 2px rgba(255,210,87,.38),0 0 14px rgba(255,196,64,.45);
-}
-.bg1.speedTuile.actif .n{
-  min-width:17px;
-  background:linear-gradient(180deg,#fff0c2,#f5b62e);border-color:#fff6dd;
-}
-.bg1.speedTuile.finit{animation:speedFinit .52s steps(1,end) infinite}
-@keyframes speedFinit{
-  50%{border-color:rgba(255,120,60,.85);box-shadow:0 0 0 2px rgba(255,120,60,.45),0 0 16px rgba(255,120,60,.5)}
-}
-@media (prefers-reduced-motion:reduce){ .bg1.speedTuile.finit{animation:none} }
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
@@ -1816,6 +1757,65 @@ select.champ{cursor:pointer}
 @media (prefers-reduced-motion:reduce){ .cap.super{animation:none} }
 .cap.pauvre{opacity:.42}
 .cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
+
+/* ═════════════════════════════════════════════════════════════
+   LA RANGÉE DES HÉROS — SA PROPRE FAMILLE, AU-DESSUS DES CAPACITÉS
+
+   « Je préfère que Speed soit là. Attention, il y aura plusieurs
+   héros, donc voir comment l'implanter. »
+
+   ELLE EST À PART, ET C'EST LE POINT. Un héros n'est ni une navette
+   — il ne se pose pas sur la plage — ni tout à fait une capacité :
+   il ne s'arme pas, il ne se vise pas, un appui suffit. Le mettre
+   en neuvième case des capacités aurait fait 4 + 4 + 1, une tuile
+   seule sous les autres ; le laisser chez les navettes lui donnait
+   une sélection qu'il ne veut pas. Il a donc sa ligne, qui
+   s'allongera avec eux : deux héros feront deux tuiles côte à côte,
+   trois en feront trois, sans qu'aucune autre boîte ne bouge.
+
+   L'OR LES DISTINGUE, comme il distingue tout ce qui est rare dans
+   ce jeu. Les capacités sont violettes et leur pastille orange ;
+   celles-ci sont ambrées, et leur pastille dorée. */
+/* ELLE NE PREND QUE SA PLACE. `#bd` étire ses enfants sur toute la
+   largeur du panneau des capacités : une rangée d'un seul héros
+   laissait alors une grande boîte vide à sa gauche, qui se lisait
+   comme un cadre oublié. Elle se cale donc à droite, à la largeur de
+   ce qu'elle contient — et s'allongera d'elle-même quand ils seront
+   deux, puis trois. */
+#herosBoite{padding:6px;align-self:flex-end;width:fit-content}
+#herosRangee{display:flex;gap:6px;justify-content:flex-end}
+.hero{
+  position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
+  border:1px solid rgba(255,206,84,.55);
+  background:linear-gradient(180deg,#3a2a10,#1d1229 62%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:transform .08s ease;overflow:hidden;
+}
+.hero:active{transform:scale(.95)}
+.hero canvas{width:40px;height:34px;display:block;border-radius:5px}
+.hero .nm{font-size:9.5px;letter-spacing:.2px;color:#f4dda6;text-align:center;line-height:1}
+.hero .cx{
+  position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
+  background:linear-gradient(180deg,#ffdd8a,#f0ad2a);color:#1b1206;font-weight:800;
+  font-size:11px;line-height:20px;font-family:inherit;text-align:center;padding:0 5px;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
+}
+/* PENDANT SES DIX SECONDES : le cadre s'allume et la pastille compte.
+   C'est le seul endroit où le joueur lise le temps qui lui reste. */
+.hero.actif{
+  border-color:#ffd257;
+  box-shadow:0 0 0 2px rgba(255,210,87,.38),0 0 14px rgba(255,196,64,.45);
+}
+.hero.actif .cx{background:linear-gradient(180deg,#fff0c2,#f5b62e);min-width:24px}
+/* les trois dernières secondes battent : un arrêt sec se subit,
+   prévenu on pousse l'assaut ou l'on prépare la relance */
+.hero.finit{animation:heroFinit .52s steps(1,end) infinite}
+@keyframes heroFinit{
+  50%{border-color:rgba(255,120,60,.85);box-shadow:0 0 0 2px rgba(255,120,60,.45),0 0 16px rgba(255,120,60,.5)}
+}
+@media (prefers-reduced-motion:reduce){ .hero.finit{animation:none} }
+.hero.pauvre{opacity:.42;border-color:rgba(255,206,84,.28)}
+.hero.pauvre .cx{background:#5a4a63;color:#cbbdd4}
 
 /* — bas centre : bandeau fantôme — */
 #bc{
@@ -1879,8 +1879,8 @@ select.champ{cursor:pointer}
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
   /* le portrait garde son rapport : on rétrécit les deux côtés */
-  #bg{--bgw:36px}
-  .bg1{height:41px}
+  #bg{--bgw:40px}
+  .bg1{height:46px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -1907,14 +1907,11 @@ select.champ{cursor:pointer}
   .cap canvas{width:25px;height:25px}
   .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
-  /* CINQ PUIS QUATRE À PARTIR D'ICI. Une ligne de neuf tiendrait
+  /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
      encore la largeur, mais elle mangerait la moitié d'un écran de
-     téléphone : deux rangs prennent la même place debout que couché,
-     et laissent les capacités tranquilles. Cinq colonnes et non
-     trois — trois donneraient trois rangs, et en bas d'un écran de
-     téléphone la hauteur coûte plus cher que la largeur. Une seule
-     case reste vide au second rang, et c'est le pire cas. */
-  #bg{--bgn:5}
+     téléphone : quatre colonnes et deux rangs prennent la même place
+     debout que couché, et laissent les capacités tranquilles. */
+  #bg{--bgn:4}
 }
 @media (max-width:430px){
   #hd{display:none}
@@ -1938,14 +1935,9 @@ select.champ{cursor:pointer}
      et comme les colonnes sont en `minmax`, elles se serrent au lieu
      de déborder si cette borne mord.
 
-     TROIS COLONNES ICI, ET NON CINQ. C'est cette borne qui décide, et
-     elle est dure : à 360 px d'écran il ne reste que 128 px pour les
-     navettes, que cinq colonnes réduisaient à dix-sept pixels de
-     large — un portrait de dix-sept pixels ne se lit pas, et une
-     tuile qu'on ne lit pas ne sert à rien. Trois colonnes en rendent
-     trente à chacune, et le troisième rang est le prix à payer. Neuf
-     tuiles font trois rangs pleins : pas une case vide. */
-  #bg{--bgn:3;--bgw:36px;max-width:min(calc(100vw - 232px),
+     C'est cette borne qui décide, et elle est dure : à 360 px d'écran
+     il ne reste que 128 px pour les navettes. */
+  #bg{--bgw:36px;max-width:min(calc(100vw - 232px),
       calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 }
 </style>
@@ -2587,6 +2579,7 @@ select.champ{cursor:pointer}
         <span class="ecl" aria-hidden="true">⚡</span><span id="energieV">220</span>
       </div>
     </div>
+    <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
     <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
   </div>
 

@@ -1662,18 +1662,17 @@ select.champ{cursor:pointer}
    8 × 46 + 7 × 5 = 403 px, la boîte en offrait 400 une fois ses marges
    retirées, et la huitième tombait seule à la ligne. Trois pixels.
    Une grille ne peut pas produire ce résultat-là : elle a un nombre de
-   colonnes, et c'est ce nombre qui décide — neuf tant qu'il y a la
-   place, cinq sur un téléphone. La largeur de la boîte se déduit
+   colonnes, et c'est ce nombre qui décide — huit tant qu'il y a la
+   place, quatre sur un téléphone. La largeur de la boîte se déduit
    alors du compte de colonnes au lieu de le contrarier.
 
-   NEUF COLONNES DEPUIS SPEED, ET NON HUIT. Sa navette est une
-   neuvième tuile ; laissée dans une grille de huit, elle tombait
-   seule au rang du dessous, sept colonnes vides à côté d'elle — très
-   exactement le « sept et une » que ce bloc existe pour empêcher. La
-   tuile perd six pixels de large, la boîte n'en prend aucun : neuf
-   fois 40 plus huit gouttières valent les 403 px d'avant à trois
-   près. */
-#bg{--bgw:40px;--bgn:9;
+   ELLE EST REVENUE À HUIT AVEC LE DÉPART DE SPEED. Le temps d'une
+   version, le héros a occupé une neuvième tuile ici ; il a désormais
+   sa propre rangée, en bas à droite, avec les héros qui le
+   suivront — et la règle du groupe 54 tient toujours : autant de
+   colonnes que de tuiles, jamais une tuile seule au rang du
+   dessous. */
+#bg{--bgw:46px;--bgn:8;
     position:absolute;bottom:calc(8px + var(--sab));left:calc(8px + var(--sal));
     max-width:min(56vw, calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 #bg .t{font-size:10px;letter-spacing:1.3px;color:var(--gris);text-transform:uppercase;margin-bottom:4px}
@@ -1692,11 +1691,10 @@ select.champ{cursor:pointer}
   /* la LARGEUR vient de la colonne, désormais : c'est la grille qui
      décide, et une tuile qui redéclarerait 46 px la contredirait le
      jour où la boîte se rétrécit sous un téléphone étroit */
-  /* 46 px de haut pour 40 de large : le canevas du portrait fait
+  /* 52 px de haut pour 46 de large : le canevas du portrait fait
      92 × 104, et une tuile qui s'écarte de ce rapport écrase le
-     visage. Les colonnes ayant rétréci pour faire place à Speed, la
-     hauteur les suit. */
-  width:auto;height:46px;padding:0;border-radius:10px;overflow:hidden;
+     visage. */
+  width:auto;height:52px;padding:0;border-radius:10px;overflow:hidden;
   border:1px solid rgba(255,255,255,.14);position:relative;
   background:#1d1229;cursor:pointer;line-height:0;
   transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
@@ -1721,63 +1719,6 @@ select.champ{cursor:pointer}
 /* Une navette vidée de ses passagers : le portrait s'éteint. */
 .bg1.vide{opacity:.38}
 .bg1.vide .n{color:#9a8fa6}
-/* ─────────────────────────────────────────────────────────────
-   LA TUILE DU HÉROS — « un fronton un petit peu doré »
-
-   Elle doit se distinguer des huit AU PREMIER COUP D'ŒIL, sinon
-   la neuvième navette se confond avec les autres et l'on cherche
-   Speed dans la rangée. D'où l'or partout où les autres sont
-   violettes : la bordure, le halo, le fond du portrait, la
-   pastille du prix.
-
-   ÉTEINTE veut dire deux choses très différentes — il est déjà
-   là, ou l'Énergie manque — et l'infobulle dit laquelle. Le gris
-   ne fait qu'annoncer « pas maintenant » ; c'est déjà beaucoup,
-   à condition qu'on garde une lueur d'or, sans quoi la tuile
-   disparaît de la rangée. */
-.bg1.speedTuile{
-  border-color:rgba(255,206,84,.60);
-  background:linear-gradient(160deg,#3a2a10,#1d1229 62%);
-  box-shadow:0 0 10px rgba(255,196,64,.20) inset;
-}
-.bg1.speedTuile .n{
-  color:#1b1206;background:linear-gradient(180deg,#ffdd8a,#f0ad2a);
-  border-color:rgba(255,236,180,.75);text-shadow:none;
-}
-.bg1.speedTuile.sel{
-  border-color:#ffd257;
-  box-shadow:0 0 0 2px rgba(255,210,87,.55),0 0 16px rgba(255,196,64,.50);
-}
-.bg1.speedTuile.sel .n{color:#1b1206;border-color:#fff2cc}
-.bg1.speedTuile.eteinte{opacity:.42;border-color:rgba(255,206,84,.28)}
-/* ─────────────────────────────────────────────────────────────
-   PENDANT LES DIX SECONDES, LA TUILE EST VIVANTE
-
-   Elle reste inappuyable — un seul Speed à la fois — mais elle ne
-   doit surtout pas être grise : c'est le seul endroit où le joueur
-   lise le temps qu'il lui reste, et une pastille à 42 % d'opacité
-   ne se lit pas d'un coup d'œil au milieu d'un assaut. La règle
-   vient donc APRÈS `.eteinte`, à spécificité égale, et lui reprend
-   son opacité.
-
-   LES TROIS DERNIÈRES SECONDES CLIGNOTENT. Un arrêt sec au bout de
-   dix secondes se subit ; prévenu, on pousse l'assaut ou l'on
-   prépare la réactivation. Le clignotement est en `steps` — un
-   battement franc, pas un fondu qu'on ne remarque pas — et il
-   s'efface entièrement pour qui a demandé moins d'animations. */
-.bg1.speedTuile.actif{
-  opacity:1;border-color:#ffd257;
-  box-shadow:0 0 0 2px rgba(255,210,87,.38),0 0 14px rgba(255,196,64,.45);
-}
-.bg1.speedTuile.actif .n{
-  min-width:17px;
-  background:linear-gradient(180deg,#fff0c2,#f5b62e);border-color:#fff6dd;
-}
-.bg1.speedTuile.finit{animation:speedFinit .52s steps(1,end) infinite}
-@keyframes speedFinit{
-  50%{border-color:rgba(255,120,60,.85);box-shadow:0 0 0 2px rgba(255,120,60,.45),0 0 16px rgba(255,120,60,.5)}
-}
-@media (prefers-reduced-motion:reduce){ .bg1.speedTuile.finit{animation:none} }
 
 /* — bas droite : capacités — */
 #bd{position:absolute;bottom:calc(8px + var(--sab));right:calc(8px + var(--sar));display:flex;flex-direction:column;gap:6px;align-items:stretch}
@@ -1816,6 +1757,65 @@ select.champ{cursor:pointer}
 @media (prefers-reduced-motion:reduce){ .cap.super{animation:none} }
 .cap.pauvre{opacity:.42}
 .cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
+
+/* ═════════════════════════════════════════════════════════════
+   LA RANGÉE DES HÉROS — SA PROPRE FAMILLE, AU-DESSUS DES CAPACITÉS
+
+   « Je préfère que Speed soit là. Attention, il y aura plusieurs
+   héros, donc voir comment l'implanter. »
+
+   ELLE EST À PART, ET C'EST LE POINT. Un héros n'est ni une navette
+   — il ne se pose pas sur la plage — ni tout à fait une capacité :
+   il ne s'arme pas, il ne se vise pas, un appui suffit. Le mettre
+   en neuvième case des capacités aurait fait 4 + 4 + 1, une tuile
+   seule sous les autres ; le laisser chez les navettes lui donnait
+   une sélection qu'il ne veut pas. Il a donc sa ligne, qui
+   s'allongera avec eux : deux héros feront deux tuiles côte à côte,
+   trois en feront trois, sans qu'aucune autre boîte ne bouge.
+
+   L'OR LES DISTINGUE, comme il distingue tout ce qui est rare dans
+   ce jeu. Les capacités sont violettes et leur pastille orange ;
+   celles-ci sont ambrées, et leur pastille dorée. */
+/* ELLE NE PREND QUE SA PLACE. `#bd` étire ses enfants sur toute la
+   largeur du panneau des capacités : une rangée d'un seul héros
+   laissait alors une grande boîte vide à sa gauche, qui se lisait
+   comme un cadre oublié. Elle se cale donc à droite, à la largeur de
+   ce qu'elle contient — et s'allongera d'elle-même quand ils seront
+   deux, puis trois. */
+#herosBoite{padding:6px;align-self:flex-end;width:fit-content}
+#herosRangee{display:flex;gap:6px;justify-content:flex-end}
+.hero{
+  position:relative;width:66px;height:64px;border-radius:12px;cursor:pointer;
+  border:1px solid rgba(255,206,84,.55);
+  background:linear-gradient(180deg,#3a2a10,#1d1229 62%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:transform .08s ease;overflow:hidden;
+}
+.hero:active{transform:scale(.95)}
+.hero canvas{width:40px;height:34px;display:block;border-radius:5px}
+.hero .nm{font-size:9.5px;letter-spacing:.2px;color:#f4dda6;text-align:center;line-height:1}
+.hero .cx{
+  position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
+  background:linear-gradient(180deg,#ffdd8a,#f0ad2a);color:#1b1206;font-weight:800;
+  font-size:11px;line-height:20px;font-family:inherit;text-align:center;padding:0 5px;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
+}
+/* PENDANT SES DIX SECONDES : le cadre s'allume et la pastille compte.
+   C'est le seul endroit où le joueur lise le temps qui lui reste. */
+.hero.actif{
+  border-color:#ffd257;
+  box-shadow:0 0 0 2px rgba(255,210,87,.38),0 0 14px rgba(255,196,64,.45);
+}
+.hero.actif .cx{background:linear-gradient(180deg,#fff0c2,#f5b62e);min-width:24px}
+/* les trois dernières secondes battent : un arrêt sec se subit,
+   prévenu on pousse l'assaut ou l'on prépare la relance */
+.hero.finit{animation:heroFinit .52s steps(1,end) infinite}
+@keyframes heroFinit{
+  50%{border-color:rgba(255,120,60,.85);box-shadow:0 0 0 2px rgba(255,120,60,.45),0 0 16px rgba(255,120,60,.5)}
+}
+@media (prefers-reduced-motion:reduce){ .hero.finit{animation:none} }
+.hero.pauvre{opacity:.42;border-color:rgba(255,206,84,.28)}
+.hero.pauvre .cx{background:#5a4a63;color:#cbbdd4}
 
 /* — bas centre : bandeau fantôme — */
 #bc{
@@ -1879,8 +1879,8 @@ select.champ{cursor:pointer}
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
   #mini{width:104px;height:93px}
   /* le portrait garde son rapport : on rétrécit les deux côtés */
-  #bg{--bgw:36px}
-  .bg1{height:41px}
+  #bg{--bgw:40px}
+  .bg1{height:46px}
 }
 /* Tablette tenue droite : le classement (205 px, ancré à gauche) et la
    minicarte (144 px, ancrée à droite) pinçaient la jauge du Brasier,
@@ -1907,14 +1907,11 @@ select.champ{cursor:pointer}
   .cap canvas{width:25px;height:25px}
   .cap .nm{font-size:7.6px}
   #podium{min-width:118px;font-size:11px}
-  /* CINQ PUIS QUATRE À PARTIR D'ICI. Une ligne de neuf tiendrait
+  /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
      encore la largeur, mais elle mangerait la moitié d'un écran de
-     téléphone : deux rangs prennent la même place debout que couché,
-     et laissent les capacités tranquilles. Cinq colonnes et non
-     trois — trois donneraient trois rangs, et en bas d'un écran de
-     téléphone la hauteur coûte plus cher que la largeur. Une seule
-     case reste vide au second rang, et c'est le pire cas. */
-  #bg{--bgn:5}
+     téléphone : quatre colonnes et deux rangs prennent la même place
+     debout que couché, et laissent les capacités tranquilles. */
+  #bg{--bgn:4}
 }
 @media (max-width:430px){
   #hd{display:none}
@@ -1938,14 +1935,9 @@ select.champ{cursor:pointer}
      et comme les colonnes sont en `minmax`, elles se serrent au lieu
      de déborder si cette borne mord.
 
-     TROIS COLONNES ICI, ET NON CINQ. C'est cette borne qui décide, et
-     elle est dure : à 360 px d'écran il ne reste que 128 px pour les
-     navettes, que cinq colonnes réduisaient à dix-sept pixels de
-     large — un portrait de dix-sept pixels ne se lit pas, et une
-     tuile qu'on ne lit pas ne sert à rien. Trois colonnes en rendent
-     trente à chacune, et le troisième rang est le prix à payer. Neuf
-     tuiles font trois rangs pleins : pas une case vide. */
-  #bg{--bgn:3;--bgw:36px;max-width:min(calc(100vw - 232px),
+     C'est cette borne qui décide, et elle est dure : à 360 px d'écran
+     il ne reste que 128 px pour les navettes. */
+  #bg{--bgw:36px;max-width:min(calc(100vw - 232px),
       calc(var(--bgn) * var(--bgw) + (var(--bgn) - 1) * 5px + 22px))}
 }
 </style>
@@ -2587,6 +2579,7 @@ select.champ{cursor:pointer}
         <span class="ecl" aria-hidden="true">⚡</span><span id="energieV">220</span>
       </div>
     </div>
+    <div class="bloc p" id="herosBoite"><div id="herosRangee"></div></div>
     <div class="bloc p" id="capsBoite"><div id="caps"></div></div>
   </div>
 
@@ -2620,7 +2613,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.40";
+var VERSION = "v1.41";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -3069,7 +3062,12 @@ var EQ = {
      navette n'est pas du temps actif, et la lui facturer aurait rendu
      le prix menteur — il ne serait resté que six secondes utiles.
      ════════════════════════════════════════════════════════════ */
-  SPEED_DUREE          : 10.0,  // secondes d'activation, à partir du débarquement
+  /* La durée n'est plus ici mais sur la FICHE de chaque héros
+     (UNI.speed.duree) : il y en aura plusieurs, et rien ne dit qu'ils
+     tiendront tous dix secondes. Ces deux-là restent pour les repères
+     d'écran, qui doivent bien afficher quelque chose avant qu'un
+     héros ne soit sur le terrain. */
+  SPEED_DUREE          : 10.0,  // secondes d'activation, à partir de l'appui
   SPEED_ADIEU          : 2.5,   // secondes : le dernier tiers clignote pour prévenir
 
   /* ════════════════════════════════════════════════════════════
@@ -3422,10 +3420,21 @@ var UNI = {
      UN PAR ÎLE. Il occupe la neuvième navette, celle qui n'est pas une
      navette : on ne la compose pas, on l'envoie. Voir poseBarge.
      ════════════════════════════════════════════════════════════════ */
+  /* ────────────────────────────────────────────────────────────
+     LES HÉROS. `heros:1` les sort de tout ce qui vaut pour une
+     troupe — ils ne débarquent pas, ne comptent pas de places, ne
+     combattent pas —, et `duree` est la seule chose qui les sépare
+     les uns des autres côté règles : ils s'activent, ils tiennent ce
+     temps-là, ils repartent.
+
+     « Attention, il y aura plusieurs héros. » Le suivant n'aura donc
+     rien à ajouter ici qu'une fiche comme celle-ci, une ligne dans
+     HEROS et une dans COUT ; le reste du jeu ne le connaîtra que par
+     `f.heros` et `f.duree`, jamais par son nom. */
   speed   :{ nom:"Speed",    role:"héros — il emmène la troupe",
              pv:900, portee:0, arret:0,
              degats:0,   cadence:0,    vitesse:3.30,  rayon:0.38, places:1,
-             heros:1, ech:1.12 },
+             heros:1, ech:1.12, duree:10.0, adieu:2.5 },
 
   ogre:{ nom:"Ogre", role:"lanceur de haches", pv:165, portee:6.0, arret:5.7,
          degats:506, cadence:850, vitesse:1.782, rayon:1.6, places:1,
@@ -3719,15 +3728,40 @@ var COUT = {
   soin      :{ base:5,  pas:2, nom:"Soin" },
   balise    :{ base:1,  pas:1, nom:"Balise" },
   viper     :{ base:6,  pas:2, nom:"Viper" },
-  /* SPEED. « Ça doit coûter dix, puis quinze, puis vingt, puis
-     vingt-cinq. » Le prix a doublé le jour où l'effet est devenu une
-     ACTIVATION de dix secondes : tant qu'il tenait toute la partie
-     pour cinq, il n'y avait pas de décision à prendre — on l'envoyait
-     au premier débarquement. Cinq de plus à chaque emploi, c'est la
-     marche la plus raide du tableau, et c'est voulu : le doublement
-     de toute une troupe ne se répète pas à bon compte. */
-  speed     :{ base:10, pas:5, nom:"Speed" }
+  /* SPEED. « Le coût, je ferai dix, vingt, trente, quarante,
+     cinquante, etc. pour l'activer. » Dix de plus à chaque emploi :
+     de très loin la marche la plus raide du tableau, et c'est voulu.
+     Doubler toute une troupe pendant dix secondes se paie, et se
+     paie de plus en plus cher — sans quoi on l'enchaînerait du
+     début à la fin de la partie sans jamais avoir à choisir son
+     moment. */
+  speed     :{ base:10, pas:10, nom:"Speed" }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   LES HÉROS, DANS L'ORDRE DE LEUR RANGÉE
+
+   « Attention, il y aura plusieurs héros, donc voir comment
+   l'implanter. »
+
+   TOUT CE QUI EST PROPRE À UN HÉROS TIENT DANS TROIS ENDROITS, et
+   cette liste est le troisième : sa fiche dans UNI (points de vie,
+   vitesse, durée), sa ligne dans COUT (le prix et sa marche), et son
+   entrée ici, qui dit qu'il existe et à quel rang il paraît. Rien
+   d'autre dans le jeu ne nomme « speed » : la marche, le dessin, la
+   tuile et l'activation ne connaissent que `f.heros` et la clé qu'on
+   leur passe.
+
+   Ajouter un deuxième héros, c'est donc trois lignes et un fichier
+   de dessin — pas une seule condition à écrire ailleurs.
+   ════════════════════════════════════════════════════════════════ */
+var HEROS = [
+  { cle:"speed", unite:"speed", nom:"Speed" }
+];
+function estHeros(cle){
+  for(var i = 0; i < HEROS.length; i++) if(HEROS[i].cle === cle) return HEROS[i];
+  return null;
+}
 function coutActuel(m, usages){ return COUT[m].base + COUT[m].pas * (usages[m] || 0); }
 
 /* Effets. La Nova est spectaculaire mais raisonnable : c'est le grand
@@ -46883,7 +46917,6 @@ function nouvelleCarte(index, pvConnu){
      grisée tant que le héros est sur le terrain ou que l'Énergie
      manque, dorée dès qu'on peut l'envoyer.
      ════════════════════════════════════════════════════════════ */
-  jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
   /* Le monde n'est pas neuf : on éteint d'abord les bâtiments que
      l'instantané du salon déclare détruits, et on abaisse les PV du
      Brasier — AVANT construitGrilles(), qui fige les emprises. */
@@ -47952,11 +47985,6 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* La tuile du héros n'est plus une navette : un appui dessus
-     l'active sur-le-champ, où que soient les troupes. On y renvoie
-     quand même — la sélection ne peut plus l'atteindre, mais rien ne
-     doit se casser si elle y arrivait. */
-  if(b.heros) return activeSpeed();
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -48108,7 +48136,7 @@ function creeUnite(type, gx, gy){
        autres troupes le portent à zéro et ne le lisent jamais — un
        champ de plus par unité coûte moins qu'une classe cachée qui
        change en cours de partie. */
-    reste:(f.heros ? EQ.SPEED_DUREE : 0),
+    reste:(f.heros ? f.duree : 0),
     dope:0, vitVue:0, escorte:null,
     escX:undefined, escY:0, escorteVue:null, capEX:0, capEY:0,
     /* L'INTERCEPTEUR : son cap, son départ de charge, et LE COMPTEUR
@@ -48987,12 +49015,19 @@ function chercheBlesseAutour(u, r){
    les autres : activé sur une île vide, il ferait payer dix d'Énergie
    pour un personnage qui court tout seul. Le refus est gratuit.
    ════════════════════════════════════════════════════════════════ */
-function activeSpeed(){
+function activeHeros(cle){
+  var H = estHeros(cle);
+  if(!H) return;
+  var fh = UNI[H.unite];
   if(typeof modeApercu !== "undefined" && modeApercu)
     return message("Visite : tu peux tout regarder, mais pas jouer ici.");
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
+  /* UN SEUL HÉROS À LA FOIS SUR L'ÎLE, quel qu'il soit. Deux auras qui
+     se recouvrent ne doublent rien de plus — le dopage est un
+     booléen — et l'on paierait deux fois le même effet. */
   if(jeu.heros && jeu.heros.pv > 0)
-    return message("Speed court déjà — encore " + Math.ceil(jeu.heros.reste) + " s.");
+    return message(UNI[jeu.heros.t].nom + " court déjà — encore "
+                   + Math.ceil(jeu.heros.reste) + " s.");
   /* le centre de la troupe vivante, le héros exclu */
   var sx = 0, sy = 0, n = 0;
   for(var i = 0; i < jeu.unites.length; i++){
@@ -49000,12 +49035,12 @@ function activeSpeed(){
     if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
     sx += u.gx; sy += u.gy; n++;
   }
-  if(!n) return message("Speed n'a personne à emmener : débarque d'abord.");
-  var cout = coutActuel("speed", jeu.usages);
+  if(!n) return message(H.nom + " n'a personne à emmener : débarque d'abord.");
+  var cout = coutActuel(H.cle, jeu.usages);
   if(jeu.energie < cout)
-    return message("Il faut " + cout + " d'Énergie pour lancer Speed.");
+    return message("Il faut " + cout + " d'Énergie pour lancer " + H.nom + ".");
   jeu.energie -= cout;
-  jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+  jeu.usages[H.cle] = (jeu.usages[H.cle] || 0) + 1;
   /* on le pose au centre, et sur une case praticable : le centre d'un
      groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
   var cx = sx / n, cy = sy / n;
@@ -49019,12 +49054,14 @@ function activeSpeed(){
       }
     }
   }
-  var h = creeUnite("speed", borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
+  var h = creeUnite(H.unite, borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
   jeu.heros = h;
   jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
   if(son && son.speedDebut) son.speedDebut();
   demandeMajBarres();
-  message("Speed est là — " + Math.round(EQ.SPEED_DUREE) + " secondes à deux fois la vitesse !");
+  majMenu();
+  message(H.nom + " est là — " + Math.round(fh.duree)
+          + " secondes à deux fois la vitesse !");
   if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
@@ -49051,7 +49088,8 @@ function finDeSpeed(u){
   jeu.effets.push({ t:"speedPart", gx:u.gx, gy:u.gy, age:0, duree:0.85 });
   if(son && son.speedFin) son.speedFin();
   demandeMajBarres();
-  message("Speed est reparti.");
+  majMenu();
+  message(UNI[u.t].nom + " est reparti.");
 }
 
 /* Le soldat le plus proche qui n'est pas un Doc : c'est lui qu'on
@@ -49429,6 +49467,22 @@ function majUnites(dt){
         capUnite(u, dxb, dyb, db > f.arret);
         u.cible = qgVise ? { k:"qg", o:bc } : { k:"bat", o:bc };
         if(db > f.arret){
+          /* ════════════════════════════════════════════════════
+             LE FILET, MAINTENANT QUE L'ORDRE NE S'ÉTEINT PLUS
+
+             Tant que la balise expirait au bout de trente secondes,
+             une troupe murée devant l'objectif était libérée par la
+             minuterie. L'ordre tient désormais jusqu'à ce que la
+             cible tombe : sans ce garde-fou, celle qui ne peut PAS
+             l'atteindre marcherait contre un mur jusqu'à la fin de
+             la partie.
+
+             On relâche CETTE unité-là, pas les autres : c'est la
+             même règle qu'au ralliement, et pour la même raison —
+             on mesure qu'elle ne bouge plus, jamais qu'elle ne se
+             rapproche. Celles qui tirent, elles, ne bougent pas non
+             plus, mais elles passent par l'autre branche. */
+          if(u.figeT > (u.baliseSeuil || 7.0)){ u.baliseOrdre = 0; u.cible = null; }
           var eb = Math.min(rayonFormation() * 0.55, (f.arret + rc) * 0.7);
           /* LE CHEMIN D'ABORD, L'ÉVENTAIL ENSUITE. Loin de l'objectif
              on suit le champ de distance — il contourne ce qui est
@@ -50636,9 +50690,40 @@ function majZones(dt){
     jeu.cryos[i].age += dt;
     if(jeu.cryos[i].age > jeu.cryos[i].duree) jeu.cryos.splice(i, 1);
   }
+  /* ════════════════════════════════════════════════════════════
+     UNE BALISE POSÉE SUR UN OBJECTIF NE MEURT PAS À L'HEURE
+
+     « Quand je fixe le générateur, après ça commence à détruire
+     toutes les défenses à côté. Non : les troupes focus la défense
+     qui est sur ma balise et détruisent CELLE-LÀ en priorité. Puis
+     alors après, ça pète les défenses aux alentours. »
+
+     MESURÉ, SUR SA SCÈNE. Vingt Furies, une balise posée sur une
+     cellule électrique — deux cent mille points de vie. Pendant
+     trente secondes, vingt sur vingt tapaient dessus et pas une
+     seule voisine n'était touchée : la priorité marchait. À la
+     trente-et-unième la balise expirait, l'ordre tombait, et cinq
+     secondes plus tard quinze des vingt étaient parties sur les
+     voisines. Le réacteur avait perdu neuf pour cent de sa vie.
+     Trente secondes ne suffisent à abattre que les petites défenses,
+     et c'est très exactement pour les grosses qu'on pose une balise
+     dessus.
+
+     LA MINUTERIE GOUVERNE LE RALLIEMENT, PAS LE FOCUS. Posée au sol,
+     la balise est un point de rendez-vous et trente secondes sont
+     largement assez. Posée sur une cible, elle est un ORDRE, et un
+     ordre se termine quand il est exécuté : la cible tombe, et
+     `jeu.balise` est mise à null au même endroit que toutes les
+     autres morts de bâtiment — les troupes reprennent alors leur
+     ciblage normal, c'est-à-dire les défenses aux alentours.
+     ════════════════════════════════════════════════════════════ */
   if(jeu.balise){
-    jeu.balise.reste -= dt;
-    if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+    var bcv = jeu.balise.cible;
+    var viseDebout = bcv && (jeu.balise.surQG ? bcv.pv > 0 : bcv.vivant);
+    if(!viseDebout){
+      jeu.balise.reste -= dt;
+      if(jeu.balise.reste <= 0){ jeu.balise = null; libereBalise(); }
+    }
   }
 }
 
@@ -50979,9 +51064,7 @@ function majMort(dt){
     jeu.barges = [];
     for(var i = 0; i < EQ.NB_BARGES; i++)
       jeu.barges.push({ type:compoBarges[i].type, n:compoBarges[i].n, num:i + 1 });
-    /* et le héros retrouve sa navette : le renfort remonte TOUT */
-    jeu.barges.push({ type:"speed", n:1, num:EQ.NB_BARGES + 1, heros:1 });
-    jeu.bargeSel = 0;
+      jeu.bargeSel = 0;
     jeu.energie += EQ.ENERGIE_BONUS_RENFORT;
     jeu.novaDispo = EQ.NOVA_PAR_VIE;   // une vie neuve, une Nova neuve
     /* Une vie neuve, des tarifs neufs. Chaque emploi d'une capacité en
@@ -62371,22 +62454,7 @@ function majListeBarges(){
   var l = $("listeBarges");
   /* signature : reconstruire l'innerHTML et rebrancher les écouteurs
      coûte cher, et rien ne change entre deux débarquements */
-  /* LA SIGNATURE PORTE AUSSI L'ÉTAT DU HÉROS ET LE PRIX : sa tuile
-     change de visage sans qu'aucune navette ne bouge — quand il tombe,
-     quand l'Énergie passe le seuil — et sans ces deux-là elle serait
-     restée figée sur son dernier état. */
-  /* LE COMPTE À REBOURS ENTRE DANS LA SIGNATURE, ARRONDI À LA SECONDE.
-     C'est ce qui fait battre la tuile pendant l'activation : à la
-     seconde près, la rangée se reconstruit onze fois en dix secondes
-     et pas soixante fois par seconde. Sans lui, les dix secondes ne se
-     verraient nulle part — une capacité qui s'arrête sans prévenir ne
-     se joue pas, elle se subit. */
-  var resteH = (jeu.heros && jeu.heros.pv > 0) ? Math.ceil(jeu.heros.reste || 0) : 0;
-  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",")
-          + "|" + ((jeu.heros && jeu.heros.pv > 0) ? 1 : 0)
-          + "|" + (jeu.energie >= coutActuel("speed", jeu.usages) ? 1 : 0)
-          + "|" + coutActuel("speed", jeu.usages)
-          + "|" + resteH;
+  var sig = jeu.bargeSel + "|" + jeu.barges.map(function(b){ return b.type + b.n; }).join(",");
   if(sig === signatureBarges) return;
   signatureBarges = sig;
   var html = "";
@@ -62395,47 +62463,6 @@ function majListeBarges(){
     /* La navette d'Ogre se repère AVANT d'appuyer : un seul passager,
        mais c'est celui qui vaut les douze autres. */
     var seul = placesNavette(b.type) === 1;
-    /* ════════════════════════════════════════════════════════
-       LA TUILE DU HÉROS — DORÉE, ET ELLE NE COMPTE PAS DES PLACES
-
-       Les huit autres affichent le NOMBRE de passagers ; celle-ci
-       affiche son PRIX en Énergie, parce que c'est la seule chose
-       qu'on ait à savoir avant d'appuyer. Elle s'éteint quand Speed
-       est déjà là ou que l'Énergie manque — et l'on dit lequel des
-       deux dans l'infobulle, sans quoi une tuile grise ne renseigne
-       sur rien.
-
-       PENDANT L'ACTIVATION, ELLE COMPTE LES SECONDES. C'est la seule
-       horloge de la capacité : dix secondes qui passent sans qu'on
-       les voie ne sont pas jouables, on ne saurait ni quand pousser
-       l'assaut ni quand rappeler le héros. La pastille passe donc du
-       prix aux secondes restantes, et la tuile se met à battre sous
-       les trois dernières — l'avertissement vaut mieux qu'un arrêt
-       sec.
-       ════════════════════════════════════════════════════════ */
-    if(b.heros){
-      var cout = coutActuel("speed", jeu.usages);
-      var la = !!(jeu.heros && jeu.heros.pv > 0);
-      var pauvre = jeu.energie < cout;
-      var fin = la && resteH <= Math.round(EQ.SPEED_ADIEU);
-      html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
-            + (la || pauvre ? " eteinte" : "") + (la ? " actif" : "")
-            + (fin ? " finit" : "") + '" data-i="' + i + '"'
-            + ' title="' + (la ? "Speed court — encore " + resteH + " s"
-                               : pauvre ? "Il faut " + cout + " d\'Énergie pour lancer Speed"
-                               : "Appuie : Speed arrive au milieu de ta troupe, "
-                                 + Math.round(EQ.SPEED_DUREE) + " s à deux fois la vitesse ("
-                                 + cout + " d\'Énergie)") + '">'
-            + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
-            /* LES SECONDES PORTENT LEUR « s », LE PRIX NON. Sans quoi
-               la tuile prête à dix d'Énergie et la tuile à dix
-               secondes de la fin affichent le même « 10 » : deux
-               états opposés — appuie / n'appuie pas — sous le même
-               signe. Le prix reste un nombre nu, comme sur les huit
-               tuiles de capacité, où il en est déjà un. */
-            + '<div class="n">' + (la ? resteH + "s" : cout) + '</div></div>';
-      continue;
-    }
     html += '<div class="bg1' + (i === jeu.bargeSel ? " sel" : "") + (seul ? " ogre" : "")
           + (b.n ? "" : " vide") + '" data-i="' + i + '"'
           + ' title="' + echappe(nommeTroupes(b.type, b.n)) + '">'
@@ -62456,12 +62483,8 @@ function majListeBarges(){
     var el = $("bgp_" + q);
     if(!el) continue;
     var c = el.getContext("2d");
-    /* LE FOND DU HÉROS EST DORÉ, celui des huit autres reste violet :
-       c'est la seule tuile de la ligne qui ne soit pas une navette, et
-       elle doit se voir comme telle avant même qu'on lise son chiffre. */
     var g = c.createLinearGradient(0, 0, 0, 104);
-    if(jeu.barges[q].heros){ g.addColorStop(0, "#6A4A12"); g.addColorStop(1, "#241706"); }
-    else { g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21"); }
+    g.addColorStop(0, "#3a2450"); g.addColorStop(1, "#170e21");
     c.fillStyle = g; c.fillRect(0, 0, 92, 104);
     /* Le portrait est peint PLUS LARGE que la tuile et déborde par les
        côtés : à 46 px de large, un visage cadré au propre devient un
@@ -62472,27 +62495,6 @@ function majListeBarges(){
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
       var i = +this.getAttribute("data-i");
-      /* ════════════════════════════════════════════════════════
-         SA TÊTE EST UN BOUTON, PAS UNE SÉLECTION
-
-         « Pour l'activer, on peut cliquer sur sa tête. »
-
-         Les huit navettes se CHOISISSENT puis se posent d'un second
-         appui sur la plage : deux gestes, parce qu'il faut dire OÙ.
-         Speed, lui, n'a pas d'endroit à choisir — il apparaît au
-         milieu de la troupe. Le second geste ne demanderait donc
-         rien et ne ferait que retarder une capacité qui ne dure que
-         dix secondes. Un appui, et il court.
-
-         Et `bargeSel` NE BOUGE PAS : sa tuile prise pour sélection,
-         l'appui suivant sur la plage aurait tenté d'y débarquer un
-         héros. */
-      if(jeu.barges[i] && jeu.barges[i].heros){
-        activeSpeed();
-        majListeBarges();
-        e.preventDefault();
-        return;
-      }
       jeu.bargeSel = i;
       /* Choisir une navette DÉSARME la capacité en cours. Sans cela les
          deux restaient allumées en même temps, et comme appuie() sert
@@ -62520,6 +62522,91 @@ var TUILES = [
   { m:"balise",     nom:"Balise" },
   { m:"viper",      nom:"Viper" }
 ];
+/* ════════════════════════════════════════════════════════════════
+   LA RANGÉE DES HÉROS
+
+   « Je préfère que Speed soit là. Attention, il y aura plusieurs
+   héros, donc voir comment l'implanter. »
+
+   ELLE SE CONSTRUIT SUR `HEROS`, ET SUR RIEN D'AUTRE. Le deuxième
+   héros n'aura pas une ligne à écrire ici : sa fiche dans UNI, sa
+   ligne dans COUT, son entrée dans HEROS, et sa tuile paraît.
+
+   UN APPUI SUFFIT, sans viseur. Les capacités s'arment puis se
+   visent — deux gestes, parce qu'il faut dire OÙ. Un héros apparaît
+   au milieu de la troupe : il n'y a rien à désigner, et le second
+   geste ne ferait que retarder dix secondes qui comptent.
+   ════════════════════════════════════════════════════════════════ */
+function construitHeros(){
+  var z = $("herosRangee");
+  if(!z) return;
+  var h = "";
+  for(var i = 0; i < HEROS.length; i++){
+    var H = HEROS[i];
+    h += '<div class="hero" data-h="' + H.cle + '">'
+       + '<canvas width="68" height="58" id="hp_' + H.cle + '"></canvas>'
+       + '<div class="nm">' + H.nom + '</div>'
+       + '<div class="cx" id="hx_' + H.cle + '">0</div>'
+       + '</div>';
+  }
+  z.innerHTML = h;
+  for(i = 0; i < HEROS.length; i++){
+    var cv = $("hp_" + HEROS[i].cle);
+    if(!cv) continue;
+    var c = cv.getContext("2d");
+    /* LE FRONTON ENTIER, À SON RAPPORT. Le portrait fait 100 × 84 :
+       à 68 de large il en occupe 57 de haut, et un canevas plus haut
+       que cela laissait un vide sous le buste — qu'un décalage vers
+       le haut ne corrigeait qu'en coupant les lunettes. */
+    dessinePortrait(c, HEROS[i].unite, 0, 0, 68);
+  }
+  var els = z.querySelectorAll(".hero");
+  for(var k = 0; k < els.length; k++){
+    els[k].addEventListener("pointerdown", function(e){
+      activeHeros(this.getAttribute("data-h"));
+      e.preventDefault();
+    });
+  }
+  majHeros();
+}
+
+/* L'état de la rangée : le prix quand il dort, les secondes quand il
+   court. Appelée avec le reste du HUD, cinq fois par seconde. */
+var signatureHeros = null;
+function majHeros(){
+  var z = $("herosRangee");
+  if(!z || !jeu) return;
+  var vivant = jeu.heros && jeu.heros.pv > 0 ? jeu.heros : null;
+  var resteH = vivant ? Math.ceil(vivant.reste) : 0;
+  var sig = (vivant ? vivant.t : "") + "|" + resteH;
+  for(var i = 0; i < HEROS.length; i++)
+    sig += "|" + coutActuel(HEROS[i].cle, jeu.usages)
+         + "|" + (jeu.energie >= coutActuel(HEROS[i].cle, jeu.usages) ? 1 : 0);
+  if(sig === signatureHeros) return;
+  signatureHeros = sig;
+  for(i = 0; i < HEROS.length; i++){
+    var H = HEROS[i];
+    var el = z.querySelector('.hero[data-h="' + H.cle + '"]');
+    if(!el) continue;
+    var cout = coutActuel(H.cle, jeu.usages);
+    /* IL COURT : c'est LUI qui court, pas un autre. Avec plusieurs
+       héros, seule sa propre tuile doit compter les secondes. */
+    var sien = !!(vivant && vivant.t === H.unite);
+    var fin = sien && resteH <= Math.round(UNI[H.unite].adieu || 0);
+    el.classList.toggle("actif", sien);
+    el.classList.toggle("finit", fin);
+    el.classList.toggle("pauvre", !vivant && jeu.energie < cout);
+    var cx = $("hx_" + H.cle);
+    if(cx) cx.textContent = sien ? resteH + "s" : cout;
+    el.title = sien ? H.nom + " court — encore " + resteH + " s"
+             : vivant ? UNI[vivant.t].nom + " est déjà sur l'île"
+             : jeu.energie < cout ? "Il faut " + cout + " d'Énergie pour lancer " + H.nom
+             : "Appuie : " + H.nom + " arrive au milieu de ta troupe, "
+               + Math.round(UNI[H.unite].duree) + " s à deux fois la vitesse ("
+               + cout + " d'Énergie)";
+  }
+}
+
 function construitMenu(){
   var h = "";
   for(var i = 0; i < TUILES.length; i++){
@@ -62576,6 +62663,7 @@ function majTuileNova(){
 function majMenu(){
   if(!jeu) return;
   majTuileNova();
+  majHeros();
   var els = $("caps").querySelectorAll(".cap");
   for(var k = 0; k < els.length; k++){
     var m = els[k].getAttribute("data-m");
@@ -64758,6 +64846,7 @@ function lancePartie(ou){
   musique.entre(idx);
   construitFondMini();
   construitMenu();
+  construitHeros();
   majBarres();
   majPodium();
   /* LES RELIQUES SONT ADOPTÉES AVANT LE PREMIER DÉBARQUEMENT, sans
