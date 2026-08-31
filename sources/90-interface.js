@@ -918,7 +918,10 @@ function classementCarte(carte){
     var cible = (e.seau && noms[e.seau]) ? noms[e.seau] : e.nom;
     if(e.gc > (par[cible] || 0)) par[cible] = e.gc;
   }
-  return decoreClassement(classementDepuis(par));
+  /* LE RETRAIT S'APPLIQUE ICI, au classement de l'ÎLE — c'est lui
+     que lisent le podium du coin de l'écran et la vignette. Voir
+     sansRetires dans le noyau. */
+  return decoreClassement(sansRetires(classementDepuis(par), monde && monde.bo));
 }
 
 /* Qui est encore là, et qui suis-je : commun aux deux classements. */
@@ -1629,7 +1632,15 @@ var MEDAILLES = ["1", "2", "3"];
    Le champ `victoire` des cartes n'est donc PAS mort — c'est la
    fonction qui le remettait en petit sous un tableau qui l'était. */
 function blocTop3(i){
-  var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
+  /* LE PODIUM GELÉ EST FILTRÉ LUI AUSSI, et c'est ce qui rend le
+     geste rétroactif : un nom retiré s'efface des îles déjà tombées
+     sans qu'on ait à réécrire une seule ligne gravée. Ce qui a été
+     gelé AVANT le retrait garde alors deux noms au lieu de trois —
+     le quatrième n'y avait jamais été inscrit, et rien ne peut
+     l'inventer après coup. D'où l'intérêt de retirer un nom AVANT
+     que l'île ne tombe. */
+  var fige = (typeof top3Salon === "function")
+           ? sansRetires(top3Salon(i), monde && monde.bo) : null;
   /* La jungle est « en cours » elle aussi, mais elle ne passe jamais
      par carteSalon : c'est un événement, pas une étape de la campagne.
      Sans ce second cas, l'expédition en cours n'avait pas de podium
@@ -1641,7 +1652,8 @@ function blocTop3(i){
   /* Tant que l'île est en cours, on montre le classement VIVANT de
      cette bataille — il bouge, et c'est ce qu'on vient regarder. */
   if(enCours && typeof scoresAJour === "function"){
-    var vif = classementDepuis(totalParJoueurCarte(scoresAJour(), i)).slice(0, 3);
+    var vif = sansRetires(classementDepuis(totalParJoueurCarte(scoresAJour(), i)),
+                          monde && monde.bo).slice(0, 3);
     if(vif.length) liste = vif;
   }
   if(!liste || !liste.length) return blocChampion(i);
@@ -2425,7 +2437,7 @@ function majCarriere(){
   /* `brut` garde tout le monde : c'est lui qui sait encore ce que le
      porteur du badge a marqué, et la note le lui redit. */
   var brut = classementSalon();
-  var l = sansHorsCarriere(brut, monde && monde.bo);
+  var l = sansExclus(brut, monde && monde.bo);
   var h = "", i;
   for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
   h += noteHorsCarriere(brut);
@@ -2488,7 +2500,7 @@ function majPalmares(){
        resterait qu'un argent et un bronze, sans or, se lirait comme
        une erreur de saisie ; ce qu'on montre est le classement des
        joueurs classés, et son premier porte l'or. */
-    var pl = sansHorsCarriere(e.l, monde && monde.bo);
+    var pl = sansExclus(e.l, monde && monde.bo);
     h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
     if(!pl.length){
       /* Une campagne bouclée sans classement lisible est quand même
@@ -2676,7 +2688,7 @@ function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
   var brut = classementSalon();
-  var l = sansHorsCarriere(brut, monde && monde.bo), h = "", i;
+  var l = sansExclus(brut, monde && monde.bo), h = "", i;
   for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
   h = (h || '<div class="clSous" style="padding:0">'
            + "Personne n'a encore marqué le moindre dégât.</div>")

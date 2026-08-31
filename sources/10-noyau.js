@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.49";
+var VERSION = "v1.50";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -9296,7 +9296,7 @@ function fusionneChutesBadge(a, b){
 function reglageVide(){
   return { special:"", disque:"", pointes:"", rouge:"",
            io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0,
-           eclat:0, masque:0 };
+           eclat:0, masque:0, retire:0 };
 }
 function motPalier(s){ return String(s == null ? "" : s).replace(/[^a-z]/g, "").substr(0, 12); }
 function encodeReglagesBadge(tab){
@@ -9316,10 +9316,10 @@ function encodeReglagesBadge(tab){
     }
     var sp = motPalier(e.special), d = motPalier(e.disque),
         pt = motPalier(e.pointes), rg = motPalier(e.rouge);
-    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0;
-    if(!vif && !sp && !d && !pt && !rg && !ec && !mq) continue;   // rien à dire
+    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0, rt = e.retire ? 1 : 0;
+    if(!vif && !sp && !d && !pt && !rg && !ec && !mq && !rt) continue;   // rien à dire
     l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":")
-         + ":" + ec + ":" + mq);
+         + ":" + ec + ":" + mq + ":" + rt);
   }
   l.sort();
   return l.join("|");
@@ -9341,10 +9341,14 @@ function decodeReglagesBadge(s){
       var x = parseInt(c[j + 5], 10);
       e[CHAMPS_BG[j]] = (x >= -9999 && x <= 9999) ? (x | 0) : 0;
     }
-    /* les deux drapeaux de queue : absents des lignes d'avant, et
-       absent vaut zéro — c'est ce qui les rend relisibles */
+    /* LES DRAPEAUX DE QUEUE : absents des lignes d'avant, et absent
+       vaut zéro — c'est ce qui les rend relisibles. Chaque nouveau se
+       range donc À LA FIN, jamais au milieu : une colonne insérée
+       ailleurs décalerait les sept bonus et un registre déjà publié
+       se relirait de travers chez tout le monde. */
     e.eclat  = (c[CHAMPS_BG.length + 5] === "1") ? 1 : 0;
     e.masque = (c[CHAMPS_BG.length + 6] === "1") ? 1 : 0;
+    e.retire = (c[CHAMPS_BG.length + 7] === "1") ? 1 : 0;
     out[nom] = e;
   }
   return out;
@@ -9412,6 +9416,70 @@ function sansHorsCarriere(liste, bo){
    avant d'écrire la note qui explique l'absence. */
 function estHorsCarriere(nom, bo){
   return !!nomsHorsCarriere(bo)[nettoieNomScore(nom)];
+}
+
+/* ================================================================
+   RETIRER UN NOM DES CLASSEMENTS — ET TOUT LE MONDE REMONTE
+
+   « J'ai fait un compte Ced pour tester un truc, et il a pris ma place
+     dans le classement. Je l'ai mis admin pour qu'il n'aille pas dans
+     le top carrière, mais on achève la carte et ce qui est dommage,
+     c'est que Roro, qui devrait être troisième, n'apparaît pas parce
+     que Ced est toujours là. Est-ce qu'il y a moyen que je supprime le
+     nom de quelqu'un dans un classement, et que le quatrième repasse
+     troisième ? »
+
+   POURQUOI CE N'EST PAS « HORS CARRIÈRE ». Le badge hors échelle dit
+   une chose précise, et elle a été choisie ici même : son porteur sort
+   du Top carrière et RESTE dans le top des maps — « il peut rester
+   dans le top des maps », c'est écrit dans championDeLaPartie. Élargir
+   ce drapeau aurait renversé cette décision-là sans le dire, et fait
+   disparaître des podiums d'île des joueurs qu'on y voulait. Deux
+   demandes différentes, deux drapeaux.
+
+   POURQUOI ON N'EFFACE RIEN. Le tableau des scores se fusionne entre
+   appareils, et une fusion monotone ne sait pas retirer : la ligne
+   effacée ici reviendrait au premier instantané d'un voisin qui l'a
+   encore. On ne touche donc pas à un seul chiffre — les dégâts de Ced
+   restent inscrits, exactement comme avant. C'est l'AFFICHAGE et le
+   GEL qui l'ignorent. Trois conséquences heureuses : rien ne se perd,
+   le geste s'annule d'un clic, et il vaut rétroactivement sur les
+   podiums déjà gravés, où le nom retiré s'efface sans qu'on ait rien
+   à réécrire.
+
+   ET IL FAUT FILTRER AVANT DE GELER, pas seulement à l'affichage. Un
+   podium gelé ne garde que trois lignes : si l'on filtre après, il en
+   reste deux et le quatrième n'a jamais été inscrit. Filtré avant, le
+   quatrième ENTRE dans le podium — c'est exactement ce qui est demandé,
+   et c'est pour cela que le geste doit être fait avant que l'île ne
+   tombe. Voir sacreChampion et termineExpedition.
+   ================================================================ */
+function nomsRetires(bo){
+  var t = decodeReglagesBadge(bo || ""), out = {}, k;
+  for(k in t) if(t[k] && t[k].retire) out[k] = 1;
+  return out;
+}
+/* Le filtre. Il rend une NOUVELLE liste, comme sansHorsCarriere : la
+   liste d'origine sert encore ailleurs. */
+function sansRetires(liste, bo){
+  var h = nomsRetires(bo), out = [], i;
+  for(i = 0; liste && i < liste.length; i++){
+    var e = liste[i];
+    if(e && h[nettoieNomScore(e.nom)]) continue;
+    out.push(e);
+  }
+  return out;
+}
+function estRetire(nom, bo){
+  return !!nomsRetires(bo)[nettoieNomScore(nom)];
+}
+/* LES DEUX FILTRES ENSEMBLE, pour le Top carrière et pour lui seul :
+   qui est retiré des classements l'est forcément de la carrière aussi
+   — l'inverse n'est pas vrai. Un seul geste suffit donc à faire
+   disparaître un compte d'essai de partout, sans avoir à penser à
+   cocher deux cases. */
+function sansExclus(liste, bo){
+  return sansRetires(sansHorsCarriere(liste, bo), bo);
 }
 
 

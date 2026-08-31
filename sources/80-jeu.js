@@ -4644,7 +4644,11 @@ function majMort(dt){
 function championDeLaPartie(){
   var par = (typeof totalParJoueurCarte === "function" && typeof scoresAJour === "function")
             ? totalParJoueurCarte(scoresAJour(), jeu.index) : null;
-  var l = par ? classementDepuis(par) : null;
+  /* ON NE SACRE PAS UN NOM RETIRÉ. Le badge hors échelle, lui, reste
+     éligible — « il peut rester dans le top des maps » —, et c'est
+     exactement la différence entre les deux drapeaux. */
+  var l = par ? sansRetires(classementDepuis(par),
+                            typeof monde !== "undefined" && monde && monde.bo) : null;
   if(l && l.length){
     return { nom:l[0].nom, g:l[0].g, moi:(l[0].nom === monNom) ? 1 : 0 };
   }

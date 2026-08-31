@@ -2417,6 +2417,19 @@ select.champ{cursor:pointer}
         nom sur la carte. Il suit le PSEUDO — si le compte change de nom, il
         suffit de désigner le nouveau ici. Rien n'en est dit ailleurs dans le
         jeu.</div>
+      <div class="edLn"><label>Retirer des classements</label><select id="edRetire">
+        <option value="0">non</option><option value="1">oui</option></select></div>
+      <div class="edDetail" style="margin:-4px 0 12px">Ce pseudo disparaît de
+        TOUS les classements — le podium en jeu, le Top 3 des vignettes, le Top
+        carrière — et <b>tout le monde remonte d'un rang</b> : le quatrième
+        redevient troisième. <b>Ses dégâts ne sont pas effacés</b>, ils sont
+        seulement ignorés ; le geste s'annule d'un clic.<br>
+        Il vaut aussi sur les îles DÉJÀ tombées, où le nom retiré s'efface du
+        podium gravé — mais là, le podium n'a plus que deux noms : le quatrième
+        n'y avait jamais été inscrit. <b>Pour qu'il prenne la place, il faut
+        retirer le nom AVANT que l'île ne tombe.</b><br>
+        À ne pas confondre avec le badge hors échelle, qui sort du Top carrière
+        et laisse son porteur dans le top des maps.</div>
       <div class="edLn"><label>Retirer des passages</label><select id="edMasque">
         <option value="0">non</option><option value="1">oui</option></select></div>
       <div class="edDetail" style="margin:-4px 0 4px">Ce pseudo ne compte plus
@@ -2677,7 +2690,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.49";
+var VERSION = "v1.50";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -11964,7 +11977,7 @@ function fusionneChutesBadge(a, b){
 function reglageVide(){
   return { special:"", disque:"", pointes:"", rouge:"",
            io:0, ia:0, ib:0, so:0, sa:0, sb:0, ca:0,
-           eclat:0, masque:0 };
+           eclat:0, masque:0, retire:0 };
 }
 function motPalier(s){ return String(s == null ? "" : s).replace(/[^a-z]/g, "").substr(0, 12); }
 function encodeReglagesBadge(tab){
@@ -11984,10 +11997,10 @@ function encodeReglagesBadge(tab){
     }
     var sp = motPalier(e.special), d = motPalier(e.disque),
         pt = motPalier(e.pointes), rg = motPalier(e.rouge);
-    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0;
-    if(!vif && !sp && !d && !pt && !rg && !ec && !mq) continue;   // rien à dire
+    var ec = e.eclat ? 1 : 0, mq = e.masque ? 1 : 0, rt = e.retire ? 1 : 0;
+    if(!vif && !sp && !d && !pt && !rg && !ec && !mq && !rt) continue;   // rien à dire
     l.push(nom + ":" + sp + ":" + d + ":" + pt + ":" + rg + ":" + v.join(":")
-         + ":" + ec + ":" + mq);
+         + ":" + ec + ":" + mq + ":" + rt);
   }
   l.sort();
   return l.join("|");
@@ -12009,10 +12022,14 @@ function decodeReglagesBadge(s){
       var x = parseInt(c[j + 5], 10);
       e[CHAMPS_BG[j]] = (x >= -9999 && x <= 9999) ? (x | 0) : 0;
     }
-    /* les deux drapeaux de queue : absents des lignes d'avant, et
-       absent vaut zéro — c'est ce qui les rend relisibles */
+    /* LES DRAPEAUX DE QUEUE : absents des lignes d'avant, et absent
+       vaut zéro — c'est ce qui les rend relisibles. Chaque nouveau se
+       range donc À LA FIN, jamais au milieu : une colonne insérée
+       ailleurs décalerait les sept bonus et un registre déjà publié
+       se relirait de travers chez tout le monde. */
     e.eclat  = (c[CHAMPS_BG.length + 5] === "1") ? 1 : 0;
     e.masque = (c[CHAMPS_BG.length + 6] === "1") ? 1 : 0;
+    e.retire = (c[CHAMPS_BG.length + 7] === "1") ? 1 : 0;
     out[nom] = e;
   }
   return out;
@@ -12080,6 +12097,70 @@ function sansHorsCarriere(liste, bo){
    avant d'écrire la note qui explique l'absence. */
 function estHorsCarriere(nom, bo){
   return !!nomsHorsCarriere(bo)[nettoieNomScore(nom)];
+}
+
+/* ================================================================
+   RETIRER UN NOM DES CLASSEMENTS — ET TOUT LE MONDE REMONTE
+
+   « J'ai fait un compte Ced pour tester un truc, et il a pris ma place
+     dans le classement. Je l'ai mis admin pour qu'il n'aille pas dans
+     le top carrière, mais on achève la carte et ce qui est dommage,
+     c'est que Roro, qui devrait être troisième, n'apparaît pas parce
+     que Ced est toujours là. Est-ce qu'il y a moyen que je supprime le
+     nom de quelqu'un dans un classement, et que le quatrième repasse
+     troisième ? »
+
+   POURQUOI CE N'EST PAS « HORS CARRIÈRE ». Le badge hors échelle dit
+   une chose précise, et elle a été choisie ici même : son porteur sort
+   du Top carrière et RESTE dans le top des maps — « il peut rester
+   dans le top des maps », c'est écrit dans championDeLaPartie. Élargir
+   ce drapeau aurait renversé cette décision-là sans le dire, et fait
+   disparaître des podiums d'île des joueurs qu'on y voulait. Deux
+   demandes différentes, deux drapeaux.
+
+   POURQUOI ON N'EFFACE RIEN. Le tableau des scores se fusionne entre
+   appareils, et une fusion monotone ne sait pas retirer : la ligne
+   effacée ici reviendrait au premier instantané d'un voisin qui l'a
+   encore. On ne touche donc pas à un seul chiffre — les dégâts de Ced
+   restent inscrits, exactement comme avant. C'est l'AFFICHAGE et le
+   GEL qui l'ignorent. Trois conséquences heureuses : rien ne se perd,
+   le geste s'annule d'un clic, et il vaut rétroactivement sur les
+   podiums déjà gravés, où le nom retiré s'efface sans qu'on ait rien
+   à réécrire.
+
+   ET IL FAUT FILTRER AVANT DE GELER, pas seulement à l'affichage. Un
+   podium gelé ne garde que trois lignes : si l'on filtre après, il en
+   reste deux et le quatrième n'a jamais été inscrit. Filtré avant, le
+   quatrième ENTRE dans le podium — c'est exactement ce qui est demandé,
+   et c'est pour cela que le geste doit être fait avant que l'île ne
+   tombe. Voir sacreChampion et termineExpedition.
+   ================================================================ */
+function nomsRetires(bo){
+  var t = decodeReglagesBadge(bo || ""), out = {}, k;
+  for(k in t) if(t[k] && t[k].retire) out[k] = 1;
+  return out;
+}
+/* Le filtre. Il rend une NOUVELLE liste, comme sansHorsCarriere : la
+   liste d'origine sert encore ailleurs. */
+function sansRetires(liste, bo){
+  var h = nomsRetires(bo), out = [], i;
+  for(i = 0; liste && i < liste.length; i++){
+    var e = liste[i];
+    if(e && h[nettoieNomScore(e.nom)]) continue;
+    out.push(e);
+  }
+  return out;
+}
+function estRetire(nom, bo){
+  return !!nomsRetires(bo)[nettoieNomScore(nom)];
+}
+/* LES DEUX FILTRES ENSEMBLE, pour le Top carrière et pour lui seul :
+   qui est retiré des classements l'est forcément de la carrière aussi
+   — l'inverse n'est pas vrai. Un seul geste suffit donc à faire
+   disparaître un compte d'essai de partout, sans avoir à penser à
+   cocher deux cases. */
+function sansExclus(liste, bo){
+  return sansRetires(sansHorsCarriere(liste, bo), bo);
 }
 
 
@@ -51752,7 +51833,11 @@ function majMort(dt){
 function championDeLaPartie(){
   var par = (typeof totalParJoueurCarte === "function" && typeof scoresAJour === "function")
             ? totalParJoueurCarte(scoresAJour(), jeu.index) : null;
-  var l = par ? classementDepuis(par) : null;
+  /* ON NE SACRE PAS UN NOM RETIRÉ. Le badge hors échelle, lui, reste
+     éligible — « il peut rester dans le top des maps » —, et c'est
+     exactement la différence entre les deux drapeaux. */
+  var l = par ? sansRetires(classementDepuis(par),
+                            typeof monde !== "undefined" && monde && monde.bo) : null;
   if(l && l.length){
     return { nom:l[0].nom, g:l[0].g, moi:(l[0].nom === monNom) ? 1 : 0 };
   }
@@ -53745,7 +53830,8 @@ function termineExpedition(idx, champion){
      la même promesse, et elle n'avait tout simplement pas été tenue
      ici. */
   jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), idx,
-                      classementDepuis(totalParJoueurCarte(scoresAJour(), idx)).slice(0, 3));
+                      sansRetires(classementDepuis(totalParJoueurCarte(scoresAJour(), idx)),
+                                  m && m.bo).slice(0, 3));
   publieEtat(m, jg);
   return true;
 }
@@ -53772,7 +53858,12 @@ function sacreChampion(index, nom){
   /* Le podium de CETTE bataille : les dégâts infligés sur CETTE île,
      pas le total des joueurs. Ce sont deux classements différents, et
      c'est celui de la bataille qu'on grave. */
-  var podium = classementDepuis(totalParJoueurCarte(scoresAJour(), index));
+  /* FILTRÉ AVANT LA COUPE À TROIS, jamais après : c'est ce qui fait
+     entrer le quatrième dans le podium à la place du nom retiré.
+     Filtrer après aurait gravé un podium à deux lignes. */
+  var podium = sansRetires(
+        classementDepuis(totalParJoueurCarte(scoresAJour(), index)),
+        m && m.bo);
   /* LE PODIUM SE POSE SUR jg, EXACTEMENT COMME LE CHAMPION DEUX LIGNES
      PLUS HAUT — et jamais dans le littéral. poseJungle recopie `ch` ET
      `t3` depuis son second argument par-dessus ce qu'il reçoit : passer
@@ -54050,7 +54141,7 @@ function nouvelleCampagneSalon(){
        des joueurs classés qui gagne le tour du monde qu'il a gagné.
        Voir sansHorsCarriere dans le noyau. */
     var podium = (typeof classementSalon === "function")
-                 ? sansHorsCarriere(classementSalon(), monde && monde.bo) : [];
+                 ? sansExclus(classementSalon(), monde && monde.bo) : [];
     /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
        il peut : trois lignes plus bas l'instantané publie s:"", et le
        classement de cette campagne n'existe plus nulle part. On grave
@@ -62793,6 +62884,7 @@ function lisEditeurBadge(){
   r.special = $("edSpecial")  ? $("edSpecial").value  : "";
   r.eclat   = ($("edEclat")  && $("edEclat").value  === "1") ? 1 : 0;
   r.masque  = ($("edMasque") && $("edMasque").value === "1") ? 1 : 0;
+  r.retire  = ($("edRetire") && $("edRetire").value === "1") ? 1 : 0;
   return r;
 }
 function ecrisEditeurBadge(r){
@@ -62804,6 +62896,7 @@ function ecrisEditeurBadge(r){
   if($("edSpecial"))  $("edSpecial").value  = r.special || "";
   if($("edEclat"))    $("edEclat").value    = r.eclat  ? "1" : "0";
   if($("edMasque"))   $("edMasque").value   = r.masque ? "1" : "0";
+  if($("edRetire"))   $("edRetire").value   = r.retire ? "1" : "0";
 }
 /* L'APERÇU MONTRE LE BADGE QU'ON OBTIENDRA, pas celui qui est rangé :
    les compteurs du jeu pour ce pseudo, PLUS les réglages en cours de
@@ -63933,7 +64026,10 @@ function classementCarte(carte){
     var cible = (e.seau && noms[e.seau]) ? noms[e.seau] : e.nom;
     if(e.gc > (par[cible] || 0)) par[cible] = e.gc;
   }
-  return decoreClassement(classementDepuis(par));
+  /* LE RETRAIT S'APPLIQUE ICI, au classement de l'ÎLE — c'est lui
+     que lisent le podium du coin de l'écran et la vignette. Voir
+     sansRetires dans le noyau. */
+  return decoreClassement(sansRetires(classementDepuis(par), monde && monde.bo));
 }
 
 /* Qui est encore là, et qui suis-je : commun aux deux classements. */
@@ -64644,7 +64740,15 @@ var MEDAILLES = ["1", "2", "3"];
    Le champ `victoire` des cartes n'est donc PAS mort — c'est la
    fonction qui le remettait en petit sous un tableau qui l'était. */
 function blocTop3(i){
-  var fige = (typeof top3Salon === "function") ? top3Salon(i) : null;
+  /* LE PODIUM GELÉ EST FILTRÉ LUI AUSSI, et c'est ce qui rend le
+     geste rétroactif : un nom retiré s'efface des îles déjà tombées
+     sans qu'on ait à réécrire une seule ligne gravée. Ce qui a été
+     gelé AVANT le retrait garde alors deux noms au lieu de trois —
+     le quatrième n'y avait jamais été inscrit, et rien ne peut
+     l'inventer après coup. D'où l'intérêt de retirer un nom AVANT
+     que l'île ne tombe. */
+  var fige = (typeof top3Salon === "function")
+           ? sansRetires(top3Salon(i), monde && monde.bo) : null;
   /* La jungle est « en cours » elle aussi, mais elle ne passe jamais
      par carteSalon : c'est un événement, pas une étape de la campagne.
      Sans ce second cas, l'expédition en cours n'avait pas de podium
@@ -64656,7 +64760,8 @@ function blocTop3(i){
   /* Tant que l'île est en cours, on montre le classement VIVANT de
      cette bataille — il bouge, et c'est ce qu'on vient regarder. */
   if(enCours && typeof scoresAJour === "function"){
-    var vif = classementDepuis(totalParJoueurCarte(scoresAJour(), i)).slice(0, 3);
+    var vif = sansRetires(classementDepuis(totalParJoueurCarte(scoresAJour(), i)),
+                          monde && monde.bo).slice(0, 3);
     if(vif.length) liste = vif;
   }
   if(!liste || !liste.length) return blocChampion(i);
@@ -65440,7 +65545,7 @@ function majCarriere(){
   /* `brut` garde tout le monde : c'est lui qui sait encore ce que le
      porteur du badge a marqué, et la note le lui redit. */
   var brut = classementSalon();
-  var l = sansHorsCarriere(brut, monde && monde.bo);
+  var l = sansExclus(brut, monde && monde.bo);
   var h = "", i;
   for(i = 0; i < Math.min(CARRIERE_APERCU, l.length); i++) h += ligneClassement(l[i], i);
   h += noteHorsCarriere(brut);
@@ -65503,7 +65608,7 @@ function majPalmares(){
        resterait qu'un argent et un bronze, sans or, se lirait comme
        une erreur de saisie ; ce qu'on montre est le classement des
        joueurs classés, et son premier porte l'or. */
-    var pl = sansHorsCarriere(e.l, monde && monde.bo);
+    var pl = sansExclus(e.l, monde && monde.bo);
     h += '<div class="palC"><div class="palT">Campagne ' + (e.cy + 1) + '</div>';
     if(!pl.length){
       /* Une campagne bouclée sans classement lisible est quand même
@@ -65691,7 +65796,7 @@ function ouvreClassement(){
   var e = $("classListe");
   if(!e) return;
   var brut = classementSalon();
-  var l = sansHorsCarriere(brut, monde && monde.bo), h = "", i;
+  var l = sansExclus(brut, monde && monde.bo), h = "", i;
   for(i = 0; i < l.length; i++) h += ligneClassement(l[i], i);
   h = (h || '<div class="clSous" style="padding:0">'
            + "Personne n'a encore marqué le moindre dégât.</div>")

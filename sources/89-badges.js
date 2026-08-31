@@ -770,6 +770,7 @@ function lisEditeurBadge(){
   r.special = $("edSpecial")  ? $("edSpecial").value  : "";
   r.eclat   = ($("edEclat")  && $("edEclat").value  === "1") ? 1 : 0;
   r.masque  = ($("edMasque") && $("edMasque").value === "1") ? 1 : 0;
+  r.retire  = ($("edRetire") && $("edRetire").value === "1") ? 1 : 0;
   return r;
 }
 function ecrisEditeurBadge(r){
@@ -781,6 +782,7 @@ function ecrisEditeurBadge(r){
   if($("edSpecial"))  $("edSpecial").value  = r.special || "";
   if($("edEclat"))    $("edEclat").value    = r.eclat  ? "1" : "0";
   if($("edMasque"))   $("edMasque").value   = r.masque ? "1" : "0";
+  if($("edRetire"))   $("edRetire").value   = r.retire ? "1" : "0";
 }
 /* L'APERÇU MONTRE LE BADGE QU'ON OBTIENDRA, pas celui qui est rangé :
    les compteurs du jeu pour ce pseudo, PLUS les réglages en cours de

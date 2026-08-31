@@ -1217,7 +1217,8 @@ function termineExpedition(idx, champion){
      la même promesse, et elle n'avait tout simplement pas été tenue
      ici. */
   jg.t3 = inscritTop3((jg.t3 || m.t3 || ""), idx,
-                      classementDepuis(totalParJoueurCarte(scoresAJour(), idx)).slice(0, 3));
+                      sansRetires(classementDepuis(totalParJoueurCarte(scoresAJour(), idx)),
+                                  m && m.bo).slice(0, 3));
   publieEtat(m, jg);
   return true;
 }
@@ -1244,7 +1245,12 @@ function sacreChampion(index, nom){
   /* Le podium de CETTE bataille : les dégâts infligés sur CETTE île,
      pas le total des joueurs. Ce sont deux classements différents, et
      c'est celui de la bataille qu'on grave. */
-  var podium = classementDepuis(totalParJoueurCarte(scoresAJour(), index));
+  /* FILTRÉ AVANT LA COUPE À TROIS, jamais après : c'est ce qui fait
+     entrer le quatrième dans le podium à la place du nom retiré.
+     Filtrer après aurait gravé un podium à deux lignes. */
+  var podium = sansRetires(
+        classementDepuis(totalParJoueurCarte(scoresAJour(), index)),
+        m && m.bo);
   /* LE PODIUM SE POSE SUR jg, EXACTEMENT COMME LE CHAMPION DEUX LIGNES
      PLUS HAUT — et jamais dans le littéral. poseJungle recopie `ch` ET
      `t3` depuis son second argument par-dessus ce qu'il reçoit : passer
@@ -1522,7 +1528,7 @@ function nouvelleCampagneSalon(){
        des joueurs classés qui gagne le tour du monde qu'il a gagné.
        Voir sansHorsCarriere dans le noyau. */
     var podium = (typeof classementSalon === "function")
-                 ? sansHorsCarriere(classementSalon(), monde && monde.bo) : [];
+                 ? sansExclus(classementSalon(), monde && monde.bo) : [];
     /* LE PODIUM ENTIER PART AVEC LE TITRE, et c'est le seul instant où
        il peut : trois lignes plus bas l'instantané publie s:"", et le
        classement de cette campagne n'existe plus nulle part. On grave

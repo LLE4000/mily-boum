@@ -60,6 +60,8 @@ try{
     "champDegagement","degagementRequis","UNI","DEF","CARTES","EQ","CAP","CRE",
     "HEROS","estHeros","serreSelonEffectif","PORTEE_COURTE_MAX",
     "encodeRenoms","decodeRenoms","fusionneRenoms",
+    "encodeReglagesBadge","decodeReglagesBadge","nomsRetires","sansRetires",
+    "estRetire","sansExclus","sansHorsCarriere","estHorsCarriere",
     "champDepuis","pasVersLeBut","CHEMIN_LOIN","rayonFormation","ancreFormation",
     "PALMARES_GARDES","encodePalmares","decodePalmares","fusionnePalmares",
     "palmaresPorte","palmaresListe","inscritPalmares",
@@ -10707,17 +10709,26 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
     var d = html.indexOf("function " + nom + "(");
     return d < 0 ? "" : html.slice(d, html.indexOf("\n}", d) + 2);
   }
+  /* CES QUATRE-LÀ FILTRENT PAR sansExclus, qui applique les DEUX
+     retraits : le badge hors échelle, et le nom retiré des classements
+     (v1.50). Qui est retiré des classements l'est forcément de la
+     carrière — l'inverse n'est pas vrai —, si bien qu'un seul geste
+     suffit à faire disparaître un compte d'essai de partout. Le test
+     vérifie donc l'appel composé, pas l'un de ses deux étages. */
   ok("l'aperçu du Top carrière filtre",
-     /sansHorsCarriere\(brut, monde && monde\.bo\)/.test(corps("majCarriere")));
+     /sansExclus\(brut, monde && monde\.bo\)/.test(corps("majCarriere")));
   ok("la page « Voir tout » filtre",
-     /sansHorsCarriere\(brut, monde && monde\.bo\)/.test(corps("ouvreClassement")));
+     /sansExclus\(brut, monde && monde\.bo\)/.test(corps("ouvreClassement")));
   ok("le palmarès des campagnes filtre",
-     /sansHorsCarriere\(e\.l, monde && monde\.bo\)/.test(corps("majPalmares")));
+     /sansExclus\(e\.l, monde && monde\.bo\)/.test(corps("majPalmares")));
+  ok("… et sansExclus applique bien les deux retraits",
+     /function sansExclus\(liste, bo\)\{\s*\n\s*return sansRetires\(sansHorsCarriere\(liste, bo\), bo\);/
+       .test(html));
   /* CELUI-CI GRAVE, et c'est le seul : sans lui, le porteur gagnerait
      le titre de la campagne, un rubis, et l'or du palmarès pour
      toujours. */
   ok("le podium de clôture filtre AVANT de décerner le titre",
-     /sansHorsCarriere\(classementSalon\(\), monde && monde\.bo\)/
+     /sansExclus\(classementSalon\(\), monde && monde\.bo\)/
        .test(corps("nouvelleCampagneSalon")));
 
   /* UN CORPS INTROUVABLE RENDRAIT "" ET FERAIT PASSER À VIDE tous les
@@ -12152,6 +12163,108 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      /case 0: dessineBatiment\(ctx, it\.o, tps, cam\.z\);\s*\n\s*if\(gelPose && it\.o\.vivant\) dessineGeleeElectrique/.test(html));
   ok("… et rien n'est testé quand aucun Cryo n'est posé",
      /var gelPose = jeu\.cryos\.length > 0 && cam\.z > 0\.34/.test(html));
+})();
+
+/* ================================================================
+   60. RETIRER UN NOM D'UN CLASSEMENT — ET LE QUATRIÈME REMONTE
+
+   « J'ai fait un compte Ced pour tester, il a pris ma place dans le
+     classement. Je l'ai mis admin pour qu'il n'aille pas dans le top
+     carrière, mais on achève la carte et Roro, qui devrait être
+     troisième, n'apparaît pas parce que Ced est toujours là. Est-ce
+     qu'il y a moyen que je supprime le nom de quelqu'un dans un
+     classement, et que le quatrième repasse troisième ? »
+
+   DEUX DRAPEAUX, ET C'EST LE POINT. Le badge hors échelle sort du Top
+   carrière et LAISSE son porteur dans le top des maps : c'est écrit
+   dans championDeLaPartie, et c'est une décision prise ici même. Le
+   retrait est l'autre demande : disparaître de partout. Élargir le
+   premier aurait renversé la première décision sans le dire.
+
+   ON N'EFFACE AUCUN CHIFFRE. Le tableau des scores se fusionne entre
+   appareils et une fusion monotone ne sait pas retirer : la ligne
+   effacée reviendrait au premier instantané d'un voisin. C'est donc
+   l'affichage et le GEL qui ignorent le nom — d'où un geste annulable,
+   rétroactif sur les podiums déjà gravés, et sans perte.
+   ================================================================ */
+(function(){
+  G("60. Retirer un nom d'un classement");
+
+  /* ---- ① LE REGISTRE PORTE LE DRAPEAU, ET LE RELIT ---- */
+  var t = { Ced:{ retire:1 }, Lu:{ special:"or" } };
+  var enc = N.encodeReglagesBadge(t);
+  var dec = N.decodeReglagesBadge(enc);
+  /* LA CLÉ GARDE SA CASSE : nettoieNomScore ne fait que retirer les
+     séparateurs et rogner à quatorze signes. « Ced » et « ced » sont
+     donc DEUX pseudos pour le registre — c'était déjà vrai du badge
+     hors échelle, et le nom doit être tapé tel qu'il s'affiche. */
+  ok("le retrait s'écrit et se relit", dec.Ced && dec.Ced.retire === 1, enc);
+  ok("… sans se confondre avec le badge hors échelle",
+     dec.Ced.special === "" && dec.Lu.special === "or" && !dec.Lu.retire);
+  ok("… ni avec le retrait des passages", !dec.Ced.masque);
+  /* LE DRAPEAU EST EN QUEUE DE LIGNE, et c'est ce qui rend les
+     registres déjà publiés relisibles : une colonne insérée au milieu
+     aurait décalé les sept bonus chez tout le monde. */
+  ok("une ligne d'AVANT le drapeau se relit encore",
+     (function(){
+       var av = N.encodeReglagesBadge({ Ced:{ retire:1 } });
+       var court = av.slice(0, av.lastIndexOf(":"));     // on coupe la queue
+       var d2 = N.decodeReglagesBadge(court);
+       return d2.Ced && d2.Ced.retire === 0;
+     })());
+
+  /* ---- ② LE FILTRE, ET LE QUATRIÈME QUI REMONTE ---- */
+  var bo = N.encodeReglagesBadge({ Ced:{ retire:1 } });
+  var liste = [{ nom:"Lu", g:900 }, { nom:"Ced", g:800 },
+               { nom:"Zoe", g:700 }, { nom:"Roro", g:600 }];
+  var f = N.sansRetires(liste, bo);
+  ok("le nom retiré sort du classement",
+     f.length === 3 && !f.some(function(e){ return e.nom === "Ced"; }));
+  ok("… et tout le monde remonte d'un rang",
+     f[0].nom === "Lu" && f[1].nom === "Zoe" && f[2].nom === "Roro");
+  ok("… la quatrième entre donc dans le podium à trois",
+     f.slice(0, 3).map(function(e){ return e.nom; }).join(",") === "Lu,Zoe,Roro");
+  ok("… et aucun chiffre n'a bougé",
+     f[2].g === 600 && liste.length === 4 && liste[1].nom === "Ced");
+  ok("estRetire répond sur le nom nettoyé",
+     N.estRetire("Ced", bo) && N.estRetire(" Ced ", bo)
+     && !N.estRetire("Roro", bo) && !N.estRetire("ced", bo));
+  ok("un registre vide ne retire personne",
+     N.sansRetires(liste, "").length === 4 && N.sansRetires(liste, null).length === 4);
+
+  /* ---- ③ LES DEUX RETRAITS SE COMPOSENT ---- */
+  var bo2 = N.encodeReglagesBadge({ Ced:{ retire:1 }, Lu:{ special:"or" } });
+  ok("la carrière retire les deux, l'île le seul retrait",
+     N.sansExclus(liste, bo2).map(function(e){ return e.nom; }).join(",") === "Zoe,Roro"
+     && N.sansRetires(liste, bo2).map(function(e){ return e.nom; }).join(",") === "Lu,Zoe,Roro");
+
+  /* ---- ④ LÀ OÙ LE FILTRE EST POSÉ ---- */
+  function corps2(nom){
+    var d = html.indexOf("function " + nom + "(");
+    if(d < 0) return "";
+    var f2 = html.indexOf("\n}", d);
+    return f2 < 0 ? "" : html.slice(d, f2 + 2);
+  }
+  ok("le podium de l'île filtre",
+     /sansRetires\(classementDepuis\(par\), monde && monde\.bo\)/.test(corps2("classementCarte")));
+  ok("le Top 3 vivant de la vignette filtre",
+     /sansRetires\(classementDepuis\(totalParJoueurCarte\(scoresAJour\(\), i\)\)/.test(corps2("blocTop3")));
+  ok("… et le Top 3 GELÉ aussi, ce qui rend le geste rétroactif",
+     /sansRetires\(top3Salon\(i\), monde && monde\.bo\)/.test(corps2("blocTop3")));
+  ok("le champion de l'île n'est jamais un nom retiré",
+     /sansRetires\(classementDepuis\(par\)/.test(corps2("championDeLaPartie")));
+  /* LE GEL EST LE PLUS IMPORTANT : c'est lui, et lui seul, qui fait
+     ENTRER le quatrième dans le podium gravé. Filtré après la coupe à
+     trois, il aurait gravé deux lignes et perdu Roro pour toujours. */
+  ok("le gel filtre AVANT de couper à trois",
+     (function(){
+       var s2 = corps2("sacreChampion");
+       return /var podium = sansRetires\(/.test(s2)
+           && s2.indexOf("sansRetires(") < s2.indexOf("podium.slice(0, 3)");
+     })());
+  ok("… et le gel d'une carte événement aussi",
+     /sansRetires\(classementDepuis\(totalParJoueurCarte\(scoresAJour\(\), idx\)\),\s*\n\s*m && m\.bo\)\.slice\(0, 3\)/
+       .test(html));
 })();
 
 /* ---------------- bilan ---------------- */
