@@ -1296,52 +1296,11 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* ════════════════════════════════════════════════════════════
-     LA TUILE DU HÉROS EST UNE ACTIVATION, PAS UN DÉBARQUEMENT
-
-     « Il fonctionne en continu, ce n'est pas ça le principe : on doit
-     l'activer, et ça doit coûter de l'énergie. »
-
-     Quatre différences avec les huit autres :
-       — elle coûte de l'Énergie, dix puis quinze puis vingt ;
-       — l'activation dure dix secondes, et pas la partie ;
-       — un seul Speed à la fois sur l'île ;
-       — la tuile RESTE en place : c'est elle qu'on retouchera pour le
-         rappeler quand les dix secondes seront passées.
-
-     LA NAVETTE EN MER COMPTE COMME UNE PRÉSENCE. Le verrou ne
-     regardait que le héros né ; pendant la traversée il n'existait
-     pas encore, et une deuxième pression facturait une deuxième
-     activation pour un deuxième Speed. Une seconde et demie de
-     fenêtre, invisible tant qu'on l'envoyait une fois par partie —
-     mais on l'active maintenant toutes les dix secondes, et deux
-     héros sur l'île ne veulent rien dire : `chercheHeros` n'en
-     retient qu'un, le second aurait couru sans rien doper.
-     ════════════════════════════════════════════════════════════ */
-  if(b.heros){
-    if(jeu.heros && jeu.heros.pv > 0)
-      return message("Speed est déjà sur l'île.");
-    for(var nv = 0; nv < jeu.navettes.length; nv++)
-      if(jeu.navettes[nv].heros) return message("Speed arrive, sa navette est en mer.");
-    var cout = coutActuel("speed", jeu.usages);
-    if(jeu.energie < cout)
-      return message("Il faut " + cout + " d'Énergie pour activer Speed.");
-    jeu.energie -= cout;
-    jeu.usages.speed = (jeu.usages.speed || 0) + 1;
-    gy = borne(gy, 3, GH - 4);
-    jeu.navettes.push({
-      type:"speed", reste:1, sortis:0,
-      gx:RIVAGE_GX + NAV.DEPART, gy:gy, gxA:RIVAGE_GX, gx0:RIVAGE_GX + NAV.DEPART,
-      etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
-      n:jeu.nSuiv++, heros:1
-    });
-    demandeMajBarres();
-    son.debarque();
-    message("Speed arrive — " + Math.round(EQ.SPEED_DUREE)
-            + " secondes à deux fois la vitesse, dès qu'il touche le sable.");
-    if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
-    return;
-  }
+  /* La tuile du héros n'est plus une navette : un appui dessus
+     l'active sur-le-champ, où que soient les troupes. On y renvoie
+     quand même — la sélection ne peut plus l'atteindre, mais rien ne
+     doit se casser si elle y arrivait. */
+  if(b.heros) return activeSpeed();
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -2344,6 +2303,73 @@ function chercheBlesseAutour(u, r){
     if(part < pireP){ pireP = part; pire = a; }
   }
   return pire;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ON APPUIE SUR SA TÊTE, ET IL EST LÀ
+
+   « Quand je débarque mes troupes avec le héros, j'ai directement
+   l'affluence. Ce n'est pas ça qu'il faut. Je débarque mes troupes,
+   j'avance, PUIS j'appuie sur Speed, et là il y a le compte à rebours
+   qui commence. »
+
+   LA NAVETTE ÉTAIT L'ERREUR, ET ELLE COÛTAIT LES DIX SECONDES. Le
+   héros traversait la mer comme une troupe, débarquait au rivage, et
+   son horloge partait de là — à l'autre bout de la carte de troupes
+   qui avaient déjà avancé. Envoyé avec le débarquement, il grillait
+   ses dix secondes sur le sable ; envoyé plus tard, il en passait la
+   moitié à courir après le groupe. Dans les deux cas la capacité se
+   dépensait AVANT de servir.
+
+   IL APPARAÎT DONC AU MILIEU DE LA TROUPE, tout de suite. C'est la
+   seule position qui rende les dix secondes entièrement utiles : sa
+   zone fait onze cases de rayon, le centre du groupe la met sous
+   l'aile en entier dès la première image. Au front, elle ne couvrirait
+   que la moitié avancée ; au rivage, personne.
+
+   SANS TROUPE, ON NE PRÉLÈVE RIEN. Il n'a pas d'arme et ne dope que
+   les autres : activé sur une île vide, il ferait payer dix d'Énergie
+   pour un personnage qui court tout seul. Le refus est gratuit.
+   ════════════════════════════════════════════════════════════════ */
+function activeSpeed(){
+  if(typeof modeApercu !== "undefined" && modeApercu)
+    return message("Visite : tu peux tout regarder, mais pas jouer ici.");
+  if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
+  if(jeu.heros && jeu.heros.pv > 0)
+    return message("Speed court déjà — encore " + Math.ceil(jeu.heros.reste) + " s.");
+  /* le centre de la troupe vivante, le héros exclu */
+  var sx = 0, sy = 0, n = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
+    sx += u.gx; sy += u.gy; n++;
+  }
+  if(!n) return message("Speed n'a personne à emmener : débarque d'abord.");
+  var cout = coutActuel("speed", jeu.usages);
+  if(jeu.energie < cout)
+    return message("Il faut " + cout + " d'Énergie pour lancer Speed.");
+  jeu.energie -= cout;
+  jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+  /* on le pose au centre, et sur une case praticable : le centre d'un
+     groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
+  var cx = sx / n, cy = sy / n;
+  if(bloque(cx, cy)){
+    var pose = false;
+    for(var r = 1; r <= 6 && !pose; r++){
+      for(var a = 0; a < 8 && !pose; a++){
+        var an = a / 8 * 6.2832;
+        var tx = cx + Math.cos(an) * r, ty = cy + Math.sin(an) * r;
+        if(!bloque(tx, ty)){ cx = tx; cy = ty; pose = true; }
+      }
+    }
+  }
+  var h = creeUnite("speed", borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
+  jeu.heros = h;
+  jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
+  if(son && son.speedDebut) son.speedDebut();
+  demandeMajBarres();
+  message("Speed est là — " + Math.round(EQ.SPEED_DUREE) + " secondes à deux fois la vitesse !");
+  if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
 /* ════════════════════════════════════════════════════════════════

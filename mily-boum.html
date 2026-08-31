@@ -2620,7 +2620,7 @@ select.champ{cursor:pointer}
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.39";
+var VERSION = "v1.40";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -44725,22 +44725,29 @@ function auraSpeed(c, x, y, z, tps, n){
   c.restore();
 }
 /* ================================================================
-   L'ÉCLAT DE DÉPART — « il dure dix secondes activées »
+   L'ÉCLAT — LES DEUX BOUTS DES DIX SECONDES
 
-   Au bout des dix secondes il repart, et il faut que le joueur le
-   LISE comme une fin de capacité et non comme une perte : d'où le
-   doré, la couleur de Speed, là où toutes les morts du jeu sont
-   orange et rouges. Trois choses, et rien d'autre :
-     — un halo qui monte et s'éteint, à l'endroit où il était ;
-     — un anneau au sol qui s'ouvre, comme la marque de son aura qui
-       se relâche d'un coup ;
-     — quatre traits qui filent vers l'ouest, le sens dans lequel il
-       repart.
-   `t` va de zéro à un sur les huit dixièmes de seconde de l'effet.
+   Un appui sur sa tête et il est là ; dix secondes plus tard il
+   repart. Les deux moments méritent le même éclat, à condition qu'on
+   les DISTINGUE : sans quoi le joueur qui vient de dépenser dix
+   d'Énergie voit la même image que celle qui annonce la fin.
+
+   TOUT S'INVERSE, ET RIEN D'AUTRE. À l'arrivée l'anneau se referme
+   sur lui et les traits viennent à lui ; au départ l'anneau s'ouvre
+   et les traits s'en vont vers l'ouest. Le halo, lui, monte dans les
+   deux cas — c'est de l'énergie, elle ne tombe pas.
+
+   Doré et non orange : toutes les morts du jeu sont orange et rouges,
+   et il ne meurt ni ne tue. `t` va de zéro à un sur la durée de
+   l'effet.
    ================================================================ */
-function eclatSpeed(c, x, y, z, t){
+function eclatSpeed(c, x, y, z, t, arrivee){
   var C = C_SPEED;
   var a = (1 - t) * (1 - t);
+  /* à l'arrivée on lit l'effet à rebours : l'anneau se resserre au
+     lieu de s'ouvrir, et les traits se rapprochent au lieu de fuir */
+  var e = arrivee ? 1 - t : t;
+  /* mais l'éclat, lui, s'éteint dans les deux sens */
   c.save();
   c.globalCompositeOperation = "lighter";
   /* le halo, qui monte en s'effaçant */
@@ -44752,16 +44759,16 @@ function eclatSpeed(c, x, y, z, t){
   g.addColorStop(1, "rgba(240,160,40,0)");
   c.fillStyle = g;
   c.beginPath(); c.ellipse(x, yh, r, r * 0.86, 0, 0, 6.2832); c.fill();
-  /* l'anneau au sol : l'aura qui se relâche */
+  /* l'anneau au sol : son aura qui se noue, ou qui se relâche */
   c.strokeStyle = "rgba(255,222,150," + (0.62 * a).toFixed(3) + ")";
   c.lineWidth = Math.max(1.2, 5 * a * z);
   c.beginPath();
-  c.ellipse(x, y - 2 * z, (12 + t * 46) * z, (6 + t * 23) * z, 0, 0, 6.2832);
+  c.ellipse(x, y - 2 * z, (12 + e * 46) * z, (6 + e * 23) * z, 0, 0, 6.2832);
   c.stroke();
-  /* les traits de fuite, vers l'ouest */
+  /* les traits : ils fuient vers l'ouest, ou ils y ramènent */
   c.strokeStyle = C.orC; c.lineCap = "round";
   for(var k = 0; k < 4; k++){
-    var d = t * (34 + k * 12);
+    var d = e * (34 + k * 12);
     c.globalAlpha = 0.55 * a;
     c.lineWidth = (1.8 - k * 0.3) * z;
     var yy = y - (8 + k * 7) * z;
@@ -47945,52 +47952,11 @@ function poseBarge(gx, gy){
   if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
   var b = jeu.barges[jeu.bargeSel];
   if(!b) return message("Plus aucune navette.");
-  /* ════════════════════════════════════════════════════════════
-     LA TUILE DU HÉROS EST UNE ACTIVATION, PAS UN DÉBARQUEMENT
-
-     « Il fonctionne en continu, ce n'est pas ça le principe : on doit
-     l'activer, et ça doit coûter de l'énergie. »
-
-     Quatre différences avec les huit autres :
-       — elle coûte de l'Énergie, dix puis quinze puis vingt ;
-       — l'activation dure dix secondes, et pas la partie ;
-       — un seul Speed à la fois sur l'île ;
-       — la tuile RESTE en place : c'est elle qu'on retouchera pour le
-         rappeler quand les dix secondes seront passées.
-
-     LA NAVETTE EN MER COMPTE COMME UNE PRÉSENCE. Le verrou ne
-     regardait que le héros né ; pendant la traversée il n'existait
-     pas encore, et une deuxième pression facturait une deuxième
-     activation pour un deuxième Speed. Une seconde et demie de
-     fenêtre, invisible tant qu'on l'envoyait une fois par partie —
-     mais on l'active maintenant toutes les dix secondes, et deux
-     héros sur l'île ne veulent rien dire : `chercheHeros` n'en
-     retient qu'un, le second aurait couru sans rien doper.
-     ════════════════════════════════════════════════════════════ */
-  if(b.heros){
-    if(jeu.heros && jeu.heros.pv > 0)
-      return message("Speed est déjà sur l'île.");
-    for(var nv = 0; nv < jeu.navettes.length; nv++)
-      if(jeu.navettes[nv].heros) return message("Speed arrive, sa navette est en mer.");
-    var cout = coutActuel("speed", jeu.usages);
-    if(jeu.energie < cout)
-      return message("Il faut " + cout + " d'Énergie pour activer Speed.");
-    jeu.energie -= cout;
-    jeu.usages.speed = (jeu.usages.speed || 0) + 1;
-    gy = borne(gy, 3, GH - 4);
-    jeu.navettes.push({
-      type:"speed", reste:1, sortis:0,
-      gx:RIVAGE_GX + NAV.DEPART, gy:gy, gxA:RIVAGE_GX, gx0:RIVAGE_GX + NAV.DEPART,
-      etat:"approche", rampe:0, minuteur:0, tangage:Math.random() * 6.2832,
-      n:jeu.nSuiv++, heros:1
-    });
-    demandeMajBarres();
-    son.debarque();
-    message("Speed arrive — " + Math.round(EQ.SPEED_DUREE)
-            + " secondes à deux fois la vitesse, dès qu'il touche le sable.");
-    if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
-    return;
-  }
+  /* La tuile du héros n'est plus une navette : un appui dessus
+     l'active sur-le-champ, où que soient les troupes. On y renvoie
+     quand même — la sélection ne peut plus l'atteindre, mais rien ne
+     doit se casser si elle y arrivait. */
+  if(b.heros) return activeSpeed();
   /* On ne choisit que l'ENDROIT DU RIVAGE où la navette accoste : le
      long de la plage. Elle s'arrête toujours au bord de l'eau, et les
      troupes gagnent le sable à pied. */
@@ -48993,6 +48959,73 @@ function chercheBlesseAutour(u, r){
     if(part < pireP){ pireP = part; pire = a; }
   }
   return pire;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ON APPUIE SUR SA TÊTE, ET IL EST LÀ
+
+   « Quand je débarque mes troupes avec le héros, j'ai directement
+   l'affluence. Ce n'est pas ça qu'il faut. Je débarque mes troupes,
+   j'avance, PUIS j'appuie sur Speed, et là il y a le compte à rebours
+   qui commence. »
+
+   LA NAVETTE ÉTAIT L'ERREUR, ET ELLE COÛTAIT LES DIX SECONDES. Le
+   héros traversait la mer comme une troupe, débarquait au rivage, et
+   son horloge partait de là — à l'autre bout de la carte de troupes
+   qui avaient déjà avancé. Envoyé avec le débarquement, il grillait
+   ses dix secondes sur le sable ; envoyé plus tard, il en passait la
+   moitié à courir après le groupe. Dans les deux cas la capacité se
+   dépensait AVANT de servir.
+
+   IL APPARAÎT DONC AU MILIEU DE LA TROUPE, tout de suite. C'est la
+   seule position qui rende les dix secondes entièrement utiles : sa
+   zone fait onze cases de rayon, le centre du groupe la met sous
+   l'aile en entier dès la première image. Au front, elle ne couvrirait
+   que la moitié avancée ; au rivage, personne.
+
+   SANS TROUPE, ON NE PRÉLÈVE RIEN. Il n'a pas d'arme et ne dope que
+   les autres : activé sur une île vide, il ferait payer dix d'Énergie
+   pour un personnage qui court tout seul. Le refus est gratuit.
+   ════════════════════════════════════════════════════════════════ */
+function activeSpeed(){
+  if(typeof modeApercu !== "undefined" && modeApercu)
+    return message("Visite : tu peux tout regarder, mais pas jouer ici.");
+  if(jeu.mort) return message("Ta flotte est perdue, attends le renfort.");
+  if(jeu.heros && jeu.heros.pv > 0)
+    return message("Speed court déjà — encore " + Math.ceil(jeu.heros.reste) + " s.");
+  /* le centre de la troupe vivante, le héros exclu */
+  var sx = 0, sy = 0, n = 0;
+  for(var i = 0; i < jeu.unites.length; i++){
+    var u = jeu.unites[i];
+    if(u.pv <= 0 || u.leurre || (UNI[u.t] && UNI[u.t].heros)) continue;
+    sx += u.gx; sy += u.gy; n++;
+  }
+  if(!n) return message("Speed n'a personne à emmener : débarque d'abord.");
+  var cout = coutActuel("speed", jeu.usages);
+  if(jeu.energie < cout)
+    return message("Il faut " + cout + " d'Énergie pour lancer Speed.");
+  jeu.energie -= cout;
+  jeu.usages.speed = (jeu.usages.speed || 0) + 1;
+  /* on le pose au centre, et sur une case praticable : le centre d'un
+     groupe qui contourne un bâtiment peut tomber DANS le bâtiment */
+  var cx = sx / n, cy = sy / n;
+  if(bloque(cx, cy)){
+    var pose = false;
+    for(var r = 1; r <= 6 && !pose; r++){
+      for(var a = 0; a < 8 && !pose; a++){
+        var an = a / 8 * 6.2832;
+        var tx = cx + Math.cos(an) * r, ty = cy + Math.sin(an) * r;
+        if(!bloque(tx, ty)){ cx = tx; cy = ty; pose = true; }
+      }
+    }
+  }
+  var h = creeUnite("speed", borne(cx, 0.6, GW - 0.6), borne(cy, 0.6, GH - 0.6));
+  jeu.heros = h;
+  jeu.effets.push({ t:"speedPart", gx:h.gx, gy:h.gy, age:0, duree:0.7, arrivee:1 });
+  if(son && son.speedDebut) son.speedDebut();
+  demandeMajBarres();
+  message("Speed est là — " + Math.round(EQ.SPEED_DUREE) + " secondes à deux fois la vitesse !");
+  if(typeof noteQueJeJoue === "function") noteQueJeJoue(jeu.index);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -57167,14 +57200,15 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "speedPart"){
-    /* ---- SPEED S'EN VA ----
-       Dix secondes, et il repart. L'éclat est DORÉ et non orange : le
-       joueur doit lire « la capacité s'arrête », pas « quelque chose a
-       explosé ». Un halo qui monte, un anneau qui s'ouvre au sol, et
-       des traits qui filent vers l'ouest — le sens dans lequel il
-       repart. Le dessin vit dans 64-speed.js, avec le reste de son
+    /* ---- SPEED ARRIVE, OU SPEED S'EN VA ----
+       Le même éclat sert aux deux bouts des dix secondes, et il se
+       LIT dans les deux sens : à l'arrivée l'anneau se referme sur
+       lui et les traits viennent à lui, au départ l'anneau s'ouvre et
+       les traits s'en vont. Doré et non orange : le joueur doit lire
+       « la capacité commence / s'arrête », pas « quelque chose a
+       explosé ». Le dessin vit dans 64-speed.js, avec le reste de son
        image. */
-    if(typeof eclatSpeed === "function") eclatSpeed(c, p.x, p.y, z, t);
+    if(typeof eclatSpeed === "function") eclatSpeed(c, p.x, p.y, z, t, e.arrivee);
   }else if(e.t === "onde"){
     /* onde de choc au sol : un anneau qui s'élargit et s'efface */
     var ao = (1 - t) * (1 - t);
@@ -62387,10 +62421,11 @@ function majListeBarges(){
       html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
             + (la || pauvre ? " eteinte" : "") + (la ? " actif" : "")
             + (fin ? " finit" : "") + '" data-i="' + i + '"'
-            + ' title="' + (la ? "Speed est sur l\'île — encore " + resteH + " s"
-                               : pauvre ? "Il faut " + cout + " d\'Énergie pour activer Speed"
-                               : "Speed — " + Math.round(EQ.SPEED_DUREE)
-                                 + " s à deux fois la vitesse (" + cout + " d\'Énergie)") + '">'
+            + ' title="' + (la ? "Speed court — encore " + resteH + " s"
+                               : pauvre ? "Il faut " + cout + " d\'Énergie pour lancer Speed"
+                               : "Appuie : Speed arrive au milieu de ta troupe, "
+                                 + Math.round(EQ.SPEED_DUREE) + " s à deux fois la vitesse ("
+                                 + cout + " d\'Énergie)") + '">'
             + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
             /* LES SECONDES PORTENT LEUR « s », LE PRIX NON. Sans quoi
                la tuile prête à dix d'Énergie et la tuile à dix
@@ -62436,7 +62471,29 @@ function majListeBarges(){
   var els = l.querySelectorAll(".bg1[data-i]");
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
-      jeu.bargeSel = +this.getAttribute("data-i");
+      var i = +this.getAttribute("data-i");
+      /* ════════════════════════════════════════════════════════
+         SA TÊTE EST UN BOUTON, PAS UNE SÉLECTION
+
+         « Pour l'activer, on peut cliquer sur sa tête. »
+
+         Les huit navettes se CHOISISSENT puis se posent d'un second
+         appui sur la plage : deux gestes, parce qu'il faut dire OÙ.
+         Speed, lui, n'a pas d'endroit à choisir — il apparaît au
+         milieu de la troupe. Le second geste ne demanderait donc
+         rien et ne ferait que retarder une capacité qui ne dure que
+         dix secondes. Un appui, et il court.
+
+         Et `bargeSel` NE BOUGE PAS : sa tuile prise pour sélection,
+         l'appui suivant sur la plage aurait tenté d'y débarquer un
+         héros. */
+      if(jeu.barges[i] && jeu.barges[i].heros){
+        activeSpeed();
+        majListeBarges();
+        e.preventDefault();
+        return;
+      }
+      jeu.bargeSel = i;
       /* Choisir une navette DÉSARME la capacité en cours. Sans cela les
          deux restaient allumées en même temps, et comme appuie() sert
          d'abord la capacité, le joueur qui voulait débarquer envoyait un
@@ -67989,6 +68046,15 @@ var son = {
   soin:function(){ this.bip("sine", 520, 880, 0.28, 0.07); this.bip("sine", 660, 1040, 0.28, 0.05, 0.1); },
 
   debarque:function(){ this.bip("sine", 180, 300, 0.28, 0.10); this.souffle(500, 180, 0.5, 0.07); },
+  /* SPEED ARRIVE : trois notes qui MONTENT, et un souffle. C'est le
+     symétrique exact de son départ, et la symétrie est le message :
+     on entend commencer ce qu'on entendra finir. */
+  speedDebut:function(){
+    this.bip("triangle", 440, 700, 0.16, 0.06);
+    this.bip("triangle", 660, 1040, 0.18, 0.05, 0.07);
+    this.bip("sine",     880, 1400, 0.24, 0.05, 0.14);
+    this.souffle(900, 320, 0.30, 0.05);
+  },
   /* SPEED S'EN VA : trois notes qui DESCENDENT. Toutes les réussites
      du jeu montent — le renfort, le soin, les confettis ; une capacité
      qui s'arrête doit donc descendre, sinon l'oreille comprend qu'on

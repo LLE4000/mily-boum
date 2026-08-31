@@ -398,10 +398,11 @@ function majListeBarges(){
       html += '<div class="bg1 speedTuile' + (i === jeu.bargeSel ? " sel" : "")
             + (la || pauvre ? " eteinte" : "") + (la ? " actif" : "")
             + (fin ? " finit" : "") + '" data-i="' + i + '"'
-            + ' title="' + (la ? "Speed est sur l\'île — encore " + resteH + " s"
-                               : pauvre ? "Il faut " + cout + " d\'Énergie pour activer Speed"
-                               : "Speed — " + Math.round(EQ.SPEED_DUREE)
-                                 + " s à deux fois la vitesse (" + cout + " d\'Énergie)") + '">'
+            + ' title="' + (la ? "Speed court — encore " + resteH + " s"
+                               : pauvre ? "Il faut " + cout + " d\'Énergie pour lancer Speed"
+                               : "Appuie : Speed arrive au milieu de ta troupe, "
+                                 + Math.round(EQ.SPEED_DUREE) + " s à deux fois la vitesse ("
+                                 + cout + " d\'Énergie)") + '">'
             + '<canvas width="92" height="104" id="bgp_' + i + '"></canvas>'
             /* LES SECONDES PORTENT LEUR « s », LE PRIX NON. Sans quoi
                la tuile prête à dix d'Énergie et la tuile à dix
@@ -447,7 +448,29 @@ function majListeBarges(){
   var els = l.querySelectorAll(".bg1[data-i]");
   for(var k = 0; k < els.length; k++){
     els[k].addEventListener("pointerdown", function(e){
-      jeu.bargeSel = +this.getAttribute("data-i");
+      var i = +this.getAttribute("data-i");
+      /* ════════════════════════════════════════════════════════
+         SA TÊTE EST UN BOUTON, PAS UNE SÉLECTION
+
+         « Pour l'activer, on peut cliquer sur sa tête. »
+
+         Les huit navettes se CHOISISSENT puis se posent d'un second
+         appui sur la plage : deux gestes, parce qu'il faut dire OÙ.
+         Speed, lui, n'a pas d'endroit à choisir — il apparaît au
+         milieu de la troupe. Le second geste ne demanderait donc
+         rien et ne ferait que retarder une capacité qui ne dure que
+         dix secondes. Un appui, et il court.
+
+         Et `bargeSel` NE BOUGE PAS : sa tuile prise pour sélection,
+         l'appui suivant sur la plage aurait tenté d'y débarquer un
+         héros. */
+      if(jeu.barges[i] && jeu.barges[i].heros){
+        activeSpeed();
+        majListeBarges();
+        e.preventDefault();
+        return;
+      }
+      jeu.bargeSel = i;
       /* Choisir une navette DÉSARME la capacité en cours. Sans cela les
          deux restaient allumées en même temps, et comme appuie() sert
          d'abord la capacité, le joueur qui voulait débarquer envoyait un

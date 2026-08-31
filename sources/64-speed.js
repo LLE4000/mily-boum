@@ -276,22 +276,29 @@ function auraSpeed(c, x, y, z, tps, n){
   c.restore();
 }
 /* ================================================================
-   L'ÉCLAT DE DÉPART — « il dure dix secondes activées »
+   L'ÉCLAT — LES DEUX BOUTS DES DIX SECONDES
 
-   Au bout des dix secondes il repart, et il faut que le joueur le
-   LISE comme une fin de capacité et non comme une perte : d'où le
-   doré, la couleur de Speed, là où toutes les morts du jeu sont
-   orange et rouges. Trois choses, et rien d'autre :
-     — un halo qui monte et s'éteint, à l'endroit où il était ;
-     — un anneau au sol qui s'ouvre, comme la marque de son aura qui
-       se relâche d'un coup ;
-     — quatre traits qui filent vers l'ouest, le sens dans lequel il
-       repart.
-   `t` va de zéro à un sur les huit dixièmes de seconde de l'effet.
+   Un appui sur sa tête et il est là ; dix secondes plus tard il
+   repart. Les deux moments méritent le même éclat, à condition qu'on
+   les DISTINGUE : sans quoi le joueur qui vient de dépenser dix
+   d'Énergie voit la même image que celle qui annonce la fin.
+
+   TOUT S'INVERSE, ET RIEN D'AUTRE. À l'arrivée l'anneau se referme
+   sur lui et les traits viennent à lui ; au départ l'anneau s'ouvre
+   et les traits s'en vont vers l'ouest. Le halo, lui, monte dans les
+   deux cas — c'est de l'énergie, elle ne tombe pas.
+
+   Doré et non orange : toutes les morts du jeu sont orange et rouges,
+   et il ne meurt ni ne tue. `t` va de zéro à un sur la durée de
+   l'effet.
    ================================================================ */
-function eclatSpeed(c, x, y, z, t){
+function eclatSpeed(c, x, y, z, t, arrivee){
   var C = C_SPEED;
   var a = (1 - t) * (1 - t);
+  /* à l'arrivée on lit l'effet à rebours : l'anneau se resserre au
+     lieu de s'ouvrir, et les traits se rapprochent au lieu de fuir */
+  var e = arrivee ? 1 - t : t;
+  /* mais l'éclat, lui, s'éteint dans les deux sens */
   c.save();
   c.globalCompositeOperation = "lighter";
   /* le halo, qui monte en s'effaçant */
@@ -303,16 +310,16 @@ function eclatSpeed(c, x, y, z, t){
   g.addColorStop(1, "rgba(240,160,40,0)");
   c.fillStyle = g;
   c.beginPath(); c.ellipse(x, yh, r, r * 0.86, 0, 0, 6.2832); c.fill();
-  /* l'anneau au sol : l'aura qui se relâche */
+  /* l'anneau au sol : son aura qui se noue, ou qui se relâche */
   c.strokeStyle = "rgba(255,222,150," + (0.62 * a).toFixed(3) + ")";
   c.lineWidth = Math.max(1.2, 5 * a * z);
   c.beginPath();
-  c.ellipse(x, y - 2 * z, (12 + t * 46) * z, (6 + t * 23) * z, 0, 0, 6.2832);
+  c.ellipse(x, y - 2 * z, (12 + e * 46) * z, (6 + e * 23) * z, 0, 0, 6.2832);
   c.stroke();
-  /* les traits de fuite, vers l'ouest */
+  /* les traits : ils fuient vers l'ouest, ou ils y ramènent */
   c.strokeStyle = C.orC; c.lineCap = "round";
   for(var k = 0; k < 4; k++){
-    var d = t * (34 + k * 12);
+    var d = e * (34 + k * 12);
     c.globalAlpha = 0.55 * a;
     c.lineWidth = (1.8 - k * 0.3) * z;
     var yy = y - (8 + k * 7) * z;

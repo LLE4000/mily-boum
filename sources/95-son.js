@@ -457,6 +457,15 @@ var son = {
   soin:function(){ this.bip("sine", 520, 880, 0.28, 0.07); this.bip("sine", 660, 1040, 0.28, 0.05, 0.1); },
 
   debarque:function(){ this.bip("sine", 180, 300, 0.28, 0.10); this.souffle(500, 180, 0.5, 0.07); },
+  /* SPEED ARRIVE : trois notes qui MONTENT, et un souffle. C'est le
+     symétrique exact de son départ, et la symétrie est le message :
+     on entend commencer ce qu'on entendra finir. */
+  speedDebut:function(){
+    this.bip("triangle", 440, 700, 0.16, 0.06);
+    this.bip("triangle", 660, 1040, 0.18, 0.05, 0.07);
+    this.bip("sine",     880, 1400, 0.24, 0.05, 0.14);
+    this.souffle(900, 320, 0.30, 0.05);
+  },
   /* SPEED S'EN VA : trois notes qui DESCENDENT. Toutes les réussites
      du jeu montent — le renfort, le soin, les confettis ; une capacité
      qui s'arrête doit donc descendre, sinon l'oreille comprend qu'on

@@ -11511,18 +11511,63 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
   ok("… il s'efface sans mourir", /u\.pv = 0;/.test(fd) && fd.indexOf("toucheUnite") < 0);
   ok("… le dopage est coupé dans la même image", /jeu\.heros = null;/.test(fd));
   ok("… et un éclat doré dit que la capacité s'arrête",
-     /t:"speedPart"/.test(fd) && /function eclatSpeed\(c, x, y, z, t\)/.test(html)
+     /t:"speedPart"/.test(fd) && /function eclatSpeed\(c, x, y, z, t, arrivee\)/.test(html)
      && /e\.t === "speedPart"/.test(html));
   ok("… avec trois notes qui descendent, là où les réussites montent",
      /speedFin:function\(\)\{[\s\S]{0,240}880, 560[\s\S]{0,240}440, 260/.test(html));
 
-  /* ---- ④ LE VERROU ---- */
-  ok("un deuxième appui pendant la traversée est refusé",
-     /for\(var nv = 0; nv < jeu\.navettes\.length; nv\+\+\)\s*\n?\s*if\(jeu\.navettes\[nv\]\.heros\) return message/
-       .test(html));
-  ok("… et il l'est aussi tant qu'il court sur l'île",
-     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\("Speed est déjà sur l'île\."\);/
-       .test(html));
+  /* ════════════════════════════════════════════════════════════
+     ④ ON APPUIE SUR SA TÊTE, ET IL EST LÀ
+
+     « Quand je débarque mes troupes avec le héros, j'ai directement
+     l'affluence. Ce n'est pas ça qu'il faut. Je débarque mes troupes,
+     j'avance, PUIS j'appuie sur Speed. »
+
+     LA NAVETTE COÛTAIT LES DIX SECONDES. Le héros traversait la mer
+     comme une troupe et son horloge partait du rivage — à l'autre
+     bout de la carte de troupes qui avaient déjà avancé. Envoyé avec
+     le débarquement il grillait ses dix secondes sur le sable ;
+     envoyé plus tard il en passait la moitié à courir après le
+     groupe. La capacité se dépensait avant de servir.
+     ════════════════════════════════════════════════════════════ */
+  var av = String(html.match(/function activeSpeed\(\)\{[\s\S]*?\n\}/) || "");
+  ok("l'activation existe, et elle est immédiate", av.length > 400);
+  ok("… plus aucune navette pour le héros",
+     av.indexOf("jeu.navettes.push") < 0 && html.indexOf('type:"speed", reste:1') < 0);
+  ok("… il naît au centre de la troupe, pas au rivage",
+     /sx \/ n, cy = sy \/ n/.test(av) && av.indexOf("RIVAGE_GX") < 0);
+  ok("… et jamais dans un mur : le centre d'un groupe qui contourne "
+     + "un bâtiment peut tomber dedans",
+     /if\(bloque\(cx, cy\)\)\{/.test(av));
+  ok("… le héros lui-même ne compte pas dans ce centre",
+     /UNI\[u\.t\] && UNI\[u\.t\]\.heros\)\) continue;/.test(av));
+  /* SANS TROUPE, ON NE PRÉLÈVE RIEN : il ne dope que les autres, et
+     dix d'Énergie pour un personnage qui court seul serait un vol. */
+  ok("… sans troupe à emmener, le refus est gratuit",
+     av.indexOf('if(!n) return message') >= 0
+     && av.indexOf('if(!n) return message') < av.indexOf("jeu.energie -= cout"));
+  ok("… l'éclat d'arrivée est le départ à l'envers",
+     /arrivee:1/.test(av) && /var e = arrivee \? 1 - t : t;/.test(html));
+  ok("… avec trois notes qui montent, symétriques de celles qui descendent",
+     /speedDebut:function\(\)\{[\s\S]{0,240}440, 700[\s\S]{0,240}880, 1400/.test(html));
+
+  /* ---- ⑤ SA TÊTE EST UN BOUTON, PAS UNE SÉLECTION ---- */
+  /* Les huit navettes se choisissent puis se posent d'un second appui
+     sur la plage : deux gestes, parce qu'il faut dire OÙ. Speed n'a
+     pas d'endroit à choisir, et le second geste ne ferait que retarder
+     une capacité qui ne dure que dix secondes. */
+  ok("un appui sur sa tête l'active, sans second geste",
+     /if\(jeu\.barges\[i\] && jeu\.barges\[i\]\.heros\)\{\s*\n\s*activeSpeed\(\);/.test(html));
+  ok("… et sa tuile ne devient jamais la navette choisie",
+     /activeSpeed\(\);[\s\S]{0,140}return;\s*\n\s*\}\s*\n\s*jeu\.bargeSel = i;/.test(html));
+
+  /* ---- ⑥ LE VERROU ---- */
+  ok("on ne le relance pas tant qu'il court",
+     /if\(jeu\.heros && jeu\.heros\.pv > 0\)\s*\n?\s*return message\("Speed court déjà/.test(av));
+  /* « On peut l'activer autant de fois qu'on a d'énergie » : aucune
+     limite d'emplois, c'est le prix qui monte et rien d'autre. */
+  ok("… mais on le relance autant de fois qu'on a d'Énergie",
+     av.indexOf("novaDispo") < 0 && av.indexOf("jeu.usages.speed = (jeu.usages.speed || 0) + 1;") >= 0);
 
   /* ---- ⑤ LA TUILE MONTRE LE TEMPS ---- */
   ok("la tuile reste lisible pendant l'activation",

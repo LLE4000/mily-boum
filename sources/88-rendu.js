@@ -385,14 +385,15 @@ function dessineEffet(c, e, tps){
     }
     c.restore();
   }else if(e.t === "speedPart"){
-    /* ---- SPEED S'EN VA ----
-       Dix secondes, et il repart. L'éclat est DORÉ et non orange : le
-       joueur doit lire « la capacité s'arrête », pas « quelque chose a
-       explosé ». Un halo qui monte, un anneau qui s'ouvre au sol, et
-       des traits qui filent vers l'ouest — le sens dans lequel il
-       repart. Le dessin vit dans 64-speed.js, avec le reste de son
+    /* ---- SPEED ARRIVE, OU SPEED S'EN VA ----
+       Le même éclat sert aux deux bouts des dix secondes, et il se
+       LIT dans les deux sens : à l'arrivée l'anneau se referme sur
+       lui et les traits viennent à lui, au départ l'anneau s'ouvre et
+       les traits s'en vont. Doré et non orange : le joueur doit lire
+       « la capacité commence / s'arrête », pas « quelque chose a
+       explosé ». Le dessin vit dans 64-speed.js, avec le reste de son
        image. */
-    if(typeof eclatSpeed === "function") eclatSpeed(c, p.x, p.y, z, t);
+    if(typeof eclatSpeed === "function") eclatSpeed(c, p.x, p.y, z, t, e.arrivee);
   }else if(e.t === "onde"){
     /* onde de choc au sol : un anneau qui s'élargit et s'efface */
     var ao = (1 - t) * (1 - t);
