@@ -536,7 +536,7 @@ function construitMenu(){
   TUILES.forEach(function(t){ dessineIcone(t.m, $("ic_" + t.m).getContext("2d")); });
   /* la Nova est la seule tuile qui change d'aspect en cours de partie :
      on force son redessin au prochain rafraîchissement */
-  novaRangTuile = -1;
+  novaRangTuile = -1; novaPctTuile = -1;
   majTuileNova();
 }
 
@@ -552,21 +552,58 @@ function construitMenu(){
    canevas de 76 × 76 repeint à la main ; le refaire à chaque
    rafraîchissement du menu, soixante fois par seconde, coûterait plus
    cher que tout le reste du HUD réuni pour une image identique.
+
+   ─── ET DEPUIS LE VERROU DE CHANTIER, ELLE COMPTE AUSSI ─────────
+   Le seuil en dégâts ne suffit plus : il faut que l'île soit démontée
+   à NOVA_SEUIL_DETRUIT (voir le noyau). Un joueur qui a ses deux
+   millions et qui ne voit pas sa SUPER Nova arriver a le droit de
+   savoir ce qui manque, et une infobulle ne se survole pas au doigt :
+   le pourcentage s'écrit donc SUR la tuile, à la place du nom.
+
+   TROIS ÉTATS, DONC, ET NON PLUS DEUX :
+     Nova            le barème n'est pas atteint, il n'y a rien à dire
+     SUPER 62 %      mérité, verrouillé — voilà où en est l'île
+     SUPER NOVA      ouvert
+
+   DEUX MÉMOIRES ET NON UNE, parce que les deux choses ne changent pas
+   à la même vitesse : le rang bouge trois fois par partie et commande
+   le repeint du canevas, le pourcentage bouge sans arrêt et ne
+   commande qu'une ligne de texte. Confondre les deux, c'était
+   repeindre l'icône à chaque défense qui tombe.
    ================================================================ */
-var novaRangTuile = -1;
+var novaRangTuile = -1, novaPctTuile = -1;
 function majTuileNova(){
   if(!jeu || typeof calibreNova !== "function") return;
-  var r = calibreNova(typeof degatsMaCarte === "function" ? degatsMaCarte() : 0).rang | 0;
-  if(r === novaRangTuile) return;
-  novaRangTuile = r;
+  var d = (typeof degatsMaCarte === "function") ? degatsMaCarte() : 0;
+  var r = (typeof calibreNovaCourant === "function")
+          ? (calibreNovaCourant().rang | 0) : 0;
+  /* le compte à rebours ne s'affiche que pour ceux qu'il concerne :
+     à qui n'a pas le barème, un pourcentage n'apprendrait rien. */
+  var pct = -1;
+  if(!r && typeof rangNovaMerite === "function" && rangNovaMerite(d) > 0)
+    pct = Math.floor((typeof partDefensesDetruites === "function"
+                      ? partDefensesDetruites() : 0) * 100);
+  if(r === novaRangTuile && pct === novaPctTuile) return;
+  var changeRang = r !== novaRangTuile;
+  novaRangTuile = r; novaPctTuile = pct;
   var cv = $("ic_nova");
-  if(cv) dessineIcone("nova", cv.getContext("2d"), r);
+  if(cv && changeRang) dessineIcone("nova", cv.getContext("2d"), r);
   var el = $("caps") && $("caps").querySelector('.cap[data-m="nova"]');
   if(!el) return;
   el.classList.toggle("super", r > 0);
+  el.classList.toggle("attente", pct >= 0);
   var nm = el.querySelector(".nm");
-  if(nm) nm.textContent = r > 0 ? "SUPER NOVA" : "Nova";
-  el.title = r > 1 ? "Super Nova, plein calibre" : (r > 0 ? "Super Nova" : "Nova");
+  /* l'espace devant le signe est INSÉCABLE : sans elle, « SUPER 67 % »
+     se coupe devant le % et la tuile pousse à deux étages */
+  if(nm) nm.textContent = r > 0 ? "SUPER NOVA"
+                        : pct >= 0 ? "SUPER " + pct + " %"
+                        : "Nova";
+  el.title = r > 1 ? "Super Nova, plein calibre"
+           : r > 0 ? "Super Nova"
+           : pct >= 0 ? "SUPER Nova méritée, en attente : elle s'ouvre à "
+                        + Math.round(NOVA_SEUIL_DETRUIT * 100)
+                        + " % des défenses de l'île démontées (" + pct + " % pour l'instant)."
+           : "Nova";
 }
 function majMenu(){
   if(!jeu) return;

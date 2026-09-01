@@ -9,7 +9,7 @@
 /* Version du jeu — une seule définition, affichée en haut à droite et
    dans le pied du briefing. Elle monte d'un centième à chaque mise en
    ligne : v0.01, v0.02, v0.03… */
-var VERSION = "v1.54";
+var VERSION = "v1.55";
 
 /* ----------------------------------------------------------------
    ÉQUILIBRAGE — toutes les constantes réglables sont ici.
@@ -1403,6 +1403,13 @@ var NOVA_SOUFFLE_PART = 0.35;         // le souffle, en part du cœur
    second récompense les deux millions suivants, tous pris sur la
    forteresse elle-même.
 
+   (Les chiffres de ces trois lignes ont vieilli deux fois depuis —
+   voir CALIBRES_NOVA pour le barème en vigueur. La PHRASE, elle, n'a
+   jamais bougé, et c'est elle qui a fini par donner le verrou de
+   chantier : « pile au moment où l'on cesse de démonter des défenses »
+   est aujourd'hui mesuré au lieu d'être pronostiqué. Voir
+   NOVA_SEUIL_DETRUIT.)
+
    POURQUOI CE N'EST PAS UN RACCOURCI. Au plein calibre une Nova retire
    150 000 points au Brasier, une fois par vie — et une vie ne se
    rejoue pas à volonté : il faut avoir perdu ses huit navettes ET
@@ -1450,18 +1457,99 @@ var CALIBRES_NOVA = [
   { seuil: 4000000, degats:40000, ech:3 },
   { seuil: 6000000, degats:50000, ech:3 }    // plein calibre
 ];
+/* ════════════════════════════════════════════════════════════════
+   LE VERROU DE CHANTIER — CE QUI OUVRE VRAIMENT LA SUPER NOVA
+
+   « Là par exemple, il est déjà deux millions. On est qu'au début de
+     la map, s'il a la Supernova qui fait cinq mille de dégâts, il va
+     tout démolir en deux secondes. Il faudrait qu'à partir de nonante
+     cinq pour cent la Supernova soit accessible, parce que sinon ça
+     n'ira pas. »
+
+   IL A RAISON, ET LE BARÈME SE TROMPAIT DE MESURE. Le cahier des
+   charges de la marche était écrit noir sur blanc quelques lignes plus
+   haut, depuis le premier jour : « elle tombe pile au moment où l'on
+   cesse de démonter des défenses pour attaquer le Brasier ». Le seuil
+   en dégâts n'était qu'un PRONOSTIC de ce moment-là — deux millions
+   cumulés, ça devrait vouloir dire une île bien entamée. Mais les
+   dégâts sont un CUMUL DE CARRIÈRE, pas un état de l'île : ils
+   voyagent avec le joueur d'une carte à l'autre. Celui qui les a
+   gagnés ailleurs débarque sur une île neuve avec la SUPER Nova déjà
+   en poche, et le pronostic se retourne exactement à l'envers de son
+   intention.
+
+   ON MESURE DONC LA CHOSE ELLE-MÊME. La part de l'île démontée dit
+   sans intermédiaire ce que le seuil essayait de deviner, et elle le
+   dit sur l'île où l'on se trouve.
+
+   ET C'EST UNE PART COLLECTIVE, ce qui n'est pas un défaut mais le
+   sujet : `jeu.batiments` porte les destructions de tout le salon,
+   celles des autres comprises. Une SUPER Nova qui s'ouvre parce que
+   quinze personnes ont fini de démonter l'île est exactement ce qu'on
+   veut ; une qui s'ouvrirait sur le travail d'un seul ne serait qu'un
+   raccourci de plus.
+
+   LES DEUX CONDITIONS SE CUMULENT, elles ne se remplacent pas. Le
+   barème en dégâts garde son rôle : il dit QUEL CALIBRE on a mérité,
+   de cinq mille à cinquante mille. Le verrou dit seulement QUAND il
+   s'ouvre. Personne ne perd rien de ce qu'il a gagné — il l'emploie
+   plus tard dans la carte.
+
+   POURQUOI QUATRE-VINGT-QUINZE ET NON QUATRE-VINGT-DIX-HUIT. Il a
+   donné les deux, et c'est le compte réel des îles qui tranche —
+   mesuré par compteDefenses sur les dix cartes : 615 défenses sur la
+   plage, 670 dans le Sud, jusqu'à 1 074 en guinguette. À quatre-vingt-
+   dix-huit pour cent il n'en reste que douze debout sur la plage : la
+   SUPER Nova s'ouvrirait pour une poignée de secondes et personne ne
+   la verrait jamais. À quatre-vingt-quinze il en reste trente-et-une —
+   le verrou saute quand le salon bascule sur le Brasier, et il reste
+   tout le Brasier à abattre derrière, quinze millions de points sur la
+   plage. C'est un chiffre, une ligne : le passer à 0.98 ne demande
+   rien d'autre.
+
+   CE QUE ÇA NE TOUCHE PAS : ni les cellules à récolter, ni les
+   cellules électriques. Les premières sont de l'énergie ramassée au
+   passage et compter du fourrage ferait monter la jauge sans qu'une
+   seule défense soit tombée ; les secondes ne sont que cinq et
+   appartiennent au Brasier, pas à l'île. C'est la définition que
+   `compteDefenses` donne déjà au mot « défense », et il n'y en aura
+   pas deux.
+   ════════════════════════════════════════════════════════════════ */
+var NOVA_SEUIL_DETRUIT = 0.95;
+
+/* Le rang que le BARÈME accorde, verrou mis à part : « ce que le
+   joueur a mérité ». Il ne sert qu'à ne parler du verrou qu'à ceux
+   qu'il concerne — annoncer un pourcentage à quelqu'un qui n'a pas les
+   deux millions ne lui apprendrait rien du tout. */
+function rangNovaMerite(degatsCarte){
+  var d = degatsCarte > 0 ? degatsCarte : 0;
+  for(var i = CALIBRES_NOVA.length - 1; i > 0; i--)
+    if(d >= CALIBRES_NOVA[i].seuil) return i;
+  return 0;
+}
 /* Rend les trois chiffres du tir : le cœur, le souffle, et le facteur
    d'agrandissement du rayon côté ennemi. `rang` sert au dessin et aux
    messages — c'est le seul endroit qui nomme la marche.
 
-   IL PREND LES DÉGÂTS, PLUS UN INDICE DE PALIER : les deux barèmes ne
-   partagent plus la même échelle, voir le bloc ci-dessus. La ligne 0
+   IL PREND LES DÉGÂTS, PLUS LA PART DE L'ÎLE DÉMONTÉE : les deux
+   barèmes ne partagent plus la même échelle (voir le bloc ci-dessus),
+   et le verrou de chantier a besoin de l'état de la carte. La ligne 0
    garde ses chiffres dans CAP.nova — ils servent AUSSI au côté allié,
-   qui ne change jamais de calibre. */
-function calibreNova(degatsCarte){
-  var d = degatsCarte > 0 ? degatsCarte : 0, i, rang = 0;
-  for(i = CALIBRES_NOVA.length - 1; i > 0; i--)
-    if(d >= CALIBRES_NOVA[i].seuil){ rang = i; break; }
+   qui ne change jamais de calibre.
+
+   LE VERROU EST FERMÉ PAR DÉFAUT, et c'est délibéré : un appelant qui
+   oublierait la part retombe sur la Nova ORDINAIRE. L'oubli coûte
+   alors un tir moins fort, jamais le contraire — c'est le seul sens
+   dans lequel une erreur de branchement peut se tromper ici.
+
+   ET IL EXIGE UN VRAI NOMBRE, pas quelque chose qui s'y compare. En
+   JavaScript "0.99" >= 0.95 vaut vrai : une part arrivée sous forme de
+   texte — d'un champ de saisie, d'un JSON, d'un réglage — ouvrirait le
+   verrou par simple conversion. Le `typeof` ferme cette porte-là, et
+   avec elle NaN, null et undefined d'un seul geste. */
+function calibreNova(degatsCarte, partDetruite){
+  var rang = rangNovaMerite(degatsCarte);
+  if(!(typeof partDetruite === "number" && partDetruite >= NOVA_SEUIL_DETRUIT)) rang = 0;
   var c = CALIBRES_NOVA[rang];
   if(!rang) return { degats:CAP.nova.degats, souffle:CAP.nova.degatsSouffle,
                      ech:c.ech, rang:0 };
@@ -1517,9 +1605,9 @@ var CAP = {
      mort de la flotte qui met fin à la vie, le joueur s'interromprait
      lui-même : la super Nova serait STRICTEMENT PIRE que l'ordinaire. */
   /* Les trois calibres se lisent ici et nulle part ailleurs ; c'est
-     calibreNova(palier) qui choisit la ligne. `degats`/`degatsSouffle`
-     servent AUSSI de dégâts alliés, à tous les calibres : eux ne
-     montent jamais. */
+     calibreNova — dégâts de carrière ET part de l'île démontée — qui
+     choisit la ligne. `degats`/`degatsSouffle` servent AUSSI de dégâts
+     alliés, à tous les calibres : eux ne montent jamais. */
   nova      :{ rayon:4.6, degats:130, rayonSouffle:7.0, degatsSouffle:45,
                /* LES CHIFFRES DE LA SUPER NOVA VIVENT DÉSORMAIS DANS
                   `CALIBRES_NOVA`, avec leurs seuils : ils y sont six et

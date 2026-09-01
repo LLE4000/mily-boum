@@ -185,7 +185,11 @@ function nouvelleCarte(index, pvConnu){
        coup : trois cents tirs par seconde n'ont pas à reparcourir la
        table des paliers. `puissance` multiplie ce que les troupes
        infligent, `palier` sert au visuel et part sur le réseau. */
-    puissance:1, palier:0, rangNova:0,
+    /* `rangNova` est le calibre EFFECTIF — barème et verrou de
+       chantier réunis ; `novaMerite` est celui que le seul barème
+       accorde. Les deux existent parce qu'ils ont chacun une nouvelle
+       à annoncer, et qu'elles n'arrivent plus au même moment. */
+    puissance:1, palier:0, rangNova:0, novaMerite:0,
     /* LES RELIQUES DU PSEUDO, relues seulement quand elles bougent.
        `multAssaut` multiplie ce que les troupes infligent, `multGarde`
        la vie qu'elles reçoivent à leur création — voir creeUnite. Ce
@@ -4588,8 +4592,10 @@ function explosionNova(gx, gy, distante){
      sans cette dissymétrie la super Nova tuerait tout le débarquement
      à chaque emploi. */
   /* LES DÉGÂTS, ET PLUS LE PALIER : la Nova a ses propres seuils
-     depuis que le barème de puissance plafonne à un million. */
-  var cal = calibreNova(degatsMaCarte());
+     depuis que le barème de puissance plafonne à un million. Et
+     depuis le verrou de chantier, les dégâts ne suffisent plus : il
+     faut aussi que l'île soit démontée — voir calibreNovaCourant. */
+  var cal = calibreNovaCourant();
   var sup = cal.rang > 0;
   var rC = C.rayon * cal.ech, rS = C.rayonSouffle * cal.ech;
   if(!distante){
@@ -5156,6 +5162,58 @@ function degatsMaCarte(){
   if(!(vif > 0)) vif = 0;
   return range + vif;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   OÙ EN EST L'ÎLE — LE SECOND CHIFFRE DE LA NOVA
+
+   La part des défenses tombées, celles de tout le salon comprises :
+   `jeu.batiments` est déjà la fusion de ce que le monde partagé a
+   détruit et de ce qu'on démonte soi-même, si bien qu'il n'y a rien à
+   aller chercher ailleurs. C'est ce chiffre que `calibreNova` exige
+   pour ouvrir la SUPER Nova — voir NOVA_SEUIL_DETRUIT.
+
+   MÊME DÉFINITION DU MOT « DÉFENSE » QUE `compteDefenses`, et pas une
+   autre : ni les cellules à récolter, ni les cinq cellules
+   électriques. Les deux fonctions ne peuvent pas être fusionnées —
+   celle-ci lit une partie en cours, l'autre une carte fraîchement
+   générée dans le noyau pur — mais la règle qu'elles appliquent doit
+   rester la même, sans quoi la jauge et le verrou parleraient de deux
+   îles différentes.
+
+   RECOMPTÉ AU PLUS QUATRE FOIS PAR SECONDE. Douze cents bâtiments
+   relus à chaque image pour une valeur qui bouge d'un millième, c'est
+   le genre de boucle qu'on ne remarque pas et qui coûte pourtant. Le
+   verrou se joue à un pour cent près : un quart de seconde de retard
+   ne se voit nulle part.
+
+   ET LE CACHE SE PURGE TOUT SEUL À LA PARTIE SUIVANTE : `jeu.tps`
+   repart de zéro, donc un horodatage postérieur au temps courant est
+   la preuve qu'il appartient à une autre partie.
+   ════════════════════════════════════════════════════════════════ */
+var partDetT = -1, partDetV = 0;
+function partDefensesDetruites(){
+  if(!jeu || !jeu.batiments) return 0;
+  var t = jeu.tps;
+  if(partDetT >= 0 && t >= partDetT && t - partDetT < 0.25) return partDetV;
+  var total = 0, morts = 0;
+  for(var i = 0; i < jeu.batiments.length; i++){
+    var b = jeu.batiments[i];
+    if(b.t === "cellule" || b.t === "reacteur") continue;
+    total++;
+    if(!b.vivant) morts++;
+  }
+  partDetT = t;
+  partDetV = total > 0 ? morts / total : 0;
+  return partDetV;
+}
+/* Le calibre effectif, ici et maintenant : les deux chiffres réunis.
+   Tout le jeu passe par là — l'explosion, l'annonce et la tuile du
+   menu — pour qu'il n'existe jamais deux façons de répondre à la
+   question « ma Nova est-elle une SUPER Nova ? ». */
+function calibreNovaCourant(){
+  return calibreNova(degatsMaCarte(), partDefensesDetruites());
+}
+
 /* ════════════════════════════════════════════════════════════════
    DEUX BARÈMES, DONC DEUX ANNONCES
 
@@ -5186,18 +5244,48 @@ function majPuissance(){
      toute seule (voir majTuileNova), mais on peut très bien être en
      train de regarder l'île et non le menu au moment où la marche se
      franchit. */
-  var rg = calibreNova(d).rang | 0;
-  if(rg !== (jeu.rangNova | 0)){
-    var monte = rg > (jeu.rangNova | 0);
+  var rg = calibreNovaCourant().rang | 0, av = jeu.rangNova | 0;
+  if(rg !== av){
     jeu.rangNova = rg;
-    if(monte && rg > 0 && typeof message === "function")
-      message(rg === RANG_SUPERNOVA
-        ? "Ta Nova devient une SUPER Nova."
+    /* ON ANNONCE L'OUVERTURE, PAS LA MARCHE, et le verrou de chantier
+       a rendu la distinction obligatoire. Tant que le calibre suivait
+       les seuls dégâts, il montait cran par cran et la première marche
+       tombait toujours en premier : « ta Nova devient une SUPER Nova »
+       arrivait forcément avant « elle passe à son plein calibre ».
+       Maintenant le verrou libère D'UN COUP tout le calibre déjà
+       mérité, et le saut de zéro au plein calibre est le cas ORDINAIRE
+       pour un joueur qui arrive avec ses six millions. Il s'entendait
+       alors dire que sa SUPER Nova montait en calibre sans en avoir
+       jamais eu une. C'est le rang de DÉPART qui choisit la phrase. */
+    if(rg > av && rg > 0 && typeof message === "function")
+      message(!av
+        ? "L'île est démontée : ta Nova devient une SUPER Nova"
+          + (rg > RANG_SUPERNOVA
+             ? ", " + nombre(CALIBRES_NOVA[rg].degats) + " au cœur." : ".")
         : rg === RANG_NOVA_MAX
         ? "Ta SUPER Nova passe à son plein calibre : "
           + nombre(CALIBRES_NOVA[rg].degats) + " au cœur."
         : "Ta SUPER Nova monte en calibre : "
           + nombre(CALIBRES_NOVA[rg].degats) + " au cœur.");
+  }
+  /* ET LE VERROU, QUI A SA PROPRE NOUVELLE À ANNONCER. Franchir deux
+     millions ne change plus rien de visible tant que l'île tient
+     debout : sans cette ligne, le joueur atteindrait son seuil et ne
+     verrait strictement rien se produire, ce qui se lit comme une
+     panne. On le dit donc une fois, au moment où c'est vrai — la
+     tuile du menu porte le compte à rebours ensuite. */
+  var me = rangNovaMerite(d) | 0, avM = jeu.novaMerite | 0;
+  if(me !== avM){
+    jeu.novaMerite = me;
+    /* UNE FOIS PAR BATAILLE, ET PAS UNE DE PLUS. La nouvelle est
+       toujours la même — « il faudra démonter l'île » — et le barème
+       compte six marches : la dire à chacune, c'est la répéter six
+       fois pour ne rien apprendre de neuf. Seul le passage de rien à
+       quelque chose est une nouvelle ; le compte à rebours, lui, vit
+       sur la tuile du menu, où on le regarde quand on veut. */
+    if(!avM && me > 0 && !rg && typeof message === "function")
+      message("SUPER Nova méritée — elle s'ouvrira à "
+            + Math.round(NOVA_SEUIL_DETRUIT * 100) + " % de l'île démontée.");
   }
 }
 

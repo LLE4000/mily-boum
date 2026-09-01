@@ -50,6 +50,7 @@ try{
     "meilleuresEpingles","EPINGLES_MAX","EPINGLE_TEXTE",
     "encodePlanComplet","planVide","pieceEstPosable","MARQUE_PIECES","MARQUE_FORMES",
     "litPlan","pvDefensesCarte","TYPES_PLAN","decodePlan","encodePlan","planJungle","empreinteCarte","QG_GX","QG_GY","PALIERS_PUISSANCE","palierPuissance","multPuissance","auraPuissance","RANG_SUPERNOVA","RANG_NOVA_MAX","NOVA_SOUFFLE_PART","calibreNova","CALIBRES_NOVA",
+    "NOVA_SEUIL_DETRUIT","rangNovaMerite",
     "SCORES_OCTETS","octetsUtf8","cleScore","totalParJoueur","totalParJoueurCarte","seauxHerites","reconstruitCarrieres","encodeTop3","decodeTop3","inscritTop3","top3DeCarte","classementDepuis","nettoieNomScore","nettoieSeau","nomsDesSeaux","seauHerite","MARQUE_SCORES",
     "genereCarte","empreinteCarte","utf8Octets","encodePlan","decodePlan","planVide",
     "figureGuinguette","dansAlleeGuinguette","compteDefenses","ouvreLaFete",
@@ -1367,7 +1368,15 @@ G("4. Déterminisme de la génération de carte");
        (Toute la table a glissé d'un million en v1.53 : « Roro avait un
        million cinq, la map était vide en deux minutes ». Les écarts et
        les dégâts n'ont pas bougé, seul le départ.)
-       ════════════════════════════════════════════════════════ */
+
+       CE GROUPE-CI NE JUGE QUE LE BARÈME, et il le dit en passant une
+       île entièrement démontée à chaque appel : depuis le verrou de
+       chantier, `calibreNova` prend un second argument et refuse la
+       SUPER Nova tant que l'île tient debout. Le verrou a son propre
+       groupe, plus bas ; ici on veut savoir ce que le joueur a MÉRITÉ,
+       et rien d'autre. */
+    function cal(d){ return N.calibreNova(d, 1); }
+    /* ════════════════════════════════════════════════════════ */
     ok("une seule Nova par vie, à tous les paliers", N.EQ.NOVA_PAR_VIE === 1);
     ok("la super Nova se débloque à DEUX millions de dégâts",
        N.CALIBRES_NOVA[N.RANG_SUPERNOVA].seuil === 2000000,
@@ -1388,14 +1397,14 @@ G("4. Déterminisme de la génération de carte");
       ok("les sept marches sont exactement celles demandées", (function(){
         if(N.CALIBRES_NOVA.length !== attendu.length) return false;
         for(var i = 0; i < attendu.length; i++){
-          var c = N.calibreNova(attendu[i][0]);
+          var c = cal(attendu[i][0]);
           if(c.degats !== attendu[i][1] || c.rang !== i) return false;
         }
         return true;
       })(), attendu.map(function(a){ return a[1]; }).join(" · "));
 
-      var ord = N.calibreNova(0), sup = N.calibreNova(2000000),
-          max = N.calibreNova(6000000);
+      var ord = cal(0), sup = cal(2000000),
+          max = cal(6000000);
       ok("avant deux millions : la Nova ordinaire, 130 + 45, rayon ×1",
          ord.rang === 0 && ord.degats === 130 && ord.souffle === 45 && ord.ech === 1,
          JSON.stringify(ord));
@@ -1408,22 +1417,22 @@ G("4. Déterminisme de la génération de carte");
       /* Le dernier dégât avant chaque marche doit rendre le calibre
          d'AVANT : c'est là que se logent les erreurs de borne. */
       ok("juste sous deux millions, la Nova reste ordinaire",
-         N.calibreNova(1999999).rang === 0);
+         cal(1999999).rang === 0);
       /* LE CAS DE RORO, ET C'EST LUI QUI A DÉCLENCHÉ LE LOT : à un
          million et demi il était au DEUXIÈME cran, dix mille de cœur.
          Il repasse à la Nova ordinaire — rien de son compteur n'a été
          touché, c'est le barème qui a monté. */
       ok("à un million et demi, on repasse à la Nova ordinaire",
-         N.calibreNova(1500000).rang === 0 && N.calibreNova(1500000).degats === 130,
-         "" + N.calibreNova(1500000).degats);
+         cal(1500000).rang === 0 && cal(1500000).degats === 130,
+         "" + cal(1500000).degats);
       ok("juste sous six millions, on n'a pas encore le plein calibre",
-         N.calibreNova(5999999).degats === 40000,
-         "" + N.calibreNova(5999999).degats);
+         cal(5999999).degats === 40000,
+         "" + cal(5999999).degats);
       ok("le calibre ne redescend jamais quand les dégâts montent",
          (function(){
-           var prec = N.calibreNova(0);
+           var prec = cal(0);
            for(var d = 0; d <= 7000000; d += 50000){
-             var c = N.calibreNova(d);
+             var c = cal(d);
              if(c.rang < prec.rang || c.degats < prec.degats
                 || c.souffle < prec.souffle) return false;
              prec = c;
@@ -1431,7 +1440,7 @@ G("4. Déterminisme de la génération de carte");
            return true;
          })());
       ok("un chiffre absurde ne rend jamais undefined", (function(){
-        var a = N.calibreNova(-3), b = N.calibreNova(1e12), c = N.calibreNova(NaN);
+        var a = cal(-3), b = cal(1e12), c = cal(NaN);
         return a.degats === 130 && c.degats === 130 && b.degats === 50000;
       })());
 
@@ -1478,10 +1487,10 @@ G("4. Déterminisme de la génération de carte");
        qui monte côté ennemi ne monte rien côté ami. */
     ok("le cœur allié reste à " + N.CAP.nova.degats + " sur " + N.CAP.nova.rayon + " cases",
        N.CAP.nova.degats < N.UNI.commando.pv
-       && N.CAP.nova.degats < N.calibreNova(5000000).degats / 100);
+       && N.CAP.nova.degats < cal(5000000).degats / 100);
     ok("le souffle allié reste à " + N.CAP.nova.degatsSouffle,
        N.CAP.nova.degatsSouffle < N.UNI.furie.pv
-       && N.CAP.nova.degatsSouffle < N.calibreNova(5000000).souffle / 100);
+       && N.CAP.nova.degatsSouffle < cal(5000000).souffle / 100);
 
     /* TROIS ÉTATS VISUELS POUR ONZE PALIERS. */
     ok("l'aura est muette au palier zéro", N.auraPuissance(0) === 0);
@@ -12379,6 +12388,228 @@ G("40. La barre d'action, et ce qu'Abandonner ne touche pas");
      && /barreVie\(c, p\.x, p\.y - \(u\.t === "tank" \? 60 : 36\) \* z, \(u\.t === "tank" \? 28 : 20\) \* z, fr\);/.test(html));
   ok("… et elle garde ses couleurs, c'est elle l'information",
      !/barreVie\(c, p\.x, p\.y - \(o\.type === "tank"[\s\S]{0,120}, "#/.test(ug));
+})();
+
+/* ================================================================
+   62. LE VERROU DE CHANTIER DE LA SUPER NOVA
+
+   « Là par exemple, il est déjà deux millions. On est qu'au début de
+     la map, s'il a la Supernova qui fait cinq mille de dégâts, il va
+     tout démolir en deux secondes. Il faudrait qu'à partir de nonante
+     cinq pour cent la Supernova soit accessible. »
+
+   LE DÉFAUT MESURÉ, ET IL FAUT LE NOMMER : les dégâts sont un cumul de
+   CARRIÈRE, ils voyagent d'une île à l'autre. Le seuil de deux
+   millions prétendait dire « l'île est bien entamée » et disait en
+   réalité « ce joueur a déjà joué ailleurs ». Sur une île neuve, les
+   deux phrases sont contraires.
+
+   CE GROUPE GARDE TROIS CHOSES :
+     ① le barème et le verrou se CUMULENT — aucun des deux ne suffit ;
+     ② le verrou est FERMÉ PAR DÉFAUT, donc un appel qui oublierait la
+       part retombe sur la Nova ordinaire, jamais sur la SUPER ;
+     ③ ce que le joueur a mérité n'est jamais effacé : dès que l'île
+       tombe, il retrouve exactement le calibre de son barème.
+   ================================================================ */
+(function(){
+  G("62. Le verrou de chantier de la SUPER Nova");
+
+  /* ---- ① le seuil lui-même ---- */
+  ok("le verrou est à quatre-vingt-quinze pour cent",
+     N.NOVA_SEUIL_DETRUIT === 0.95, "" + N.NOVA_SEUIL_DETRUIT);
+  ok("… c'est une PART, pas un pourcentage entier",
+     N.NOVA_SEUIL_DETRUIT > 0 && N.NOVA_SEUIL_DETRUIT <= 1);
+
+  /* ---- ② les deux conditions se cumulent ---- */
+  /* Le cas qu'il décrit : deux millions en poche, île intacte. */
+  ok("deux millions sur une île intacte : Nova ORDINAIRE",
+     N.calibreNova(2000000, 0).rang === 0
+     && N.calibreNova(2000000, 0).degats === N.CAP.nova.degats,
+     "" + N.calibreNova(2000000, 0).degats);
+  /* Et le cas symétrique, celui qu'il ne faut pas casser en le
+     corrigeant : une île démontée ne donne pas la SUPER Nova à qui
+     n'a pas le barème. */
+  ok("une île démontée sans le barème : Nova ORDINAIRE aussi",
+     N.calibreNova(0, 1).rang === 0 && N.calibreNova(1999999, 1).rang === 0);
+  ok("les deux réunis, et seulement les deux : SUPER Nova",
+     N.calibreNova(2000000, 1).rang === N.RANG_SUPERNOVA
+     && N.calibreNova(2000000, 1).degats === 5000);
+
+  /* Le plein calibre obéit au même verrou : il n'y a pas de porte
+     dérobée en haut du barème. */
+  ok("le plein calibre n'échappe pas au verrou",
+     N.calibreNova(9000000, 0).rang === 0
+     && N.calibreNova(9000000, 1).rang === N.RANG_NOVA_MAX);
+
+  /* ---- ③ la borne exacte ---- */
+  ok("juste sous le seuil, le verrou tient",
+     N.calibreNova(6000000, 0.9499).rang === 0);
+  ok("pile au seuil, il s'ouvre",
+     N.calibreNova(6000000, 0.95).rang === N.RANG_NOVA_MAX);
+  /* Une part au-dessus de 1 ne doit pas retomber en marche arrière :
+     c'est le genre d'arrondi qui arrive quand un compteur dépasse. */
+  ok("une part aberrante ne referme jamais le verrou",
+     N.calibreNova(6000000, 1.4).rang === N.RANG_NOVA_MAX);
+
+  /* ---- ④ FERMÉ PAR DÉFAUT ---- */
+  /* C'est la garantie qui compte le plus : elle dit que la seule
+     erreur possible au branchement coûte un tir moins fort. */
+  ok("sans part du tout, le verrou reste fermé",
+     N.calibreNova(6000000).rang === 0);
+  ok("… et une part illisible aussi",
+     N.calibreNova(6000000, NaN).rang === 0
+     && N.calibreNova(6000000, null).rang === 0
+     && N.calibreNova(6000000, "0.99").rang === 0
+     && N.calibreNova(6000000, -1).rang === 0);
+
+  /* ---- ⑤ rien n'est effacé ---- */
+  /* `rangNovaMerite` est le barème NU : il ne connaît pas le verrou,
+     et c'est lui qui permet de dire au joueur ce qui l'attend. */
+  ok("le mérite ignore l'état de l'île",
+     N.rangNovaMerite(2000000) === N.RANG_SUPERNOVA
+     && N.rangNovaMerite(9000000) === N.RANG_NOVA_MAX
+     && N.rangNovaMerite(0) === 0);
+  ok("… et il rend exactement le rang du barème, marche par marche",
+     (function(){
+       for(var i = 0; i < N.CALIBRES_NOVA.length; i++)
+         if(N.rangNovaMerite(N.CALIBRES_NOVA[i].seuil) !== i) return false;
+       return true;
+     })());
+  ok("l'île démontée rend au joueur TOUT son mérite, sans perte",
+     (function(){
+       for(var d = 0; d <= 8000000; d += 100000)
+         if(N.calibreNova(d, 1).rang !== N.rangNovaMerite(d)) return false;
+       return true;
+     })());
+  /* Et le verrou, à lui seul, n'accorde jamais plus que le mérite :
+     il OUVRE une porte, il n'en fabrique pas une. */
+  ok("le verrou n'accorde jamais plus que le barème",
+     (function(){
+       for(var d = 0; d <= 8000000; d += 250000)
+         for(var p = 0; p <= 1.001; p += 0.05)
+           if(N.calibreNova(d, p).rang > N.rangNovaMerite(d)) return false;
+       return true;
+     })());
+
+  /* ---- ⑥ ce que le jeu en fait ---- */
+  /* Tout le jeu doit passer par le MÊME calcul : deux façons de
+     répondre à « ma Nova est-elle une SUPER Nova ? », c'est
+     l'assurance qu'un jour elles ne diront plus la même chose. */
+  ok("un seul point de vérité : calibreNovaCourant",
+     /function calibreNovaCourant\(\)\{\s*\n\s*return calibreNova\(degatsMaCarte\(\), partDefensesDetruites\(\)\);/
+       .test(html));
+  ok("l'explosion l'emploie", /var cal = calibreNovaCourant\(\);/.test(html));
+  ok("l'annonce l'emploie", /var rg = calibreNovaCourant\(\)\.rang \| 0,/.test(html));
+  ok("la tuile du menu l'emploie",
+     /\(typeof calibreNovaCourant === "function"\)\s*\n\s*\? \(calibreNovaCourant\(\)\.rang \| 0\) : 0;/.test(html));
+  /* PLUS AUCUN APPEL NU dans le jeu livré : chaque calibreNova( doit
+     porter sa part, sinon le verrou serait ouvert quelque part. La
+     seule exception est la déclaration elle-même.
+
+     ON COMPTE LES PARENTHÈSES au lieu de faire confiance à une
+     expression régulière : l'appel légitime est
+     `calibreNova(degatsMaCarte(), partDefensesDetruites())`, et un
+     `[^)]*` s'arrête à la première parenthèse fermante — donc AVANT la
+     virgule. La première écriture de ce test dénonçait le seul appel
+     correct du fichier. Les mentions en commentaire, elles, s'écrivent
+     `calibreNova()` sans argument : une parenthèse vide n'est jamais un
+     appel réel, puisque les dégâts sont obligatoires. */
+  var nusNova = (function(){
+    var cle = "calibreNova(", nus = [], i = 0;
+    while((i = html.indexOf(cle, i)) >= 0){
+      var j = i + cle.length, prof = 1, arg = "";
+      while(j < html.length && prof > 0){
+        var ch = html.charAt(j);
+        if(ch === "(") prof++;
+        else if(ch === ")") prof--;
+        if(prof > 0) arg += ch;
+        j++;
+      }
+      i = j;
+      if(arg === "") continue;                                 // mention en commentaire
+      if(arg.indexOf("degatsCarte, partDetruite") === 0) continue;   // la déclaration
+      if(arg.indexOf(",") < 0) nus.push(arg);
+    }
+    return nus;
+  })();
+  ok("aucun appel de calibreNova ne se passe de sa part",
+     nusNova.length === 0, nusNova.join(" | "));
+
+  /* ---- ⑦ la mesure de l'île ---- */
+  /* MÊME DÉFINITION DU MOT « DÉFENSE » QUE compteDefenses, et c'est la
+     règle la plus facile à laisser diverger : deux fonctions, deux
+     fichiers, un seul sens. */
+  var pdd = (function(){
+    var d = html.indexOf("function partDefensesDetruites()");
+    var f = html.indexOf("\n}", d);
+    return (d < 0 || f < 0) ? "" : html.slice(d, f + 2);
+  })();
+  ok("la part se mesure sur les défenses, cellules exclues",
+     /if\(b\.t === "cellule" \|\| b\.t === "reacteur"\) continue;/.test(pdd));
+  ok("… exactement comme compteDefenses le fait dans le noyau",
+     /function compteDefenses\(c\)\{[\s\S]{0,240}?t !== "cellule" && t !== "reacteur"/.test(html));
+  ok("elle compte les MORTS sur le total, et se garde d'une île vide",
+     /if\(!b\.vivant\) morts\+\+;/.test(pdd)
+     && /partDetV = total > 0 \? morts \/ total : 0;/.test(pdd));
+  ok("elle ne relit pas douze cents bâtiments à chaque image",
+     /t - partDetT < 0\.25/.test(pdd));
+  ok("… et son cache ne survit pas à la partie suivante",
+     /t >= partDetT/.test(pdd));
+  ok("hors partie, elle rend zéro plutôt que d'exploser",
+     /if\(!jeu \|\| !jeu\.batiments\) return 0;/.test(pdd));
+
+  /* ---- ⑧ ce que le joueur voit ---- */
+  /* Franchir deux millions ne produit plus rien de visible : sans une
+     annonce, ça se lit comme une panne. */
+  ok("le mérite a sa propre annonce, distincte du calibre",
+     /SUPER Nova méritée — elle s'ouvrira à "\s*\n\s*\+ Math\.round\(NOVA_SEUIL_DETRUIT \* 100\) \+ " % de l'île démontée\."/
+       .test(html));
+  ok("… et elle ne parle qu'à ceux qui n'ont pas encore le verrou ouvert",
+     /if\(!avM && me > 0 && !rg && typeof message === "function"\)/.test(html));
+  /* SIX MARCHES AU BARÈME, une seule nouvelle : « il faudra démonter
+     l'île » ne s'apprend qu'une fois. C'est `!avM` — le passage de
+     rien à quelque chose — et non `monteM` qui le garantit. */
+  ok("… une seule fois par bataille, et non à chacune des six marches",
+     /var me = rangNovaMerite\(d\) \| 0, avM = jeu\.novaMerite \| 0;/.test(html));
+  ok("l'ouverture, elle, dit ce qui l'a causée",
+     /"L'île est démontée : ta Nova devient une SUPER Nova"/.test(html));
+  /* LE SAUT DE ZÉRO AU PLEIN CALIBRE est le cas ordinaire depuis le
+     verrou : un joueur qui débarque avec ses six millions n'a jamais
+     eu de SUPER Nova, et « elle passe à son plein calibre » ne
+     voudrait rien dire pour lui. C'est le rang de DÉPART qui choisit
+     la phrase, pas le rang d'arrivée. */
+  ok("… et c'est le rang de DÉPART qui choisit la phrase",
+     /var rg = calibreNovaCourant\(\)\.rang \| 0, av = jeu\.rangNova \| 0;/.test(html)
+     && /message\(!av\s*\n\s*\? "L'île est démontée/.test(html));
+  ok("… le calibre est dit dans la foulée quand le saut dépasse la première marche",
+     /\(rg > RANG_SUPERNOVA\s*\n\s*\? ", " \+ nombre\(CALIBRES_NOVA\[rg\]\.degats\) \+ " au cœur\." : "\."\)/
+       .test(html));
+  /* La tuile porte le compte à rebours, parce qu'une infobulle ne se
+     survole pas au doigt. */
+  ok("la tuile écrit le pourcentage à la place du nom",
+     /: pct >= 0 \? "SUPER " \+ pct \+ "\u00a0%"/.test(html));
+  /* L’ESPACE EST INSÉCABLE, et le test l’exige explicitement :
+     avec une espace ordinaire, « SUPER 67 % » se coupe devant le
+     signe et la tuile pousse à deux étages, plus haute que ses sept
+     voisines. Le nowrap du style ferme la question, celui-ci garde
+     le caractère lui-même — les deux se relisent mal à l’œil. */
+  ok("… et seulement pour qui a le barème",
+     /if\(!r && typeof rangNovaMerite === "function" && rangNovaMerite\(d\) > 0\)/.test(html));
+  ok("le canevas n'est repeint que si le RANG change, pas le pourcentage",
+     /if\(cv && changeRang\) dessineIcone\("nova"/.test(html));
+  ok("la tuile en attente a son propre cadre, sans le battement de l'ouverte",
+     /\.cap\.attente\{[\s\S]{0,200}?border-style:dashed/.test(html)
+     && !/\.cap\.attente\{[\s\S]{0,200}?animation:/.test(html));
+  /* MESURÉ : « SUPER 87 % » fait 65 px dans une tuile de 66, et 54 dans
+     une tuile de 54 sur téléphone — il touchait les deux bords. Une
+     seule proportion, prise sur la taille du nom, vaut mieux que quatre
+     tailles recopiées dans les quatre paliers d'écran. */
+  ok("… et son nom tient dans la tuile aux quatre tailles d'écran",
+     /\.cap\.attente \.nm\{\s*\n?\s*font-size:calc\(var\(--nm\) \* \.84\)/.test(html));
+  ok("… la taille du nom vit dans une variable, une fois par palier",
+     /\.cap \.nm\{--nm:9\.5px;font-size:var\(--nm\)/.test(html)
+     && (html.match(/\.cap \.nm\{--nm:/g) || []).length === 4,
+     (html.match(/\.cap \.nm\{--nm:/g) || []).length + " paliers");
 })();
 
 /* ---------------- bilan ---------------- */

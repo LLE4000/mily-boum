@@ -1772,7 +1772,7 @@ select.champ{cursor:pointer}
 }
 .cap:active{transform:scale(.95)}
 .cap canvas{width:30px;height:30px;display:block}
-.cap .nm{font-size:9.5px;letter-spacing:.2px;color:#d8cce2;text-align:center;line-height:1}
+.cap .nm{--nm:9.5px;font-size:var(--nm);letter-spacing:.2px;color:#d8cce2;text-align:center;line-height:1}
 .cap .cx{
   position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:11px;
   background:linear-gradient(180deg,#ffa63a,#e05c1c);color:#2a1004;font-weight:800;font-size:11px;line-height:20px;font-family:inherit;
@@ -1795,6 +1795,31 @@ select.champ{cursor:pointer}
   50%    {box-shadow:0 0 0 2px rgba(255,224,150,.85),0 0 22px rgba(255,190,70,.55)}
 }
 @media (prefers-reduced-motion:reduce){ .cap.super{animation:none} }
+/* LA SUPER NOVA MÉRITÉE MAIS PAS ENCORE OUVERTE. Elle emprunte l'or
+   de la tuile ouverte, en sourdine et SANS LE BATTEMENT : la lueur qui
+   attire l'œil doit rester le signal que l'arme est prête, sinon les
+   deux états se confondent de loin. Un cadre en pointillés dit
+   l'attente mieux qu'une couleur de plus. */
+.cap.attente{
+  border-style:dashed;border-color:rgba(255,208,112,.42);
+  background:linear-gradient(180deg,rgba(70,52,20,.42),rgba(38,26,12,.5));
+}
+/* SUR UNE SEULE LIGNE, et il a fallu le dire : « SUPER 67 % » se
+   coupait devant le signe et le nom passait à deux étages, écrasé
+   contre l'icône. Le texte porte une espace insécable, le nowrap ferme
+   la question pour de bon.
+
+   ET IL FAUT LE RÉTRÉCIR, mesuré à la vraie taille : « SUPER 87 % »
+   fait 65 pixels dans une tuile de 66, et 54 dans une tuile de 54 sur
+   téléphone — il touchait les deux bords. Le nom des tuiles porte donc
+   sa taille dans `--nm`, qui suit les quatre paliers d'écran, et
+   celui-ci en prend les cinq sixièmes : une seule proportion à tenir
+   au lieu de quatre tailles à recopier. */
+.cap.attente .nm{
+  font-size:calc(var(--nm) * .84);
+  color:#c6a659;font-weight:700;letter-spacing:0;white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
 .cap.pauvre{opacity:.42}
 .cap.pauvre .cx{background:#5a4a63;color:#cbbdd4}
 
@@ -1921,7 +1946,7 @@ select.champ{cursor:pointer}
   #energieV{font-size:15px}
   .cap{width:54px;height:50px}
   .cap canvas{width:26px;height:26px}
-  .cap .nm{font-size:8px}
+  .cap .nm{--nm:8px}
   #hc{width:min(300px,46vw);padding:4px 8px 6px}
   /* 104 × 93 et non 104 × 92 : le canevas fait 264 × 236, et une boîte
      qui ne respecte pas ce rapport écrase la minicarte en la réduisant. */
@@ -1953,7 +1978,7 @@ select.champ{cursor:pointer}
   #caps{grid-template-columns:repeat(4,1fr);gap:4px}
   .cap{width:52px;height:50px}
   .cap canvas{width:25px;height:25px}
-  .cap .nm{font-size:7.6px}
+  .cap .nm{--nm:7.6px}
   #podium{min-width:118px;font-size:11px}
   /* DEUX FOIS QUATRE À PARTIR D'ICI. Une ligne de huit tiendrait
      encore la largeur, mais elle mangerait la moitié d'un écran de
@@ -1967,7 +1992,7 @@ select.champ{cursor:pointer}
   #hc{right:calc(8px + var(--sar))}
   .cap{width:46px;height:46px}
   .cap canvas{width:22px;height:22px}
-  .cap .nm{font-size:7px}
+  .cap .nm{--nm:7px}
   .bg1{font-size:10px}
   /* Sur un téléphone étroit, « Abandonner » et l'ovale d'énergie ne
      tiennent plus côte à côte au-dessus de quatre capacités : la barre
